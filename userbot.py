@@ -9,7 +9,7 @@ import aiohttp
 import json
 from telethon import TelegramClient, events
 
-VERSION = '0.1.1'
+VERSION = '0.1.2'
 RESTART_FILE = 'restart.tmp'
 MODULES_DIR = 'modules'
 IMG_DIR = 'img'
@@ -174,7 +174,8 @@ async def handler(event):
             async with aiohttp.ClientSession() as session:
                 async with session.get(f'{MODULES_REPO}/catalog.json') as resp:
                     if resp.status == 200:
-                        catalog = await resp.json()
+                        text_data = await resp.text()
+                        catalog = json.loads(text_data)
                         
                         msg = '📚 **Каталог модулей:**\n\n'
                         for module_name, info in catalog.items():

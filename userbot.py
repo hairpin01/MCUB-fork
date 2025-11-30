@@ -8,9 +8,22 @@ import psutil
 import aiohttp
 import json
 import subprocess
-from telethon import TelegramClient, events
+from telethon import TelegramClient, events, Button
 
-VERSION = '0.1.5'
+class Colors:
+    RESET = '\033[0m'
+    RED = '\033[91m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    BLUE = '\033[94m'
+    PURPLE = '\033[95m'
+    CYAN = '\033[96m'
+
+def cprint(text, color=''):
+    print(f'{color}{text}{Colors.RESET}')
+
+VERSION = '0.2.0'
+DB_VERSION = 1
 RESTART_FILE = 'restart.tmp'
 MODULES_DIR = 'modules'
 IMG_DIR = 'img'
@@ -42,6 +55,52 @@ aliases = config.get('aliases', {})
 HEALTHCHECK_INTERVAL = config.get('healthcheck_interval', 30)
 DEVELOPER_CHAT_ID = config.get('developer_chat_id', None)
 DANGEROUS_COMMANDS = ['update', 'stop', 'um', 'rollback']
+LANGUAGE = config.get('language', 'ru')
+THEME = config.get('theme', 'default')
+
+LANGS = {
+    'ru': {
+        'ping': 'Pong!',
+        'restart': 'Перезагрузка...',
+        'update_check': '🔄 Проверка обновлений...',
+        'module_installed': '✅ Модуль {} установлен',
+        'error': '❌ Ошибка: {}'
+    },
+    'en': {
+        'ping': 'Pong!',
+        'restart': 'Restarting...',
+        'update_check': '🔄 Checking updates...',
+        'module_installed': '✅ Module {} installed',
+        'error': '❌ Error: {}'
+    }
+}
+
+THEMES = {
+    'default': {'success': '✅', 'error': '❌', 'info': 'ℹ️', 'warning': '⚠️'},
+    'minimal': {'success': '✓', 'error': '✗', 'info': 'i', 'warning': '!'},
+    'emoji': {'success': '🎉', 'error': '💥', 'info': '💡', 'warning': '⚡'}
+}
+
+def t(key):
+    return LANGS.get(LANGUAGE, LANGS['ru']).get(key, key)
+
+def theme(key):
+    return THEMES.get(THEME, THEMES['default']).get(key, '')
+
+def progress_bar(current, total, width=10):
+    percent = current / total
+    filled = int(width * percent)
+    bar = '█' * filled + '░' * (width - filled)
+    return f'[{bar}] {int(percent * 100)}%'
+
+async def migrate_data():
+    db_version = config.get('db_version', 0)
+    if db_version < DB_VERSION:
+        cprint(f'🔄 Миграция данных с версии {db_version} до {DB_VERSION}...', Colors.YELLOW)
+        config['db_version'] = DB_VERSION
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+        cprint('✅ Миграция завершена', Colors.GREEN)
 
 try:
     API_ID = int(config['api_id'])
@@ -61,8 +120,8 @@ if API_ID == 0 or 'YOUR' in API_HASH or 'YOUR' in PHONE:
 import socks
 proxy = config.get('proxy')
 
-print(f'🔑 API_ID: {API_ID}')
-print(f'📞 Phone: {PHONE}')
+cprint(f'🔑 API_ID: {API_ID}', Colors.CYAN)
+cprint(f'📞 Phone: {PHONE}', Colors.CYAN)
 
 client = TelegramClient('user_session', API_ID, API_HASH, proxy=proxy)
 
@@ -281,7 +340,7 @@ async def handler(event):
     
     elif text.startswith(f'{command_prefix}dlm '):
         module_name = text[len(command_prefix)+4:].strip()
-        await event.edit(f'📥 Загрузка {module_name}...')
+        msg = await event.edit(f'📥 Загрузка {module_name}...')
         
         try:
             async with aiohttp.ClientSession() as session:
@@ -293,9 +352,18 @@ async def handler(event):
                         code = await resp.text()
                         file_path = os.path.join(MODULES_DIR, f'{module_name}.py')
                         
+                        await msg.edit(f'📥 {progress_bar(1, 3)} Сохранение...')
                         with open(file_path, 'w', encoding='utf-8') as f:
                             f.write(code)
                         
+                        await msg.edit(f'📦 {progress_bar(2, 3)} Установка зависимостей...')
+                        if 'requires' in code:
+                            reqs = re.findall(r'# requires: (.+)', code)
+                            if reqs:
+                                for req in reqs[0].split(','):
+                                    subprocess.run([sys.executable, '-m', 'pip', 'install', req.strip()], capture_output=True)
+                        
+                        await msg.edit(f'⚙️ {progress_bar(3, 3)} Загрузка модуля...')
                         spec = importlib.util.spec_from_file_location(module_name, file_path)
                         module = importlib.util.module_from_spec(spec)
                         sys.modules[module_name] = module
@@ -304,7 +372,7 @@ async def handler(event):
                         if hasattr(module, 'register'):
                             module.register(client)
                             loaded_modules[module_name] = module
-                            await event.edit(f'✅ Модуль {module_name} установлен')
+                            await msg.edit(f'{theme("success")} {t("module_installed").format(module_name)}')
                         else:
                             await event.edit(f'❌ Модуль не имеет register(client)')
                             os.remove(file_path)
@@ -429,6 +497,38 @@ async def handler(event):
         
         await event.edit(f'✅ Алиас создан: `{command_prefix}{alias}` → `{command_prefix}{command}`')
     
+    elif text == f'{command_prefix}menu':
+        buttons = [
+            [Button.inline('📊 Инфо', b'info'), Button.inline('📦 Модули', b'modules')],
+            [Button.inline('⚙️ Настройки', b'settings'), Button.inline('📝 Логи', b'logs')],
+            [Button.inline('🔄 Обновить', b'update'), Button.inline('🔄 Перезагрузка', b'restart')]
+        ]
+        await event.edit('🤖 **Mitrich UserBot - Меню**', buttons=buttons)
+    
+    elif text.startswith(f'{command_prefix}lang '):
+        new_lang = text[len(command_prefix)+5:].strip()
+        if new_lang in LANGS:
+            global LANGUAGE
+            LANGUAGE = new_lang
+            config['language'] = new_lang
+            with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+            await event.edit(f'✅ Language changed to: {new_lang}')
+        else:
+            await event.edit(f'❌ Available: {", ".join(LANGS.keys())}')
+    
+    elif text.startswith(f'{command_prefix}theme '):
+        new_theme = text[len(command_prefix)+6:].strip()
+        if new_theme in THEMES:
+            global THEME
+            THEME = new_theme
+            config['theme'] = new_theme
+            with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+            await event.edit(f'{theme("success")} Тема изменена на: {new_theme}')
+        else:
+            await event.edit(f'❌ Доступны: {", ".join(THEMES.keys())}')
+    
     elif text.startswith(f'{command_prefix}logs'):
         args = text[len(command_prefix)+5:].strip()
         target_chat = int(args) if args else event.chat_id
@@ -510,11 +610,13 @@ async def handler(event):
 
 async def main():
     try:
+        await migrate_data()
+        
         await client.start(phone=PHONE)
-        print('✅ MCUB запущен')
+        cprint('✅ MCUB запущен', Colors.GREEN)
         
         asyncio.create_task(healthcheck())
-        print(f'💚 Healthcheck запущен (каждые {HEALTHCHECK_INTERVAL} мин)')
+        cprint(f'💚 Healthcheck запущен (каждые {HEALTHCHECK_INTERVAL} мин)', Colors.GREEN)
     except Exception as e:
         print(f'❌ Ошибка авторизации: {e}')
         print('Проверьте API_ID, API_HASH и PHONE в config.json')
@@ -534,7 +636,7 @@ async def main():
                         code = f.read()
                     
                     if 'from .. import' in code or 'import loader' in code:
-                        print(f'Пропущен несовместимый модуль: {file_name}')
+                        cprint(f'Пропущен несовместимый модуль: {file_name}', Colors.YELLOW)
                         continue
                     
                     spec = importlib.util.spec_from_file_location(file_name[:-3], file_path)
@@ -544,11 +646,11 @@ async def main():
                     if hasattr(module, 'register'):
                         module.register(client)
                         loaded_modules[file_name[:-3]] = module
-                        print(f'Загружен модуль: {file_name}')
+                        cprint(f'Загружен модуль: {file_name}', Colors.GREEN)
                     else:
-                        print(f'Модуль {file_name} не имеет register(client)')
+                        cprint(f'Модуль {file_name} не имеет register(client)', Colors.YELLOW)
                 except Exception as e:
-                    print(f'Ошибка загрузки {file_name}: {e}')
+                    cprint(f'Ошибка загрузки {file_name}: {e}', Colors.RED)
     
     if os.path.exists(RESTART_FILE):
         with open(RESTART_FILE, 'r') as f:

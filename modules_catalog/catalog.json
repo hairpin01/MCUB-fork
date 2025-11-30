@@ -1,0 +1,8 @@
+{
+  "example": {
+    "description": "Простой пример модуля с играми",
+    "commands": [".dice", ".flip"],
+    "author": "Mitrich",
+    "version": "1.0.0"
+  }
+}

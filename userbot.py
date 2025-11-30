@@ -9,7 +9,7 @@ import aiohttp
 import json
 from telethon import TelegramClient, events
 
-VERSION = '0.1.0'
+VERSION = '0.1.1'
 RESTART_FILE = 'restart.tmp'
 MODULES_DIR = 'modules'
 IMG_DIR = 'img'
@@ -123,6 +123,7 @@ async def handler(event):
 **Модули:**
 .im - установить модуль (ответ на .py файл)
 .dlm [название] - скачать модуль из каталога
+.dlml - каталог доступных модулей
 .lm - список модулей
 .um [название] - удалить модуль'''
         await event.edit(help_text)
@@ -165,6 +166,30 @@ async def handler(event):
     elif text == '.stop':
         await event.edit('⛔ Остановка юзербота...')
         await client.disconnect()
+    
+    elif text == '.dlml':
+        await event.edit('📚 Загрузка каталога...')
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f'{MODULES_REPO}/catalog.json') as resp:
+                    if resp.status == 200:
+                        catalog = await resp.json()
+                        
+                        msg = '📚 **Каталог модулей:**\n\n'
+                        for module_name, info in catalog.items():
+                            msg += f'• **{module_name}**\n'
+                            msg += f'  {info.get("description", "Описание отсутствует")}\n'
+                            if 'commands' in info:
+                                msg += f'  Команды: {", ".join(info["commands"])}\n'
+                            msg += '\n'
+                        
+                        msg += 'Используйте: `.dlm название`'
+                        await event.edit(msg)
+                    else:
+                        await event.edit('❌ Каталог не найден')
+        except Exception as e:
+            await event.edit(f'❌ Ошибка: {str(e)}')
     
     elif text.startswith('.dlm '):
         module_name = text.split(maxsplit=1)[1]

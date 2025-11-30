@@ -9,15 +9,18 @@ import aiohttp
 import json
 from telethon import TelegramClient, events
 
-VERSION = '0.1.2'
+VERSION = '0.1.3'
 RESTART_FILE = 'restart.tmp'
 MODULES_DIR = 'modules'
 IMG_DIR = 'img'
+LOGS_DIR = 'logs'
 CONFIG_FILE = 'config.json'
 MODULES_REPO = 'https://raw.githubusercontent.com/Mitrichdfklwhcluio/MCUBFB/main/modules_catalog'
 UPDATE_REPO = 'https://raw.githubusercontent.com/Mitrichdfklwhcluio/MCUBFB/main/'
 loaded_modules = {}
 start_time = time.time()
+command_prefix = '.'
+aliases = {}
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -28,6 +31,9 @@ if not os.path.exists(CONFIG_FILE):
 
 with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
     config = json.load(f)
+
+command_prefix = config.get('command_prefix', '.')
+aliases = config.get('aliases', {})
 
 try:
     API_ID = int(config['api_id'])
@@ -52,17 +58,36 @@ print(f'📞 Phone: {PHONE}')
 
 client = TelegramClient('user_session', API_ID, API_HASH, proxy=proxy)
 
-@client.on(events.NewMessage(outgoing=True, pattern=r'^\.'))
+if not os.path.exists(LOGS_DIR):
+    os.makedirs(LOGS_DIR)
+
+def log_command(command, chat_id, user_id, success=True):
+    timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+    log_file = os.path.join(LOGS_DIR, f'{time.strftime("%Y-%m-%d")}.log')
+    status = 'SUCCESS' if success else 'ERROR'
+    with open(log_file, 'a', encoding='utf-8') as f:
+        f.write(f'[{timestamp}] [{status}] Chat: {chat_id} | User: {user_id} | Command: {command}\n')
+
+@client.on(events.NewMessage(outgoing=True))
 async def handler(event):
     text = event.text
     
-    if text == '.ping':
+    if not text.startswith(command_prefix):
+        return
+    
+    cmd = text[len(command_prefix):].split()[0] if ' ' in text else text[len(command_prefix):]
+    if cmd in aliases:
+        text = command_prefix + aliases[cmd] + text[len(command_prefix) + len(cmd):]
+    
+    log_command(text, event.chat_id, event.sender_id)
+    
+    if text == f'{command_prefix}ping':
         start = time.time()
         msg = await event.edit('Pong!')
         end = time.time()
         await msg.edit(f'Pong! {round((end - start) * 1000)}ms')
     
-    elif text == '.info':
+    elif text == f'{command_prefix}info':
         await event.delete()
         
         me = await client.get_me()
@@ -109,32 +134,37 @@ async def handler(event):
         else:
             await client.send_message(event.chat_id, caption)
     
-    elif text == '.help':
-        help_text = '''📚 **Mitrich UserBot - Команды**
+    elif text == f'{command_prefix}help':
+        help_text = f'''📚 **Mitrich UserBot - Команды**
 
 **Основные:**
-.ping - проверка задержки
-.info - информация о юзерботе
-.help - список команд
-.update - обновление с GitHub
-.restart - перезагрузка
-.stop - остановка юзербота
+{command_prefix}ping - проверка задержки
+{command_prefix}info - информация о юзерботе
+{command_prefix}help - список команд
+{command_prefix}update - обновление с GitHub
+{command_prefix}restart - перезагрузка
+{command_prefix}stop - остановка юзербота
 
 **Модули:**
-.im - установить модуль (ответ на .py файл)
-.dlm [название] - скачать модуль из каталога
-.dlml - каталог доступных модулей
-.lm - список модулей
-.um [название] - удалить модуль'''
+{command_prefix}im - установить модуль (ответ на .py файл)
+{command_prefix}dlm [название] - скачать модуль из каталога
+{command_prefix}dlml - каталог доступных модулей
+{command_prefix}lm - список модулей
+{command_prefix}um [название] - удалить модуль
+
+**Настройки:**
+{command_prefix}prefix [символ] - изменить префикс команд
+{command_prefix}alias [команда] = [алиас] - создать алиас
+{command_prefix}logs [chat_id] - отправить логи в чат'''
         await event.edit(help_text)
     
-    elif text == '.restart':
+    elif text == f'{command_prefix}restart':
         await event.edit('Перезагрузка...')
         with open(RESTART_FILE, 'w') as f:
             f.write(f'{event.chat_id},{event.id},{time.time()}')
         os.execl(sys.executable, sys.executable, *sys.argv)
     
-    elif text == '.update':
+    elif text == f'{command_prefix}update':
         await event.edit('🔄 Проверка обновлений...')
         
         try:
@@ -163,11 +193,11 @@ async def handler(event):
         except Exception as e:
             await event.edit(f'❌ Ошибка: {str(e)}')
     
-    elif text == '.stop':
+    elif text == f'{command_prefix}stop':
         await event.edit('⛔ Остановка юзербота...')
         await client.disconnect()
     
-    elif text == '.dlml':
+    elif text == f'{command_prefix}dlml':
         await event.edit('📚 Загрузка каталога...')
         
         try:
@@ -192,8 +222,8 @@ async def handler(event):
         except Exception as e:
             await event.edit(f'❌ Ошибка: {str(e)}')
     
-    elif text.startswith('.dlm '):
-        module_name = text.split(maxsplit=1)[1]
+    elif text.startswith(f'{command_prefix}dlm '):
+        module_name = text[len(command_prefix)+4:].strip()
         await event.edit(f'📥 Загрузка {module_name}...')
         
         try:
@@ -226,7 +256,7 @@ async def handler(event):
         except Exception as e:
             await event.edit(f'❌ Ошибка: {str(e)}')
     
-    elif text == '.im':
+    elif text == f'{command_prefix}im':
         if not event.is_reply:
             await event.edit('❌ Ответьте на .py файл')
             return
@@ -272,7 +302,7 @@ async def handler(event):
             if os.path.exists(file_path):
                 os.remove(file_path)
     
-    elif text == '.lm':
+    elif text == f'{command_prefix}lm':
         if not loaded_modules:
             await event.edit('📦 Модули не загружены')
             return
@@ -289,8 +319,8 @@ async def handler(event):
             msg += '\n'
         await event.edit(msg)
     
-    elif text.startswith('.um '):
-        module_name = text.split(maxsplit=1)[1]
+    elif text.startswith(f'{command_prefix}um '):
+        module_name = text[len(command_prefix)+3:].strip()
         
         if module_name not in loaded_modules:
             await event.edit(f'❌ Модуль {module_name} не найден')
@@ -305,6 +335,57 @@ async def handler(event):
         
         del loaded_modules[module_name]
         await event.edit(f'🗑️ Модуль {module_name} удален\n\n⚠️ Перезагрузите юзербот для полного удаления')
+    
+    elif text.startswith(f'{command_prefix}prefix '):
+        new_prefix = text[len(command_prefix)+7:].strip()
+        if len(new_prefix) != 1:
+            await event.edit('❌ Префикс должен быть одним символом')
+            return
+        
+        global command_prefix
+        command_prefix = new_prefix
+        config['command_prefix'] = new_prefix
+        
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+        
+        await event.edit(f'✅ Префикс изменен на `{new_prefix}`')
+    
+    elif text.startswith(f'{command_prefix}alias '):
+        args = text[len(command_prefix)+6:].strip()
+        if '=' not in args:
+            await event.edit(f'❌ Использование: `{command_prefix}alias команда = алиас`')
+            return
+        
+        parts = args.split('=')
+        if len(parts) != 2:
+            await event.edit(f'❌ Использование: `{command_prefix}alias команда = алиас`')
+            return
+        
+        alias = parts[0].strip()
+        command = parts[1].strip()
+        
+        global aliases
+        aliases[alias] = command
+        config['aliases'] = aliases
+        
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+        
+        await event.edit(f'✅ Алиас создан: `{command_prefix}{alias}` → `{command_prefix}{command}`')
+    
+    elif text.startswith(f'{command_prefix}logs'):
+        args = text[len(command_prefix)+5:].strip()
+        target_chat = int(args) if args else event.chat_id
+        
+        log_files = sorted([f for f in os.listdir(LOGS_DIR) if f.endswith('.log')])
+        if not log_files:
+            await event.edit('📝 Логи отсутствуют')
+            return
+        
+        latest_log = os.path.join(LOGS_DIR, log_files[-1])
+        await client.send_file(target_chat, latest_log, caption=f'📝 Логи за {log_files[-1][:-4]}')
+        await event.delete()
 
 async def main():
     try:

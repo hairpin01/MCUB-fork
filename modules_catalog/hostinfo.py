@@ -21,7 +21,7 @@ def register(client):
         arch = platform.machine()
         
         # Python
-        python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.patch}"
+        python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
         
         # Процессор
         cpu_name = platform.processor() or "Unknown"

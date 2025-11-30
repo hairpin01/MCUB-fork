@@ -9,11 +9,13 @@ import aiohttp
 import json
 from telethon import TelegramClient, events
 
-VERSION = '0.0.1'
+VERSION = '0.1.0'
 RESTART_FILE = 'restart.tmp'
 MODULES_DIR = 'modules'
 IMG_DIR = 'img'
 CONFIG_FILE = 'config.json'
+MODULES_REPO = 'https://raw.githubusercontent.com/Mitrichdfklwhcluio/MCUBFB/main/modules_catalog'
+UPDATE_REPO = 'https://raw.githubusercontent.com/Mitrichdfklwhcluio/MCUBFB/main/'
 loaded_modules = {}
 start_time = time.time()
 
@@ -114,10 +116,13 @@ async def handler(event):
 .ping - проверка задержки
 .info - информация о юзерботе
 .help - список команд
+.update - обновление с GitHub
 .restart - перезагрузка
+.stop - остановка юзербота
 
 **Модули:**
 .im - установить модуль (ответ на .py файл)
+.dlm [название] - скачать модуль из каталога
 .lm - список модулей
 .um [название] - удалить модуль'''
         await event.edit(help_text)
@@ -127,6 +132,73 @@ async def handler(event):
         with open(RESTART_FILE, 'w') as f:
             f.write(f'{event.chat_id},{event.id},{time.time()}')
         os.execl(sys.executable, sys.executable, *sys.argv)
+    
+    elif text == '.update':
+        await event.edit('🔄 Проверка обновлений...')
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f'{UPDATE_REPO}/userbot.py') as resp:
+                    if resp.status == 200:
+                        new_code = await resp.text()
+                        
+                        if 'VERSION' in new_code:
+                            new_version = re.search(r"VERSION = '([^']+)'", new_code)
+                            if new_version and new_version.group(1) != VERSION:
+                                await event.edit(f'📥 Обновление до {new_version.group(1)}...')
+                                
+                                with open(__file__, 'w', encoding='utf-8') as f:
+                                    f.write(new_code)
+                                
+                                await event.edit(f'✅ Обновлено до {new_version.group(1)}\nПерезагрузка...')
+                                await asyncio.sleep(1)
+                                os.execl(sys.executable, sys.executable, *sys.argv)
+                            else:
+                                await event.edit(f'✅ У вас актуальная версия {VERSION}')
+                        else:
+                            await event.edit('❌ Не удалось проверить версию')
+                    else:
+                        await event.edit('❌ Не удалось получить обновление')
+        except Exception as e:
+            await event.edit(f'❌ Ошибка: {str(e)}')
+    
+    elif text == '.stop':
+        await event.edit('⛔ Остановка юзербота...')
+        await client.disconnect()
+    
+    elif text.startswith('.dlm '):
+        module_name = text.split(maxsplit=1)[1]
+        await event.edit(f'📥 Загрузка {module_name}...')
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f'{MODULES_REPO}/{module_name}.py') as resp:
+                    if resp.status == 200:
+                        if not os.path.exists(MODULES_DIR):
+                            os.makedirs(MODULES_DIR)
+                        
+                        code = await resp.text()
+                        file_path = os.path.join(MODULES_DIR, f'{module_name}.py')
+                        
+                        with open(file_path, 'w', encoding='utf-8') as f:
+                            f.write(code)
+                        
+                        spec = importlib.util.spec_from_file_location(module_name, file_path)
+                        module = importlib.util.module_from_spec(spec)
+                        sys.modules[module_name] = module
+                        spec.loader.exec_module(module)
+                        
+                        if hasattr(module, 'register'):
+                            module.register(client)
+                            loaded_modules[module_name] = module
+                            await event.edit(f'✅ Модуль {module_name} установлен')
+                        else:
+                            await event.edit(f'❌ Модуль не имеет register(client)')
+                            os.remove(file_path)
+                    else:
+                        await event.edit(f'❌ Модуль {module_name} не найден в каталоге')
+        except Exception as e:
+            await event.edit(f'❌ Ошибка: {str(e)}')
     
     elif text == '.im':
         if not event.is_reply:

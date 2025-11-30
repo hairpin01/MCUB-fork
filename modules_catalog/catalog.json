@@ -52,5 +52,11 @@
     "commands": [".arconfig", ".artest"],
     "author": "Mitrich",
     "version": "1.0.0"
+  },
+  "hostinfo": {
+    "description": "Информация о хостинге юзербота: устройство, система, процессор, RAM, диск",
+    "commands": [".host"],
+    "author": "Mitrich",
+    "version": "1.0.0"
   }
 }

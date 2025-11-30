@@ -68,7 +68,7 @@ async def handler(event):
         
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get('https://raw.githubusercontent.com/mitrich-dev/UserBotForBot/main/version.txt', timeout=aiohttp.ClientTimeout(total=3)) as resp:
+                async with session.get('https://raw.githubusercontent.com/Mitrichdfklwhcluio/MCUBFB/refs/heads/main/version.txt', timeout=aiohttp.ClientTimeout(total=3)) as resp:
                     if resp.status == 200:
                         latest_version = (await resp.text()).strip()
                         version_status = '✅ Актуальная' if VERSION == latest_version else f'⚠️ Доступна {latest_version}'

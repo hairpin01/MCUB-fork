@@ -18,7 +18,7 @@ pip install -r requirements.txt
 3. Откройте `config.json` и заполните:
    - `api_id` - ваш API ID
    - `api_hash` - ваш API Hash
-   - `phone` - ваш номер телефона (+79991234567)
+   - `phone` - ваш номер телефона (+yourphonenumber)
 
 ## Запуск
 

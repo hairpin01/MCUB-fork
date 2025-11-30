@@ -70,6 +70,7 @@ def log_command(command, chat_id, user_id, success=True):
 
 @client.on(events.NewMessage(outgoing=True))
 async def handler(event):
+    global command_prefix, aliases
     text = event.text
     
     if not text.startswith(command_prefix):
@@ -342,7 +343,6 @@ async def handler(event):
             await event.edit('❌ Префикс должен быть одним символом')
             return
         
-        global command_prefix
         command_prefix = new_prefix
         config['command_prefix'] = new_prefix
         
@@ -365,7 +365,6 @@ async def handler(event):
         alias = parts[0].strip()
         command = parts[1].strip()
         
-        global aliases
         aliases[alias] = command
         config['aliases'] = aliases
         

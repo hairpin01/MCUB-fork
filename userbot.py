@@ -7,20 +7,25 @@ import re
 import psutil
 import aiohttp
 import json
+import subprocess
 from telethon import TelegramClient, events
 
-VERSION = '0.1.3'
+VERSION = '0.1.5'
 RESTART_FILE = 'restart.tmp'
 MODULES_DIR = 'modules'
 IMG_DIR = 'img'
 LOGS_DIR = 'logs'
 CONFIG_FILE = 'config.json'
+BACKUP_FILE = 'userbot.py.backup'
+ERROR_FILE = 'crash.tmp'
 MODULES_REPO = 'https://raw.githubusercontent.com/Mitrichdfklwhcluio/MCUBFB/main/modules_catalog'
 UPDATE_REPO = 'https://raw.githubusercontent.com/Mitrichdfklwhcluio/MCUBFB/main/'
 loaded_modules = {}
 start_time = time.time()
 command_prefix = '.'
 aliases = {}
+last_healthcheck = time.time()
+pending_confirmations = {}
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -34,6 +39,9 @@ with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
 
 command_prefix = config.get('command_prefix', '.')
 aliases = config.get('aliases', {})
+HEALTHCHECK_INTERVAL = config.get('healthcheck_interval', 30)
+DEVELOPER_CHAT_ID = config.get('developer_chat_id', None)
+DANGEROUS_COMMANDS = ['update', 'stop', 'um', 'rollback']
 
 try:
     API_ID = int(config['api_id'])
@@ -68,9 +76,40 @@ def log_command(command, chat_id, user_id, success=True):
     with open(log_file, 'a', encoding='utf-8') as f:
         f.write(f'[{timestamp}] [{status}] Chat: {chat_id} | User: {user_id} | Command: {command}\n')
 
+async def healthcheck():
+    global last_healthcheck
+    while True:
+        try:
+            await asyncio.sleep(HEALTHCHECK_INTERVAL * 60)
+            current_time = time.time()
+            
+            process = psutil.Process()
+            cpu = process.cpu_percent(interval=0.1)
+            ram = process.memory_info().rss / 1024 / 1024
+            
+            if cpu > 80 or ram > 500:
+                log_command(f'HEALTHCHECK: High usage - CPU: {cpu}%, RAM: {ram}MB', 0, 0, False)
+            
+            last_healthcheck = current_time
+        except Exception as e:
+            log_command(f'HEALTHCHECK ERROR: {str(e)}', 0, 0, False)
+
+async def report_crash(error_msg):
+    if DEVELOPER_CHAT_ID:
+        try:
+            me = await client.get_me()
+            report = f'🚨 **Crash Report**\n\n'
+            report += f'👤 User: {me.first_name} ({me.id})\n'
+            report += f'💻 Version: {VERSION}\n'
+            report += f'⏰ Time: {time.strftime("%Y-%m-%d %H:%M:%S")}\n'
+            report += f'❌ Error:\n```\n{error_msg[:500]}\n```'
+            await client.send_message(DEVELOPER_CHAT_ID, report)
+        except:
+            pass
+
 @client.on(events.NewMessage(outgoing=True))
 async def handler(event):
-    global command_prefix, aliases
+    global command_prefix, aliases, pending_confirmations
     text = event.text
     
     if not text.startswith(command_prefix):
@@ -79,6 +118,15 @@ async def handler(event):
     cmd = text[len(command_prefix):].split()[0] if ' ' in text else text[len(command_prefix):]
     if cmd in aliases:
         text = command_prefix + aliases[cmd] + text[len(command_prefix) + len(cmd):]
+    
+    if cmd in DANGEROUS_COMMANDS and config.get('2fa_enabled', False):
+        confirm_key = f'{event.chat_id}_{event.id}'
+        if confirm_key not in pending_confirmations:
+            pending_confirmations[confirm_key] = {'command': text, 'time': time.time()}
+            await event.edit(f'⚠️ Подтвердите выполнение команды `{text}`\n\nОтветьте: `{command_prefix}confirm`')
+            return
+        else:
+            del pending_confirmations[confirm_key]
     
     log_command(text, event.chat_id, event.sender_id)
     
@@ -155,8 +203,11 @@ async def handler(event):
 
 **Настройки:**
 {command_prefix}prefix [символ] - изменить префикс команд
-{command_prefix}alias [команда] = [алиас] - создать алиас
-{command_prefix}logs [chat_id] - отправить логи в чат'''
+{command_prefix}alias [алиас] = [команда] - создать алиас (пример: alias p = ping)
+{command_prefix}logs [chat_id] - отправить логи в чат
+{command_prefix}t [команда] - выполнить команду в терминале
+{command_prefix}rollback - откатиться к предыдущей версии
+{command_prefix}2fa - вкл/выкл 2FA для опасных команд'''
         await event.edit(help_text)
     
     elif text == f'{command_prefix}restart':
@@ -179,10 +230,15 @@ async def handler(event):
                             if new_version and new_version.group(1) != VERSION:
                                 await event.edit(f'📥 Обновление до {new_version.group(1)}...')
                                 
+                                with open(__file__, 'r', encoding='utf-8') as f:
+                                    current_code = f.read()
+                                with open(BACKUP_FILE, 'w', encoding='utf-8') as f:
+                                    f.write(current_code)
+                                
                                 with open(__file__, 'w', encoding='utf-8') as f:
                                     f.write(new_code)
                                 
-                                await event.edit(f'✅ Обновлено до {new_version.group(1)}\nПерезагрузка...')
+                                await event.edit(f'✅ Обновлено до {new_version.group(1)}\n📦 Бэкап создан\nПерезагрузка...')
                                 await asyncio.sleep(1)
                                 os.execl(sys.executable, sys.executable, *sys.argv)
                             else:
@@ -354,12 +410,12 @@ async def handler(event):
     elif text.startswith(f'{command_prefix}alias '):
         args = text[len(command_prefix)+6:].strip()
         if '=' not in args:
-            await event.edit(f'❌ Использование: `{command_prefix}alias команда = алиас`')
+            await event.edit(f'❌ Использование: `{command_prefix}alias алиас = команда`')
             return
         
         parts = args.split('=')
         if len(parts) != 2:
-            await event.edit(f'❌ Использование: `{command_prefix}alias команда = алиас`')
+            await event.edit(f'❌ Использование: `{command_prefix}alias алиас = команда`')
             return
         
         alias = parts[0].strip()
@@ -385,14 +441,84 @@ async def handler(event):
         latest_log = os.path.join(LOGS_DIR, log_files[-1])
         await client.send_file(target_chat, latest_log, caption=f'📝 Логи за {log_files[-1][:-4]}')
         await event.delete()
+    
+    elif text == f'{command_prefix}confirm':
+        await event.edit('✅ Команда подтверждена. Выполните её снова.')
+        return
+    
+    elif text == f'{command_prefix}2fa':
+        current = config.get('2fa_enabled', False)
+        config['2fa_enabled'] = not current
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+        status = 'включена' if not current else 'выключена'
+        await event.edit(f'🔐 Двухфакторная аутентификация {status}')
+    
+    elif text == f'{command_prefix}rollback':
+        if not os.path.exists(BACKUP_FILE):
+            await event.edit('❌ Бэкап не найден')
+            return
+        
+        await event.edit('🔄 Откат к предыдущей версии...')
+        
+        try:
+            with open(BACKUP_FILE, 'r', encoding='utf-8') as f:
+                backup_code = f.read()
+            
+            with open(__file__, 'w', encoding='utf-8') as f:
+                f.write(backup_code)
+            
+            await event.edit('✅ Откат завершен\nПерезагрузка...')
+            await asyncio.sleep(1)
+            os.execl(sys.executable, sys.executable, *sys.argv)
+        except Exception as e:
+            await event.edit(f'❌ Ошибка отката: {str(e)}')
+    
+    elif text.startswith(f'{command_prefix}t '):
+        command = text[len(command_prefix)+2:].strip()
+        if not command:
+            await event.edit('❌ Укажите команду')
+            return
+        
+        await event.edit(f'💻 Выполнение: `{command}`')
+        
+        try:
+            process = await asyncio.create_subprocess_shell(
+                command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            stdout, stderr = await process.communicate()
+            
+            output = stdout.decode('utf-8') if stdout else ''
+            error = stderr.decode('utf-8') if stderr else ''
+            
+            result = ''
+            if output:
+                result += f'📝 **Вывод:**\n```\n{output[:3000]}\n```\n'
+            if error:
+                result += f'❌ **Ошибка:**\n```\n{error[:3000]}\n```\n'
+            
+            if not result:
+                result = '✅ Команда выполнена без вывода'
+            
+            result = f'💻 **Terminal:** `{command}`\n\n{result}'
+            await event.edit(result)
+        except Exception as e:
+            await event.edit(f'❌ Ошибка: {str(e)}')
 
 async def main():
     try:
         await client.start(phone=PHONE)
         print('✅ MCUB запущен')
+        
+        asyncio.create_task(healthcheck())
+        print(f'💚 Healthcheck запущен (каждые {HEALTHCHECK_INTERVAL} мин)')
     except Exception as e:
         print(f'❌ Ошибка авторизации: {e}')
         print('Проверьте API_ID, API_HASH и PHONE в config.json')
+        await report_crash(str(e))
         sys.exit(1)
     
     if not os.path.exists(MODULES_DIR):
@@ -434,4 +560,44 @@ async def main():
     await client.run_until_disconnected()
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    try:
+        if os.path.exists(ERROR_FILE):
+            with open(ERROR_FILE, 'r') as f:
+                error_data = f.read().split('|')
+                if len(error_data) >= 2:
+                    chat_id, msg_id = error_data[0], error_data[1]
+                    print(f'⚠️ Обнаружен файл краша. Попытка восстановления...')
+                    
+                    if os.path.exists(BACKUP_FILE):
+                        print('📦 Найден бэкап. Восстанавливаю...')
+                        with open(BACKUP_FILE, 'r', encoding='utf-8') as backup:
+                            backup_code = backup.read()
+                        with open(__file__, 'w', encoding='utf-8') as current:
+                            current.write(backup_code)
+                        os.remove(ERROR_FILE)
+                        print('✅ Восстановление завершено. Перезапуск...')
+                        os.execl(sys.executable, sys.executable, *sys.argv)
+            os.remove(ERROR_FILE)
+        
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print('\n⛔ Остановка юзербота...')
+        sys.exit(0)
+    except Exception as e:
+        print(f'\n❌ Критическая ошибка: {e}')
+        print('📝 Сохранение информации об ошибке...')
+        
+        try:
+            if os.path.exists(RESTART_FILE):
+                with open(RESTART_FILE, 'r') as f:
+                    chat_id, msg_id, _ = f.read().split(',')
+                with open(ERROR_FILE, 'w') as f:
+                    f.write(f'{chat_id}|{msg_id}|{str(e)}')
+        except:
+            pass
+        
+        print('\n🔧 Варианты восстановления:')
+        print('1. Перезапустите юзербот - будет попытка автовосстановления')
+        print('2. Используйте команду .rollback для отката к предыдущей версии')
+        print('3. Проверьте логи в папке logs/')
+        sys.exit(1)

@@ -22,7 +22,7 @@ class Colors:
 def cprint(text, color=''):
     print(f'{color}{text}{Colors.RESET}')
 
-VERSION = '0.2.0'
+VERSION = '0.2.1'
 DB_VERSION = 1
 RESTART_FILE = 'restart.tmp'
 MODULES_DIR = 'modules'
@@ -39,6 +39,7 @@ command_prefix = '.'
 aliases = {}
 last_healthcheck = time.time()
 pending_confirmations = {}
+power_save_mode = False
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -57,6 +58,7 @@ DEVELOPER_CHAT_ID = config.get('developer_chat_id', None)
 DANGEROUS_COMMANDS = ['update', 'stop', 'um', 'rollback']
 LANGUAGE = config.get('language', 'ru')
 THEME = config.get('theme', 'default')
+power_save_mode = config.get('power_save_mode', False)
 
 LANGS = {
     'ru': {
@@ -129,6 +131,8 @@ if not os.path.exists(LOGS_DIR):
     os.makedirs(LOGS_DIR)
 
 def log_command(command, chat_id, user_id, success=True):
+    if power_save_mode:
+        return
     timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
     log_file = os.path.join(LOGS_DIR, f'{time.strftime("%Y-%m-%d")}.log')
     status = 'SUCCESS' if success else 'ERROR'
@@ -139,7 +143,13 @@ async def healthcheck():
     global last_healthcheck
     while True:
         try:
-            await asyncio.sleep(HEALTHCHECK_INTERVAL * 60)
+            interval = (HEALTHCHECK_INTERVAL * 3 if power_save_mode else HEALTHCHECK_INTERVAL) * 60
+            await asyncio.sleep(interval)
+            
+            if power_save_mode:
+                last_healthcheck = time.time()
+                continue
+            
             current_time = time.time()
             
             process = psutil.Process()
@@ -168,7 +178,7 @@ async def report_crash(error_msg):
 
 @client.on(events.NewMessage(outgoing=True))
 async def handler(event):
-    global command_prefix, aliases, pending_confirmations
+    global command_prefix, aliases, pending_confirmations, power_save_mode
     text = event.text
     
     if not text.startswith(command_prefix):
@@ -221,6 +231,7 @@ async def handler(event):
         process = psutil.Process()
         cpu_percent = process.cpu_percent(interval=0.1)
         ram_mb = process.memory_info().rss / 1024 / 1024
+        power_status = '🔋 Вкл' if power_save_mode else '⚡ Выкл'
         
         img_path = None
         if os.path.exists(IMG_DIR):
@@ -235,6 +246,7 @@ async def handler(event):
 ⏱ Аптайм: {uptime}
 📊 CPU: {cpu_percent:.1f}%
 💾 RAM: {ram_mb:.1f} MB
+🔋 Энергосбережение: {power_status}
 🟢 Статус: Working'''
         
         if img_path:
@@ -266,7 +278,8 @@ async def handler(event):
 {command_prefix}logs [chat_id] - отправить логи в чат
 {command_prefix}t [команда] - выполнить команду в терминале
 {command_prefix}rollback - откатиться к предыдущей версии
-{command_prefix}2fa - вкл/выкл 2FA для опасных команд'''
+{command_prefix}2fa - вкл/выкл 2FA для опасных команд
+{command_prefix}powersave - режим энергосбережения'''
         await event.edit(help_text)
     
     elif text == f'{command_prefix}restart':
@@ -573,6 +586,16 @@ async def handler(event):
             os.execl(sys.executable, sys.executable, *sys.argv)
         except Exception as e:
             await event.edit(f'❌ Ошибка отката: {str(e)}')
+    
+    elif text == f'{command_prefix}powersave':
+        power_save_mode = not power_save_mode
+        config['power_save_mode'] = power_save_mode
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+        
+        status = '🔋 включен' if power_save_mode else '⚡ выключен'
+        features = '\n• Логирование отключено\n• Healthcheck реже в 3 раза\n• Снижена нагрузка' if power_save_mode else ''
+        await event.edit(f'Режим энергосбережения {status}{features}')
     
     elif text.startswith(f'{command_prefix}t '):
         command = text[len(command_prefix)+2:].strip()

@@ -58,5 +58,11 @@
     "commands": [".host"],
     "author": "Mitrich",
     "version": "1.0.0"
+  },
+  "autoresponder": {
+    "description": "Автоответчик на сообщения с ключевыми словами",
+    "commands": [".ar add", ".ar list", ".ar del", ".ar clear"],
+    "author": "Mitrich",
+    "version": "1.0.0"
   }
 }

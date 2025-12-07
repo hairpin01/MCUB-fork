@@ -68,7 +68,7 @@
   "fastfetch": {
     "description": "Информация об устройстве",
     "commands": [".fastfetch"],
-    "author": "Harpin00",
+    "author": "Hairpin00",
     "version": "1.0.0"
   }
 }

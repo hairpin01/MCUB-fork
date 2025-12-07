@@ -22,7 +22,7 @@ class Colors:
 def cprint(text, color=''):
     print(f'{color}{text}{Colors.RESET}')
 
-VERSION = '0.2.3'
+VERSION = '0.2.4'
 DB_VERSION = 1
 RESTART_FILE = 'restart.tmp'
 MODULES_DIR = 'modules'
@@ -702,7 +702,7 @@ async def check_inline_bot():
     cprint('🤖 Создание inline-бота...', Colors.YELLOW)
     try:
         me = await client.get_me()
-        bot_username = f'MCUBinline_{me.id}_{int(time.time())}_bot'
+        bot_username = f'MCUB_{str(me.id)[-6:]}_{str(int(time.time()))[-4:]}_bot'
         
         botfather = await client.get_entity('BotFather')
         

@@ -88,5 +88,23 @@
   "commands": [".emoji"],
   "author": "Hairpin00",
   "version": "1.0.0"
+},
+  "fake": {
+  "description": "Имитация действий в чате: печать, запись видео/аудио, загрузка файлов",
+  "commands": [".fake typing", ".fake video", ".fake audio", ".fake voice", ".fake photo", ".fake cancel"],
+  "author": "Mitrichq",
+  "version": "1.0.0"
+},
+  "pinghost": {
+  "description": "Пинг хостов и проверка доступности серверов",
+  "commands": [".pinghost"],
+  "author": "Hairpin01",
+  "version": "1.0.0"
+},
+  "linkhidermod": {
+  "description": "Скрытие ссылок через сервисы сокращения URL",
+  "commands": [".hide"],
+  "author": "Hairpin01",
+  "version": "1.0.0"
 }
 }

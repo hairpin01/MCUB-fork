@@ -22,7 +22,7 @@ class Colors:
 def cprint(text, color=''):
     print(f'{color}{text}{Colors.RESET}')
 
-VERSION = '0.2.58'
+VERSION = '0.2.59'
 DB_VERSION = 1
 RESTART_FILE = 'restart.tmp'
 MODULES_DIR = 'modules'
@@ -682,45 +682,6 @@ async def handler(event):
             await event.edit(f'❌ Ошибка: {str(e)}')
 
 
-@client.on(events.CallbackQuery)
-async def callback_handler(event):
-    global pending_confirmations
-
-    sender = await event.get_sender()
-    chat_id = event.chat_id if event.chat_id else (await event.get_message()).chat_id
-
-    if event.data == b'confirm_yes':
-        confirm_key = f'{chat_id}_{sender.id}'
-        if confirm_key in pending_confirmations:
-            saved_command = pending_confirmations[confirm_key]
-            del pending_confirmations[confirm_key]
-
-
-            await event.answer('✅ Подтверждено')
-
-            await event.edit(
-                f'✅ **Команда подтверждена**\n\n'
-                f'Выполняю: `{saved_command}`'
-            )
-
-            message = await event.client.send_message(chat_id, saved_command)
-            await handler(events.NewMessage.Event(message))
-
-        else:
-            await event.answer('❌ Команда не найдена или уже выполнена')
-            await event.edit('❌ Команда не найдена или уже выполнена')
-
-    elif event.data == b'confirm_no':
-        confirm_key = f'{chat_id}_{sender.id}'
-        if confirm_key in pending_confirmations:
-            del pending_confirmations[confirm_key]
-            await event.answer('❌ Отменено')
-            await event.edit('❌ Команда отменена')
-        else:
-            await event.answer('❌ Нечего отменять')
-            await event.edit('❌ Нечего отменять')
-
-
 async def check_inline_bot():
     bot_token = config.get('inline_bot_token')
     
@@ -821,6 +782,37 @@ async def run_inline_bot():
                 builder = event.builder.article('Message', text=query)
             
             await event.answer([builder])
+        
+        @bot.on(events.CallbackQuery)
+        async def bot_callback_handler(event):
+            global pending_confirmations
+            sender = await event.get_sender()
+            msg = await event.get_message()
+            chat_id = msg.chat_id
+            
+            if event.data == b'confirm_yes':
+                confirm_key = f'{chat_id}_{sender.id}'
+                if confirm_key in pending_confirmations:
+                    saved_command = pending_confirmations[confirm_key]
+                    del pending_confirmations[confirm_key]
+                    
+                    await event.answer('✅ Подтверждено')
+                    await event.edit(f'✅ **Команда подтверждена**\n\nВыполняю: `{saved_command}`')
+                    
+                    await client.send_message(chat_id, saved_command)
+                else:
+                    await event.answer('❌ Команда не найдена')
+                    await event.edit('❌ Команда не найдена или уже выполнена')
+            
+            elif event.data == b'confirm_no':
+                confirm_key = f'{chat_id}_{sender.id}'
+                if confirm_key in pending_confirmations:
+                    del pending_confirmations[confirm_key]
+                    await event.answer('❌ Отменено')
+                    await event.edit('❌ Команда отменена')
+                else:
+                    await event.answer('❌ Нечего отменять')
+                    await event.edit('❌ Нечего отменять')
         
         await bot.run_until_disconnected()
     except:

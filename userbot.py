@@ -22,7 +22,7 @@ class Colors:
 def cprint(text, color=''):
     print(f'{color}{text}{Colors.RESET}')
 
-VERSION = '0.2.4'
+VERSION = '0.2.5'
 DB_VERSION = 1
 RESTART_FILE = 'restart.tmp'
 MODULES_DIR = 'modules'
@@ -622,6 +622,8 @@ async def handler(event):
             await event.edit(f'❌ Использование: `{command_prefix}ibot текст | кнопка1:url1 | кнопка2:url2`')
             return
         
+        await event.delete()
+        
         parts = args.split('|')
         msg_text = parts[0].strip()
         buttons = []
@@ -641,13 +643,9 @@ async def handler(event):
                     'text': msg_text,
                     'reply_markup': {'inline_keyboard': buttons} if buttons else None
                 }
-                async with session.post(f'https://api.telegram.org/bot{bot_token}/sendMessage', json=payload) as resp:
-                    if resp.status == 200:
-                        await event.delete()
-                    else:
-                        await event.edit('❌ Ошибка отправки')
-        except Exception as e:
-            await event.edit(f'❌ Ошибка: {str(e)}')
+                await session.post(f'https://api.telegram.org/bot{bot_token}/sendMessage', json=payload)
+        except:
+            pass
     
     elif text.startswith(f'{command_prefix}t '):
         command = text[len(command_prefix)+2:].strip()

@@ -10,9 +10,6 @@ import json
 import subprocess
 from telethon import TelegramClient, events, Button
 
-# тест
-
-
 class Colors:
     RESET = '\033[0m'
     RED = '\033[91m'
@@ -282,7 +279,8 @@ async def handler(event):
 {command_prefix}t [команда] - выполнить команду в терминале
 {command_prefix}rollback - откатиться к предыдущей версии
 {command_prefix}2fa - вкл/выкл 2FA для опасных команд
-{command_prefix}powersave - режим энергосбережения'''
+{command_prefix}powersave - режим энергосбережения
+{command_prefix}ibot [текст | кнопка:url] - отправить через inline-бота'''
         await event.edit(help_text)
     
     elif text == f'{command_prefix}restart':
@@ -613,6 +611,44 @@ async def handler(event):
         features = '\n• Логирование отключено\n• Healthcheck реже в 3 раза\n• Снижена нагрузка' if power_save_mode else ''
         await event.edit(f'Режим энергосбережения {status}{features}')
     
+    elif text.startswith(f'{command_prefix}ibot '):
+        bot_token = config.get('inline_bot_token')
+        if not bot_token:
+            await event.edit('❌ Inline-бот не настроен. Перезапустите юзербот')
+            return
+        
+        args = text[len(command_prefix)+5:].strip()
+        if '|' not in args:
+            await event.edit(f'❌ Использование: `{command_prefix}ibot текст | кнопка1:url1 | кнопка2:url2`')
+            return
+        
+        parts = args.split('|')
+        msg_text = parts[0].strip()
+        buttons = []
+        
+        for btn_data in parts[1:]:
+            btn_data = btn_data.strip()
+            if ':' in btn_data:
+                btn_parts = btn_data.split(':', 1)
+                btn_text = btn_parts[0].strip()
+                btn_url = btn_parts[1].strip()
+                buttons.append([{'text': btn_text, 'url': btn_url}])
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                payload = {
+                    'chat_id': event.chat_id,
+                    'text': msg_text,
+                    'reply_markup': {'inline_keyboard': buttons} if buttons else None
+                }
+                async with session.post(f'https://api.telegram.org/bot{bot_token}/sendMessage', json=payload) as resp:
+                    if resp.status == 200:
+                        await event.delete()
+                    else:
+                        await event.edit('❌ Ошибка отправки')
+        except Exception as e:
+            await event.edit(f'❌ Ошибка: {str(e)}')
+    
     elif text.startswith(f'{command_prefix}t '):
         command = text[len(command_prefix)+2:].strip()
         if not command:
@@ -647,12 +683,72 @@ async def handler(event):
         except Exception as e:
             await event.edit(f'❌ Ошибка: {str(e)}')
 
+async def check_inline_bot():
+    bot_token = config.get('inline_bot_token')
+    
+    if bot_token:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f'https://api.telegram.org/bot{bot_token}/getMe') as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        if data.get('ok'):
+                            bot_username = data['result']['username']
+                            cprint(f'✅ Inline-бот активен: @{bot_username}', Colors.GREEN)
+                            return True
+        except:
+            pass
+    
+    cprint('🤖 Создание inline-бота...', Colors.YELLOW)
+    try:
+        me = await client.get_me()
+        bot_username = f'MCUBinline_{me.id}_{int(time.time())}_bot'
+        
+        botfather = await client.get_entity('BotFather')
+        
+        await client.send_message(botfather, '/newbot')
+        await asyncio.sleep(1)
+        
+        await client.send_message(botfather, 'MCUBinline')
+        await asyncio.sleep(1)
+        
+        await client.send_message(botfather, bot_username)
+        await asyncio.sleep(2)
+        
+        messages = await client.get_messages(botfather, limit=1)
+        if messages and 'token' in messages[0].text.lower():
+            token_match = re.search(r'(\d+:[A-Za-z0-9_-]+)', messages[0].text)
+            if token_match:
+                bot_token = token_match.group(1)
+                config['inline_bot_token'] = bot_token
+                config['inline_bot_username'] = bot_username
+                
+                await client.send_message(botfather, '/setinline')
+                await asyncio.sleep(1)
+                await client.send_message(botfather, f'@{bot_username}')
+                await asyncio.sleep(1)
+                await client.send_message(botfather, 'inline')
+                
+                with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+                    json.dump(config, f, ensure_ascii=False, indent=2)
+                
+                cprint(f'✅ Inline-бот создан: @{bot_username}', Colors.GREEN)
+                return True
+        
+        cprint('❌ Не удалось создать бота', Colors.RED)
+    except Exception as e:
+        cprint(f'❌ Ошибка создания бота: {e}', Colors.RED)
+    
+    return False
+
 async def main():
     try:
         await migrate_data()
         
         await client.start(phone=PHONE)
         cprint('✅ MCUB запущен', Colors.GREEN)
+        
+        await check_inline_bot()
         
         asyncio.create_task(healthcheck())
         cprint(f'💚 Healthcheck запущен (каждые {HEALTHCHECK_INTERVAL} мин)', Colors.GREEN)

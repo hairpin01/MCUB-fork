@@ -227,6 +227,17 @@ async def send_with_retry(event, text, **kwargs):
                 return None
     return None
 
+async def check_connection():
+    while True:
+        await asyncio.sleep(60)
+        if not client.is_connected():
+            cprint('🔍 Проверка соединения: отключено', Colors.YELLOW)
+            if not await safe_connect():
+                cprint('❌ Проверка соединения: переподключение не удалось', Colors.RED)
+            else:
+                cprint('✅ Проверка соединения: восстановлено', Colors.GREEN)
+
+
 async def report_crash(error_msg):
     if DEVELOPER_CHAT_ID:
         try:

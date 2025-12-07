@@ -22,7 +22,7 @@ class Colors:
 def cprint(text, color=''):
     print(f'{color}{text}{Colors.RESET}')
 
-VERSION = '0.2.5'
+VERSION = '0.2.51'
 DB_VERSION = 1
 RESTART_FILE = 'restart.tmp'
 MODULES_DIR = 'modules'
@@ -622,8 +622,6 @@ async def handler(event):
             await event.edit(f'❌ Использование: `{command_prefix}ibot текст | кнопка1:url1 | кнопка2:url2`')
             return
         
-        await event.delete()
-        
         parts = args.split('|')
         msg_text = parts[0].strip()
         buttons = []
@@ -637,15 +635,19 @@ async def handler(event):
                 buttons.append([{'text': btn_text, 'url': btn_url}])
         
         try:
+            await event.delete()
             async with aiohttp.ClientSession() as session:
                 payload = {
                     'chat_id': event.chat_id,
                     'text': msg_text,
                     'reply_markup': {'inline_keyboard': buttons} if buttons else None
                 }
-                await session.post(f'https://api.telegram.org/bot{bot_token}/sendMessage', json=payload)
-        except:
-            pass
+                async with session.post(f'https://api.telegram.org/bot{bot_token}/sendMessage', json=payload) as resp:
+                    if resp.status != 200:
+                        error_data = await resp.json()
+                        await client.send_message(event.chat_id, f'❌ Ошибка: {error_data.get("description", "Неизвестная ошибка")}')
+        except Exception as e:
+            await client.send_message(event.chat_id, f'❌ Ошибка: {str(e)}')
     
     elif text.startswith(f'{command_prefix}t '):
         command = text[len(command_prefix)+2:].strip()

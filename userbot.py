@@ -22,7 +22,7 @@ class Colors:
 def cprint(text, color=''):
     print(f'{color}{text}{Colors.RESET}')
 
-VERSION = '0.2.57'
+VERSION = '0.2.58'
 DB_VERSION = 1
 RESTART_FILE = 'restart.tmp'
 MODULES_DIR = 'modules'
@@ -206,25 +206,12 @@ async def handler(event):
             pending_confirmations[confirm_key] = text
             await event.delete()
             
-            bot_token = config.get('inline_bot_token')
-            if bot_token:
+            bot_username = config.get('inline_bot_username')
+            if bot_username:
                 try:
-                    me = await client.get_me()
-                    async with aiohttp.ClientSession() as session:
-                        payload = {
-                            'chat_id': me.id,
-                            'text': f'⚠️ **Требуется подтверждение**\n\nКоманда: `{text}`\n\nВы действительно хотите выполнить эту команду?',
-                            'parse_mode': 'Markdown',
-                            'reply_markup': {
-                                'inline_keyboard': [
-                                    [
-                                        {'text': '✅ Подтвердить', 'callback_data': 'confirm_yes'},
-                                        {'text': '❌ Отменить', 'callback_data': 'confirm_no'}
-                                    ]
-                                ]
-                            }
-                        }
-                        await session.post(f'https://api.telegram.org/bot{bot_token}/sendMessage', json=payload)
+                    query = f'2fa_{confirm_key}_{text}'
+                    bot = await client.inline_query(bot_username, query)
+                    await bot[0].click(event.chat_id)
                 except:
                     await client.send_message(event.chat_id, f'⚠️ Требуется подтверждение: `{text}`\n\nНапишите `{command_prefix}confirm` для подтверждения')
             else:
@@ -805,7 +792,21 @@ async def run_inline_bot():
         @bot.on(events.InlineQuery)
         async def inline_handler(event):
             query = event.text
-            if '|' in query:
+            
+            if query.startswith('2fa_'):
+                parts = query.split('_', 3)
+                if len(parts) >= 4:
+                    confirm_key = f'{parts[1]}_{parts[2]}'
+                    command = parts[3]
+                    text = f'⚠️ **Требуется подтверждение**\n\nКоманда: `{command}`\n\nВы действительно хотите выполнить эту команду?'
+                    buttons = [
+                        [Button.inline('✅ Подтвердить', b'confirm_yes'),
+                         Button.inline('❌ Отменить', b'confirm_no')]
+                    ]
+                    builder = event.builder.article('2FA', text=text, buttons=buttons)
+                else:
+                    builder = event.builder.article('Error', text='❌ Ошибка подтверждения')
+            elif '|' in query:
                 parts = query.split('|')
                 text = parts[0].strip()
                 buttons = []

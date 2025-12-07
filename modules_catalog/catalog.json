@@ -2,67 +2,73 @@
   "example": {
     "description": "Простой пример модуля",
     "commands": [".dice", ".flip"],
-    "author": "Mitrich",
+    "author": "Mitrichq",
     "version": "1.0.0"
   },
   "games": {
     "description": "Игры: кубик, монетка, рулетка, слоты",
     "commands": [".dice", ".flip", ".roulette", ".slots"],
-    "author": "Mitrich",
+    "author": "Mitrichq",
     "version": "1.0.0"
   },
   "utils": {
     "description": "Утилиты: ID, калькулятор, пинг",
     "commands": [".id", ".calc", ".pingub"],
-    "author": "Mitrich",
+    "author": "Mitrichq",
     "version": "1.0.0"
   },
   "mitrichgram": {
     "description": "Отправка случайных видео/GIF эдитов",
     "commands": [".edit", ".edit set", ".edit list", ".edit clear"],
-    "author": "Mitrich",
+    "author": "Mitrichq",
     "version": "1.0.0"
   },
   "timermessagesMC": {
     "description": "Множественные таймеры для автоотправки сообщений",
     "commands": [".timer add", ".timer start", ".timer stop", ".timer delete", ".timer list", ".timer status", ".timer startall", ".timer stopall", ".timer stats"],
-    "author": "Mitrich",
+    "author": "Mitrichq",
     "version": "1.0.0"
   },
   "mcplugin": {
     "description": "Игры и развлечения: кубик, монетка, рулетка, слоты, колесо фортуны, факты",
     "commands": [".dice", ".coin", ".roulette", ".slots", ".wheel", ".random", ".8ball", ".type", ".fact"],
-    "author": "Mitrich",
+    "author": "Mitrichq",
     "version": "1.0.0"
   },
   "MCpy": {
     "description": "Выполнение Python кода с красивым оформлением",
     "commands": [".pymc"],
-    "author": "Mitrich",
+    "author": "Mitrichq",
     "version": "1.0.0"
   },
   "mcmod": {
     "description": "Модерация чатов: муты, баны, кики, варны",
     "commands": [".mute", ".unmute", ".ban", ".unban", ".kick", ".warn", ".unwarn", ".warns"],
-    "author": "Mitrich",
+    "author": "Mitrichq",
     "version": "1.0.0"
   },
   "autoreact": {
     "description": "Автоматические реакции на сообщения с ключевыми словами",
     "commands": [".arconfig", ".artest"],
-    "author": "Mitrich",
+    "author": "Mitrichq",
     "version": "1.0.0"
   },
   "hostinfo": {
     "description": "Информация о хостинге юзербота: устройство, система, процессор, RAM, диск",
     "commands": [".host"],
-    "author": "Mitrich",
+    "author": "Mitrichq",
     "version": "1.0.0"
   },
   "autoresponder": {
     "description": "Автоответчик на сообщения с ключевыми словами",
     "commands": [".ar add", ".ar list", ".ar del", ".ar clear"],
-    "author": "Mitrich",
+    "author": "Mitrichq",
+    "version": "1.0.0"
+  },
+  "fastfetch": {
+    "description": "Информация об устройстве",
+    "commands": [".fastfetch"],
+    "author": "Harpin00",
     "version": "1.0.0"
   }
 }

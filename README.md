@@ -23,7 +23,7 @@ pip install -r requirements.txt
 ## Запуск
 
 ```bash
-python userbot.py
+python3 userbot.py
 ```
 
 При первом запуске введите код подтверждения из Telegram.

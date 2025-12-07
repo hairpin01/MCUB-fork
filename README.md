@@ -13,7 +13,7 @@ pip install -r requirements.txt
 1. Получите API_ID и API_HASH на https://my.telegram.org
 2. Скопируйте `config.example.json` в `config.json`:
    ```bash
-   copy config.example.json config.json
+   cp config.example.json config.json
    ```
 3. Откройте `config.json` и заполните:
    - `api_id` - ваш API ID
@@ -25,6 +25,9 @@ pip install -r requirements.txt
 ```bash
 python3 userbot.py
 ```
+> [!TIP]
+> иногда нужно создать виртуальное окружение (`python -m venv .venv ; source .venv/bin/activate`
+
 
 При первом запуске введите код подтверждения из Telegram.
 

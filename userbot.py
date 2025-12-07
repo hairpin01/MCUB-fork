@@ -22,7 +22,7 @@ class Colors:
 def cprint(text, color=''):
     print(f'{color}{text}{Colors.RESET}')
 
-VERSION = '0.2.52'
+VERSION = '0.2.53'
 DB_VERSION = 1
 RESTART_FILE = 'restart.tmp'
 MODULES_DIR = 'modules'
@@ -618,9 +618,13 @@ async def handler(event):
             return
         
         args = text[len(command_prefix)+5:].strip()
-        await event.edit(f'💬 Отправьте: `@{bot_username} {args}`')
-        await asyncio.sleep(3)
         await event.delete()
+        
+        try:
+            bot = await client.inline_query(bot_username, args)
+            await bot[0].click(event.chat_id)
+        except:
+            await client.send_message(event.chat_id, f'❌ Ошибка. Попробуйте: `@{bot_username} {args}`')
     
     elif text.startswith(f'{command_prefix}t '):
         command = text[len(command_prefix)+2:].strip()

@@ -202,7 +202,22 @@ async def safe_connect():
 
     return False
 
-
+async def send_with_retry(event, text, **kwargs):
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            if not client.is_connected():
+                if not await safe_connect():
+                    return None
+            return await event.edit(text, **kwargs)
+        except (ConnectionError, RPCError) as e:
+            if attempt < max_retries - 1:
+                cprint(f'⚠️ Повтор отправки ({attempt+1}/{max_retries})', Colors.YELLOW)
+                await asyncio.sleep(2 * (attempt + 1))
+            else:
+                cprint(f'❌ Не удалось отправить сообщение: {e}', Colors.RED)
+                return None
+    return None
 
 async def report_crash(error_msg):
     if DEVELOPER_CHAT_ID:

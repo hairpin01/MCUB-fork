@@ -77,7 +77,7 @@
     "author": "Hairpin00",
     "version": "1.0.0"
   }
-   "k:uploader": {
+   "k_uploader": {
    "description": "Загрузка файлов на хостинги",
    "commands": [".catbox, .kappa, .oxo, .x0, .tmpfiles, .pomf, .bash"],
    "author": "Hairpin00",

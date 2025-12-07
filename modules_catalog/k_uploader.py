@@ -26,8 +26,15 @@ class UploaderModule:
                 return None
 
             file = io.BytesIO(file_bytes)
+            file.name = "file"
+
             if reply.document:
-                file.name = reply.document.attributes[0].file_name if reply.document.attributes else f"file_{reply.id}"
+                for attr in reply.document.attributes:
+                    if hasattr(attr, 'file_name'):
+                        file.name = attr.file_name
+                        break
+                if file.name == "file":
+                    file.name = f"file_{reply.id}"
             else:
                 file.name = f"file_{reply.id}.jpg"
         else:

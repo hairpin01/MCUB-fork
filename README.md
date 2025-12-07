@@ -26,7 +26,7 @@ pip install -r requirements.txt
 python3 userbot.py
 ```
 > [!TIP]
-> иногда нужно создать виртуальное окружение (`python -m venv .venv ; source .venv/bin/activate`
+> иногда нужно создать виртуальное окружение (`python -m venv .venv ; source .venv/bin/activate`)
 
 
 При первом запуске введите код подтверждения из Telegram.

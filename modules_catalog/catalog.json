@@ -70,5 +70,11 @@
     "commands": [".fastfetch"],
     "author": "Hairpin00",
     "version": "1.0.0"
+  },
+  "TikTokdownloader": {
+    "description": "Скачать видева с тиктака, быстра и безапасна",
+    "commands": [".tt [ссылка]"],
+    "author": "Hairpin00",
+    "version": "1.0.0"
   }
 }

@@ -22,7 +22,7 @@ class Colors:
 def cprint(text, color=''):
     print(f'{color}{text}{Colors.RESET}')
 
-VERSION = '0.2.55'
+VERSION = '0.2.56'
 DB_VERSION = 1
 RESTART_FILE = 'restart.tmp'
 MODULES_DIR = 'modules'
@@ -204,12 +204,14 @@ async def handler(event):
         confirm_key = f'{event.chat_id}_{event.sender_id}'
         if confirm_key not in pending_confirmations:
             pending_confirmations[confirm_key] = text
-
+            await event.delete()
+            
             buttons = [
                 [Button.inline('✅ Подтвердить', b'confirm_yes'),
                 Button.inline('❌ Отменить', b'confirm_no')]
             ]
-            await event.edit(
+            await client.send_message(
+                event.chat_id,
                 f'⚠️ **Требуется подтверждение**\n\n'
                 f'Команда: `{text}`\n\n'
                 f'Вы действительно хотите выполнить эту команду?',

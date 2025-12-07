@@ -146,28 +146,36 @@ def log_command(command, chat_id, user_id, success=True):
         f.write(f'[{timestamp}] [{status}] Chat: {chat_id} | User: {user_id} | Command: {command}\n')
 
 async def healthcheck():
-    global last_healthcheck
+    global last_healthcheck, reconnect_attempts
     while True:
         try:
             interval = (HEALTHCHECK_INTERVAL * 3 if power_save_mode else HEALTHCHECK_INTERVAL) * 60
             await asyncio.sleep(interval)
-            
+
             if power_save_mode:
                 last_healthcheck = time.time()
                 continue
-            
+
+            if not client.is_connected():
+                cprint('⚠️ Healthcheck: соединение потеряно', Colors.YELLOW)
+                if not await safe_connect():
+                    cprint('❌ Healthcheck: не удалось восстановить соединение', Colors.RED)
+                    continue
+
             current_time = time.time()
-            
+
             process = psutil.Process()
             cpu = process.cpu_percent(interval=0.1)
             ram = process.memory_info().rss / 1024 / 1024
-            
+
             if cpu > 80 or ram > 500:
                 log_command(f'HEALTHCHECK: High usage - CPU: {cpu}%, RAM: {ram}MB', 0, 0, False)
-            
+
             last_healthcheck = current_time
         except Exception as e:
             log_command(f'HEALTHCHECK ERROR: {str(e)}', 0, 0, False)
+            reconnect_attempts = 0
+            await asyncio.sleep(30)
 
 
 async def safe_connect():

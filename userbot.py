@@ -178,7 +178,7 @@ async def report_crash(error_msg):
 
 @client.on(events.NewMessage(outgoing=True))
 async def handler(event):
-    global command_prefix, aliases, pending_confirmations, power_save_mode
+    global command_prefix, aliases, pending_confirmations, power_save_mode, config
     text = event.text
     
     if not text.startswith(command_prefix):
@@ -601,7 +601,6 @@ async def handler(event):
             await event.edit(f'❌ Ошибка отката: {str(e)}')
     
     elif text == f'{command_prefix}powersave':
-        global config
         power_save_mode = not power_save_mode
         config['power_save_mode'] = power_save_mode
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:

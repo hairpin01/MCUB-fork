@@ -22,7 +22,7 @@ class Colors:
 def cprint(text, color=''):
     print(f'{color}{text}{Colors.RESET}')
 
-VERSION = '0.3.00'
+VERSION = '0.3.0'
 DB_VERSION = 1
 RESTART_FILE = 'restart.tmp'
 MODULES_DIR = 'modules'
@@ -370,6 +370,7 @@ async def handler(event):
 {command_prefix}dlml - каталог доступных модулей
 {command_prefix}lm - список модулей
 {command_prefix}um [название] - удалить модуль
+{command_prefix}unlm [название] - выгрузить модуль в чат
 
 **Настройки:**
 {command_prefix}prefix [символ] - изменить префикс команд
@@ -586,6 +587,22 @@ async def handler(event):
         
         del loaded_modules[module_name]
         await event.edit(f'🗑️ Модуль {module_name} удален\n\n⚠️ Перезагрузите юзербот для полного удаления')
+    
+    elif text.startswith(f'{command_prefix}unlm '):
+        module_name = text[len(command_prefix)+5:].strip()
+        
+        if module_name not in loaded_modules:
+            await event.edit(f'❌ Модуль {module_name} не найден')
+            return
+        
+        file_path = os.path.join(MODULES_DIR, f'{module_name}.py')
+        if not os.path.exists(file_path):
+            await event.edit(f'❌ Файл модуля {module_name}.py не найден')
+            return
+        
+        await event.edit(f'📤 Отправка модуля {module_name}...')
+        await client.send_file(event.chat_id, file_path, caption=f'📦 Модуль: {module_name}.py')
+        await event.delete()
     
     elif text.startswith(f'{command_prefix}prefix '):
         new_prefix = text[len(command_prefix)+7:].strip()

@@ -98,13 +98,115 @@
   "pinghost": {
   "description": "Пинг хостов и проверка доступности серверов",
   "commands": [".pinghost"],
-  "author": "Hairpin01",
+  "author": "Hairpin00",
   "version": "1.0.0"
 },
   "linkhidermod": {
   "description": "Скрытие ссылок через сервисы сокращения URL",
   "commands": [".hide"],
-  "author": "Hairpin01",
+  "author": "Hairpin00",
+  "version": "1.0.0"
+},
+  "msgsticker": {
+  "description": "Создание стикеров из сообщений с аватаркой и текстом",
+  "commands": [".addsticker", ".stickerpack"],
+  "author": "Amazon Q",
+  "version": "1.0.0"
+},
+  "memes": {
+  "description": "Генератор мемов с текстом на изображениях",
+  "commands": [".meme"],
+  "author": "Mitrichq",
+  "version": "1.0.0"
+},
+  "anime": {
+  "description": "Поиск аниме и манги через AniList API, случайные арты",
+  "commands": [".anime", ".randomanime"],
+  "author": "Mitrichq",
+  "version": "1.0.0"
+},
+  "music": {
+  "description": "Распознавание музыки через Shazam API",
+  "commands": [".shazam"],
+  "author": "Mitrichq",
+  "version": "1.0.0"
+},
+  "chatstats": {
+  "description": "Статистика чата: активность, топ пользователей",
+  "commands": [".chatstats", ".chatstats clear"],
+  "author": "Amazon Q",
+  "version": "1.0.0"
+},
+  "tracker": {
+  "description": "Отслеживание изменений в профилях: аватар, имя, био",
+  "commands": [".track", ".untrack", ".tracked", ".changes"],
+  "author": "Amazon Q",
+  "version": "1.0.0"
+},
+  "logger": {
+  "description": "Логирование удаленных и отредактированных сообщений",
+  "commands": [".log on", ".log off", ".deleted", ".edited", ".log clear"],
+  "author": "Amazon Q",
+  "version": "1.0.0"
+},
+  "wiki": {
+  "description": "Быстрый поиск в Wikipedia",
+  "commands": [".wiki"],
+  "author": "Amazon Q",
+  "version": "1.0.0"
+},
+  "github": {
+  "description": "Поиск репозиториев и информация о пользователях GitHub",
+  "commands": [".github repo", ".github user"],
+  "author": "Amazon Q",
+  "version": "1.0.0"
+},
+  "crypto": {
+  "description": "Курсы криптовалют в реальном времени",
+  "commands": [".crypto"],
+  "author": "Amazon Q",
+  "version": "1.0.0"
+},
+  "translator": {
+  "description": "Перевод текста через Google Translate API",
+  "commands": [".tr", ".tren"],
+  "author": "Amazon Q",
+  "version": "1.0.0"
+},
+  "quotes": {
+  "description": "Создание красивых цитат из сообщений с оформлением",
+  "commands": [".quote"],
+  "author": "Amazon Q",
+  "version": "1.0.0"
+},
+  "reminder": {
+  "description": "Напоминания с отложенной отправкой",
+  "commands": [".remind", ".reminders", ".remindclear"],
+  "author": "Amazon Q",
+  "version": "1.0.0"
+},
+  "weather": {
+  "description": "Погода по городу с температурой, влажностью, ветром и давлением",
+  "commands": [".weather"],
+  "author": "Mitrichq",
+  "version": "1.0.0"
+},
+  "qr": {
+  "description": "Генерация и чтение QR-кодов",
+  "commands": [".qr", ".readqr"],
+  "author": "Mitrichq",
+  "version": "1.0.0"
+},
+  "shorturl": {
+  "description": "Сокращение ссылок через TinyURL и is.gd",
+  "commands": [".short"],
+  "author": "Mitrichq",
+  "version": "1.0.0"
+},
+  "textart": {
+  "description": "Текстовые эффекты: перевернутый, зачеркнутый, моноширинный, жирный текст",
+  "commands": [".flip", ".strike", ".mono", ".bold"],
+  "author": "Mitrichq",
   "version": "1.0.0"
 }
 }

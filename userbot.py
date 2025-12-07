@@ -10,6 +10,9 @@ import json
 import subprocess
 from telethon import TelegramClient, events, Button
 
+# тест
+
+
 class Colors:
     RESET = '\033[0m'
     RED = '\033[91m'

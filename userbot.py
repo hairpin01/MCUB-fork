@@ -730,7 +730,6 @@ async def run_inline_bot():
                                 config['inline_bot_username'] = username
                                 with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
                                     json.dump(config, f, ensure_ascii=False, indent=2)
-                            cprint(f'✅ Inline-бот активен: @{username}', Colors.GREEN)
                             return True
         except Exception as e:
             cprint(f'⚠️ Ошибка проверки бота: {e}', Colors.YELLOW)

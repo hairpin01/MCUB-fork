@@ -41,6 +41,12 @@ last_healthcheck = time.time()
 pending_confirmations = {}
 power_save_mode = False
 
+# переменые для риканекта
+reconnect_attempts = 0
+max_reconnect_attempts = 5
+reconnect_delay = 10
+
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 if not os.path.exists(CONFIG_FILE):
@@ -162,6 +168,41 @@ async def healthcheck():
             last_healthcheck = current_time
         except Exception as e:
             log_command(f'HEALTHCHECK ERROR: {str(e)}', 0, 0, False)
+
+
+async def safe_connect():
+    global reconnect_attempts
+    while reconnect_attempts < max_reconnect_attempts:
+        try:
+            if client.is_connected():
+                return True
+
+            await client.connect()
+            if await client.is_user_authorized():
+                cprint('✅ Переподключение успешно', Colors.GREEN)
+                reconnect_attempts = 0
+                return True
+
+        except (ConnectionError, RPCError) as e:
+            reconnect_attempts += 1
+            cprint(f'❌ Ошибка подключения ({reconnect_attempts}/{max_reconnect_attempts}): {e}', Colors.RED)
+
+            if reconnect_attempts >= max_reconnect_attempts:
+                cprint('⚠️ Достигнут лимит попыток переподключения', Colors.YELLOW)
+                return False
+
+            wait_time = reconnect_delay * reconnect_attempts
+            cprint(f'⏳ Повторная попытка через {wait_time} секунд...', Colors.YELLOW)
+            await asyncio.sleep(wait_time)
+
+        except Exception as e:
+            cprint(f'❌ Неожиданная ошибка: {e}', Colors.RED)
+            reconnect_attempts += 1
+            await asyncio.sleep(reconnect_delay)
+
+    return False
+
+
 
 async def report_crash(error_msg):
     if DEVELOPER_CHAT_ID:

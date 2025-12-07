@@ -894,39 +894,50 @@ async def run_inline_bot():
         pass
 
 async def main():
+    global reconnect_attempts
+
     try:
         await migrate_data()
-        
-        await client.start(phone=PHONE)
+
+        if not await safe_connect():
+            cprint('❌ Не удалось подключиться к Telegram', Colors.RED)
+            sys.exit(1)
+
         cprint('✅ MCUB запущен', Colors.GREEN)
-        
+
         await check_inline_bot()
-        
-        asyncio.create_task(healthcheck())
         asyncio.create_task(run_inline_bot())
+        asyncio.create_task(healthcheck())
+        asyncio.create_task(check_connection())
         cprint(f'💚 Healthcheck запущен (каждые {HEALTHCHECK_INTERVAL} мин)', Colors.GREEN)
+
     except Exception as e:
         print(f'❌ Ошибка авторизации: {e}')
         print('Проверьте API_ID, API_HASH и PHONE в config.json')
         await report_crash(str(e))
         sys.exit(1)
-    
+
     if not os.path.exists(MODULES_DIR):
         os.makedirs(MODULES_DIR)
-    
+
     if os.path.exists(MODULES_DIR):
         for file_name in os.listdir(MODULES_DIR):
             if file_name.endswith('.py'):
                 try:
+                    if not client.is_connected():
+                        if not await safe_connect():
+                            cprint('⚠️ Пропуск загрузки модулей: нет соединения', Colors.YELLOW)
+                            break
+
                     file_path = os.path.join(MODULES_DIR, file_name)
-                    
+
                     with open(file_path, 'r', encoding='utf-8') as f:
                         code = f.read()
-                    
+
                     if 'from .. import' in code or 'import loader' in code:
                         cprint(f'Пропущен несовместимый модуль: {file_name}', Colors.YELLOW)
                         continue
-                    
+
                     spec = importlib.util.spec_from_file_location(file_name[:-3], file_path)
                     module = importlib.util.module_from_spec(spec)
                     sys.modules[file_name[:-3]] = module
@@ -939,15 +950,37 @@ async def main():
                         cprint(f'Модуль {file_name} не имеет register(client)', Colors.YELLOW)
                 except Exception as e:
                     cprint(f'Ошибка загрузки {file_name}: {e}', Colors.RED)
-    
+
     if os.path.exists(RESTART_FILE):
         with open(RESTART_FILE, 'r') as f:
             chat_id, msg_id, start_time = f.read().split(',')
         os.remove(RESTART_FILE)
         restart_time = round((time.time() - float(start_time)) * 1000)
-        await client.edit_message(int(chat_id), int(msg_id), f'MCUB перезагружен ✅\nВремя: {restart_time}ms')
-    
-    await client.run_until_disconnected()
+        if client.is_connected():
+            await client.edit_message(int(chat_id), int(msg_id), f'MCUB перезагружен ✅\nВремя: {restart_time}ms')
+        else:
+            cprint(f'⚠️ Не удалось отправить сообщение о перезагрузке: нет соединения', Colors.YELLOW)
+
+    while True:
+        try:
+            if not client.is_connected():
+                if not await safe_connect():
+                    cprint('⚠️ Основное соединение потеряно, ожидание...', Colors.YELLOW)
+                    await asyncio.sleep(30)
+                    continue
+
+            await client.run_until_disconnected()
+
+        except (ConnectionError, RPCError) as e:
+            cprint(f'⚠️ Разрыв соединения: {e}', Colors.YELLOW)
+            reconnect_attempts = 0
+            if not await safe_connect():
+                cprint('❌ Критический разрыв соединения', Colors.RED)
+                await asyncio.sleep(60)
+        except Exception as e:
+            cprint(f'❌ Неожиданная ошибка в main: {e}', Colors.RED)
+            reconnect_attempts = 0
+            await asyncio.sleep(30)
 
 if __name__ == '__main__':
     try:
@@ -957,7 +990,7 @@ if __name__ == '__main__':
                 if len(error_data) >= 2:
                     chat_id, msg_id = error_data[0], error_data[1]
                     print(f'⚠️ Обнаружен файл краша. Попытка восстановления...')
-                    
+
                     if os.path.exists(BACKUP_FILE):
                         print('📦 Найден бэкап. Восстанавливаю...')
                         with open(BACKUP_FILE, 'r', encoding='utf-8') as backup:
@@ -968,15 +1001,17 @@ if __name__ == '__main__':
                         print('✅ Восстановление завершено. Перезапуск...')
                         os.execl(sys.executable, sys.executable, *sys.argv)
             os.remove(ERROR_FILE)
-        
+
         asyncio.run(main())
     except KeyboardInterrupt:
         print('\n⛔ Остановка юзербота...')
+        if client.is_connected():
+            client.disconnect()
         sys.exit(0)
     except Exception as e:
         print(f'\n❌ Критическая ошибка: {e}')
         print('📝 Сохранение информации об ошибке...')
-        
+
         try:
             if os.path.exists(RESTART_FILE):
                 with open(RESTART_FILE, 'r') as f:
@@ -985,7 +1020,7 @@ if __name__ == '__main__':
                     f.write(f'{chat_id}|{msg_id}|{str(e)}')
         except:
             pass
-        
+
         print('\n🔧 Варианты восстановления:')
         print('1. Перезапустите юзербот - будет попытка автовосстановления')
         print('2. Используйте команду .rollback для отката к предыдущей версии')

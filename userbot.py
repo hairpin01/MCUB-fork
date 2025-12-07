@@ -601,8 +601,9 @@ async def handler(event):
         config['2fa_enabled'] = not current
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(config, f, ensure_ascii=False, indent=2)
-        status = 'включена' if not current else 'выключена'
-        await event.edit(f'🔐 Двухфакторная аутентификация {status}')
+        status = '✅ включена (инлайн-подтверждение)' if not current else '❌ выключена'
+        await event.edit(f'🔐 Двухфакторная аутентификация {status}\n\n'
+                        f'Теперь опасные команды требуют подтверждения через кнопки.')
     
     elif text == f'{command_prefix}rollback':
         if not os.path.exists(BACKUP_FILE):

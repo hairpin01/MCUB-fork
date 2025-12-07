@@ -1,6 +1,6 @@
 # порт на MCUBFB
 # идея @kmodules
-
+# requires: telethon, requests, json
 from telethon import events
 import io
 import requests

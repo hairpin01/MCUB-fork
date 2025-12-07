@@ -200,25 +200,25 @@ async def handler(event):
                 await event.edit('❌ Нет команд, ожидающих подтверждения')
                 return
 
-        if cmd in DANGEROUS_COMMANDS and config.get('2fa_enabled', False):
-            confirm_key = f'{event.chat_id}_{event.sender_id}'
-            if confirm_key not in pending_confirmations:
-                pending_confirmations[confirm_key] = text
+    if cmd in DANGEROUS_COMMANDS and config.get('2fa_enabled', False):
+        confirm_key = f'{event.chat_id}_{event.sender_id}'
+        if confirm_key not in pending_confirmations:
+            pending_confirmations[confirm_key] = text
 
-                buttons = [
-                    [Button.inline('✅ Подтвердить', b'confirm_yes'),
-                    Button.inline('❌ Отменить', b'confirm_no')]
-                ]
-                await event.edit(
-                    f'⚠️ **Требуется подтверждение**\n\n'
-                    f'Команда: `{text}`\n\n'
-                    f'Вы действительно хотите выполнить эту команду?',
-                    buttons=buttons
-                )
-                return
-            else:
-                await event.edit('⚠️ Эта команда уже ожидает подтверждения')
-                return
+            buttons = [
+                [Button.inline('✅ Подтвердить', b'confirm_yes'),
+                Button.inline('❌ Отменить', b'confirm_no')]
+            ]
+            await event.edit(
+                f'⚠️ **Требуется подтверждение**\n\n'
+                f'Команда: `{text}`\n\n'
+                f'Вы действительно хотите выполнить эту команду?',
+                buttons=buttons
+            )
+            return
+        else:
+            await event.edit('⚠️ Эта команда уже ожидает подтверждения')
+            return
     
     log_command(text, event.chat_id, event.sender_id)
     

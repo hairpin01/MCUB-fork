@@ -82,5 +82,10 @@
    "commands": [".catbox, .kappa, .oxo, .x0, .tmpfiles, .pomf, .bash"],
    "author": "Hairpin00",
    "version": "1.0.0"
-  }
+  },
+  "mitrich_mod": {
+  "description": "митрич мод 🖐️😈🤚",
+  "commands": [".emoji"],
+  "author": "Hairpin00",
+  "version": "1.0.0"
 }

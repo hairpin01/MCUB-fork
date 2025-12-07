@@ -22,7 +22,7 @@ class Colors:
 def cprint(text, color=''):
     print(f'{color}{text}{Colors.RESET}')
 
-VERSION = '0.2.51'
+VERSION = '0.2.52'
 DB_VERSION = 1
 RESTART_FILE = 'restart.tmp'
 MODULES_DIR = 'modules'
@@ -612,42 +612,15 @@ async def handler(event):
         await event.edit(f'Режим энергосбережения {status}{features}')
     
     elif text.startswith(f'{command_prefix}ibot '):
-        bot_token = config.get('inline_bot_token')
-        if not bot_token:
+        bot_username = config.get('inline_bot_username')
+        if not bot_username:
             await event.edit('❌ Inline-бот не настроен. Перезапустите юзербот')
             return
         
         args = text[len(command_prefix)+5:].strip()
-        if '|' not in args:
-            await event.edit(f'❌ Использование: `{command_prefix}ibot текст | кнопка1:url1 | кнопка2:url2`')
-            return
-        
-        parts = args.split('|')
-        msg_text = parts[0].strip()
-        buttons = []
-        
-        for btn_data in parts[1:]:
-            btn_data = btn_data.strip()
-            if ':' in btn_data:
-                btn_parts = btn_data.split(':', 1)
-                btn_text = btn_parts[0].strip()
-                btn_url = btn_parts[1].strip()
-                buttons.append([{'text': btn_text, 'url': btn_url}])
-        
-        try:
-            await event.delete()
-            async with aiohttp.ClientSession() as session:
-                payload = {
-                    'chat_id': event.chat_id,
-                    'text': msg_text,
-                    'reply_markup': {'inline_keyboard': buttons} if buttons else None
-                }
-                async with session.post(f'https://api.telegram.org/bot{bot_token}/sendMessage', json=payload) as resp:
-                    if resp.status != 200:
-                        error_data = await resp.json()
-                        await client.send_message(event.chat_id, f'❌ Ошибка: {error_data.get("description", "Неизвестная ошибка")}')
-        except Exception as e:
-            await client.send_message(event.chat_id, f'❌ Ошибка: {str(e)}')
+        await event.edit(f'💬 Отправьте: `@{bot_username} {args}`')
+        await asyncio.sleep(3)
+        await event.delete()
     
     elif text.startswith(f'{command_prefix}t '):
         command = text[len(command_prefix)+2:].strip()
@@ -741,6 +714,39 @@ async def check_inline_bot():
     
     return False
 
+async def run_inline_bot():
+    bot_token = config.get('inline_bot_token')
+    if not bot_token:
+        return
+    
+    try:
+        from telethon import TelegramClient as BotClient
+        bot = BotClient('inline_bot', API_ID, API_HASH)
+        await bot.start(bot_token=bot_token)
+        
+        @bot.on(events.InlineQuery)
+        async def inline_handler(event):
+            query = event.text
+            if '|' in query:
+                parts = query.split('|')
+                text = parts[0].strip()
+                buttons = []
+                for btn_data in parts[1:]:
+                    btn_data = btn_data.strip()
+                    if ':' in btn_data:
+                        btn_parts = btn_data.split(':', 1)
+                        buttons.append([Button.url(btn_parts[0].strip(), btn_parts[1].strip())])
+                
+                builder = event.builder.article('Message', text=text, buttons=buttons)
+            else:
+                builder = event.builder.article('Message', text=query)
+            
+            await event.answer([builder])
+        
+        await bot.run_until_disconnected()
+    except:
+        pass
+
 async def main():
     try:
         await migrate_data()
@@ -751,6 +757,7 @@ async def main():
         await check_inline_bot()
         
         asyncio.create_task(healthcheck())
+        asyncio.create_task(run_inline_bot())
         cprint(f'💚 Healthcheck запущен (каждые {HEALTHCHECK_INTERVAL} мин)', Colors.GREEN)
     except Exception as e:
         print(f'❌ Ошибка авторизации: {e}')

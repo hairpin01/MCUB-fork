@@ -22,7 +22,7 @@ class Colors:
 def cprint(text, color=''):
     print(f'{color}{text}{Colors.RESET}')
 
-VERSION = '0.2.53'
+VERSION = '0.2.52'
 DB_VERSION = 1
 RESTART_FILE = 'restart.tmp'
 MODULES_DIR = 'modules'
@@ -618,13 +618,9 @@ async def handler(event):
             return
         
         args = text[len(command_prefix)+5:].strip()
+        await event.edit(f'💬 Отправьте: `@{bot_username} {args}`')
+        await asyncio.sleep(3)
         await event.delete()
-        
-        try:
-            bot = await client.inline_query(bot_username, args)
-            await bot[0].click(event.chat_id)
-        except:
-            await client.send_message(event.chat_id, f'❌ Ошибка. Попробуйте: `@{bot_username} {args}`')
     
     elif text.startswith(f'{command_prefix}t '):
         command = text[len(command_prefix)+2:].strip()
@@ -722,7 +718,22 @@ async def run_inline_bot():
     bot_token = config.get('inline_bot_token')
     if not bot_token:
         return
-    
+    if bot_token:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f'https://api.telegram.org/bot{bot_token}/getMe') as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        if data.get('ok'):
+                            username = data['result']['username']
+                            if bot_username and bot_username != username:
+                                config['inline_bot_username'] = username
+                                with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+                                    json.dump(config, f, ensure_ascii=False, indent=2)
+                            cprint(f'✅ Inline-бот активен: @{username}', Colors.GREEN)
+                            return True
+        except Exception as e:
+            cprint(f'⚠️ Ошибка проверки бота: {e}', Colors.YELLOW)
     try:
         from telethon import TelegramClient as BotClient
         bot = BotClient('inline_bot', API_ID, API_HASH)

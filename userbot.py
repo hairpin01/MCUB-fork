@@ -22,7 +22,7 @@ class Colors:
 def cprint(text, color=''):
     print(f'{color}{text}{Colors.RESET}')
 
-VERSION = '0.2.56'
+VERSION = '0.2.57'
 DB_VERSION = 1
 RESTART_FILE = 'restart.tmp'
 MODULES_DIR = 'modules'
@@ -206,17 +206,29 @@ async def handler(event):
             pending_confirmations[confirm_key] = text
             await event.delete()
             
-            buttons = [
-                [Button.inline('✅ Подтвердить', b'confirm_yes'),
-                Button.inline('❌ Отменить', b'confirm_no')]
-            ]
-            await client.send_message(
-                event.chat_id,
-                f'⚠️ **Требуется подтверждение**\n\n'
-                f'Команда: `{text}`\n\n'
-                f'Вы действительно хотите выполнить эту команду?',
-                buttons=buttons
-            )
+            bot_token = config.get('inline_bot_token')
+            if bot_token:
+                try:
+                    me = await client.get_me()
+                    async with aiohttp.ClientSession() as session:
+                        payload = {
+                            'chat_id': me.id,
+                            'text': f'⚠️ **Требуется подтверждение**\n\nКоманда: `{text}`\n\nВы действительно хотите выполнить эту команду?',
+                            'parse_mode': 'Markdown',
+                            'reply_markup': {
+                                'inline_keyboard': [
+                                    [
+                                        {'text': '✅ Подтвердить', 'callback_data': 'confirm_yes'},
+                                        {'text': '❌ Отменить', 'callback_data': 'confirm_no'}
+                                    ]
+                                ]
+                            }
+                        }
+                        await session.post(f'https://api.telegram.org/bot{bot_token}/sendMessage', json=payload)
+                except:
+                    await client.send_message(event.chat_id, f'⚠️ Требуется подтверждение: `{text}`\n\nНапишите `{command_prefix}confirm` для подтверждения')
+            else:
+                await client.send_message(event.chat_id, f'⚠️ Требуется подтверждение: `{text}`\n\nНапишите `{command_prefix}confirm` для подтверждения')
             return
         else:
             await event.edit('⚠️ Эта команда уже ожидает подтверждения')

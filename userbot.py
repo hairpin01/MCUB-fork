@@ -188,14 +188,37 @@ async def handler(event):
     if cmd in aliases:
         text = command_prefix + aliases[cmd] + text[len(command_prefix) + len(cmd):]
     
-    if cmd in DANGEROUS_COMMANDS and config.get('2fa_enabled', False):
-        confirm_key = f'{event.chat_id}_{event.id}'
-        if confirm_key not in pending_confirmations:
-            pending_confirmations[confirm_key] = {'command': text, 'time': time.time()}
-            await event.edit(f'⚠️ Подтвердите выполнение команды `{text}`\n\nОтветьте: `{command_prefix}confirm`')
-            return
-        else:
-            del pending_confirmations[confirm_key]
+    if cmd == 'confirm':
+            confirm_key = f'{event.chat_id}_{event.sender_id}'
+            if confirm_key in pending_confirmations:
+                saved_command = pending_confirmations[confirm_key]
+                del pending_confirmations[confirm_key]
+                event.text = saved_command
+                await handler(event)
+                return
+            else:
+                await event.edit('❌ Нет команд, ожидающих подтверждения')
+                return
+
+        if cmd in DANGEROUS_COMMANDS and config.get('2fa_enabled', False):
+            confirm_key = f'{event.chat_id}_{event.sender_id}'
+            if confirm_key not in pending_confirmations:
+                pending_confirmations[confirm_key] = text
+
+                buttons = [
+                    [Button.inline('✅ Подтвердить', b'confirm_yes'),
+                    Button.inline('❌ Отменить', b'confirm_no')]
+                ]
+                await event.edit(
+                    f'⚠️ **Требуется подтверждение**\n\n'
+                    f'Команда: `{text}`\n\n'
+                    f'Вы действительно хотите выполнить эту команду?',
+                    buttons=buttons
+                )
+                return
+            else:
+                await event.edit('⚠️ Эта команда уже ожидает подтверждения')
+                return
     
     log_command(text, event.chat_id, event.sender_id)
     

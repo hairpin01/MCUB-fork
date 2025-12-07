@@ -899,6 +899,8 @@ async def main():
     try:
         await migrate_data()
 
+        await client.start(phone=PHONE)
+
         if not await safe_connect():
             cprint('❌ Не удалось подключиться к Telegram', Colors.RED)
             sys.exit(1)

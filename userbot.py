@@ -547,7 +547,8 @@ async def handler(event):
 {command_prefix}rollback - откатиться к предыдущей версии
 {command_prefix}2fa - вкл/выкл 2FA для опасных команд
 {command_prefix}powersave - режим энергосбережения
-{command_prefix}ibot [текст | кнопка:url] - отправить через inline-бота'''
+{command_prefix}ibot [текст | кнопка:url] - отправить через inline-бота
+{command_prefix}modules [страница]'''
         await event.edit(help_text)
     
     elif text == f'{command_prefix}restart':

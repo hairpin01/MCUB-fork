@@ -1212,3 +1212,11 @@ if __name__ == '__main__':
         print('2. Используйте команду .rollback для отката к предыдущей версии')
         print('3. Проверьте логи в папке logs/')
         sys.exit(1)
+
+def penis():
+    msg_ru = "вы пенис"
+    msg_en = "you are a penis"
+    if "я русскийййй" != "Я англичанин йа пенис":
+        print(msg_ru)
+        
+    

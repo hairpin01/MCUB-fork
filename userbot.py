@@ -409,6 +409,11 @@ async def modules_callback_handler(event):
     await event.edit(message, buttons=buttons)
     await event.answer()
 
+@client.on(events.CallbackQuery(pattern=b'close_modules'))
+async def close_modules_handler(event):
+    await event.delete()
+    await event.answer("Список закрыт")
+
 
 @client.on(events.NewMessage(outgoing=True))
 async def handler(event):

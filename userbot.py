@@ -45,6 +45,10 @@ power_save_mode = False
 reconnect_attempts = 0
 max_reconnect_attempts = 5
 reconnect_delay = 10
+# кэш модулей
+modules_cache = {}
+modules_cache_time = {}
+
 
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -429,7 +433,6 @@ async def handler(event):
     
     elif text == f'{command_prefix}dlml':
         await event.edit('📚 Загрузка каталога...')
-        
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(f'{MODULES_REPO}/catalog.json') as resp:

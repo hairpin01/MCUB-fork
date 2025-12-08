@@ -354,6 +354,61 @@ async def modules_command_handler(event):
     await event.edit(message, buttons=buttons)
 
 
+@client.on(events.CallbackQuery(pattern=r'modules_(\d+)'))
+async def modules_callback_handler(event):
+    data = event.data.decode('utf-8')
+    page = int(data.split('_')[1])
+    
+    modules_list = []
+    if os.path.exists(MODULES_DIR):
+        for file_name in os.listdir(MODULES_DIR):
+            if file_name.endswith('.py'):
+                modules_list.append(file_name[:-3])
+    
+    modules_list.sort()
+    
+    per_page = 8
+    total_pages = (len(modules_list) + per_page - 1) // per_page
+    
+    if page < 1:
+        page = 1
+    if page > total_pages:
+        page = total_pages
+    
+    start_idx = (page - 1) * per_page
+    end_idx = min(start_idx + per_page, len(modules_list))
+    
+    message = f"📦 **Список модулей**\n"
+    message += f"Страница {page}/{total_pages}\n"
+    message += f"Всего: {len(modules_list)} модулей\n\n"
+    
+    for i, module_name in enumerate(modules_list[start_idx:end_idx], start=start_idx + 1):
+        desc = get_module_description(module_name)
+        message += f"{i}. **{module_name}**\n"
+        if desc:
+            message += f"   {desc}\n"
+    
+    buttons = []
+    nav_buttons = []
+    
+    if page > 1:
+        nav_buttons.append(Button.inline("⬅️ Назад", data=f"modules_{page-1}"))
+    else:
+        nav_buttons.append(Button.inline("•", data="no_action"))
+    
+    nav_buttons.append(Button.inline(f"{page}/{total_pages}", data="no_action"))
+    
+    if page < total_pages:
+        nav_buttons.append(Button.inline("Вперёд ➡️", data=f"modules_{page+1}"))
+    else:
+        nav_buttons.append(Button.inline("•", data="no_action"))
+    
+    buttons.append(nav_buttons)
+    buttons.append([Button.inline("❌ Закрыть", data="close_modules")])
+    
+    await event.edit(message, buttons=buttons)
+    await event.answer()
+
 
 @client.on(events.NewMessage(outgoing=True))
 async def handler(event):

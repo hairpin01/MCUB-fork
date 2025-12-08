@@ -255,6 +255,39 @@ async def report_crash(error_msg):
         except:
             pass
 
+def get_module_description(module_name):
+    file_path = os.path.join(MODULES_DIR, f'{module_name}.py')
+    if not os.path.exists(file_path):
+        return None
+    
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        lines = content.split('\n')
+        for line in lines:
+            if line.strip().startswith('# Описание:'):
+                return line.replace('# Описание:', '').strip()
+            elif line.strip().startswith('# Description:'):
+                return line.replace('# Description:', '').strip()
+        
+        if '"""' in content:
+            import re
+            match = re.search(r'\"\"\"(.+?)\"\"\"', content, re.DOTALL)
+            if match:
+                desc = match.group(1).strip().split('\n')[0]
+                return desc
+        elif "'''" in content:
+            import re
+            match = re.search(r"\'\'\'(.+?)\'\'\'", content, re.DOTALL)
+            if match:
+                desc = match.group(1).strip().split('\n')[0]
+                return desc
+    except:
+        pass
+    
+    return None
+
 @client.on(events.NewMessage(outgoing=True))
 async def handler(event):
     global command_prefix, aliases, pending_confirmations, power_save_mode, config

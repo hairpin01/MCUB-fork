@@ -414,6 +414,9 @@ async def close_modules_handler(event):
     await event.delete()
     await event.answer("Список закрыт")
 
+@client.on(events.CallbackQuery(pattern=b'no_action'))
+async def no_action_handler(event):
+    await event.answer()
 
 @client.on(events.NewMessage(outgoing=True))
 async def handler(event):

@@ -57,6 +57,8 @@ if not os.path.exists(CONFIG_FILE):
     print('Файл config.json не найден')
     print('Скопируйте config.example.json в config.json и заполните данные')
     sys.exit(1)
+    
+    
 
 with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
     config = json.load(f)
@@ -289,7 +291,7 @@ def get_module_description(module_name):
     return None
 
 
-@client.on(events.NewMessage(pattern=r'^\.modules(?:\s+(\d+))?$'))
+@client.on(events.NewMessage(pattern=rf'^{re.escape(command_prefix)}modules(?:\s+(\d+))?$'))
 async def modules_command_handler(event):
     args = event.text.split()
     page = 1
@@ -329,9 +331,10 @@ async def modules_command_handler(event):
     
     for i, module_name in enumerate(modules_list[start_idx:end_idx], start=start_idx + 1):
         desc = get_module_description(module_name)
-        message += f"{i}. **{module_name}**\n"
+        message += f"{i}. **{module_name}**"
         if desc:
-            message += f"   {desc}\n"
+            message += f"\n   {desc}"
+        message += "\n\n"
     
     buttons = []
     nav_buttons = []
@@ -339,14 +342,14 @@ async def modules_command_handler(event):
     if page > 1:
         nav_buttons.append(Button.inline("⬅️ Назад", data=f"modules_{page-1}"))
     else:
-        nav_buttons.append(Button.inline("•", data="no_action"))
+        nav_buttons.append(Button.inline(" ", data="no_action"))
     
     nav_buttons.append(Button.inline(f"{page}/{total_pages}", data="no_action"))
     
     if page < total_pages:
         nav_buttons.append(Button.inline("Вперёд ➡️", data=f"modules_{page+1}"))
     else:
-        nav_buttons.append(Button.inline("•", data="no_action"))
+        nav_buttons.append(Button.inline(" ", data="no_action"))
     
     buttons.append(nav_buttons)
     buttons.append([Button.inline("❌ Закрыть", data="close_modules")])

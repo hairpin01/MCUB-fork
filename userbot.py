@@ -481,7 +481,7 @@ async def no_action_handler(event):
 async def handler(event):
     global command_prefix, aliases, pending_confirmations, power_save_mode, config
     text = event.text
-    
+    # ВНИМАНИЕ НАЧИНАЕТСЯ ШАВЕРМА КОД!!!!!!!!!!!!!!
     if not text.startswith(command_prefix):
         return
     

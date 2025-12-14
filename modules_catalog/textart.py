@@ -49,17 +49,17 @@ def register(client):
     async def flip_handler(event):
         text = event.pattern_match.group(1)
         await event.edit(flip_text(text))
-    
+
     @client.on(events.NewMessage(outgoing=True, pattern=r'^\.strike\s+(.+)'))
     async def strike_handler(event):
         text = event.pattern_match.group(1)
         await event.edit(strikethrough(text))
-    
+
     @client.on(events.NewMessage(outgoing=True, pattern=r'^\.mono\s+(.+)'))
     async def mono_handler(event):
         text = event.pattern_match.group(1)
         await event.edit(monospace(text))
-    
+
     @client.on(events.NewMessage(outgoing=True, pattern=r'^\.bold\s+(.+)'))
     async def bold_handler(event):
         text = event.pattern_match.group(1)

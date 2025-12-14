@@ -23,9 +23,9 @@ def register(client):
     async def shorturl_handler(event):
         service = event.pattern_match.group(1) or 'tinyurl'
         url = event.pattern_match.group(2).strip()
-        
+
         await event.edit('🔗 Сокращение ссылки...')
-        
+
         try:
             if service.lower() == 'tinyurl':
                 short = await shorten_tinyurl(url)
@@ -34,7 +34,7 @@ def register(client):
             else:
                 await event.edit(f'❌ Неизвестный сервис\n\nДоступные: tinyurl, isgd')
                 return
-            
+
             if short:
                 await event.edit(f'✅ **Сокращенная ссылка:**\n\n`{short}`\n\n📎 Оригинал: {url}')
             else:

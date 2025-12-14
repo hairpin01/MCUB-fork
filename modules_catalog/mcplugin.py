@@ -8,7 +8,7 @@ import os
 from telethon import events
 
 def register(client):
-    
+
     @client.on(events.NewMessage(outgoing=True, pattern=r'^\.dice$'))
     async def dice_handler(event):
         frames = ["🎲 Кубик крутится...", "🎲🎲 Крутится...", "🎲🎲🎲 Крутится..."]
@@ -18,7 +18,7 @@ def register(client):
         result = random.randint(1, 6)
         dice_emoji = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"][result - 1]
         await event.edit(f"🎲 Выпало: {dice_emoji} `{result}`")
-    
+
     @client.on(events.NewMessage(outgoing=True, pattern=r'^\.coin$'))
     async def coin_handler(event):
         frames = ["🪙 Монетка в воздухе...", "🪙🪙 Почти упала..."]
@@ -27,7 +27,7 @@ def register(client):
             await asyncio.sleep(0.8)
         result = random.choice(["Орел 🦅", "Решка 💰"])
         await event.edit(f"🪙 Результат: {result}")
-    
+
     @client.on(events.NewMessage(outgoing=True, pattern=r'^\.roulette$'))
     async def roulette_handler(event):
         frames = ["🔫 Крутим барабан...", "🔫 Щелк...", "🔫🔫 Щелк... щелк...", "🔫🔫🔫 Щелк... щелк... щелк..."]
@@ -38,7 +38,7 @@ def register(client):
             await event.edit("💥 БАХ! Вы проиграли!")
         else:
             await event.edit("✅ Повезло! Выжили!")
-    
+
     @client.on(events.NewMessage(outgoing=True, pattern=r'^\.slots$'))
     async def slots_handler(event):
         symbols = ["🍒", "🍋", "🍊", "🍇", "🔔", "💎", "7️⃣"]
@@ -50,7 +50,7 @@ def register(client):
         result = [random.choice(symbols) for _ in range(3)]
         jackpot = "🎉 ДЖЕКПОТ!" if result[0] == result[1] == result[2] else ""
         await event.edit(f"🎰 | {result[0]} | {result[1]} | {result[2]} | {jackpot}")
-    
+
     @client.on(events.NewMessage(outgoing=True, pattern=r'^\.wheel$'))
     async def wheel_handler(event):
         sectors = ["💰", "🍎", "🍒", "🍋", "🍇", "🔔", "⭐", "💸"]
@@ -59,10 +59,10 @@ def register(client):
             await event.edit(f"🎡️ {random.choice(sectors)}")
             await asyncio.sleep(0.5)
         result = random.choice(sectors)
-        text = {"💰": "🎉 ДЖЕКПОТ! Максимальный выигрыш!", "⭐": "✨ Звезда! Отличный результат!", 
+        text = {"💰": "🎉 ДЖЕКПОТ! Максимальный выигрыш!", "⭐": "✨ Звезда! Отличный результат!",
                 "💸": "💸 Банкрот! Попробуй еще раз!"}.get(result, "🍓 Фрукт! Хороший результат!")
         await event.edit(f"🎡️ Результат: {result}\n\n{text}")
-    
+
     @client.on(events.NewMessage(outgoing=True, pattern=r'^\.random'))
     async def random_handler(event):
         args = event.text[8:].strip().split()
@@ -76,14 +76,14 @@ def register(client):
             min_val, max_val = max_val, min_val
         result = random.randint(min_val, max_val)
         await event.edit(f"🎰 Случайное число ({min_val}-{max_val}): `{result}`")
-    
+
     @client.on(events.NewMessage(outgoing=True, pattern=r'^\.8ball'))
     async def ball8_handler(event):
         await event.edit("🎱 Магический шар думает...")
         await asyncio.sleep(1.5)
         answers = ["✅ Да", "❌ Нет", "🤔 Возможно", "😎 Определенно да", "😒 Определенно нет", "🤷 Не знаю"]
         await event.edit(f"🎱 Магический шар: {random.choice(answers)}")
-    
+
     @client.on(events.NewMessage(outgoing=True, pattern=r'^\.type'))
     async def type_handler(event):
         args = event.text[6:].strip()
@@ -96,7 +96,7 @@ def register(client):
             await event.edit(f"⌨️ {text}▌")
             await asyncio.sleep(0.1)
         await event.edit(text)
-    
+
     @client.on(events.NewMessage(outgoing=True, pattern=r'^\.fact$'))
     async def fact_handler(event):
         facts = [

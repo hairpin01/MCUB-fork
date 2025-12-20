@@ -337,5 +337,13 @@
         ],
         "author": "Mitrichq",
         "version": "1.0.0"
+    },
+    "tabfix-tool": { 
+	   "description": "tabfix-tool for Mitrichq userbot, please install 'pip install tabfix-tool'",
+           "commands": [
+		   ".tabfix help"
+	   ],
+	   "author": "Hairpin00",
+	   "version": "1.2.0"
     }
 }

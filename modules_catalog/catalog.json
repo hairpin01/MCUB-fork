@@ -190,7 +190,7 @@
             ".addsticker",
             ".stickerpack"
         ],
-        "author": "Amazon Q",
+        "author": "Mitrichq",
         "version": "1.0.0"
     },
     "memes": {
@@ -224,7 +224,7 @@
             ".chatstats",
             ".chatstats clear"
         ],
-        "author": "Amazon Q",
+        "author": "Mitrichq",
         "version": "1.0.0"
     },
     "tracker": {
@@ -235,7 +235,7 @@
             ".tracked",
             ".changes"
         ],
-        "author": "Amazon Q",
+        "author": "Mitrichq",
         "version": "1.0.0"
     },
     "logger": {
@@ -247,7 +247,7 @@
             ".edited",
             ".log clear"
         ],
-        "author": "Amazon Q",
+        "author": "MItrichq",
         "version": "1.0.0"
     },
     "wiki": {
@@ -255,7 +255,7 @@
         "commands": [
             ".wiki"
         ],
-        "author": "Amazon Q",
+        "author": "MItrichq",
         "version": "1.0.0"
     },
     "github": {
@@ -264,7 +264,7 @@
             ".github repo",
             ".github user"
         ],
-        "author": "Amazon Q",
+        "author": "MItrichq",
         "version": "1.0.0"
     },
     "crypto": {
@@ -272,7 +272,7 @@
         "commands": [
             ".crypto"
         ],
-        "author": "Amazon Q",
+        "author": "MItrichq",
         "version": "1.0.0"
     },
     "translator": {
@@ -281,7 +281,7 @@
             ".tr",
             ".tren"
         ],
-        "author": "Amazon Q",
+        "author": "MItrichq",
         "version": "1.0.0"
     },
     "quotes": {
@@ -289,7 +289,7 @@
         "commands": [
             ".quote"
         ],
-        "author": "Amazon Q",
+        "author": "MItrichq",
         "version": "1.0.0"
     },
     "reminder": {
@@ -299,7 +299,7 @@
             ".reminders",
             ".remindclear"
         ],
-        "author": "Amazon Q",
+        "author": "MItrichq",
         "version": "1.0.0"
     },
     "weather": {
@@ -345,5 +345,20 @@
 	   ],
 	   "author": "Hairpin00",
 	   "version": "1.2.0"
+    },
+	"inline_example": { 
+	   "description": "пример как делать модули с испольлзованием инлайн бота",
+           "commands": [
+		     ".card",
+		     ".links",
+			 ".time",
+		     ".announce",
+			 ".quote",
+		     ".social",
+		     ".rules",
+			 ".inlinehelp"
+	   ],
+	   "author": "Mitrichq",
+	   "version": "1.0.0"
     }
 }

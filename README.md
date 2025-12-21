@@ -1,3 +1,8 @@
+<div align="center">
+
+<img src="img/userbot.png" alt="Bot Preview" width="600"/>
+
+</div>
 
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/7fceb52b899d44b3bb151b568dc99d38)](https://app.codacy.com/gh/Mitrichdfklwhcluio/MCUBFB/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
 [![GitHub repo size](https://img.shields.io/github/repo-size/hairpin01/tabfix)](https://github.com/Mitrichdfklwhcluio/MCUBFB)

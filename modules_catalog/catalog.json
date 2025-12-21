@@ -376,6 +376,17 @@
 	    ],
 	    "author": "Hairpin00",
 	    "version": "1.0.1"
-	}
-
+	    },
+        "userbot_backup": {
+        "description": "БЫСТРЕЕ ДЕЛАЙ БЭКАП ПОКА ЕЩЁ МОЖНО",
+        "commands": [
+            ".backupall",
+            ".backupnow",
+            ".restoreall",
+            ".backupchat",
+            ".backupset"
+            ],
+        "author": "Hairpin00",
+        "version": "1.0.0"
+    }
 }

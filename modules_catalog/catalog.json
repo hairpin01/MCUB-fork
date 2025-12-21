@@ -360,5 +360,22 @@
 	   ],
 	   "author": "Mitrichq",
 	   "version": "1.0.0"
-    }
+    },
+    	"Gemini": {
+	    "description": "ай жемени ай маладец, на термуксе может не робить",
+	    "commands": [
+		   ".gg",
+		   ".gclear",
+		   ".gauto",
+		   ".gmodel",
+		   ".gprompt",
+		   ".gres",
+		   ".gconfig",
+		   ".gcfg",
+		   ".ghelp"
+	    ],
+	    "author": "Hairpin00",
+	    "version": "1.0.1"
+	}
+
 }

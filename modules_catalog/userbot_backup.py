@@ -5,7 +5,7 @@ import zipfile
 import tempfile
 import asyncio
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, List
 import time
@@ -22,7 +22,16 @@ from telethon import events, Button, TelegramClient
 from telethon.tl.functions.channels import CreateChannelRequest
 from telethon.tl.functions.messages import ExportChatInviteRequest
 from telethon.tl.types import ChatAdminRights, InputPeerUser
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+# Импортируем нужные модули для APScheduler с обработкой временных зон
+try:
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    from apscheduler.jobstores.memory import MemoryJobStore
+    import pytz
+    HAS_APSCHEDULER = True
+except ImportError:
+    HAS_APSCHEDULER = False
+    print("❌ APScheduler не установлен. Установите: pip install apscheduler pytz")
 
 
 def register(client):
@@ -34,10 +43,23 @@ def register(client):
         "config_path": "config.json",
         "last_backup_time": None,
         "backup_count": 0,
-        "enable_auto_backup": True
+        "enable_auto_backup": True,
+        "timezone": "UTC"  # Добавляем настройку временной зоны
     }
     
-    scheduler = AsyncIOScheduler()
+    if HAS_APSCHEDULER:
+        # Создаем планировщик с UTC временной зоной по умолчанию
+        try:
+            scheduler = AsyncIOScheduler(
+                jobstores={'default': MemoryJobStore()},
+                timezone=timezone.utc  # Используем UTC по умолчанию
+            )
+        except:
+            # Если не удалось с UTC, пробуем системную зону
+            scheduler = AsyncIOScheduler()
+    else:
+        scheduler = None
+    
     backup_task = None
     
     class BackupModule:
@@ -53,14 +75,57 @@ def register(client):
                         loaded = json.load(f)
                         config = DEFAULT_CONFIG.copy()
                         config.update(loaded)
+                        
+                        # Проверяем и корректируем временную зону
+                        if "timezone" not in config:
+                            config["timezone"] = "UTC"
+                        
                         return config
-                except:
+                except Exception as e:
+                    print(f"Ошибка загрузки конфига: {e}")
                     return DEFAULT_CONFIG.copy()
             return DEFAULT_CONFIG.copy()
             
         def save_config(self):
             with open(BACKUP_CONFIG_FILE, 'w', encoding='utf-8') as f:
                 json.dump(self.config, f, indent=2, ensure_ascii=False)
+        
+        def get_timezone(self):
+            """Получаем объект временной зоны из конфига"""
+            try:
+                if HAS_APSCHEDULER:
+                    tz_str = self.config.get("timezone", "UTC")
+                    if tz_str.upper() == "UTC":
+                        return timezone.utc
+                    return pytz.timezone(tz_str)
+                return timezone.utc
+            except Exception as e:
+                print(f"Ошибка временной зоны '{self.config.get('timezone', 'UTC')}': {e}, использую UTC")
+                return timezone.utc
+        
+        def get_current_time(self):
+            """Получаем текущее время с учетом временной зоны"""
+            tz = self.get_timezone()
+            if hasattr(tz, 'localize'):
+                # Для pytz временных зон
+                return datetime.now(tz)
+            else:
+                # Для стандартных timezone
+                return datetime.now(tz)
+        
+        def format_datetime(self, dt=None):
+            """Форматируем дату-время для отображения"""
+            if dt is None:
+                dt = self.get_current_time()
+            
+            try:
+                # Пробуем форматировать с часовым поясом
+                if hasattr(dt, 'tzinfo') and dt.tzinfo:
+                    return dt.strftime("%Y-%m-%d %H:%M:%S %Z")
+                else:
+                    return dt.strftime("%Y-%m-%d %H:%M:%S")
+            except:
+                return dt.strftime("%Y-%m-%d %H:%M:%S")
         
         async def ensure_backup_chat(self):
             if self.config["backup_chat_id"]:
@@ -169,7 +234,8 @@ def register(client):
                 
                 self.format_json_file(config_backup)
             
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            current_time = self.get_current_time()
+            timestamp = current_time.strftime("%Y%m%d_%H%M%S")
             zip_path = Path(temp_dir) / f"backup_{timestamp}.zip"
             
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
@@ -202,9 +268,10 @@ def register(client):
                     config_size = config_path.stat().st_size
                     stats.append(f"⚙️ Конфиг: {config_size / 1024:.1f} KB")
                 
+                current_time = self.get_current_time()
                 caption = (
                     f"📊 **Бэкап бота**\n"
-                    f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                    f"⏰ {self.format_datetime(current_time)}\n"
                     f"{'🔧 Ручной' if manual else '🤖 Авто'} бэкап\n\n"
                     f"{chr(10).join(stats) if stats else '⚠️ Файлы не найдены'}\n\n"
                     f"💾 **Использование:**\n"
@@ -221,7 +288,7 @@ def register(client):
                     parse_mode='html'
                 )
                 
-                self.config["last_backup_time"] = datetime.now().isoformat()
+                self.config["last_backup_time"] = current_time.isoformat()
                 self.config["backup_count"] = self.config.get("backup_count", 0) + 1
                 self.save_config()
                 
@@ -258,7 +325,8 @@ def register(client):
                     modules_path = self.get_modules_path()
                     
                     if modules_path.exists():
-                        backup_modules = modules_path.with_name(f"{modules_path.name}_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+                        current_time = self.get_current_time()
+                        backup_modules = modules_path.with_name(f"{modules_path.name}_backup_{current_time.strftime('%Y%m%d_%H%M%S')}")
                         shutil.move(modules_path, backup_modules)
                         changes.append(f"📦 Модули сохранены в: `{backup_modules.name}`")
                     
@@ -269,7 +337,8 @@ def register(client):
                     config_path = self.get_config_path()
                     
                     if config_path.exists():
-                        backup_config = config_path.with_name(f"{config_path.stem}_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}{config_path.suffix}")
+                        current_time = self.get_current_time()
+                        backup_config = config_path.with_name(f"{config_path.stem}_backup_{current_time.strftime('%Y%m%d_%H%M%S')}{config_path.suffix}")
                         shutil.move(config_path, backup_config)
                         changes.append(f"⚙️ Конфиг сохранен в: `{backup_config.name}`")
                     
@@ -287,27 +356,46 @@ def register(client):
                 return [f"❌ Ошибка: {str(e)}"]
         
         async def start_auto_backup(self):
-            if not self.config["enable_auto_backup"]:
+            if not self.config["enable_auto_backup"] or not HAS_APSCHEDULER:
                 return
             
             async def backup_job():
                 if self.config["enable_auto_backup"]:
                     await self.send_backup(manual=False)
             
-            scheduler.add_job(
-                backup_job,
-                'interval',
-                hours=self.config["backup_interval_hours"],
-                id='auto_backup',
-                replace_existing=True
-            )
-            
-            if not scheduler.running:
-                scheduler.start()
-        
+            try:
+                scheduler.add_job(
+                    backup_job,
+                    'interval',
+                    hours=self.config["backup_interval_hours"],
+                    id='auto_backup',
+                    replace_existing=True,
+                    timezone=self.get_timezone()  # Указываем временную зону
+                )
+                
+                if not scheduler.running:
+                    scheduler.start()
+            except Exception as e:
+                print(f"Ошибка запуска планировщика: {e}")
+                # Пробуем запустить без указания временной зоны
+                try:
+                    scheduler.add_job(
+                        backup_job,
+                        'interval',
+                        hours=self.config["backup_interval_hours"],
+                        id='auto_backup',
+                        replace_existing=True
+                    )
+                    
+                    if not scheduler.running:
+                        scheduler.start()
+                except Exception as e2:
+                    print(f"Не удалось запустить планировщик: {e2}")
+    
         async def stop_auto_backup(self):
             try:
-                scheduler.remove_job('auto_backup')
+                if scheduler:
+                    scheduler.remove_job('auto_backup')
             except:
                 pass
     
@@ -346,18 +434,30 @@ def register(client):
         
         if not args:
             config = backup_module.config
+            
+            # Форматируем время последнего бэкапа
+            last_backup = config['last_backup_time'] or 'никогда'
+            if last_backup != 'никогда':
+                try:
+                    dt = datetime.fromisoformat(last_backup)
+                    last_backup = backup_module.format_datetime(dt)
+                except:
+                    pass
+            
             settings_text = (
                 f"⚙️ **Настройки бэкапов:**\n\n"
                 f"• ID чата: `{config['backup_chat_id'] or 'не установлен'}`\n"
                 f"• Интервал: {config['backup_interval_hours']} ч.\n"
                 f"• Автобэкап: {'включен' if config['enable_auto_backup'] else 'выключен'}\n"
+                f"• Временная зона: {config.get('timezone', 'UTC')}\n"
                 f"• Путь к модулям: `{config['modules_path']}`\n"
                 f"• Путь к конфигу: `{config['config_path']}`\n"
-                f"• Последний бэкап: {config['last_backup_time'] or 'никогда'}\n"
+                f"• Последний бэкап: {last_backup}\n"
                 f"• Всего бэкапов: {config['backup_count']}\n\n"
                 f"**Команды:**\n"
                 f"`.backupset interval 2` - интервал в часах\n"
                 f"`.backupset auto on/off` - вкл/выкл автобэкап\n"
+                f"`.backupset timezone UTC` - установить временную зону\n"
                 f"`.backupset path modules новый_путь`\n"
                 f"`.backupset path config новый_путь`"
             )
@@ -397,6 +497,33 @@ def register(client):
                 await event.edit("✅ Автоматические бэкапы выключены")
             else:
                 await event.edit("❌ Используйте: `.backupset auto on/off`")
+        
+        elif command == "timezone" and len(args_list) > 1:
+            if not HAS_APSCHEDULER:
+                await event.edit("❌ APScheduler не установлен. Установите: pip install apscheduler pytz")
+                return
+                
+            tz_name = args_list[1]
+            try:
+                # Проверяем, что временная зона существует
+                import pytz
+                if tz_name.upper() == "UTC":
+                    tz = timezone.utc
+                else:
+                    tz = pytz.timezone(tz_name)
+                
+                backup_module.config["timezone"] = tz_name
+                backup_module.save_config()
+                
+                await backup_module.stop_auto_backup()
+                await backup_module.start_auto_backup()
+                
+                await event.edit(f"✅ Временная зона изменена на {tz_name}")
+            except pytz.UnknownTimeZoneError:
+                await event.edit(f"❌ Неизвестная временная зона: {tz_name}\n"
+                               f"Доступные зоны: UTC, Europe/Moscow, Europe/London, Asia/Tokyo и т.д.")
+            except Exception as e:
+                await event.edit(f"❌ Ошибка установки временной зоны: {e}")
         
         elif command == "path" and len(args_list) > 2:
             path_type = args_list[1].lower()
@@ -471,6 +598,7 @@ def register(client):
             "**Настройки (.backupset):**\n"
             "`.backupset interval ЧАСЫ` - интервал авто-бэкапа (1-24)\n"
             "`.backupset auto on/off` - вкл/выкл авто-бэкап\n"
+            "`.backupset timezone ЗОНА` - временная зона (UTC, Europe/Moscow и т.д.)\n"
             "`.backupset path modules ПУТЬ` - путь к модулям\n"
             "`.backupset path config ПУТЬ` - путь к конфигу\n\n"
             "**Что бэкапится:**\n"

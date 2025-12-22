@@ -288,6 +288,14 @@ class Kernel:
             pass
         return False
     
+    async def setup_inline_bot(self):
+        try:
+            from core_inline.bot import InlineBot
+            self.inline_bot = InlineBot(self)
+            await self.inline_bot.setup()
+        except Exception as e:
+            self.cprint(f'{Colors.YELLOW}⚠️ Инлайн-бот не запущен: {e}{Colors.RESET}')
+    
     async def run(self):
         if not self.load_or_create_config():
             if not self.first_time_setup():
@@ -296,6 +304,8 @@ class Kernel:
         
         if not await self.init_client():
             return
+        
+        await self.setup_inline_bot()
         
         await self.load_system_modules()
         await self.load_user_modules()

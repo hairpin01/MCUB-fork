@@ -4,12 +4,93 @@ import re
 import sys
 import subprocess
 import importlib.util
+import inspect
 import aiohttp
 import json
 from telethon import events, Button
 
 def register(kernel):
     client = kernel.client
+    
+    def detect_module_type(module):
+        if hasattr(module, 'register'):
+            sig = inspect.signature(module.register)
+            params = list(sig.parameters.keys())
+            
+            if len(params) == 0:
+                return 'unknown'
+            elif len(params) == 1:
+                param_name = params[0]
+                if param_name == 'kernel':
+                    return 'new'
+                elif param_name == 'client':
+                    return 'old'
+            return 'unknown'
+        return 'none'
+    
+    async def load_module_from_file(file_path, module_name, is_system=False):
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                code = f.read()
+            
+            if 'from .. import' in code or 'import loader' in code:
+                return False, 'Несовместимый модуль (старая версия)'
+            
+            if module_name in sys.modules:
+                del sys.modules[module_name]
+            
+            spec = importlib.util.spec_from_file_location(module_name, file_path)
+            module = importlib.util.module_from_spec(spec)
+            
+            module.kernel = kernel
+            module.client = client
+            module.custom_prefix = kernel.custom_prefix
+            
+            sys.modules[module_name] = module
+            spec.loader.exec_module(module)
+            
+            module_type = detect_module_type(module)
+            
+            if module_type == 'new':
+                module.register(kernel)
+                kernel.cprint(f'{kernel.Colors.GREEN}✅ Загружен новый модуль: {module_name}{kernel.Colors.RESET}')
+            elif module_type == 'old':
+                module.register(client)
+                kernel.cprint(f'{kernel.Colors.YELLOW}⚠️ Загружен старый модуль: {module_name}{kernel.Colors.RESET}')
+            elif module_type == 'none':
+                return False, 'Модуль не имеет функции register'
+            else:
+                return False, 'Неизвестный тип модуля'
+            
+            if is_system:
+                kernel.system_modules[module_name] = module
+            else:
+                kernel.loaded_modules[module_name] = module
+            
+            return True, f'Модуль {module_name} загружен ({module_type})'
+            
+        except ImportError as e:
+            error_msg = str(e)
+            match = re.search(r"No module named '([^']+)'", error_msg)
+            if match:
+                dep = match.group(1)
+                return False, f'Требуется зависимость: {dep}. Используйте: pip install {dep}'
+            return False, f'Ошибка импорта: {error_msg}'
+        except Exception as e:
+            return False, f'Ошибка загрузки: {str(e)}'
+    
+    def convert_old_module_code(code, module_name):
+        old_patterns = [
+            (r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'\\\\.([^']+)'\)\)", r"@kernel.register_command('\1')"),
+            (r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'([^']+)'\)\)", r"@kernel.register_command('\1'.lstrip('^\\\\' + kernel.custom_prefix))"),
+            (r"def register\(client\):", "def register(kernel):\n    client = kernel.client"),
+            (r"async def (\w+)\(event\):", r"async def \1(event):")
+        ]
+        
+        for old, new in old_patterns:
+            code = re.sub(old, new, code)
+        
+        return code
     
     @kernel.register_command('im')
     async def install_module_handler(event):
@@ -30,91 +111,12 @@ def register(kernel):
         file_path = os.path.join(kernel.MODULES_LOADED_DIR, file_name)
         await reply.download_media(file_path)
         
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                code = f.read()
-            
-            if 'from .. import' in code or 'import loader' in code:
-                await event.edit(f'❌ Модуль не совместим')
-                os.remove(file_path)
-                return
-            
-            if module_name in sys.modules:
-                del sys.modules[module_name]
-            
-            spec = importlib.util.spec_from_file_location(module_name, file_path)
-            module = importlib.util.module_from_spec(spec)
-            
-            module.kernel = kernel
-            module.client = client
-            module.custom_prefix = kernel.custom_prefix
-            
-            sys.modules[module_name] = module
-            spec.loader.exec_module(module)
-            
-            if hasattr(module, 'register'):
-                try:
-                    module.register(client)
-                    kernel.loaded_modules[module_name] = module
-                    await event.edit(f'✅ Модуль {module_name} установлен')
-                except Exception as e:
-                    await event.edit(f'❌ Ошибка регистрации: {str(e)}')
-                    os.remove(file_path)
-            else:
-                await event.edit(f'❌ Модуль должен иметь функцию register(client)')
-                os.remove(file_path)
-                
-        except ImportError as e:
-            error_msg = str(e)
-            match = re.search(r"No module named '([^']+)'", error_msg)
-            if match:
-                dep = match.group(1)
-                await event.edit(f'📦 Установка зависимости: {dep}')
-                
-                try:
-                    result = subprocess.run(
-                        [sys.executable, '-m', 'pip', 'install', dep],
-                        capture_output=True,
-                        text=True,
-                        check=True
-                    )
-                    
-                    if result.returncode == 0:
-                        await event.edit(f'✅ Зависимость {dep} установлена\n🔄 Перезагрузка модуля...')
-                        
-                        spec = importlib.util.spec_from_file_location(module_name, file_path)
-                        module = importlib.util.module_from_spec(spec)
-                        
-                        module.kernel = kernel
-                        module.client = client
-                        module.custom_prefix = kernel.custom_prefix
-                        
-                        sys.modules[module_name] = module
-                        spec.loader.exec_module(module)
-                        
-                        if hasattr(module, 'register'):
-                            module.register(client)
-                            kernel.loaded_modules[module_name] = module
-                            await event.edit(f'✅ Модуль {module_name} установлен с зависимостью {dep}')
-                        else:
-                            await event.edit(f'❌ Модуль должен иметь функцию register(client)')
-                            os.remove(file_path)
-                    else:
-                        await event.edit(f'❌ Не удалось установить {dep}\n{result.stderr[:500]}')
-                        os.remove(file_path)
-                        
-                except subprocess.CalledProcessError as pip_err:
-                    await event.edit(f'❌ Ошибка установки {dep}\n{pip_err.stderr[:500]}')
-                    os.remove(file_path)
-                except Exception as e:
-                    await event.edit(f'❌ Неожиданная ошибка: {str(e)}')
-                    os.remove(file_path)
-            else:
-                await event.edit(f'❌ Ошибка импорта: {error_msg}')
-                os.remove(file_path)
-                
-        except Exception as e:
-            await event.edit(f'❌ Ошибка: {str(e)}')
+        success, message = await load_module_from_file(file_path, module_name, False)
+        
+        if success:
+            await event.edit(f'✅ {message}')
+        else:
+            await event.edit(f'❌ {message}')
             if os.path.exists(file_path):
                 os.remove(file_path)
     
@@ -127,6 +129,7 @@ def register(kernel):
         
         module_name = args[1]
         is_update = module_name in kernel.loaded_modules
+        
         msg = await event.edit(f'📥 {"Обновление" if is_update else "Загрузка"} {module_name}...')
         
         try:
@@ -161,109 +164,18 @@ def register(kernel):
                                     except subprocess.CalledProcessError:
                                         await msg.edit(f'⚠️ Не удалось установить {req.strip()}')
                         
-                        await msg.edit(f'⚙️ Загрузка модуля...')
-                        spec = importlib.util.spec_from_file_location(module_name, file_path)
-                        module = importlib.util.module_from_spec(spec)
+                        success, message = await load_module_from_file(file_path, module_name, False)
                         
-                        module.kernel = kernel
-                        module.client = client
-                        module.custom_prefix = kernel.custom_prefix
-                        
-                        sys.modules[module_name] = module
-                        spec.loader.exec_module(module)
-                        
-                        if hasattr(module, 'register'):
-                            module.register(client)
-                            kernel.loaded_modules[module_name] = module
-                            status = '🔄 обновлен' if is_update else '✅ установлен'
-                            await msg.edit(f'{status} Модуль {module_name}')
+                        if success:
+                            await msg.edit(f'✅ {message}')
                         else:
-                            await event.edit(f'❌ Модуль не имеет register(client)')
-                            os.remove(file_path)
+                            await msg.edit(f'❌ {message}')
+                            if os.path.exists(file_path):
+                                os.remove(file_path)
                     else:
                         await event.edit(f'❌ Модуль {module_name} не найден')
-        except ImportError as e:
-            error_msg = str(e)
-            match = re.search(r"No module named '([^']+)'", error_msg)
-            if match:
-                dep = match.group(1)
-                await msg.edit(f'📦 Автоустановка зависимости: {dep}')
-                
-                try:
-                    subprocess.run(
-                        [sys.executable, '-m', 'pip', 'install', dep],
-                        capture_output=True,
-                        check=True
-                    )
-                    
-                    spec = importlib.util.spec_from_file_location(module_name, file_path)
-                    module = importlib.util.module_from_spec(spec)
-                    
-                    module.kernel = kernel
-                    module.client = client
-                    module.custom_prefix = kernel.custom_prefix
-                    
-                    sys.modules[module_name] = module
-                    spec.loader.exec_module(module)
-                    
-                    if hasattr(module, 'register'):
-                        module.register(client)
-                        kernel.loaded_modules[module_name] = module
-                        await msg.edit(f'✅ Модуль {module_name} установлен с авто-зависимостью')
-                    else:
-                        await event.edit(f'❌ Модуль не имеет register(client)')
-                        os.remove(file_path)
-                        
-                except Exception as pip_err:
-                    await event.edit(f'❌ Не удалось установить зависимость {dep}')
-                    if os.path.exists(file_path):
-                        os.remove(file_path)
-            else:
-                await event.edit(f'❌ Ошибка импорта: {error_msg}')
         except Exception as e:
             await event.edit(f'❌ Ошибка: {str(e)}')
-    
-    @kernel.register_command('lm')
-    async def list_modules_handler(event):
-        if not kernel.loaded_modules:
-            await event.edit('📦 Модули не загружены')
-            return
-        
-        msg = '📦 **Загруженные модули:**\n\n'
-        for name, module in kernel.loaded_modules.items():
-            msg += f'• **{name}**\n'
-            file_path = os.path.join(kernel.MODULES_LOADED_DIR, f'{name}.py')
-            if os.path.exists(file_path):
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    code = f.read()
-                    commands = re.findall(r"pattern=r['\"]\^?\\?\.([a-zA-Z0-9_]+)", code)
-                    if commands:
-                        msg += f'  Команды: {", ".join([f"{kernel.custom_prefix}{cmd}" for cmd in commands])}\n'
-            msg += '\n'
-        await event.edit(msg)
-    
-    @kernel.register_command('um')
-    async def unload_module_handler(event):
-        args = event.text.split()
-        if len(args) < 2:
-            await event.edit(f'❌ Использование: {kernel.custom_prefix}um название_модуля')
-            return
-        
-        module_name = args[1]
-        
-        if module_name not in kernel.loaded_modules:
-            await event.edit(f'❌ Модуль {module_name} не найден')
-            return
-        
-        file_path = os.path.join(kernel.MODULES_LOADED_DIR, f'{module_name}.py')
-        if os.path.exists(file_path):
-            os.remove(file_path)
-        
-        if module_name in sys.modules:
-            del sys.modules[module_name]
-        
-        del kernel.loaded_modules[module_name]
-        await event.edit(f'🗑️ Модуль {module_name} удален\n\n⚠️ Перезагрузите юзербот для полного удаления')
     
     @kernel.register_command('dlml')
     async def catalog_handler(event):
@@ -303,11 +215,11 @@ def register(kernel):
         except Exception as e:
             await client.send_message(event.chat_id, f'❌ Ошибка: {str(e)}')
     
-    @kernel.register_command('unlm')
-    async def upload_module_handler(event):
+    @kernel.register_command('um')
+    async def unload_module_handler(event):
         args = event.text.split()
         if len(args) < 2:
-            await event.edit(f'❌ Использование: {kernel.custom_prefix}unlm название_модуля')
+            await event.edit(f'❌ Использование: {kernel.custom_prefix}um название_модуля')
             return
         
         module_name = args[1]
@@ -317,8 +229,38 @@ def register(kernel):
             return
         
         file_path = os.path.join(kernel.MODULES_LOADED_DIR, f'{module_name}.py')
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        
+        if module_name in sys.modules:
+            del sys.modules[module_name]
+        
+        if module_name in kernel.loaded_modules:
+            del kernel.loaded_modules[module_name]
+        
+        await event.edit(f'🗑️ Модуль {module_name} удален')
+    
+    @kernel.register_command('unlm')
+    async def upload_module_handler(event):
+        args = event.text.split()
+        if len(args) < 2:
+            await event.edit(f'❌ Использование: {kernel.custom_prefix}unlm название_модуля')
+            return
+        
+        module_name = args[1]
+        
+        if module_name not in kernel.loaded_modules and module_name not in kernel.system_modules:
+            await event.edit(f'❌ Модуль {module_name} не найден')
+            return
+        
+        file_path = None
+        if module_name in kernel.system_modules:
+            file_path = os.path.join(kernel.MODULES_DIR, f'{module_name}.py')
+        else:
+            file_path = os.path.join(kernel.MODULES_LOADED_DIR, f'{module_name}.py')
+        
         if not os.path.exists(file_path):
-            await event.edit(f'❌ Файл модуля {module_name}.py не найден')
+            await event.edit(f'❌ Файл модуля не найден')
             return
         
         await event.edit(f'📤 Отправка модуля {module_name}...')
@@ -334,72 +276,95 @@ def register(kernel):
         
         module_name = args[1]
         
+        if module_name not in kernel.loaded_modules and module_name not in kernel.system_modules:
+            await event.edit(f'❌ Модуль {module_name} не найден')
+            return
+        
+        file_path = None
+        is_system = False
+        
+        if module_name in kernel.system_modules:
+            file_path = os.path.join(kernel.MODULES_DIR, f'{module_name}.py')
+            is_system = True
+        else:
+            file_path = os.path.join(kernel.MODULES_LOADED_DIR, f'{module_name}.py')
+        
+        if not os.path.exists(file_path):
+            await event.edit(f'❌ Файл модуля не найден')
+            return
+        
+        await event.edit(f'🔄 Перезагрузка {module_name}...')
+        
+        if module_name in sys.modules:
+            del sys.modules[module_name]
+        
+        if is_system and module_name in kernel.system_modules:
+            del kernel.system_modules[module_name]
+        elif module_name in kernel.loaded_modules:
+            del kernel.loaded_modules[module_name]
+        
+        success, message = await load_module_from_file(file_path, module_name, is_system)
+        
+        if success:
+            await event.edit(f'✅ {message}')
+        else:
+            await event.edit(f'❌ {message}')
+    
+    @kernel.register_command('convert')
+    async def convert_module_handler(event):
+        args = event.text.split()
+        if len(args) < 2:
+            await event.edit(f'❌ Использование: {kernel.custom_prefix}convert название_модуля')
+            return
+        
+        module_name = args[1]
+        
         if module_name not in kernel.loaded_modules:
             await event.edit(f'❌ Модуль {module_name} не найден')
             return
         
         file_path = os.path.join(kernel.MODULES_LOADED_DIR, f'{module_name}.py')
         if not os.path.exists(file_path):
-            await event.edit(f'❌ Файл модуля {module_name}.py не найден')
+            await event.edit(f'❌ Файл модуля не найден')
             return
         
-        await event.edit(f'🔄 Перезагрузка {module_name}...')
+        await event.edit(f'🔄 Конвертация {module_name} в новый формат...')
         
         try:
-            if module_name in sys.modules:
-                del sys.modules[module_name]
+            with open(file_path, 'r', encoding='utf-8') as f:
+                code = f.read()
             
-            spec = importlib.util.spec_from_file_location(module_name, file_path)
-            module = importlib.util.module_from_spec(spec)
+            converted_code = convert_old_module_code(code, module_name)
             
-            module.kernel = kernel
-            module.client = client
-            module.custom_prefix = kernel.custom_prefix
+            backup_path = file_path + '.backup'
+            with open(backup_path, 'w', encoding='utf-8') as f:
+                f.write(code)
             
-            sys.modules[module_name] = module
-            spec.loader.exec_module(module)
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(converted_code)
             
-            if hasattr(module, 'register'):
-                module.register(client)
-                kernel.loaded_modules[module_name] = module
-                await event.edit(f'✅ Модуль {module_name} перезагружен')
-            else:
-                await event.edit(f'❌ Модуль должен иметь функцию register(client)')
-        except ImportError as e:
-            error_msg = str(e)
-            match = re.search(r"No module named '([^']+)'", error_msg)
-            if match:
-                dep = match.group(1)
-                await event.edit(f'📦 Установка зависимости: {dep}')
-                
-                try:
-                    subprocess.run(
-                        [sys.executable, '-m', 'pip', 'install', dep],
-                        capture_output=True,
-                        check=True
-                    )
-                    
-                    spec = importlib.util.spec_from_file_location(module_name, file_path)
-                    module = importlib.util.module_from_spec(spec)
-                    
-                    module.kernel = kernel
-                    module.client = client
-                    module.custom_prefix = kernel.custom_prefix
-                    
-                    sys.modules[module_name] = module
-                    spec.loader.exec_module(module)
-                    
-                    if hasattr(module, 'register'):
-                        module.register(client)
-                        kernel.loaded_modules[module_name] = module
-                        await event.edit(f'✅ Модуль {module_name} перезагружен с зависимостью')
-                    else:
-                        await event.edit(f'❌ Модуль должен иметь функцию register(client)')
-                        
-                except Exception as pip_err:
-                    await event.edit(f'❌ Не удалось установить зависимость {dep}')
-            else:
-                await event.edit(f'❌ Ошибка импорта: {error_msg}')
+            await event.edit(f'✅ Модуль конвертирован\n📦 Бэкап: {module_name}.py.backup')
+            
         except Exception as e:
-            await event.edit(f'❌ Ошибка перезагрузки: {str(e)}')
-
+            await event.edit(f'❌ Ошибка конвертации: {str(e)}')
+    
+    @kernel.register_command('modules')
+    async def modules_list_handler(event):
+        if not kernel.loaded_modules and not kernel.system_modules:
+            await event.edit('📦 Модули не загружены')
+            return
+        
+        msg = '📦 **Загруженные модули:**\n\n'
+        
+        if kernel.system_modules:
+            msg += '🛠️ **Системные модули:**\n'
+            for name in sorted(kernel.system_modules.keys()):
+                msg += f'• **{name}**\n'
+            msg += '\n'
+        
+        if kernel.loaded_modules:
+            msg += '📥 **Пользовательские модули:**\n'
+            for name in sorted(kernel.loaded_modules.keys()):
+                msg += f'• **{name}**\n'
+        
+        await event.edit(msg)

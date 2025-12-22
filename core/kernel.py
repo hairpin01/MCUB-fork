@@ -23,7 +23,7 @@ class Colors:
 
 class Kernel:
     def __init__(self):
-        self.VERSION = '1.0.1'
+        self.VERSION = '1.0.1.3'
         self.DB_VERSION = 2
         self.start_time = time.time()
         self.loaded_modules = {}
@@ -90,7 +90,7 @@ class Kernel:
             print(f'{Colors.RED}❌ Ошибка в конфиге: {e}{Colors.RESET}')
             return False
     
-    async def first_time_setup(self):
+    def first_time_setup(self):
         print(f'\n{Colors.CYAN}⚙️  Первоначальная настройка юзербота{Colors.RESET}\n')
         
         while True:
@@ -110,84 +110,36 @@ class Kernel:
                     print(f'{Colors.RED}❌ Номер должен начинаться с +{Colors.RESET}')
                     continue
                 
-                print(f'\n{Colors.YELLOW}🔄 Проверка данных...{Colors.RESET}')
-                
                 try:
                     api_id = int(api_id_input)
                 except ValueError:
                     print(f'{Colors.RED}❌ API ID должен быть числом{Colors.RESET}')
                     continue
                 
-                proxy = self.config.get('proxy')
-                test_client = TelegramClient('temp_session', api_id, api_hash_input, proxy=proxy)
+                self.config = {
+                    "api_id": api_id,
+                    "api_hash": api_hash_input,
+                    "phone": phone_input,
+                    "command_prefix": ".",
+                    "aliases": {},
+                    "power_save_mode": False,
+                    "2fa_enabled": False,
+                    "healthcheck_interval": 30,
+                    "developer_chat_id": None,
+                    "language": "ru",
+                    "theme": "default",
+                    "proxy": None,
+                    "inline_bot_token": None,
+                    "inline_bot_username": None,
+                    "db_version": self.DB_VERSION
+                }
                 
-                try:
-                    await test_client.connect()
-                    
-                    if not await test_client.is_user_authorized():
-                        print(f'{Colors.YELLOW}📱 Отправка кода на {phone_input}...{Colors.RESET}')
-                        
-                        sent_code = await test_client.send_code_request(phone_input)
-                        code_type = sent_code.type
-                        
-                        if code_type == 'app':
-                            print(f'{Colors.YELLOW}📲 Введите код из приложения Telegram{Colors.RESET}')
-                        elif code_type == 'sms':
-                            print(f'{Colors.YELLOW}📱 Введите код из SMS{Colors.RESET}')
-                        elif code_type == 'call':
-                            print(f'{Colors.YELLOW}📞 Введите код из звонка{Colors.RESET}')
-                        else:
-                            print(f'{Colors.YELLOW}🔑 Введите код{Colors.RESET}')
-                        
-                        code = input(f'{Colors.YELLOW}🔢 Код: {Colors.RESET}').strip()
-                        
-                        try:
-                            await test_client.sign_in(phone_input, code, phone_code_hash=sent_code.phone_code_hash)
-                            print(f'{Colors.GREEN}✅ Первый этап авторизации пройден{Colors.RESET}')
-                        except SessionPasswordNeededError:
-                            print(f'{Colors.YELLOW}🔐 Требуется пароль двухфакторной аутентификации{Colors.RESET}')
-                            password = input(f'{Colors.YELLOW}🔒 Пароль 2FA: {Colors.RESET}').strip()
-                            await test_client.sign_in(password=password)
-                        
-                        if await test_client.is_user_authorized():
-                            print(f'{Colors.GREEN}✅ Авторизация успешна{Colors.RESET}')
-                        else:
-                            print(f'{Colors.RED}❌ Авторизация не удалась{Colors.RESET}')
-                            continue
-                    
-                    me = await test_client.get_me()
-                    print(f'{Colors.GREEN}✅ Успешно! Пользователь: {me.first_name}{Colors.RESET}')
-                    
-                    await test_client.disconnect()
-                    
-                    self.config = {
-                        "api_id": api_id,
-                        "api_hash": api_hash_input,
-                        "phone": phone_input,
-                        "command_prefix": ".",
-                        "aliases": {},
-                        "power_save_mode": False,
-                        "2fa_enabled": False,
-                        "healthcheck_interval": 30,
-                        "developer_chat_id": None,
-                        "language": "ru",
-                        "theme": "default",
-                        "proxy": None,
-                        "inline_bot_token": None,
-                        "inline_bot_username": None,
-                        "db_version": self.DB_VERSION
-                    }
-                    
-                    with open(self.CONFIG_FILE, 'w', encoding='utf-8') as f:
-                        json.dump(self.config, f, ensure_ascii=False, indent=2)
-                    
-                    self.setup_config()
-                    print(f'{Colors.GREEN}✅ Конфиг сохранен{Colors.RESET}')
-                    return True
-                    
-                except Exception as e:
-                    print(f'{Colors.RED}❌ Ошибка проверки: {str(e)}{Colors.RESET}')
-                    continue
+                with open(self.CONFIG_FILE, 'w', encoding='utf-8') as f:
+                    json.dump(self.config, f, ensure_ascii=False, indent=2)
+                
+                self.setup_config()
+                print(f'{Colors.GREEN}✅ Конфиг сохранен{Colors.RESET}')
+                return True
                     
             except KeyboardInterrupt:
                 print(f'\n{Colors.RED}❌ Настройка прервана{Colors.RESET}')
@@ -208,11 +160,21 @@ class Kernel:
             self.cprint(f'{Colors.RED}❌ Ошибка авторизации: {e}{Colors.RESET}')
             return False
     
-    def register_command(self, pattern, func):
-        cmd = pattern.lstrip('^\\' + self.custom_prefix)
-        if cmd.endswith('$'):
-            cmd = cmd[:-1]
-        self.command_handlers[cmd] = func
+    def register_command(self, pattern, func=None):
+        if func:
+            cmd = pattern.lstrip('^\\' + self.custom_prefix)
+            if cmd.endswith('$'):
+                cmd = cmd[:-1]
+            self.command_handlers[cmd] = func
+            return func
+        else:
+            def decorator(f):
+                cmd = pattern.lstrip('^\\' + self.custom_prefix)
+                if cmd.endswith('$'):
+                    cmd = cmd[:-1]
+                self.command_handlers[cmd] = f
+                return f
+            return decorator
     
     async def load_system_modules(self):
         for file_name in os.listdir(self.MODULES_DIR):
@@ -328,7 +290,7 @@ class Kernel:
     
     async def run(self):
         if not self.load_or_create_config():
-            if not await self.first_time_setup():
+            if not self.first_time_setup():
                 self.cprint(f'{Colors.RED}❌ Не удалось настроить юзербот{Colors.RESET}')
                 return
         
@@ -342,5 +304,4 @@ class Kernel:
         async def message_handler(event):
             await self.process_command(event)
         
-        self.cprint(f'{Colors.CYAN}🚀 Ядро готово к работе{Colors.RESET}')
         await self.client.run_until_disconnected()

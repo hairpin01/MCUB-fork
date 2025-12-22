@@ -10,7 +10,7 @@ def register(kernel):
         system_count = len(kernel.system_modules)
         user_count = len(kernel.loaded_modules)
         
-        title = f"🌒 {user_count} модуль загружен. системных модулей: {system_count}"
+        title = f"💾 {user_count} :модулей загружен. системных модулей: {system_count}"
         
         all_modules = {}
         all_modules.update(kernel.system_modules)

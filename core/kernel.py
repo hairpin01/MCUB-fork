@@ -38,6 +38,7 @@ class Kernel:
         self.pending_confirmations = {}
         self.shutdown_flag = False
         self.power_save_mode = False
+        self.Colors = Colors
         
         self.MODULES_DIR = 'modules'
         self.MODULES_LOADED_DIR = 'modules_loaded'

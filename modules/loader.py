@@ -188,8 +188,8 @@ def register(kernel):
         module_name = args[1]
         is_update = module_name in kernel.loaded_modules
         
-        action = "🔄 обновляю" if is_update else "🧪 устанавливаю"
-        msg = await event.edit(f'{action} модуль <b>{module_name}</b>')
+        action = "🧪 обновляю" if is_update else "🧪 устанавливаю"
+        msg = await event.edit(f'{action} модуль <b>{module_name}</b>', parse_mode='html')
         
         try:
             async with aiohttp.ClientSession() as session:
@@ -206,7 +206,7 @@ def register(kernel):
                                 dependencies = [req.strip() for req in reqs[0].split(',')]
                         
                         if dependencies:
-                            await msg.edit(f'{action} модуль <b>{module_name}</b>\n🔬 ставлю зависимости:\n{dependencies}')
+                            await msg.edit(f'{action} модуль <b>{module_name}</b>\n🔬 ставлю зависимости:\n{dependencies}', parse_mode='html')
                             for dep in dependencies:
                                 subprocess.run(
                                     [sys.executable, '-m', 'pip', 'install', dep],
@@ -354,7 +354,7 @@ def register(kernel):
             await event.edit(f'❌ Файл модуля не найден')
             return
         
-        msg = await event.edit(f'🔄 Перезагрузка {module_name}...')
+        msg = await event.edit(f'🔭 Перезагрузка <mono>{module_name}</mono>...' parse_mode='html')
         
         if module_name in sys.modules:
             del sys.modules[module_name]
@@ -393,7 +393,7 @@ def register(kernel):
             await event.edit(f'❌ Файл модуля не найден')
             return
         
-        await event.edit(f'🔄 Конвертация {module_name} в новый формат...')
+        await event.edit(f'🍰 Конвертация {module_name} в новый формат...')
         
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -416,7 +416,7 @@ def register(kernel):
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(code)
             
-            await event.edit(f'✅ Модуль конвертирован\n📦 Бэкап: {module_name}.py.backup')
+            await event.edit(f'⚗️ Модуль конвертирован\n📦 Бэкап: {module_name}.py.backup')
             
         except Exception as e:
             await event.edit(f'❌ Ошибка конвертации: {str(e)}')
@@ -427,16 +427,16 @@ def register(kernel):
             await event.edit('📦 Модули не загружены')
             return
         
-        msg = '📦 **Загруженные модули:**\n\n'
+        msg = '💠 **Загруженные модули:**\n\n'
         
         if kernel.system_modules:
-            msg += '🛠️ **Системные модули:**\n'
+            msg += '🔷 **Системные модули:**\n'
             for name in sorted(kernel.system_modules.keys()):
                 msg += f'• **{name}**\n'
             msg += '\n'
         
         if kernel.loaded_modules:
-            msg += '📥 **Пользовательские модули:**\n'
+            msg += '🔶 **Пользовательские модули:**\n'
             for name in sorted(kernel.loaded_modules.keys()):
                 msg += f'• **{name}**\n'
         

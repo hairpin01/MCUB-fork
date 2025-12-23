@@ -19,7 +19,7 @@
 ## Установка
 
 ```bash
-pip install -r requirements.txt
+git clone https://github.com/hairpin01/MCUB-fork.git && cd MCUB-fork ; pip install -r requirements.txt ; python3 main.py
 ```
 
 ## Настройка

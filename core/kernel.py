@@ -271,31 +271,42 @@ class Kernel:
                 try:
                     module_name = file_name[:-3]
                     file_path = os.path.join(self.MODULES_LOADED_DIR, file_name)
-                    
+
+                    # Проверка на новый стиль
                     with open(file_path, 'r', encoding='utf-8') as f:
-                        code = f.read()
-                    
-                    if 'from .. import' in code or 'import loader' in code:
-                        self.cprint(f'{Colors.YELLOW}⚠️ Пропущен несовместимый модуль: {file_name}{Colors.RESET}')
-                        continue
-                    
-                    spec = importlib.util.spec_from_file_location(module_name, file_path)
-                    module = importlib.util.module_from_spec(spec)
-                    
-                    module.kernel = self
-                    module.client = self.client
-                    module.custom_prefix = self.custom_prefix
-                    
-                    sys.modules[module_name] = module
-                    spec.loader.exec_module(module)
-                    
-                    if hasattr(module, 'register'):
-                        module.register(self.client)
-                        self.loaded_modules[module_name] = module
-                        self.cprint(f'{Colors.GREEN}✅ Загружен пользовательский модуль: {module_name}{Colors.RESET}')
-                    
+                        content = f.read()
+
+                    # Определяем стиль модуля
+                    if 'def register(kernel):' in content:
+                        # Новый стиль - принимает kernel
+                        spec = importlib.util.spec_from_file_location(module_name, file_path)
+                        module = importlib.util.module_from_spec(spec)
+
+                        module.kernel = self
+                        module.client = self.client
+                        module.custom_prefix = self.custom_prefix
+
+                        sys.modules[module_name] = module
+                        spec.loader.exec_module(module)
+
+                        if hasattr(module, 'register'):
+                            module.register(self)  # Передаем kernel, а не client
+                            self.loaded_modules[module_name] = module
+                    else:
+                        # Старый стиль - принимает client
+                        spec = importlib.util.spec_from_file_location(module_name, file_path)
+                        module = importlib.util.module_from_spec(spec)
+
+                        sys.modules[module_name] = module
+                        spec.loader.exec_module(module)
+
+                        if hasattr(module, 'register'):
+                            module.register(self.client)
+                            self.loaded_modules[module_name] = module
+                            self.cprint(f'{self.Colors.GREEN}✅ Загружен пользовательский модуль (старый стиль): {module_name}{self.Colors.RESET}')
+
                 except Exception as e:
-                    self.cprint(f'{Colors.RED}❌ Ошибка загрузки модуля {file_name}: {e}{Colors.RESET}')
+                    self.cprint(f'{self.Colors.RED}❌ Ошибка загрузки модуля {file_name}: {e}{self.Colors.RESET}')
     
     async def process_command(self, event):
         text = event.text

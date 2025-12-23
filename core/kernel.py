@@ -71,8 +71,8 @@ class Kernel:
         self.callback_handlers[pattern] = handler
         @self.client.on(events.CallbackQuery(pattern=pattern.encode()))
 
-    async def callback_wrapper(event):
-        await handler(event)
+        async def callback_wrapper(event):
+            await handler(event)
 
         self.reconnect_attempts = 0
         self.max_reconnect_attempts = 5

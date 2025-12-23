@@ -1,17 +1,1 @@
-{
-  "api_id": 29540209,
-  "api_hash": "16c8cb065cd3c000ee0bf8945608a9c2",
-  "phone": "+79243196098",
-  "command_prefix": "!",
-  "aliases": {},
-  "power_save_mode": false,
-  "2fa_enabled": true,
-  "healthcheck_interval": 30,
-  "developer_chat_id": null,
-  "language": "ru",
-  "theme": "default",
-  "proxy": null,
-  "inline_bot_token": "8164592738:AAFrsK8wdXVJg6zCkS8hMGHxMfZIXqNwyj0",
-  "inline_bot_username": "@onionGram_r1Z7y_robot",
-  "db_version": 2
-}
+

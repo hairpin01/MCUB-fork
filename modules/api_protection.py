@@ -1,5 +1,6 @@
 import asyncio
 import time
+import json
 import threading
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -52,7 +53,7 @@ def register(kernel):
         return True
     
     async def enforce_cooldown(event, seconds, reason="Слишком много запросов"):
-        global blocked_until
+        nonlocal blocked_until
         blocked_until = time.time() + seconds
         
         await event.edit(f'⛔ {reason}\nБот остановлен на {seconds} секунд')
@@ -68,6 +69,7 @@ def register(kernel):
     
     @kernel.register_command('api_protection')
     async def api_protection_handler(event):
+        nonlocal protection_enabled
         args = event.text.split()
         
         if len(args) > 1:
@@ -108,39 +110,14 @@ def register(kernel):
             await enforce_cooldown(event, 30, f"Превышен лимит запросов ({limit_type})")
             raise StopAsyncIteration
     
-    @client.on(events.NewMessage(pattern=r'^\.stats$'))
-    async def stats_handler(event):
-        if not protection_enabled:
-            await event.edit('API защита выключена')
-            return
-        
-        cleanup_old_requests()
-        
-        stats_text = '📊 **Статистика API запросов:**\n\n'
-        
-        for key, timestamps in request_timestamps.items():
-            user_id, limit_type = key.split('_', 1) if '_' in key else (key, 'default')
-            limit = RATE_LIMITS.get(limit_type, RATE_LIMITS['default'])
-            
-            recent = len([t for t in timestamps if time.time() - t < limit['seconds']])
-            total = len(timestamps)
-            
-            stats_text += f'👤 {user_id} ({limit_type}): {recent}/{limit["requests"]} запросов (всего: {total})\n'
-        
-        if blocked_until > time.time():
-            remaining = int(blocked_until - time.time())
-            stats_text += f'\n⛔ **Блокировка:** {remaining} секунд осталось'
-        
-        await event.edit(stats_text)
-    
-    @client.on(events.NewMessage(pattern=r'^\.reset_limits$'))
+    @kernel.register_command('reset_limits')
     async def reset_limits_handler(event):
         if event.sender_id not in kernel.config.get('admins', []):
             await event.edit('❌ Недостаточно прав')
             return
         
         request_timestamps.clear()
-        global blocked_until
+        nonlocal blocked_until
         blocked_until = 0
         
         await event.edit('✅ Лимиты сброшены')

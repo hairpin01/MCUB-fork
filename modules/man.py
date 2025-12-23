@@ -86,7 +86,7 @@ def register(kernel):
             msg += f"\n📄 Страница {page}/{total_pages}"
             msg += f"\nИспользуйте: `{kernel.custom_prefix}man [страница]`"
         
-        return msg, total_pages, page, system_block != "", user_block != ""
+        return msg, total_pages, page
     
     def get_module_commands(module_name, kernel):
         commands = []
@@ -122,20 +122,7 @@ def register(kernel):
         args = event.text.split()
         
         if len(args) == 1:
-            bot_username = kernel.config.get('inline_bot_username')
-            
-            if bot_username:
-                try:
-                    await event.delete()
-                    query = f"man_page_1"
-                    results = await client.inline_query(bot_username, query)
-                    if results:
-                        await results[0].click(event.chat_id)
-                        return
-                except:
-                    pass
-            
-            msg, total_pages, current_page, has_system, has_user = await generate_man_page()
+            msg, total_pages, current_page = await generate_man_page()
             
             if total_pages > 1:
                 buttons = []
@@ -151,7 +138,7 @@ def register(kernel):
         elif len(args) >= 2:
             if args[1].isdigit():
                 page = int(args[1])
-                msg, total_pages, current_page, has_system, has_user = await generate_man_page(page)
+                msg, total_pages, current_page = await generate_man_page(page)
                 
                 if total_pages > 1:
                     buttons = []
@@ -165,14 +152,14 @@ def register(kernel):
                     await event.edit(msg, parse_mode='html')
             else:
                 search_query = ' '.join(args[1:])
-                msg, total_pages, current_page, has_system, has_user = await generate_man_page(module_filter=search_query)
+                msg, total_pages, current_page = await generate_man_page(module_filter=search_query)
                 await event.edit(msg, parse_mode='html')
     
-    @client.on(events.CallbackQuery(pattern=b'man_page_'))
-    async def man_page_handler(event):
+    # Регистрируем обработчик callback-кнопок для навигации
+    async def man_callback_handler(event):
         try:
             page = int(event.data.decode().split('_')[2])
-            msg, total_pages, current_page, has_system, has_user = await generate_man_page(page)
+            msg, total_pages, current_page = await generate_man_page(page)
             
             buttons = []
             if current_page > 1:
@@ -183,6 +170,40 @@ def register(kernel):
             await event.edit(msg, buttons=buttons if buttons else None, parse_mode='html')
         except:
             await event.answer('❌ Ошибка навигации')
+    
+    kernel.register_callback_handler('man_page_', man_callback_handler)
+    
+    # Регистрируем инлайн-обработчик для модуля man
+    async def man_inline_handler(event):
+        query = event.text
+        if query.startswith('man_page_'):
+            try:
+                page = int(query.split('_')[2])
+            except:
+                page = 1
+            
+            msg, total_pages, current_page = await generate_man_page(page)
+            
+            buttons = []
+            nav_buttons = []
+            if current_page > 1:
+                nav_buttons.append(Button.inline('⬅️ Назад', f'man_page_{current_page-1}'.encode()))
+            if current_page < total_pages:
+                nav_buttons.append(Button.inline('➡️ Вперёд', f'man_page_{current_page+1}'.encode()))
+            
+            if nav_buttons:
+                buttons.append(nav_buttons)
+            
+            builder = event.builder.article('Modules', text=msg, buttons=buttons if buttons else None, parse_mode='html')
+            await event.answer([builder])
+        else:
+            # Общий поиск
+            search_query = query
+            msg, total_pages, current_page = await generate_man_page(module_filter=search_query)
+            builder = event.builder.article('Modules Search', text=msg, parse_mode='html')
+            await event.answer([builder])
+    
+    kernel.register_inline_handler('man', man_inline_handler)
     
     @kernel.register_command('modules')
     async def modules_info_handler(event):

@@ -12,23 +12,23 @@ from telethon import events, Button
 
 def register(kernel):
     client = kernel.client
-    
+
     emojis = ['ಠ_ಠ', '( ཀ ʖ̯ ཀ)', '(◕‿◕✿)', '(つ･･)つ', '༼つ◕_◕༽つ', '(•_•)', '☜(ﾟヮﾟ☜)', '(☞ﾟヮﾟ)☞', 'ʕ•ᴥ•ʔ', '(づ￣ ³￣)づ']
-    
+
     def get_module_commands(module_name, kernel):
         commands = []
         file_path = None
-        
+
         if module_name in kernel.system_modules:
             file_path = f"modules/{module_name}.py"
         elif module_name in kernel.loaded_modules:
             file_path = f"modules_loaded/{module_name}.py"
-        
+
         if file_path and os.path.exists(file_path):
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     code = f.read()
-                    
+
                     patterns = [
                         r"pattern\s*=\s*r['\"]\^?\\?\.([a-zA-Z0-9_]+)",
                         r"register_command\s*\('([^']+)'",
@@ -36,21 +36,21 @@ def register(kernel):
                         r"kernel\.register_command\('([^']+)'",
                         r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'\\\\.([^']+)'\)\)"
                     ]
-                    
+
                     for pattern in patterns:
                         found = re.findall(pattern, code)
                         commands.extend(found)
-                        
+
             except:
                 pass
-        
+
         return list(set([cmd for cmd in commands if cmd]))
-    
+
     def detect_module_type(module):
         if hasattr(module, 'register'):
             sig = inspect.signature(module.register)
             params = list(sig.parameters.keys())
-            
+
             if len(params) == 0:
                 return 'unknown'
             elif len(params) == 1:
@@ -61,30 +61,30 @@ def register(kernel):
                     return 'old'
             return 'unknown'
         return 'none'
-    
+
     async def load_module_from_file(file_path, module_name, is_system=False):
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 code = f.read()
-            
+
             if 'from .. import' in code or 'import loader' in code:
                 return False, 'Несовместимый модуль (старая версия)'
-            
+
             if module_name in sys.modules:
                 del sys.modules[module_name]
-            
+
             spec = importlib.util.spec_from_file_location(module_name, file_path)
             module = importlib.util.module_from_spec(spec)
-            
+
             module.kernel = kernel
             module.client = client
             module.custom_prefix = kernel.custom_prefix
-            
+
             sys.modules[module_name] = module
             spec.loader.exec_module(module)
-            
+
             module_type = detect_module_type(module)
-            
+
             if module_type == 'new':
                 module.register(kernel)
             elif module_type == 'old':
@@ -93,14 +93,14 @@ def register(kernel):
                 return False, 'Модуль не имеет функции register'
             else:
                 return False, 'Неизвестный тип модуля'
-            
+
             if is_system:
                 kernel.system_modules[module_name] = module
             else:
                 kernel.loaded_modules[module_name] = module
-            
+
             return True, f'Модуль {module_name} загружен ({module_type})'
-            
+
         except ImportError as e:
             error_msg = str(e)
             match = re.search(r"No module named '([^']+)'", error_msg)
@@ -110,101 +110,101 @@ def register(kernel):
             return False, f'Ошибка импорта: {error_msg}'
         except Exception as e:
             return False, f'Ошибка загрузки: {str(e)}'
-    
+
     @kernel.register_command('im')
     async def install_module_handler(event):
         if not event.is_reply:
             await event.edit('❌ Ответьте на .py файл')
             return
-        
+
         reply = await event.get_reply_message()
         if not reply.document or not reply.document.attributes[0].file_name.endswith('.py'):
             await event.edit('❌ Это не .py файл')
             return
-        
+
         file_name = reply.document.attributes[0].file_name
         module_name = file_name[:-3]
         is_update = module_name in kernel.loaded_modules
-        
-        action = "🔄 обновляю" if is_update else "🧪 устанавливаю"
-        msg = await event.edit(f'{action} модуль <b>{module_name}</b>')
-        
+
+        action = "🧪 обновляю" if is_update else "🧪 устанавливаю"
+        msg = await event.edit(f'{action} модуль <b>{module_name}</b>', parse_mode='html')
+
         file_path = os.path.join(kernel.MODULES_LOADED_DIR, file_name)
         await reply.download_media(file_path)
-        
+
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 code = f.read()
-            
+
             if 'from .. import' in code or 'import loader' in code:
                 await msg.edit(f'❌ Модуль не совместим')
                 os.remove(file_path)
                 return
-            
+
             dependencies = []
             if 'requires' in code:
                 reqs = re.findall(r'# requires: (.+)', code)
                 if reqs:
                     dependencies = [req.strip() for req in reqs[0].split(',')]
-            
+
             if dependencies:
-                await msg.edit(f'{action} модуль <b>{module_name}</b>\n🔬 ставлю зависимости:\n{dependencies}')
+                await msg.edit(f'{action} модуль <b>{module_name}</b>\n🔬 ставлю зависимости:\n{dependencies}', parse_mode='html')
                 for dep in dependencies:
                     subprocess.run(
                         [sys.executable, '-m', 'pip', 'install', dep],
                         capture_output=True,
                         text=True
                     )
-            
+
             success, message = await load_module_from_file(file_path, module_name, False)
-            
+
             if success:
                 commands = get_module_commands(module_name, kernel)
                 cmd_text = f'🔶 {", ".join([f"<code>{kernel.custom_prefix}{cmd}</code>" for cmd in commands])}' if commands else '🔶 Нет команд'
-                
+
                 emoji = random.choice(emojis)
-                
+
                 final_msg = f'🧬 Модуль <b>{module_name}</b> загружен! {emoji}\n\n'
                 final_msg += cmd_text
-                
+
                 await msg.edit(final_msg, parse_mode='html')
             else:
                 await msg.edit(f'❌ {message}')
                 if os.path.exists(file_path):
                     os.remove(file_path)
-                    
+
         except Exception as e:
             await msg.edit(f'❌ Ошибка: {str(e)}')
             if os.path.exists(file_path):
                 os.remove(file_path)
-    
+
     @kernel.register_command('dlm')
     async def download_module_handler(event):
         args = event.text.split()
         if len(args) < 2:
             await event.edit(f'❌ Использование: {kernel.custom_prefix}dlm название_модуля')
             return
-        
+
         module_name = args[1]
         is_update = module_name in kernel.loaded_modules
-        
+
         action = "🧪 обновляю" if is_update else "🧪 устанавливаю"
         msg = await event.edit(f'{action} модуль <b>{module_name}</b>', parse_mode='html')
-        
+
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(f'{kernel.MODULES_REPO}/{module_name}.py') as resp:
                     if resp.status == 200:
                         code = await resp.text()
-                        
+
                         file_path = os.path.join(kernel.MODULES_LOADED_DIR, f'{module_name}.py')
-                        
+
                         dependencies = []
                         if 'requires' in code:
                             reqs = re.findall(r'# requires: (.+)', code)
                             if reqs:
                                 dependencies = [req.strip() for req in reqs[0].split(',')]
-                        
+
                         if dependencies:
                             await msg.edit(f'{action} модуль <b>{module_name}</b>\n🔬 ставлю зависимости:\n{dependencies}', parse_mode='html')
                             for dep in dependencies:
@@ -213,21 +213,21 @@ def register(kernel):
                                     capture_output=True,
                                     text=True
                                 )
-                        
+
                         with open(file_path, 'w', encoding='utf-8') as f:
                             f.write(code)
-                        
+
                         success, message = await load_module_from_file(file_path, module_name, False)
-                        
+
                         if success:
                             commands = get_module_commands(module_name, kernel)
                             cmd_text = f'🔶 {", ".join([f"<code>{kernel.custom_prefix}{cmd}</code>" for cmd in commands])}' if commands else '🔶 Нет команд'
-                            
+
                             emoji = random.choice(emojis)
-                            
+
                             final_msg = f'🧬 Модуль <b>{module_name}</b> загружен! {emoji}\n\n'
                             final_msg += cmd_text
-                            
+
                             await msg.edit(final_msg, parse_mode='html')
                         else:
                             await msg.edit(f'❌ {message}')
@@ -237,7 +237,7 @@ def register(kernel):
                         await msg.edit(f'❌ Модуль {module_name} не найден')
         except Exception as e:
             await msg.edit(f'❌ Ошибка: {str(e)}')
-    
+
     @kernel.register_command('dlml')
     async def catalog_handler(event):
         page = 1
@@ -354,7 +354,7 @@ def register(kernel):
             await event.edit(f'❌ Файл модуля не найден')
             return
         
-        msg = await event.edit(f'🔭 Перезагрузка <mono>{module_name}</mono>...' parse_mode='html')
+        msg = await event.edit(f'🔭 Перезагрузка <mono>{module_name}</mono>...', parse_mode='html')
         
         if module_name in sys.modules:
             del sys.modules[module_name]

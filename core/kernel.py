@@ -325,63 +325,68 @@ class Kernel:
             if not self.first_time_setup():
                 self.cprint(f'{Colors.RED}❌ Не удалось настроить юзербот{Colors.RESET}')
                 return
-        
+
         kernel_start_time = time.time()
-        
+
         if not await self.init_client():
             return
-        
+
         await self.setup_inline_bot()
-        
+
         modules_start_time = time.time()
         await self.load_system_modules()
         await self.load_user_modules()
         modules_end_time = time.time()
-        
+
         @self.client.on(events.NewMessage(outgoing=True))
         async def message_handler(event):
             await self.process_command(event)
-        
+
         self.cprint(f'{Colors.CYAN}The kernel is loaded{Colors.RESET}')
-        
-        # Обработка перезагрузки с новым форматом
+
+        # Обработка перезагрузки
         if os.path.exists(self.RESTART_FILE):
             with open(self.RESTART_FILE, 'r') as f:
                 data = f.read().split(',')
                 if len(data) >= 3:
                     chat_id, msg_id, restart_time = data[0], data[1], float(data[2])
                     os.remove(self.RESTART_FILE)
-                    
+
                     kbl = round((modules_start_time - kernel_start_time) * 1000, 2)
                     mlfb = round((modules_end_time - modules_start_time) * 1000, 2)
-                    
+
                     emojis = ['ಠ_ಠ', '( ཀ ʖ̯ ཀ)', '(◕‿◕✿)', '(つ･･)つ', '༼つ◕_◕༽つ', '(•_•)', '☜(ﾟヮﾟ☜)', '(☞ﾟヮﾟ)☞', 'ʕ•ᴥ•ʔ', '(づ￣ ³￣)づ']
                     emoji = random.choice(emojis)
-                    
+
                     total_time = round((time.time() - restart_time) * 1000, 2)
-                    
+
                     if self.client.is_connected():
                         try:
-                            # Первое сообщение - успешная перезагрузка
+                            # Сначала редактируем старое сообщение
                             await self.client.edit_message(
                                 int(chat_id),
                                 int(msg_id),
                                 f'⚗️ Перезагрузка <b>успешна!</b> {emoji}\n'
-                                f'<i>но модули ещё загружаются...</i> <b>CLB:</b> <code>{total_time}ms</code>',
+                                f'<i>но модули ещё загружаются...</i> <b>CLB:</b> <code>{total_time} ms</code>',
                                 parse_mode='html'
                             )
-                            
-                            # Второе сообщение - полная загрузка
+
+                            # Ждём немного
                             await asyncio.sleep(1)
+
+                            # Удаляем отредактированное сообщение
+                            await self.client.delete_messages(int(chat_id), int(msg_id))
+
+                            # Отправляем новое сообщение о полной загрузке
                             await self.client.send_message(
                                 int(chat_id),
-                                f'📦 <i>Ahh.</i> Твой <b>MCUB</b> полностью загрузился!\n'
-                                f'<blockquote><b>KBL:</b> <code>{kbl}ms</code>. <b>MLFB:</b> <code>{mlfb}ms</code>.</blockquote>',
+                                f'📦 Твой <b>MCUB</b> полностью загрузился!\n'
+                                f'<blockquote><b>KBL:</b> <code>{kbl} ms</code>. <b>MLFB:</b> <code>{mlfb} ms</code>.</blockquote>',
                                 parse_mode='html'
                             )
                         except Exception as e:
                             self.cprint(f'{Colors.YELLOW}⚠️ Не удалось отправить сообщение о перезагрузке: {e}{Colors.RESET}')
                     else:
                         self.cprint(f'{Colors.YELLOW}⚠️ Не удалось отправить сообщение о перезагрузке: нет соединения{Colors.RESET}')
-        
+
         await self.client.run_until_disconnected()

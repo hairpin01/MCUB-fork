@@ -23,7 +23,7 @@ class Colors:
 
 class Kernel:
     def __init__(self):
-        self.VERSION = '1.0.1.3'
+        self.VERSION = '1.0.1.4'
         self.DB_VERSION = 2
         self.start_time = time.time()
         self.loaded_modules = {}

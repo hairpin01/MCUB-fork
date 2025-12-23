@@ -62,6 +62,9 @@ class Kernel:
 
         self.inline_handlers = {}
         self.callback_handlers = {}
+        self.log_chat_id = None
+        self.log_bot_enabled = False
+
 
     def register_inline_handler(self, pattern, handler):
         self.inline_handlers[pattern] = handler
@@ -101,6 +104,43 @@ class Kernel:
         else:
             return False
     
+    async def send_log_message(self, text, image_path=None):
+        """Отправка сообщения в лог-чат"""
+        if not self.log_chat_id or not self.client or not self.client.is_connected():
+            return False
+
+        try:
+            if image_path and os.path.exists(image_path):
+                await self.client.send_file(
+                    self.log_chat_id,
+                    image_path,
+                    caption=text,
+                    parse_mode='html'
+                )
+            else:
+                await self.client.send_message(
+                    self.log_chat_id,
+                    text,
+                    parse_mode='html'
+                )
+            return True
+        except Exception as e:
+            self.cprint(f'{Colors.RED}❌ Ошибка отправки в лог-чат: {e}{Colors.RESET}')
+            return False
+
+    async def send_error_log(self, error_text, source_file, message_info=""):
+        """Отправка ошибки в лог-чат с форматированием"""
+        if not self.log_chat_id:
+            return
+
+        formatted_error = f'''💠 <b>Source:</b> <code>{source_file}</code>
+🔮 <b>Error:</b> <blockquote><code>{error_text[:500]}</code></blockquote>'''
+
+        if message_info:
+            formatted_error += f'\n🃏 <b>Message:</b> <code>{message_info[:300]}</code>'
+
+        await self.send_log_message(formatted_error)
+
     def setup_config(self):
         try:
             self.custom_prefix = self.config.get('command_prefix', '.')

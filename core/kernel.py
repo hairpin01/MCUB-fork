@@ -32,7 +32,7 @@ class Colors:
 
 class Kernel:
     def __init__(self):
-        self.VERSION = '1.0.1.3'
+        self.VERSION = '1.0.1.4'
         self.DB_VERSION = 2
         self.start_time = time.time()
         self.loaded_modules = {}
@@ -59,7 +59,21 @@ class Kernel:
         self.RESTART_FILE = 'restart.tmp'
         self.MODULES_REPO = 'https://raw.githubusercontent.com/Mitrichdfklwhcluio/MCUBFB/main/modules_catalog'
         self.UPDATE_REPO = 'https://raw.githubusercontent.com/Mitrichdfklwhcluio/MCUBFB/main/'
-        
+
+        self.inline_handlers = {}
+        self.callback_handlers = {}
+
+    def register_inline_handler(self, pattern, handler):
+        self.inline_handlers[pattern] = handler
+
+    def register_callback_handler(self, pattern, handler):
+        """Регистрация обработчика callback-кнопок"""
+        self.callback_handlers[pattern] = handler
+        @self.client.on(events.CallbackQuery(pattern=pattern.encode()))
+
+    async def callback_wrapper(event):
+        await handler(event)
+
         self.reconnect_attempts = 0
         self.max_reconnect_attempts = 5
         self.reconnect_delay = 10

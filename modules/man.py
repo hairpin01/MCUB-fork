@@ -10,37 +10,34 @@ def register(kernel):
         system_count = len(kernel.system_modules)
         user_count = len(kernel.loaded_modules)
         
-        title = f"💾 {user_count} :модулей загружен. системных модулей: {system_count}"
-        
-        all_modules = {}
-        all_modules.update(kernel.system_modules)
-        all_modules.update(kernel.loaded_modules)
+        all_modules = []
+        for name in kernel.system_modules:
+            all_modules.append((name, 'system'))
+        for name in kernel.loaded_modules:
+            all_modules.append((name, 'user'))
         
         if module_filter:
-            matches = []
-            for name in all_modules.keys():
+            filtered_modules = []
+            for name, typ in all_modules:
                 if module_filter.lower() in name.lower():
-                    matches.append((name, 1))
+                    filtered_modules.append((name, typ, 1))
                 else:
-                    for cmd in get_module_commands(name, kernel):
+                    commands = get_module_commands(name, kernel)
+                    for cmd in commands:
                         if module_filter.lower() == cmd.lower():
-                            matches.append((name, 2))
+                            filtered_modules.append((name, typ, 2))
                             break
                         elif module_filter.lower() in cmd.lower():
-                            matches.append((name, 3))
+                            filtered_modules.append((name, typ, 3))
+                            break
             
-            matches.sort(key=lambda x: (-x[1], x[0]))
-            filtered_modules = {name: all_modules[name] for name, _ in matches[:10]}
-            page = 1
-            per_page = 10
-            is_search = True
-        else:
-            filtered_modules = all_modules
-            per_page = 8
-            is_search = False
+            filtered_modules.sort(key=lambda x: (-x[2], x[0]))
+            all_modules = [(name, typ) for name, typ, _ in filtered_modules[:10]]
         
-        modules_list = list(filtered_modules.items())
-        total_pages = (len(modules_list) + per_page - 1) // per_page
+        all_modules.sort(key=lambda x: (0 if x[1] == 'system' else 1, x[0]))
+        
+        per_page = 8
+        total_pages = (len(all_modules) + per_page - 1) // per_page
         
         if page < 1:
             page = 1
@@ -49,44 +46,47 @@ def register(kernel):
         
         start_idx = (page - 1) * per_page
         end_idx = start_idx + per_page
-        page_modules = modules_list[start_idx:end_idx]
+        page_modules = all_modules[start_idx:end_idx]
+        
+        title = f"🌩️ {user_count} модулей. системных модулей: {system_count}"
+        
+        system_mods = [name for name, typ in page_modules if typ == 'system']
+        user_mods = [name for name, typ in page_modules if typ == 'user']
+        
+        system_block = ""
+        user_block = ""
+        
+        if system_mods:
+            system_block = "<blockquote expandable>\n"
+            for name in system_mods:
+                commands = get_module_commands(name, kernel)
+                cmd_text = f": {', '.join([f'{kernel.custom_prefix}{cmd}' for cmd in commands])}" if commands else ""
+                system_block += f"<b>{name}</b>{cmd_text}\n"
+            system_block += "</blockquote>"
+        
+        if user_mods:
+            user_block = "<blockquote expandable>\n"
+            for name in user_mods:
+                commands = get_module_commands(name, kernel)
+                cmd_text = f": {', '.join([f'{kernel.custom_prefix}{cmd}' for cmd in commands])}" if commands else ""
+                user_block += f"<b>{name}</b>{cmd_text}\n"
+            user_block += "</blockquote>"
         
         msg = f"**{title}**\n\n"
         
-        if is_search:
-            msg += f"🔍 Результаты поиска: '{module_filter}'\n\n"
+        if system_block:
+            msg += system_block + "\n"
+        if user_block:
+            msg += user_block
         
-        for module_name, module in page_modules:
-            module_type = "🛠️" if module_name in kernel.system_modules else "📦"
-            msg += f"**{module_type} {module_name}**\n"
-            
-            commands = get_module_commands(module_name, kernel)
-            if commands:
-                msg += f"   Команды: {', '.join([f'`{kernel.custom_prefix}{cmd}`' for cmd in commands])}\n"
-            
-            file_path = None
-            if module_name in kernel.system_modules:
-                file_path = f"modules/{module_name}.py"
-            elif module_name in kernel.loaded_modules:
-                file_path = f"modules_loaded/{module_name}.py"
-            
-            if file_path:
-                try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        code = f.read()
-                        desc_match = re.search(r'"""([^"]+)"""', code, re.DOTALL)
-                        if desc_match:
-                            description = desc_match.group(1).strip()
-                            msg += f"   Описание: {description[:100]}...\n"
-                except:
-                    pass
-            
-            msg += "\n"
+        if module_filter:
+            msg = f"🔍 **Результаты поиска: '{module_filter}'**\n\n" + msg
         
         if total_pages > 1:
-            msg += f"📄 Страница {page}/{total_pages}\n"
+            msg += f"\n📄 Страница {page}/{total_pages}"
+            msg += f"\nИспользуйте: `{kernel.custom_prefix}man [страница]`"
         
-        return msg, total_pages, page
+        return msg, total_pages, page, system_block != "", user_block != ""
     
     def get_module_commands(module_name, kernel):
         commands = []
@@ -108,6 +108,10 @@ def register(kernel):
                     pattern2 = r"register_command\s*\('([^']+)'"
                     found2 = re.findall(pattern2, code)
                     commands.extend(found2)
+                    
+                    pattern3 = r"@kernel\.register_command\('([^']+)'\)"
+                    found3 = re.findall(pattern3, code)
+                    commands.extend(found3)
             except:
                 pass
         
@@ -118,7 +122,20 @@ def register(kernel):
         args = event.text.split()
         
         if len(args) == 1:
-            msg, total_pages, current_page = await generate_man_page()
+            bot_username = kernel.config.get('inline_bot_username')
+            
+            if bot_username:
+                try:
+                    await event.delete()
+                    query = f"man_page_1"
+                    results = await client.inline_query(bot_username, query)
+                    if results:
+                        await results[0].click(event.chat_id)
+                        return
+                except:
+                    pass
+            
+            msg, total_pages, current_page, has_system, has_user = await generate_man_page()
             
             if total_pages > 1:
                 buttons = []
@@ -127,40 +144,35 @@ def register(kernel):
                 if current_page < total_pages:
                     buttons.append(Button.inline('➡️ Вперёд', f'man_page_{current_page+1}'.encode()))
                 
-                await event.edit(msg, buttons=buttons if buttons else None)
+                await event.edit(msg, buttons=buttons if buttons else None, parse_mode='html')
             else:
-                await event.edit(msg)
+                await event.edit(msg, parse_mode='html')
         
         elif len(args) >= 2:
-            search_query = ' '.join(args[1:])
-            msg, total_pages, current_page = await generate_man_page(module_filter=search_query)
-            
-            bot_username = kernel.config.get('inline_bot_username')
-            
-            if total_pages > 3:
-                if bot_username:
-                    await event.delete()
+            if args[1].isdigit():
+                page = int(args[1])
+                msg, total_pages, current_page, has_system, has_user = await generate_man_page(page)
+                
+                if total_pages > 1:
+                    buttons = []
+                    if current_page > 1:
+                        buttons.append(Button.inline('⬅️ Назад', f'man_page_{current_page-1}'.encode()))
+                    if current_page < total_pages:
+                        buttons.append(Button.inline('➡️ Вперёд', f'man_page_{current_page+1}'.encode()))
                     
-                    query = f"📚 **Результаты поиска: '{search_query}'**\n\n"
-                    query += f"Используйте кнопки для навигации | "
-                    query += f"◀️:page_man_prev_{current_page} | ▶️:page_man_next_{current_page}"
-                    
-                    try:
-                        results = await client.inline_query(bot_username, query)
-                        if results:
-                            await results[0].click(event.chat_id)
-                    except:
-                        await event.edit(msg)
+                    await event.edit(msg, buttons=buttons if buttons else None, parse_mode='html')
                 else:
-                    await event.edit(f"{msg}\n\n⚠️ Для навигации по страницам настройте инлайн-бота")
+                    await event.edit(msg, parse_mode='html')
             else:
-                await event.edit(msg)
+                search_query = ' '.join(args[1:])
+                msg, total_pages, current_page, has_system, has_user = await generate_man_page(module_filter=search_query)
+                await event.edit(msg, parse_mode='html')
     
     @client.on(events.CallbackQuery(pattern=b'man_page_'))
     async def man_page_handler(event):
         try:
             page = int(event.data.decode().split('_')[2])
-            msg, total_pages, current_page = await generate_man_page(page)
+            msg, total_pages, current_page, has_system, has_user = await generate_man_page(page)
             
             buttons = []
             if current_page > 1:
@@ -168,7 +180,7 @@ def register(kernel):
             if current_page < total_pages:
                 buttons.append(Button.inline('➡️ Вперёд', f'man_page_{current_page+1}'.encode()))
             
-            await event.edit(msg, buttons=buttons if buttons else None)
+            await event.edit(msg, buttons=buttons if buttons else None, parse_mode='html')
         except:
             await event.answer('❌ Ошибка навигации')
     
@@ -183,16 +195,20 @@ def register(kernel):
         
         if kernel.system_modules:
             msg += "**🛠️ Системные модули:**\n"
+            msg += "<blockquote expandable>\n"
             for name in sorted(kernel.system_modules.keys()):
                 commands = get_module_commands(name, kernel)
                 cmd_text = f" ({', '.join([f'`{kernel.custom_prefix}{c}`' for c in commands[:3]])})" if commands else ""
-                msg += f"  ◦ {name}{cmd_text}\n"
+                msg += f"<b>{name}</b>{cmd_text}\n"
+            msg += "</blockquote>\n"
         
         if kernel.loaded_modules:
             msg += "\n**📦 Пользовательские модули:**\n"
+            msg += "<blockquote expandable>\n"
             for name in sorted(kernel.loaded_modules.keys()):
                 commands = get_module_commands(name, kernel)
                 cmd_text = f" ({', '.join([f'`{kernel.custom_prefix}{c}`' for c in commands[:3]])})" if commands else ""
-                msg += f"  ◦ {name}{cmd_text}\n"
+                msg += f"<b>{name}</b>{cmd_text}\n"
+            msg += "</blockquote>\n"
         
-        await event.edit(msg)
+        await event.edit(msg, parse_mode='html')

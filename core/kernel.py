@@ -1,16 +1,25 @@
-import asyncio
 import time
 import sys
 import os
 import importlib.util
 import re
-import psutil
-import aiohttp
 import json
 import subprocess
 import socks
-from telethon import TelegramClient, events, Button
-from telethon.errors import SessionPasswordNeededError
+import random
+try:
+    import psutil
+    import aiohttp
+    import asyncio
+    from telethon import TelegramClient, events, Button
+    from telethon.errors import SessionPasswordNeededError
+except ImportError:
+    print(
+        "Установите зависимости",
+        "pip install -r requirements.txt"
+        )
+    
+
 
 class Colors:
     RESET = '\033[0m'
@@ -23,7 +32,7 @@ class Colors:
 
 class Kernel:
     def __init__(self):
-        self.VERSION = '1.0.1.4'
+        self.VERSION = '1.0.1.3'
         self.DB_VERSION = 2
         self.start_time = time.time()
         self.loaded_modules = {}
@@ -39,9 +48,7 @@ class Kernel:
         self.shutdown_flag = False
         self.power_save_mode = False
         self.Colors = Colors
-        self.inline_handlers = {}
-        self.callback_handlers = {}
-
+        
         self.MODULES_DIR = 'modules'
         self.MODULES_LOADED_DIR = 'modules_loaded'
         self.IMG_DIR = 'img'
@@ -157,7 +164,7 @@ class Kernel:
         
         try:
             await self.client.start(phone=self.PHONE)
-            self.cprint(f'{Colors.GREEN}✅ MCUB ядро запущено{Colors.RESET}')
+            self.cprint(f'{Colors.GREEN}MCUB ядро запущено{Colors.RESET}')
             return True
         except Exception as e:
             self.cprint(f'{Colors.RED}❌ Ошибка авторизации: {e}{Colors.RESET}')
@@ -178,19 +185,7 @@ class Kernel:
                 self.command_handlers[cmd] = f
                 return f
             return decorator
-
-    def register_inline_handler(self, pattern, handler):
-        """Регистрация обработчика инлайн-команд"""
-        self.inline_handlers[pattern] = handler
-
-    def register_callback_handler(self, pattern, handler):
-        """Регистрация обработчика callback-кнопок"""
-        self.callback_handlers[pattern] = handler
-        # Автоматически регистрируем в основном клиенте
-        @self.client.on(events.CallbackQuery(pattern=pattern.encode()))
-        async def callback_wrapper(event):
-            await handler(event)
-
+    
     async def load_system_modules(self):
         for file_name in os.listdir(self.MODULES_DIR):
             if file_name.endswith('.py'):
@@ -317,16 +312,62 @@ class Kernel:
                 self.cprint(f'{Colors.RED}❌ Не удалось настроить юзербот{Colors.RESET}')
                 return
         
+        kernel_start_time = time.time()
+        
         if not await self.init_client():
             return
         
         await self.setup_inline_bot()
         
+        modules_start_time = time.time()
         await self.load_system_modules()
         await self.load_user_modules()
+        modules_end_time = time.time()
         
         @self.client.on(events.NewMessage(outgoing=True))
         async def message_handler(event):
             await self.process_command(event)
+        
+        self.cprint(f'{Colors.CYAN}The kernel is loaded{Colors.RESET}')
+        
+        # Обработка перезагрузки с новым форматом
+        if os.path.exists(self.RESTART_FILE):
+            with open(self.RESTART_FILE, 'r') as f:
+                data = f.read().split(',')
+                if len(data) >= 3:
+                    chat_id, msg_id, restart_time = data[0], data[1], float(data[2])
+                    os.remove(self.RESTART_FILE)
+                    
+                    kbl = round((modules_start_time - kernel_start_time) * 1000, 2)
+                    mlfb = round((modules_end_time - modules_start_time) * 1000, 2)
+                    
+                    emojis = ['ಠ_ಠ', '( ཀ ʖ̯ ཀ)', '(◕‿◕✿)', '(つ･･)つ', '༼つ◕_◕༽つ', '(•_•)', '☜(ﾟヮﾟ☜)', '(☞ﾟヮﾟ)☞', 'ʕ•ᴥ•ʔ', '(づ￣ ³￣)づ']
+                    emoji = random.choice(emojis)
+                    
+                    total_time = round((time.time() - restart_time) * 1000, 2)
+                    
+                    if self.client.is_connected():
+                        try:
+                            # Первое сообщение - успешная перезагрузка
+                            await self.client.edit_message(
+                                int(chat_id),
+                                int(msg_id),
+                                f'⚗️ Перезагрузка <b>успешна!</b> {emoji}\n'
+                                f'<i>но модули ещё загружаются...</i> <b>CLB:</b> <code>{total_time}ms</code>',
+                                parse_mode='html'
+                            )
+                            
+                            # Второе сообщение - полная загрузка
+                            await asyncio.sleep(1)
+                            await self.client.send_message(
+                                int(chat_id),
+                                f'📦 <i>Ahh.</i> Твой <b>MCUB</b> полностью загрузился!\n'
+                                f'<blockquote><b>KBL:</b> <code>{kbl}ms</code>. <b>MLFB:</b> <code>{mlfb}ms</code>.</blockquote>',
+                                parse_mode='html'
+                            )
+                        except Exception as e:
+                            self.cprint(f'{Colors.YELLOW}⚠️ Не удалось отправить сообщение о перезагрузке: {e}{Colors.RESET}')
+                    else:
+                        self.cprint(f'{Colors.YELLOW}⚠️ Не удалось отправить сообщение о перезагрузке: нет соединения{Colors.RESET}')
         
         await self.client.run_until_disconnected()

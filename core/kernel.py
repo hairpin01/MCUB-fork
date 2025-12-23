@@ -39,7 +39,9 @@ class Kernel:
         self.shutdown_flag = False
         self.power_save_mode = False
         self.Colors = Colors
-        
+        self.inline_handlers = {}
+        self.callback_handlers = {}
+
         self.MODULES_DIR = 'modules'
         self.MODULES_LOADED_DIR = 'modules_loaded'
         self.IMG_DIR = 'img'
@@ -176,7 +178,19 @@ class Kernel:
                 self.command_handlers[cmd] = f
                 return f
             return decorator
-    
+
+    def register_inline_handler(self, pattern, handler):
+        """Регистрация обработчика инлайн-команд"""
+        self.inline_handlers[pattern] = handler
+
+    def register_callback_handler(self, pattern, handler):
+        """Регистрация обработчика callback-кнопок"""
+        self.callback_handlers[pattern] = handler
+        # Автоматически регистрируем в основном клиенте
+        @self.client.on(events.CallbackQuery(pattern=pattern.encode()))
+        async def callback_wrapper(event):
+            await handler(event)
+
     async def load_system_modules(self):
         for file_name in os.listdir(self.MODULES_DIR):
             if file_name.endswith('.py'):

@@ -11,11 +11,9 @@ from telethon.tl.types import PeerChat
 def register(kernel):
     client = kernel.client
 
-    # Клиент для бота
     bot_client = None
 
     async def init_bot_client():
-        """Инициализация клиента бота"""
         nonlocal bot_client
 
         bot_token = kernel.config.get('inline_bot_token')
@@ -33,7 +31,6 @@ def register(kernel):
             return False
 
     async def get_git_commit():
-        """Получение текущего коммита Git"""
         try:
             result = subprocess.run(
                 ['git', 'rev-parse', '--short', 'HEAD'],
@@ -48,7 +45,7 @@ def register(kernel):
         return 'unknown'
 
     async def get_update_status():
-        """Проверка статуса обновлений"""
+
         try:
             result = subprocess.run(
                 ['git', 'status', '--porcelain'],
@@ -79,7 +76,6 @@ def register(kernel):
         return '✅ Актуальная версия'
 
     async def setup_log_chat():
-        """Настройка лог-группы"""
         if kernel.config.get('log_chat_id'):
             kernel.log_chat_id = kernel.config['log_chat_id']
             return True
@@ -87,7 +83,6 @@ def register(kernel):
         kernel.cprint(f'{kernel.Colors.YELLOW}🤖 Настройка лог-группы{kernel.Colors.RESET}')
 
         try:
-            # Пытаемся найти существующий чат
             async for dialog in client.iter_dialogs():
                 if dialog.title and 'MCUB-logs' in dialog.title:
                     kernel.log_chat_id = dialog.id
@@ -99,13 +94,11 @@ def register(kernel):
                     kernel.cprint(f'{kernel.Colors.GREEN}✅ Найден существующий лог-чат: {dialog.title}{kernel.Colors.RESET}')
                     return True
 
-            # Создаём новую группу через юзербота
             kernel.cprint(f'{kernel.Colors.YELLOW}📝 Создаю новую лог-группу...{kernel.Colors.RESET}')
 
             me = await client.get_me()
 
             try:
-                # Создаем группу (чат) через юзербота
                 result = await client.create_dialog(
                     title=f'MCUB-logs [{me.first_name}]',
                     users=[me]
@@ -117,7 +110,6 @@ def register(kernel):
 
                 # Получаем пригласительную ссылку
                 try:
-                    # Используем асинхронный метод для получения ссылки
                     full_chat = await client.get_entity(result.id)
                     # Получаем ссылку
                     try:
@@ -125,7 +117,6 @@ def register(kernel):
                         if hasattr(invite, 'link'):
                             kernel.cprint(f'{kernel.Colors.GREEN}✅ Ссылка на группу: {invite.link}{kernel.Colors.RESET}')
                     except:
-                        # Альтернативный способ получения ссылки
                         try:
                             invite = await client.get_permissions(result.id)
                             kernel.cprint(f'{kernel.Colors.GREEN}✅ Группа создана{kernel.Colors.RESET}')
@@ -135,13 +126,10 @@ def register(kernel):
                 except Exception as e:
                     kernel.cprint(f'{kernel.Colors.YELLOW}⚠️ Не удалось получить ссылку на группу: {e}{kernel.Colors.RESET}')
 
-                # Если бот запущен, добавляем его в группу
                 if bot_client and await bot_client.is_user_authorized():
                     try:
                         bot_me = await bot_client.get_me()
-                        # Получаем сущность бота через юзербота
                         bot_entity = await client.get_entity(bot_me.id)
-                        # Добавляем бота в группу
                         await client.add_chat_users(result.id, [bot_entity])
                         kernel.cprint(f'{kernel.Colors.GREEN}✅ Бот добавлен в группу{kernel.Colors.RESET}')
                     except Exception as e:

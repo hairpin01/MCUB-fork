@@ -7,10 +7,44 @@ import importlib.util
 import inspect
 import aiohttp
 import json
+import random
 from telethon import events, Button
 
 def register(kernel):
     client = kernel.client
+    
+    emojis = ['ಠ_ಠ', '( ཀ ʖ̯ ཀ)', '(◕‿◕✿)', '(つ･･)つ', '༼つ◕_◕༽つ', '(•_•)', '☜(ﾟヮﾟ☜)', '(☞ﾟヮﾟ)☞', 'ʕ•ᴥ•ʔ', '(づ￣ ³￣)づ']
+    
+    def get_module_commands(module_name, kernel):
+        commands = []
+        file_path = None
+        
+        if module_name in kernel.system_modules:
+            file_path = f"modules/{module_name}.py"
+        elif module_name in kernel.loaded_modules:
+            file_path = f"modules_loaded/{module_name}.py"
+        
+        if file_path and os.path.exists(file_path):
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    code = f.read()
+                    
+                    patterns = [
+                        r"pattern\s*=\s*r['\"]\^?\\?\.([a-zA-Z0-9_]+)",
+                        r"register_command\s*\('([^']+)'",
+                        r"@kernel\.register_command\('([^']+)'\)",
+                        r"kernel\.register_command\('([^']+)'",
+                        r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'\\\\.([^']+)'\)\)"
+                    ]
+                    
+                    for pattern in patterns:
+                        found = re.findall(pattern, code)
+                        commands.extend(found)
+                        
+            except:
+                pass
+        
+        return list(set([cmd for cmd in commands if cmd]))
     
     def detect_module_type(module):
         if hasattr(module, 'register'):
@@ -53,10 +87,8 @@ def register(kernel):
             
             if module_type == 'new':
                 module.register(kernel)
-                kernel.cprint(f'{kernel.Colors.GREEN}✅ Загружен новый модуль: {module_name}{kernel.Colors.RESET}')
             elif module_type == 'old':
                 module.register(client)
-                kernel.cprint(f'{kernel.Colors.YELLOW}⚠️ Загружен старый модуль: {module_name}{kernel.Colors.RESET}')
             elif module_type == 'none':
                 return False, 'Модуль не имеет функции register'
             else:
@@ -79,19 +111,6 @@ def register(kernel):
         except Exception as e:
             return False, f'Ошибка загрузки: {str(e)}'
     
-    def convert_old_module_code(code, module_name):
-        old_patterns = [
-            (r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'\\\\.([^']+)'\)\)", r"@kernel.register_command('\1')"),
-            (r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'([^']+)'\)\)", r"@kernel.register_command('\1'.lstrip('^\\\\' + kernel.custom_prefix))"),
-            (r"def register\(client\):", "def register(kernel):\n    client = kernel.client"),
-            (r"async def (\w+)\(event\):", r"async def \1(event):")
-        ]
-        
-        for old, new in old_patterns:
-            code = re.sub(old, new, code)
-        
-        return code
-    
     @kernel.register_command('im')
     async def install_module_handler(event):
         if not event.is_reply:
@@ -105,18 +124,57 @@ def register(kernel):
         
         file_name = reply.document.attributes[0].file_name
         module_name = file_name[:-3]
+        is_update = module_name in kernel.loaded_modules
         
-        await event.edit(f'📥 Установка {module_name}...')
+        action = "🔄 обновляю" if is_update else "🧪 устанавливаю"
+        msg = await event.edit(f'{action} модуль <b>{module_name}</b>')
         
         file_path = os.path.join(kernel.MODULES_LOADED_DIR, file_name)
         await reply.download_media(file_path)
         
-        success, message = await load_module_from_file(file_path, module_name, False)
-        
-        if success:
-            await event.edit(f'✅ {message}')
-        else:
-            await event.edit(f'❌ {message}')
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                code = f.read()
+            
+            if 'from .. import' in code or 'import loader' in code:
+                await msg.edit(f'❌ Модуль не совместим')
+                os.remove(file_path)
+                return
+            
+            dependencies = []
+            if 'requires' in code:
+                reqs = re.findall(r'# requires: (.+)', code)
+                if reqs:
+                    dependencies = [req.strip() for req in reqs[0].split(',')]
+            
+            if dependencies:
+                await msg.edit(f'{action} модуль <b>{module_name}</b>\n🔬 ставлю зависимости:\n{dependencies}')
+                for dep in dependencies:
+                    subprocess.run(
+                        [sys.executable, '-m', 'pip', 'install', dep],
+                        capture_output=True,
+                        text=True
+                    )
+            
+            success, message = await load_module_from_file(file_path, module_name, False)
+            
+            if success:
+                commands = get_module_commands(module_name, kernel)
+                cmd_text = f'🔶 {", ".join([f"<code>{kernel.custom_prefix}{cmd}</code>" for cmd in commands])}' if commands else '🔶 Нет команд'
+                
+                emoji = random.choice(emojis)
+                
+                final_msg = f'🧬 Модуль <b>{module_name}</b> загружен! {emoji}\n\n'
+                final_msg += cmd_text
+                
+                await msg.edit(final_msg, parse_mode='html')
+            else:
+                await msg.edit(f'❌ {message}')
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    
+        except Exception as e:
+            await msg.edit(f'❌ Ошибка: {str(e)}')
             if os.path.exists(file_path):
                 os.remove(file_path)
     
@@ -130,7 +188,8 @@ def register(kernel):
         module_name = args[1]
         is_update = module_name in kernel.loaded_modules
         
-        msg = await event.edit(f'📥 {"Обновление" if is_update else "Загрузка"} {module_name}...')
+        action = "🔄 обновляю" if is_update else "🧪 устанавливаю"
+        msg = await event.edit(f'{action} модуль <b>{module_name}</b>')
         
         try:
             async with aiohttp.ClientSession() as session:
@@ -138,44 +197,46 @@ def register(kernel):
                     if resp.status == 200:
                         code = await resp.text()
                         
-                        if not os.path.exists(kernel.MODULES_LOADED_DIR):
-                            os.makedirs(kernel.MODULES_LOADED_DIR)
-                        
                         file_path = os.path.join(kernel.MODULES_LOADED_DIR, f'{module_name}.py')
                         
-                        if is_update and module_name in sys.modules:
-                            del sys.modules[module_name]
-                        
-                        await msg.edit(f'📥 Сохранение {module_name}.py...')
-                        with open(file_path, 'w', encoding='utf-8') as f:
-                            f.write(code)
-                        
-                        await msg.edit(f'📦 Установка зависимостей...')
+                        dependencies = []
                         if 'requires' in code:
                             reqs = re.findall(r'# requires: (.+)', code)
                             if reqs:
-                                for req in reqs[0].split(','):
-                                    try:
-                                        subprocess.run(
-                                            [sys.executable, '-m', 'pip', 'install', req.strip()],
-                                            capture_output=True,
-                                            check=True
-                                        )
-                                    except subprocess.CalledProcessError:
-                                        await msg.edit(f'⚠️ Не удалось установить {req.strip()}')
+                                dependencies = [req.strip() for req in reqs[0].split(',')]
+                        
+                        if dependencies:
+                            await msg.edit(f'{action} модуль <b>{module_name}</b>\n🔬 ставлю зависимости:\n{dependencies}')
+                            for dep in dependencies:
+                                subprocess.run(
+                                    [sys.executable, '-m', 'pip', 'install', dep],
+                                    capture_output=True,
+                                    text=True
+                                )
+                        
+                        with open(file_path, 'w', encoding='utf-8') as f:
+                            f.write(code)
                         
                         success, message = await load_module_from_file(file_path, module_name, False)
                         
                         if success:
-                            await msg.edit(f'✅ {message}')
+                            commands = get_module_commands(module_name, kernel)
+                            cmd_text = f'🔶 {", ".join([f"<code>{kernel.custom_prefix}{cmd}</code>" for cmd in commands])}' if commands else '🔶 Нет команд'
+                            
+                            emoji = random.choice(emojis)
+                            
+                            final_msg = f'🧬 Модуль <b>{module_name}</b> загружен! {emoji}\n\n'
+                            final_msg += cmd_text
+                            
+                            await msg.edit(final_msg, parse_mode='html')
                         else:
                             await msg.edit(f'❌ {message}')
                             if os.path.exists(file_path):
                                 os.remove(file_path)
                     else:
-                        await event.edit(f'❌ Модуль {module_name} не найден')
+                        await msg.edit(f'❌ Модуль {module_name} не найден')
         except Exception as e:
-            await event.edit(f'❌ Ошибка: {str(e)}')
+            await msg.edit(f'❌ Ошибка: {str(e)}')
     
     @kernel.register_command('dlml')
     async def catalog_handler(event):
@@ -293,7 +354,7 @@ def register(kernel):
             await event.edit(f'❌ Файл модуля не найден')
             return
         
-        await event.edit(f'🔄 Перезагрузка {module_name}...')
+        msg = await event.edit(f'🔄 Перезагрузка {module_name}...')
         
         if module_name in sys.modules:
             del sys.modules[module_name]
@@ -306,9 +367,13 @@ def register(kernel):
         success, message = await load_module_from_file(file_path, module_name, is_system)
         
         if success:
-            await event.edit(f'✅ {message}')
+            commands = get_module_commands(module_name, kernel)
+            cmd_text = f'🔶 {", ".join([f"<code>{kernel.custom_prefix}{cmd}</code>" for cmd in commands])}' if commands else '🔶 Нет команд'
+            
+            emoji = random.choice(emojis)
+            await msg.edit(f'🧬 Модуль <b>{module_name}</b> перезагружен! {emoji}\n\n{cmd_text}', parse_mode='html')
         else:
-            await event.edit(f'❌ {message}')
+            await msg.edit(f'❌ {message}')
     
     @kernel.register_command('convert')
     async def convert_module_handler(event):
@@ -334,14 +399,22 @@ def register(kernel):
             with open(file_path, 'r', encoding='utf-8') as f:
                 code = f.read()
             
-            converted_code = convert_old_module_code(code, module_name)
+            old_patterns = [
+                (r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'\\\\.([^']+)'\)\)", r"@kernel.register_command('\1')"),
+                (r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'([^']+)'\)\)", r"@kernel.register_command('\1'.lstrip('^\\\\' + kernel.custom_prefix))"),
+                (r"def register\(client\):", "def register(kernel):\n    client = kernel.client"),
+                (r"async def (\w+)\(event\):", r"async def \1(event):")
+            ]
+            
+            for old, new in old_patterns:
+                code = re.sub(old, new, code)
             
             backup_path = file_path + '.backup'
             with open(backup_path, 'w', encoding='utf-8') as f:
                 f.write(code)
             
             with open(file_path, 'w', encoding='utf-8') as f:
-                f.write(converted_code)
+                f.write(code)
             
             await event.edit(f'✅ Модуль конвертирован\n📦 Бэкап: {module_name}.py.backup')
             

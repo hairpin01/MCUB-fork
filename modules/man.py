@@ -5,6 +5,14 @@ import difflib
 def register(kernel):
     client = kernel.client
     
+    def plural_modules(n):
+        if n % 10 == 1 and n % 100 != 11:
+            return 'модуль'
+        elif 2 <= n % 10 <= 4 and (n % 100 < 10 or n % 100 >= 20):
+            return 'модуля'
+        else:
+            return 'модулей'
+    
     async def generate_man_page(page=1, module_filter=None):
         total_modules = len(kernel.loaded_modules) + len(kernel.system_modules)
         system_count = len(kernel.system_modules)
@@ -48,43 +56,40 @@ def register(kernel):
         end_idx = start_idx + per_page
         page_modules = all_modules[start_idx:end_idx]
         
-        title = f"🌩️ {user_count} модулей. системных модулей: {system_count}"
+        title = f"🌩️ **{total_modules} {plural_modules(total_modules)}. системных модулей: {system_count}**"
         
-        system_mods = [name for name, typ in page_modules if typ == 'system']
-        user_mods = [name for name, typ in page_modules if typ == 'user']
+        system_mods = [(name, get_module_commands(name, kernel)) for name, typ in page_modules if typ == 'system']
+        user_mods = [(name, get_module_commands(name, kernel)) for name, typ in page_modules if typ == 'user']
         
-        system_block = ""
-        user_block = ""
+        msg = f"{title}\n\n"
         
         if system_mods:
-            system_block = "<blockquote expandable>\n"
-            for name in system_mods:
-                commands = get_module_commands(name, kernel)
-                cmd_text = f": {', '.join([f'{kernel.custom_prefix}{cmd}' for cmd in commands])}" if commands else ""
-                system_block += f"<b>{name}</b>{cmd_text}\n"
-            system_block += "</blockquote>"
+            msg += "**🛠️ Системные модули:**\n<blockquote expandable>\n"
+            for name, commands in system_mods:
+                if commands:
+                    cmd_text = f": {', '.join([f'{kernel.custom_prefix}{cmd}' for cmd in commands])}"
+                else:
+                    cmd_text = ""
+                msg += f"<b>{name}</b>{cmd_text}\n"
+            msg += "</blockquote>\n"
         
         if user_mods:
-            user_block = "<blockquote expandable>\n"
-            for name in user_mods:
-                commands = get_module_commands(name, kernel)
-                cmd_text = f": {', '.join([f'{kernel.custom_prefix}{cmd}' for cmd in commands])}" if commands else ""
-                user_block += f"<b>{name}</b>{cmd_text}\n"
-            user_block += "</blockquote>"
-        
-        msg = f"**{title}**\n\n"
-        
-        if system_block:
-            msg += system_block + "\n"
-        if user_block:
-            msg += user_block
+            if system_mods:
+                msg += "\n"
+            msg += "**📦 Пользовательские модули:**\n<blockquote expandable>\n"
+            for name, commands in user_mods:
+                if commands:
+                    cmd_text = f": {', '.join([f'{kernel.custom_prefix}{cmd}' for cmd in commands])}"
+                else:
+                    cmd_text = ""
+                msg += f"<b>{name}</b>{cmd_text}\n"
+            msg += "</blockquote>\n"
         
         if module_filter:
             msg = f"🔍 **Результаты поиска: '{module_filter}'**\n\n" + msg
         
         if total_pages > 1:
             msg += f"\n📄 Страница {page}/{total_pages}"
-            msg += f"\nИспользуйте: `{kernel.custom_prefix}man [страница]`"
         
         return msg, total_pages, page
     
@@ -101,9 +106,10 @@ def register(kernel):
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     code = f.read()
-                    pattern = r"pattern\s*=\s*r['\"]\^?\\?\.([a-zA-Z0-9_]+)"
-                    found = re.findall(pattern, code)
-                    commands.extend(found)
+                    
+                    pattern1 = r"pattern\s*=\s*r['\"]\^?\\?\.([a-zA-Z0-9_]+)"
+                    found1 = re.findall(pattern1, code)
+                    commands.extend(found1)
                     
                     pattern2 = r"register_command\s*\('([^']+)'"
                     found2 = re.findall(pattern2, code)
@@ -112,16 +118,38 @@ def register(kernel):
                     pattern3 = r"@kernel\.register_command\('([^']+)'\)"
                     found3 = re.findall(pattern3, code)
                     commands.extend(found3)
-            except:
-                pass
+                    
+                    pattern4 = r"kernel\.register_command\('([^']+)'"
+                    found4 = re.findall(pattern4, code)
+                    commands.extend(found4)
+                    
+                    pattern5 = r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'\\\\.([^']+)'\)\)"
+                    found5 = re.findall(pattern5, code)
+                    commands.extend(found5)
+                    
+            except Exception as e:
+                kernel.cprint(f"Ошибка чтения файла {file_path}: {e}", kernel.Colors.RED)
         
-        return list(set(commands))
+        return list(set([cmd for cmd in commands if cmd]))
     
     @kernel.register_command('man')
     async def man_handler(event):
         args = event.text.split()
         
         if len(args) == 1:
+            bot_username = kernel.config.get('inline_bot_username')
+            
+            if bot_username:
+                try:
+                    await event.delete()
+                    query = f"man_page_1"
+                    results = await client.inline_query(bot_username, query)
+                    if results:
+                        await results[0].click(event.chat_id)
+                        return
+                except:
+                    pass
+            
             msg, total_pages, current_page = await generate_man_page()
             
             if total_pages > 1:
@@ -155,7 +183,6 @@ def register(kernel):
                 msg, total_pages, current_page = await generate_man_page(module_filter=search_query)
                 await event.edit(msg, parse_mode='html')
     
-    # Регистрируем обработчик callback-кнопок для навигации
     async def man_callback_handler(event):
         try:
             page = int(event.data.decode().split('_')[2])
@@ -173,7 +200,6 @@ def register(kernel):
     
     kernel.register_callback_handler('man_page_', man_callback_handler)
     
-    # Регистрируем инлайн-обработчик для модуля man
     async def man_inline_handler(event):
         query = event.text
         if query.startswith('man_page_'):
@@ -196,11 +222,14 @@ def register(kernel):
             
             builder = event.builder.article('Modules', text=msg, buttons=buttons if buttons else None, parse_mode='html')
             await event.answer([builder])
-        else:
-            # Общий поиск
+        elif query:
             search_query = query
             msg, total_pages, current_page = await generate_man_page(module_filter=search_query)
             builder = event.builder.article('Modules Search', text=msg, parse_mode='html')
+            await event.answer([builder])
+        else:
+            msg, total_pages, current_page = await generate_man_page()
+            builder = event.builder.article('Modules', text=msg, parse_mode='html')
             await event.answer([builder])
     
     kernel.register_inline_handler('man', man_inline_handler)
@@ -219,7 +248,10 @@ def register(kernel):
             msg += "<blockquote expandable>\n"
             for name in sorted(kernel.system_modules.keys()):
                 commands = get_module_commands(name, kernel)
-                cmd_text = f" ({', '.join([f'`{kernel.custom_prefix}{c}`' for c in commands[:3]])})" if commands else ""
+                if commands:
+                    cmd_text = f": {', '.join([f'`{kernel.custom_prefix}{c}`' for c in commands])}"
+                else:
+                    cmd_text = ""
                 msg += f"<b>{name}</b>{cmd_text}\n"
             msg += "</blockquote>\n"
         
@@ -228,7 +260,10 @@ def register(kernel):
             msg += "<blockquote expandable>\n"
             for name in sorted(kernel.loaded_modules.keys()):
                 commands = get_module_commands(name, kernel)
-                cmd_text = f" ({', '.join([f'`{kernel.custom_prefix}{c}`' for c in commands[:3]])})" if commands else ""
+                if commands:
+                    cmd_text = f": {', '.join([f'`{kernel.custom_prefix}{c}`' for c in commands])}"
+                else:
+                    cmd_text = ""
                 msg += f"<b>{name}</b>{cmd_text}\n"
             msg += "</blockquote>\n"
         

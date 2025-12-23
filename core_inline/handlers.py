@@ -1,4 +1,5 @@
 from telethon import events, Button
+import aiohttp
 
 class InlineHandlers:
     def __init__(self, kernel, bot_client):
@@ -10,6 +11,13 @@ class InlineHandlers:
         async def inline_handler(event):
             query = event.text
             
+            
+            for pattern, handler in self.kernel.inline_handlers.items():
+                if query.startswith(pattern):
+                    await handler(event)
+                    return
+            
+            # Стандартные обработчики
             if query.startswith('2fa_'):
                 parts = query.split('_', 3)
                 if len(parts) >= 4:
@@ -94,6 +102,15 @@ class InlineHandlers:
         
         @self.bot_client.on(events.CallbackQuery)
         async def bot_callback_handler(event):
+            
+            if event.data:
+                data_str = event.data.decode()
+                for pattern, handler in self.kernel.callback_handlers.items():
+                    if data_str.startswith(pattern):
+                        await handler(event)
+                        return
+            
+            
             from .keyboards import InlineKeyboards
             keyboards = InlineKeyboards(self.kernel)
             

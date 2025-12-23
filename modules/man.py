@@ -1,6 +1,5 @@
 from telethon import events, Button
 import re
-import difflib
 
 def register(kernel):
     client = kernel.client
@@ -56,7 +55,7 @@ def register(kernel):
         end_idx = start_idx + per_page
         page_modules = all_modules[start_idx:end_idx]
         
-        title = f"🌩️ **{total_modules} {plural_modules(total_modules)}. системных модулей: {system_count}**"
+        title = f"<b>🌩️ {total_modules} {plural_modules(total_modules)}. системных модулей: {system_count}</b>"
         
         system_mods = [(name, get_module_commands(name, kernel)) for name, typ in page_modules if typ == 'system']
         user_mods = [(name, get_module_commands(name, kernel)) for name, typ in page_modules if typ == 'user']
@@ -64,10 +63,10 @@ def register(kernel):
         msg = f"{title}\n\n"
         
         if system_mods:
-            msg += "**🛠️ Системные модули:**\n<blockquote expandable>\n"
+            msg += "<b>🛠️ Системные модули:</b>\n<blockquote expandable>\n"
             for name, commands in system_mods:
                 if commands:
-                    cmd_text = f": {', '.join([f'{kernel.custom_prefix}{cmd}' for cmd in commands])}"
+                    cmd_text = f": {', '.join([f'<code>{kernel.custom_prefix}{cmd}</code>' for cmd in commands])}"
                 else:
                     cmd_text = ""
                 msg += f"<b>{name}</b>{cmd_text}\n"
@@ -76,17 +75,17 @@ def register(kernel):
         if user_mods:
             if system_mods:
                 msg += "\n"
-            msg += "**📦 Пользовательские модули:**\n<blockquote expandable>\n"
+            msg += "<b>📦 Пользовательские модули:</b>\n<blockquote expandable>\n"
             for name, commands in user_mods:
                 if commands:
-                    cmd_text = f": {', '.join([f'{kernel.custom_prefix}{cmd}' for cmd in commands])}"
+                    cmd_text = f": {', '.join([f'<code>{kernel.custom_prefix}{cmd}</code>' for cmd in commands])}"
                 else:
                     cmd_text = ""
                 msg += f"<b>{name}</b>{cmd_text}\n"
             msg += "</blockquote>\n"
         
         if module_filter:
-            msg = f"🔍 **Результаты поиска: '{module_filter}'**\n\n" + msg
+            msg = f"<b>🔍 Результаты поиска: '{module_filter}'</b>\n\n" + msg
         
         if total_pages > 1:
             msg += f"\n📄 Страница {page}/{total_pages}"
@@ -107,28 +106,20 @@ def register(kernel):
                 with open(file_path, 'r', encoding='utf-8') as f:
                     code = f.read()
                     
-                    pattern1 = r"pattern\s*=\s*r['\"]\^?\\?\.([a-zA-Z0-9_]+)"
-                    found1 = re.findall(pattern1, code)
-                    commands.extend(found1)
+                    patterns = [
+                        r"pattern\s*=\s*r['\"]\^?\\?\.([a-zA-Z0-9_]+)",
+                        r"register_command\s*\('([^']+)'",
+                        r"@kernel\.register_command\('([^']+)'\)",
+                        r"kernel\.register_command\('([^']+)'",
+                        r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'\\\\.([^']+)'\)\)"
+                    ]
                     
-                    pattern2 = r"register_command\s*\('([^']+)'"
-                    found2 = re.findall(pattern2, code)
-                    commands.extend(found2)
-                    
-                    pattern3 = r"@kernel\.register_command\('([^']+)'\)"
-                    found3 = re.findall(pattern3, code)
-                    commands.extend(found3)
-                    
-                    pattern4 = r"kernel\.register_command\('([^']+)'"
-                    found4 = re.findall(pattern4, code)
-                    commands.extend(found4)
-                    
-                    pattern5 = r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'\\\\.([^']+)'\)\)"
-                    found5 = re.findall(pattern5, code)
-                    commands.extend(found5)
-                    
+                    for pattern in patterns:
+                        found = re.findall(pattern, code)
+                        commands.extend(found)
+                        
             except Exception as e:
-                kernel.cprint(f"Ошибка чтения файла {file_path}: {e}", kernel.Colors.RED)
+                pass
         
         return list(set([cmd for cmd in commands if cmd]))
     
@@ -137,19 +128,6 @@ def register(kernel):
         args = event.text.split()
         
         if len(args) == 1:
-            bot_username = kernel.config.get('inline_bot_username')
-            
-            if bot_username:
-                try:
-                    await event.delete()
-                    query = f"man_page_1"
-                    results = await client.inline_query(bot_username, query)
-                    if results:
-                        await results[0].click(event.chat_id)
-                        return
-                except:
-                    pass
-            
             msg, total_pages, current_page = await generate_man_page()
             
             if total_pages > 1:
@@ -201,35 +179,49 @@ def register(kernel):
     kernel.register_callback_handler('man_page_', man_callback_handler)
     
     async def man_inline_handler(event):
-        query = event.text
-        if query.startswith('man_page_'):
-            try:
-                page = int(query.split('_')[2])
-            except:
-                page = 1
+        try:
+            query = event.text
             
-            msg, total_pages, current_page = await generate_man_page(page)
-            
-            buttons = []
-            nav_buttons = []
-            if current_page > 1:
-                nav_buttons.append(Button.inline('⬅️ Назад', f'man_page_{current_page-1}'.encode()))
-            if current_page < total_pages:
-                nav_buttons.append(Button.inline('➡️ Вперёд', f'man_page_{current_page+1}'.encode()))
-            
-            if nav_buttons:
-                buttons.append(nav_buttons)
-            
-            builder = event.builder.article('Modules', text=msg, buttons=buttons if buttons else None, parse_mode='html')
-            await event.answer([builder])
-        elif query:
-            search_query = query
-            msg, total_pages, current_page = await generate_man_page(module_filter=search_query)
-            builder = event.builder.article('Modules Search', text=msg, parse_mode='html')
-            await event.answer([builder])
-        else:
-            msg, total_pages, current_page = await generate_man_page()
-            builder = event.builder.article('Modules', text=msg, parse_mode='html')
+            if query.startswith('man_page_'):
+                try:
+                    page = int(query.split('_')[2])
+                except:
+                    page = 1
+                
+                msg, total_pages, current_page = await generate_man_page(page)
+                
+                buttons = []
+                if total_pages > 1:
+                    if current_page > 1:
+                        buttons.append([Button.inline('⬅️ Назад', f'man_page_{current_page-1}'.encode())])
+                    if current_page < total_pages:
+                        if buttons:
+                            buttons[0].append(Button.inline('➡️ Вперёд', f'man_page_{current_page+1}'.encode()))
+                        else:
+                            buttons.append([Button.inline('➡️ Вперёд', f'man_page_{current_page+1}'.encode())])
+                
+                builder = event.builder.article(
+                    '📚 Модули',
+                    text=msg,
+                    buttons=buttons if buttons else None,
+                    parse_mode='html'
+                )
+                await event.answer([builder])
+                
+            else:
+                builder = event.builder.article(
+                    '📚 Модули',
+                    text='Используйте: man_page_1 для навигации',
+                    parse_mode='html'
+                )
+                await event.answer([builder])
+                
+        except Exception as e:
+            builder = event.builder.article(
+                '❌ Ошибка',
+                text=f'Ошибка обработки запроса: {str(e)}',
+                parse_mode='html'
+            )
             await event.answer([builder])
     
     kernel.register_inline_handler('man', man_inline_handler)
@@ -238,30 +230,28 @@ def register(kernel):
     async def modules_info_handler(event):
         total = len(kernel.loaded_modules) + len(kernel.system_modules)
         
-        msg = f"📊 **Статистика модулей**\n\n"
+        msg = f"<b>📊 Статистика модулей</b>\n\n"
         msg += f"• Всего модулей: {total}\n"
         msg += f"• Системных: {len(kernel.system_modules)}\n"
         msg += f"• Пользовательских: {len(kernel.loaded_modules)}\n\n"
         
         if kernel.system_modules:
-            msg += "**🛠️ Системные модули:**\n"
-            msg += "<blockquote expandable>\n"
+            msg += "<b>🛠️ Системные модули:</b>\n<blockquote expandable>\n"
             for name in sorted(kernel.system_modules.keys()):
                 commands = get_module_commands(name, kernel)
                 if commands:
-                    cmd_text = f": {', '.join([f'`{kernel.custom_prefix}{c}`' for c in commands])}"
+                    cmd_text = f": {', '.join([f'<code>{kernel.custom_prefix}{c}</code>' for c in commands[:3]])}"
                 else:
                     cmd_text = ""
                 msg += f"<b>{name}</b>{cmd_text}\n"
             msg += "</blockquote>\n"
         
         if kernel.loaded_modules:
-            msg += "\n**📦 Пользовательские модули:**\n"
-            msg += "<blockquote expandable>\n"
+            msg += "\n<b>📦 Пользовательские модули:</b>\n<blockquote expandable>\n"
             for name in sorted(kernel.loaded_modules.keys()):
                 commands = get_module_commands(name, kernel)
                 if commands:
-                    cmd_text = f": {', '.join([f'`{kernel.custom_prefix}{c}`' for c in commands])}"
+                    cmd_text = f": {', '.join([f'<code>{kernel.custom_prefix}{c}</code>' for c in commands[:3]])}"
                 else:
                     cmd_text = ""
                 msg += f"<b>{name}</b>{cmd_text}\n"

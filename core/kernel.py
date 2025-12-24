@@ -5,12 +5,15 @@ import importlib.util
 import re
 import json
 import subprocess
-import socks
 import random
 try:
+    import html
+    import socks
+    import traceback
     import psutil
     import aiohttp
     import asyncio
+    from datetime import datetime
     from telethon import TelegramClient, events, Button
     from telethon.errors import SessionPasswordNeededError
 except ImportError:
@@ -66,6 +69,35 @@ class Kernel:
         self.log_bot_enabled = False
 
 
+        try:
+            from utils.emoji_parser import emoji_parser
+            self.emoji_parser = emoji_parser
+            self.cprint(f'{Colors.GREEN}The emoji parser is loaded{Colors.RESET}')
+        except ImportError:
+            self.emoji_parser = None
+            self.cprint(f'{Colors.YELLOW}The emoji parser is not loaded{Colors.RESET}')
+
+
+        try:
+            asyncio.create_task(cleanup_old_logs())
+        except Exception as e:
+            error_msg = f"Error clearnup_old_logs: {e}"
+            self.cprint(f'{self.Colors.RED}❌ {error_msg}{self.Colors.RESET}')
+
+
+        async def cleanup_old_logs():
+                """Очистка старых логов"""
+                try:
+                    log_dir = Path("logs")
+                    if not log_dir.exists():
+                        return
+
+                    now = time.time()
+                    for log_file in log_dir.glob("*.log"):
+                        if (now - os.path.getmtime(log_file)) > 30 * 24 * 3600:
+                            os.remove(log_file)
+                except:
+                    pass
     def register_inline_handler(self, pattern, handler):
         self.inline_handlers[pattern] = handler
 
@@ -104,28 +136,101 @@ class Kernel:
         else:
             return False
     
-    async def send_log_message(self, text, image_path=None):
-        """Отправка сообщения в лог-чат"""
-        if not self.log_chat_id or not self.client or not self.client.is_connected():
-            return False
+    async def send_with_emoji(self, chat_id, text, **kwargs):
+        """
+        Отправляет сообщение с поддержкой эмодзи
+        Использует низкоуровневый запрос для поддержки кастомных эмодзи
+        """
+        if not self.emoji_parser or not self.emoji_parser.is_emoji_tag(text):
+            return await self.client.send_message(chat_id, text, **kwargs)
 
         try:
-            if image_path and os.path.exists(image_path):
-                await self.client.send_file(
+
+            parsed_text, entities = self.emoji_parser.parse_to_entities(text)
+
+
+            clean_kwargs = {k: v for k, v in kwargs.items() if k != 'entities'}
+
+
+            from telethon.tl.functions.messages import SendMessageRequest
+
+
+            input_peer = await self.client.get_input_entity(chat_id)
+
+            #
+            result = await self.client(SendMessageRequest(
+                peer=input_peer,
+                message=parsed_text,
+                entities=entities,
+                no_webpage=clean_kwargs.get('link_preview', False),
+                silent=clean_kwargs.get('silent', False),
+                reply_to_msg_id=clean_kwargs.get('reply_to', None)
+            ))
+
+            #
+            return await self.client.get_messages(chat_id, ids=[result.id])
+
+        except Exception as e:
+            self.cprint(f'{Colors.RED}❌ Ошибка отправки с эмодзи: {e}{Colors.RESET}')
+            await self.handle_error(e, source="send_with_emoji", event=event)
+            await self.kernel.send_log_err
+            fallback_text = self.emoji_parser.remove_emoji_tags(text)
+            return await self.client.send_message(chat_id, fallback_text, **kwargs)
+
+    def format_with_emoji(self, text, entities):
+        """
+        Форматирует текст с сущностями в HTML
+
+        Пример:
+        html_text = kernel.format_with_emoji(
+            message.text,
+            message.entities
+        )
+        """
+        if not self.emoji_parser:
+            return html.escape(text)
+
+        return self.emoji_parser.entities_to_html(text, entities)
+
+    async def send_log_message(self, text, file=None):
+        """Отправка сообщения в лог-чат"""
+        if not self.log_chat_id:
+            print(f"[DEBUG] log_chat_id не установлен: {self.log_chat_id}")
+            return False
+
+        print(f"[DEBUG] Пытаюсь отправить в лог-чат: {self.log_chat_id}")
+        print(f"[DEBUG] Текст: {text[:100]}...")
+        print(f"[DEBUG] bot_client существует: {hasattr(self, 'bot_client')}")
+
+        try:
+            if hasattr(self, 'bot_client') and self.bot_client and await self.bot_client.is_user_authorized():
+                print("[DEBUG] Использую bot_client для отправки")
+                client_to_use = self.bot_client
+            else:
+                print("[DEBUG] Использую основной client для отправки")
+                client_to_use = self.client
+
+            if file:
+                print(f"[DEBUG] Отправляю файл: {file.name if hasattr(file, 'name') else 'unknown'}")
+                await client_to_use.send_file(
                     self.log_chat_id,
-                    image_path,
+                    file,
                     caption=text,
                     parse_mode='html'
                 )
             else:
-                await self.client.send_message(
+                print("[DEBUG] Отправляю текстовое сообщение")
+                await client_to_use.send_message(
                     self.log_chat_id,
                     text,
                     parse_mode='html'
                 )
+            print("[DEBUG] Сообщение отправлено успешно")
             return True
         except Exception as e:
-            self.cprint(f'{Colors.RED}❌ Ошибка отправки в лог-чат: {e}{Colors.RESET}')
+            print(f"[DEBUG] Ошибка отправки: {e}")
+            import traceback
+            traceback.print_exc()
             return False
 
     async def send_error_log(self, error_text, source_file, message_info=""):
@@ -140,6 +245,75 @@ class Kernel:
             formatted_error += f'\n🃏 <b>Message:</b> <code>{message_info[:300]}</code>'
 
         await self.send_log_message(formatted_error)
+
+    async def handle_error(self, error, source="unknown", event=None):
+        """Глобальный обработчик ошибок"""
+        error_text = str(error)
+        error_traceback = ''.join(traceback.format_exception(type(error), error, error.__traceback__))
+
+        # Форматируем сообщение об ошибке
+        formatted_error = f"""💠 <b>Source:</b> <code>{html.escape(source)}</code>
+🔮 <b>Error:</b> <blockquote>👉 <code>{html.escape(error_text[:300])}</code></blockquote>
+        """
+
+        if event:
+            try:
+                # Добавляем информацию о сообщении
+                chat_title = getattr(event.chat, 'title', 'ЛС')
+                user_info = await self.get_user_info(event.sender_id) if event.sender_id else "unknown"
+                formatted_error += f"\n💬 <b>Message info:</b>\n<blockquote>🪬 <b>User:</b> {user_info}\n⌨️ <b>Text:</b> <code>{html.escape(event.text[:200] if event.text else 'not text')}</code>\n📬 <b>Chat:</b> {chat_title}</blockquote>"
+            except:
+                pass
+
+        # Отправляем через бота
+        try:
+            # Полный трейсбэк для отладки
+            full_error = f"Ошибка в {source}:\n{error_traceback}"
+
+            # Сохраняем в файл
+            self.save_error_to_file(full_error)
+
+            # Отправляем уведомление
+            await self.send_log_message(formatted_error)
+
+            # Если есть трейсбэк, отправляем его как файл
+            if len(error_traceback) > 500:
+                error_file = io.BytesIO(error_traceback.encode('utf-8'))
+                error_file.name = f"error_{int(time.time())}.txt"
+                await self.send_log_message("📎 <b>Полный трейсбэк во вложении</b>", error_file)
+
+        except Exception as e:
+            # Если не удалось отправить, пишем в консоль
+            self.cprint(f'{self.Colors.RED}❌ Не удалось отправить лог ошибки: {e}{self.Colors.RESET}')
+            print(f"Оригинальная ошибка: {error_traceback}")
+
+    def save_error_to_file(self, error_text):
+        """Сохраняем ошибку в файл"""
+        try:
+            log_dir = Path("logs")
+            log_dir.mkdir(exist_ok=True)
+
+            timestamp = datetime.now().strftime("%Y%m%d")
+            error_file = log_dir / f"errors_{timestamp}.log"
+
+            with open(error_file, 'a', encoding='utf-8') as f:
+                f.write(f"\n\n{'='*60}\n")
+                f.write(f"Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"{'='*60}\n")
+                f.write(error_text)
+        except:
+            pass
+
+    async def get_user_info(self, user_id):
+        """Получаем информацию о пользователе"""
+        try:
+            user = await self.client.get_entity(user_id)
+            if user.first_name or user.last_name:
+                name = f"{user.first_name or ''} {user.last_name or ''}".strip()
+                return f"{name} (@{user.username or 'без username'})"
+            return f"ID: {user_id}"
+        except:
+            return f"ID: {user_id}"
 
     def setup_config(self):
         try:
@@ -266,19 +440,23 @@ class Kernel:
                     self.cprint(f'{Colors.RED}❌ Ошибка загрузки модуля {file_name}: {e}{Colors.RESET}')
     
     async def load_user_modules(self):
-        for file_name in os.listdir(self.MODULES_LOADED_DIR):
+        files = os.listdir(self.MODULES_LOADED_DIR)
+
+        # Сначала загружаем log_bot
+        if 'log_bot.py' in files:
+            files.remove('log_bot.py')
+            files.insert(0, 'log_bot.py')
+
+        for file_name in files:
             if file_name.endswith('.py'):
                 try:
                     module_name = file_name[:-3]
                     file_path = os.path.join(self.MODULES_LOADED_DIR, file_name)
 
-                    # Проверка на новый стиль
                     with open(file_path, 'r', encoding='utf-8') as f:
                         content = f.read()
 
-                    # Определяем стиль модуля
                     if 'def register(kernel):' in content:
-                        # Новый стиль - принимает kernel
                         spec = importlib.util.spec_from_file_location(module_name, file_path)
                         module = importlib.util.module_from_spec(spec)
 
@@ -290,10 +468,9 @@ class Kernel:
                         spec.loader.exec_module(module)
 
                         if hasattr(module, 'register'):
-                            module.register(self)  # Передаем kernel, а не client
+                            module.register(self)
                             self.loaded_modules[module_name] = module
                     else:
-                        # Старый стиль - принимает client
                         spec = importlib.util.spec_from_file_location(module_name, file_path)
                         module = importlib.util.module_from_spec(spec)
 
@@ -306,7 +483,9 @@ class Kernel:
                             self.cprint(f'{self.Colors.GREEN}✅ Загружен пользовательский модуль (старый стиль): {module_name}{self.Colors.RESET}')
 
                 except Exception as e:
-                    self.cprint(f'{self.Colors.RED}❌ Ошибка загрузки модуля {file_name}: {e}{self.Colors.RESET}')
+                    error_msg = f"Ошибка загрузки модуля {file_name}: {e}"
+                    self.cprint(f'{self.Colors.RED}❌ {error_msg}{self.Colors.RESET}')
+                    await self.handle_error(e, source=f"load_module:{file_name}")
     
     async def process_command(self, event):
         text = event.text
@@ -363,6 +542,28 @@ class Kernel:
             pass
         return False
     
+    async def safe_connect(self):
+        while self.reconnect_attempts < self.max_reconnect_attempts:
+            if self.shutdown_flag:
+                return False
+            try:
+                if self.client.is_connected():
+                    return True
+
+                await self.client.connect()
+                if await self.client.is_user_authorized():
+                    self.reconnect_attempts = 0
+                    if hasattr(self, 'log_network'):
+                        await self.log_network("✅ Соединение восстановлено")
+                    return True
+            except Exception as e:
+                self.reconnect_attempts += 1
+                if hasattr(self, 'log_network'):
+                    await self.log_network(f"✈️ Плохое соединение. Попытка {self.reconnect_attempts}/{self.max_reconnect_attempts}")
+                await asyncio.sleep(self.reconnect_delay * self.reconnect_attempts)
+
+        return False
+
     async def setup_inline_bot(self):
         try:
             from core_inline.bot import InlineBot
@@ -391,7 +592,15 @@ class Kernel:
 
         @self.client.on(events.NewMessage(outgoing=True))
         async def message_handler(event):
-            await self.process_command(event)
+            try:
+                await self.process_command(event)
+            except Exception as e:
+                await self.handle_error(e, source="message_handler", event=event)
+
+                try:
+                    await event.edit(f"🔭 <b>Ошибка, смотри логи</b>", parse_mode='html')
+                except:
+                    pass
 
         self.cprint(f'{Colors.CYAN}The kernel is loaded{Colors.RESET}')
 
@@ -441,3 +650,4 @@ class Kernel:
                         self.cprint(f'{Colors.YELLOW}⚠️ Не удалось отправить сообщение о перезагрузке: нет соединения{Colors.RESET}')
 
         await self.client.run_until_disconnected()
+

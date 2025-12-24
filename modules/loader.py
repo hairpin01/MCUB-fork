@@ -15,6 +15,18 @@ def register(kernel):
 
     emojis = ['ಠ_ಠ', '( ཀ ʖ̯ ཀ)', '(◕‿◕✿)', '(つ･･)つ', '༼つ◕_◕༽つ', '(•_•)', '☜(ﾟヮﾟ☜)', '(☞ﾟヮﾟ)☞', 'ʕ•ᴥ•ʔ', '(づ￣ ³￣)づ']
 
+    async def log_to_bot(text):
+        if hasattr(kernel, 'log_module'):
+            await kernel.log_module(text)
+        elif hasattr(kernel, 'send_log_message'):
+            await kernel.send_log_message(f" {text}")
+
+    async def log_error_to_bot(text):
+        if hasattr(kernel, 'log_error'):
+            await kernel.log_error(text)
+        elif hasattr(kernel, 'send_log_message'):
+            await kernel.send_log_message(f"{text}")
+
     def get_module_commands(module_name, kernel):
         commands = []
         file_path = None
@@ -137,6 +149,7 @@ def register(kernel):
                 code = f.read()
 
             if 'from .. import' in code or 'import loader' in code:
+                await log_error_to_bot(f" Модуль {module_name} не совместим")
                 await msg.edit(f'❌ Модуль не совместим')
                 os.remove(file_path)
                 return
@@ -167,14 +180,17 @@ def register(kernel):
                 final_msg = f'🧬 Модуль <b>{module_name}</b> загружен! {emoji}\n\n'
                 final_msg += cmd_text
 
+                await log_to_bot(f"✅ Модуль {module_name} установлен")
                 await msg.edit(final_msg, parse_mode='html')
             else:
-                await msg.edit(f'❌ {message}')
+                await log_error_to_bot(f" Ошибка установки {module_name}: {message}")
+                await msg.edit(f'❌ Ошибка, смотри логи')
                 if os.path.exists(file_path):
                     os.remove(file_path)
 
         except Exception as e:
-            await msg.edit(f'❌ Ошибка: {str(e)}')
+            await log_error_to_bot(f" Критическая ошибка при установке {module_name}: {str(e)}")
+            await msg.edit(f'❌ Ошибка, смотри логи')
             if os.path.exists(file_path):
                 os.remove(file_path)
 
@@ -187,6 +203,7 @@ def register(kernel):
 
         module_name = args[1]
         is_update = module_name in kernel.loaded_modules
+
 
         action = "🧪 обновляю" if is_update else "🧪 устанавливаю"
         msg = await event.edit(f'{action} модуль <b>{module_name}</b>', parse_mode='html')
@@ -228,15 +245,19 @@ def register(kernel):
                             final_msg = f'🧬 Модуль <b>{module_name}</b> загружен! {emoji}\n\n'
                             final_msg += cmd_text
 
+                            await log_to_bot(f"✅ Модуль {module_name} скачан из репозитория")
                             await msg.edit(final_msg, parse_mode='html')
                         else:
-                            await msg.edit(f'❌ {message}')
+                            await log_error_to_bot(f"❌ Ошибка загрузки {module_name}: {message}")
+                            await msg.edit(f'❌ Ошибка, смотри логи')
                             if os.path.exists(file_path):
                                 os.remove(file_path)
                     else:
+                        await log_error_to_bot(f" Модуль {module_name} не найден в репозитории")
                         await msg.edit(f'❌ Модуль {module_name} не найден')
         except Exception as e:
-            await msg.edit(f'❌ Ошибка: {str(e)}')
+            await log_error_to_bot(f" Ошибка скачивания {module_name}: {str(e)}")
+            await msg.edit(f'❌ Ошибка, смотри логи')
 
     @kernel.register_command('dlml')
     async def catalog_handler(event):
@@ -247,197 +268,212 @@ def register(kernel):
                 page = int(args[1])
             except:
                 page = 1
-        
+
         bot_username = kernel.config.get('inline_bot_username')
         if not bot_username:
             await event.edit('❌ Inline-бот не настроен')
             return
-        
+
         await event.delete()
-        
+
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(f'{kernel.MODULES_REPO}/catalog.json') as resp:
                     if resp.status == 200:
                         text_data = await resp.text()
                         catalog = json.loads(text_data)
-                        
+
                         kernel.catalog_cache = catalog
-                        
+
                         query = f'catalog_{page}'
                         results = await client.inline_query(bot_username, query)
-                        
+
                         if results:
+                            await log_to_bot(f"🔷 Просмотр каталога модулей | Страница {page}")
                             await results[0].click(event.chat_id)
                         else:
                             await client.send_message(event.chat_id, '❌ Ошибка инлайн-бота')
                     else:
                         await client.send_message(event.chat_id, '❌ Каталог не найден')
         except Exception as e:
-            await client.send_message(event.chat_id, f'❌ Ошибка: {str(e)}')
-    
+            await log_error_to_bot(f" Ошибка каталога: {str(e)}")
+            await client.send_message(event.chat_id, f'❌ Ошибка, смотри логи')
+
     @kernel.register_command('um')
     async def unload_module_handler(event):
         args = event.text.split()
         if len(args) < 2:
             await event.edit(f'❌ Использование: {kernel.custom_prefix}um название_модуля')
             return
-        
+
         module_name = args[1]
-        
+
         if module_name not in kernel.loaded_modules:
             await event.edit(f'❌ Модуль {module_name} не найден')
             return
-        
+
+
         file_path = os.path.join(kernel.MODULES_LOADED_DIR, f'{module_name}.py')
         if os.path.exists(file_path):
             os.remove(file_path)
-        
+
         if module_name in sys.modules:
             del sys.modules[module_name]
-        
+
         if module_name in kernel.loaded_modules:
             del kernel.loaded_modules[module_name]
-        
+
+        await log_to_bot(f"Модуль {module_name} удалён")
         await event.edit(f'🗑️ Модуль {module_name} удален')
-    
+
     @kernel.register_command('unlm')
     async def upload_module_handler(event):
         args = event.text.split()
         if len(args) < 2:
             await event.edit(f'❌ Использование: {kernel.custom_prefix}unlm название_модуля')
             return
-        
+
         module_name = args[1]
-        
+
         if module_name not in kernel.loaded_modules and module_name not in kernel.system_modules:
             await event.edit(f'❌ Модуль {module_name} не найден')
             return
-        
+
         file_path = None
         if module_name in kernel.system_modules:
             file_path = os.path.join(kernel.MODULES_DIR, f'{module_name}.py')
         else:
             file_path = os.path.join(kernel.MODULES_LOADED_DIR, f'{module_name}.py')
-        
+
         if not os.path.exists(file_path):
             await event.edit(f'❌ Файл модуля не найден')
             return
-        
+
         await event.edit(f'📤 Отправка модуля {module_name}...')
         await client.send_file(event.chat_id, file_path, caption=f'📦 Модуль: {module_name}.py')
         await event.delete()
-    
+
     @kernel.register_command('reload')
     async def reload_module_handler(event):
         args = event.text.split()
         if len(args) < 2:
             await event.edit(f'❌ Использование: {kernel.custom_prefix}reload название_модуля')
             return
-        
+
         module_name = args[1]
-        
+
         if module_name not in kernel.loaded_modules and module_name not in kernel.system_modules:
             await event.edit(f'❌ Модуль {module_name} не найден')
             return
-        
+
+        await log_to_bot(f"🔭 Перезагрузка модуля {module_name}")
+
         file_path = None
         is_system = False
-        
+
         if module_name in kernel.system_modules:
             file_path = os.path.join(kernel.MODULES_DIR, f'{module_name}.py')
             is_system = True
         else:
             file_path = os.path.join(kernel.MODULES_LOADED_DIR, f'{module_name}.py')
-        
+
         if not os.path.exists(file_path):
             await event.edit(f'❌ Файл модуля не найден')
             return
-        
+
         msg = await event.edit(f'🔭 Перезагрузка <mono>{module_name}</mono>...', parse_mode='html')
-        
+
         if module_name in sys.modules:
             del sys.modules[module_name]
-        
+
         if is_system and module_name in kernel.system_modules:
             del kernel.system_modules[module_name]
         elif module_name in kernel.loaded_modules:
             del kernel.loaded_modules[module_name]
-        
+
         success, message = await load_module_from_file(file_path, module_name, is_system)
-        
+
         if success:
             commands = get_module_commands(module_name, kernel)
             cmd_text = f'🔶 {", ".join([f"<code>{kernel.custom_prefix}{cmd}</code>" for cmd in commands])}' if commands else '🔶 Нет команд'
-            
+
             emoji = random.choice(emojis)
+            await log_to_bot(f"⚗️ Модуль {module_name} перезагружен")
             await msg.edit(f'🧬 Модуль <b>{module_name}</b> перезагружен! {emoji}\n\n{cmd_text}', parse_mode='html')
         else:
-            await msg.edit(f'❌ {message}')
-    
+            await log_error_to_bot(f"❌ Ошибка перезагрузки {module_name}: {message}")
+            await msg.edit(f'❌ Ошибка, смотри логи')
+
     @kernel.register_command('convert')
     async def convert_module_handler(event):
         args = event.text.split()
         if len(args) < 2:
             await event.edit(f'❌ Использование: {kernel.custom_prefix}convert название_модуля')
             return
-        
+
         module_name = args[1]
-        
+
         if module_name not in kernel.loaded_modules:
             await event.edit(f'❌ Модуль {module_name} не найден')
             return
-        
+
+
         file_path = os.path.join(kernel.MODULES_LOADED_DIR, f'{module_name}.py')
         if not os.path.exists(file_path):
             await event.edit(f'❌ Файл модуля не найден')
             return
-        
+
         await event.edit(f'🍰 Конвертация {module_name} в новый формат...')
-        
+
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 code = f.read()
-            
+
             old_patterns = [
                 (r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'\\\\.([^']+)'\)\)", r"@kernel.register_command('\1')"),
                 (r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'([^']+)'\)\)", r"@kernel.register_command('\1'.lstrip('^\\\\' + kernel.custom_prefix))"),
                 (r"def register\(client\):", "def register(kernel):\n    client = kernel.client"),
                 (r"async def (\w+)\(event\):", r"async def \1(event):")
             ]
-            
+
             for old, new in old_patterns:
                 code = re.sub(old, new, code)
-            
+
             backup_path = file_path + '.backup'
             with open(backup_path, 'w', encoding='utf-8') as f:
                 f.write(code)
-            
+
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(code)
-            
+
+            await log_to_bot(f"✅ Модуль {module_name} конвертирован")
             await event.edit(f'⚗️ Модуль конвертирован\n📦 Бэкап: {module_name}.py.backup')
-            
+
         except Exception as e:
-            await event.edit(f'❌ Ошибка конвертации: {str(e)}')
-    
+            await log_error_to_bot(f"❌ Ошибка конвертации {module_name}: {str(e)}")
+            await event.edit(f'❌ Ошибка, смотри логи')
+
     @kernel.register_command('modules')
     async def modules_list_handler(event):
+        await log_to_bot(f"🔷 Просмотр списка модулей")
+
         if not kernel.loaded_modules and not kernel.system_modules:
             await event.edit('📦 Модули не загружены')
             return
-        
+
         msg = '💠 **Загруженные модули:**\n\n'
-        
+
         if kernel.system_modules:
             msg += '🔷 **Системные модули:**\n'
             for name in sorted(kernel.system_modules.keys()):
-                msg += f'• **{name}**\n'
+                commands = get_module_commands(name, kernel)
+                msg += f'• **{name}** <i>({len(commands)} команд)</i>\n'
             msg += '\n'
-        
+
         if kernel.loaded_modules:
             msg += '🔶 **Пользовательские модули:**\n'
             for name in sorted(kernel.loaded_modules.keys()):
-                msg += f'• **{name}**\n'
-        
+                commands = get_module_commands(name, kernel)
+                msg += f'• **{name}** <i>({len(commands)} команд)</i>\n'
+
         await event.edit(msg)

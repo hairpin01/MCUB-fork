@@ -63,32 +63,59 @@ def register(kernel):
                 return False
         
         async def ensure_backup_chat(self):
+            # Сначала проверяем по сохранённому ID
             if self.config["backup_chat_id"]:
                 try:
                     chat = await self.client.get_entity(int(self.config["backup_chat_id"]))
-                    return chat
+                    # Дополнительная проверка, что это действительно группа
+                    if hasattr(chat, 'megagroup') and chat.megagroup:
+                        return chat
                 except Exception:
                     pass
-            
+                # Сбрасываем невалидный ID
+                self.config["backup_chat_id"] = None
+                self.save_config()
+
+            # Ищем среди всех диалогов
+            backup_chats = []
+            try:
+                async for dialog in self.client.iter_dialogs(limit=100):
+                    if hasattr(dialog.entity, 'title') and dialog.entity.title:
+                        # Ищем по точному названию или частичному
+                        title_lower = dialog.entity.title.lower()
+                        if 'mcub-backup' in title_lower or 'бекап' in title_lower:
+                            backup_chats.append(dialog.entity)
+            except Exception as e:
+                print(f"Ошибка поиска чата: {e}")
+
+            # Если нашли несколько, берём первый (самый недавний)
+            if backup_chats:
+                chat = backup_chats[0]
+                self.config["backup_chat_id"] = chat.id
+                self.save_config()
+                return chat
+
+            # Если не нашли, создаём новую
             try:
                 result = await self.client(CreateChannelRequest(
                     title="MCUB-backup",
                     about="Автоматические бэкапы MCUB",
                     megagroup=True
                 ))
-                
+
                 chat_id = result.chats[0].id
                 self.config["backup_chat_id"] = chat_id
                 self.save_config()
-                
+
                 await self.client.send_message(
                     chat_id,
                     "🔮 <i>Группа для бэкапов создана</i>\n<blockquote>🧬 <b>здесь будут сохраняться автоматические бэкапы</b></blockquote>",
                     parse_mode='html'
                 )
-                
+
                 return await self.client.get_entity(chat_id)
-            except Exception:
+            except Exception as e:
+                print(f"Ошибка создания группы: {e}")
                 return None
         
         def get_excluded_items(self):

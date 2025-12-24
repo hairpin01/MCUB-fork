@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="img/userbot.png" alt="Bot Preview" width="600"/>
+<img src="img/start_userbot.png" alt="Bot Preview" width="600"/>
 
 </div>
 

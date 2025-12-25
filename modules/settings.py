@@ -1,3 +1,6 @@
+# author: @Hairpin00
+# version: 1.0.3
+# description: settings
 import json
 import os
 from telethon import events, Button
@@ -6,6 +9,7 @@ def register(kernel):
     client = kernel.client
 
     @kernel.register_command('prefix')
+    # поменять prefix
     async def prefix_handler(event):
         args = event.text.split()
         if len(args) < 2:
@@ -25,7 +29,8 @@ def register(kernel):
 
         await event.edit(f'✅ Префикс изменен на `{new_prefix}`')
 
-    @kernel.register_command('alias')
+    @kernel.register_command('addalias')
+    # пример: addalias p=ping
     async def alias_handler(event):
         args = event.text[len(kernel.custom_prefix)+6:].strip()
         if '=' not in args:
@@ -49,6 +54,7 @@ def register(kernel):
         await event.edit(f'✅ Алиас создан: `{kernel.custom_prefix}{alias}` → `{kernel.custom_prefix}{command}`')
 
     @kernel.register_command('2fa')
+    # двухфакторная аутентификация
     async def twofa_handler(event):
         current = kernel.config.get('2fa_enabled', False)
         kernel.config['2fa_enabled'] = not current
@@ -61,6 +67,7 @@ def register(kernel):
                         f'Теперь опасные команды требуют подтверждения через кнопки.')
 
     @kernel.register_command('powersave')
+    # энергосбережения
     async def powersave_handler(event):
         kernel.power_save_mode = not kernel.power_save_mode
         kernel.config['power_save_mode'] = kernel.power_save_mode
@@ -73,6 +80,7 @@ def register(kernel):
         await event.edit(f'Режим энергосбережения {status}{features}')
 
     @kernel.register_command('lang')
+    # ru or en
     async def lang_handler(event):
         args = event.text.split()
         if len(args) < 2:
@@ -93,28 +101,8 @@ def register(kernel):
 
         await event.edit(f'✅ Язык изменен на: {new_lang}')
 
-    @kernel.register_command('theme')
-    async def theme_handler(event):
-        args = event.text.split()
-        if len(args) < 2:
-            await event.edit(f'❌ Использование: {kernel.custom_prefix}theme [default/minimal/emoji]')
-            return
-
-        new_theme = args[1].lower()
-        THEMES = {'default', 'minimal', 'emoji'}
-
-        if new_theme not in THEMES:
-            await event.edit(f'❌ Доступные темы: {", ".join(THEMES)}')
-            return
-
-        kernel.config['theme'] = new_theme
-
-        with open(kernel.CONFIG_FILE, 'w', encoding='utf-8') as f:
-            json.dump(kernel.config, f, ensure_ascii=False, indent=2)
-
-        await event.edit(f'✅ Тема изменена на: {new_theme}')
-
     @kernel.register_command('settings')
+    # всё настройки
     async def settings_handler(event):
         settings_info = f'''
 **⚙️ Настройки юзербота**

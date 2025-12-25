@@ -1,5 +1,7 @@
 # requires: json
-
+# author: @Hairpin00
+# version: 1.0.1
+# description: config
 import json
 import html
 
@@ -111,6 +113,7 @@ def register(kernel):
             return f"{emoji} <code>{key}</code>"
 
     @kernel.register_command('cfg')
+    # now - показать значения. hine ключ - скрыть ключ. unhide ключ - показать ключ
     async def cfg_handler(event):
         try:
             args = event.text.split()
@@ -288,6 +291,7 @@ def register(kernel):
             await kernel.handle_error(e, source="cfg", event=event)
 
     @kernel.register_command('fcfg')
+    # set ключ значение. fcfg del ключ - удалить ключ. все команды по fcfg
     async def fcfg_handler(event):
         try:
             args = event.text.split()

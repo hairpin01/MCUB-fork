@@ -1,3 +1,7 @@
+# author: @Hairpin00
+# version: 1.0.3
+# description: тестированье, ping, logs...
+
 import asyncio
 import os
 import time

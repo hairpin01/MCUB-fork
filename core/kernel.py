@@ -1,3 +1,8 @@
+# author: @Hairpin00
+# version: 1.0.1.7
+# description: kernel core
+# Спасибо @Mitrichq за основу юзербота
+# Лицензия? какая лицензия ещё
 import time
 import sys
 import os
@@ -24,8 +29,6 @@ except ImportError:
         "pip install -r requirements.txt"
         )
 
-
-
 class Colors:
     RESET = '\033[0m'
     RED = '\033[91m'
@@ -46,7 +49,7 @@ class CommandConflictError(Exception):
 
 class Kernel:
     def __init__(self):
-        self.VERSION = '1.0.1.5'
+        self.VERSION = '1.0.1.7'
         self.DB_VERSION = 2
         self.start_time = time.time()
         self.loaded_modules = {}
@@ -83,6 +86,10 @@ class Kernel:
         self.current_loading_module = None
         self.current_loading_module_type = None
 
+        self.load_repositories()
+        self.repositories = []
+        self.default_repo = self.MODULES_REPO
+
         try:
             from utils.emoji_parser import emoji_parser
             self.emoji_parser = emoji_parser
@@ -95,6 +102,17 @@ class Kernel:
 
         self.setup_directories()
         self.load_or_create_config()
+
+    def load_repositories(self):
+        """Загружает список репозиториев из конфига"""
+        self.repositories = self.config.get('repositories', [])
+
+    async def save_repositories(self):
+        """Сохраняет список репозиториев в конфиг"""
+        self.config['repositories'] = self.repositories
+        with open(self.CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(self.config, f, ensure_ascii=False, indent=2)
+
 
     def set_loading_module(self, module_name, module_type):
         """Устанавливает текущий загружаемый модуль"""
@@ -116,6 +134,65 @@ class Kernel:
         for cmd in to_remove:
             del self.command_handlers[cmd]
             del self.command_owners[cmd]
+
+    async def add_repository(self, url):
+        """Добавляет новый репозиторий"""
+        if url in self.repositories or url == self.default_repo:
+            return False, '⛈️ Репозиторий уже существует'
+
+        try:
+            modules = await self.get_repo_modules_list(url)
+            if modules:
+                self.repositories.append(url)
+                await self.save_repositories()
+                return True, f'🧬 Репозиторий добавлен ({len(modules)} модулей)'
+            else:
+                return False, '⛈️ Не удалось получить список модулей'
+        except:
+            return False, '⛈️ Ошибка при проверке репозитория'
+
+    async def remove_repository(self, index):
+        """Удаляет репозиторий по индексу"""
+        try:
+            idx = int(index) - 1
+            if 0 <= idx < len(self.repositories):
+                removed = self.repositories.pop(idx)
+                await self.save_repositories()
+                return True, f'🗑️ Репозиторий удален'
+            else:
+                return False, '⛈️ Неверный индекс'
+        except:
+            return False, '⛈️ Ошибка удаления'
+
+    async def get_repo_name(self, url):
+        """Получает название репозитория из modules.ini"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f'{url}/name.ini') as resp:
+                    if resp.status == 200:
+                        content = await resp.text()
+                        return content.strip()
+        except:
+            pass
+        return url.split('/')[-2] if '/' in url else url
+
+
+    async def get_command_description(self, module_name, command):
+        if module_name in self.system_modules:
+            file_path = f"modules/{module_name}.py"
+        elif module_name in self.loaded_modules:
+            file_path = f"modules_loaded/{module_name}.py"
+        else:
+            return '🫨 У команды нету описания'
+
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                code = f.read()
+                metadata = await self.get_module_metadata(code)
+                return metadata['commands'].get(command, '🫨 У команды нету описания')
+        except:
+            return '🫨 У команды нету описания'
+
 
     def register_command(self, pattern, func=None):
         """Регистрация команды с проверкой конфликтов"""
@@ -171,8 +248,6 @@ class Kernel:
                 return False
         else:
             return False
-
-
 
     def register_inline_handler(self, pattern, handler):
         """Регистрация обработчика инлайн-запросов"""
@@ -296,6 +371,105 @@ class Kernel:
             return html.escape(text)
 
         return self.emoji_parser.entities_to_html(text, entities)
+
+
+    async def get_module_metadata(self, code):
+        """Извлекает метаданные из кода модуля"""
+        metadata = {
+            'author': 'неизвестен',
+            'version': '1.0.0',
+            'description': 'описание отсутствует',
+            'commands': {}
+        }
+
+        patterns = {
+            'author': r'# author:\s*(.+)',
+            'version': r'# version:\s*(.+)',
+            'description': r'# description:\s*(.+)'
+        }
+
+        for key, pattern in patterns.items():
+            match = re.search(pattern, code, re.IGNORECASE)
+            if match:
+                metadata[key] = match.group(1).strip()
+
+        # Ищем команды нового стиля: @kernel.register_command('cmd') с описанием
+        # Описание может быть в комментарии на следующей строке
+        kernel_patterns = [
+            # Формат: @kernel.register_command('cmd')
+            #         # описание
+            #         async def ...
+            r"@kernel\.register_command\('([^']+)'\)\s*\n\s*#\s*(.+?)\s*\n.*?async def",
+
+            # Формат: kernel.register_command('cmd')
+            #         # описание
+            #         async def ...
+            r"kernel\.register_command\('([^']+)'\)\s*\n\s*#\s*(.+?)\s*\n.*?async def",
+
+            # Формат: @kernel.register_command('cmd')  # описание
+            #         async def ...
+            r"@kernel\.register_command\('([^']+)'\)\s*#\s*(.+?)\s*\n.*?async def",
+
+            # Формат: kernel.register_command('cmd')  # описание
+            #         async def ...
+            r"kernel\.register_command\('([^']+)'\)\s*#\s*(.+?)\s*\n.*?async def"
+        ]
+
+        for pattern in kernel_patterns:
+            matches = re.finditer(pattern, code, re.DOTALL)
+            for match in matches:
+                cmd = match.group(1)
+                desc = match.group(2)
+                if cmd and desc:
+                    metadata['commands'][cmd] = desc.strip()
+
+        # Ищем команды старого стиля
+        old_patterns = [
+            # Формат: @client.on(events.NewMessage(outgoing=True, pattern=r'\.cmd'))
+            #         # описание
+            #         async def ...
+            r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'\\\\.([^']+)'\)\)\s*\n\s*#\s*(.+?)\s*\n.*?async def",
+
+            # Формат: @client.on(events.NewMessage(outgoing=True, pattern=r'\.cmd'))  # описание
+            #         async def ...
+            r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'\\\\.([^']+)'\)\)\s*#\s*(.+?)\s*\n.*?async def"
+        ]
+
+        for pattern in old_patterns:
+            matches = re.finditer(pattern, code, re.DOTALL)
+            for match in matches:
+                cmd = match.group(1)
+                desc = match.group(2)
+                if cmd and desc:
+                    metadata['commands'][cmd] = desc.strip()
+
+        return metadata
+
+    async def download_module_from_repo(self, repo_url, module_name):
+        """Скачивает модуль из репозитория с проверкой метаданных"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f'{repo_url}/{module_name}.py') as resp:
+                    if resp.status == 200:
+                        code = await resp.text()
+                        return code
+        except:
+            pass
+        return None
+
+    async def get_repo_modules_list(self, repo_url):
+        """Получает список модулей из репозитория"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f'{repo_url}/modules.ini') as resp:
+                    if resp.status == 200:
+                        content = await resp.text()
+                        modules = [line.strip() for line in content.split('\n') if line.strip()]
+                        return modules
+        except:
+            pass
+        return []
+
 
     async def send_log_message(self, text, file=None):
         if not self.log_chat_id:

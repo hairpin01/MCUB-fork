@@ -1,3 +1,7 @@
+# author: @Hairpin00
+# version: 1.0.2
+# description: Info userbot
+
 import asyncio
 import os
 import time
@@ -60,6 +64,7 @@ def register(kernel):
             return False
 
     @kernel.register_command('info')
+    # инфо о юзерботе
     async def info_cmd(event):
         try:
             start_emoji = kernel.config.get('info_initial_emoji', '❄️')

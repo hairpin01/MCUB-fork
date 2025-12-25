@@ -248,74 +248,90 @@ def register(kernel):
                 os.remove(file_path)
 
     @kernel.register_command('dlm')
-    # скачать из ссылки
     async def download_module_handler(event):
         args = event.text.split()
+
         if len(args) < 2:
-            await event.edit(f'❌ Использование: {kernel.custom_prefix}dlm название_модуля или ссылка')
+            await event.edit(f'❌ Использование: {kernel.custom_prefix}dlm [-send/-s] название_модуля [номер_репозитория]')
             return
 
-        module_or_url = args[1]
-        repo_index = None
-
-        if len(args) > 2 and args[2].isdigit():
-            repo_index = int(args[2]) - 1
-
-        if module_or_url.startswith('http'):
-            if not module_or_url.endswith('.py'):
-                await event.edit('❌ Ссылка должна вести на .py файл')
+        send_mode = False
+        if args[1] in ['-send', '-s']:
+            if len(args) < 3:
+                await event.edit(f'❌ Использование: {kernel.custom_prefix}dlm -send название_модуля [номер_репозитория]')
                 return
-            module_name = os.path.basename(module_or_url)[:-3]
-            is_url = True
+            send_mode = True
+            module_name = args[2]
+            repo_index = None
+            if len(args) > 3 and args[3].isdigit():
+                repo_index = int(args[3]) - 1
         else:
-            module_name = module_or_url
-            is_url = False
+            module_name = args[1]
+            repo_index = None
+            if len(args) > 2 and args[2].isdigit():
+                repo_index = int(args[2]) - 1
+            send_mode = False
 
         if module_name in kernel.system_modules:
             await event.edit(
-                f'🫨 <b>Ой, кажется ты попытался обновить системный модуль</b> <code>{module_name}</code>\n'
-                f'<blockquote><i>🚫 К сожалению нельзя обновлять системные модули с помощью <code>loadera</code></i></blockquote>',
+                f'🫨 <b>Ой, кажется ты попытался установить системный модуль</b> <code>{module_name}</code>\n'
+                f'<blockquote><i>🚫 Системные модули нельзя уствнавливать через <code>dlm</code></i></blockquote>',
                 parse_mode='html'
             )
             return
 
-        action = "🧪 обновляю" if module_name in kernel.loaded_modules else "🧪 устанавливаю"
-        msg = await event.edit(f'{action} модуль <b>{module_name}</b>', parse_mode='html')
+        if send_mode:
+            msg = await event.edit(f'📥 Скачиваю модуль <b>{module_name}</b> для отправки...', parse_mode='html')
+        else:
+            is_update = module_name in kernel.loaded_modules
+            action = "🧪 обновляю" if is_update else "🧪 устанавливаю"
+            msg = await event.edit(f'{action} модуль <b>{module_name}</b>', parse_mode='html')
 
         try:
             code = None
             repo_url = None
 
-            if is_url:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(module_or_url) as resp:
-                        if resp.status == 200:
-                            code = await resp.text()
-                        else:
-                            await log_error_to_bot(f" Не удалось скачать модуль по ссылке")
-                            await msg.edit(f'❌ Не удалось скачать модуль по ссылке')
-                            return
-            else:
-                repos = [kernel.default_repo] + kernel.repositories
+            repos = [kernel.default_repo] + kernel.repositories
 
-                if repo_index is not None and 0 <= repo_index < len(repos):
-                    repo_url = repos[repo_index]
-                    code = await kernel.download_module_from_repo(repo_url, module_name)
-                else:
-                    for repo in repos:
-                        code = await kernel.download_module_from_repo(repo, module_name)
-                        if code:
-                            repo_url = repo
-                            break
+            if repo_index is not None and 0 <= repo_index < len(repos):
+                repo_url = repos[repo_index]
+                code = await kernel.download_module_from_repo(repo_url, module_name)
+            else:
+                for repo in repos:
+                    code = await kernel.download_module_from_repo(repo, module_name)
+                    if code:
+                        repo_url = repo
+                        break
 
             if not code:
                 await log_error_to_bot(f" Модуль {module_name} не найден")
                 await msg.edit(f'❌ Модуль {module_name} не найден в репозиториях')
                 return
 
-            metadata = await kernel.get_module_metadata(code)
-
             file_path = os.path.join(kernel.MODULES_LOADED_DIR, f'{module_name}.py')
+
+            if send_mode:
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(code)
+
+                await msg.edit(f'⚡️ Отправляю модуль <b>{module_name}</b>...', parse_mode='html')
+                await event.delete()
+
+
+                await client.send_file(
+                    event.chat_id,
+                    file_path,
+                    caption=f'🌤 Модуль: <code>{module_name}.py</code>\n'
+                        f'🌊 Размер: <code>{os.path.getsize(file_path)} байт</code>\n'
+                        f'🌐 Источник: <code>{repo_url}</code>',
+                    parse_mode='html'
+                )
+
+                os.remove(file_path)
+                return
+
+
+            metadata = await kernel.get_module_metadata(code)
 
             dependencies = []
             if 'requires' in code:
@@ -324,7 +340,7 @@ def register(kernel):
                     dependencies = [req.strip() for req in reqs[0].split(',')]
 
             if dependencies:
-                await msg.edit(f'🔬 ставлю зависимости:\n{dependencies}', parse_mode='html')
+                await msg.edit(f'{action} модуль <b>{module_name}</b>\n🔬 ставлю зависимости:\n{dependencies}', parse_mode='html')
                 for dep in dependencies:
                     subprocess.run(
                         [sys.executable, '-m', 'pip', 'install', dep],
@@ -332,7 +348,7 @@ def register(kernel):
                         text=True
                     )
 
-            if module_name in kernel.loaded_modules:
+            if is_update:
                 kernel.unregister_module_commands(module_name)
 
             with open(file_path, 'w', encoding='utf-8') as f:
@@ -347,21 +363,21 @@ def register(kernel):
 
                 final_msg = f'🧬 Модуль <b>{module_name}</b> загружен! {emoji}\n'
                 final_msg += f'📝 D: <i>{metadata["description"]}</i> | V: <code>{metadata["version"]}</code>\n'
-                final_msg += '<blockquote expandable>'
+                final_msg += '<blockquote>'
                 if commands:
-
                     for cmd in commands:
                         cmd_desc = metadata['commands'].get(cmd, '🫨 У команды нету описания')
                         final_msg += f'🔶 <code>{kernel.custom_prefix}{cmd}</code> – <b>{cmd_desc}</b>\n'
 
                 final_msg += '</blockquote>'
+                await log_to_bot(f"✅ Модуль {module_name} скачан из репозитория")
                 await msg.edit(final_msg, parse_mode='html')
-
             else:
                 await log_error_to_bot(f"❌ Ошибка загрузки {module_name}: {message}")
                 await msg.edit(f'❌ Ошибка, смотри логи')
                 if os.path.exists(file_path):
                     os.remove(file_path)
+
         except CommandConflictError as e:
             if e.conflict_type == 'system':
                 await msg.edit(
@@ -379,9 +395,13 @@ def register(kernel):
             file_path = os.path.join(kernel.MODULES_LOADED_DIR, f'{module_name}.py')
             if os.path.exists(file_path):
                 os.remove(file_path)
+
         except Exception as e:
             await log_error_to_bot(f" Ошибка скачивания {module_name}: {str(e)}")
             await msg.edit(f'❌ Ошибка, смотри логи')
+            file_path = os.path.join(kernel.MODULES_LOADED_DIR, f'{module_name}.py')
+            if os.path.exists(file_path):
+                os.remove(file_path)
 
     @kernel.register_command('dlml')
     # список модулей из repo

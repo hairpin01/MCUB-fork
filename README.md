@@ -66,3 +66,5 @@ python3 main.py
 
 ## Офицальные репозиторий (`.dlml`)
 Установить: `.dlm` {название-модуля)
+
+Нужнен модуль который для MCUB-fork? [жмакни здесь](https://github.com/hairpin01/repo-MCUB-fork#repo-%D0%B4%D0%BB%D1%8F-mcub-%D1%8E%D0%B7%D0%B5%D1%80%D0%B1%D0%BE%D1%82%D0%B0)

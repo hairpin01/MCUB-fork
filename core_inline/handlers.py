@@ -1,3 +1,6 @@
+# author: @Hairpin00
+# version: 1.0.1
+# description: handler
 from telethon import events, Button
 import aiohttp
 
@@ -31,50 +34,83 @@ class InlineHandlers:
                     builder = event.builder.article('2FA', text=text, buttons=buttons)
                 else:
                     builder = event.builder.article('Error', text='❌ Ошибка подтверждения')
-            
+
             elif query.startswith('catalog_'):
-                page = int(query.split('_')[1])
-                
-                if not self.kernel.catalog_cache:
-                    builder = event.builder.article('Error', text='❌ Каталог не загружен')
-                else:
-                    catalog = self.kernel.catalog_cache
-                    modules_list = list(catalog.items())
-                    per_page = 5
-                    total_pages = (len(modules_list) + per_page - 1) // per_page
-                    
+                parts = query.split('_')
+                if len(parts) >= 3:
+                    repo_index = int(parts[1])
+                    page = int(parts[2])
+
+                    repos = [self.kernel.default_repo] + self.kernel.repositories
+
+                    if repo_index < 0 or repo_index >= len(repos):
+                        repo_index = 0
+
+                    repo_url = repos[repo_index]
+
+                    try:
+                        async with aiohttp.ClientSession() as session:
+                            async with session.get(f'{repo_url}/modules.ini') as resp:
+                                if resp.status == 200:
+                                    modules_text = await resp.text()
+                                    modules = [line.strip() for line in modules_text.split('\n') if line.strip()]
+                                else:
+                                    modules = []
+
+                            async with session.get(f'{repo_url}/name.ini') as resp:
+                                if resp.status == 200:
+                                    repo_name = await resp.text()
+                                    repo_name = repo_name.strip()
+                                else:
+                                    repo_name = repo_url.split('/')[-2] if '/' in repo_url else repo_url
+                    except:
+                        modules = []
+                        repo_name = repo_url.split('/')[-2] if '/' in repo_url else repo_url
+
+                    per_page = 8
+                    total_pages = (len(modules) + per_page - 1) // per_page
+
                     if page < 1:
                         page = 1
                     if page > total_pages:
                         page = total_pages
-                    
+
                     start_idx = (page - 1) * per_page
                     end_idx = start_idx + per_page
-                    page_modules = modules_list[start_idx:end_idx]
-                    
-                    msg = f'📚 <b>Каталог модулей</b> (Стр. {page}/{total_pages})\n\n'
-                    for module_name, info in page_modules:
-                        msg += f'• <b>{module_name}</b>\n'
-                        msg += f'  {info.get("description", "Описание отсутствует")}\n'
-                        if 'author' in info:
-                            msg += f'  👤 Автор: @{info["author"]}\n'
-                        if 'commands' in info:
-                            msg += f'  Команды: {", ".join(info["commands"])}\n'
-                        msg += '\n'
-                    
-                    msg += f'\nИспользуйте: <code>{self.kernel.custom_prefix}dlm название</code>'
-                    
+                    page_modules = modules[start_idx:end_idx]
+
+                    if repo_index == 0:
+                        msg = f'<b>🌩️ Официальный репозиторий MCUB</b> <code>{repo_url}</code>\n\n'
+                    else:
+                        msg = f'<i>{repo_name}</i> <code>{repo_url}</code>\n\n'
+
+                    if page_modules:
+                        modules_text = " | ".join([f"<code>{m}</code>" for m in page_modules])
+                        msg += modules_text
+
+                    msg += f'\n\n📄 Страница {page}/{total_pages}'
+
                     buttons = []
                     nav_buttons = []
+
                     if page > 1:
-                        nav_buttons.append(Button.inline('⬅️ Назад', f'dlml_{page-1}'.encode()))
+                        nav_buttons.append(Button.inline('⬅️ Назад', f'catalog_{repo_index}_{page-1}'.encode()))
+
                     if page < total_pages:
-                        nav_buttons.append(Button.inline('➡️ Вперёд', f'dlml_{page+1}'.encode()))
-                    
+                        nav_buttons.append(Button.inline('➡️ Вперёд', f'catalog_{repo_index}_{page+1}'.encode()))
+
                     if nav_buttons:
                         buttons.append(nav_buttons)
-                    
+
+                    if len(repos) > 1:
+                        repo_buttons = []
+                        for i in range(len(repos)):
+                            repo_buttons.append(Button.inline(f'{i+1}', f'catalog_{i}_1'.encode()))
+                        buttons.append(repo_buttons)
+
                     builder = event.builder.article('Catalog', text=msg, buttons=buttons if buttons else None, parse_mode='html')
+                    await event.answer([builder])
+                    return
             
             elif '|' in query:
                 parts = query.split('|')

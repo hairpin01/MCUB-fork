@@ -1,3 +1,6 @@
+# author: @Hairpin00
+# version: 1.0.1
+# description: выполнить python код (будь аккуратен)
 import html
 import traceback
 import sys
@@ -8,6 +11,7 @@ def register(kernel):
     client = kernel.client
     
     @kernel.register_command('py')
+    # python
     async def python_exec_handler(event):
         code = event.text[len(kernel.custom_prefix)+2:].strip()
         
@@ -51,9 +55,8 @@ def register(kernel):
         
         response = f"""🧿 <b>Код</b>
 <code>{code_display}</code>
-
 🧬 <b>Результат</b>
-<code>{complete_display}</code>
+<blockquote><code>{complete_display}</code></blockquote>
 
 <blockquote>💠 <i>Выполнено за</i> <code>{elapsed}ms</code></blockquote>"""
         

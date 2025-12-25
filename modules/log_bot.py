@@ -1,3 +1,6 @@
+# author: @Hairpin00
+# version: 1.0.1
+# description: logs send bot
 import os
 import time
 import subprocess

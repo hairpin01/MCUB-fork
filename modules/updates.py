@@ -1,3 +1,6 @@
+# author: @Hairpin00
+# version: 1.0.4
+# description: обновление
 import asyncio
 import os
 import sys
@@ -14,6 +17,7 @@ def register(kernel):
     emojis = ['ಠ_ಠ', '( ཀ ʖ̯ ཀ)', '(◕‿◕✿)', '(つ･･)つ', '༼つ◕_◕༽つ', '(•_•)', '☜(ﾟヮﾟ☜)', '(☞ﾟヮﾟ)☞', 'ʕ•ᴥ•ʔ', '(づ￣ ³￣)づ']
 
     @kernel.register_command('restart')
+    # рестар
     async def restart_handler(event):
         emoji = random.choice(emojis)
         msg = await event.edit(f'🔭 <i>Твой</i> <b>MCUB</b> перезагружается...', parse_mode='html')
@@ -22,6 +26,7 @@ def register(kernel):
         os.execl(sys.executable, sys.executable, *sys.argv)
 
     @kernel.register_command('update')
+    # обновить userbot
     async def update_handler(event):
         msg = await event.edit('❄️')
 
@@ -92,6 +97,7 @@ def register(kernel):
             await msg.edit(f'❌ <b>Ошибка:</b> <code>{str(e)}</code>', parse_mode='html')
 
     @kernel.register_command('stop')
+    # остановить userbot
     async def stop_handler(event):
         kernel.shutdown_flag = True
         emoji = random.choice(emojis)
@@ -100,6 +106,7 @@ def register(kernel):
         await client.disconnect()
 
     @kernel.register_command('rollback')
+    # откатить userbot
     async def rollback_handler(event):
         if not os.path.exists(kernel.BACKUP_FILE):
             await event.edit('❌ <b>Бэкап не найден</b>', parse_mode='html')

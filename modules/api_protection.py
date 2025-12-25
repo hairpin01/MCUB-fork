@@ -22,7 +22,7 @@ def register(kernel):
     RATE_LIMITS = {
         'default': {'requests': 15, 'seconds': 30},
         'dangerous': {'requests': 9, 'seconds': 290},
-        'message': {'requests': 5, 'seconds': 10},
+        'message': {'requests': 10, 'seconds': 10},
     }
 
     def cleanup_old_requests():

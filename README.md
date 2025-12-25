@@ -8,7 +8,7 @@
 [![GitHub repo size](https://img.shields.io/github/repo-size/hairpin01/MCUB-fork)](https://github.com/hairpin01/MCUB-fork)
 [![GitHub last commit](https://img.shields.io/github/last-commit/hairpin01/MCUB-fork)](https://github.com/hairpin01/MCUB-fork/commits/main)
 [![GitHub issues](https://img.shields.io/github/issues/hairpin01/MCUB-fork)](https://github.com/hairpin01/MCUB-fork/issues)
-[![GitHub forks](https://img.shields.io/github/forks/hairpin01/MCUB-fork?style=flat)](https://github.com/hairpin01/MCUB-fork/network/members)
+[![GitHub forks](https://img.shields.io/github/forks/Mitrichdfklwhcluio/MCUBFB?style=flat)](https://github.com/hairpin01/MCUB-fork/network/members)
 [![GitHub stars](https://img.shields.io/github/stars/hairpin01/MCUB-fork)](https://github.com/hairpin01/MCUB-fork/stargazers)
 [![GitHub license](https://img.shields.io/github/license/hairpin01/MCUB-fork)](https://github.com/hairpin01/MCUB-fork/blob/main/LICENSE)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)

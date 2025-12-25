@@ -198,7 +198,7 @@ def register(kernel):
                     dependencies = [req.strip() for req in reqs[0].split(',')]
 
             if dependencies:
-                await msg.edit(f'{action} модуль <b>{module_name}</b>\n🔬 ставлю зависимости:\n{dependencies}', parse_mode='html')
+                await msg.edit(f'🪄 ставлю зависимости:\n{dependencies}', parse_mode='html')
                 for dep in dependencies:
                     subprocess.run(
                         [sys.executable, '-m', 'pip', 'install', dep],
@@ -229,7 +229,7 @@ def register(kernel):
                 await log_to_bot(f" Модуль {module_name} установлен")
                 await msg.edit(final_msg, parse_mode='html')
             else:
-                await log_error_to_bot(f" Ошибка установки {module_name}: {message}")
+                await kernel.handle_error(e, source="", event=event)
                 await msg.edit(f'⛈️ Ошибка, смотри логи')
                 if os.path.exists(file_path):
                     os.remove(file_path)
@@ -330,7 +330,7 @@ def register(kernel):
                                 await msg.edit(f'⛈️ Не удалось скачать модуль по ссылке (статус: {resp.status})')
                                 return
                 except Exception as e:
-                    await log_error_to_bot(f" Ошибка скачивания по ссылке {module_or_url}: {str(e)}")
+                    await kernel.handle_error(e, source="install for url", event=event)
                     await msg.edit(f'⛈️ Ошибка скачивания: {str(e)}')
                     return
             else:
@@ -347,7 +347,6 @@ def register(kernel):
                             break
 
             if not code:
-                await log_error_to_bot(f" Модуль {module_name} не найден")
                 await msg.edit(f'⛈️ Модуль {module_name} не найден в репозиториях')
                 return
 
@@ -386,7 +385,7 @@ def register(kernel):
                     dependencies = [req.strip() for req in reqs[0].split(',')]
 
             if dependencies:
-                await msg.edit(f'{action} модуль <b>{module_name}</b>\n🔬 ставлю зависимости:\n{dependencies}', parse_mode='html')
+                await msg.edit(f'🪄 ставлю зависимости:\n{dependencies}', parse_mode='html')
                 for dep in dependencies:
                     subprocess.run(
                         [sys.executable, '-m', 'pip', 'install', dep],

@@ -1,3 +1,6 @@
+# author: @Hairpin00
+# version: 1.0.3
+# description: backup userbot
 import os
 import sys
 import json
@@ -265,6 +268,7 @@ def register(kernel):
     backup_module.client = client
     
     @kernel.register_command('backupall')
+    # создать backup
     async def backup_all_handler(event):
         await event.edit("⌛️ <i>Создаю бэкап...</i>", parse_mode='html')
         
@@ -295,6 +299,7 @@ def register(kernel):
             await event.edit("❌ <i>Не удалось восстановить бекап</i>", parse_mode='html')
     
     @kernel.register_command('backupset')
+    # настройки
     async def backup_settings_handler(event):
         args = event.text.split()
         
@@ -355,6 +360,7 @@ def register(kernel):
     asyncio.create_task(start_backup_scheduler())
     
     @kernel.register_command('backuphelp')
+    # help
     async def backup_help_handler(event):
         help_text = """🔮 <i>Backup Module Help</i>
 

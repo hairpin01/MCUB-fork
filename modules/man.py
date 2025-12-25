@@ -1,111 +1,128 @@
+# author: @Hairpin00
+# version: 1.0.1
+# description: список модулей
+
 from telethon import events, Button
 import re
 
 def register(kernel):
     client = kernel.client
-    
-    def plural_modules(n):
-        if n % 10 == 1 and n % 100 != 11:
-            return 'модуль'
-        elif 2 <= n % 10 <= 4 and (n % 100 < 10 or n % 100 >= 20):
-            return 'модуля'
-        else:
-            return 'модулей'
-    
-    async def generate_man_page(page=1, module_filter=None):
-        total_modules = len(kernel.loaded_modules) + len(kernel.system_modules)
-        system_count = len(kernel.system_modules)
-        user_count = len(kernel.loaded_modules)
-        
-        all_modules = []
-        for name in kernel.system_modules:
-            all_modules.append((name, 'system'))
-        for name in kernel.loaded_modules:
-            all_modules.append((name, 'user'))
-        
-        if module_filter:
-            filtered_modules = []
-            for name, typ in all_modules:
-                if module_filter.lower() in name.lower():
-                    filtered_modules.append((name, typ, 1))
-                else:
+
+    async def generate_man_page(search_term=None):
+        user_modules = len(kernel.loaded_modules)
+        system_modules = len(kernel.system_modules)
+
+        if not search_term:
+            msg = f'<b>🔮 Модулей: </b><code>{user_modules}</code><b>. Системных: </b><code>{system_modules}</code>\n\n'
+
+            if system_modules:
+                msg += '<blockquote expandable>'
+                for name in sorted(kernel.system_modules.keys()):
                     commands = get_module_commands(name, kernel)
-                    for cmd in commands:
-                        if module_filter.lower() == cmd.lower():
-                            filtered_modules.append((name, typ, 2))
-                            break
-                        elif module_filter.lower() in cmd.lower():
-                            filtered_modules.append((name, typ, 3))
-                            break
-            
-            filtered_modules.sort(key=lambda x: (-x[2], x[0]))
-            all_modules = [(name, typ) for name, typ, _ in filtered_modules[:10]]
-        
-        all_modules.sort(key=lambda x: (0 if x[1] == 'system' else 1, x[0]))
-        
-        per_page = 8
-        total_pages = (len(all_modules) + per_page - 1) // per_page
-        
-        if page < 1:
-            page = 1
-        if page > total_pages:
-            page = total_pages
-        
-        start_idx = (page - 1) * per_page
-        end_idx = start_idx + per_page
-        page_modules = all_modules[start_idx:end_idx]
-        
-        title = f"<b>🌩️ {total_modules} {plural_modules(total_modules)}. системных модулей: {system_count}</b>"
-        
-        system_mods = [(name, get_module_commands(name, kernel)) for name, typ in page_modules if typ == 'system']
-        user_mods = [(name, get_module_commands(name, kernel)) for name, typ in page_modules if typ == 'user']
-        
-        msg = f"{title}\n\n"
-        
-        if system_mods:
-            msg += "<b>🛠️ Системные модули:</b>\n<blockquote expandable>\n"
-            for name, commands in system_mods:
+                    if commands:
+                        cmd_text = ", ".join([f"<code>{kernel.custom_prefix}{cmd}</code>" for cmd in commands[:3]])
+                        if len(commands) > 3:
+                            cmd_text += f" (+{len(commands)-3})"
+                        msg += f'<b>{name}:</b> {cmd_text}\n'
+                msg += '</blockquote>\n'
+
+            if user_modules:
+                msg += '<blockquote expandable>'
+                for name in sorted(kernel.loaded_modules.keys()):
+                    commands = get_module_commands(name, kernel)
+                    if commands:
+                        cmd_text = ", ".join([f"<code>{kernel.custom_prefix}{cmd}</code>" for cmd in commands[:3]])
+                        if len(commands) > 3:
+                            cmd_text += f" (+{len(commands)-3})"
+                        msg += f'<b>{name}:</b> {cmd_text}\n'
+                msg += '</blockquote>'
+
+            return msg
+
+        search_term = search_term.lower()
+        exact_match = None
+        similar_modules = []
+
+        all_modules = {}
+        for name, module in kernel.system_modules.items():
+            all_modules[name] = ('system', module)
+        for name, module in kernel.loaded_modules.items():
+            all_modules[name] = ('user', module)
+
+        for name, (typ, module) in all_modules.items():
+            if name.lower() == search_term:
+                exact_match = (name, typ, module)
+                break
+
+        if exact_match:
+            name, typ, module = exact_match
+            commands = get_module_commands(name, kernel)
+
+            file_path = f"modules/{name}.py" if typ == 'system' else f"modules_loaded/{name}.py"
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    code = f.read()
+                    metadata = await kernel.get_module_metadata(code)
+            except:
+                metadata = {'commands': {}}
+
+            msg = f'<b>🧬 Модуль </b><code>{name}</code>:\n'
+            msg += f'⚗️ <b>D:</b> <i>{metadata["description"]}\n'
+            msg += f'❄️ <b>V:</b> <code>{metadata["version"]}</code>\n'
+            msg += '<blockquote expandable>'
+            if commands:
+                for cmd in commands:
+                    cmd_desc = metadata['commands'].get(cmd, '🫨 У команды нету описания')
+                    msg += f'<code>{kernel.custom_prefix}{cmd}</code> – <b>{cmd_desc}</b>\n'
+            else:
+                msg += '🚫 Команд не найдено\n'
+            msg += '</blockquote>'
+            msg += f'\n<blockquote>🥞 <b>Автор:</b><i> {metadata["author"]}</blockquote></i>'
+
+
+            return msg
+
+        for name, (typ, module) in all_modules.items():
+            if search_term in name.lower():
+                similar_modules.append((name, typ, module))
+            else:
+                commands = get_module_commands(name, kernel)
+                for cmd in commands:
+                    if search_term in cmd.lower():
+                        similar_modules.append((name, typ, module))
+                        break
+
+        if similar_modules:
+            msg = f'<b>🔮 Модуль </b><code>{search_term}</code>:\n\n'
+            for name, typ, module in similar_modules[:5]:
+                commands = get_module_commands(name, kernel)
                 if commands:
-                    cmd_text = f": {', '.join([f'<code>{kernel.custom_prefix}{cmd}</code>' for cmd in commands])}"
-                else:
-                    cmd_text = ""
-                msg += f"<b>{name}</b>{cmd_text}\n"
-            msg += "</blockquote>\n"
-        
-        if user_mods:
-            if system_mods:
-                msg += "\n"
-            msg += "<b>📦 Пользовательские модули:</b>\n<blockquote expandable>\n"
-            for name, commands in user_mods:
-                if commands:
-                    cmd_text = f": {', '.join([f'<code>{kernel.custom_prefix}{cmd}</code>' for cmd in commands])}"
-                else:
-                    cmd_text = ""
-                msg += f"<b>{name}</b>{cmd_text}\n"
-            msg += "</blockquote>\n"
-        
-        if module_filter:
-            msg = f"<b>🔍 Результаты поиска: '{module_filter}'</b>\n\n" + msg
-        
-        if total_pages > 1:
-            msg += f"\n📄 Страница {page}/{total_pages}"
-        
-        return msg, total_pages, page
-    
+                    cmd_text = ", ".join([f"<code>{kernel.custom_prefix}{cmd}</code>" for cmd in commands[:2]])
+                    msg += f'<b>{name}:</b> {cmd_text}\n'
+
+            if len(similar_modules) > 5:
+                msg += f'... и ещё {len(similar_modules)-5}\n'
+
+            msg += '\n<i>точного совпадения не удалось найти</i> 🗺️'
+        else:
+            msg = f'<b>🔮 Модуль </b><code>{search_term}</code>:\n\n🚫 Модуль не найден'
+
+        return msg
+
     def get_module_commands(module_name, kernel):
         commands = []
         file_path = None
-        
+
         if module_name in kernel.system_modules:
             file_path = f"modules/{module_name}.py"
         elif module_name in kernel.loaded_modules:
             file_path = f"modules_loaded/{module_name}.py"
-        
+
         if file_path:
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     code = f.read()
-                    
+
                     patterns = [
                         r"pattern\s*=\s*r['\"]\^?\\?\.([a-zA-Z0-9_]+)",
                         r"register_command\s*\('([^']+)'",
@@ -113,148 +130,25 @@ def register(kernel):
                         r"kernel\.register_command\('([^']+)'",
                         r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'\\\\.([^']+)'\)\)"
                     ]
-                    
+
                     for pattern in patterns:
                         found = re.findall(pattern, code)
                         commands.extend(found)
-                        
-            except Exception as e:
+
+            except:
                 pass
-        
+
         return list(set([cmd for cmd in commands if cmd]))
-    
+
     @kernel.register_command('man')
+    # <модуль> без, весь список модулей
     async def man_handler(event):
         args = event.text.split()
-        
+
         if len(args) == 1:
-            msg, total_pages, current_page = await generate_man_page()
-            
-            if total_pages > 1:
-                buttons = []
-                if current_page > 1:
-                    buttons.append(Button.inline('⬅️ Назад', f'man_page_{current_page-1}'.encode()))
-                if current_page < total_pages:
-                    buttons.append(Button.inline('➡️ Вперёд', f'man_page_{current_page+1}'.encode()))
-                
-                await event.edit(msg, buttons=buttons if buttons else None, parse_mode='html')
-            else:
-                await event.edit(msg, parse_mode='html')
-        
-        elif len(args) >= 2:
-            if args[1].isdigit():
-                page = int(args[1])
-                msg, total_pages, current_page = await generate_man_page(page)
-                
-                if total_pages > 1:
-                    buttons = []
-                    if current_page > 1:
-                        buttons.append(Button.inline('⬅️ Назад', f'man_page_{current_page-1}'.encode()))
-                    if current_page < total_pages:
-                        buttons.append(Button.inline('➡️ Вперёд', f'man_page_{current_page+1}'.encode()))
-                    
-                    await event.edit(msg, buttons=buttons if buttons else None, parse_mode='html')
-                else:
-                    await event.edit(msg, parse_mode='html')
-            else:
-                search_query = ' '.join(args[1:])
-                msg, total_pages, current_page = await generate_man_page(module_filter=search_query)
-                await event.edit(msg, parse_mode='html')
-    
-    async def man_callback_handler(event):
-        try:
-            page = int(event.data.decode().split('_')[2])
-            msg, total_pages, current_page = await generate_man_page(page)
-            
-            buttons = []
-            if current_page > 1:
-                buttons.append(Button.inline('⬅️ Назад', f'man_page_{current_page-1}'.encode()))
-            if current_page < total_pages:
-                buttons.append(Button.inline('➡️ Вперёд', f'man_page_{current_page+1}'.encode()))
-            
-            await event.edit(msg, buttons=buttons if buttons else None, parse_mode='html')
-        except:
-            await event.answer('❌ Ошибка навигации')
-    
-    kernel.register_callback_handler('man_page_', man_callback_handler)
-    
-    async def man_inline_handler(event):
-        try:
-            query = event.text
-            
-            if query.startswith('man_page_'):
-                try:
-                    page = int(query.split('_')[2])
-                except:
-                    page = 1
-                
-                msg, total_pages, current_page = await generate_man_page(page)
-                
-                buttons = []
-                if total_pages > 1:
-                    if current_page > 1:
-                        buttons.append([Button.inline('⬅️ Назад', f'man_page_{current_page-1}'.encode())])
-                    if current_page < total_pages:
-                        if buttons:
-                            buttons[0].append(Button.inline('➡️ Вперёд', f'man_page_{current_page+1}'.encode()))
-                        else:
-                            buttons.append([Button.inline('➡️ Вперёд', f'man_page_{current_page+1}'.encode())])
-                
-                builder = event.builder.article(
-                    '📚 Модули',
-                    text=msg,
-                    buttons=buttons if buttons else None,
-                    parse_mode='html'
-                )
-                await event.answer([builder])
-                
-            else:
-                builder = event.builder.article(
-                    '📚 Модули',
-                    text='Используйте: man_page_1 для навигации',
-                    parse_mode='html'
-                )
-                await event.answer([builder])
-                
-        except Exception as e:
-            builder = event.builder.article(
-                '❌ Ошибка',
-                text=f'Ошибка обработки запроса: {str(e)}',
-                parse_mode='html'
-            )
-            await event.answer([builder])
-    
-    kernel.register_inline_handler('man', man_inline_handler)
-    
-    @kernel.register_command('modules')
-    async def modules_info_handler(event):
-        total = len(kernel.loaded_modules) + len(kernel.system_modules)
-        
-        msg = f"<b>📊 Статистика модулей</b>\n\n"
-        msg += f"• Всего модулей: {total}\n"
-        msg += f"• Системных: {len(kernel.system_modules)}\n"
-        msg += f"• Пользовательских: {len(kernel.loaded_modules)}\n\n"
-        
-        if kernel.system_modules:
-            msg += "<b>🛠️ Системные модули:</b>\n<blockquote expandable>\n"
-            for name in sorted(kernel.system_modules.keys()):
-                commands = get_module_commands(name, kernel)
-                if commands:
-                    cmd_text = f": {', '.join([f'<code>{kernel.custom_prefix}{c}</code>' for c in commands[:3]])}"
-                else:
-                    cmd_text = ""
-                msg += f"<b>{name}</b>{cmd_text}\n"
-            msg += "</blockquote>\n"
-        
-        if kernel.loaded_modules:
-            msg += "\n<b>📦 Пользовательские модули:</b>\n<blockquote expandable>\n"
-            for name in sorted(kernel.loaded_modules.keys()):
-                commands = get_module_commands(name, kernel)
-                if commands:
-                    cmd_text = f": {', '.join([f'<code>{kernel.custom_prefix}{c}</code>' for c in commands[:3]])}"
-                else:
-                    cmd_text = ""
-                msg += f"<b>{name}</b>{cmd_text}\n"
-            msg += "</blockquote>\n"
-        
-        await event.edit(msg, parse_mode='html')
+            msg = await generate_man_page()
+            await event.edit(msg, parse_mode='html')
+        else:
+            search_term = ' '.join(args[1:])
+            msg = await generate_man_page(search_term)
+            await event.edit(msg, parse_mode='html')

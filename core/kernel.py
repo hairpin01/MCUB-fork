@@ -1,3 +1,8 @@
+# author: @Hairpin00
+# version: 1.0.1.7
+# description: kernel core
+# Спасибо @Mitrichq за основу юзербота
+# Лицензия? какая лицензия ещё
 import time
 import sys
 import os
@@ -6,6 +11,7 @@ import re
 import json
 import subprocess
 import random
+from pathlib import Path
 try:
     import io
     import html
@@ -22,8 +28,6 @@ except ImportError:
         "Установите зависимости",
         "pip install -r requirements.txt"
         )
-    
-
 
 class Colors:
     RESET = '\033[0m'
@@ -34,14 +38,24 @@ class Colors:
     PURPLE = '\033[95m'
     CYAN = '\033[96m'
 
+
+class CommandConflictError(Exception):
+    """Исключение для конфликта команд"""
+    def __init__(self, message, conflict_type=None, command=None):
+        super().__init__(message)
+        self.conflict_type = conflict_type
+        self.command = command
+
+
 class Kernel:
     def __init__(self):
-        self.VERSION = '1.0.1.5'
+        self.VERSION = '1.0.1.7'
         self.DB_VERSION = 2
         self.start_time = time.time()
         self.loaded_modules = {}
         self.system_modules = {}
         self.command_handlers = {}
+        self.command_owners = {}
         self.custom_prefix = '.'
         self.aliases = {}
         self.config = {}
@@ -52,7 +66,7 @@ class Kernel:
         self.shutdown_flag = False
         self.power_save_mode = False
         self.Colors = Colors
-        
+
         self.MODULES_DIR = 'modules'
         self.MODULES_LOADED_DIR = 'modules_loaded'
         self.IMG_DIR = 'img'
@@ -69,64 +83,162 @@ class Kernel:
         self.log_chat_id = None
         self.log_bot_enabled = False
 
+        self.current_loading_module = None
+        self.current_loading_module_type = None
+
+        self.load_repositories()
+        self.repositories = []
+        self.default_repo = self.MODULES_REPO
 
         try:
             from utils.emoji_parser import emoji_parser
             self.emoji_parser = emoji_parser
             self.cprint(f'{Colors.GREEN}The emoji parser is loaded{Colors.RESET}')
+
         except ImportError:
             self.emoji_parser = None
             self.cprint(f'{Colors.YELLOW}The emoji parser is not loaded{Colors.RESET}')
 
 
-        try:
-            asyncio.create_task(cleanup_old_logs())
-        except Exception as e:
-            error_msg = f"Error clearnup_old_logs: {e}"
-            self.cprint(f'{self.Colors.RED}❌ {error_msg}{self.Colors.RESET}')
-
-
-        async def cleanup_old_logs():
-                """Очистка старых логов"""
-                try:
-                    log_dir = Path("logs")
-                    if not log_dir.exists():
-                        return
-
-                    now = time.time()
-                    for log_file in log_dir.glob("*.log"):
-                        if (now - os.path.getmtime(log_file)) > 30 * 24 * 3600:
-                            os.remove(log_file)
-                except:
-                    pass
-    def register_inline_handler(self, pattern, handler):
-        self.inline_handlers[pattern] = handler
-
-    def register_callback_handler(self, pattern, handler):
-        """Регистрация обработчика callback-кнопок"""
-        self.callback_handlers[pattern] = handler
-        @self.client.on(events.CallbackQuery(pattern=pattern.encode()))
-
-        async def callback_wrapper(event):
-            await handler(event)
-
-        self.reconnect_attempts = 0
-        self.max_reconnect_attempts = 5
-        self.reconnect_delay = 10
-        
         self.setup_directories()
         self.load_or_create_config()
-    
+
+    def load_repositories(self):
+        """Загружает список репозиториев из конфига"""
+        self.repositories = self.config.get('repositories', [])
+
+    async def save_repositories(self):
+        """Сохраняет список репозиториев в конфиг"""
+        self.config['repositories'] = self.repositories
+        with open(self.CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(self.config, f, ensure_ascii=False, indent=2)
+
+
+    def set_loading_module(self, module_name, module_type):
+        """Устанавливает текущий загружаемый модуль"""
+        self.current_loading_module = module_name
+        self.current_loading_module_type = module_type
+
+    def clear_loading_module(self):
+        """Очищает информацию о загружаемом модуле"""
+        self.current_loading_module = None
+        self.current_loading_module_type = None
+
+    def unregister_module_commands(self, module_name):
+        """Удаляет все команды модуля"""
+        to_remove = []
+        for cmd, owner in self.command_owners.items():
+            if owner == module_name:
+                to_remove.append(cmd)
+
+        for cmd in to_remove:
+            del self.command_handlers[cmd]
+            del self.command_owners[cmd]
+
+    async def add_repository(self, url):
+        """Добавляет новый репозиторий"""
+        if url in self.repositories or url == self.default_repo:
+            return False, '⛈️ Репозиторий уже существует'
+
+        try:
+            modules = await self.get_repo_modules_list(url)
+            if modules:
+                self.repositories.append(url)
+                await self.save_repositories()
+                return True, f'🧬 Репозиторий добавлен ({len(modules)} модулей)'
+            else:
+                return False, '⛈️ Не удалось получить список модулей'
+        except:
+            return False, '⛈️ Ошибка при проверке репозитория'
+
+    async def remove_repository(self, index):
+        """Удаляет репозиторий по индексу"""
+        try:
+            idx = int(index) - 1
+            if 0 <= idx < len(self.repositories):
+                removed = self.repositories.pop(idx)
+                await self.save_repositories()
+                return True, f'🗑️ Репозиторий удален'
+            else:
+                return False, '⛈️ Неверный индекс'
+        except:
+            return False, '⛈️ Ошибка удаления'
+
+    async def get_repo_name(self, url):
+        """Получает название репозитория из modules.ini"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f'{url}/name.ini') as resp:
+                    if resp.status == 200:
+                        content = await resp.text()
+                        return content.strip()
+        except:
+            pass
+        return url.split('/')[-2] if '/' in url else url
+
+
+    async def get_command_description(self, module_name, command):
+        if module_name in self.system_modules:
+            file_path = f"modules/{module_name}.py"
+        elif module_name in self.loaded_modules:
+            file_path = f"modules_loaded/{module_name}.py"
+        else:
+            return '🫨 У команды нету описания'
+
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                code = f.read()
+                metadata = await self.get_module_metadata(code)
+                return metadata['commands'].get(command, '🫨 У команды нету описания')
+        except:
+            return '🫨 У команды нету описания'
+
+
+    def register_command(self, pattern, func=None):
+        """Регистрация команды с проверкой конфликтов"""
+        cmd = pattern.lstrip('^\\' + self.custom_prefix)
+        if cmd.endswith('$'):
+            cmd = cmd[:-1]
+
+        if self.current_loading_module is None:
+            raise ValueError("Не установлен текущий модуль для регистрации команд")
+
+        if cmd in self.command_handlers:
+            existing_owner = self.command_owners.get(cmd)
+            if existing_owner in self.system_modules:
+                raise CommandConflictError(
+                    f"Попытка перезаписать системную команду: {cmd}",
+                    conflict_type='system',
+                    command=cmd
+                )
+            else:
+                raise CommandConflictError(
+                    f"Конфликт команд: {cmd} уже зарегистрирована модулем {existing_owner}",
+                    conflict_type='user',
+                    command=cmd
+                )
+
+        if func:
+            self.command_handlers[cmd] = func
+            self.command_owners[cmd] = self.current_loading_module
+            return func
+        else:
+            def decorator(f):
+                self.command_handlers[cmd] = f
+                self.command_owners[cmd] = self.current_loading_module
+                return f
+            return decorator
+
     def setup_directories(self):
         for directory in [self.MODULES_DIR, self.MODULES_LOADED_DIR, self.IMG_DIR, self.LOGS_DIR]:
             if not os.path.exists(directory):
                 os.makedirs(directory)
-    
+
     def load_or_create_config(self):
         if os.path.exists(self.CONFIG_FILE):
             with open(self.CONFIG_FILE, 'r', encoding='utf-8') as f:
                 self.config = json.load(f)
-            
+
             required_fields = ['api_id', 'api_hash', 'phone']
             if all(field in self.config and self.config[field] for field in required_fields):
                 self.setup_config()
@@ -136,29 +248,108 @@ class Kernel:
                 return False
         else:
             return False
-    
+
+    def register_inline_handler(self, pattern, handler):
+        """Регистрация обработчика инлайн-запросов"""
+        if not hasattr(self, 'inline_handlers'):
+            self.inline_handlers = {}
+        self.inline_handlers[pattern] = handler
+
+    def register_callback_handler(self, pattern, handler):
+        """Регистрация обработчика callback-кнопок"""
+        if not hasattr(self, 'callback_handlers'):
+            self.callback_handlers = {}
+        self.callback_handlers[pattern] = handler
+
+        if self.client:
+            @self.client.on(events.CallbackQuery(pattern=pattern.encode()))
+            async def callback_wrapper(event):
+                await handler(event)
+
+    async def log_network(self, message):
+        """Логирование сетевых событий"""
+        if hasattr(self, 'send_log_message'):
+            await self.send_log_message(f"🌐 {message}")
+
+    async def log_error(self, message):
+        """Логирование ошибок"""
+        if hasattr(self, 'send_log_message'):
+            await self.send_log_message(f"🔴 {message}")
+
+    async def log_module(self, message):
+        """Логирование событий модулей"""
+        if hasattr(self, 'send_log_message'):
+            await self.send_log_message(f"⚙️ {message}")
+
+
+    async def load_module_from_file(self, file_path, module_name, is_system=False):
+        """Загрузка модуля из файла"""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                code = f.read()
+
+            if 'from .. import' in code or 'import loader' in code:
+                return False, 'Несовместимый модуль (старая версия)'
+
+            if module_name in sys.modules:
+                del sys.modules[module_name]
+
+            spec = importlib.util.spec_from_file_location(module_name, file_path)
+            module = importlib.util.module_from_spec(spec)
+
+            module.kernel = self
+            module.client = self.client
+            module.custom_prefix = self.custom_prefix
+
+            sys.modules[module_name] = module
+
+            self.set_loading_module(module_name, 'system' if is_system else 'user')
+            spec.loader.exec_module(module)
+
+            if hasattr(module, 'register'):
+                try:
+                    module.register(self)
+                except CommandConflictError as e:
+                    raise e
+                except Exception as e:
+                    return False, f'Ошибка регистрации: {str(e)}'
+            else:
+                return False, 'Модуль не имеет функции register'
+
+            if is_system:
+                self.system_modules[module_name] = module
+            else:
+                self.loaded_modules[module_name] = module
+
+            return True, f'Модуль {module_name} загружен'
+
+        except ImportError as e:
+            error_msg = str(e)
+            match = re.search(r"No module named '([^']+)'", error_msg)
+            if match:
+                dep = match.group(1)
+                return False, f'Требуется зависимость: {dep}. Используйте: pip install {dep}'
+            return False, f'Ошибка импорта: {error_msg}'
+        except CommandConflictError as e:
+            raise e
+        except Exception as e:
+            return False, f'Ошибка загрузки: {str(e)}'
+        finally:
+            self.clear_loading_module()
+
     async def send_with_emoji(self, chat_id, text, **kwargs):
-        """
-        Отправляет сообщение с поддержкой эмодзи
-        Использует низкоуровневый запрос для поддержки кастомных эмодзи
-        """
         if not self.emoji_parser or not self.emoji_parser.is_emoji_tag(text):
             return await self.client.send_message(chat_id, text, **kwargs)
 
         try:
-
             parsed_text, entities = self.emoji_parser.parse_to_entities(text)
-
 
             clean_kwargs = {k: v for k, v in kwargs.items() if k != 'entities'}
 
-
             from telethon.tl.functions.messages import SendMessageRequest
-
 
             input_peer = await self.client.get_input_entity(chat_id)
 
-            #
             result = await self.client(SendMessageRequest(
                 peer=input_peer,
                 message=parsed_text,
@@ -168,33 +359,119 @@ class Kernel:
                 reply_to_msg_id=clean_kwargs.get('reply_to', None)
             ))
 
-            #
             return await self.client.get_messages(chat_id, ids=[result.id])
 
         except Exception as e:
             self.cprint(f'{Colors.RED}❌ Ошибка отправки с эмодзи: {e}{Colors.RESET}')
-            await self.handle_error(e, source="send_with_emoji", event=event)
-            await self.kernel.send_log_err
             fallback_text = self.emoji_parser.remove_emoji_tags(text)
             return await self.client.send_message(chat_id, fallback_text, **kwargs)
 
     def format_with_emoji(self, text, entities):
-        """
-        Форматирует текст с сущностями в HTML
-
-        Пример:
-        html_text = kernel.format_with_emoji(
-            message.text,
-            message.entities
-        )
-        """
         if not self.emoji_parser:
             return html.escape(text)
 
         return self.emoji_parser.entities_to_html(text, entities)
 
+
+    async def get_module_metadata(self, code):
+        """Извлекает метаданные из кода модуля"""
+        metadata = {
+            'author': 'неизвестен',
+            'version': '1.0.0',
+            'description': 'описание отсутствует',
+            'commands': {}
+        }
+
+        patterns = {
+            'author': r'# author:\s*(.+)',
+            'version': r'# version:\s*(.+)',
+            'description': r'# description:\s*(.+)'
+        }
+
+        for key, pattern in patterns.items():
+            match = re.search(pattern, code, re.IGNORECASE)
+            if match:
+                metadata[key] = match.group(1).strip()
+
+        # Ищем команды нового стиля: @kernel.register_command('cmd') с описанием
+        # Описание может быть в комментарии на следующей строке
+        kernel_patterns = [
+            # Формат: @kernel.register_command('cmd')
+            #         # описание
+            #         async def ...
+            r"@kernel\.register_command\('([^']+)'\)\s*\n\s*#\s*(.+?)\s*\n.*?async def",
+
+            # Формат: kernel.register_command('cmd')
+            #         # описание
+            #         async def ...
+            r"kernel\.register_command\('([^']+)'\)\s*\n\s*#\s*(.+?)\s*\n.*?async def",
+
+            # Формат: @kernel.register_command('cmd')  # описание
+            #         async def ...
+            r"@kernel\.register_command\('([^']+)'\)\s*#\s*(.+?)\s*\n.*?async def",
+
+            # Формат: kernel.register_command('cmd')  # описание
+            #         async def ...
+            r"kernel\.register_command\('([^']+)'\)\s*#\s*(.+?)\s*\n.*?async def"
+        ]
+
+        for pattern in kernel_patterns:
+            matches = re.finditer(pattern, code, re.DOTALL)
+            for match in matches:
+                cmd = match.group(1)
+                desc = match.group(2)
+                if cmd and desc:
+                    metadata['commands'][cmd] = desc.strip()
+
+        # Ищем команды старого стиля
+        old_patterns = [
+            # Формат: @client.on(events.NewMessage(outgoing=True, pattern=r'\.cmd'))
+            #         # описание
+            #         async def ...
+            r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'\\\\.([^']+)'\)\)\s*\n\s*#\s*(.+?)\s*\n.*?async def",
+
+            # Формат: @client.on(events.NewMessage(outgoing=True, pattern=r'\.cmd'))  # описание
+            #         async def ...
+            r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'\\\\.([^']+)'\)\)\s*#\s*(.+?)\s*\n.*?async def"
+        ]
+
+        for pattern in old_patterns:
+            matches = re.finditer(pattern, code, re.DOTALL)
+            for match in matches:
+                cmd = match.group(1)
+                desc = match.group(2)
+                if cmd and desc:
+                    metadata['commands'][cmd] = desc.strip()
+
+        return metadata
+
+    async def download_module_from_repo(self, repo_url, module_name):
+        """Скачивает модуль из репозитория с проверкой метаданных"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f'{repo_url}/{module_name}.py') as resp:
+                    if resp.status == 200:
+                        code = await resp.text()
+                        return code
+        except:
+            pass
+        return None
+
+    async def get_repo_modules_list(self, repo_url):
+        """Получает список модулей из репозитория"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f'{repo_url}/modules.ini') as resp:
+                    if resp.status == 200:
+                        content = await resp.text()
+                        modules = [line.strip() for line in content.split('\n') if line.strip()]
+                        return modules
+        except:
+            pass
+        return []
+
+
     async def send_log_message(self, text, file=None):
-        """Отправка сообщения в лог-чат"""
         if not self.log_chat_id:
             print(f"[DEBUG] log_chat_id не установлен: {self.log_chat_id}")
             return False
@@ -235,7 +512,6 @@ class Kernel:
             return False
 
     async def send_error_log(self, error_text, source_file, message_info=""):
-        """Отправка ошибки в лог-чат с форматированием"""
         if not self.log_chat_id:
             return
 
@@ -248,49 +524,38 @@ class Kernel:
         await self.send_log_message(formatted_error)
 
     async def handle_error(self, error, source="unknown", event=None):
-        """Глобальный обработчик ошибок"""
         error_text = str(error)
         error_traceback = ''.join(traceback.format_exception(type(error), error, error.__traceback__))
 
-        # Форматируем сообщение об ошибке
         formatted_error = f"""💠 <b>Source:</b> <code>{html.escape(source)}</code>
 🔮 <b>Error:</b> <blockquote>👉 <code>{html.escape(error_text[:300])}</code></blockquote>
         """
 
         if event:
             try:
-                # Добавляем информацию о сообщении
                 chat_title = getattr(event.chat, 'title', 'ЛС')
                 user_info = await self.get_user_info(event.sender_id) if event.sender_id else "unknown"
                 formatted_error += f"\n💬 <b>Message info:</b>\n<blockquote>🪬 <b>User:</b> {user_info}\n⌨️ <b>Text:</b> <code>{html.escape(event.text[:200] if event.text else 'not text')}</code>\n📬 <b>Chat:</b> {chat_title}</blockquote>"
             except:
                 pass
 
-        # Отправляем через бота
         try:
-            # Полный трейсбэк для отладки
             full_error = f"Ошибка в {source}:\n{error_traceback}"
-
-            # Сохраняем в файл
             self.save_error_to_file(full_error)
-
-            # Отправляем уведомление
             await self.send_log_message(formatted_error)
 
-            # Если есть трейсбэк, отправляем его как файл
             if len(error_traceback) > 500:
                 error_file = io.BytesIO(error_traceback.encode('utf-8'))
                 error_file.name = f"error_{int(time.time())}.txt"
                 await self.send_log_message("📎 <b>Полный трейсбэк во вложении</b>", error_file)
 
         except Exception as e:
-            # Если не удалось отправить, пишем в консоль
             self.cprint(f'{self.Colors.RED}❌ Не удалось отправить лог ошибки: {e}{self.Colors.RESET}')
             print(f"Оригинальная ошибка: {error_traceback}")
 
     def save_error_to_file(self, error_text):
-        """Сохраняем ошибку в файл"""
         try:
+            from pathlib import Path
             log_dir = Path("logs")
             log_dir.mkdir(exist_ok=True)
 
@@ -306,7 +571,6 @@ class Kernel:
             pass
 
     async def get_user_info(self, user_id):
-        """Получаем информацию о пользователе"""
         try:
             user = await self.client.get_entity(user_id)
             if user.first_name or user.last_name:
@@ -328,33 +592,33 @@ class Kernel:
         except (KeyError, ValueError, TypeError) as e:
             print(f'{Colors.RED}❌ Ошибка в конфиге: {e}{Colors.RESET}')
             return False
-    
+
     def first_time_setup(self):
         print(f'\n{Colors.CYAN}⚙️  Первоначальная настройка юзербота{Colors.RESET}\n')
-        
+
         while True:
             try:
                 api_id_input = input(f'{Colors.YELLOW}📝 Введите API ID: {Colors.RESET}').strip()
                 if not api_id_input.isdigit():
                     print(f'{Colors.RED}❌ API ID должен быть числом{Colors.RESET}')
                     continue
-                
+
                 api_hash_input = input(f'{Colors.YELLOW}📝 Введите API HASH: {Colors.RESET}').strip()
                 if not api_hash_input:
                     print(f'{Colors.RED}❌ API HASH не может быть пустым{Colors.RESET}')
                     continue
-                
+
                 phone_input = input(f'{Colors.YELLOW}📝 Введите номер телефона (формат: +1234567890): {Colors.RESET}').strip()
                 if not phone_input.startswith('+'):
                     print(f'{Colors.RED}❌ Номер должен начинаться с +{Colors.RESET}')
                     continue
-                
+
                 try:
                     api_id = int(api_id_input)
                 except ValueError:
                     print(f'{Colors.RED}❌ API ID должен быть числом{Colors.RESET}')
                     continue
-                
+
                 self.config = {
                     "api_id": api_id,
                     "api_hash": api_hash_input,
@@ -372,25 +636,25 @@ class Kernel:
                     "inline_bot_username": None,
                     "db_version": self.DB_VERSION
                 }
-                
+
                 with open(self.CONFIG_FILE, 'w', encoding='utf-8') as f:
                     json.dump(self.config, f, ensure_ascii=False, indent=2)
-                
+
                 self.setup_config()
                 print(f'{Colors.GREEN}✅ Конфиг сохранен{Colors.RESET}')
                 return True
-                    
+
             except KeyboardInterrupt:
                 print(f'\n{Colors.RED}❌ Настройка прервана{Colors.RESET}')
                 sys.exit(1)
-    
+
     def cprint(self, text, color=''):
         print(f'{color}{text}{Colors.RESET}')
-    
+
     async def init_client(self):
         proxy = self.config.get('proxy')
         self.client = TelegramClient('user_session', self.API_ID, self.API_HASH, proxy=proxy)
-        
+
         try:
             await self.client.start(phone=self.PHONE)
             self.cprint(f'{Colors.GREEN}MCUB ядро запущено{Colors.RESET}')
@@ -398,52 +662,43 @@ class Kernel:
         except Exception as e:
             self.cprint(f'{Colors.RED}❌ Ошибка авторизации: {e}{Colors.RESET}')
             return False
-    
-    def register_command(self, pattern, func=None):
-        if func:
-            cmd = pattern.lstrip('^\\' + self.custom_prefix)
-            if cmd.endswith('$'):
-                cmd = cmd[:-1]
-            self.command_handlers[cmd] = func
-            return func
-        else:
-            def decorator(f):
-                cmd = pattern.lstrip('^\\' + self.custom_prefix)
-                if cmd.endswith('$'):
-                    cmd = cmd[:-1]
-                self.command_handlers[cmd] = f
-                return f
-            return decorator
-    
+
     async def load_system_modules(self):
         for file_name in os.listdir(self.MODULES_DIR):
             if file_name.endswith('.py'):
                 try:
                     module_name = file_name[:-3]
                     file_path = os.path.join(self.MODULES_DIR, file_name)
-                    
+
                     spec = importlib.util.spec_from_file_location(module_name, file_path)
                     module = importlib.util.module_from_spec(spec)
-                    
+
                     module.kernel = self
                     module.client = self.client
                     module.custom_prefix = self.custom_prefix
-                    
+
                     sys.modules[module_name] = module
+
+                    self.set_loading_module(module_name, 'system')
                     spec.loader.exec_module(module)
-                    
+
                     if hasattr(module, 'register'):
                         module.register(self)
                         self.system_modules[module_name] = module
                         self.cprint(f'{Colors.GREEN}✅ Загружен системный модуль: {module_name}{Colors.RESET}')
-                    
+                    else:
+                        self.cprint(f'{Colors.YELLOW}⚠️ Модуль {module_name} не имеет функции register{Colors.RESET}')
+
+                except CommandConflictError as e:
+                    self.cprint(f'{Colors.RED}❌ Ошибка загрузки системного модуля {module_name}: {e}{Colors.RESET}')
                 except Exception as e:
                     self.cprint(f'{Colors.RED}❌ Ошибка загрузки модуля {file_name}: {e}{Colors.RESET}')
-    
+                finally:
+                    self.clear_loading_module()
+
     async def load_user_modules(self):
         files = os.listdir(self.MODULES_LOADED_DIR)
 
-        # Сначала загружаем log_bot
         if 'log_bot.py' in files:
             files.remove('log_bot.py')
             files.insert(0, 'log_bot.py')
@@ -466,6 +721,8 @@ class Kernel:
                         module.custom_prefix = self.custom_prefix
 
                         sys.modules[module_name] = module
+
+                        self.set_loading_module(module_name, 'user')
                         spec.loader.exec_module(module)
 
                         if hasattr(module, 'register'):
@@ -476,6 +733,7 @@ class Kernel:
                         module = importlib.util.module_from_spec(spec)
 
                         sys.modules[module_name] = module
+                        self.set_loading_module(module_name, 'user')
                         spec.loader.exec_module(module)
 
                         if hasattr(module, 'register'):
@@ -483,31 +741,44 @@ class Kernel:
                             self.loaded_modules[module_name] = module
                             self.cprint(f'{self.Colors.GREEN}✅ Загружен пользовательский модуль (старый стиль): {module_name}{self.Colors.RESET}')
 
+                except CommandConflictError as e:
+                    error_msg = f"Конфликт команд при загрузке модуля {file_name}: {e}"
+                    self.cprint(f'{self.Colors.RED}❌ {error_msg}{self.Colors.RESET}')
+                    try:
+                        await self.handle_error(e, source=f"load_module_conflict:{file_name}")
+                    except:
+                        pass
+
                 except Exception as e:
                     error_msg = f"Ошибка загрузки модуля {file_name}: {e}"
                     self.cprint(f'{self.Colors.RED}❌ {error_msg}{self.Colors.RESET}')
-                    await self.handle_error(e, source=f"load_module:{file_name}")
-    
+                    try:
+                        await self.handle_error(e, source=f"load_module:{file_name}")
+                    except:
+                        pass
+                finally:
+                    self.clear_loading_module()
+
     async def process_command(self, event):
         text = event.text
-        
+
         if not text.startswith(self.custom_prefix):
             return False
-        
+
         cmd = text[len(self.custom_prefix):].split()[0] if ' ' in text else text[len(self.custom_prefix):]
-        
+
         if cmd in self.aliases:
             alias_cmd = self.aliases[cmd]
             if alias_cmd in self.command_handlers:
                 await self.command_handlers[alias_cmd](event)
                 return True
-        
+
         if cmd in self.command_handlers:
             await self.command_handlers[cmd](event)
             return True
-        
+
         return False
-    
+
     async def safe_connect(self):
         while self.reconnect_attempts < self.max_reconnect_attempts:
             if self.shutdown_flag:
@@ -515,7 +786,7 @@ class Kernel:
             try:
                 if self.client.is_connected():
                     return True
-                
+
                 await self.client.connect()
                 if await self.client.is_user_authorized():
                     self.reconnect_attempts = 0
@@ -523,14 +794,14 @@ class Kernel:
             except Exception as e:
                 self.reconnect_attempts += 1
                 await asyncio.sleep(self.reconnect_delay * self.reconnect_attempts)
-        
+
         return False
-    
+
     async def send_inline(self, chat_id, query, buttons=None):
         bot_username = self.config.get('inline_bot_username')
         if not bot_username:
             return False
-        
+
         try:
             results = await self.client.inline_query(bot_username, query)
             if results:
@@ -542,28 +813,6 @@ class Kernel:
         except Exception:
             pass
         return False
-    
-    async def safe_connect(self):
-        while self.reconnect_attempts < self.max_reconnect_attempts:
-            if self.shutdown_flag:
-                return False
-            try:
-                if self.client.is_connected():
-                    return True
-
-                await self.client.connect()
-                if await self.client.is_user_authorized():
-                    self.reconnect_attempts = 0
-                    if hasattr(self, 'log_network'):
-                        await self.log_network("✅ Соединение восстановлено")
-                    return True
-            except Exception as e:
-                self.reconnect_attempts += 1
-                if hasattr(self, 'log_network'):
-                    await self.log_network(f"✈️ Плохое соединение. Попытка {self.reconnect_attempts}/{self.max_reconnect_attempts}")
-                await asyncio.sleep(self.reconnect_delay * self.reconnect_attempts)
-
-        return False
 
     async def setup_inline_bot(self):
         try:
@@ -572,7 +821,7 @@ class Kernel:
             await self.inline_bot.setup()
         except Exception as e:
             self.cprint(f'{Colors.YELLOW}⚠️ Инлайн-бот не запущен: {e}{Colors.RESET}')
-    
+
     async def run(self):
         if not self.load_or_create_config():
             if not self.first_time_setup():
@@ -605,7 +854,6 @@ class Kernel:
 
         self.cprint(f'{Colors.CYAN}The kernel is loaded{Colors.RESET}')
 
-        # Обработка перезагрузки
         if os.path.exists(self.RESTART_FILE):
             with open(self.RESTART_FILE, 'r') as f:
                 data = f.read().split(',')
@@ -623,7 +871,6 @@ class Kernel:
 
                     if self.client.is_connected():
                         try:
-                            # Сначала редактируем старое сообщение
                             await self.client.edit_message(
                                 int(chat_id),
                                 int(msg_id),
@@ -632,13 +879,10 @@ class Kernel:
                                 parse_mode='html'
                             )
 
-                            # Ждём немного
                             await asyncio.sleep(1)
 
-                            # Удаляем отредактированное сообщение
                             await self.client.delete_messages(int(chat_id), int(msg_id))
 
-                            # Отправляем новое сообщение о полной загрузке
                             await self.client.send_message(
                                 int(chat_id),
                                 f'📦 Твой <b>MCUB</b> полностью загрузился!\n'
@@ -647,8 +891,8 @@ class Kernel:
                             )
                         except Exception as e:
                             self.cprint(f'{Colors.YELLOW}⚠️ Не удалось отправить сообщение о перезагрузке: {e}{Colors.RESET}')
+                            await self.handle_error(e, source="restart", event=event)
                     else:
                         self.cprint(f'{Colors.YELLOW}⚠️ Не удалось отправить сообщение о перезагрузке: нет соединения{Colors.RESET}')
 
         await self.client.run_until_disconnected()
-

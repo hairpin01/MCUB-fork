@@ -1,3 +1,6 @@
+# author: @Hairpin00
+# version: 1.0.2
+# description: выполнить команду в terminal
 import asyncio
 import subprocess
 import time
@@ -129,7 +132,6 @@ def register(kernel):
 
 <b>stdout:</b>
 <blockquote><code>{stdout_text}</code></blockquote>
-
 <b>stderr:</b>
 <blockquote><code>{stderr_text}</code></blockquote>
 
@@ -165,7 +167,6 @@ def register(kernel):
 
 <b>stdout:</b>
 <blockquote><code>{stdout_text}</code></blockquote>
-
 <b>stderr:</b>
 <blockquote><code>{stderr_text}</code></blockquote>
 
@@ -223,6 +224,7 @@ def register(kernel):
     terminal = TerminalModule()
     
     @kernel.register_command('t')
+    # terminal
     async def terminal_handler(event):
         args = event.text.split(maxsplit=1)
         if len(args) < 2:
@@ -242,6 +244,7 @@ def register(kernel):
         await terminal.run_command(event.chat_id, command)
     
     @kernel.register_command('tkill')
+    # kill terminal
     async def terminal_kill_handler(event):
         await event.delete()
         await terminal.kill_command(event.chat_id)

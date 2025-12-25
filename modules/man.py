@@ -225,36 +225,3 @@ def register(kernel):
             await event.answer([builder])
     
     kernel.register_inline_handler('man', man_inline_handler)
-    
-    @kernel.register_command('modules')
-    async def modules_info_handler(event):
-        total = len(kernel.loaded_modules) + len(kernel.system_modules)
-        
-        msg = f"<b>📊 Статистика модулей</b>\n\n"
-        msg += f"• Всего модулей: {total}\n"
-        msg += f"• Системных: {len(kernel.system_modules)}\n"
-        msg += f"• Пользовательских: {len(kernel.loaded_modules)}\n\n"
-        
-        if kernel.system_modules:
-            msg += "<b>🛠️ Системные модули:</b>\n<blockquote expandable>\n"
-            for name in sorted(kernel.system_modules.keys()):
-                commands = get_module_commands(name, kernel)
-                if commands:
-                    cmd_text = f": {', '.join([f'<code>{kernel.custom_prefix}{c}</code>' for c in commands[:3]])}"
-                else:
-                    cmd_text = ""
-                msg += f"<b>{name}</b>{cmd_text}\n"
-            msg += "</blockquote>\n"
-        
-        if kernel.loaded_modules:
-            msg += "\n<b>📦 Пользовательские модули:</b>\n<blockquote expandable>\n"
-            for name in sorted(kernel.loaded_modules.keys()):
-                commands = get_module_commands(name, kernel)
-                if commands:
-                    cmd_text = f": {', '.join([f'<code>{kernel.custom_prefix}{c}</code>' for c in commands[:3]])}"
-                else:
-                    cmd_text = ""
-                msg += f"<b>{name}</b>{cmd_text}\n"
-            msg += "</blockquote>\n"
-        
-        await event.edit(msg, parse_mode='html')

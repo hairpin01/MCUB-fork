@@ -15,9 +15,9 @@
 
 # MCUB-fork 
 
-MCUB fork это userbot и форк MCUBFB с улучшенным api с правильной структурой 
+`MCUB fork` это userbot и форк `MCUBFB` с улучшенным `api`, и с правильной структурой 
 > [!TIP]
-> Скоро будет api documentation 
+> Скоро будет `api documentation `
 
 ## Установка
 
@@ -27,7 +27,7 @@ git clone https://github.com/hairpin01/MCUB-fork.git && cd MCUB-fork ; pip insta
 
 ## Настройка
 
-1. Получите API_ID и API_HASH на https://my.telegram.org
+1. Получите `API_ID` и `API_HASH` на https://my.telegram.org
 
 2. Запустите main.py
 ```shell
@@ -51,12 +51,12 @@ python3 main.py
 - `.ping` - проверка задержки
 - `.info` - информация о юзерботе
 - `.restart` - перезагрузка
-- `.im` - установить модуль (ответ на .py файл)
+- `.im` - установить модуль (ответ на `.py` файл)
 - `.man` - список модулей
 - `.um [название]` - удалить модуль, потом лучше всего перезагрузить `userbot`
 
 > [!TIP]
-> безопасность: НЕ устанавливайте подозрительные модули. для безопасности есть api protection (чтобы включить `.api_protection` или `.fcfg api_protection true`).
+> __безопасность:__ **НЕ** устанавливайте **подозрительные** модули. для безопасности есть api protection (чтобы включить `.api_protection` или `.fcfg api_protection true`).
 > не исполняйте подозрительный код с помощью `.py` (python) или `.t` (терминал) 
 
 ## Модули
@@ -64,5 +64,5 @@ python3 main.py
 Модули устанавливаются через команду `.im` (ответ на .py файл).
 Дириктория для модулей в `modules_loaded/`.
 
-Офицальные репозиторий (`.dlml`)
-Установить: .dlm {название-модуля)
+## Офицальные репозиторий (`.dlml`)
+Установить: `.dlm` {название-модуля)

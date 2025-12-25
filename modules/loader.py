@@ -180,7 +180,7 @@ def register(kernel):
                 final_msg = f'🧬 Модуль <b>{module_name}</b> загружен! {emoji}\n\n'
                 final_msg += cmd_text
 
-                await log_to_bot(f"✅ Модуль {module_name} установлен")
+                await log_to_bot(f" Модуль {module_name} установлен")
                 await msg.edit(final_msg, parse_mode='html')
             else:
                 await log_error_to_bot(f" Ошибка установки {module_name}: {message}")
@@ -289,7 +289,6 @@ def register(kernel):
                         results = await client.inline_query(bot_username, query)
 
                         if results:
-                            await log_to_bot(f"🔷 Просмотр каталога модулей | Страница {page}")
                             await results[0].click(event.chat_id)
                         else:
                             await client.send_message(event.chat_id, '❌ Ошибка инлайн-бота')

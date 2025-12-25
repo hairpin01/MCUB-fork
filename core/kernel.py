@@ -7,6 +7,7 @@ import json
 import subprocess
 import random
 try:
+    import io
     import html
     import socks
     import traceback

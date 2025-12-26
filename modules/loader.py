@@ -556,13 +556,13 @@ def register(kernel):
 
         module_name = args[1]
 
-        if module_name in kernel.system_modules:
-            await event.edit(
-                f'🫨 <b>Ой, кажется ты попытался обновить системный модуль</b> <code>{module_name}</code>\n'
-                f'<blockquote><i>🚫 К сожалению нельзя обновлять системные модули с помощью <code>loadera</code></i></blockquote>',
-                parse_mode='html'
-            )
-            return
+        # if module_name in kernel.system_modules:
+        #     await event.edit(
+        #         f'🫨 <b>Ой, кажется ты попытался обновить системный модуль</b> <code>{module_name}</code>\n'
+        #         f'<blockquote><i>🚫 К сожалению нельзя обновлять системные модули с помощью <code>loadera</code></i></blockquote>',
+        #         parse_mode='html'
+        #     )
+        #     return
 
         if module_name not in kernel.loaded_modules:
             await event.edit(f'❌ Модуль {module_name} не найден')

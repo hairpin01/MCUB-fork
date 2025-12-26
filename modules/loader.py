@@ -229,7 +229,7 @@ def register(kernel):
                 await log_to_bot(f" Модуль {module_name} установлен")
                 await msg.edit(final_msg, parse_mode='html')
             else:
-                await kernel.handle_error(e, source="", event=event)
+                await log_to_bot(f"{module_name}: {message}")
                 await msg.edit(f'⛈️ Ошибка, смотри логи')
                 if os.path.exists(file_path):
                     os.remove(file_path)

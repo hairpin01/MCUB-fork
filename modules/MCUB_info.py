@@ -1,6 +1,6 @@
 # author: @Hairpin00
-# version: 1.0.2
-# description: Info userbot
+# version: 1.0.9
+# description: Info userbot with improved quote mode
 
 import asyncio
 import os
@@ -8,29 +8,44 @@ import time
 import platform
 import psutil
 import aiohttp
-import json
 import getpass
 import socket
-from telethon.tl.types import InputMediaWebPage
+from telethon.tl.types import MessageEntityTextUrl, InputMediaWebPage
+from telethon import functions, types
 from pathlib import Path
+
+ZERO_WIDTH_CHAR = "\u2060"
+
+def add_link_preview(text, entities, link):
+    if not text or not link:
+        return text, entities
+
+    new_text = ZERO_WIDTH_CHAR + text
+
+    new_entities = []
+
+    if entities:
+        for entity in entities:
+            new_entity = entity
+            if hasattr(entity, 'offset'):
+                new_entity.offset += 1
+            new_entities.append(new_entity)
+
+    link_entity = MessageEntityTextUrl(
+        offset=0,
+        length=1,
+        url=link
+    )
+
+    new_entities.append(link_entity)
+
+    return new_text, new_entities
 
 def register(kernel):
     client = kernel.client
 
-    kernel.config.setdefault('info_initial_emoji', '❄️')
-    kernel.config.setdefault('info_text', """💠 <b>Mitritch UserBot</b>
-<blockquote>🌩️ <b>Version:</b> <code>{version}</code>
-{update_status}</blockquote>
-
-<blockquote>📡 <b>Ping:</b> <code>{ping_time} ms</code>
-🧪 <b>Uptime:</b> <code>{uptime}</code>
-🔬 <b>System:</b> {distro_name} {distro_emoji}
-🧬 <b>Platform:</b> <code>{platform_type}</code></blockquote>
-
-<blockquote>🔷 <b>CPU:</b> <i>~{cpu_usage}</i>
-🔶 <b>RAM:</b> <i>~{ram_usage}</i></blockquote>""")
-    kernel.config.setdefault('info_banner_url', None)
     kernel.config.setdefault('info_quote_media', False)
+    kernel.config.setdefault('info_banner_url', 'https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/info.png')
     kernel.config.setdefault('info_invert_media', False)
 
     def format_uptime(seconds):
@@ -67,9 +82,8 @@ def register(kernel):
     # инфо о юзерботе
     async def info_cmd(event):
         try:
-            start_emoji = kernel.config.get('info_initial_emoji', '❄️')
             start_time = time.time()
-            msg = await event.edit(start_emoji)
+            msg = await event.edit('❄️')
             ping_time = round((time.time() - start_time) * 1000, 2)
 
             uptime_str = format_uptime(time.time() - kernel.start_time)
@@ -115,38 +129,54 @@ def register(kernel):
             system_user = getpass.getuser()
             hostname = socket.gethostname()
 
-            info_template = kernel.config.get('info_text', """💠 <b>Mitritch UserBot</b>
-<blockquote>🌩️ <b>Version:</b> <code>{version}</code>
-{update_status}</blockquote>
+            info_text = f"""💠 <b>Mitritch UserBot</b>
+<blockquote>🌩️ <b>Version:</b> <code>{kernel.VERSION}</code>
+{'💔 <b>An update is needed</b>' if update_needed else '🔮 <b>No update needed</b>'}</blockquote>
 
 <blockquote>📡 <b>Ping:</b> <code>{ping_time} ms</code>
-🧪 <b>Uptime:</b> <code>{uptime}</code>
+🧪 <b>Uptime:</b> <code>{uptime_str}</code>
 🔬 <b>System:</b> {distro_name} {distro_emoji}
 🧬 <b>Platform:</b> <code>{platform_type}</code></blockquote>
 
 <blockquote>🔷 <b>CPU:</b> <i>~{cpu_usage}</i>
-🔶 <b>RAM:</b> <i>~{ram_usage}</i></blockquote>""")
-
-            update_status = '💔 <b>An update is needed</b>' if update_needed else '🔮 <b>No update needed</b>'
-
-            info_text = info_template.format(
-                version=kernel.VERSION,
-                update_status=update_status,
-                ping_time=ping_time,
-                uptime=uptime_str,
-                distro_name=distro_name,
-                distro_emoji=distro_emoji,
-                platform_type=platform_type,
-                cpu_usage=cpu_usage,
-                ram_usage=ram_usage,
-                user=system_user,
-                hostname=hostname
-            )
+🔶 <b>RAM:</b> <i>~{ram_usage}</i></blockquote>"""
 
             banner_url = kernel.config.get('info_banner_url')
-
             quote_media = kernel.config.get('info_quote_media', False)
             invert_media = kernel.config.get('info_invert_media', False)
+
+
+            if quote_media and banner_url and banner_url.startswith(('http://', 'https://')):
+                try:
+                    text, entities = await client._parse_message_text(info_text, 'html')
+                    text, entities = add_link_preview(text, entities, banner_url)
+
+                    await msg.delete()
+
+                    try:
+                        await client.send_message(
+                            entity=await event.get_input_chat(),
+                            message=text,
+                            formatting_entities=entities,
+                            link_preview=True,
+                            invert_media=invert_media
+                        )
+                        return
+                    except TypeError as e:
+                        if "invert_media" in str(e):
+                            await client(functions.messages.SendMessageRequest(
+                                peer=await event.get_input_chat(),
+                                message=text,
+                                entities=entities,
+                                invert_media=invert_media,
+                                no_webpage=False
+                            ))
+                            return
+                        else:
+                            raise
+
+                except Exception as e:
+                    await kernel.handle_error(e, source="info_cmd:quote_mode", event=event)
 
             has_banner = False
             if banner_url:
@@ -177,45 +207,15 @@ def register(kernel):
 
             if has_banner and banner_url:
                 await msg.delete()
-                banner_sent = False
-
-                if quote_media and banner_url.startswith(('http://', 'https://')):
-                    try:
-                        banner = InputMediaWebPage(
-                            banner_url,
-                            force_large_media=True,
-                            force_small_media=False
-                        )
-                        await event.respond(
-                            info_text,
-                            file=banner,
-                            parse_mode='html',
-                            invert_media=invert_media
-                        )
-                        banner_sent = True
-                    except Exception as e:
-                        try:
-                            await event.respond(
-                                info_text,
-                                file=banner_url,
-                                parse_mode='html'
-                            )
-                            banner_sent = True
-                        except Exception as e2:
-                            pass
-                else:
-                    try:
-                        await event.respond(
-                            info_text,
-                            file=banner_url,
-                            parse_mode='html'
-                        )
-                        banner_sent = True
-                    except Exception as e:
-                        pass
-
-                if not banner_sent:
+                try:
+                    await event.respond(
+                        info_text,
+                        file=banner_url,
+                        parse_mode='html'
+                    )
+                except Exception as e:
                     await event.respond(info_text, parse_mode='html')
+                    await kernel.handle_error(e, source="info_cmd:send_banner", event=event)
             else:
                 await msg.edit(info_text, parse_mode='html')
 

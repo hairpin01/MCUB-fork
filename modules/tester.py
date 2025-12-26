@@ -1,5 +1,5 @@
 # author: @Hairpin00
-# version: 1.0.3
+# version: 1.0.4
 # description: тестированье, ping, logs...
 
 import asyncio
@@ -8,25 +8,49 @@ import time
 import json
 import getpass
 import socket
-from telethon import events
-from telethon.tl.types import InputMediaWebPage
+from telethon.tl.types import MessageEntityTextUrl, InputMediaWebPage
+from telethon import functions, types
+
+ZERO_WIDTH_CHAR = "\u2060"
+
+def add_link_preview(text, entities, link):
+
+    if not text or not link:
+        return text, entities
+
+    new_text = ZERO_WIDTH_CHAR + text
+
+    new_entities = []
+
+    if entities:
+        for entity in entities:
+            new_entity = entity
+            if hasattr(entity, 'offset'):
+                new_entity.offset += 1
+            new_entities.append(new_entity)
+
+    link_entity = MessageEntityTextUrl(
+        offset=0,
+        length=1,
+        url=link
+    )
+
+    new_entities.append(link_entity)
+
+    return new_text, new_entities
 
 def register(kernel):
     client = kernel.client
 
-    kernel.config.setdefault('ping_initial_emoji', '❄️')
-    kernel.config.setdefault('ping_text', '''<blockquote>❄️ <b>ping:</b> {ping_time} ms</blockquote>
-<blockquote>❄️ <b>uptime:</b> {uptime}</blockquote>''')
-    kernel.config.setdefault('ping_banner_url', None)
     kernel.config.setdefault('ping_quote_media', False)
+    kernel.config.setdefault('ping_banner_url', 'https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/ping.png')
     kernel.config.setdefault('ping_invert_media', False)
 
     @kernel.register_command('ping')
     async def ping_handler(event):
         try:
-            start_emoji = kernel.config.get('ping_initial_emoji', '❄️')
             start_time = time.time()
-            msg = await event.edit(start_emoji)
+            msg = await event.edit('❄️')
             end_time = time.time()
             ping_time = round((end_time - start_time) * 1000, 2)
 
@@ -45,45 +69,69 @@ def register(kernel):
             system_user = getpass.getuser()
             hostname = socket.gethostname()
 
-            response_text = kernel.config.get('ping_text', '''<blockquote>❄️ <b>ping:</b> {ping_time} ms</blockquote>
-<blockquote>❄️ <b>uptime:</b> {uptime}</blockquote>''')
-
-            response = response_text.format(
-                ping_time=ping_time,
-                uptime=uptime,
-                user=system_user,
-                hostname=hostname
-            )
+            response = f"""<blockquote>❄️ <b>ping:</b> {ping_time} ms</blockquote>
+<blockquote>❄️ <b>uptime:</b> {uptime}</blockquote>"""
 
             banner_url = kernel.config.get('ping_banner_url')
             quote_media = kernel.config.get('ping_quote_media', False)
             invert_media = kernel.config.get('ping_invert_media', False)
 
+
+            if quote_media and banner_url and banner_url.startswith(('http://', 'https://')):
+                try:
+
+                    text, entities = await client._parse_message_text(response, 'html')
+
+                    text, entities = add_link_preview(text, entities, banner_url)
+
+                    await msg.delete()
+
+                    try:
+
+                        await client.send_message(
+                            entity=await event.get_input_chat(),
+                            message=text,
+                            formatting_entities=entities,
+                            link_preview=True,
+                            invert_media=invert_media
+                        )
+                        return
+                    except TypeError as e:
+                        if "invert_media" in str(e):
+
+                            await client(functions.messages.SendMessageRequest(
+                                peer=await event.get_input_chat(),
+                                message=text,
+                                entities=entities,
+                                invert_media=invert_media,
+                                no_webpage=False
+                            ))
+                            return
+                        else:
+                            raise
+
+                except Exception as e:
+                    await kernel.handle_error(e, source="ping:quote_mode", event=event)
+
+
+
             if banner_url:
                 await msg.delete()
                 banner_sent = False
 
-                if quote_media:
+
+                if os.path.exists(banner_url):
                     try:
-                        banner = InputMediaWebPage(banner_url, force_large_media=True, force_small_media=False)
                         await event.respond(
                             response,
-                            file=banner,
-                            parse_mode='html',
-                            invert_media=invert_media
+                            file=banner_url,
+                            parse_mode='html'
                         )
                         banner_sent = True
                     except Exception as e:
-                        try:
-                            await event.respond(
-                                response,
-                                file=banner_url,
-                                parse_mode='html'
-                            )
-                            banner_sent = True
-                        except Exception as e2:
-                            pass
+                        pass
                 else:
+
                     try:
                         await event.respond(
                             response,
@@ -95,10 +143,20 @@ def register(kernel):
                         pass
 
                 if not banner_sent:
-                    response += f"\n<a href='{banner_url}'>⁠⁠⁠⁠</a>"
-                    await event.respond(response, parse_mode='html')
+
+                    try:
+                        text, entities = await client._parse_message_text(response, 'html')
+                        text, entities = add_link_preview(text, entities, banner_url)
+                        await event.respond(
+                            text,
+                            formatting_entities=entities,
+                            parse_mode=None
+                        )
+                    except Exception as e:
+                        await event.respond(response, parse_mode='html')
             else:
                 await msg.edit(response, parse_mode='html')
+
         except Exception as e:
             await event.edit("🌩️ <b>Ошибка, смотри логи</b>", parse_mode='html')
             await kernel.handle_error(e, source="ping", event=event)

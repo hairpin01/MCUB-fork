@@ -151,12 +151,12 @@ def register(kernel):
     # загрузить модуль
     async def install_module_handler(event):
         if not event.is_reply:
-            await event.edit('❌ Ответьте на .py файл')
+            await event.edit('⛈️ Ответьте на .py файл')
             return
 
         reply = await event.get_reply_message()
         if not reply.document or not reply.document.attributes[0].file_name.endswith('.py'):
-            await event.edit('❌ Это не .py файл')
+            await event.edit('⛈️ Это не .py файл')
             return
 
         file_name = reply.document.attributes[0].file_name
@@ -184,9 +184,12 @@ def register(kernel):
 
             if 'from .. import' in code or 'import loader' in code:
                 await log_error_to_bot(f" Модуль {module_name} не совместим")
-                await msg.edit(f'❌ Модуль не совместим')
+                await msg.edit(f'⛈️ Модуль не совместим')
                 os.remove(file_path)
                 return
+
+            # Получаем метаданные из кода
+            metadata = await kernel.get_module_metadata(code)
 
             dependencies = []
             if 'requires' in code:
@@ -195,7 +198,7 @@ def register(kernel):
                     dependencies = [req.strip() for req in reqs[0].split(',')]
 
             if dependencies:
-                await msg.edit(f'{action} модуль <b>{module_name}</b>\n🔬 ставлю зависимости:\n{dependencies}', parse_mode='html')
+                await msg.edit(f'🪄 ставлю зависимости:\n{dependencies}', parse_mode='html')
                 for dep in dependencies:
                     subprocess.run(
                         [sys.executable, '-m', 'pip', 'install', dep],
@@ -210,18 +213,24 @@ def register(kernel):
 
             if success:
                 commands = get_module_commands(module_name, kernel)
-                cmd_text = f'🔶 {", ".join([f"<blockquote><code>{kernel.custom_prefix}{cmd}</code></blockquote>" for cmd in commands])}' if commands else '🔶 Нет команд'
 
                 emoji = random.choice(emojis)
 
-                final_msg = f'🧬 Модуль <b>{module_name}</b> загружен! {emoji}\n\n'
-                final_msg += cmd_text
+                final_msg = f'🧬 Модуль <b>{module_name}</b> загружен! {emoji}\n'
+                final_msg += f'📝 D: <i>{metadata["description"]}</i> | V: <code>{metadata["version"]}</code>\n'
+
+                if commands:
+                    final_msg += '<blockquote>'
+                    for cmd in commands:
+                        cmd_desc = metadata['commands'].get(cmd, '🫨 У команды нету описания')
+                        final_msg += f'🔶 <code>{kernel.custom_prefix}{cmd}</code> – <b>{cmd_desc}</b>\n'
+                    final_msg += '</blockquote>'
 
                 await log_to_bot(f" Модуль {module_name} установлен")
                 await msg.edit(final_msg, parse_mode='html')
             else:
-                await log_error_to_bot(f" Ошибка установки {module_name}: {message}")
-                await msg.edit(f'❌ Ошибка, смотри логи')
+                await log_to_bot(f"{module_name}: {message}")
+                await msg.edit(f'⛈️ Ошибка, смотри логи')
                 if os.path.exists(file_path):
                     os.remove(file_path)
 
@@ -242,44 +251,64 @@ def register(kernel):
             if os.path.exists(file_path):
                 os.remove(file_path)
         except Exception as e:
-            await log_error_to_bot(f" Критическая ошибка при установке {module_name}: {str(e)}")
-            await msg.edit(f'❌ Ошибка, смотри логи')
+            await kernel.handle_error(e, source="install_module_handler(event)", event=event)
+            await msg.edit(f'⛈️ Ошибка, смотри логи')
             if os.path.exists(file_path):
                 os.remove(file_path)
 
     @kernel.register_command('dlm')
-    # скачать из ссылки
     async def download_module_handler(event):
         args = event.text.split()
+
         if len(args) < 2:
-            await event.edit(f'❌ Использование: {kernel.custom_prefix}dlm название_модуля или ссылка')
+            await event.edit(f'⛈️ Использование: {kernel.custom_prefix}dlm [-send/-s] название_модуля или ссылка [номер_репозитория]')
             return
 
-        module_or_url = args[1]
+        send_mode = False
+        module_or_url = None
         repo_index = None
 
-        if len(args) > 2 and args[2].isdigit():
-            repo_index = int(args[2]) - 1
-
-        if module_or_url.startswith('http'):
-            if not module_or_url.endswith('.py'):
-                await event.edit('❌ Ссылка должна вести на .py файл')
+        if args[1] in ['-send', '-s']:
+            if len(args) < 3:
+                await event.edit(f'⛈️ Использование: {kernel.custom_prefix}dlm -send название_модуля или ссылка [номер_репозитория]')
                 return
-            module_name = os.path.basename(module_or_url)[:-3]
+            send_mode = True
+            module_or_url = args[2]
+            if len(args) > 3 and args[3].isdigit():
+                repo_index = int(args[3]) - 1
+        else:
+            module_or_url = args[1]
+            if len(args) > 2 and args[2].isdigit():
+                repo_index = int(args[2]) - 1
+            send_mode = False
+
+        is_url = False
+        if module_or_url.startswith(('http://', 'https://', 'raw.githubusercontent.com')):
             is_url = True
+            if module_or_url.endswith('.py'):
+                module_name = os.path.basename(module_or_url)[:-3]
+            else:
+                module_name = os.path.basename(module_or_url).split('?')[0]
+                if '.' in module_name:
+                    module_name = module_name.split('.')[0]
         else:
             module_name = module_or_url
-            is_url = False
 
         if module_name in kernel.system_modules:
             await event.edit(
-                f'🫨 <b>Ой, кажется ты попытался обновить системный модуль</b> <code>{module_name}</code>\n'
-                f'<blockquote><i>🚫 К сожалению нельзя обновлять системные модули с помощью <code>loadera</code></i></blockquote>',
+                f'🫨 <b>Ой, кажется ты попытался скачать системный модуль</b> <code>{module_name}</code>\n'
+                f'<blockquote><i>🚫 Системные модули нельзя скачивать через <code>dlm</code></i></blockquote>',
                 parse_mode='html'
             )
             return
 
-        action = "🧪 обновляю" if module_name in kernel.loaded_modules else "🧪 устанавливаю"
+        is_update = module_name in kernel.loaded_modules
+
+        if send_mode:
+            action = "📥 скачиваю"
+        else:
+            action = "🧪 обновляю" if is_update else "🧪 устанавливаю"
+
         msg = await event.edit(f'{action} модуль <b>{module_name}</b>', parse_mode='html')
 
         try:
@@ -287,14 +316,23 @@ def register(kernel):
             repo_url = None
 
             if is_url:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(module_or_url) as resp:
-                        if resp.status == 200:
-                            code = await resp.text()
-                        else:
-                            await log_error_to_bot(f" Не удалось скачать модуль по ссылке")
-                            await msg.edit(f'❌ Не удалось скачать модуль по ссылке')
-                            return
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(module_or_url) as resp:
+                            if resp.status == 200:
+                                code = await resp.text()
+                                if module_or_url.endswith('.py'):
+                                    save_name = module_name + '.py'
+
+                                    save_name = module_name + '.py'
+                            else:
+                                await log_error_to_bot(f" Не удалось скачать модуль по ссылке (статус: {resp.status})")
+                                await msg.edit(f'⛈️ Не удалось скачать модуль по ссылке (статус: {resp.status})')
+                                return
+                except Exception as e:
+                    await kernel.handle_error(e, source="install for url", event=event)
+                    await msg.edit(f'⛈️ Ошибка скачивания: {str(e)}')
+                    return
             else:
                 repos = [kernel.default_repo] + kernel.repositories
 
@@ -309,13 +347,36 @@ def register(kernel):
                             break
 
             if not code:
-                await log_error_to_bot(f" Модуль {module_name} не найден")
-                await msg.edit(f'❌ Модуль {module_name} не найден в репозиториях')
+                await msg.edit(f'⛈️ Модуль {module_name} не найден в репозиториях')
                 return
 
             metadata = await kernel.get_module_metadata(code)
 
             file_path = os.path.join(kernel.MODULES_LOADED_DIR, f'{module_name}.py')
+
+            if send_mode:
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(code)
+
+                await msg.edit(f'📤 Отправляю модуль <b>{module_name}</b>...', parse_mode='html')
+                await event.delete()
+
+                await client.send_file(
+                    event.chat_id,
+                    file_path,
+                    caption=f'📦 Модуль: <code>{module_name}.py</code>\n'
+                        f'📝 <b>описание:</b> <i>{metadata["description"]}</i>\n'
+                        f'🔭 <b>версия:</b> <code>{metadata["version"]}</code>\n'
+                        f'👤 <b>автор:</b> <i>{metadata["author"]}</i>\n'
+                        f'💾 Размер: <code>{os.path.getsize(file_path)} байт</code>',
+                    parse_mode='html'
+                )
+
+
+                os.remove(file_path)
+
+                await log_to_bot(f"✅ Модуль {module_name} отправлен в чат")
+                return
 
             dependencies = []
             if 'requires' in code:
@@ -324,7 +385,7 @@ def register(kernel):
                     dependencies = [req.strip() for req in reqs[0].split(',')]
 
             if dependencies:
-                await msg.edit(f'🔬 ставлю зависимости:\n{dependencies}', parse_mode='html')
+                await msg.edit(f'🪄 ставлю зависимости:\n{dependencies}', parse_mode='html')
                 for dep in dependencies:
                     subprocess.run(
                         [sys.executable, '-m', 'pip', 'install', dep],
@@ -332,7 +393,7 @@ def register(kernel):
                         text=True
                     )
 
-            if module_name in kernel.loaded_modules:
+            if is_update:
                 kernel.unregister_module_commands(module_name)
 
             with open(file_path, 'w', encoding='utf-8') as f:
@@ -347,21 +408,22 @@ def register(kernel):
 
                 final_msg = f'🧬 Модуль <b>{module_name}</b> загружен! {emoji}\n'
                 final_msg += f'📝 D: <i>{metadata["description"]}</i> | V: <code>{metadata["version"]}</code>\n'
-                final_msg += '<blockquote expandable>'
-                if commands:
 
+                if commands:
+                    final_msg += '<blockquote>\n'
                     for cmd in commands:
                         cmd_desc = metadata['commands'].get(cmd, '🫨 У команды нету описания')
                         final_msg += f'🔶 <code>{kernel.custom_prefix}{cmd}</code> – <b>{cmd_desc}</b>\n'
+                    final_msg += '</blockquote>'
 
-                final_msg += '</blockquote>'
+                await log_to_bot(f"✅ Модуль {module_name} скачан")
                 await msg.edit(final_msg, parse_mode='html')
-
             else:
-                await log_error_to_bot(f"❌ Ошибка загрузки {module_name}: {message}")
-                await msg.edit(f'❌ Ошибка, смотри логи')
+                await log_error_to_bot(f"⛈️ Ошибка загрузки {module_name}: {message}")
+                await msg.edit(f'⛈️ Ошибка, смотри логи')
                 if os.path.exists(file_path):
                     os.remove(file_path)
+
         except CommandConflictError as e:
             if e.conflict_type == 'system':
                 await msg.edit(
@@ -379,9 +441,13 @@ def register(kernel):
             file_path = os.path.join(kernel.MODULES_LOADED_DIR, f'{module_name}.py')
             if os.path.exists(file_path):
                 os.remove(file_path)
+
         except Exception as e:
             await log_error_to_bot(f" Ошибка скачивания {module_name}: {str(e)}")
-            await msg.edit(f'❌ Ошибка, смотри логи')
+            await msg.edit(f'⛈️ Ошибка, смотри логи')
+            file_path = os.path.join(kernel.MODULES_LOADED_DIR, f'{module_name}.py')
+            if os.path.exists(file_path):
+                os.remove(file_path)
 
     @kernel.register_command('dlml')
     # список модулей из repo
@@ -420,7 +486,7 @@ def register(kernel):
                     else:
                         await client.send_message(event.chat_id, '❌ Каталог не найден')
         except Exception as e:
-            await log_error_to_bot(f" Ошибка каталога: {str(e)}")
+            await kernel.handle_error(e, source="catalog_handler", event=event)
             await client.send_message(event.chat_id, f'❌ Ошибка, смотри логи')
 
     @kernel.register_command('um')
@@ -490,19 +556,19 @@ def register(kernel):
 
         module_name = args[1]
 
-        if module_name in kernel.system_modules:
-            await event.edit(
-                f'🫨 <b>Ой, кажется ты попытался обновить системный модуль</b> <code>{module_name}</code>\n'
-                f'<blockquote><i>🚫 К сожалению нельзя обновлять системные модули с помощью <code>loadera</code></i></blockquote>',
-                parse_mode='html'
-            )
-            return
+        # if module_name in kernel.system_modules:
+        #     await event.edit(
+        #         f'🫨 <b>Ой, кажется ты попытался обновить системный модуль</b> <code>{module_name}</code>\n'
+        #         f'<blockquote><i>🚫 К сожалению нельзя обновлять системные модули с помощью <code>loadera</code></i></blockquote>',
+        #         parse_mode='html'
+        #     )
+        #     return
 
         if module_name not in kernel.loaded_modules:
             await event.edit(f'❌ Модуль {module_name} не найден')
             return
 
-        await log_to_bot(f"🔭 Перезагрузка модуля {module_name}")
+
 
         file_path = os.path.join(kernel.MODULES_LOADED_DIR, f'{module_name}.py')
 
@@ -528,7 +594,7 @@ def register(kernel):
             await log_to_bot(f"⚗️ Модуль {module_name} перезагружен")
             await msg.edit(f'🧬 Модуль <b>{module_name}</b> перезагружен! {emoji}\n\n{cmd_text}', parse_mode='html')
         else:
-            await log_error_to_bot(f"❌ Ошибка перезагрузки {module_name}: {message}")
+            await kernel.handle_error(e, source="reload_module_handler(event)", event=event)
             await msg.edit(f'❌ Ошибка, смотри логи')
 
     @kernel.register_command('convert')
@@ -577,7 +643,7 @@ def register(kernel):
             await event.edit(f'⚗️ Модуль конвертирован\n📦 Бэкап: {module_name}.py.backup')
 
         except Exception as e:
-            await log_error_to_bot(f"❌ Ошибка конвертации {module_name}: {str(e)}")
+            await kernel.handle_error(e, source="convert_module_handler", event=event)
             await event.edit(f'❌ Ошибка, смотри логи')
 
     @kernel.register_command('modules')
@@ -618,9 +684,9 @@ def register(kernel):
         success, message = await kernel.add_repository(url)
 
         if success:
-            await event.edit(f'🧬 {message}')
+            await event.edit(f' {message}')
         else:
-            await event.edit(f'⛈️ {message}')
+            await event.edit(f' {message}')
 
     @kernel.register_command('delrepo')
     # <id> удалить repo

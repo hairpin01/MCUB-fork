@@ -17,7 +17,7 @@
 
 `MCUB fork` это userbot и форк `MCUBFB` с улучшенным `api`, и с правильной структурой 
 > [!TIP]
-> Скоро будет `api documentation `
+> [api documentation](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md)
 
 ## Установка
 

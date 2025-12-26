@@ -2,15 +2,15 @@
 
 Table of Contents
 
-1. [Introduction](https://github.com/hairpin01/MCUB-fork/new/main#introduction)
-2. [Module Structure](https://github.com/hairpin01/MCUB-fork/new/main#module-structure)
-3. Kernel API Reference
-4. Command Registration
-5. Event Handlers
-6. Configuration Management
-7. Error Handling
-8. Best Practices
-9. Example Module
+1. [Introduction](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#introduction)
+2. [Module Structure]()
+3. [Kernel API Reference](https://github.com/hairpin01/MCUB-fork/edit/main/API_DOC.md#kernel-api-reference)
+4. [Command Registration](https://github.com/hairpin01/MCUB-fork/edit/main/API_DOC.md#command-registration)
+5. [Event Handlers](https://github.com/hairpin01/MCUB-fork/edit/main/API_DOC.md#event-handlers)
+6. [Configuration Management](https://github.com/hairpin01/MCUB-fork/edit/main/API_DOC.md#configuration-management)
+7. [Error Handling](https://github.com/hairpin01/MCUB-fork/edit/main/API_DOC.md#error-handling)
+8. [Best Practices](https://github.com/hairpin01/MCUB-fork/edit/main/API_DOC.md#best-practices)
+9. [Example Module](https://github.com/hairpin01/MCUB-fork/edit/main/API_DOC.md#example-module)
 
 ### Introduction
 

@@ -1,9 +1,22 @@
 # author: @Hairpin00
-# version: 1.0.1
+# version: 1.0.2
 # description: список модулей
 
 from telethon import events, Button
 import re
+
+# кастомные эмодзи
+CUSTOM_EMOJI = {
+    'crystal': '<tg-emoji emoji-id="5361837567463399422">🔮</tg-emoji>',
+    'dna': '<tg-emoji emoji-id="5404451992456156919">🧬</tg-emoji>',
+    'alembic': '<tg-emoji emoji-id="5379679518740978720">⚗️</tg-emoji>',
+    'snowflake': '<tg-emoji emoji-id="5431895003821513760">❄️</tg-emoji>',
+    'blocked': '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji>',
+    'pancake': '<tg-emoji emoji-id="5373004843210251169">🥞</tg-emoji>',
+    'confused': '<tg-emoji emoji-id="5249119354825487565">🫨</tg-emoji>',
+    'map': '<tg-emoji emoji-id="5472064286752775254">🗺️</tg-emoji>',
+    'tot': '<tg-emoji emoji-id="5085121109574025951">🫧</tg-emoji>'
+}
 
 def register(kernel):
     client = kernel.client
@@ -13,7 +26,7 @@ def register(kernel):
         system_modules = len(kernel.system_modules)
 
         if not search_term:
-            msg = f'<b>🔮 Модулей: </b><code>{user_modules}</code><b>. Системных: </b><code>{system_modules}</code>\n\n'
+            msg = f'{CUSTOM_EMOJI["crystal"]} <b>Модулей: </b><code>{user_modules}</code><b>. Системных: </b><code>{system_modules}</code>\n\n'
 
             if system_modules:
                 msg += '<blockquote expandable>'
@@ -66,19 +79,18 @@ def register(kernel):
             except:
                 metadata = {'commands': {}}
 
-            msg = f'<b>🧬 Модуль </b><code>{name}</code>:\n'
-            msg += f'⚗️ <b>D:</b> <i>{metadata["description"]}\n'
-            msg += f'❄️ <b>V:</b> <code>{metadata["version"]}</code>\n'
+            msg = f'{CUSTOM_EMOJI["dna"]} <b>Модуль </b><code>{name}</code>:\n'
+            msg += f'{CUSTOM_EMOJI["alembic"]} <b>D:</b> <i>{metadata["description"]}</i>\n'
+            msg += f'{CUSTOM_EMOJI["snowflake"]} <b>V:</b> <code>{metadata["version"]}</code>\n'
             msg += '<blockquote expandable>'
             if commands:
                 for cmd in commands:
-                    cmd_desc = metadata['commands'].get(cmd, '🫨 У команды нету описания')
-                    msg += f'<code>{kernel.custom_prefix}{cmd}</code> – <b>{cmd_desc}</b>\n'
+                    cmd_desc = metadata['commands'].get(cmd, f'{CUSTOM_EMOJI["confused"]} У команды нету описания')
+                    msg += f'{CUSTOM_EMOJI["tot"]} <code>{kernel.custom_prefix}{cmd}</code> – <b>{cmd_desc}</b>\n'
             else:
-                msg += '🚫 Команд не найдено\n'
+                msg += f'{CUSTOM_EMOJI["blocked"]} Команд не найдено\n'
             msg += '</blockquote>'
-            msg += f'\n<blockquote>🥞 <b>Автор:</b><i> {metadata["author"]}</blockquote></i>'
-
+            msg += f'\n<blockquote>{CUSTOM_EMOJI["pancake"]} <b>Автор:</b> <i>{metadata["author"]}</i></blockquote>'
 
             return msg
 
@@ -93,24 +105,23 @@ def register(kernel):
                         break
 
         if similar_modules:
-            msg = f'<b>🔮 Найденые модули: </b>:\n'
+            msg = f'{CUSTOM_EMOJI["crystal"]} <b>Найденые модули:</b>\n'
             msg += '<blockquote>'
             for name, typ, module in similar_modules[:5]:
                 commands = get_module_commands(name, kernel)
 
                 if commands:
                     cmd_text = ", ".join([f"<code>{kernel.custom_prefix}{cmd}</code>" for cmd in commands[:2]])
-
                     msg += f'<b>{name}:</b> {cmd_text}\n'
 
             msg += '</blockquote>'
 
             if len(similar_modules) > 5:
-                msg += f'... и ещё <code>{len(similar_modules)-5}</code>\n'
+                msg += f'... и ещё <code>{len(similar_modules)-5} </code>{CUSTOM_EMOJI["tot"]}\n'
 
-            msg += '\n<blockquote><i>точного совпадения не удалось найти</i> 🗺️</blockquote>'
+            msg += f'\n<blockquote><i>Точного совпадения не удалось найти</i> {CUSTOM_EMOJI["map"]}</blockquote>'
         else:
-            msg = f'<b>🔮 Модуль </b>:\n\n<blockquote>🚫 Модуль не найден</blockquote>'
+            msg = f'{CUSTOM_EMOJI["crystal"]} <b>Модуль:</b>\n<blockquote>{CUSTOM_EMOJI["blocked"]} Модуль не найден</blockquote>'
 
         return msg
 

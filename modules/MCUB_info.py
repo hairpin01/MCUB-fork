@@ -1,6 +1,7 @@
+# requires: telethon>=1.24
 # author: @Hairpin00
-# version: 1.0.9
-# description: Info userbot with improved quote mode
+# version: 1.0.10
+# description: info userbot with premium emoji support
 
 import asyncio
 import os
@@ -13,6 +14,39 @@ import socket
 from telethon.tl.types import MessageEntityTextUrl, InputMediaWebPage
 from telethon import functions, types
 from pathlib import Path
+
+# premium emoji dictionary
+CUSTOM_EMOJI = {
+    # distributions
+    'arch': '<tg-emoji emoji-id="5361837567463399422">🪩</tg-emoji>',
+    'ubuntu': '<tg-emoji emoji-id="5470088387048266598">🐉</tg-emoji>',
+    'mint': '<tg-emoji emoji-id="6021351236240938822">🚂</tg-emoji>',
+    'fedora': '<tg-emoji emoji-id="5888894642400795884">🛸</tg-emoji>',
+    'centos': '<tg-emoji emoji-id="5938472510755444126">🧪</tg-emoji>',
+
+    # platforms
+    'vds': '<tg-emoji emoji-id="5471952986970267163">🧩</tg-emoji>',
+    'wsl': '<tg-emoji emoji-id="5395325195542078574">🍀</tg-emoji>',
+    'termux': '<tg-emoji emoji-id="5300999883996536855">🌪️</tg-emoji>',
+
+    # info emoji
+    '💠': '<tg-emoji emoji-id="5404366668635865453">💠</tg-emoji>',
+    '🌩️': '<tg-emoji emoji-id="5134201302888219205">🌩️</tg-emoji>',
+    '💔': '<tg-emoji emoji-id="4915853119839011973">💔</tg-emoji>',
+    '🔮': '<tg-emoji emoji-id="5445259009311391329">🔮</tg-emoji>',
+    '📡': '<tg-emoji emoji-id="5289698618154955773">📡</tg-emoji>',
+    '🧪': '<tg-emoji emoji-id="5208536646932253772">🧪</tg-emoji>',
+    '🔬': '<tg-emoji emoji-id="4904936030232117798">🔬</tg-emoji>',
+    '🧬': '<tg-emoji emoji-id="5368513458469878442">🧬</tg-emoji>',
+    '🔷': '<tg-emoji emoji-id="5406786135382845849">🔷</tg-emoji>',
+    '🔶': '<tg-emoji emoji-id="5406792732452613826">🔶</tg-emoji>',
+
+    # error emoji
+    '🚫': '<tg-emoji emoji-id="5472267631979405211">🚫</tg-emoji>',
+    '⛔️': '<tg-emoji emoji-id="4918014360267260850">⛔️</tg-emoji>',
+    '❌': '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji>',
+    '⚠️': '<tg-emoji emoji-id="5904692292324692386">⚠️</tg-emoji>',
+}
 
 ZERO_WIDTH_CHAR = "\u2060"
 
@@ -99,12 +133,11 @@ def register(kernel):
                 pass
 
             distro_emojis = {
-                'arch': '❄️',
-                'ubuntu': '🟠',
-                'debian': '🔴',
-                'mint': '🌿',
-                'fedora': '🔵',
-                'centos': '🟢'
+                'arch': CUSTOM_EMOJI['arch'],
+                'ubuntu': CUSTOM_EMOJI['ubuntu'],
+                'mint': CUSTOM_EMOJI['mint'],
+                'fedora': CUSTOM_EMOJI['fedora'],
+                'centos': CUSTOM_EMOJI['centos']
             }
 
             distro_emoji = ''
@@ -114,11 +147,11 @@ def register(kernel):
                     distro_emoji = emoji
                     break
 
-            platform_type = "vds 🧩"
+            platform_type = f"vds {CUSTOM_EMOJI['vds']}"
             if 'microsoft' in platform.uname().release.lower():
-                platform_type = "wsl 🍀"
+                platform_type = f"wsl {CUSTOM_EMOJI['wsl']}"
             elif 'termux' in os.environ.get('PREFIX', ''):
-                platform_type = "Termux 🌪️"
+                platform_type = f"Termux {CUSTOM_EMOJI['termux']}"
 
             cpu_usage = f"{psutil.cpu_percent(interval=0.1)}%"
             ram = psutil.virtual_memory()
@@ -129,22 +162,21 @@ def register(kernel):
             system_user = getpass.getuser()
             hostname = socket.gethostname()
 
-            info_text = f"""💠 <b>Mitrich UserBot</b>
-<blockquote>🌩️ <b>Version:</b> <code>{kernel.VERSION}</code>
-{'💔 <b>An update is needed</b>' if update_needed else '🔮 <b>No update needed</b>'}</blockquote>
+            info_text = f"""{CUSTOM_EMOJI['💠']} <b>Mitrich UserBot</b>
+<blockquote>{CUSTOM_EMOJI['🌩️']} <b>Version:</b> <code>{kernel.VERSION}</code>
+{f"{CUSTOM_EMOJI['💔']} <b>An update is needed</b>" if update_needed else f"{CUSTOM_EMOJI['🔮']} <b>No update needed</b>"}</blockquote>
 
-<blockquote>📡 <b>Ping:</b> <code>{ping_time} ms</code>
-🧪 <b>Uptime:</b> <code>{uptime_str}</code>
-🔬 <b>System:</b> {distro_name} {distro_emoji}
-🧬 <b>Platform:</b> <code>{platform_type}</code></blockquote>
+<blockquote>{CUSTOM_EMOJI['📡']} <b>Ping:</b> <code>{ping_time} ms</code>
+{CUSTOM_EMOJI['🧪']} <b>Uptime:</b> <code>{uptime_str}</code>
+{CUSTOM_EMOJI['🔬']} <b>System:</b> {distro_name} {distro_emoji}
+{CUSTOM_EMOJI['🧬']} <b>Platform:</b> <code>{platform_type}</code></blockquote>
 
-<blockquote>🔷 <b>CPU:</b> <i>~{cpu_usage}</i>
-🔶 <b>RAM:</b> <i>~{ram_usage}</i></blockquote>"""
+<blockquote>{CUSTOM_EMOJI['🔷']} <b>CPU:</b> <i>~{cpu_usage}</i>
+{CUSTOM_EMOJI['🔶']} <b>RAM:</b> <i>~{ram_usage}</i></blockquote>"""
 
             banner_url = kernel.config.get('info_banner_url')
             quote_media = kernel.config.get('info_quote_media', False)
             invert_media = kernel.config.get('info_invert_media', False)
-
 
             if quote_media and banner_url and banner_url.startswith(('http://', 'https://')):
                 try:
@@ -220,5 +252,5 @@ def register(kernel):
                 await msg.edit(info_text, parse_mode='html')
 
         except Exception as e:
-            await event.edit("🌩️ <b>Ошибка, смотри логи</b>", parse_mode='html')
+            await event.edit(f"{CUSTOM_EMOJI['🌩️']} <b>Ошибка, смотри логи</b>", parse_mode='html')
             await kernel.handle_error(e, source="info_cmd", event=event)

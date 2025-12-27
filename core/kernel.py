@@ -338,32 +338,31 @@ class Kernel:
             self.clear_loading_module()
 
     async def send_with_emoji(self, chat_id, text, **kwargs):
+        """Универсальная отправка с поддержкой кастомных эмодзи"""
         if not self.emoji_parser or not self.emoji_parser.is_emoji_tag(text):
             return await self.client.send_message(chat_id, text, **kwargs)
 
         try:
             parsed_text, entities = self.emoji_parser.parse_to_entities(text)
 
-            clean_kwargs = {k: v for k, v in kwargs.items() if k != 'entities'}
-
-            from telethon.tl.functions.messages import SendMessageRequest
-
             input_peer = await self.client.get_input_entity(chat_id)
-
-            result = await self.client(SendMessageRequest(
-                peer=input_peer,
-                message=parsed_text,
+            result = await self.client.send_message(
+                input_peer,
+                parsed_text,
                 entities=entities,
-                no_webpage=clean_kwargs.get('link_preview', False),
-                silent=clean_kwargs.get('silent', False),
-                reply_to_msg_id=clean_kwargs.get('reply_to', None)
-            ))
+                **{k: v for k, v in kwargs.items() if k != 'entities'}
+            )
+            return result
+        except Exception as e:
+            self.cprint(f'{self.Colors.RED}❌ Ошибка отправки с эмодзи: {e}{self.Colors.RESET}')
+            fallback_text = self.emoji_parser.remove_emoji_tags(text)
+            return await self.client.send_message(chat_id, fallback_text, **kwargs)
 
             return await self.client.get_messages(chat_id, ids=[result.id])
 
         except Exception as e:
             self.cprint(f'{Colors.RED}❌ Ошибка отправки с эмодзи: {e}{Colors.RESET}')
-            fallback_text = self.emoji_parser.remove_emoji_tags(text)
+            fallback_text = EmojiParser.remove_emoji_tags(text) if self.emoji_parser else text
             return await self.client.send_message(chat_id, fallback_text, **kwargs)
 
     def format_with_emoji(self, text, entities):
@@ -377,7 +376,7 @@ class Kernel:
         """Извлекает метаданные из кода модуля"""
         metadata = {
             'author': 'неизвестен',
-            'version': '1.0.0',
+            'version': 'X.X.X',
             'description': 'описание отсутствует',
             'commands': {}
         }

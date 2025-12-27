@@ -75,7 +75,7 @@ class Kernel:
         self.BACKUP_FILE = 'userbot.py.backup'
         self.ERROR_FILE = 'crash.tmp'
         self.RESTART_FILE = 'restart.tmp'
-        self.MODULES_REPO = 'https://raw.githubusercontent.com/Mitrichdfklwhcluio/MCUBFB/main/modules_catalog'
+        self.MODULES_REPO = 'https://raw.githubusercontent.com/hairpin01/repo-MCUB-fork/main/'
         self.UPDATE_REPO = 'https://raw.githubusercontent.com/Mitrichdfklwhcluio/MCUBFB/main/'
 
         self.inline_handlers = {}

@@ -129,7 +129,7 @@ def register(kernel):
             system_user = getpass.getuser()
             hostname = socket.gethostname()
 
-            info_text = f"""💠 <b>Mitritch UserBot</b>
+            info_text = f"""💠 <b>Mitrich UserBot</b>
 <blockquote>🌩️ <b>Version:</b> <code>{kernel.VERSION}</code>
 {'💔 <b>An update is needed</b>' if update_needed else '🔮 <b>No update needed</b>'}</blockquote>
 

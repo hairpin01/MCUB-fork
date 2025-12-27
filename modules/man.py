@@ -93,19 +93,24 @@ def register(kernel):
                         break
 
         if similar_modules:
-            msg = f'<b>🔮 Модуль </b><code>{search_term}</code>:\n\n'
+            msg = f'<b>🔮 Найденые модули: </b>:\n'
+            msg += '<blockquote>'
             for name, typ, module in similar_modules[:5]:
                 commands = get_module_commands(name, kernel)
+
                 if commands:
                     cmd_text = ", ".join([f"<code>{kernel.custom_prefix}{cmd}</code>" for cmd in commands[:2]])
+
                     msg += f'<b>{name}:</b> {cmd_text}\n'
 
-            if len(similar_modules) > 5:
-                msg += f'... и ещё {len(similar_modules)-5}\n'
+            msg += '</blockquote>'
 
-            msg += '\n<i>точного совпадения не удалось найти</i> 🗺️'
+            if len(similar_modules) > 5:
+                msg += f'... и ещё <code>{len(similar_modules)-5}</code>\n'
+
+            msg += '\n<blockquote><i>точного совпадения не удалось найти</i> 🗺️</blockquote>'
         else:
-            msg = f'<b>🔮 Модуль </b><code>{search_term}</code>:\n\n🚫 Модуль не найден'
+            msg = f'<b>🔮 Модуль </b>:\n\n<blockquote>🚫 Модуль не найден</blockquote>'
 
         return msg
 

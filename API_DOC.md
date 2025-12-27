@@ -406,3 +406,107 @@ def register(kernel):
 5. Document any external dependencies in the metadata
 6. Keep modules focused on a single purpose
 7. Update configuration with kernel.save_config() after changes
+
+
+## How to use Premium Emoji in MCUB Modules
+> Premium Emoji Integration Guide for MCUB
+
+Overview:
+Telethon v1.24+ supports premium (custom) emoji using HTML-like tags. This guide
+explains how to implement them in MCUB modules.
+
+1. BASIC SYNTAX:
+   Use `<tg-emoji>` tag with emoji-id attribute:
+   
+   Format: `<tg-emoji emoji-id="DOCUMENT_ID">PLACEHOLDER</tg-emoji>`
+   
+   Example: `<tg-emoji emoji-id="5323463142775202324">🔴</tg-emoji>`
+
+2. COMPATIBILITY:
+   - Works with HTML parse_mode
+   - Telethon v1.24+ required
+   - Account must have Telegram Premium
+   - Placeholder emoji is shown to non-premium users
+
+3. IMPLEMENTATION STEPS:
+
+   Step 1: Add emoji dictionary at module top:
+   ```python
+   CUSTOM_EMOJI = {
+       'loading': '<tg-emoji emoji-id="5323463142775202324">🔴</tg-emoji>',
+       'success': '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji>',
+   }
+```
+
+Step 2: Use in messages with parse_mode='html':
+
+```python
+   await event.edit(
+       f'{CUSTOM_EMOJI["success"]} <b>Module loaded!</b>',
+       parse_mode='html'
+   )
+```
+
+Step 3: For editing messages, use kernel's helper:
+
+```python
+   if hasattr(kernel, 'edit_with_emoji'):
+       await kernel.edit_with_emoji(event, f'{CUSTOM_EMOJI["loading"]} Loading...')
+```
+
+1. FINDING EMOJI IDs:
+   Method 1: Use official Telegram app
+   · Send emoji to "Saved Messages"
+   · Fetch with Telethon and inspect message.entities
+   · Look for `MessageEntityCustomEmoji.document_id`
+   Method 2: Extract from existing message:
+   ```python
+     async for message in client.iter_messages(chat):
+         for entity in message.entities:
+             if isinstance(entity, MessageEntityCustomEmoji):
+                 print(f"ID: {entity.document_id}")
+   ```
+2. BEST PRACTICES:
+   · Store emoji IDs in configurable dictionary
+   · Provide fallback for non-premium users
+   · Test with `parse_mode='html'`
+   · Use consistent placeholder emoji (same visual meaning)
+3. EXAMPLE MODULE STRUCTURE:
+   ```python
+   CUSTOM_EMOJI = {
+       'check': '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji>',
+       'error': '<tg-emoji emoji-id="5370843963559254781">😖</tg-emoji>',
+   }
+   
+   def register(kernel):
+       @kernel.register_command('test')
+       async def test_handler(event):
+           await event.edit(
+               f'{CUSTOM_EMOJI["check"]} <b>Test successful!</b>',
+               parse_mode='html'
+           )
+   ```
+4. TROUBLESHOOTING:
+   Problem: Emoji not showing
+   Solution:
+   · Verify Telethon version >= 1.24
+   · Check `parse_mode='html'` is set
+   · Ensure account has Telegram Premium
+   · Verify document_id is correct
+   Problem: HTML tags not working
+   Solution:
+   · Use `<tg-emoji>` not `<emoji>` tag
+   · Escape HTML characters with `html.escape()`
+   · Test without emoji first
+5. ADVANCED USAGE:
+   · Combine with buttons and formatting
+   · Use in inline mode
+   · Cache emoji IDs for performance
+   · Create emoji picker module
+> [!TIP]
+> This documentation is for MCUB v1.0.2+ with Telethon v1.24+.
+> For older versions,use the legacy `<emoji document_id=...>` format.
+
+
+
+

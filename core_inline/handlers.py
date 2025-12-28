@@ -8,9 +8,23 @@ class InlineHandlers:
     def __init__(self, kernel, bot_client):
         self.kernel = kernel
         self.bot_client = bot_client
+
+    def check_admin(self, event):
+        return event.sender_id == getattr(self.kernel, 'ADMIN_ID', None)
     
     async def register_handlers(self):
         @self.bot_client.on(events.InlineQuery)
+        async def bot_callback_handler(event):
+            if event.data:
+                data_str = event.data.decode()
+                for pattern, handler in self.kernel.callback_handlers.items():
+                    if data_str.startswith(pattern):
+                        if not self.check_admin(event):
+                            await event.answer('❌ Эта кнопка не ваша', alert=True)
+                            return
+                        await handler(event)
+                        return
+
         async def inline_handler(event):
             query = event.text
             

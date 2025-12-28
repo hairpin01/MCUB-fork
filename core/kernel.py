@@ -670,6 +670,9 @@ class Kernel:
     def cprint(self, text, color=''):
         print(f'{color}{text}{Colors.RESET}')
 
+    def is_admin(self, user_id):
+        return hasattr(self, 'ADMIN_ID') and user_id == self.ADMIN_ID
+
     async def init_client(self):
         proxy = self.config.get('proxy')
         self.client = TelegramClient('user_session', self.API_ID, self.API_HASH, proxy=proxy)

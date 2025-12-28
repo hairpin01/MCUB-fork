@@ -100,16 +100,12 @@ def register(kernel):
             return False
 
     async def send_with_emoji(chat_id, text, **kwargs):
-        """Отправка сообщения с поддержкой кастомных эмодзи и HTML"""
         try:
-            # Если есть старый формат, преобразуем в новый
             if '<emoji' in text:
                 text = text.replace('<emoji document_id=', '<tg-emoji emoji-id=')
                 text = text.replace('</emoji>', '</tg-emoji>')
 
-            # Если есть кастомные эмодзи или HTML-теги
             if '<tg-emoji' in text or re.search(r'<[^>]+>', text):
-                # Используем HTML парсинг
                 parse_mode = kwargs.pop('parse_mode', 'html')
                 return await client.send_message(chat_id, text, parse_mode=parse_mode, **kwargs)
             else:
@@ -296,13 +292,13 @@ def register(kernel):
 
                 final_msg = f'{CUSTOM_EMOJI["success"]} <b>Модуль {module_name} загружен!</b> {emoji}\n'
                 final_msg += f'<blockquote>{CUSTOM_EMOJI["idea"]} <i>D: {metadata["description"]}</i> | V: <code>{metadata["version"]}</code></blockquote>'
-
+                final_msg += '<blockquote>'
                 if commands:
-                    final_msg += '<blockquote>'
+
                     for cmd in commands:
                         cmd_desc = metadata['commands'].get(cmd, f'{CUSTOM_EMOJI["no_cmd"]} У команды нету описания')
                         final_msg += f'{CUSTOM_EMOJI["crystal"]} <code>{kernel.custom_prefix}{cmd}</code> – <b>{cmd_desc}</b>\n'
-                        final_msg += '</blockquote>'
+                final_msg += '</blockquote>'
 
                 await log_to_bot(f"Модуль {module_name} установлен")
                 await edit_with_emoji(msg, final_msg)

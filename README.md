@@ -17,7 +17,7 @@
 
 `MCUB fork` это userbot и форк `MCUBFB` с улучшенным `api`, и с правильной структурой 
 > [!TIP]
-> Скоро будет `api documentation `
+> [api documentation](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md)
 
 ## Установка
 
@@ -63,6 +63,9 @@ python3 main.py
 
 Модули устанавливаются через команду `.im` (ответ на .py файл).
 Дириктория для модулей в `modules_loaded/`.
+
+## support?
+Чат в Telegram [*жмяк*](https://t.me/+LVnbdp4DNVE5YTFi)
 
 ## Офицальные репозиторий (`.dlml`)
 Установить: `.dlm` {название-модуля)

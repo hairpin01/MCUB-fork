@@ -1,30 +1,40 @@
+# requires: telethon>=1.24
 # author: @Hairpin00
-# version: 1.0.1
-# description: выполнить python код (будь аккуратен)
+# version: 1.0.2
+# description: выполнить python код с премиум эмодзи
+
 import html
 import traceback
 import sys
 import io
 import time
 
+# premium emoji dictionary
+CUSTOM_EMOJI = {
+    '🧿': '<tg-emoji emoji-id="5426900601101374618">🧿</tg-emoji>',
+    '❌': '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji>',
+    '🧬': '<tg-emoji emoji-id="5368513458469878442">🧬</tg-emoji>',
+    '💠': '<tg-emoji emoji-id="5404366668635865453">💠</tg-emoji>',
+}
+
 def register(kernel):
     client = kernel.client
-    
+
     @kernel.register_command('py')
     # python
     async def python_exec_handler(event):
         code = event.text[len(kernel.custom_prefix)+2:].strip()
-        
+
         if not code:
-            await event.edit(f"❌ Использование: `{kernel.custom_prefix}py код_на_python`")
+            await event.edit(f"{CUSTOM_EMOJI['❌']} Использование: `{kernel.custom_prefix}py код_на_python`")
             return
-        
+
         start_time = time.time()
-        
+
         old_stdout = sys.stdout
         old_stderr = sys.stderr
         sys.stdout = sys.stderr = output = io.StringIO()
-        
+
         local_vars = {
             'kernel': kernel,
             'client': client,
@@ -34,7 +44,7 @@ def register(kernel):
             'Button': __import__('telethon').Button,
             'events': __import__('telethon').events
         }
-        
+
         try:
             exec(f"async def __exec():\n    " + "\n    ".join(code.split('\n')), local_vars)
             result = await local_vars['__exec']()
@@ -43,21 +53,20 @@ def register(kernel):
                 complete += str(result)
         except Exception as e:
             complete = traceback.format_exc()
-        
+
         sys.stdout = old_stdout
         sys.stderr = old_stderr
-        
+
         end_time = time.time()
         elapsed = round((end_time - start_time) * 1000, 2)
-        
+
         code_display = html.escape(code[:1000]) + ("..." if len(code) > 1000 else "")
         complete_display = html.escape(complete[:2000]) + ("..." if len(complete) > 2000 else "")
-        
-        response = f"""🧿 <b>Код</b>
-<code>{code_display}</code>
-🧬 <b>Результат</b>
-<blockquote><code>{complete_display}</code></blockquote>
 
-<blockquote>💠 <i>Выполнено за</i> <code>{elapsed}ms</code></blockquote>"""
-        
+        response = f"""{CUSTOM_EMOJI['🧿']} <b>Код</b>
+<blockquote><code>{code_display}</code></blockquote>
+{CUSTOM_EMOJI['🧬']} <b>Результат</b>
+<blockquote><code>{complete_display}</code></blockquote>
+<blockquote>{CUSTOM_EMOJI['💠']} <i>Выполнено за</i> <code>{elapsed}ms</code></blockquote>"""
+
         await event.edit(response, parse_mode='html')

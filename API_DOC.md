@@ -11,6 +11,7 @@ Table of Contents
 > 7. [Error Handling](https://github.com/hairpin01/MCUB-fork/edit/main/API_DOC.md#error-handling)
 > 8. [Best Practices](https://github.com/hairpin01/MCUB-fork/edit/main/API_DOC.md#best-practices)
 > 9. [Example Module](https://github.com/hairpin01/MCUB-fork/edit/main/API_DOC.md#example-module)
+> 10. [how-to-use-premium-emoji-in-mcub-module](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#how-to-use-premium-emoji-in-mcub-modules)
 
 ### Introduction
 

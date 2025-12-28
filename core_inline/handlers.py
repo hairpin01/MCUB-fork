@@ -10,7 +10,18 @@ class InlineHandlers:
         self.bot_client = bot_client
 
     def check_admin(self, event):
-        return event.sender_id == getattr(self.kernel, 'ADMIN_ID', None)
+        try:
+            if not hasattr(self.kernel, 'ADMIN_ID'):
+                return False
+
+            sender_id = event.sender_id
+            is_admin = sender_id == self.kernel.ADMIN_ID
+
+            print(f"[DEBUG] Проверка админа: {sender_id} == {self.kernel.ADMIN_ID} = {is_admin}")
+            return is_admin
+        except Exception as e:
+            print(f"[DEBUG] Ошибка в check_admin: {e}")
+            return False
     
     async def register_handlers(self):
         @self.bot_client.on(events.InlineQuery)
@@ -34,7 +45,7 @@ class InlineHandlers:
                     await handler(event)
                     return
             
-            # Стандартные обработчики
+
             if query.startswith('2fa_'):
                 parts = query.split('_', 3)
                 if len(parts) >= 4:
@@ -152,23 +163,131 @@ class InlineHandlers:
         
         @self.bot_client.on(events.CallbackQuery)
         async def bot_callback_handler(event):
-            
-            if event.data:
-                data_str = event.data.decode()
+            try:
+
+                if not event.data:
+                    return
+
+                if isinstance(event.data, bytes):
+                    data_str = event.data.decode('utf-8')
+                else:
+                    data_str = str(event.data)
+
                 for pattern, handler in self.kernel.callback_handlers.items():
                     if data_str.startswith(pattern):
-                        await handler(event)
+
+                        if not self.check_admin(event):
+                            await event.answer('❌ Эта кнопка не ваша', alert=True)
+                            return
+
+                        try:
+                            await handler(event)
+                        except Exception as e:
+                            print(f"Ошибка в кастомном обработчике: {e}")
+                            import traceback
+                            traceback.print_exc()
                         return
-            
-            
-            from .keyboards import InlineKeyboards
-            keyboards = InlineKeyboards(self.kernel)
-            
-            if event.data == b'confirm_yes':
-                await keyboards.handle_confirm_yes(event)
-            elif event.data == b'confirm_no':
-                await keyboards.handle_confirm_no(event)
-            elif event.data.startswith(b'dlml_'):
-                await keyboards.handle_catalog_page(event)
-            elif event.data.startswith(b'page_'):
-                await keyboards.handle_custom_page(event)
+
+
+                from .keyboards import InlineKeyboards
+                keyboards = InlineKeyboards(self.kernel)
+
+
+                if not keyboards.check_admin(event):
+                    await event.answer('❌ Эта кнопка не ваша', alert=True)
+                    return
+
+
+                if data_str == 'confirm_yes':
+                    await keyboards.handle_confirm_yes(event)
+                elif data_str == 'confirm_no':
+                    await keyboards.handle_confirm_no(event)
+                elif data_str.startswith('dlml_'):
+                    await keyboards.handle_catalog_page(event)
+                elif data_str.startswith('page_'):
+                    await keyboards.handle_custom_page(event)
+                elif data_str.startswith('catalog_'):
+
+                    parts = data_str.split('_')
+                    if len(parts) >= 3:
+                        repo_index = int(parts[1])
+                        page = int(parts[2])
+
+                        from telethon import Button
+
+                        try:
+                            repos = [self.kernel.default_repo] + self.kernel.repositories
+
+                            if repo_index < 0 or repo_index >= len(repos):
+                                repo_index = 0
+
+                            repo_url = repos[repo_index]
+
+                            async with aiohttp.ClientSession() as session:
+                                async with session.get(f'{repo_url}/modules.ini') as resp:
+                                    if resp.status == 200:
+                                        modules_text = await resp.text()
+                                        modules = [line.strip() for line in modules_text.split('\n') if line.strip()]
+                                    else:
+                                        modules = []
+
+                                async with session.get(f'{repo_url}/name.ini') as resp:
+                                    if resp.status == 200:
+                                        repo_name = await resp.text()
+                                        repo_name = repo_name.strip()
+                                    else:
+                                        repo_name = repo_url.split('/')[-2] if '/' in repo_url else repo_url
+
+                            per_page = 8
+                            total_pages = (len(modules) + per_page - 1) // per_page
+
+                            if page < 1:
+                                page = 1
+                            if page > total_pages:
+                                page = total_pages
+
+                            start_idx = (page - 1) * per_page
+                            end_idx = start_idx + per_page
+                            page_modules = modules[start_idx:end_idx]
+
+                            if repo_index == 0:
+                                msg = f'<b>🌩️ Официальный репозиторий MCUB</b> <code>{repo_url}</code>\n\n'
+                            else:
+                                msg = f'<i>{repo_name}</i> <code>{repo_url}</code>\n\n'
+
+                            if page_modules:
+                                modules_text = " | ".join([f"<code>{m}</code>" for m in page_modules])
+                                msg += modules_text
+
+                            msg += f'\n\n📄 Страница {page}/{total_pages}'
+
+                            buttons = []
+                            nav_buttons = []
+
+                            if page > 1:
+                                nav_buttons.append(Button.inline('⬅️ Назад', f'catalog_{repo_index}_{page-1}'.encode()))
+
+                            if page < total_pages:
+                                nav_buttons.append(Button.inline('➡️ Вперёд', f'catalog_{repo_index}_{page+1}'.encode()))
+
+                            if nav_buttons:
+                                buttons.append(nav_buttons)
+
+                            if len(repos) > 1:
+                                repo_buttons = []
+                                for i in range(len(repos)):
+                                    repo_buttons.append(Button.inline(f'{i+1}', f'catalog_{i}_1'.encode()))
+                                buttons.append(repo_buttons)
+
+                            await event.edit(msg, buttons=buttons if buttons else None, parse_mode='html')
+
+                        except Exception as e:
+                            await event.answer(f'Ошибка: {str(e)[:50]}', alert=True)
+                else:
+                    print(f"Неизвестный callback: {data_str}")
+                    await event.answer('❌ Неизвестная команда', alert=True)
+
+            except Exception as e:
+                print(f"Критическая ошибка в bot_callback_handler: {e}")
+                import traceback
+                traceback.print_exc()

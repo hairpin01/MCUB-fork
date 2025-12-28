@@ -136,12 +136,12 @@ class InlineBot:
             
             await self.bot_client.start(bot_token=self.token)
             
-            from .handlers import InlineHandlers
-            handlers = InlineHandlers(self.kernel, self.bot_client)
-            await handlers.register_handlers()
+            # from .handlers import InlineHandlers
+            # handlers = InlineHandlers(self.kernel, self.bot_client)
+            # await handlers.register_handlers()
             
             print(f'{self.kernel.Colors.GREEN}✅ Инлайн-бот запущен @{self.username}{self.kernel.Colors.RESET}')
-            asyncio.create_task(self.bot_client.run_until_disconnected())
+            # asyncio.create_task(self.bot_client.run_until_disconnected())
             
         except Exception as e:
             print(f'{self.kernel.Colors.RED}❌ Ошибка запуска инлайн-бота: {str(e)}{self.kernel.Colors.RESET}')

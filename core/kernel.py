@@ -113,6 +113,10 @@ class Kernel:
         with open(self.CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(self.config, f, ensure_ascii=False, indent=2)
 
+    def save_config(self):
+        """Сохраняет конфигурацию в файл"""
+        with open(self.CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(self.config, f, ensure_ascii=False, indent=2)
 
     def set_loading_module(self, module_name, module_type):
         """Устанавливает текущий загружаемый модуль"""
@@ -840,11 +844,58 @@ class Kernel:
 
     async def setup_inline_bot(self):
         try:
-            from core_inline.bot import InlineBot
-            self.inline_bot = InlineBot(self)
-            await self.inline_bot.setup()
+            inline_bot_token = self.config.get('inline_bot_token')
+            if not inline_bot_token:
+                self.cprint(f'{Colors.YELLOW}⚠️ Инлайн-бот не настроен (отсутствует токен){Colors.RESET}')
+                return False
+
+            self.cprint(f'{Colors.BLUE}🔄 Запускаю инлайн-бота...{Colors.RESET}')
+
+
+            self.bot_client = TelegramClient(
+                'inline_bot_session',
+                self.API_ID,
+                self.API_HASH,
+                timeout=30
+            )
+
+
+            await self.bot_client.start(bot_token=inline_bot_token)
+
+            bot_me = await self.bot_client.get_me()
+            bot_username = bot_me.username
+
+
+            self.config['inline_bot_username'] = bot_username
+
+            with open(self.CONFIG_FILE, 'w', encoding='utf-8') as f:
+                json.dump(self.config, f, ensure_ascii=False, indent=2)
+
+            try:
+                import sys
+                import os
+                sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+                from core_inline.handlers import InlineHandlers
+                handlers = InlineHandlers(self, self.bot_client)
+                await handlers.register_handlers()
+
+                import asyncio
+                asyncio.create_task(self.bot_client.run_until_disconnected())
+
+                self.cprint(f'{Colors.GREEN}✅ Инлайн-бот запущен: {bot_username}{Colors.RESET}')
+                return True
+            except Exception as e:
+                self.cprint(f'{Colors.RED}❌ Ошибка регистрации обработчиков инлайн-бота: {str(e)}{Colors.RESET}')
+                import traceback
+                traceback.print_exc()
+                return False
+
         except Exception as e:
-            self.cprint(f'{Colors.YELLOW}⚠️ Инлайн-бот не запущен: {e}{Colors.RESET}')
+            self.cprint(f'{Colors.RED}❌ Инлайн-бот не запущен: {str(e)}{Colors.RESET}')
+            import traceback
+            traceback.print_exc()
+            return False
 
     async def run(self):
         if not self.load_or_create_config():

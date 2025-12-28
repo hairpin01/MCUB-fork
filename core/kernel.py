@@ -49,7 +49,7 @@ class CommandConflictError(Exception):
 
 class Kernel:
     def __init__(self):
-        self.VERSION = '1.0.1.7'
+        self.VERSION = '1.0.1.8'
         self.DB_VERSION = 2
         self.start_time = time.time()
         self.loaded_modules = {}
@@ -569,13 +569,32 @@ class Kernel:
         except:
             pass
 
+
+
+    async def get_thread_id(self, event):
+        if not event:
+            return None
+
+        thread_id = None
+
+        if hasattr(event, 'reply_to') and event.reply_to:
+            thread_id = getattr(event.reply_to, 'reply_to_top_id', None)
+
+        if not thread_id and hasattr(event, 'message'):
+            thread_id = getattr(event.message, 'reply_to_top_id', None)
+
+        return thread_id
+
     async def get_user_info(self, user_id):
         try:
-            user = await self.client.get_entity(user_id)
-            if user.first_name or user.last_name:
-                name = f"{user.first_name or ''} {user.last_name or ''}".strip()
-                return f"{name} (@{user.username or 'без username'})"
-            return f"ID: {user_id}"
+            entity = await self.client.get_entity(user_id)
+            if hasattr(entity, 'first_name') or hasattr(entity, 'last_name'):
+                name = f"{entity.first_name or ''} {entity.last_name or ''}".strip()
+                return f"{name} (@{entity.username or 'без username'})"
+            elif hasattr(entity, 'title'):
+                return f"{entity.title} (чат/канал)"
+            else:
+                return f"ID: {user_id}"
         except:
             return f"ID: {user_id}"
 
@@ -841,24 +860,27 @@ class Kernel:
 
         @self.client.on(events.NewMessage(outgoing=True))
         async def message_handler(event):
+            premium_emoji_telescope = '<tg-emoji emoji-id="5429283852684124412">🔭</tg-emoji>'
             try:
                 await self.process_command(event)
             except Exception as e:
                 await self.handle_error(e, source="message_handler", event=event)
 
                 try:
-                    await event.edit(f"🔭 <b>Ошибка, смотри логи</b>", parse_mode='html')
+                    await event.edit(f"{premium_emoji_telescope} <b>Ошибка, смотри логи</b>", parse_mode='html')
                 except:
                     pass
 
         self.cprint(f'{Colors.CYAN}The kernel is loaded{Colors.RESET}')
-
         if os.path.exists(self.RESTART_FILE):
             with open(self.RESTART_FILE, 'r') as f:
                 data = f.read().split(',')
                 if len(data) >= 3:
-                    chat_id, msg_id, restart_time = data[0], data[1], float(data[2])
+                    chat_id, msg_id, restart_time = int(data[0]), int(data[1]), float(data[2])
                     os.remove(self.RESTART_FILE)
+
+
+                    thread_id = int(data[3]) if len(data) >= 4 and data[3].isdigit() else None
 
                     kbl = round((modules_start_time - kernel_start_time) * 1000, 2)
                     mlfb = round((modules_end_time - modules_start_time) * 1000, 2)
@@ -866,31 +888,43 @@ class Kernel:
                     emojis = ['ಠ_ಠ', '( ཀ ʖ̯ ཀ)', '(◕‿◕✿)', '(つ･･)つ', '༼つ◕_◕༽つ', '(•_•)', '☜(ﾟヮﾟ☜)', '(☞ﾟヮﾟ)☞', 'ʕ•ᴥ•ʔ', '(づ￣ ³￣)づ']
                     emoji = random.choice(emojis)
 
+
+                    premium_emoji_alembic = '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>'
+                    premium_emoji_package = '<tg-emoji emoji-id="5399898266265475100">📦</tg-emoji>'
+
                     total_time = round((time.time() - restart_time) * 1000, 2)
 
                     if self.client.is_connected():
                         try:
+
                             await self.client.edit_message(
-                                int(chat_id),
-                                int(msg_id),
-                                f'⚗️ Перезагрузка <b>успешна!</b> {emoji}\n'
+                                chat_id,
+                                msg_id,
+                                f'{premium_emoji_alembic} Перезагрузка <b>успешна!</b> {emoji}\n'
                                 f'<i>но модули ещё загружаются...</i> <b>CLB:</b> <code>{total_time} ms</code>',
                                 parse_mode='html'
                             )
 
                             await asyncio.sleep(1)
 
-                            await self.client.delete_messages(int(chat_id), int(msg_id))
+                            await self.client.delete_messages(chat_id, msg_id)
+
+
+                            send_params = {}
+                            if thread_id:
+                                send_params['reply_to'] = thread_id
 
                             await self.client.send_message(
-                                int(chat_id),
-                                f'📦 Твой <b>MCUB</b> полностью загрузился!\n'
+                                chat_id,
+                                f'{premium_emoji_package} Твой <b>MCUB</b> полностью загрузился!\n'
                                 f'<blockquote><b>KBL:</b> <code>{kbl} ms</code>. <b>MLFB:</b> <code>{mlfb} ms</code>.</blockquote>',
-                                parse_mode='html'
+                                parse_mode='html',
+                                **send_params
                             )
                         except Exception as e:
                             self.cprint(f'{Colors.YELLOW}⚠️ Не удалось отправить сообщение о перезагрузке: {e}{Colors.RESET}')
-                            await self.handle_error(e, source="restart", event=event)
+                            await self.handle_error(e, source="restart")
+
                     else:
                         self.cprint(f'{Colors.YELLOW}⚠️ Не удалось отправить сообщение о перезагрузке: нет соединения{Colors.RESET}')
 

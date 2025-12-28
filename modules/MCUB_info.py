@@ -1,7 +1,7 @@
 # requires: telethon>=1.24
 # author: @Hairpin00
 # version: 1.0.10
-# description: info userbot with premium emoji support
+# description: info userbot with premium emoji and topic support
 
 import asyncio
 import os
@@ -117,7 +117,7 @@ def register(kernel):
     async def info_cmd(event):
         try:
             start_time = time.time()
-            msg = await event.edit('❄️')
+            msg = await event.edit(CUSTOM_EMOJI['🔮'], parse_mode='html')
             ping_time = round((time.time() - start_time) * 1000, 2)
 
             uptime_str = format_uptime(time.time() - kernel.start_time)
@@ -185,24 +185,50 @@ def register(kernel):
 
                     await msg.delete()
 
+                    # Проверяем, является ли чат супергруппой с топиками
+                    chat = await event.get_chat()
+                    reply_to = None
+                    if hasattr(chat, 'forum') and chat.forum and event.message.reply_to:
+                        reply_to = event.message.reply_to.reply_to_top_id or event.message.reply_to.reply_to_msg_id
+
                     try:
-                        await client.send_message(
-                            entity=await event.get_input_chat(),
-                            message=text,
-                            formatting_entities=entities,
-                            link_preview=True,
-                            invert_media=invert_media
-                        )
+                        if reply_to:
+                            await client.send_message(
+                                entity=await event.get_input_chat(),
+                                message=text,
+                                formatting_entities=entities,
+                                link_preview=True,
+                                invert_media=invert_media,
+                                reply_to=reply_to
+                            )
+                        else:
+                            await client.send_message(
+                                entity=await event.get_input_chat(),
+                                message=text,
+                                formatting_entities=entities,
+                                link_preview=True,
+                                invert_media=invert_media
+                            )
                         return
                     except TypeError as e:
                         if "invert_media" in str(e):
-                            await client(functions.messages.SendMessageRequest(
-                                peer=await event.get_input_chat(),
-                                message=text,
-                                entities=entities,
-                                invert_media=invert_media,
-                                no_webpage=False
-                            ))
+                            if reply_to:
+                                await client(functions.messages.SendMessageRequest(
+                                    peer=await event.get_input_chat(),
+                                    message=text,
+                                    entities=entities,
+                                    invert_media=invert_media,
+                                    no_webpage=False,
+                                    reply_to_msg_id=reply_to
+                                ))
+                            else:
+                                await client(functions.messages.SendMessageRequest(
+                                    peer=await event.get_input_chat(),
+                                    message=text,
+                                    entities=entities,
+                                    invert_media=invert_media,
+                                    no_webpage=False
+                                ))
                             return
                         else:
                             raise
@@ -240,13 +266,30 @@ def register(kernel):
             if has_banner and banner_url:
                 await msg.delete()
                 try:
-                    await event.respond(
-                        info_text,
-                        file=banner_url,
-                        parse_mode='html'
-                    )
+                    # Проверяем, является ли чат супергруппой с топиками
+                    chat = await event.get_chat()
+                    reply_to = None
+                    if hasattr(chat, 'forum') and chat.forum and event.message.reply_to:
+                        reply_to = event.message.reply_to.reply_to_top_id or event.message.reply_to.reply_to_msg_id
+
+                    if reply_to:
+                        await event.respond(
+                            info_text,
+                            file=banner_url,
+                            parse_mode='html',
+                            reply_to=reply_to
+                        )
+                    else:
+                        await event.respond(
+                            info_text,
+                            file=banner_url,
+                            parse_mode='html'
+                        )
                 except Exception as e:
-                    await event.respond(info_text, parse_mode='html')
+                    if reply_to:
+                        await event.respond(info_text, parse_mode='html', reply_to=reply_to)
+                    else:
+                        await event.respond(info_text, parse_mode='html')
                     await kernel.handle_error(e, source="info_cmd:send_banner", event=event)
             else:
                 await msg.edit(info_text, parse_mode='html')

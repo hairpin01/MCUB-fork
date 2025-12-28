@@ -16,17 +16,35 @@ def register(kernel):
 
     emojis = ['ಠ_ಠ', '( ཀ ʖ̯ ཀ)', '(◕‿◕✿)', '(つ･･)つ', '༼つ◕_◕༽つ', '(•_•)', '☜(ﾟヮﾟ☜)', '(☞ﾟヮﾟ)☞', 'ʕ•ᴥ•ʔ', '(づ￣ ³￣)づ']
 
+    PREMIUM_EMOJI = {
+        'telescope': '<tg-emoji emoji-id="5334904192622403796">🔭</tg-emoji>',
+        'alembic': '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>',
+        'package': '<tg-emoji emoji-id="5399898266265475100">📦</tg-emoji>',
+    }
+
+
     @kernel.register_command('restart')
-    # рестар
     async def restart_handler(event):
         emoji = random.choice(emojis)
-        msg = await event.edit(f'🔭 <i>Твой</i> <b>MCUB</b> перезагружается...', parse_mode='html')
+
+
+        thread_id = None
+        if event.reply_to:
+
+            thread_id = getattr(event.reply_to, 'reply_to_top_id', None) or getattr(event.reply_to, 'reply_to_msg_id', None)
+
+        msg = await event.edit(f'{PREMIUM_EMOJI["telescope"]} <i>Твой</i> <b>MCUB</b> перезагружается...', parse_mode='html')
+
         with open(kernel.RESTART_FILE, 'w') as f:
-            f.write(f'{event.chat_id},{msg.id},{time.time()}')
+            if thread_id:
+                f.write(f'{event.chat_id},{msg.id},{time.time()},{thread_id}')
+            else:
+                f.write(f'{event.chat_id},{msg.id},{time.time()}')
+
         os.execl(sys.executable, sys.executable, *sys.argv)
 
     @kernel.register_command('update')
-    # обновить userbot
+    # update userbot
     async def update_handler(event):
         msg = await event.edit('❄️')
 

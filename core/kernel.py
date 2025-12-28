@@ -676,7 +676,9 @@ class Kernel:
 
         try:
             await self.client.start(phone=self.PHONE)
-            self.cprint(f'{Colors.GREEN}MCUB ядро запущено{Colors.RESET}')
+            me = await self.client.get_me()
+            self.ADMIN_ID = me.id
+            self.cprint(f'{Colors.GREEN}MCUB ядро запущено.\nID: {me.id}{Colors.RESET}')
             return True
         except Exception as e:
             self.cprint(f'{Colors.RED}❌ Ошибка авторизации: {e}{Colors.RESET}')

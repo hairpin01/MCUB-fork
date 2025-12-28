@@ -588,6 +588,7 @@ class Kernel:
     async def get_user_info(self, user_id):
         try:
             entity = await self.client.get_entity(user_id)
+
             if hasattr(entity, 'first_name') or hasattr(entity, 'last_name'):
                 name = f"{entity.first_name or ''} {entity.last_name or ''}".strip()
                 return f"{name} (@{entity.username or 'без username'})"
@@ -595,7 +596,7 @@ class Kernel:
                 return f"{entity.title} (чат/канал)"
             else:
                 return f"ID: {user_id}"
-        except:
+        except Exception as e:
             return f"ID: {user_id}"
 
     def setup_config(self):

@@ -13,6 +13,18 @@ import subprocess
 import random
 from pathlib import Path
 try:
+    from utils.html_parser import parse_html
+    from utils.message_helpers import edit_with_html, reply_with_html, send_with_html
+    HTML_PARSER_AVAILABLE = True
+except ImportError:
+    HTML_PARSER_AVAILABLE = False
+
+# try:
+#     import telethon_patch
+# except:
+#     print("пач не загрузился")
+#     pass
+try:
     import io
     import html
     import socks
@@ -98,7 +110,18 @@ class Kernel:
         except ImportError:
             self.emoji_parser = None
             self.cprint(f'{Colors.YELLOW}The emoji parser is not loaded{Colors.RESET}')
-
+        if HTML_PARSER_AVAILABLE:
+            self.parse_html = parse_html
+            self.edit_with_html = lambda event, html: edit_with_html(self, event, html)
+            self.reply_with_html = lambda event, html: reply_with_html(self, event, html)
+            self.send_with_html = lambda chat_id, html: send_with_html(self, self.client, chat_id, html)
+            self.cprint(f'{Colors.GREEN}HTML парсер загружен{Colors.RESET}')
+        else:
+            self.parse_html = None
+            self.edit_with_html = None
+            self.reply_with_html = None
+            self.send_with_html = None
+            self.cprint(f'{Colors.YELLOW}HTML парсер не загружен{Colors.RESET}')
 
         self.setup_directories()
         self.load_or_create_config()
@@ -263,12 +286,22 @@ class Kernel:
         """Регистрация обработчика callback-кнопок"""
         if not hasattr(self, 'callback_handlers'):
             self.callback_handlers = {}
-        self.callback_handlers[pattern] = handler
 
-        if self.client:
-            @self.client.on(events.CallbackQuery(pattern=pattern.encode()))
-            async def callback_wrapper(event):
-                await handler(event)
+        try:
+            # Убедимся, что pattern - bytes
+            if isinstance(pattern, str):
+                pattern = pattern.encode()
+            self.callback_handlers[pattern] = handler
+
+            if self.client:
+                @self.client.on(events.CallbackQuery(data=pattern))
+                async def callback_wrapper(event):
+                    try:
+                        await handler(event)
+                    except Exception as e:
+                        await self.handle_error(e, source="callback_handler", event=event)
+        except Exception as e:
+            self.cprint(f'{self.Colors.RED}❌ Ошибка регистрации callback: {e}{self.Colors.RESET}')
 
     async def log_network(self, message):
         """Логирование сетевых событий"""
@@ -678,17 +711,41 @@ class Kernel:
         return hasattr(self, 'ADMIN_ID') and user_id == self.ADMIN_ID
 
     async def init_client(self):
+        from telethon.sessions import SQLiteSession
+
         proxy = self.config.get('proxy')
-        self.client = TelegramClient('user_session', self.API_ID, self.API_HASH, proxy=proxy)
+
+        # Используем SQLiteSession для лучшей совместимости
+        self.client = TelegramClient(
+            SQLiteSession('user_session'),
+            self.API_ID,
+            self.API_HASH,
+            proxy=proxy,
+            connection_retries=5,
+            request_retries=5,
+            flood_sleep_threshold=60
+        )
+
+        # Установим более агрессивные настройки для избежания ошибок
+        self.client._log['telethon.network'] = False
+        self.client._log['telethon.extensions'] = False
 
         try:
             await self.client.start(phone=self.PHONE)
+
+            if not await self.client.is_user_authorized():
+                self.cprint(f'{Colors.RED}❌ Ошибка авторизации{Colors.RESET}')
+                return False
+
             me = await self.client.get_me()
             self.ADMIN_ID = me.id
-            self.cprint(f'{Colors.GREEN}MCUB ядро запущено.\nID: {me.id}{Colors.RESET}')
+            self.cprint(f'{Colors.GREEN}✅ MCUB ядро запущено. ID: {me.id}{Colors.RESET}')
             return True
+
         except Exception as e:
             self.cprint(f'{Colors.RED}❌ Ошибка авторизации: {e}{Colors.RESET}')
+            import traceback
+            traceback.print_exc()
             return False
 
     async def load_system_modules(self):
@@ -902,6 +959,13 @@ class Kernel:
             if not self.first_time_setup():
                 self.cprint(f'{Colors.RED}❌ Не удалось настроить юзербот{Colors.RESET}')
                 return
+
+        import telethon.errors
+        from telethon import TelegramClient
+
+        import logging
+        logging.basicConfig(level=logging.WARNING)
+
 
         kernel_start_time = time.time()
 

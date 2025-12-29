@@ -16,11 +16,6 @@ def register(kernel):
             await event.edit(f'❌ Использование: {kernel.custom_prefix}prefix [символ]')
             return
 
-        new_prefix = args[1]
-        if len(new_prefix) != 1:
-            await event.edit('❌ Префикс должен быть одним символом')
-            return
-
         kernel.custom_prefix = new_prefix
         kernel.config['command_prefix'] = new_prefix
 

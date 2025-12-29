@@ -29,7 +29,7 @@ def register(kernel):
             msg = f'{CUSTOM_EMOJI["crystal"]} <b>Модулей: </b><code>{user_modules}</code><b>. Системных: </b><code>{system_modules}</code>\n\n'
 
             if system_modules:
-                msg += '<blockquote expandable>'
+                msg += '<blockquote exp>'
                 for name in sorted(kernel.system_modules.keys()):
                     commands = get_module_commands(name, kernel)
                     if commands:
@@ -40,7 +40,7 @@ def register(kernel):
                 msg += '</blockquote>\n'
 
             if user_modules:
-                msg += '<blockquote expandable>'
+                msg += '<blockquote exp>'
                 for name in sorted(kernel.loaded_modules.keys()):
                     commands = get_module_commands(name, kernel)
                     if commands:

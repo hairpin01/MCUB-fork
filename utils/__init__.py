@@ -1,10 +1,13 @@
-"""
-Utils package for MCUB
-"""
-# author: @Hairpin00
-# version: 1.0.0
-# description: init
+from .html_parser import MCUBHTMLParser, parse_html, escape_html
+from .message_helpers import edit_with_html, reply_with_html, send_with_html
+from .emoji_parser import EmojiParser
 
-from .emoji_parser import EmojiParser, emoji_parser
-
-__all__ = ['EmojiParser', 'emoji_parser']
+__all__ = [
+    'MCUBHTMLParser',
+    'parse_html',
+    'escape_html',
+    'edit_with_html',
+    'reply_with_html',
+    'send_with_html',
+    'EmojiParser'
+]

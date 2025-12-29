@@ -29,9 +29,9 @@ git clone https://github.com/hairpin01/MCUB-fork.git && cd MCUB-fork ; pip insta
 
 1. Получите `API_ID` и `API_HASH` на https://my.telegram.org
 
-2. Запустите main.py
+2. Запустите MCUB.py
 ```shell
-python3 main.py
+python3 MCUB.py
 ```
 3. Заполните:
    - `api_id` - ваш API ID

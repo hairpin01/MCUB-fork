@@ -291,7 +291,7 @@ def register(kernel):
                 emoji = random.choice(RANDOM_EMOJIS)
 
                 final_msg = f'{CUSTOM_EMOJI["success"]} <b>Модуль {module_name} загружен!</b> {emoji}\n'
-                final_msg += f'<blockquote>{CUSTOM_EMOJI["idea"]} <i>D: {metadata["description"]}</i> | V: <code>{metadata["version"]}</code></blockquote>'
+                final_msg += f'<blockquote>{CUSTOM_EMOJI["idea"]} <i>D: {metadata["description"]}</i> | V: <code>{metadata["version"]}</code></blockquote>\n'
                 final_msg += '<blockquote>'
                 if commands:
 
@@ -439,8 +439,8 @@ def register(kernel):
     
         if module_name in kernel.system_modules:
             await edit_with_emoji(event,
-                f'{CUSTOM_EMOJI["confused"]} <b>Ой, кажется ты попытался скачать системный модуль</b> <code>{module_name}</code>\n'
-                f'<blockquote><i>{CUSTOM_EMOJI["blocked"]} Системные модули нельзя скачивать через <code>dlm</code></i></blockquote>'
+                f'{CUSTOM_EMOJI["confused"]} <b>Ой, кажется ты попытался установить системный модуль</b> <code>{module_name}</code>\n'
+                f'<blockquote><i>{CUSTOM_EMOJI["blocked"]} Системные модули нельзя устанавливать через <code>dlm</code></i></blockquote>'
             )
             return
     
@@ -552,7 +552,7 @@ def register(kernel):
                 emoji = random.choice(RANDOM_EMOJIS)
     
                 final_msg = f'{CUSTOM_EMOJI["success"]} <b>Модуль {module_name} загружен!</b> {emoji}\n'
-                final_msg += f'<blockquote>📝 <i>D: {metadata["description"]}</i> | V: <code>{metadata["version"]}</code></blockquote>'
+                final_msg += f'<blockquote>📝 <i>D: {metadata["description"]}</i> | V: <code>{metadata["version"]}</code></blockquote>\n'
     
                 if commands:
                     final_msg += '<blockquote>'

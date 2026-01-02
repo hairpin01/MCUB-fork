@@ -16,6 +16,7 @@ def register(kernel):
             await event.edit(f'❌ Использование: {kernel.custom_prefix}prefix [символ]')
             return
 
+        new_prefix = args[1]
         kernel.custom_prefix = new_prefix
         kernel.config['command_prefix'] = new_prefix
 

@@ -1,5 +1,5 @@
 # author: @Hairpin00
-# version: 1.0.1.7
+# version: 1.0.1.9
 # description: kernel core
 # Спасибо @Mitrichq за основу юзербота
 # Лицензия? какая лицензия ещё
@@ -12,13 +12,16 @@ import json
 import subprocess
 import random
 from pathlib import Path
-
+import logging
+from logging.handlers import RotatingFileHandler
+import aiosqlite
+from contextlib import asynccontextmanager
 try:
     from utils.html_parser import parse_html
     from utils.message_helpers import edit_with_html, reply_with_html, send_with_html, send_file_with_html
     HTML_PARSER_AVAILABLE = True
 except ImportError as e:
-    print(f"HTML парсер не загружен: {e}")
+    print(f"=X HTML парсер не загружен: {e}")
     HTML_PARSER_AVAILABLE = False
 
 # try:
@@ -35,13 +38,16 @@ try:
     import psutil
     import aiohttp
     import asyncio
-    from datetime import datetime
+    import aiosqlite
+    from collections import OrderedDict
+    from datetime import datetime, timedelta
     from telethon import TelegramClient, events, Button
     from telethon.errors import SessionPasswordNeededError
-except ImportError:
+except ImportError as e:
     print(
         "Установите зависимости",
-        "pip install -r requirements.txt"
+        "pip install -r requirements.txt",
+        f"{e}"
         )
 
 class Colors:
@@ -62,9 +68,75 @@ class CommandConflictError(Exception):
         self.command = command
 
 
+class TTLCache:
+    def __init__(self, max_size=1000, ttl=300):
+        from collections import OrderedDict
+        self.cache = OrderedDict()
+        self.max_size = max_size
+        self.ttl = ttl
+
+    def set(self, key, value, ttl=None):
+        from collections import OrderedDict
+        expire_time = time.time() + (ttl if ttl is not None else self.ttl)
+        self.cache[key] = (expire_time, value)
+        if len(self.cache) > self.max_size:
+            self.cache.popitem(last=False)
+
+    def get(self, key):
+        if key in self.cache:
+            expire_time, value = self.cache[key]
+            if time.time() < expire_time:
+                return value
+            else:
+                del self.cache[key]
+        return None
+
+    def clear(self):
+        self.cache.clear()
+
+    def size(self):
+        return len(self.cache)
+
+
+class TaskScheduler:
+    def __init__(self, kernel):
+        self.kernel = kernel
+        self.tasks = []
+        self.running = False
+
+    async def add_interval_task(self, func, interval_seconds):
+        async def wrapper():
+            while True:
+                await asyncio.sleep(interval_seconds)
+                try:
+                    await func()
+                except Exception as e:
+                    self.kernel.log_error(f"Task error: {e}")
+
+        task = asyncio.create_task(wrapper())
+        self.tasks.append(task)
+
+    async def add_daily_task(self, func, hour, minute):
+        async def wrapper():
+            while True:
+                now = datetime.now()
+                target = now.replace(hour=hour, minute=minute, second=0)
+                if now > target:
+                    target += timedelta(days=1)
+
+                delay = (target - now).total_seconds()
+                await asyncio.sleep(delay)
+                await func()
+
+        task = asyncio.create_task(wrapper())
+        self.tasks.append(task)
+
+
+
+
 class Kernel:
     def __init__(self):
-        self.VERSION = '1.0.1.8'
+        self.VERSION = '1.0.1.9'
         self.DB_VERSION = 2
         self.start_time = time.time()
         self.loaded_modules = {}
@@ -81,7 +153,8 @@ class Kernel:
         self.shutdown_flag = False
         self.power_save_mode = False
         self.Colors = Colors
-
+        self.db_conn = None
+        self.cache = TTLCache(max_size=500, ttl=600)
         self.MODULES_DIR = 'modules'
         self.MODULES_LOADED_DIR = 'modules_loaded'
         self.IMG_DIR = 'img'
@@ -109,11 +182,11 @@ class Kernel:
         try:
             from utils.emoji_parser import emoji_parser
             self.emoji_parser = emoji_parser
-            self.cprint(f'{Colors.GREEN}The emoji parser is loaded{Colors.RESET}')
+            self.cprint(f'{Colors.GREEN}=> The emoji parser is loaded{Colors.RESET}')
 
         except ImportError:
             self.emoji_parser = None
-            self.cprint(f'{Colors.YELLOW}The emoji parser is not loaded{Colors.RESET}')
+            self.cprint(f'{Colors.YELLOW}=X The emoji parser is not loaded{Colors.RESET}')
         if self.HTML_PARSER_AVAILABLE:
             try:
                 self.parse_html = parse_html
@@ -121,9 +194,9 @@ class Kernel:
                 self.reply_with_html = lambda event, html, **kwargs: reply_with_html(self, event, html, **kwargs)
                 self.send_with_html = lambda chat_id, html, **kwargs: send_with_html(self, self.client, chat_id, html, **kwargs)
                 self.send_file_with_html = lambda chat_id, html, file, **kwargs: send_file_with_html(self, self.client, chat_id, html, file, **kwargs)
-                self.cprint(f'{Colors.GREEN}HTML парсер загружен{Colors.RESET}')
+                self.cprint(f'{Colors.GREEN}=> HTML парсер загружен{Colors.RESET}')
             except Exception as e:
-                self.cprint(f'{Colors.RED}Ошибка инициализации HTML парсера: {e}{Colors.RESET}')
+                self.cprint(f'{Colors.RED}=X Ошибка инициализации HTML парсера: {e}{Colors.RESET}')
                 self.HTML_PARSER_AVAILABLE = False
 
         if not self.HTML_PARSER_AVAILABLE:
@@ -132,10 +205,266 @@ class Kernel:
             self.reply_with_html = None
             self.send_with_html = None
             self.send_file_with_html = None
-            self.cprint(f'{Colors.YELLOW}HTML парсер не загружен{Colors.RESET}')
+            self.cprint(f'{Colors.YELLOW}=X HTML парсер не загружен{Colors.RESET}')
 
         self.setup_directories()
         self.load_or_create_config()
+        self.logger = self.setup_logging()
+        self.middleware_chain = []
+        self.scheduler = None
+
+
+
+    async def init_scheduler(self):
+        """Инициализация планировщика задач"""
+        class SimpleScheduler:
+            def __init__(self, kernel):
+                self.kernel = kernel
+                self.tasks = []
+                self.running = True
+                self.task_counter = 0
+                self.task_registry = {}  # Реестр задач для управления
+
+            async def add_interval_task(self, func, interval_seconds, task_id=None):
+                """Добавление задачи с интервалом"""
+                if not self.running:
+                    return None
+
+                if task_id is None:
+                    task_id = f"task_{self.task_counter}"
+                    self.task_counter += 1
+
+                async def wrapper():
+                    while self.running and task_id in self.task_registry:
+                        await asyncio.sleep(interval_seconds)
+                        if not self.running or task_id not in self.task_registry:
+                            break
+                        try:
+                            await func()
+                        except Exception as e:
+                            self.kernel.log_error(f"Task {task_id} error: {e}")
+
+                task = asyncio.create_task(wrapper())
+                self.tasks.append(task)
+                self.task_registry[task_id] = {
+                    'task': task,
+                    'func': func,
+                    'interval': interval_seconds,
+                    'type': 'interval'
+                }
+                return task_id
+
+            async def add_daily_task(self, func, hour, minute, task_id=None):
+                """Добавление ежедневной задачи"""
+                if not self.running:
+                    return None
+
+                if task_id is None:
+                    task_id = f"daily_{self.task_counter}"
+                    self.task_counter += 1
+
+                async def wrapper():
+                    while self.running and task_id in self.task_registry:
+                        now = datetime.now()
+                        target = now.replace(hour=hour, minute=minute, second=0)
+                        if now > target:
+                            target += timedelta(days=1)
+
+                        delay = (target - now).total_seconds()
+                        if delay > 0:
+                            await asyncio.sleep(delay)
+
+                        if not self.running or task_id not in self.task_registry:
+                            break
+                        try:
+                            await func()
+                        except Exception as e:
+                            self.kernel.log_error(f"Task {task_id} error: {e}")
+
+                task = asyncio.create_task(wrapper())
+                self.tasks.append(task)
+                self.task_registry[task_id] = {
+                    'task': task,
+                    'func': func,
+                    'hour': hour,
+                    'minute': minute,
+                    'type': 'daily'
+                }
+                return task_id
+
+            async def add_task(self, func, delay_seconds, task_id=None):
+                """Добавление одноразовой задачи"""
+                if not self.running:
+                    return None
+
+                if task_id is None:
+                    task_id = f"once_{self.task_counter}"
+                    self.task_counter += 1
+
+                async def wrapper():
+                    await asyncio.sleep(delay_seconds)
+                    if not self.running or task_id not in self.task_registry:
+                        return
+                    try:
+                        await func()
+                    except Exception as e:
+                        self.kernel.log_error(f"Task {task_id} error: {e}")
+                    finally:
+                        self.cancel_task(task_id)
+
+                task = asyncio.create_task(wrapper())
+                self.tasks.append(task)
+                self.task_registry[task_id] = {
+                    'task': task,
+                    'func': func,
+                    'delay': delay_seconds,
+                    'type': 'once'
+                }
+                return task_id
+
+            def cancel_task(self, task_id):
+                """Отмена задачи по ID"""
+                if task_id in self.task_registry:
+                    task_info = self.task_registry[task_id]
+                    task_info['task'].cancel()
+                    # Удаляем из списков
+                    if task_info['task'] in self.tasks:
+                        self.tasks.remove(task_info['task'])
+                    del self.task_registry[task_id]
+                    return True
+                return False
+
+            def cancel_all_tasks(self):
+                """Отмена всех задач"""
+                self.running = False
+                for task_id in list(self.task_registry.keys()):
+                    self.cancel_task(task_id)
+
+            def get_tasks(self):
+                """Получение списка всех задач"""
+                return [
+                    {
+                        'id': task_id,
+                        'type': info['type'],
+                        'status': 'running' if info['task'].done() else 'stopped'
+                    }
+                    for task_id, info in self.task_registry.items()
+                ]
+
+        self.scheduler = SimpleScheduler(self)
+        self.cprint(f'{self.Colors.GREEN}=> Планировщик инициализирован{self.Colors.RESET}')
+
+    def add_middleware(self, middleware_func):
+        self.middleware_chain.append(middleware_func)
+
+    async def process_with_middleware(self, event, handler):
+        for middleware in self.middleware_chain:
+            result = await middleware(event, handler)
+            if result is False:
+                return False
+        return await handler(event)
+
+    async def get_module_config(self, module_name, default=None):
+        config_key = f"module_config_{module_name}"
+        config_json = await self.db_get('kernel', config_key)
+        if config_json:
+            return json.loads(config_json)
+        return default or {}
+
+    async def save_module_config(self, module_name, config):
+        config_key = f"module_config_{module_name}"
+        await self.db_set('kernel', config_key, json.dumps(config))
+
+
+    async def init_db(self):
+        """Инициализация базы данных."""
+        import aiosqlite
+        try:
+            self.db_conn = await aiosqlite.connect('userbot.db')
+            await self.create_tables()
+            self.cprint(f'{Colors.GREEN}=> База данных инициализирована{Colors.RESET}')
+            return True
+        except Exception as e:
+            self.cprint(f'{Colors.RED}=X Ошибка инициализации БД: {e}{Colors.RESET}')
+            return False
+
+    async def create_tables(self):
+        """Создание таблиц в БД."""
+        await self.db_conn.execute('''
+            CREATE TABLE IF NOT EXISTS module_data (
+                module TEXT,
+                key TEXT,
+                value TEXT,
+                PRIMARY KEY (module, key)
+            )
+        ''')
+        await self.db_conn.commit()
+
+    async def db_set(self, module, key, value):
+        """Store key-value pair for module."""
+        if not self.db_conn:
+            raise Exception("База данных не инициализирована")
+
+        await self.db_conn.execute(
+            'INSERT OR REPLACE INTO module_data VALUES (?, ?, ?)',
+            (module, key, str(value))
+        )
+        await self.db_conn.commit()
+
+    async def db_get(self, module, key):
+        """Retrieve value for module."""
+        if not self.db_conn:
+            raise Exception("База данных не инициализирована")
+
+        cursor = await self.db_conn.execute(
+            'SELECT value FROM module_data WHERE module = ? AND key = ?',
+            (module, key)
+        )
+        row = await cursor.fetchone()
+        return row[0] if row else None
+
+    async def db_delete(self, module, key):
+        """Delete key from module storage."""
+        if not self.db_conn:
+            raise Exception("База данных не инициализирована")
+
+        await self.db_conn.execute(
+            'DELETE FROM module_data WHERE module = ? AND key = ?',
+            (module, key)
+        )
+        await self.db_conn.commit()
+
+    async def db_query(self, query, parameters):
+        """Execute custom SQL query."""
+        if not self.db_conn:
+            raise Exception("База данных не инициализирована")
+
+        cursor = await self.db_conn.execute(query, parameters)
+        rows = await cursor.fetchall()
+        return rows
+
+
+    def setup_logging(self):
+        logger = logging.getLogger('kernel')
+        logger.setLevel(logging.INFO)
+
+        handler = RotatingFileHandler(
+            'logs/kernel.log',
+            maxBytes=10*1024*1024,
+            backupCount=5
+        )
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        return logger
+
+    def log_debug(self, message):
+        self.logger.debug(message)
+
+    def log_error(self, message):
+        self.logger.error(message)
 
     def load_repositories(self):
         """Загружает список репозиториев из конфига"""
@@ -987,18 +1316,24 @@ class Kernel:
             if not self.first_time_setup():
                 self.cprint(f'{Colors.RED}=X Не удалось настроить юзербот{Colors.RESET}')
                 return
-
         import telethon.errors
         from telethon import TelegramClient
 
         import logging
         logging.basicConfig(level=logging.WARNING)
-
-
+        await self.init_scheduler()
         kernel_start_time = time.time()
 
         if not await self.init_client():
             return
+
+        try:
+            await self.init_db()
+        except ImportError:
+            self.cprint(f'{Colors.YELLOW}Установите: pip install aiosqlite{Colors.RESET}')
+        except Exception as e:
+            self.cprint(f'{Colors.RED}=X Ошибка инициализации БД: {e}{Colors.RESET}')
+
 
         await self.setup_inline_bot()
 

@@ -9,7 +9,7 @@ from collections import deque
 from html import escape as html_escape
 from html.parser import HTMLParser
 from typing import Optional, Tuple, List, Dict, Any, Union
-
+from telethon.tl.types import MessageEntityCustomEmoji
 
 class TelegramHTMLParser(HTMLParser):
     """
@@ -222,35 +222,41 @@ class HTMLDecorator:
     @staticmethod
     def apply_entity(entity, text: str) -> str:
         """Apply a single entity to text, converting it to HTML tag."""
+        from telethon.tl.types import (
+            MessageEntityBold, MessageEntityItalic, MessageEntityUnderline,
+            MessageEntityStrike, MessageEntityCode, MessageEntityPre,
+            MessageEntitySpoiler, MessageEntityBlockquote, MessageEntityTextUrl,
+            MessageEntityEmail, MessageEntityCustomEmoji
+        )
 
         # Map entity types to HTML tags
-        if entity.__class__.__name__ == 'MessageEntityBold':
+        if isinstance(entity, MessageEntityBold):
             return f'<b>{text}</b>'
-        elif entity.__class__.__name__ == 'MessageEntityItalic':
+        elif isinstance(entity, MessageEntityItalic):
             return f'<i>{text}</i>'
-        elif entity.__class__.__name__ == 'MessageEntityUnderline':
+        elif isinstance(entity, MessageEntityUnderline):
             return f'<u>{text}</u>'
-        elif entity.__class__.__name__ == 'MessageEntityStrike':
+        elif isinstance(entity, MessageEntityStrike):
             return f'<s>{text}</s>'
-        elif entity.__class__.__name__ == 'MessageEntityCode':
+        elif isinstance(entity, MessageEntityCode):
             return f'<code>{text}</code>'
-        elif entity.__class__.__name__ == 'MessageEntityPre':
+        elif isinstance(entity, MessageEntityPre):
             if hasattr(entity, 'language') and entity.language:
                 return f'<pre language="{entity.language}">{text}</pre>'
             return f'<pre>{text}</pre>'
-        elif entity.__class__.__name__ == 'MessageEntitySpoiler':
+        elif isinstance(entity, MessageEntitySpoiler):
             return f'<tg-spoiler>{text}</tg-spoiler>'
-        elif entity.__class__.__name__ == 'MessageEntityBlockquote':
+        elif isinstance(entity, MessageEntityBlockquote):
             if getattr(entity, 'collapsed', False):
                 return f'<blockquote expandable>{text}</blockquote>'
             return f'<blockquote>{text}</blockquote>'
-        elif entity.__class__.__name__ == 'MessageEntityTextUrl':
+        elif isinstance(entity, MessageEntityTextUrl):
             url = getattr(entity, 'url', '')
             return f'<a href="{url}">{text}</a>'
-        elif entity.__class__.__name__ == 'MessageEntityEmail':
+        elif isinstance(entity, MessageEntityEmail):
             email = getattr(entity, 'url', text)
             return f'<a href="mailto:{email}">{text}</a>'
-        elif entity.__class__.__name__ == 'MessageEntityCustomEmoji':
+        elif isinstance(entity, MessageEntityCustomEmoji):
             doc_id = getattr(entity, 'document_id', 0)
             return f'<tg-emoji emoji-id="{doc_id}">{text}</tg-emoji>'
 

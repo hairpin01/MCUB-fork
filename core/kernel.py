@@ -12,11 +12,13 @@ import json
 import subprocess
 import random
 from pathlib import Path
+
 try:
     from utils.html_parser import parse_html
-    from utils.message_helpers import edit_with_html, reply_with_html, send_with_html
+    from utils.message_helpers import edit_with_html, reply_with_html, send_with_html, send_file_with_html
     HTML_PARSER_AVAILABLE = True
-except ImportError:
+except ImportError as e:
+    print(f"HTML парсер не загружен: {e}")
     HTML_PARSER_AVAILABLE = False
 
 # try:
@@ -24,6 +26,7 @@ except ImportError:
 # except:
 #     print("пач не загрузился")
 #     pass
+
 try:
     import io
     import html
@@ -102,6 +105,7 @@ class Kernel:
         self.repositories = []
         self.default_repo = self.MODULES_REPO
 
+        self.HTML_PARSER_AVAILABLE = HTML_PARSER_AVAILABLE
         try:
             from utils.emoji_parser import emoji_parser
             self.emoji_parser = emoji_parser
@@ -110,17 +114,24 @@ class Kernel:
         except ImportError:
             self.emoji_parser = None
             self.cprint(f'{Colors.YELLOW}The emoji parser is not loaded{Colors.RESET}')
-        if HTML_PARSER_AVAILABLE:
-            self.parse_html = parse_html
-            self.edit_with_html = lambda event, html: edit_with_html(self, event, html)
-            self.reply_with_html = lambda event, html: reply_with_html(self, event, html)
-            self.send_with_html = lambda chat_id, html: send_with_html(self, self.client, chat_id, html)
-            self.cprint(f'{Colors.GREEN}HTML парсер загружен{Colors.RESET}')
-        else:
+        if self.HTML_PARSER_AVAILABLE:
+            try:
+                self.parse_html = parse_html
+                self.edit_with_html = lambda event, html, **kwargs: edit_with_html(self, event, html, **kwargs)
+                self.reply_with_html = lambda event, html, **kwargs: reply_with_html(self, event, html, **kwargs)
+                self.send_with_html = lambda chat_id, html, **kwargs: send_with_html(self, self.client, chat_id, html, **kwargs)
+                self.send_file_with_html = lambda chat_id, html, file, **kwargs: send_file_with_html(self, self.client, chat_id, html, file, **kwargs)
+                self.cprint(f'{Colors.GREEN}HTML парсер загружен{Colors.RESET}')
+            except Exception as e:
+                self.cprint(f'{Colors.RED}Ошибка инициализации HTML парсера: {e}{Colors.RESET}')
+                self.HTML_PARSER_AVAILABLE = False
+
+        if not self.HTML_PARSER_AVAILABLE:
             self.parse_html = None
             self.edit_with_html = None
             self.reply_with_html = None
             self.send_with_html = None
+            self.send_file_with_html = None
             self.cprint(f'{Colors.YELLOW}HTML парсер не загружен{Colors.RESET}')
 
         self.setup_directories()
@@ -392,21 +403,16 @@ class Kernel:
             return result
         except Exception as e:
             self.cprint(f'{self.Colors.RED}❌ Ошибка отправки с эмодзи: {e}{self.Colors.RESET}')
-            fallback_text = self.emoji_parser.remove_emoji_tags(text)
+            fallback_text = self.emoji_parser.remove_emoji_tags(text) if self.emoji_parser else text
             return await self.client.send_message(chat_id, fallback_text, **kwargs)
 
-            return await self.client.get_messages(chat_id, ids=[result.id])
-
-        except Exception as e:
-            self.cprint(f'{Colors.RED}❌ Ошибка отправки с эмодзи: {e}{Colors.RESET}')
-            fallback_text = EmojiParser.remove_emoji_tags(text) if self.emoji_parser else text
-            return await self.client.send_message(chat_id, fallback_text, **kwargs)
-
-    def format_with_emoji(self, text, entities):
-        if not self.emoji_parser:
+    def format_with_html(self, text, entities):
+        """Форматирует текст с сущностями в HTML"""
+        if not HTML_PARSER_AVAILABLE:
             return html.escape(text)
 
-        return self.emoji_parser.entities_to_html(text, entities)
+        from utils.html_parser import telegram_to_html
+        return telegram_to_html(text, entities)
 
 
     async def get_module_metadata(self, code):
@@ -711,39 +717,60 @@ class Kernel:
         return hasattr(self, 'ADMIN_ID') and user_id == self.ADMIN_ID
 
     async def init_client(self):
+        import sys
+        import platform
+
+        print(f"{self.Colors.CYAN}Инициализация MCUB на {platform.system()} (Python {sys.version_info.major}.{sys.version_info.minor})...{self.Colors.RESET}")
+
+
+
         from telethon.sessions import SQLiteSession
 
         proxy = self.config.get('proxy')
 
-        # Используем SQLiteSession для лучшей совместимости
+
+        session = SQLiteSession('user_session')
+
         self.client = TelegramClient(
-            SQLiteSession('user_session'),
+            session,
             self.API_ID,
             self.API_HASH,
             proxy=proxy,
-            connection_retries=5,
-            request_retries=5,
-            flood_sleep_threshold=60
+            connection_retries=3,
+            request_retries=3,
+            flood_sleep_threshold=30,
+            device_model=f"PC-MCUB-{platform.system()}",
+            system_version=f"Python {sys.version}",
+            app_version="MCUB 1.0.1.8",
+            lang_code="en",
+            system_lang_code="en-US",
+            base_logger=None,
+            catch_up=False
         )
 
-        # Установим более агрессивные настройки для избежания ошибок
-        self.client._log['telethon.network'] = False
-        self.client._log['telethon.extensions'] = False
-
         try:
-            await self.client.start(phone=self.PHONE)
+            await self.client.start(
+                phone=self.PHONE,
+                max_attempts=3
+            )
 
             if not await self.client.is_user_authorized():
-                self.cprint(f'{Colors.RED}❌ Ошибка авторизации{Colors.RESET}')
+                print(f"{self.Colors.RED}❌ Не удалось авторизоваться{self.Colors.RESET}")
                 return False
 
             me = await self.client.get_me()
+            if not me or not hasattr(me, 'id'):
+                print(f"{self.Colors.RED}❌ Неверные данные пользователя{self.Colors.RESET}")
+                return False
+
             self.ADMIN_ID = me.id
-            self.cprint(f'{Colors.GREEN}✅ MCUB ядро запущено. ID: {me.id}{Colors.RESET}')
+            print(f"{self.Colors.GREEN}Авторизован как: {me.first_name} (ID: {me.id}){self.Colors.RESET}")
+            print(f"{self.Colors.CYAN}📱 Номер: {self.PHONE}{self.Colors.RESET}")
+
             return True
 
         except Exception as e:
-            self.cprint(f'{Colors.RED}❌ Ошибка авторизации: {e}{Colors.RESET}')
+            print(f"{self.Colors.RED}=X Ошибка инициализации клиента: {e}{self.Colors.RESET}")
             import traceback
             traceback.print_exc()
             return False
@@ -770,14 +797,14 @@ class Kernel:
                     if hasattr(module, 'register'):
                         module.register(self)
                         self.system_modules[module_name] = module
-                        self.cprint(f'{Colors.GREEN}✅ Загружен системный модуль: {module_name}{Colors.RESET}')
+                        self.cprint(f'{Colors.GREEN}=> Загружен системный модуль: {module_name}{Colors.RESET}')
                     else:
-                        self.cprint(f'{Colors.YELLOW}⚠️ Модуль {module_name} не имеет функции register{Colors.RESET}')
+                        self.cprint(f'{Colors.YELLOW}=> Модуль {module_name} не имеет функции register{Colors.RESET}')
 
                 except CommandConflictError as e:
-                    self.cprint(f'{Colors.RED}❌ Ошибка загрузки системного модуля {module_name}: {e}{Colors.RESET}')
+                    self.cprint(f'{Colors.RED}=X Ошибка загрузки системного модуля {module_name}: {e}{Colors.RESET}')
                 except Exception as e:
-                    self.cprint(f'{Colors.RED}❌ Ошибка загрузки модуля {file_name}: {e}{Colors.RESET}')
+                    self.cprint(f'{Colors.RED}=X Ошибка загрузки модуля {file_name}: {e}{Colors.RESET}')
                 finally:
                     self.clear_loading_module()
 
@@ -813,6 +840,7 @@ class Kernel:
                         if hasattr(module, 'register'):
                             module.register(self)
                             self.loaded_modules[module_name] = module
+                            self.cprint(f'{self.Colors.BLUE}=> Модуль загружен {module_name}{self.Colors.RESET}')
                     else:
                         spec = importlib.util.spec_from_file_location(module_name, file_path)
                         module = importlib.util.module_from_spec(spec)
@@ -824,11 +852,11 @@ class Kernel:
                         if hasattr(module, 'register'):
                             module.register(self.client)
                             self.loaded_modules[module_name] = module
-                            self.cprint(f'{self.Colors.GREEN}✅ Загружен пользовательский модуль (старый стиль): {module_name}{self.Colors.RESET}')
+                            self.cprint(f'{self.Colors.GREEN}=> Загружен пользовательский модуль (старый стиль): {module_name}{self.Colors.RESET}')
 
                 except CommandConflictError as e:
                     error_msg = f"Конфликт команд при загрузке модуля {file_name}: {e}"
-                    self.cprint(f'{self.Colors.RED}❌ {error_msg}{self.Colors.RESET}')
+                    self.cprint(f'{self.Colors.RED}=X {error_msg}{self.Colors.RESET}')
                     try:
                         await self.handle_error(e, source=f"load_module_conflict:{file_name}")
                     except:
@@ -836,7 +864,7 @@ class Kernel:
 
                 except Exception as e:
                     error_msg = f"Ошибка загрузки модуля {file_name}: {e}"
-                    self.cprint(f'{self.Colors.RED}❌ {error_msg}{self.Colors.RESET}')
+                    self.cprint(f'{self.Colors.RED}=X {error_msg}{self.Colors.RESET}')
                     try:
                         await self.handle_error(e, source=f"load_module:{file_name}")
                     except:
@@ -903,10 +931,10 @@ class Kernel:
         try:
             inline_bot_token = self.config.get('inline_bot_token')
             if not inline_bot_token:
-                self.cprint(f'{Colors.YELLOW}⚠️ Инлайн-бот не настроен (отсутствует токен){Colors.RESET}')
+                self.cprint(f'{Colors.YELLOW}=X Инлайн-бот не настроен (отсутствует токен){Colors.RESET}')
                 return False
 
-            self.cprint(f'{Colors.BLUE}🔄 Запускаю инлайн-бота...{Colors.RESET}')
+            self.cprint(f'{Colors.BLUE}=- Запускаю инлайн-бота...{Colors.RESET}')
 
 
             self.bot_client = TelegramClient(
@@ -940,16 +968,16 @@ class Kernel:
                 import asyncio
                 asyncio.create_task(self.bot_client.run_until_disconnected())
 
-                self.cprint(f'{Colors.GREEN}✅ Инлайн-бот запущен: {bot_username}{Colors.RESET}')
+                self.cprint(f'{Colors.GREEN}=> Инлайн-бот запущен: {bot_username}{Colors.RESET}')
                 return True
             except Exception as e:
-                self.cprint(f'{Colors.RED}❌ Ошибка регистрации обработчиков инлайн-бота: {str(e)}{Colors.RESET}')
+                self.cprint(f'{Colors.RED}=> Ошибка регистрации обработчиков инлайн-бота: {str(e)}{Colors.RESET}')
                 import traceback
                 traceback.print_exc()
                 return False
 
         except Exception as e:
-            self.cprint(f'{Colors.RED}❌ Инлайн-бот не запущен: {str(e)}{Colors.RESET}')
+            self.cprint(f'{Colors.RED}=X Инлайн-бот не запущен: {str(e)}{Colors.RESET}')
             import traceback
             traceback.print_exc()
             return False
@@ -957,7 +985,7 @@ class Kernel:
     async def run(self):
         if not self.load_or_create_config():
             if not self.first_time_setup():
-                self.cprint(f'{Colors.RED}❌ Не удалось настроить юзербот{Colors.RESET}')
+                self.cprint(f'{Colors.RED}=X Не удалось настроить юзербот{Colors.RESET}')
                 return
 
         import telethon.errors
@@ -992,7 +1020,7 @@ class Kernel:
                 except:
                     pass
 
-        self.cprint(f'{Colors.CYAN}The kernel is loaded{Colors.RESET}')
+        self.cprint(f'{Colors.CYAN}==> The kernel is loaded{Colors.RESET}')
         if os.path.exists(self.RESTART_FILE):
             with open(self.RESTART_FILE, 'r') as f:
                 data = f.read().split(',')
@@ -1043,10 +1071,10 @@ class Kernel:
                                 **send_params
                             )
                         except Exception as e:
-                            self.cprint(f'{Colors.YELLOW}⚠️ Не удалось отправить сообщение о перезагрузке: {e}{Colors.RESET}')
+                            self.cprint(f'{Colors.YELLOW}=X Не удалось отправить сообщение о перезагрузке: {e}{Colors.RESET}')
                             await self.handle_error(e, source="restart")
 
                     else:
-                        self.cprint(f'{Colors.YELLOW}⚠️ Не удалось отправить сообщение о перезагрузке: нет соединения{Colors.RESET}')
+                        self.cprint(f'{Colors.YELLOW}=X Не удалось отправить сообщение о перезагрузке: нет соединения{Colors.RESET}')
 
         await self.client.run_until_disconnected()

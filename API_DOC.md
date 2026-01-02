@@ -2,20 +2,20 @@
 
 __Table of Contents__
 
-> 1. [Introduction](https://github.com/hairpin01/MCUB-fork/main/API_DOC.md#introduction)
-> 2. [Module Structure](https://github.com/hairpin01/MCUB-fork/main/API_DOC.md#module-structure)
-> 3. [Kernel API Reference](https://github.com/hairpin01/MCUB-fork/main/API_DOC.md#kernel-api-reference)
-> 4. [Database API](https://github.com/hairpin01/MCUB-fork/main/API_DOC.md#database-api)
-> 5. [Cache API](https://github.com/hairpin01/MCUB-fork/main/API_DOC.md#cache-api)
-> 6. [Task Scheduler API](https://github.com/hairpin01/MCUB-fork/main/API_DOC.md#task-scheduler-api)
-> 7. [Middleware API](https://github.com/hairpin01/MCUB-fork/main/API_DOC.md#middleware-api)
-> 8. [Command Registration](https://github.com/hairpin01/MCUB-fork/main/API_DOC.md#command-registration)
-> 9. [Event Handlers](https://github.com/hairpin01/MCUB-fork/main/API_DOC.md#event-handlers)
-> 10. [Configuration Management](https://github.com/hairpin01/MCUB-fork/main/API_DOC.md#configuration-management)
-> 11. [Error Handling](https://github.com/hairpin01/MCUB-fork/main/API_DOC.md#error-handling)
-> 12. [Best Practices](https://github.com/hairpin01/MCUB-fork/main/API_DOC.md#best-practices)
-> 13. [Example Module](https://github.com/hairpin01/MCUB-fork/main/API_DOC.md#examlep_module)
-> 14. [Premium Emoji Guide](https://github.com/hairpin01/MCUB-fork/main/API_DOC.md#premium-emoji-guide)
+> 1. [Introduction](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#introduction)
+> 2. [Module Structure](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#module-structure)
+> 3. [Kernel API Reference](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#kernel-api-reference)
+> 4. [Database API](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#database-api)
+> 5. [Cache API](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#cache-api)
+> 6. [Task Scheduler API](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#task-scheduler-api)
+> 7. [Middleware API](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#middleware-api)
+> 8. [Command Registration](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#command-registration)
+> 9. [Event Handlers](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#event-handlers)
+> 10. [Configuration Management](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#configuration-management)
+> 11. [Error Handling](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#error-handling)
+> 12. [Best Practices](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#best-practices)
+> 13. [Example Module](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#examlep_module)
+> 14. [Premium Emoji Guide](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#premium-emoji-guide)
 
 # Introduction
 

@@ -17,6 +17,7 @@ from pathlib import Path
 
 # premium emoji dictionary
 CUSTOM_EMOJI = {
+    "load": '<tg-emoji emoji-id="5469913852462242978">🏓</tg-emoji>',
     # distributions
     'arch': '<tg-emoji emoji-id="5361837567463399422">🪩</tg-emoji>',
     'ubuntu': '<tg-emoji emoji-id="5470088387048266598">🐉</tg-emoji>',
@@ -117,7 +118,7 @@ def register(kernel):
     async def info_cmd(event):
         try:
             start_time = time.time()
-            msg = await event.edit(CUSTOM_EMOJI['🔮'], parse_mode='html')
+            msg = await event.edit(f'{CUSTOM_EMOJI['load']}', parse_mode='html')
             ping_time = round((time.time() - start_time) * 1000, 2)
 
             uptime_str = format_uptime(time.time() - kernel.start_time)

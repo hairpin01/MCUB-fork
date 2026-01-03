@@ -3,6 +3,5 @@ psutil
 aiohttp
 google-generativeai
 pysocks
-html
 aiosqlite
 collections

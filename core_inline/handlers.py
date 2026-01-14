@@ -1,5 +1,5 @@
 # author: @Hairpin00
-# version: 1.0.3
+# version: 1.0.4
 # description: handler fixed UnboundLocalError
 from telethon import events, Button
 import aiohttp
@@ -26,18 +26,18 @@ class InlineHandlers:
         # Обработчик InlineQuery (поиск через @bot)
         @self.bot_client.on(events.InlineQuery)
         async def inline_query_handler(event):
-            query = event.text
-            builder = None  # Инициализируем переменную заранее, чтобы избежать UnboundLocalError
+            query = event.text or ""
+            builder = None
 
             if not self.check_admin(event):
                 builder = event.builder.article(
-                        'У вас нету доступа и MCUB боту',
-                        text='🫨 У вас нету доступа к inline MCUB bot'
-                        )
+                    'У вас нету доступа и MCUB боту',
+                    text='🫨 У вас нету доступа к inline MCUB bot'
+                )
                 await event.answer([builder])
                 return
 
-            # 0. Если запрос пустой (просто открыли бота)
+            # Если запрос пустой (просто открыли бота)
             if not query:
                 builder = event.builder.article(
                     'MCUB Info',
@@ -47,13 +47,13 @@ class InlineHandlers:
                 await event.answer([builder])
                 return
 
-            # 1. Проверка кастомных обработчиков ядра
+            # Проверка кастомных обработчиков ядра
             for pattern, handler in self.kernel.inline_handlers.items():
                 if query.startswith(pattern):
                     await handler(event)
                     return
 
-            # 2. Логика 2FA
+            # Логика 2FA
             if query.startswith('2fa_'):
                 parts = query.split('_', 3)
                 if len(parts) >= 4:
@@ -68,20 +68,29 @@ class InlineHandlers:
                 else:
                     builder = event.builder.article('Error', text='❌ Ошибка подтверждения')
 
-            # 3. Логика каталога
-            elif query.startswith('catalog_'):
-                parts = query.split('_')
-                if len(parts) >= 3:
-                    repo_index = int(parts[1])
-                    page = int(parts[2])
-
+            # Логика каталога - ИСПРАВЛЕНО
+            elif query.startswith('catalog'):
+                try:
+                    # Разбираем запрос вида "catalog_0_1"
+                    parts = query.split('_')
+                    
+                    # Устанавливаем значения по умолчанию
+                    repo_index = 0
+                    page = 1
+                    
+                    if len(parts) >= 2 and parts[1].isdigit():
+                        repo_index = int(parts[1])
+                    
+                    if len(parts) >= 3 and parts[2].isdigit():
+                        page = int(parts[2])
+                    
                     repos = [self.kernel.default_repo] + self.kernel.repositories
-
+                    
                     if repo_index < 0 or repo_index >= len(repos):
                         repo_index = 0
-
+                    
                     repo_url = repos[repo_index]
-
+                    
                     try:
                         async with aiohttp.ClientSession() as session:
                             async with session.get(f'{repo_url}/modules.ini') as resp:
@@ -97,12 +106,12 @@ class InlineHandlers:
                                     repo_name = repo_name.strip()
                                 else:
                                     repo_name = repo_url.split('/')[-2] if '/' in repo_url else repo_url
-                    except:
+                    except Exception as e:
                         modules = []
                         repo_name = repo_url.split('/')[-2] if '/' in repo_url else repo_url
 
                     per_page = 8
-                    total_pages = (len(modules) + per_page - 1) // per_page
+                    total_pages = (len(modules) + per_page - 1) // per_page if modules else 1
 
                     if page < 1:
                         page = 1
@@ -111,7 +120,7 @@ class InlineHandlers:
 
                     start_idx = (page - 1) * per_page
                     end_idx = start_idx + per_page
-                    page_modules = modules[start_idx:end_idx]
+                    page_modules = modules[start_idx:end_idx] if modules else []
 
                     if repo_index == 0:
                         msg = f'<b>🌩️ Официальный репозиторий MCUB</b> <code>{repo_url}</code>\n\n'
@@ -121,6 +130,8 @@ class InlineHandlers:
                     if page_modules:
                         modules_text = " | ".join([f"<code>{m}</code>" for m in page_modules])
                         msg += modules_text
+                    else:
+                        msg += "📭 Нет модулей"
 
                     msg += f'\n\n📄 Страница {page}/{total_pages}'
 
@@ -143,14 +154,16 @@ class InlineHandlers:
                         buttons.append(repo_buttons)
 
                     builder = event.builder.article('Catalog', text=msg, buttons=buttons if buttons else None, parse_mode='html')
-                    await event.answer([builder])
-                    return
+                    
+                except Exception as e:
+                    builder = event.builder.article('Error', text=f'❌ Ошибка загрузки каталога: {str(e)[:100]}')
 
-            # 4. Логика сообщений с кнопками через разделитель |
+            # Логика сообщений с кнопками через разделитель |
             elif '|' in query:
                 parts = query.split('|')
                 text = parts[0].strip()
-                if not text: text = "Message" # Защита от пустого текста
+                if not text:
+                    text = "Message"
                 buttons = []
 
                 for btn_data in parts[1:]:
@@ -167,33 +180,40 @@ class InlineHandlers:
 
                 builder = event.builder.article('Message', text=text, buttons=buttons if buttons else None, parse_mode='html')
 
-            # 5. Просто эхо (если не попали ни в одно условие)
+            # Просто эхо
             else:
                 if query:
                     builder = event.builder.article('Message', text=query, parse_mode='html')
                 else:
-                    # На случай если query пустой, но мы прошли мимо первой проверки
                     builder = event.builder.article('Empty', text='...', parse_mode='html')
 
-            # Финальная отправка только если builder создан
+            # Финальная отправка
             if builder:
                 await event.answer([builder])
 
-        # Обработчик нажатий на кнопки (CallbackQuery)
+        # Обработчик нажатий на кнопки (CallbackQuery) - ИСПРАВЛЕНО
         @self.bot_client.on(events.CallbackQuery)
         async def callback_query_handler(event):
             try:
                 if not event.data:
                     return
 
+                # Декодируем данные
                 if isinstance(event.data, bytes):
                     data_str = event.data.decode('utf-8')
                 else:
                     data_str = str(event.data)
 
-                # Проверка кастомных обработчиков ядра
+                # Проверка кастомных обработчиков ядра - ИСПРАВЛЕНО
                 for pattern, handler in self.kernel.callback_handlers.items():
-                    if data_str.startswith(pattern):
+                    # Приводим pattern к строке если это bytes
+                    if isinstance(pattern, bytes):
+                        pattern_str = pattern.decode('utf-8')
+                    else:
+                        pattern_str = str(pattern)
+                    
+                    # Проверяем соответствие
+                    if data_str.startswith(pattern_str):
                         if not self.check_admin(event):
                             await event.answer('❌ Эта кнопка не ваша', alert=True)
                             return
@@ -220,81 +240,90 @@ class InlineHandlers:
                 elif data_str.startswith('page_'):
                     await keyboards.handle_custom_page(event)
                 elif data_str.startswith('catalog_'):
-                    parts = data_str.split('_')
-                    if len(parts) >= 3:
-                        repo_index = int(parts[1])
-                        page = int(parts[2])
+                    # Обработка каталога из callback
+                    try:
+                        parts = data_str.split('_')
+                        
+                        # Устанавливаем значения по умолчанию
+                        repo_index = 0
+                        page = 1
+                        
+                        if len(parts) >= 2 and parts[1].isdigit():
+                            repo_index = int(parts[1])
+                        
+                        if len(parts) >= 3 and parts[2].isdigit():
+                            page = int(parts[2])
+                        
+                        repos = [self.kernel.default_repo] + self.kernel.repositories
+                        
+                        if repo_index < 0 or repo_index >= len(repos):
+                            repo_index = 0
+                        
+                        repo_url = repos[repo_index]
+                        
+                        async with aiohttp.ClientSession() as session:
+                            async with session.get(f'{repo_url}/modules.ini') as resp:
+                                if resp.status == 200:
+                                    modules_text = await resp.text()
+                                    modules = [line.strip() for line in modules_text.split('\n') if line.strip()]
+                                else:
+                                    modules = []
 
-                        try:
-                            repos = [self.kernel.default_repo] + self.kernel.repositories
+                            async with session.get(f'{repo_url}/name.ini') as resp:
+                                if resp.status == 200:
+                                    repo_name = await resp.text()
+                                    repo_name = repo_name.strip()
+                                else:
+                                    repo_name = repo_url.split('/')[-2] if '/' in repo_url else repo_url
 
-                            if repo_index < 0 or repo_index >= len(repos):
-                                repo_index = 0
+                        per_page = 8
+                        total_pages = (len(modules) + per_page - 1) // per_page if modules else 1
 
-                            repo_url = repos[repo_index]
+                        if page < 1:
+                            page = 1
+                        if page > total_pages:
+                            page = total_pages
 
-                            async with aiohttp.ClientSession() as session:
-                                async with session.get(f'{repo_url}/modules.ini') as resp:
-                                    if resp.status == 200:
-                                        modules_text = await resp.text()
-                                        modules = [line.strip() for line in modules_text.split('\n') if line.strip()]
-                                    else:
-                                        modules = []
+                        start_idx = (page - 1) * per_page
+                        end_idx = start_idx + per_page
+                        page_modules = modules[start_idx:end_idx] if modules else []
 
-                                async with session.get(f'{repo_url}/name.ini') as resp:
-                                    if resp.status == 200:
-                                        repo_name = await resp.text()
-                                        repo_name = repo_name.strip()
-                                    else:
-                                        repo_name = repo_url.split('/')[-2] if '/' in repo_url else repo_url
+                        if repo_index == 0:
+                            msg = f'<b>🌩️ Официальный репозиторий MCUB</b> <code>{repo_url}</code>\n\n'
+                        else:
+                            msg = f'<i>{repo_name}</i> <code>{repo_url}</code>\n\n'
 
-                            per_page = 8
-                            total_pages = (len(modules) + per_page - 1) // per_page
+                        if page_modules:
+                            modules_text = " | ".join([f"<code>{m}</code>" for m in page_modules])
+                            msg += modules_text
+                        else:
+                            msg += "📭 Нет модулей"
 
-                            if page < 1:
-                                page = 1
-                            if page > total_pages:
-                                page = total_pages
+                        msg += f'\n\n📄 Страница {page}/{total_pages}'
 
-                            start_idx = (page - 1) * per_page
-                            end_idx = start_idx + per_page
-                            page_modules = modules[start_idx:end_idx]
+                        buttons = []
+                        nav_buttons = []
 
-                            if repo_index == 0:
-                                msg = f'<b>🌩️ Официальный репозиторий MCUB</b> <code>{repo_url}</code>\n\n'
-                            else:
-                                msg = f'<i>{repo_name}</i> <code>{repo_url}</code>\n\n'
+                        if page > 1:
+                            nav_buttons.append(Button.inline('⬅️ Назад', f'catalog_{repo_index}_{page-1}'.encode()))
 
-                            if page_modules:
-                                modules_text = " | ".join([f"<code>{m}</code>" for m in page_modules])
-                                msg += modules_text
+                        if page < total_pages:
+                            nav_buttons.append(Button.inline('➡️ Вперёд', f'catalog_{repo_index}_{page+1}'.encode()))
 
-                            msg += f'\n\n📄 Страница {page}/{total_pages}'
+                        if nav_buttons:
+                            buttons.append(nav_buttons)
 
-                            buttons = []
-                            nav_buttons = []
+                        if len(repos) > 1:
+                            repo_buttons = []
+                            for i in range(len(repos)):
+                                repo_buttons.append(Button.inline(f'{i+1}', f'catalog_{i}_1'.encode()))
+                            buttons.append(repo_buttons)
 
-                            if page > 1:
-                                nav_buttons.append(Button.inline('⬅️ Назад', f'catalog_{repo_index}_{page-1}'.encode()))
+                        await event.edit(msg, buttons=buttons if buttons else None, parse_mode='html')
 
-                            if page < total_pages:
-                                nav_buttons.append(Button.inline('➡️ Вперёд', f'catalog_{repo_index}_{page+1}'.encode()))
-
-                            if nav_buttons:
-                                buttons.append(nav_buttons)
-
-                            if len(repos) > 1:
-                                repo_buttons = []
-                                for i in range(len(repos)):
-                                    repo_buttons.append(Button.inline(f'{i+1}', f'catalog_{i}_1'.encode()))
-                                buttons.append(repo_buttons)
-
-                            await event.edit(msg, buttons=buttons if buttons else None, parse_mode='html')
-
-                        except Exception as e:
-                            await event.answer(f'Ошибка: {str(e)[:50]}', alert=True)
+                    except Exception as e:
+                        await event.answer(f'Ошибка: {str(e)[:50]}', alert=True)
                 else:
-                    # print(f"Неизвестный callback: {data_str}")
                     await event.answer('❌ Неизвестная команда', alert=True)
 
             except Exception as e:

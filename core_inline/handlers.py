@@ -29,6 +29,14 @@ class InlineHandlers:
             query = event.text
             builder = None  # Инициализируем переменную заранее, чтобы избежать UnboundLocalError
 
+            if not self.check_admin(event):
+                builder = event.builder.article(
+                        'У вас нету доступа и MCUB боту',
+                        text='🫨 У вас нету доступа к inline MCUB bot'
+                        )
+                await event.answer([builder])
+                return
+
             # 0. Если запрос пустой (просто открыли бота)
             if not query:
                 builder = event.builder.article(

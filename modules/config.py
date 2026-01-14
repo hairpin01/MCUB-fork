@@ -1,12 +1,14 @@
-# requires: json, telethon>=1.24
+# requires: json, telethon>=1.24, hashlib
 # author: @Hairpin00
-# version: 1.0.3
-# description: config с премиум эмодзи
+# version: 1.0.9
+# description: config kernel
 
 import json
 import html
+import hashlib
+from telethon import Button
 
-# premium emoji dictionary (только ваши эмодзи)
+# premium emoji dictionary 
 CUSTOM_EMOJI = {
     '📁': '<tg-emoji emoji-id="5433653135799228968">📁</tg-emoji>',
     '📝': '<tg-emoji emoji-id="5334882760735598374">📝</tg-emoji>',
@@ -26,6 +28,23 @@ CUSTOM_EMOJI = {
     '🗳': '<tg-emoji emoji-id="5359741159566484212">🗳</tg-emoji>',
     '🗂': '<tg-emoji emoji-id="5431736674147114227">🗂</tg-emoji>',
     '📰': '<tg-emoji emoji-id="5433982607035474385">📰</tg-emoji>',
+    '🔍': '<tg-emoji emoji-id="5429283852684124412">🔍</tg-emoji>',
+    '📋': '<tg-emoji emoji-id="5431736674147114227">📋</tg-emoji>',
+    '⚙️': '<tg-emoji emoji-id="5332654441508119011">⚙️</tg-emoji>',
+    '🔢': '<tg-emoji emoji-id="5465154440287757794">🔢</tg-emoji>',
+    '🔙': '<tg-emoji emoji-id="5332600281970517875">🔙</tg-emoji>',
+}
+
+ITEMS_PER_PAGE = 16
+
+TYPE_EMOJIS = {
+    'str': '📝',
+    'int': '🔢',
+    'float': '🔢',
+    'bool': '☑️',
+    'list': '📚',
+    'dict': '🗂',
+    'NoneType': '🗳'
 }
 
 def register(kernel):
@@ -116,60 +135,217 @@ def register(kernel):
         hidden_keys = kernel.config.get('hidden_keys', [])
         return key in SENSITIVE_KEYS or key in hidden_keys
 
-    def format_key(key, value_type):
-        hidden = is_key_hidden(key)
+    def get_visible_keys():
+        visible_keys = []
+        for key, value in kernel.config.items():
+            if not is_key_hidden(key):
+                visible_keys.append((key, value))
+        return sorted(visible_keys, key=lambda x: x[0])
 
-        emojis = {
-            'str': CUSTOM_EMOJI['📝'],
-            'int': CUSTOM_EMOJI['➕'],
-            'float': CUSTOM_EMOJI['➕'],
-            'bool': CUSTOM_EMOJI['☑️'],
-            'list': CUSTOM_EMOJI['📚'],
-            'dict': CUSTOM_EMOJI['🗂'],
-            'NoneType': CUSTOM_EMOJI['🗳']
-        }
-        emoji = emojis.get(value_type, CUSTOM_EMOJI['📎'])
+    def get_type_emoji(value_type):
+        return TYPE_EMOJIS.get(value_type, '📎')
 
-        if hidden:
-            return f"{CUSTOM_EMOJI['📎']} {emoji} <tg-spoiler><b>{key}</b></tg-spoiler>"
-        else:
-            return f"{emoji} <code>{key}</code>"
+    def truncate_key(key, max_length=15):
+        if len(key) > max_length:
+            return key[:max_length-3] + "..."
+        return key
+
+    def generate_key_id(key, page):
+        hash_obj = hashlib.md5(f"{key}_{page}".encode())
+        return hash_obj.hexdigest()[:8]
+
+    def create_buttons_grid(page_keys, page, total_pages):
+        buttons = []
+        row = []
+        
+        for i, (key, value) in enumerate(page_keys):
+            display_key = truncate_key(key)
+            key_id = generate_key_id(key, page)
+            
+            # Сохраняем соответствие ID -> (key, page) в кэше
+            kernel.cache.set(f"cfg_view_{key_id}", (key, page), ttl=3600)
+            
+            row.append(
+                Button.inline(
+                    display_key,
+                    data=f"cfg_view_{key_id}".encode()
+                )
+            )
+            
+            if len(row) == 4:
+                buttons.append(row)
+                row = []
+        
+        if row:
+            buttons.append(row)
+        
+        nav_buttons = []
+        
+        if page > 0:
+            nav_buttons.append(
+                Button.inline(
+                    "⬅️ Назад",
+                    data=f"config_page_{page - 1}".encode()
+                )
+            )
+        
+        if page < total_pages - 1:
+            nav_buttons.append(
+                Button.inline(
+                    "Вперед ➡️",
+                    data=f"config_page_{page + 1}".encode()
+                )
+            )
+        
+        if nav_buttons:
+            buttons.append(nav_buttons)
+        
+        return buttons
+
+    async def config_keys_inline_handler(event):
+        query = event.text.strip()
+        
+        visible_keys = get_visible_keys()
+        total_keys = len(visible_keys)
+        
+        page = 0
+        if query.startswith('config_keys_'):
+            try:
+                page_str = query.split('_')[2] if len(query.split('_')) > 2 else '0'
+                page = int(page_str)
+            except:
+                page = 0
+        
+        total_pages = (total_keys + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE if total_keys > 0 else 1
+        
+        if page < 0:
+            page = 0
+        if page >= total_pages:
+            page = total_pages - 1
+        
+        start_idx = page * ITEMS_PER_PAGE
+        end_idx = start_idx + ITEMS_PER_PAGE
+        page_keys = visible_keys[start_idx:end_idx]
+        
+        text = f"{CUSTOM_EMOJI['📋']} <b>Kernel Config</b>\n"
+        text += f"{CUSTOM_EMOJI['📰']} Страница <b>{page + 1}/{total_pages}</b>\n"
+        text += f"{CUSTOM_EMOJI['🔢']} Всего <b>{total_keys}</b> ключей"
+        
+        
+        buttons = create_buttons_grid(page_keys, page, total_pages)
+        
+        builder = event.builder.article(
+            title=f"Конфигурация - Страница {page + 1}",
+            text=text,
+            buttons=buttons,
+            parse_mode='html'
+        )
+        await event.answer([builder])
+
+    kernel.register_inline_handler('config_keys', config_keys_inline_handler)
+
+    async def config_callback_handler(event):
+        data = event.data.decode()
+        
+        if data.startswith('config_page_'):
+            try:
+                page = int(data.split('_')[2])
+            except:
+                page = 0
+            
+            visible_keys = get_visible_keys()
+            total_keys = len(visible_keys)
+            total_pages = (total_keys + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE if total_keys > 0 else 1
+            
+            if page < 0:
+                page = 0
+            if page >= total_pages:
+                page = total_pages - 1
+            
+            start_idx = page * ITEMS_PER_PAGE
+            end_idx = start_idx + ITEMS_PER_PAGE
+            page_keys = visible_keys[start_idx:end_idx]
+            
+            text = f"{CUSTOM_EMOJI['📋']} <b>Kernel Config</b>\n"
+            text += f"{CUSTOM_EMOJI['📰']} Страница <b>{page + 1}/{total_pages}</b>\n"
+            text += f"{CUSTOM_EMOJI['🔢']} Всего <b>{total_keys}</b> ключей"
+            
+            buttons = create_buttons_grid(page_keys, page, total_pages)
+            
+            try:
+                await event.edit(text, buttons=buttons, parse_mode='html')
+            except Exception as e:
+                await event.answer(f"Ошибка: {str(e)[:50]}", alert=True)
+        
+        elif data.startswith('cfg_view_'):
+            try:
+                key_id = data[9:]  # Убираем 'cfg_view_'
+                
+                # Получаем ключ и страницу из кэша
+                cached = kernel.cache.get(f"cfg_view_{key_id}")
+                if not cached:
+                    await event.answer("❌ Данные устарели, обновите страницу", alert=True)
+                    return
+                
+                key, page = cached
+                
+                if key not in kernel.config:
+                    await event.answer("❌ Ключ не найден", alert=True)
+                    return
+                
+                value = kernel.config[key]
+                value_type = type(value).__name__
+                type_emoji = get_type_emoji(value_type)
+                
+                # Форматируем значение для отображения
+                if isinstance(value, dict):
+                    formatted_value = json.dumps(value, ensure_ascii=False, indent=2)
+                    display_value = f"<pre>{html.escape(formatted_value)}</pre>"
+                elif isinstance(value, list):
+                    formatted_value = json.dumps(value, ensure_ascii=False, indent=2)
+                    display_value = f"<pre>{html.escape(formatted_value)}</pre>"
+                elif value is None:
+                    display_value = "<code>null</code>"
+                elif isinstance(value, bool):
+                    display_value = f"<code>{'true' if value else 'false'}</code>"
+                elif isinstance(value, (int, float)):
+                    display_value = f"<code>{value}</code>"
+                else:
+                    display_value = f"{html.escape(str(value))}"
+                
+                text = f"{CUSTOM_EMOJI['📝']} <b>Ключ:</b> <code>{key}</code>\n"
+                text += f"{CUSTOM_EMOJI['📰']} <b>Тип:</b> {type_emoji} <code>{value_type}</code>\n"
+                text += f"{CUSTOM_EMOJI['💬']} <b>Значение:</b> <code>{display_value}</code>"
+                
+                # Кнопка "назад" для возврата к той же странице
+                buttons = [[Button.inline(f"🔙 Назад", data=f"config_page_{page}".encode())]]
+                
+                await event.edit(text, buttons=buttons, parse_mode='html')
+                
+            except Exception as e:
+                await event.answer(f"Ошибка: {str(e)[:50]}", alert=True)
+
+    kernel.register_callback_handler('config_page_', config_callback_handler)
+    kernel.register_callback_handler('cfg_view_', config_callback_handler)
 
     @kernel.register_command('cfg')
-    # now - показать значения. hide ключ - скрыть ключ. unhide ключ - показать ключ
     async def cfg_handler(event):
         try:
             args = event.text.split()
 
             if len(args) == 1:
-                visible_keys = []
-                hidden_keys = kernel.config.get('hidden_keys', [])
-                all_keys = len(kernel.config)
-                system_hidden = len([k for k in kernel.config if k in SENSITIVE_KEYS])
-                user_hidden = len(hidden_keys)
-                visible_count = all_keys - system_hidden - user_hidden
+                if hasattr(kernel, 'bot_client') and kernel.config.get('inline_bot_username'):
+                    try:
+                        bot_username = kernel.config.get('inline_bot_username')
+                        results = await kernel.client.inline_query(bot_username, 'config_keys')
+                        if results:
+                            await results[0].click(event.chat_id, reply_to=event.reply_to_msg_id)
+                            await event.delete()
+                            return
+                    except Exception as e:
+                        pass
 
-                for key, value in kernel.config.items():
-                    if not is_key_hidden(key):
-                        value_type = type(value).__name__
-                        visible_keys.append(format_key(key, value_type))
-
-                response = f"""{CUSTOM_EMOJI['🗂']} <b>Конфигурация ядра</b>
-<blockquote>{CUSTOM_EMOJI['📰']} <b>Всего ключей:</b> <code>{all_keys}</code>
-{CUSTOM_EMOJI['📖']} <b>Видимых:</b> <code>{visible_count}</code>
-{CUSTOM_EMOJI['📎']} <b>Скрыто системой:</b> <code>{system_hidden}</code>
-{CUSTOM_EMOJI['💼']} <b>Скрыто пользователем:</b> <code>{user_hidden}</code></blockquote>"""
-
-                if visible_keys:
-                    response += f"\n\n{CUSTOM_EMOJI['📚']} <b>Доступные ключи:</b>\n{chr(10).join(visible_keys)}"
-
-                response += f"""\n\n{CUSTOM_EMOJI['💬']} <i>Используйте:</i>
-<blockquote><code>.cfg</code> - этот список
-<code>.cfg now ключ</code> - значение ключа
-<code>.cfg hide ключ</code> - скрыть ключ
-<code>.cfg unhide ключ</code> - показать ключ</blockquote>"""
-
-                await event.edit(response, parse_mode='html')
+                await event.edit(f"{CUSTOM_EMOJI['💬']} <b>Используйте:</b>\n<blockquote><code>.cfg</code> - список ключей (инлайн)\n<code>.cfg now ключ</code> - значение ключа\n<code>.cfg hide ключ</code> - скрыть ключ\n<code>.cfg unhide ключ</code> - показать ключ</blockquote>", parse_mode='html')
 
             elif len(args) >= 3:
                 subcommand = args[1].lower()
@@ -189,6 +365,7 @@ def register(kernel):
 
                     value = kernel.config[key]
                     value_type = type(value).__name__
+                    type_emoji = get_type_emoji(value_type)
 
                     if isinstance(value, dict):
                         formatted_value = json.dumps(value, ensure_ascii=False, indent=2)
@@ -212,7 +389,7 @@ def register(kernel):
                         display_value = f"<blockquote>{html.escape(str(value))}</blockquote>"
 
                     response = f"""{CUSTOM_EMOJI['✏️']} <b>Ключ:</b> <code>{key}</code>
-{CUSTOM_EMOJI['📰']} <b>Тип:</b> <code>{value_type}</code>
+{type_emoji} <b>Тип:</b> <code>{value_type}</code>
 {CUSTOM_EMOJI['💬']} <b>Значение:</b>
 
 {display_value}"""
@@ -254,67 +431,17 @@ def register(kernel):
 
                     await event.edit(f"{CUSTOM_EMOJI['📖']} <b>Ключ показан</b>\n<blockquote>{CUSTOM_EMOJI['💼']} <i>Ключ <code>{key}</code> удален из списка скрытых</i>\n{CUSTOM_EMOJI['📰']} <b>Осталось скрыто:</b> <code>{len(hidden_keys)}</code></blockquote>", parse_mode='html')
 
-                elif subcommand == 'added' and len(args) >= 4:
-                    if is_key_hidden(key):
-                        await event.edit(f"{CUSTOM_EMOJI['💼']} <b>Ключ скрыт</b>\n<blockquote>{CUSTOM_EMOJI['💼']} <i>Ключ <code>{key}</code> скрыт пользователем</i></blockquote>", parse_mode='html')
-                        return
-
-                    if key not in kernel.config:
-                        await event.edit(f"{CUSTOM_EMOJI['🗳']} <b>Ключ не найден</b>\n<blockquote>{CUSTOM_EMOJI['🗳']} <i><code>{key}</code> не существует в конфигурации</i></blockquote>", parse_mode='html')
-                        return
-
-                    current_value = kernel.config[key]
-                    value_type = type(current_value).__name__
-
-                    if value_type == 'dict':
-                        if len(args) < 5:
-                            await event.edit(f"{CUSTOM_EMOJI['📰']} <b>Недостаточно аргументов</b>\n<blockquote>{CUSTOM_EMOJI['📝']} <code>.cfg added ключ подключа значение</code></blockquote>", parse_mode='html')
-                            return
-
-                        subkey = args[3].strip()
-                        value_str = ' '.join(args[4:]).strip()
-
-                        try:
-                            value = parse_value(value_str)
-                            current_value[subkey] = value
-                            kernel.config[key] = current_value
-                            await save_config()
-
-                            await event.edit(f"{CUSTOM_EMOJI['🗂']} <b>Элемент добавлен в словарь</b>\n<blockquote>{CUSTOM_EMOJI['📎']} <code>{key}.{subkey}</code> → <code>{value}</code></blockquote>", parse_mode='html')
-                        except Exception as e:
-                            await event.edit(f"{CUSTOM_EMOJI['❄️']} <b>Ошибка значения</b>\n<blockquote>{CUSTOM_EMOJI['🐢']} <i>{str(e)}</i></blockquote>", parse_mode='html')
-
-                    elif value_type == 'list':
-                        if len(args) < 4:
-                            await event.edit(f"{CUSTOM_EMOJI['📰']} <b>Недостаточно аргументов</b>\n<blockquote>{CUSTOM_EMOJI['📝']} <code>.cfg added ключ значение</code></blockquote>", parse_mode='html')
-                            return
-
-                        value_str = ' '.join(args[3:]).strip()
-
-                        try:
-                            value = parse_value(value_str)
-                            current_value.append(value)
-                            kernel.config[key] = current_value
-                            await save_config()
-
-                            await event.edit(f"{CUSTOM_EMOJI['📚']} <b>Элемент добавлен в список</b>\n<blockquote>{CUSTOM_EMOJI['📎']} <code>{key}</code> → <code>{value}</code>\n{CUSTOM_EMOJI['📰']} <b>Размер списка:</b> <code>{len(current_value)}</code></blockquote>", parse_mode='html')
-                        except Exception as e:
-                            await event.edit(f"{CUSTOM_EMOJI['❄️']} <b>Ошибка значения</b>\n<blockquote>{CUSTOM_EMOJI['🐢']} <i>{str(e)}</i></blockquote>", parse_mode='html')
-                    else:
-                        await event.edit(f"{CUSTOM_EMOJI['🧊']} <b>Неподходящий тип</b>\n<blockquote>{CUSTOM_EMOJI['📰']} <i>Ключ <code>{key}</code> имеет тип <code>{value_type}</code>, а не dict/list</i></blockquote>", parse_mode='html')
-
                 else:
-                    await event.edit(f"{CUSTOM_EMOJI['🖨']} <b>Неизвестная подкоманда</b>\n<blockquote>{CUSTOM_EMOJI['💬']} <i>Доступные подкоманды:</i>\n<code>now</code> - значение ключа\n<code>hide</code> - скрыть ключ\n<code>unhide</code> - показать ключ\n<code>added</code> - добавить в dict/list</blockquote>", parse_mode='html')
+                    await event.edit(f"{CUSTOM_EMOJI['🖨']} <b>Неизвестная подкоманда</b>\n<blockquote>{CUSTOM_EMOJI['💬']} <i>Доступные подкоманды:</i>\n<code>now</code> - значение ключа\n<code>hide</code> - скрыть ключ\n<code>unhide</code> - показать ключ</blockquote>", parse_mode='html')
 
             else:
-                await event.edit(f"{CUSTOM_EMOJI['🖨']} <b>Использование</b>\n<blockquote>{CUSTOM_EMOJI['📖']} <code>.cfg</code> - список ключей\n{CUSTOM_EMOJI['📖']} <code>.cfg now ключ</code> - значение ключа\n{CUSTOM_EMOJI['📖']} <code>.cfg hide ключ</code> - скрыть ключ\n{CUSTOM_EMOJI['📖']} <code>.cfg unhide ключ</code> - показать ключ\n{CUSTOM_EMOJI['📖']} <code>.cfg added ключ ...</code> - добавить в dict/list</blockquote>", parse_mode='html')
+                await event.edit(f"{CUSTOM_EMOJI['🖨']} <b>Использование</b>\n<blockquote>{CUSTOM_EMOJI['📖']} <code>.cfg</code> - список ключей (инлайн)\n{CUSTOM_EMOJI['📖']} <code>.cfg now ключ</code> - значение ключа\n{CUSTOM_EMOJI['📖']} <code>.cfg hide ключ</code> - скрыть ключ\n{CUSTOM_EMOJI['📖']} <code>.cfg unhide ключ</code> - показать ключ</blockquote>", parse_mode='html')
 
         except Exception as e:
             await event.edit(f"{CUSTOM_EMOJI['❄️']} <b>Ошибка, смотри логи</b>", parse_mode='html')
             await kernel.handle_error(e, source="cfg", event=event)
 
     @kernel.register_command('fcfg')
-    # set ключ значение. fcfg del ключ - удалить ключ. все команды по fcfg
     async def fcfg_handler(event):
         try:
             args = event.text.split()
@@ -354,7 +481,7 @@ def register(kernel):
                         await event.edit(f"{CUSTOM_EMOJI['📁']} <b>Ключ обновлен</b>\n<blockquote>{CUSTOM_EMOJI['📁']} <code>{key}</code>\n<tg-spoiler>{CUSTOM_EMOJI['➕']} <i>было:</i> <code>{old_value}</code>\n{CUSTOM_EMOJI['➖']} <i>стало:</i> <code>{value}</code></tg-spoiler></blockquote>", parse_mode='html')
 
                 except Exception as e:
-                    await event.edit(f"{CUSTOM_EMOJI['❄️']} <b>Некорректное значение</b>\n<blockquote>{CUSTOM_EMOJI['🐢']} <i>{str(e)}</i></blockquote>", parse_mode='html')
+                    await event.edit(f"{CUSTOM_EMOJI['❄️']} <b>Некорректное значение</b>\n<blockquote>{CUSTOM_EMOJI['🧊']} <i>{str(e)}</i></blockquote>", parse_mode='html')
 
             elif action == 'del':
                 if len(args) < 3:
@@ -405,7 +532,7 @@ def register(kernel):
                     await event.edit(f"{CUSTOM_EMOJI['📎']} <b>Новый ключ добавлен</b>\n<blockquote>{CUSTOM_EMOJI['📎']} <code>{key}</code> → <code>{value}</code>\n{CUSTOM_EMOJI['📰']} <i>тип:</i> <code>{value_type}</code></blockquote>", parse_mode='html')
 
                 except Exception as e:
-                    await event.edit(f"{CUSTOM_EMOJI['❄️']} <b>Некорректное значение</b>\n<blockquote>{CUSTOM_EMOJI['🐢']} <i>{str(e)}</i></blockquote>", parse_mode='html')
+                    await event.edit(f"{CUSTOM_EMOJI['❄️']} <b>Некорректное значение</b>\n<blockquote>{CUSTOM_EMOJI['🧊']} <i>{str(e)}</i></blockquote>", parse_mode='html')
 
             elif action == 'dict':
                 if len(args) < 5:
@@ -440,7 +567,7 @@ def register(kernel):
                         await event.edit(f"{CUSTOM_EMOJI['📁']} <b>Элемент обновлен в словаре</b>\n<blockquote>{CUSTOM_EMOJI['🗂']} <code>{key}.{subkey}</code>\n<tg-spoiler>{CUSTOM_EMOJI['➕']} <i>было:</i> <code>{old_value}</code>\n{CUSTOM_EMOJI['➖']} <i>стало:</i> <code>{value}</code></tg-spoiler></blockquote>", parse_mode='html')
 
                 except Exception as e:
-                    await event.edit(f"{CUSTOM_EMOJI['❄️']} <b>Некорректное значение</b>\n<blockquote>{CUSTOM_EMOJI['🐢']} <i>{str(e)}</i></blockquote>", parse_mode='html')
+                    await event.edit(f"{CUSTOM_EMOJI['❄️']} <b>Некорректное значение</b>\n<blockquote>{CUSTOM_EMOJI['🧊']} <i>{str(e)}</i></blockquote>", parse_mode='html')
 
             elif action == 'list':
                 if len(args) < 4:
@@ -470,7 +597,7 @@ def register(kernel):
                     await event.edit(f"{CUSTOM_EMOJI['📚']} <b>Элемент добавлен в список</b>\n<blockquote>{CUSTOM_EMOJI['📎']} <code>{key}</code> → <code>{value}</code>\n{CUSTOM_EMOJI['📰']} <b>Размер списка:</b> <code>{len(kernel.config[key])}</code></blockquote>", parse_mode='html')
 
                 except Exception as e:
-                    await event.edit(f"{CUSTOM_EMOJI['❄️']} <b>Некорректное значение</b>\n<blockquote>{CUSTOM_EMOJI['🐢']} <i>{str(e)}</i></blockquote>", parse_mode='html')
+                    await event.edit(f"{CUSTOM_EMOJI['❄️']} <b>Некорректное значение</b>\n<blockquote>{CUSTOM_EMOJI['📎']} <i>{str(e)}</i></blockquote>", parse_mode='html')
 
             else:
                 await event.edit(f"{CUSTOM_EMOJI['🖨']} <b>Неизвестное действие</b>\n<blockquote>{CUSTOM_EMOJI['☑️']} <code>.fcfg set ключ значение</code>\n{CUSTOM_EMOJI['☑️']} <code>.fcfg del ключ</code>\n{CUSTOM_EMOJI['☑️']} <code>.fcfg add ключ значение</code>\n{CUSTOM_EMOJI['☑️']} <code>.fcfg dict ключ подключа значение</code>\n{CUSTOM_EMOJI['☑️']} <code>.fcfg list ключ значение</code></blockquote>", parse_mode='html')

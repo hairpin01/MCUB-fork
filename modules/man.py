@@ -1,11 +1,11 @@
+# requires: telethon>=1.24, re, math
 # author: @Hairpin00
 # version: 1.0.2
-# description: список модулей
-
+# description: Module manager with inline interface
 from telethon import events, Button
 import re
+import math
 
-# кастомные эмодзи
 CUSTOM_EMOJI = {
     'crystal': '<tg-emoji emoji-id="5361837567463399422">🔮</tg-emoji>',
     'dna': '<tg-emoji emoji-id="5404451992456156919">🧬</tg-emoji>',
@@ -21,111 +21,12 @@ CUSTOM_EMOJI = {
 def register(kernel):
     client = kernel.client
 
-    async def generate_man_page(search_term=None):
-        user_modules = len(kernel.loaded_modules)
-        system_modules = len(kernel.system_modules)
-
-        if not search_term:
-            msg = f'{CUSTOM_EMOJI["crystal"]} <b>Модулей: </b><code>{user_modules}</code><b>. Системных: </b><code>{system_modules}</code>\n\n'
-
-            if system_modules:
-                msg += '<blockquote exp>'
-                for name in sorted(kernel.system_modules.keys()):
-                    commands = get_module_commands(name, kernel)
-                    if commands:
-                        cmd_text = ", ".join([f"<code>{kernel.custom_prefix}{cmd}</code>" for cmd in commands[:3]])
-                        if len(commands) > 3:
-                            cmd_text += f" (+{len(commands)-3})"
-                        msg += f'<b>{name}:</b> {cmd_text}\n'
-                msg += '</blockquote>\n'
-
-            if user_modules:
-                msg += '<blockquote exp>'
-                for name in sorted(kernel.loaded_modules.keys()):
-                    commands = get_module_commands(name, kernel)
-                    if commands:
-                        cmd_text = ", ".join([f"<code>{kernel.custom_prefix}{cmd}</code>" for cmd in commands[:3]])
-                        if len(commands) > 3:
-                            cmd_text += f" (+{len(commands)-3})"
-                        msg += f'<b>{name}:</b> {cmd_text}\n'
-                msg += '</blockquote>'
-
-            return msg
-
-        search_term = search_term.lower()
-        exact_match = None
-        similar_modules = []
-
-        all_modules = {}
-        for name, module in kernel.system_modules.items():
-            all_modules[name] = ('system', module)
-        for name, module in kernel.loaded_modules.items():
-            all_modules[name] = ('user', module)
-
-        for name, (typ, module) in all_modules.items():
-            if name.lower() == search_term:
-                exact_match = (name, typ, module)
-                break
-
-        if exact_match:
-            name, typ, module = exact_match
-            commands = get_module_commands(name, kernel)
-
-            file_path = f"modules/{name}.py" if typ == 'system' else f"modules_loaded/{name}.py"
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    code = f.read()
-                    metadata = await kernel.get_module_metadata(code)
-            except:
-                metadata = {'commands': {}}
-
-            msg = f'{CUSTOM_EMOJI["dna"]} <b>Модуль </b><code>{name}</code>:\n'
-            msg += f'{CUSTOM_EMOJI["alembic"]} <b>D:</b> <i>{metadata["description"]}</i>\n'
-            msg += f'{CUSTOM_EMOJI["snowflake"]} <b>V:</b> <code>{metadata["version"]}</code>\n'
-            msg += '<blockquote expandable>'
-            if commands:
-                for cmd in commands:
-                    cmd_desc = metadata['commands'].get(cmd, f'{CUSTOM_EMOJI["confused"]} У команды нету описания')
-                    msg += f'{CUSTOM_EMOJI["tot"]} <code>{kernel.custom_prefix}{cmd}</code> – <b>{cmd_desc}</b>\n'
-            else:
-                msg += f'{CUSTOM_EMOJI["blocked"]} Команд не найдено\n'
-            msg += '</blockquote>'
-            msg += f'\n<blockquote>{CUSTOM_EMOJI["pancake"]} <b>Автор:</b> <i>{metadata["author"]}</i></blockquote>'
-
-            return msg
-
-        for name, (typ, module) in all_modules.items():
-            if search_term in name.lower():
-                similar_modules.append((name, typ, module))
-            else:
-                commands = get_module_commands(name, kernel)
-                for cmd in commands:
-                    if search_term in cmd.lower():
-                        similar_modules.append((name, typ, module))
-                        break
-
-        if similar_modules:
-            msg = f'{CUSTOM_EMOJI["crystal"]} <b>Найденые модули:</b>\n'
-            msg += '<blockquote>'
-            for name, typ, module in similar_modules[:5]:
-                commands = get_module_commands(name, kernel)
-
-                if commands:
-                    cmd_text = ", ".join([f"<code>{kernel.custom_prefix}{cmd}</code>" for cmd in commands[:2]])
-                    msg += f'<b>{name}:</b> {cmd_text}\n'
-
-            msg += '</blockquote>'
-
-            if len(similar_modules) > 5:
-                msg += f'... и ещё <code>{len(similar_modules)-5} </code>{CUSTOM_EMOJI["tot"]}\n'
-
-            msg += f'\n<blockquote><i>Точного совпадения не удалось найти</i> {CUSTOM_EMOJI["map"]}</blockquote>'
-        else:
-            msg = f'{CUSTOM_EMOJI["crystal"]} <b>Модуль:</b>\n<blockquote>{CUSTOM_EMOJI["blocked"]} Модуль не найден</blockquote>'
-
-        return msg
+    def is_admin(user_id):
+        """Check if user is admin (owner) of the userbot"""
+        return hasattr(kernel, 'ADMIN_ID') and user_id == kernel.ADMIN_ID
 
     def get_module_commands(module_name, kernel):
+        """Extract commands from module file"""
         commands = []
         file_path = None
 
@@ -138,7 +39,7 @@ def register(kernel):
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     code = f.read()
-
+                    # Patterns to find commands
                     patterns = [
                         r"pattern\s*=\s*r['\"]\^?\\?\.([a-zA-Z0-9_]+)",
                         r"register_command\s*\('([^']+)'",
@@ -146,25 +47,241 @@ def register(kernel):
                         r"kernel\.register_command\('([^']+)'",
                         r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'\\\\.([^']+)'\)\)"
                     ]
-
                     for pattern in patterns:
                         found = re.findall(pattern, code)
                         commands.extend(found)
-
-            except:
-                pass
-
+            except Exception as e:
+                kernel.log_error(f"Error reading module {module_name}: {e}")
         return list(set([cmd for cmd in commands if cmd]))
 
-    @kernel.register_command('man')
-    # <модуль> без, весь список модулей
-    async def man_handler(event):
-        args = event.text.split()
+    async def generate_detailed_page(search_term):
+        """Generate detailed info for a module"""
+        search_term = search_term.lower()
+        exact_match = None
+        similar_modules = []
 
-        if len(args) == 1:
-            msg = await generate_man_page()
-            await event.edit(msg, parse_mode='html')
+        # Collect all modules
+        all_modules = {}
+        for name, module in kernel.system_modules.items():
+            all_modules[name] = ('system', module)
+        for name, module in kernel.loaded_modules.items():
+            all_modules[name] = ('user', module)
+
+        # Find exact match
+        for name, (typ, module) in all_modules.items():
+            if name.lower() == search_term:
+                exact_match = (name, typ, module)
+                break
+
+        if exact_match:
+            name, typ, module = exact_match
+            commands = get_module_commands(name, kernel)
+            file_path = f"modules/{name}.py" if typ == 'system' else f"modules_loaded/{name}.py"
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    code = f.read()
+                    metadata = await kernel.get_module_metadata(code)
+            except:
+                metadata = {'commands': {}, 'description': 'No description', 'version': '?.?.?', 'author': 'Unknown'}
+
+            msg = f'{CUSTOM_EMOJI["dna"]} <b>Module</b> <code>{name}</code>:\n'
+            msg += f'{CUSTOM_EMOJI["alembic"]} <b>Description:</b> <i>{metadata.get("description", "...")}</i>\n'
+            msg += f'{CUSTOM_EMOJI["snowflake"]} <b>Version:</b> <code>{metadata.get("version", "1.0.0")}</code>\n'
+            msg += '<blockquote expandable>'
+            if commands:
+                for cmd in commands:
+                    cmd_desc = metadata.get('commands', {}).get(cmd, f'{CUSTOM_EMOJI["confused"]} No description')
+                    msg += f'{CUSTOM_EMOJI["tot"]} <code>{kernel.custom_prefix}{cmd}</code> – <b>{cmd_desc}</b>\n'
+            else:
+                msg += f'{CUSTOM_EMOJI["blocked"]} No commands found\n'
+            msg += '</blockquote>'
+            msg += f'\n<blockquote>{CUSTOM_EMOJI["pancake"]} <b>Author:</b> <i>{metadata.get("author", "Unknown")}</i></blockquote>'
+            return msg
+
+        # Find similar modules
+        for name, (typ, module) in all_modules.items():
+            if search_term in name.lower():
+                similar_modules.append((name, typ, module))
+            else:
+                commands = get_module_commands(name, kernel)
+                for cmd in commands:
+                    if search_term in cmd.lower():
+                        similar_modules.append((name, typ, module))
+                        break
+
+        if similar_modules:
+            msg = f'{CUSTOM_EMOJI["crystal"]} <b>Found modules:</b>\n<blockquote>'
+            for name, typ, module in similar_modules[:5]:
+                commands = get_module_commands(name, kernel)
+                if commands:
+                    cmd_text = ", ".join([f"<code>{kernel.custom_prefix}{cmd}</code>" for cmd in commands[:2]])
+                    msg += f'<b>{name}:</b> {cmd_text}\n'
+            msg += '</blockquote>'
+            if len(similar_modules) > 5:
+                msg += f'... and <code>{len(similar_modules)-5} more</code> {CUSTOM_EMOJI["tot"]}\n'
+            msg += f'\n<blockquote><i>No exact match found</i> {CUSTOM_EMOJI["map"]}</blockquote>'
         else:
-            search_term = ' '.join(args[1:])
-            msg = await generate_man_page(search_term)
-            await event.edit(msg, parse_mode='html')
+            msg = f'<blockquote>{CUSTOM_EMOJI["blocked"]} Module not found</blockquote>'
+        return msg
+
+    def get_paginated_data(page=0):
+        """Get paginated module list for inline interface"""
+        CHUNK_SIZE = 10
+        sys_modules = sorted(list(kernel.system_modules.keys()))
+        usr_modules = sorted(list(kernel.loaded_modules.keys()))
+        
+        user_pages_count = math.ceil(len(usr_modules) / CHUNK_SIZE) if usr_modules else 0
+        total_pages = 1 + user_pages_count
+        
+        if page == 0:
+            # System modules page
+            msg = f'{CUSTOM_EMOJI["crystal"]} <b>System modules:</b> <code>{len(sys_modules)}</code>\n\n'
+            msg += '<blockquote exp>'
+            for name in sys_modules:
+                commands = get_module_commands(name, kernel)
+                if commands:
+                    cmd_text = ", ".join([f"<code>{kernel.custom_prefix}{cmd}</code>" for cmd in commands[:3]])
+                    if len(commands) > 3:
+                        cmd_text += f" (+{len(commands)-3})"
+                    msg += f'<b>{name}:</b> {cmd_text}\n'
+            msg += '</blockquote>'
+        else:
+            # User modules page
+            start_idx = (page - 1) * CHUNK_SIZE
+            end_idx = start_idx + CHUNK_SIZE
+            current_chunk = usr_modules[start_idx:end_idx]
+            
+            msg = f'{CUSTOM_EMOJI["crystal"]} <b>User modules (Page {page}/<code>{len(usr_modules)}</code>):</b>\n'
+            msg += '<blockquote exp>'
+            for name in current_chunk:
+                commands = get_module_commands(name, kernel)
+                if commands:
+                    cmd_text = ", ".join([f"<code>{kernel.custom_prefix}{cmd}</code>" for cmd in commands[:3]])
+                    if len(commands) > 3:
+                        cmd_text += f" (+{len(commands)-3})"
+                    msg += f'<b>{name}:</b> {cmd_text}\n'
+            msg += '</blockquote>'
+
+        # Create navigation buttons
+        buttons = []
+        page_buttons = []
+        
+        for i in range(total_pages):
+            text = "•" if i == page else str(i + 1)
+            page_buttons.append(Button.inline(text, data=f"man_page_{i}"))
+        
+        buttons.append(page_buttons)
+        buttons.append([Button.inline("❌ Close", data="man_close")])
+        
+        return msg, buttons
+
+    async def man_inline_handler(event):
+        """Handle inline queries for module manager"""
+        # Check if user is admin
+        if not is_admin(event.sender_id):
+            builder = event.builder.article(
+                title='Access Denied',
+                text='🚫 You are not authorized to use this bot',
+                parse_mode='html'
+            )
+            await event.answer([builder])
+            return
+
+        query = event.text.strip()
+        
+        # Show main module list when query is "man"
+        if query == 'man':
+            msg, buttons = get_paginated_data(0)
+            builder = event.builder.article(
+                title="Module Manager",
+                text=msg,
+                buttons=buttons,
+                parse_mode='html'
+            )
+            await event.answer([builder])
+            return
+
+        # Search for specific module
+        if query.startswith('man '):
+            search_term = query[4:].strip()
+            if search_term:
+                msg = await generate_detailed_page(search_term)
+                builder = event.builder.article(
+                    title=f"Search: {search_term}",
+                    text=msg,
+                    parse_mode='html'
+                )
+                await event.answer([builder])
+                return
+
+        # Default response
+        builder = event.builder.article(
+            title="Module Manager",
+            text=f'{CUSTOM_EMOJI["crystal"]} <b>Module Manager</b>\n\nUse "man" to browse modules or "man [module]" to search.',
+            parse_mode='html'
+        )
+        await event.answer([builder])
+
+    async def man_callback_handler(event):
+        """Handle callback queries from inline buttons"""
+        # Check if user is admin
+        if not is_admin(event.sender_id):
+            await event.answer('🚫 You are not authorized', alert=True)
+            return
+
+        data = event.data.decode()
+        
+        if data == "man_close":
+            # Delete the inline message
+            try:
+                await event.delete()
+            except:
+                await event.answer("Closed", alert=False)
+                
+        elif data.startswith("man_page_"):
+            try:
+                page = int(data.split("_")[-1])
+                msg, buttons = get_paginated_data(page)
+                await event.edit(msg, buttons=buttons, parse_mode='html')
+            except Exception as e:
+                await event.answer(f"Error: {str(e)[:50]}", alert=True)
+
+    @kernel.register_command('man')
+    # Browse and search modules
+    async def man_handler(event):
+        """Handle .man command with inline interface"""
+        try:
+            args = event.text.split()
+            
+            if len(args) == 1:
+                # Show inline module browser
+                bot_username = kernel.config.get('inline_bot_username')
+                if not bot_username:
+                    await event.edit(f'{CUSTOM_EMOJI["blocked"]} <b>Inline bot not configured</b>\nSet inline_bot_token in config', parse_mode='html')
+                    return
+
+                # Delete command message and show inline
+                await event.delete()
+                
+                try:
+                    results = await client.inline_query(bot_username, 'man')
+                    if results:
+                        await results[0].click(event.chat_id, reply_to=event.reply_to_msg_id)
+                    else:
+                        await client.send_message(event.chat_id, "❌ No inline results")
+                except Exception as e:
+                    await kernel.handle_error(e, source="man_inline", event=event)
+                    await client.send_message(event.chat_id, f"❌ Error: {str(e)[:100]}")
+
+            else:
+                # Search for specific module
+                search_term = ' '.join(args[1:])
+                msg = await generate_detailed_page(search_term)
+                await event.edit(msg, parse_mode='html')
+                
+        except Exception as e:
+            await kernel.handle_error(e, source="man", event=event)
+
+    # Register inline and callback handlers
+    kernel.register_inline_handler('man', man_inline_handler)
+    kernel.register_callback_handler('man_', man_callback_handler)

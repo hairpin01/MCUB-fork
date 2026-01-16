@@ -9,7 +9,6 @@ def register(kernel):
     client = kernel.client
 
     @kernel.register_command('prefix')
-    # поменять prefix
     async def prefix_handler(event):
         args = event.text.split()
         if len(args) < 2:
@@ -26,7 +25,6 @@ def register(kernel):
         await event.edit(f'✅ Префикс изменен на `{new_prefix}`')
 
     @kernel.register_command('alias')
-    # пример: addalias p=ping
     async def alias_handler(event):
         args = event.text[len(kernel.custom_prefix)+6:].strip()
         if '=' not in args:
@@ -50,7 +48,6 @@ def register(kernel):
         await event.edit(f'✅ Алиас создан: `{kernel.custom_prefix}{alias}` → `{kernel.custom_prefix}{command}`')
 
     @kernel.register_command('2fa')
-    # двухфакторная аутентификация
     async def twofa_handler(event):
         current = kernel.config.get('2fa_enabled', False)
         kernel.config['2fa_enabled'] = not current
@@ -63,7 +60,6 @@ def register(kernel):
                         f'Теперь опасные команды требуют подтверждения через кнопки.')
 
     @kernel.register_command('powersave')
-    # энергосбережения
     async def powersave_handler(event):
         kernel.power_save_mode = not kernel.power_save_mode
         kernel.config['power_save_mode'] = kernel.power_save_mode
@@ -76,7 +72,6 @@ def register(kernel):
         await event.edit(f'Режим энергосбережения {status}{features}')
 
     @kernel.register_command('lang')
-    # ru or en
     async def lang_handler(event):
         args = event.text.split()
         if len(args) < 2:
@@ -98,32 +93,115 @@ def register(kernel):
         await event.edit(f'✅ Язык изменен на: {new_lang}')
 
     @kernel.register_command('settings')
-    # всё настройки
     async def settings_handler(event):
-        settings_info = f'''
-**⚙️ Настройки юзербота**
+        bot_username = kernel.config.get('inline_bot_username')
+        if not bot_username:
+            await event.edit('❌ Инлайн бот не настроен\nУстановите inline_bot_token в конфиге')
+            return
+        
+        await event.delete()
+        try:
+            results = await client.inline_query(bot_username, 'settings')
+            if results:
+                await results[0].click(event.chat_id, reply_to=event.reply_to_msg_id)
+            else:
+                await client.send_message(event.chat_id, "❌ Нет результатов инлайн")
+        except Exception as e:
+            await kernel.handle_error(e, source="settings_inline", event=event)
+            await client.send_message(event.chat_id, f"❌ Ошибка: {str(e)[:100]}")
 
-**Основные:**
-• Префикс: `{kernel.custom_prefix}`
-• Язык: `{kernel.config.get("language", "ru")}`
-• Тема: `{kernel.config.get("theme", "default")}`
+    async def settings_inline_handler(event):
+        from telethon import Button
+        
+        api_protection = kernel.config.get('api_protection', False)
+        power_save = kernel.config.get('power_save_mode', False)
+        two_fa = kernel.config.get('2fa_enabled', False)
 
-**Безопасность:**
-• 2FA: `{"✅ включена" if kernel.config.get("2fa_enabled", False) else "❌ выключена"}`
-• API защита: `{"✅ включена" if kernel.config.get("api_protection", False) else "❌ выключена"}`
+        buttons = [
+            [
+                Button.inline("reset prefix", b"settings_reset_prefix"),
+                Button.inline("reset alias", b"settings_reset_alias"),
+                Button.inline(f"{'✅' if api_protection else '❌'} api protection", b"settings_toggle_api")
+            ],
+            [
+                Button.inline(f"{'✅' if power_save else '❌'} powersave", b"settings_toggle_powersave"),
+                Button.inline(f"{'✅' if two_fa else '❌'} 2fa", b"settings_toggle_2fa")
+            ],
+            [
+                Button.inline("mcub info", b"settings_mcubinfo")
+            ],
+            [
+                Button.inline(f"Kernel version: {kernel.VERSION}", b"settings_version")
+            ]
+        ]
 
-**Производительность:**
-• Энергосбережение: `{"✅ включено" if kernel.power_save_mode else "❌ выключено"}`
-• Healthcheck: каждые `{kernel.config.get("healthcheck_interval", 30)}` мин
+        result = event.builder.article(
+            title="Settings",
+            description="Userbot settings panel",
+            text=f"⚙️ **Userbot Settings**\n\nClick buttons to manage settings:",
+            buttons=buttons
+        )
+        await event.answer([result])
 
-**Алиасы:** {len(kernel.aliases)}
-{chr(10).join([f"• `{kernel.custom_prefix}{alias}` → `{kernel.custom_prefix}{cmd}`" for alias, cmd in list(kernel.aliases.items())[:5]])}
-{f"{chr(10)}... и еще {len(kernel.aliases) - 5}" if len(kernel.aliases) > 5 else ""}
-'''
-        await event.edit(settings_info)
+    async def settings_callback_handler(event):
+        data = event.data.decode()
+        
+        if data == "settings_reset_prefix":
+            kernel.custom_prefix = '.'
+            kernel.config['command_prefix'] = '.'
+            with open(kernel.CONFIG_FILE, 'w', encoding='utf-8') as f:
+                json.dump(kernel.config, f, ensure_ascii=False, indent=2)
+            await event.edit("✅ Prefix reset to `.`")
+            
+        elif data == "settings_reset_alias":
+            kernel.aliases = {}
+            kernel.config['aliases'] = {}
+            with open(kernel.CONFIG_FILE, 'w', encoding='utf-8') as f:
+                json.dump(kernel.config, f, ensure_ascii=False, indent=2)
+            await event.edit("✅ Aliases cleared")
+            
+        elif data == "settings_toggle_api":
+            current = kernel.config.get('api_protection', False)
+            kernel.config['api_protection'] = not current
+            with open(kernel.CONFIG_FILE, 'w', encoding='utf-8') as f:
+                json.dump(kernel.config, f, ensure_ascii=False, indent=2)
+            status = "✅ enabled" if not current else "❌ disabled"
+            await event.edit(f"API protection {status}")
+            
+        elif data == "settings_toggle_powersave":
+            current = kernel.config.get('power_save_mode', False)
+            kernel.config['power_save_mode'] = not current
+            kernel.power_save_mode = not current
+            with open(kernel.CONFIG_FILE, 'w', encoding='utf-8') as f:
+                json.dump(kernel.config, f, ensure_ascii=False, indent=2)
+            status = "✅ enabled" if not current else "❌ disabled"
+            await event.edit(f"Power save mode {status}")
+            
+        elif data == "settings_toggle_2fa":
+            current = kernel.config.get('2fa_enabled', False)
+            kernel.config['2fa_enabled'] = not current
+            with open(kernel.CONFIG_FILE, 'w', encoding='utf-8') as f:
+                json.dump(kernel.config, f, ensure_ascii=False, indent=2)
+            status = "✅ enabled" if not current else "❌ disabled"
+            await event.edit(f"2FA {status}")
+            
+        elif data == "settings_mcubinfo":
+            info_text = (
+                "🎭 **Что такое юзербот?**\n\n"
+                "Это программа, которая работает через ваш личный аккаунт Telegram, используя клиентский API. "
+                "В отличие от обычных ботов (Bot API), юзербот имеет доступ ко всем функциям обычного пользователя - "
+                "может отправлять сообщения, управлять группами, автоматизировать действия и многое другое.\n\n"
+                "**Преимущества:** Полная автоматизация, неограниченные возможности, гибкость и кастомизация, прямое подключение\n\n"
+                "**Главные риски:** Блокировка аккаунта, отсутствие официальной поддержки, ответственность на пользователе, риск для основного аккаунта"
+            )
+            await event.edit(info_text)
+            
+        elif data == "settings_version":
+            await event.answer(f"Kernel version: {kernel.VERSION}", alert=True)
+
+        await event.answer()
 
     @kernel.register_command('mcubinfo')
-    # shows detailed information about userbots, their pros and cons
     async def mcubinfo_cmd(event):
         try:
             await event.edit("🔑", parse_mode='html')
@@ -149,6 +227,5 @@ def register(kernel):
             await kernel.handle_error(e, source="mcubinfo_cmd", event=event)
             await event.edit("🌩️ <b>error, check logs</b>", parse_mode='html')
 
-
-
-
+    kernel.register_inline_handler('settings', settings_inline_handler)
+    kernel.register_callback_handler('settings_', settings_callback_handler)

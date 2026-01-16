@@ -129,11 +129,12 @@ async def test_handler(event):
 ### Utility Properties
 
 `kernel.LOGS_DIR` - Path to logs directory
+
 `kernel.IMG_DIR` - Path to images directory
+
 `kernel.VERSION` - Kernel version string
+
 `kernel.start_time` - Kernel start timestamp
-
-
 
 kernel.get_thread_id(event)
 

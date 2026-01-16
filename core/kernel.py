@@ -136,14 +136,14 @@ class TaskScheduler:
 
 class Kernel:
     def __init__(self):
-        self.VERSION = '1.0.1.9'
+        self.VERSION = '1.0.1.9.2'
         self.DB_VERSION = 2
         self.start_time = time.time()
         self.loaded_modules = {}
         self.system_modules = {}
         self.command_handlers = {}
         self.command_owners = {}
-        self.custom_prefix = '.'
+        self.custom_prefix = '.' 
         self.aliases = {}
         self.config = {}
         self.client = None
@@ -615,6 +615,134 @@ class Kernel:
                 return False
         else:
             return False
+
+
+    async def inline_query_and_click(self, chat_id, query, bot_username=None, 
+                                    result_index=0, buttons=None, silent=False, 
+                                    reply_to=None, **kwargs):
+        """
+        Perform an inline query and automatically click on the specified result.
+        
+        Args:
+            chat_id (int): Target chat ID where to send the result
+            query (str): Inline query text
+            bot_username (str, optional): Bot username for inline query. If not provided,
+                                        uses the configured inline bot username from config
+            result_index (int, optional): Index of result to click (default: 0 = first result)
+            buttons (list, optional): Buttons to send with the result
+            silent (bool, optional): Send message silently
+            reply_to (int, optional): Reply to message ID
+            **kwargs: Additional parameters for click method
+        
+        Returns:
+            tuple: (success, result) - success bool and the result message or None
+            
+        Raises:
+            ValueError: If bot_username is not specified and not configured
+        """
+        try:
+            # Determine bot username
+            if not bot_username:
+                bot_username = self.config.get('inline_bot_username')
+                if not bot_username:
+                    raise ValueError("Bot username not specified and not configured in config")
+            
+            self.cprint(f'{self.Colors.BLUE}Performing inline query: {query} with @{bot_username}{self.Colors.RESET}')
+            
+            # Perform inline query
+            results = await self.client.inline_query(bot_username, query)
+            
+            if not results:
+                self.cprint(f'{self.Colors.YELLOW}No inline results found for query: {query}{self.Colors.RESET}')
+                return False, None
+            
+            # Check if result_index is valid
+            if result_index >= len(results):
+                self.cprint(f'{self.Colors.YELLOW}Result index {result_index} out of range, using first result{self.Colors.RESET}')
+                result_index = 0
+            
+            # Click on the specified result
+            result = results[result_index]
+            
+            click_kwargs = {}
+            if buttons:
+                click_kwargs['buttons'] = buttons
+            if silent:
+                click_kwargs['silent'] = silent
+            if reply_to:
+                click_kwargs['reply_to'] = reply_to
+            
+            # Add any additional kwargs
+            click_kwargs.update(kwargs)
+            
+            message = await result.click(chat_id, **click_kwargs)
+            
+            self.cprint(f'{self.Colors.GREEN}Successfully clicked inline result #{result_index} for query: {query}{self.Colors.RESET}')
+            return True, message
+            
+        except Exception as e:
+            self.cprint(f'{self.Colors.RED}Error performing inline query: {e}{self.Colors.RESET}')
+            await self.handle_error(e, source="inline_query_and_click")
+            return False, None
+    
+    
+    async def manual_inline_example(self, chat_id, query, bot_username=None):
+        """
+        Manual method for inline query execution with more control.
+        
+        This method allows full manual control over inline query execution,
+        including custom result selection and manual sending.
+        
+        Args:
+            chat_id (int): Target chat ID
+            query (str): Inline query text
+            bot_username (str, optional): Specific bot username to use
+            
+        Returns:
+            list: List of inline query results or empty list on error
+        """
+        try:
+            if not bot_username:
+                bot_username = self.config.get('inline_bot_username')
+                if not bot_username:
+                    self.cprint(f'{self.Colors.RED}No bot username specified{self.Colors.RESET}')
+                    return []
+            
+            # Get all results
+            results = await self.client.inline_query(bot_username, query)
+            
+            if not results:
+                return []
+            
+            # Return raw results for manual processing
+            return results
+            
+        except Exception as e:
+            self.cprint(f'{self.Colors.RED}Manual inline query failed: {e}{self.Colors.RESET}')
+            return []
+    
+    
+    async def send_inline_from_config(self, chat_id, query, buttons=None):
+        """
+        Simplified method that uses configured inline bot.
+        
+        This is the simplest way to use inline queries when you want
+        to use the bot configured in config.json.
+        
+        Args:
+            chat_id (int): Target chat ID
+            query (str): Inline query text
+            buttons (list, optional): Buttons to attach
+            
+        Returns:
+            bool: Success status
+        """
+        return await self.inline_query_and_click(
+            chat_id=chat_id,
+            query=query,
+            bot_username=self.config.get('inline_bot_username'),
+            buttons=buttons
+        )
 
     def register_inline_handler(self, pattern, handler):
         """Регистрация обработчика инлайн-запросов"""

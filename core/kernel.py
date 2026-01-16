@@ -136,7 +136,7 @@ class TaskScheduler:
 
 class Kernel:
     def __init__(self):
-        self.VERSION = '1.0.1.9.2'
+        self.VERSION = '1.0.1.9'
         self.DB_VERSION = 2
         self.start_time = time.time()
         self.loaded_modules = {}
@@ -616,6 +616,18 @@ class Kernel:
         else:
             return False
 
+    def is_bot_available(self):
+        """
+        Проверяет, доступен ли бот-клиент
+        
+        Returns:
+            bool: True если bot_client существует и авторизован
+        """
+        return (
+            hasattr(self, 'bot_client') and 
+            self.bot_client is not None and 
+            self.bot_client.is_connected()
+        )
 
     async def inline_query_and_click(self, chat_id, query, bot_username=None, 
                                     result_index=0, buttons=None, silent=False, 
@@ -1198,7 +1210,7 @@ class Kernel:
             flood_sleep_threshold=30,
             device_model=f"PC-MCUB-{platform.system()}",
             system_version=f"Python {sys.version}",
-            app_version="MCUB 1.0.1.8",
+            app_version="MCUB 1.0.1.9.2",
             lang_code="en",
             system_lang_code="en-US",
             base_logger=None,

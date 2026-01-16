@@ -136,6 +136,8 @@ async def test_handler(event):
 
 `kernel.start_time` - Kernel start timestamp
 
+`log_chat_id` - log chat id
+
 kernel.get_thread_id(event)
 
 > Description:
@@ -270,6 +272,37 @@ kernel.cprint("Warning message", kernel.Colors.YELLOW)
 
 > [!NOTE]
 > These utility methods are available in kernel version 1.0.1.9 and later.
+
+
+### Bot Client Access
+
+The bot client is directly accessible via `kernel.bot_client` attribute.
+
+Check Availability:
+```python
+    if kernel.is_bot_available():
+        # Use bot_client
+```
+Direct Access Examples:
+```python
+    # Send message
+    await kernel.bot_client.send_message(chat_id, text)
+    
+    # Send file
+    await kernel.bot_client.send_file(chat_id, file)
+    
+    # Get bot info
+    bot = await kernel.bot_client.get_me()
+    
+    # Edit message
+    await kernel.bot_client.edit_message(chat_id, message_id, new_text)
+    
+    # Delete messages
+    await kernel.bot_client.delete_messages(chat_id, [msg_id1, msg_id2])
+```
+> [!NOTE]
+> Always check availability with `kernel.is_bot_available()` before use.
+
 
 ### Message Helpers
 `

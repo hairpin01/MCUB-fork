@@ -136,7 +136,7 @@ class TaskScheduler:
 
 class Kernel:
     def __init__(self):
-        self.VERSION = '1.0.1.9'
+        self.VERSION = '1.0.1.9.3'
         self.DB_VERSION = 2
         self.start_time = time.time()
         self.loaded_modules = {}

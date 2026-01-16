@@ -243,11 +243,17 @@ kernel.cprint("Initializing database...", kernel.Colors.CYAN)
 Class Variables:
 
 · RESET = '\033[0m' - Reset to default terminal color
+
 · RED = '\033[91m' - Bright red
+
 · GREEN = '\033[92m' - Bright green
+
 · YELLOW = '\033[93m' - Bright yellow
+
 · BLUE = '\033[94m' - Bright blue
+
 · PURPLE = '\033[95m' - Bright purple
+
 · CYAN = '\033[96m' - Bright cyan
 
 **Usage:**

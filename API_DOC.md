@@ -1,4 +1,4 @@
-# `MCUB` Module API Documentation `1.0.1.9`
+# `MCUB` Module API Documentation `1.0.1.9.2`
 
 __Table of Contents__
 
@@ -16,7 +16,7 @@ __Table of Contents__
 > 12. [Best Practices](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#best-practices)
 > 13. [Example Module](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#example-module)
 > 14. [Premium Emoji Guide](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#premium-emoji-guide)
-15. [Inline Query Automation Methods](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#inline-query-automation-methods)
+> 15. [Inline Query Automation Methods](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#inline-query-automation-methods)
 
 # Introduction
 

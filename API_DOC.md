@@ -16,6 +16,7 @@ __Table of Contents__
 > 12. [Best Practices](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#best-practices)
 > 13. [Example Module](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#example-module)
 > 14. [Premium Emoji Guide](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#premium-emoji-guide)
+15. [Inline Query Automation Methods](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#inline-query-automation-methods)
 
 # Introduction
 
@@ -710,6 +711,46 @@ async for message in client.iter_messages('me', limit=10):
         if isinstance(entity, MessageEntityCustomEmoji):
             print(f"ID: {entity.document_id}")
 ```
+
+## **Inline Query Automation Methods**
+
+`inline_query_and_click()`
+
+Performs an inline query through the specified bot and automatically clicks on the selected result. This method handles the complete workflow from query to message sending with configurable parameters.
+
+**Usage Examples:**
+
+```python
+# Basic usage with configured bot
+success, message = await kernel.inline_query_and_click(
+    chat_id=event.chat_id,
+    query="gif cat"
+)
+
+# With custom bot and specific result
+success, message = await kernel.inline_query_and_click(
+    chat_id=event.chat_id,
+    query="sticker hello",
+    bot_username="StickersBot",
+    result_index=2  # Click third result
+)
+
+# With buttons and reply
+success, message = await kernel.inline_query_and_click(
+    chat_id=event.chat_id,
+    query="video meme",
+    buttons=[[Button.url("Source", "https://example.com")]],
+    reply_to=event.message.id
+)
+```
+
+`manual_inline_example()`
+
+Provides manual control over inline query execution, returning raw results for custom processing. Useful when you need to implement custom logic for result selection or processing.
+
+`send_inline_from_config()`
+
+Simplified wrapper that uses the bot **username** configured in __config.json__. For quick usage when you don't need to specify a bot username.
 
 ---
 > [!NOTE]

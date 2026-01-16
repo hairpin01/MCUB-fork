@@ -1,3 +1,4 @@
+
 # `MCUB` Module API Documentation `1.0.1.9.2`
 
 __Table of Contents__
@@ -131,6 +132,137 @@ async def test_handler(event):
 `kernel.IMG_DIR` - Path to images directory
 `kernel.VERSION` - Kernel version string
 `kernel.start_time` - Kernel start timestamp
+
+
+
+kernel.get_thread_id(event)
+
+> Description:
+> Returns the thread ID (topic ID) for a given event in groups with topics enabled.
+
+___Parameters:___
+
+· event (`telethon.events.NewMessage.Event`): The message event object.
+
+Returns:
+
+· int or None: Thread ID if available in the message context, otherwise None.
+
+**Usage:**
+
+```python
+thread_id = await kernel.get_thread_id(event)
+if thread_id:
+    await event.reply(f"This is topic #{thread_id}")
+```
+
+`kernel.get_user_info(user_id)`
+
+> Description:
+> Retrieves formatted user information for the given user ID.
+
+Parameters:
+
+· `user_id` (int): Telegram user ID to query.
+
+Returns:
+
+· str: Formatted string containing user name, username (if available), and ID. Returns fallback format if user cannot be fetched.
+
+**Usage:**
+
+```python
+user_info = await kernel.get_user_info(event.sender_id)
+await event.edit(f"Message from: {user_info}")
+```
+
+`kernel.is_admin(user_id)`
+
+> Description:
+> Checks if the specified user ID matches the admin ID of the userbot.
+
+___Parameters:___
+
+· `user_id` (int): User ID to verify.
+
+Returns:
+
+· bool: True if user ID matches admin ID, otherwise False.
+
+Usage:
+
+```python
+if kernel.is_admin(event.sender_id):
+    # Admin-only functionality
+    await event.edit("Admin command executed")
+else:
+    await event.edit("Access denied")
+```
+
+`kernel.cprint(text, color='')`
+
+> Description:
+> Prints colored text to the console using ANSI escape codes.
+
+Parameters:
+
+· `text` (str): Text to print.
+· `color` (str, optional): Color code from kernel.Colors class. Default is empty string (system default color).
+
+Available Colors:
+
+```python
+kernel.Colors.RESET    # Reset to default
+kernel.Colors.RED      # Red text
+kernel.Colors.GREEN    # Green text
+kernel.Colors.YELLOW   # Yellow text
+kernel.Colors.BLUE     # Blue text
+kernel.Colors.PURPLE   # Purple text
+kernel.Colors.CYAN     # Cyan text
+```
+
+**Usage:**
+
+```python
+# Success message
+kernel.cprint("Module loaded successfully", kernel.Colors.GREEN)
+
+# Error message
+kernel.cprint("Failed to load module", kernel.Colors.RED)
+
+# Info message
+kernel.cprint("Initializing database...", kernel.Colors.CYAN)
+```
+
+`kernel.Colors` Class
+
+> Description:
+> Static class containing ANSI escape codes for terminal text coloring. Used by kernel.cprint() method.
+
+Class Variables:
+
+· RESET = '\033[0m' - Reset to default terminal color
+· RED = '\033[91m' - Bright red
+· GREEN = '\033[92m' - Bright green
+· YELLOW = '\033[93m' - Bright yellow
+· BLUE = '\033[94m' - Bright blue
+· PURPLE = '\033[95m' - Bright purple
+· CYAN = '\033[96m' - Bright cyan
+
+**Usage:**
+
+```python
+# Direct usage
+print(f"{kernel.Colors.GREEN}Success!{kernel.Colors.RESET}")
+
+# Through cprint method
+kernel.cprint("Warning message", kernel.Colors.YELLOW)
+```
+
+---
+
+> [!NOTE]
+> These utility methods are available in kernel version 1.0.1.9 and later.
 
 ### Message Helpers
 `

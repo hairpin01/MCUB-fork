@@ -1,153 +1,126 @@
-# author: @Hairpin00
-# version: 1.0.3
-# description: backup userbot
 import os
-import sys
 import json
 import zipfile
 import tempfile
 import asyncio
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
-from telethon import TelegramClient
-from telethon.tl.functions.channels import CreateChannelRequest, EditAdminRequest, InviteToChannelRequest
+from telethon import TelegramClient, Button
+from telethon.tl.functions.channels import CreateChannelRequest, InviteToChannelRequest
 
 def register(kernel):
-    client = kernel.client
-    
-    BACKUP_CONFIG_FILE = Path(__file__).parent / "backup_config.json"
-    DEFAULT_CONFIG = {
-        "backup_chat_id": None,
-        "backup_interval_hours": 1,
-        "last_backup_time": None,
-        "backup_count": 0,
-        "enable_auto_backup": True,
-        "timezone": "UTC"
-    }
-    
     class BackupModule:
         def __init__(self):
-            self.config = self.load_config()
-            self.bot_client = None
             self.kernel = kernel
             self.client = kernel.client
+            self.config = {}
+            self.backup_task = None
         
-        def load_config(self):
-            if BACKUP_CONFIG_FILE.exists():
-                try:
-                    with open(BACKUP_CONFIG_FILE, 'r', encoding='utf-8') as f:
-                        loaded = json.load(f)
-                        config = DEFAULT_CONFIG.copy()
-                        config.update(loaded)
-                        return config
-                except Exception:
-                    return DEFAULT_CONFIG.copy()
-            return DEFAULT_CONFIG.copy()
-        
-        def save_config(self):
-            with open(BACKUP_CONFIG_FILE, 'w', encoding='utf-8') as f:
-                json.dump(self.config, f, indent=2, ensure_ascii=False)
-        
-        async def init_bot_client(self):
-            bot_token = self.kernel.config.get('inline_bot_token')
-            if not bot_token:
-                return False
+        async def initialize(self):
+            self.config = await kernel.get_module_config(__name__, {
+                "backup_chat_id": None,
+                "backup_interval_hours": 12,
+                "last_backup_time": None,
+                "backup_count": 0,
+                "enable_auto_backup": True
+            })
             
-            try:
-                self.bot_client = TelegramClient(
-                    'bot_backup_session',
-                    self.kernel.API_ID,
-                    self.kernel.API_HASH
-                )
-                await self.bot_client.start(bot_token=bot_token)
-                return True
-            except Exception:
-                return False
+            await self.schedule_backups()
+        
+        async def schedule_backups(self):
+            if self.backup_task:
+                self.backup_task.cancel()
+            
+            if not self.config['enable_auto_backup']:
+                return
+            
+            interval = self.config['backup_interval_hours'] * 3600
+            
+            async def backup_loop():
+                while True:
+                    try:
+                        await asyncio.sleep(interval)
+                        if self.config['enable_auto_backup']:
+                            await self.send_backup(manual=False)
+                    except asyncio.CancelledError:
+                        break
+                    except Exception as e:
+                        await kernel.handle_error(e, source="backup_loop", event=None)
+                        await asyncio.sleep(60)
+            
+            self.backup_task = asyncio.create_task(backup_loop())
         
         async def ensure_backup_chat(self):
-            # Сначала проверяем по сохранённому ID
             if self.config["backup_chat_id"]:
                 try:
                     chat = await self.client.get_entity(int(self.config["backup_chat_id"]))
-                    # Дополнительная проверка, что это действительно группа
-                    if hasattr(chat, 'megagroup') and chat.megagroup:
-                        return chat
+                    
+                    if kernel.is_bot_available():
+                        try:
+                            bot_me = await kernel.bot_client.get_me()
+                            try:
+                                await kernel.bot_client.get_permissions(chat.id, bot_me.id)
+                            except Exception:
+                                await self.client(InviteToChannelRequest(
+                                    channel=chat.id,
+                                    users=[bot_me.id]
+                                ))
+                                await asyncio.sleep(2)
+                        except Exception as e:
+                            await kernel.handle_error(e, source="check_bot_in_chat", event=None)
+                    else:
+                        kernel.log_warning(f"Bot not available for chat {chat.id}")
+                    
+                    return chat
                 except Exception:
-                    pass
-                # Сбрасываем невалидный ID
-                self.config["backup_chat_id"] = None
-                self.save_config()
-
-            # Ищем среди всех диалогов
-            backup_chats = []
-            try:
-                async for dialog in self.client.iter_dialogs(limit=100):
-                    if hasattr(dialog.entity, 'title') and dialog.entity.title:
-                        # Ищем по точному названию или частичному
-                        title_lower = dialog.entity.title.lower()
-                        if 'mcub-backup' in title_lower or 'бекап' in title_lower:
-                            backup_chats.append(dialog.entity)
-            except Exception as e:
-                print(f"Ошибка поиска чата: {e}")
-
-            # Если нашли несколько, берём первый (самый недавний)
-            if backup_chats:
-                chat = backup_chats[0]
-                self.config["backup_chat_id"] = chat.id
-                self.save_config()
-                return chat
-
-            # Если не нашли, создаём новую
+                    self.config["backup_chat_id"] = None
+            
+            async for dialog in self.client.iter_dialogs(limit=100):
+                if hasattr(dialog.entity, 'title') and dialog.entity.title:
+                    if 'backup' in dialog.entity.title.lower():
+                        self.config["backup_chat_id"] = dialog.entity.id
+                        await self.save_config()
+                        
+                        if kernel.is_bot_available():
+                            try:
+                                bot_me = await kernel.bot_client.get_me()
+                                await self.client(InviteToChannelRequest(
+                                    channel=dialog.entity.id,
+                                    users=[bot_me.id]
+                                ))
+                            except Exception as e:
+                                await kernel.handle_error(e, source="add_bot_to_existing", event=None)
+                        
+                        return dialog.entity
+            
             try:
                 result = await self.client(CreateChannelRequest(
-                    title="MCUB-backup",
-                    about="Автоматические бэкапы MCUB",
+                    title="MCUB Backups",
+                    about="Automatic MCUB backups storage",
                     megagroup=True
                 ))
-
+                
                 chat_id = result.chats[0].id
                 self.config["backup_chat_id"] = chat_id
-                self.save_config()
-
-                await self.client.send_message(
-                    chat_id,
-                    "🔮 <i>Группа для бэкапов создана</i>\n<blockquote>🧬 <b>здесь будут сохраняться автоматические бэкапы</b></blockquote>",
-                    parse_mode='html'
-                )
-
-                return await self.client.get_entity(chat_id)
+                await self.save_config()
+                
+                if kernel.is_bot_available():
+                    try:
+                        bot_me = await kernel.bot_client.get_me()
+                        await self.client(InviteToChannelRequest(
+                            channel=chat_id,
+                            users=[bot_me.id]
+                        ))
+                    except Exception as e:
+                        await kernel.handle_error(e, source="add_bot_to_new", event=None)
+                
+                chat = await self.client.get_entity(chat_id)
+                await self.client.send_message(chat_id, "✅ Backup group created")
+                return chat
             except Exception as e:
-                print(f"Ошибка создания группы: {e}")
+                await kernel.handle_error(e, source="ensure_backup_chat", event=None)
                 return None
-        
-        def get_excluded_items(self):
-            return [
-                'core',
-                'modules',
-                '.git',
-                'img',
-                'logs',
-                'core_inline',
-                '*.session',
-                'main.py',
-                'README.md',
-                'requirements.txt',
-                '__pycache__',
-                '.gitignore',
-                'backup_config.json',
-                'tester_config.json',
-                'gemini_data'
-            ]
-        
-        def should_exclude(self, path):
-            for pattern in self.get_excluded_items():
-                if '*' in pattern:
-                    if path.name.endswith(pattern.replace('*', '')):
-                        return True
-                elif path.name == pattern:
-                    return True
-            return False
         
         async def create_backup_archive(self):
             temp_dir = tempfile.mkdtemp(prefix="mcub_backup_")
@@ -156,17 +129,13 @@ def register(kernel):
             
             current_dir = Path.cwd()
             
-            for item in current_dir.iterdir():
-                if self.should_exclude(item):
-                    continue
-                
-                try:
-                    if item.is_file():
-                        shutil.copy2(item, backup_dir / item.name)
-                    elif item.is_dir():
-                        shutil.copytree(item, backup_dir / item.name, ignore=shutil.ignore_patterns(*self.get_excluded_items()))
-                except Exception:
-                    continue
+            config_file = current_dir / "config.json"
+            if config_file.exists():
+                shutil.copy2(config_file, backup_dir / "config.json")
+            
+            modules_dir = current_dir / "modules_loaded"
+            if modules_dir.exists():
+                shutil.copytree(modules_dir, backup_dir / "modules_loaded")
             
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             zip_path = Path(temp_dir) / f"MCUB_backup_{timestamp}.zip"
@@ -191,193 +160,252 @@ def register(kernel):
                 
                 zip_path, timestamp, zip_size = await self.create_backup_archive()
                 
-                current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                size_mb = zip_size / (1024 * 1024)
+                if kernel.is_bot_available():
+                    try:
+                        message = await kernel.bot_client.send_file(
+                            chat.id,
+                            zip_path,
+                            caption=f"tip: <code>{kernel.custom_prefix}restore</code> <i>to restore a backup</i>",
+                            buttons=Button.inline("🔄 Restore", f"restore:{timestamp}"),
+                            parse_mode='html'
+                        )
+                    except Exception as e:
+                        kernel.log_warning(f"Failed to send backup via bot: {e}, trying via main client")
+                        message = await self.client.send_file(
+                            chat.id,
+                            zip_path,
+                            caption=f"tip: <code>{kernel.custom_prefix}restore</code> <i>to restore a backup</i>",
+                            parse_mode='html'
+                        )
+                else:
+                    message = await self.client.send_file(
+                        chat.id,
+                        zip_path,
+                        caption=f"tip: <code>{kernel.custom_prefix}restore</code> <i>to restore a backup</i>",
+                        parse_mode='html'
+                    )
                 
-                caption = f"""🔮 <i>Бекап создан</i>
-<blockquote>📝 <b>время:</b> <mono>{current_time}</mono>
-🔬 <b>размер:</b> <mono>{size_mb:.2f} MB</mono>
-🎯 <b>тип:</b> <mono>{'ручной' if manual else 'автоматический'}</mono></blockquote>
-🧬 <i>Usage</i> <mono>{self.kernel.custom_prefix}restoreall</mono>"""
-                
-                client_to_use = self.bot_client if self.bot_client else self.client
-                
-                await client_to_use.send_file(
-                    chat.id,
-                    zip_path,
-                    caption=caption,
-                    parse_mode='html'
-                )
-                
-                self.config["last_backup_time"] = current_time
+                self.config["last_backup_time"] = datetime.now().isoformat()
                 self.config["backup_count"] = self.config.get("backup_count", 0) + 1
-                self.save_config()
+                await self.save_config()
                 
                 os.remove(zip_path)
                 return True
-            except Exception:
+            except Exception as e:
+                await kernel.handle_error(e, source="send_backup", event=None)
                 return False
         
-        async def restore_backup(self, message):
-            try:
-                if not message.document:
-                    return False
-                
-                if not message.file.name.endswith('.zip'):
-                    return False
-                
-                temp_dir = tempfile.mkdtemp(prefix="restore_")
-                zip_path = Path(temp_dir) / "backup.zip"
-                
-                await message.download_media(zip_path)
-                
-                extract_dir = Path(temp_dir) / "extracted"
-                with zipfile.ZipFile(zip_path, 'r') as zipf:
-                    zipf.extractall(extract_dir)
-                
-                backup_dir = extract_dir / "MCUB_backup"
-                if not backup_dir.exists():
-                    backup_dir = extract_dir
-                
-                changes = []
-                current_dir = Path.cwd()
-                
-                for item in backup_dir.iterdir():
-                    target = current_dir / item.name
-                    
-                    if target.exists():
-                        backup_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-                        backup_name = f"{target.name}_backup_{backup_time}"
-                        shutil.move(target, current_dir / backup_name)
-                        changes.append(f"📦 <b>{item.name}</b> сохранен как <mono>{backup_name}</mono>")
-                    
-                    if item.is_file():
-                        shutil.copy2(item, target)
-                    elif item.is_dir():
-                        shutil.copytree(item, target)
-                    
-                    changes.append(f"✅ <b>{item.name}</b> восстановлен")
-                
-                shutil.rmtree(temp_dir, ignore_errors=True)
-                
-                return changes if changes else ["⚠️ <i>В архиве нет данных для восстановления</i>"]
-            except Exception as e:
-                return [f"❌ <i>Ошибка:</i> <code>{str(e)}</code>"]
+        async def save_config(self):
+            await kernel.save_module_config(__name__, self.config)
     
     backup_module = BackupModule()
-    backup_module.client = client
     
-    @kernel.register_command('backupall')
-    # создать backup
-    async def backup_all_handler(event):
-        await event.edit("⌛️ <i>Создаю бэкап...</i>", parse_mode='html')
-        
-        if not backup_module.bot_client:
-            await backup_module.init_bot_client()
+    @kernel.register_command('backup')
+    async def backup_handler(event):
+        await event.edit("⌛ Creating backup...")
         
         if await backup_module.send_backup(manual=True):
-            await event.edit("✅ <i>Бекап успешно создан</i>", parse_mode='html')
+            await event.edit("✅ Backup created")
         else:
-            await event.edit("❌ <i>Ошибка создания бекапа</i>", parse_mode='html')
+            await event.edit("❌ Backup failed")
     
-    @kernel.register_command('restoreall')
-    async def restore_all_handler(event):
+    @kernel.register_command('restore')
+    async def restore_handler(event):
         if not event.is_reply:
-            await event.edit("❌ <i>Ответьте на сообщение с архивом бекапа</i>", parse_mode='html')
+            await event.edit("❌ Reply to a backup message")
             return
         
         reply = await event.get_reply_message()
         
-        await event.edit("⌛️ <i>Восстанавливаю бекап...</i>", parse_mode='html')
+        if not reply.document or not reply.file.name.endswith('.zip'):
+            await event.edit("❌ This is not a backup file")
+            return
         
-        changes = await backup_module.restore_backup(reply)
+        await event.edit("⌛ Restoring...")
         
-        if changes:
-            changes_text = "\n".join(changes)
-            await event.edit(f"✅ <i>Восстановление завершено</i>\n\n{changes_text}", parse_mode='html')
-        else:
-            await event.edit("❌ <i>Не удалось восстановить бекап</i>", parse_mode='html')
+        temp_dir = tempfile.mkdtemp(prefix="restore_")
+        zip_path = Path(temp_dir) / "backup.zip"
+        
+        try:
+            await reply.download_media(zip_path)
+            
+            extract_dir = Path(temp_dir) / "extracted"
+            with zipfile.ZipFile(zip_path, 'r') as zipf:
+                zipf.extractall(extract_dir)
+            
+            backup_dir = extract_dir / "MCUB_backup"
+            if not backup_dir.exists():
+                backup_dir = extract_dir
+            
+            current_dir = Path.cwd()
+            restored = []
+            
+            for item in backup_dir.iterdir():
+                target = current_dir / item.name
+                
+                if target.exists():
+                    backup_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    backup_name = f"{target.name}_backup_{backup_time}"
+                    shutil.move(target, current_dir / backup_name)
+                    restored.append(f"📦 {item.name} → {backup_name}")
+                
+                if item.is_file():
+                    shutil.copy2(item, target)
+                elif item.is_dir():
+                    shutil.copytree(item, target, dirs_exist_ok=True)
+                
+                restored.append(f"✅ {item.name}")
+            
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            
+            if restored:
+                await event.edit("✅ Restored:\n" + "\n".join(restored))
+            else:
+                await event.edit("⚠️ No files to restore")
+        except Exception as e:
+            await kernel.handle_error(e, source="restore_handler", event=event)
+            await event.edit(f"❌ Error: {str(e)}")
     
-    @kernel.register_command('backupset')
-    # настройки
+    @kernel.register_command('backupsettings')
     async def backup_settings_handler(event):
         args = event.text.split()
         
-        if len(args) < 2:
+        if len(args) == 1:
             config = backup_module.config
             
-            last_backup = config['last_backup_time'] or 'никогда'
+            last_backup = config['last_backup_time']
+            if last_backup:
+                last_backup = datetime.fromisoformat(last_backup).strftime("%Y-%m-%d %H:%M")
+            else:
+                last_backup = "Never"
             
-            settings_text = f"""🔮 <i>Настройки бекапов</i>
-
-<blockquote>💬 <b>чат ID:</b> <mono>{config['backup_chat_id'] or 'не установлен'}</mono>
-⏰ <b>интервал:</b> <mono>{config['backup_interval_hours']} ч.</mono>
-🤖 <b>автобекап:</b> <mono>{'включен' if config['enable_auto_backup'] else 'выключен'}</mono>
-📅 <b>последний бекап:</b> <mono>{last_backup}</mono>
-🔢 <b>всего бекапов:</b> <mono>{config['backup_count']}</mono></blockquote>
-
-🧬 <i>Команды:</i>
-<blockquote>⏰ <code>.backupset interval 2</code> - интервал в часах
-🤖 <code>.backupset auto on/off</code> - вкл/выкл автобекап</blockquote>"""
+            settings_text = f"""⚙️ **Backup Settings**
             
-            await event.edit(settings_text, parse_mode='html')
+**Chat ID:** `{config['backup_chat_id'] or 'Not set'}`
+**Interval:** `{config['backup_interval_hours']} hours`
+**Auto backup:** `{'Enabled' if config['enable_auto_backup'] else 'Disabled'}`
+**Last backup:** `{last_backup}`
+**Total backups:** `{config['backup_count']}`
+
+**Commands:**
+`.backupsettings interval <hours>` - Set backup interval
+`.backupsettings auto on/off` - Enable/disable auto backup
+`.backupsettings chat` - Set backup chat manually"""
+            
+            await event.edit(settings_text)
             return
         
-        command = args[1].lower()
+        cmd = args[1].lower()
         
-        if command == "interval" and len(args) > 2:
+        if cmd == "interval" and len(args) > 2:
             try:
                 hours = int(args[2])
                 if 1 <= hours <= 24:
                     backup_module.config["backup_interval_hours"] = hours
-                    backup_module.save_config()
-                    await event.edit(f"✅ <i>Интервал изменен на</i> <mono>{hours} часов</mono>", parse_mode='html')
+                    await backup_module.save_config()
+                    await backup_module.schedule_backups()
+                    await event.edit(f"✅ Interval set to {hours} hours")
                 else:
-                    await event.edit("❌ <i>Интервал должен быть от 1 до 24 часов</i>", parse_mode='html')
+                    await event.edit("❌ Interval must be between 1 and 24 hours")
             except ValueError:
-                await event.edit("❌ <i>Неверный формат числа</i>", parse_mode='html')
+                await event.edit("❌ Invalid number format")
         
-        elif command == "auto" and len(args) > 2:
+        elif cmd == "auto" and len(args) > 2:
             state = args[2].lower()
-            if state in ["on", "вкл", "true", "1"]:
+            if state in ["on", "true", "1", "yes"]:
                 backup_module.config["enable_auto_backup"] = True
-                backup_module.save_config()
-                await event.edit("✅ <i>Автоматические бекапы включены</i>", parse_mode='html')
-            elif state in ["off", "выкл", "false", "0"]:
+                await backup_module.save_config()
+                await backup_module.schedule_backups()
+                await event.edit("✅ Auto backup enabled")
+            elif state in ["off", "false", "0", "no"]:
                 backup_module.config["enable_auto_backup"] = False
-                backup_module.save_config()
-                await event.edit("✅ <i>Автоматические бекапы выключены</i>", parse_mode='html')
+                await backup_module.save_config()
+                await backup_module.schedule_backups()
+                await event.edit("✅ Auto backup disabled")
             else:
-                await event.edit("❌ <i>Используйте:</i> <code>.backupset auto on/off</code>", parse_mode='html')
+                await event.edit("❌ Usage: .backupsettings auto on/off")
         
+        elif cmd == "chat" and len(args) > 2:
+            try:
+                chat_id = int(args[2])
+                backup_module.config["backup_chat_id"] = chat_id
+                await backup_module.save_config()
+                await event.edit(f"✅ Backup chat set to {chat_id}")
+            except ValueError:
+                await event.edit("❌ Invalid chat ID")
         else:
-            await event.edit("❌ <i>Неизвестная команда</i>", parse_mode='html')
+            await event.edit("❌ Unknown command")
     
-    async def start_backup_scheduler():
-        await asyncio.sleep(10)
-        await backup_module.init_bot_client()
-    
-    asyncio.create_task(start_backup_scheduler())
-    
-    @kernel.register_command('backuphelp')
-    # help
-    async def backup_help_handler(event):
-        help_text = """🔮 <i>Backup Module Help</i>
-
-<blockquote>💾 <b>.backupall</b> - создать бекап
-🔄 <b>.restoreall</b> - восстановить из бекапа
-⚙️ <b>.backupset</b> - настройки бекапов</blockquote>
-
-🧬 <i>Что бекапится:</i>
-<blockquote>• Все файлы и папки
-• Исключения: core, modules, .git, img, logs, core_inline, *.session и другие системные файлы</blockquote>
-
-🔄 <i>Восстановление:</i>
-<blockquote>1. Найдите нужный бекап в группе
-2. Ответьте <code>.restoreall</code> на архив
-3. Старые файлы будут переименованы
-4. Файлы из архива будут восстановлены</blockquote>"""
+    @kernel.register_command('backuptime')
+    async def backup_time_handler(event):
+        user_id = event.sender_id
         
-        await event.edit(help_text, parse_mode='html')
+        buttons = [
+            [Button.inline("1 hour", "backup_interval:1")],
+            [Button.inline("6 hours", "backup_interval:6")],
+            [Button.inline("12 hours", "backup_interval:12")],
+            [Button.inline("24 hours", "backup_interval:24")]
+        ]
+        
+        try:
+            if kernel.is_bot_available():
+                await kernel.bot_client.send_message(
+                    user_id,
+                    "⏰ **Select backup interval:**",
+                    buttons=buttons
+                )
+                await event.edit("✅ Check your PM with the bot")
+            else:
+                await event.edit("⚠️ Bot is not available. Please start a chat with the bot first.")
+        except Exception as e:
+            await event.edit("❌ Can't send PM. Start a chat with the bot first")
     
-    kernel.cprint(f'{kernel.Colors.GREEN}✅ Загружен модуль: userbot_backup{kernel.Colors.RESET}')
+    async def backup_interval_callback(event):
+        try:
+            interval = int(event.data.decode().split(':')[1])
+            
+            if 1 <= interval <= 24:
+                backup_module.config["backup_interval_hours"] = interval
+                await backup_module.save_config()
+                await backup_module.schedule_backups()
+                
+                await event.answer(f"✅ Interval set to {interval} hours", alert=False)
+                await event.edit(f"⏰ Backup interval: {interval} hours")
+            else:
+                await event.answer("❌ Invalid interval", alert=True)
+        except Exception as e:
+            await kernel.handle_error(e, source="backup_interval_callback", event=event)
+    
+    async def restore_callback(event):
+        try:
+            await event.answer("⌛ Processing...", alert=False)
+            
+            message = await event.get_message()
+            
+            class MockEvent:
+                def __init__(self, msg):
+                    self.is_reply = True
+                    self.message = msg
+                    self.sender_id = event.sender_id
+                    self.chat_id = event.chat_id
+                    self.text = f"{kernel.custom_prefix}restore"
+                
+                async def get_reply_message(self):
+                    return self.message
+                
+                async def edit(self, text):
+                    await event.edit(text)
+            
+            mock_event = MockEvent(message)
+            
+            await restore_handler(mock_event)
+            
+        except Exception as e:
+            await kernel.handle_error(e, source="restore_callback", event=event)
+            await event.answer("❌ Error processing", alert=True)
+    
+    kernel.register_callback_handler('backup_interval:', backup_interval_callback)
+    kernel.register_callback_handler('restore:', restore_callback)
+    
+    asyncio.create_task(backup_module.initialize())
+

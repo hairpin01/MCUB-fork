@@ -1,5 +1,5 @@
 # author: @Hairpin00
-# version: 1.0.1.9
+# version: 1.0.1.9.3
 # description: kernel core
 # Спасибо @Mitrichq за основу юзербота
 # Лицензия? какая лицензия ещё
@@ -1476,6 +1476,19 @@ class Kernel:
 
 
         await self.setup_inline_bot()
+
+
+        if not self.config.get('inline_bot_token'):
+            self.cprint(f'{Colors.CYAN}🤖 Начинаем настройку инлайн-бота...{Colors.RESET}')
+            from core_inline.bot import InlineBot
+            self.inline_bot = InlineBot(self)
+            await self.inline_bot.setup()
+    
+
+
+
+
+
 
         modules_start_time = time.time()
         await self.load_system_modules()

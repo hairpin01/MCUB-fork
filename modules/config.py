@@ -1,11 +1,12 @@
 # requires: json, telethon>=1.24, hashlib
 # author: @Hairpin00
-# version: 1.1.2
-# description: config Kernel fixed
+# version: 1.1.4
+# description: config Kernel fixed with proper newline handling
 
 import json
 import html
 import hashlib
+import re
 from telethon import Button
 
 CUSTOM_EMOJI = {
@@ -53,10 +54,17 @@ def register(kernel):
     client = kernel.client
     SENSITIVE_KEYS = ['inline_bot_token', 'api_id', 'api_hash', 'phone']
 
+    class CustomJSONEncoder(json.JSONEncoder):
+        def encode(self, o):
+            result = super().encode(o)
+            # Исправляем двойные escape-последовательности
+            result = re.sub(r'(?<!\\)\\\\(n|t|r|f|b|")', r'\\\1', result)
+            return result
+
     async def save_config():
         try:
             with open(kernel.CONFIG_FILE, 'w', encoding='utf-8') as f:
-                json.dump(kernel.config, f, ensure_ascii=False, indent=2)
+                json.dump(kernel.config, f, ensure_ascii=False, indent=2, cls=CustomJSONEncoder)
         except Exception as e:
             await kernel.handle_error(e, source="save_config")
 
@@ -73,7 +81,14 @@ def register(kernel):
             elif expected_type == 'float': return float(value_str)
             elif expected_type == 'dict': return json.loads(value_str)
             elif expected_type == 'list': return json.loads(value_str)
-            elif expected_type == 'str': return value_str
+            elif expected_type == 'str': 
+                # Правильная обработка escape-последовательностей
+                value_str = re.sub(r'(?<!\\)\\n', '\n', value_str)
+                value_str = re.sub(r'(?<!\\)\\t', '\t', value_str)
+                value_str = re.sub(r'(?<!\\)\\r', '\r', value_str)
+                value_str = re.sub(r'\\\\n', '\\n', value_str)  # Сохраняем \\n как \n
+                value_str = re.sub(r'\\\\t', '\\t', value_str)  # Сохраняем \\t как \t
+                return value_str
 
         if value_str.lower() == 'true': return True
         elif value_str.lower() == 'false': return False
@@ -83,11 +98,20 @@ def register(kernel):
             return float(value_str)
         elif value_str.startswith('{') and value_str.endswith('}'):
             try: return json.loads(value_str)
-            except: return value_str
+            except: 
+                return value_str
         elif value_str.startswith('[') and value_str.endswith(']'):
             try: return json.loads(value_str)
-            except: return value_str
-        else: return value_str
+            except: 
+                return value_str
+        else: 
+            # Правильная обработка escape-последовательностей для строк
+            value_str = re.sub(r'(?<!\\)\\n', '\n', value_str)
+            value_str = re.sub(r'(?<!\\)\\t', '\t', value_str)
+            value_str = re.sub(r'(?<!\\)\\r', '\r', value_str)
+            value_str = re.sub(r'\\\\n', '\\n', value_str)
+            value_str = re.sub(r'\\\\t', '\\t', value_str)
+            return value_str
 
     def is_key_hidden(key):
         hidden_keys = kernel.config.get('hidden_keys', [])
@@ -193,6 +217,12 @@ def register(kernel):
             display_value = "<code>null</code>"
         elif isinstance(value, bool):
             display_value = "✔️ <code>true</code>" if value else "✖️ <code>false</code>"
+        elif isinstance(value, str):
+            # Отображаем строку с сохранением форматирования
+            escaped_value = html.escape(value)
+            # Заменяем переносы строк на <br> для отображения в HTML
+            escaped_value = escaped_value.replace('\n', '<br>')
+            display_value = f"<code>{escaped_value}</code>"
         else:
             display_value = f"<code>{html.escape(str(value))}</code>"
         
@@ -241,7 +271,6 @@ def register(kernel):
         
         elif data.startswith('cfg_bool_toggle_'):
             try:
-                # FIX: Length of "cfg_bool_toggle_" is 16, not 17
                 key_id = data[16:] 
                 cached = kernel.cache.get(f"cfg_view_{key_id}")
                 if not cached:
@@ -323,6 +352,10 @@ def register(kernel):
                     value_type = type(value).__name__
                     if isinstance(value, (dict, list)):
                         display_value = f"<pre>{html.escape(json.dumps(value, ensure_ascii=False, indent=2))}</pre>"
+                    elif isinstance(value, str):
+                        escaped_value = html.escape(value)
+                        escaped_value = escaped_value.replace('\n', '<br>')
+                        display_value = f"<code>{escaped_value}</code>"
                     else:
                         display_value = f"<code>{html.escape(str(value))}</code>"
                     
@@ -371,8 +404,13 @@ def register(kernel):
                     value = parse_value(value_str, current_type)
                     kernel.config[key] = value
                     await save_config()
-                    await event.edit(f"{CUSTOM_EMOJI['✅']} <b>Set</b> <code>{key}</code> = <code>{value}</code>", parse_mode='html')
-                except Exception as e: await event.edit(f"{CUSTOM_EMOJI['❌']} {e}", parse_mode='html')
+                    # Показываем значение с переносами строк
+                    display_value = value
+                    if isinstance(value, str):
+                        display_value = value.replace('\n', '\\n')
+                    await event.edit(f"{CUSTOM_EMOJI['✅']} <b>Set</b> <code>{key}</code> = <code>{html.escape(str(display_value))}</code>", parse_mode='html')
+                except Exception as e: 
+                    await event.edit(f"{CUSTOM_EMOJI['❌']} {html.escape(str(e))}", parse_mode='html')
 
             elif action == 'del':
                 if len(args) < 3: return
@@ -399,7 +437,8 @@ def register(kernel):
                     kernel.config[key] = value
                     await save_config()
                     await event.edit(f"{CUSTOM_EMOJI['✅']} <b>Added</b> <code>{key}</code>", parse_mode='html')
-                except Exception as e: await event.edit(f"{CUSTOM_EMOJI['❌']} {e}", parse_mode='html')
+                except Exception as e: 
+                    await event.edit(f"{CUSTOM_EMOJI['❌']} {html.escape(str(e))}", parse_mode='html')
 
             elif action == 'dict':
                 if len(args) < 5: return
@@ -411,7 +450,8 @@ def register(kernel):
                     kernel.config[key][subkey] = parse_value(value_str)
                     await save_config()
                     await event.edit(f"{CUSTOM_EMOJI['✅']} <b>Dict</b> <code>{key}[{subkey}]</code> updated", parse_mode='html')
-                except Exception as e: await event.edit(f"{CUSTOM_EMOJI['❌']} {e}", parse_mode='html')
+                except Exception as e: 
+                    await event.edit(f"{CUSTOM_EMOJI['❌']} {html.escape(str(e))}", parse_mode='html')
 
             elif action == 'list':
                 if len(args) < 4: return
@@ -423,7 +463,8 @@ def register(kernel):
                     kernel.config[key].append(parse_value(value_str))
                     await save_config()
                     await event.edit(f"{CUSTOM_EMOJI['✅']} <b>List</b> <code>{key}</code> appended", parse_mode='html')
-                except Exception as e: await event.edit(f"{CUSTOM_EMOJI['❌']} {e}", parse_mode='html')
+                except Exception as e: 
+                    await event.edit(f"{CUSTOM_EMOJI['❌']} {html.escape(str(e))}", parse_mode='html')
 
         except Exception as e:
             await kernel.handle_error(e, source="fcfg", event=event)

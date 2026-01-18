@@ -46,7 +46,7 @@ CUSTOM_EMOJI = {
     'no_cmd': '<tg-emoji emoji-id="5429428837895141860">🫨</tg-emoji>'
 }
 
-# Случайные эмодзи для завершения (оригинальные из кода)
+# Случайные эмодзи для завершения
 RANDOM_EMOJIS = [
     'ಠ_ಠ', '( ཀ ʖ̯ ཀ)', '(◕‿◕✿)', '(つ･･)つ', '༼つ◕_◕༽つ',
     '(•_•)', '☜(ﾟヮﾟ☜)', '(☞ﾟヮﾟ)☞', 'ʕ•ᴥ•ʔ', '(づ￣ ³￣)づ'
@@ -100,16 +100,12 @@ def register(kernel):
             return False
 
     async def send_with_emoji(chat_id, text, **kwargs):
-        """Отправка сообщения с поддержкой кастомных эмодзи и HTML"""
         try:
-            # Если есть старый формат, преобразуем в новый
             if '<emoji' in text:
                 text = text.replace('<emoji document_id=', '<tg-emoji emoji-id=')
                 text = text.replace('</emoji>', '</tg-emoji>')
 
-            # Если есть кастомные эмодзи или HTML-теги
             if '<tg-emoji' in text or re.search(r'<[^>]+>', text):
-                # Используем HTML парсинг
                 parse_mode = kwargs.pop('parse_mode', 'html')
                 return await client.send_message(chat_id, text, parse_mode=parse_mode, **kwargs)
             else:
@@ -295,14 +291,14 @@ def register(kernel):
                 emoji = random.choice(RANDOM_EMOJIS)
 
                 final_msg = f'{CUSTOM_EMOJI["success"]} <b>Модуль {module_name} загружен!</b> {emoji}\n'
-                final_msg += f'<blockquote>{CUSTOM_EMOJI["idea"]} <i>D: {metadata["description"]}</i> | V: <code>{metadata["version"]}</code></blockquote>'
-
+                final_msg += f'<blockquote>{CUSTOM_EMOJI["idea"]} <i>D: {metadata["description"]}</i> | V: <code>{metadata["version"]}</code></blockquote>\n'
+                final_msg += '<blockquote>'
                 if commands:
-                    final_msg += '<blockquote>'
+
                     for cmd in commands:
                         cmd_desc = metadata['commands'].get(cmd, f'{CUSTOM_EMOJI["no_cmd"]} У команды нету описания')
                         final_msg += f'{CUSTOM_EMOJI["crystal"]} <code>{kernel.custom_prefix}{cmd}</code> – <b>{cmd_desc}</b>\n'
-                        final_msg += '</blockquote>'
+                final_msg += '</blockquote>'
 
                 await log_to_bot(f"Модуль {module_name} установлен")
                 await edit_with_emoji(msg, final_msg)
@@ -337,10 +333,100 @@ def register(kernel):
         args = event.text.split()
 
         if len(args) < 2:
+            try:
+                # Пытаемся вызвать каталог через инлайн бота
+                bot_username = None
+                # Проверяем наличие клиента бота в ядре
+                if hasattr(kernel, 'bot_client') and kernel.bot_client:
+                    bot_info = await kernel.bot_client.get_me()
+                    bot_username = bot_info.username
+
+                if bot_username:
+                    # Отправляем инлайн запрос catalog_ боту
+                    results = await client.inline_query(bot_username, 'catalog_')
+                    if results:
+                        # Нажимаем на первый результат (отправляем сообщение каталога)
+                        await results[0].click(event.chat_id)
+                        # Удаляем команду .dlm
+                        await event.delete()
+                        return
+            except Exception as e:
+                # Если не вышло (нет бота, ошибка сети и т.д.), просто игнорируем и показываем помощь
+                # print(f"Error calling inline catalog: {e}")
+                pass
+
+            # Если не получилось вызвать инлайн или просто ошибка
             await edit_with_emoji(event,
-                f'{CUSTOM_EMOJI["warning"]} <b>Использование:</b> <code>{kernel.custom_prefix}dlm [-send/-s] название_модуля или ссылка [номер_репозитория]</code>'
+                f'{CUSTOM_EMOJI["warning"]} <b>Использование:</b> <code>{kernel.custom_prefix}dlm [-send/-s/-list] название_модуля или ссылка [номер_репозитория]</code>'
             )
             return
+
+        if args[1] == '-list':
+            if len(args) == 2:
+                await edit_with_emoji(event, f'{CUSTOM_EMOJI["loading"]} <b>Получаю список модулей...</b>')
+
+                repos = [kernel.default_repo] + kernel.repositories
+                message_lines = []
+                errors = []
+
+                for i, repo in enumerate(repos):
+                    try:
+                        modules = await kernel.get_repo_modules_list(repo)
+                        repo_name = await kernel.get_repo_name(repo)
+
+                        if modules:
+                            module_list = ' | '.join(modules)
+                            message_lines.append(f'<b>{repo_name}</b>: {module_list}')
+                        else:
+                            errors.append(f'{i+1}. {repo_name}: пустой список')
+                    except Exception as e:
+                        errors.append(f'{i+1}. {repo}: ошибка - {str(e)[:50]}')
+
+                if message_lines:
+                    msg_text = '\n'.join(message_lines)
+                    final_msg = f'{CUSTOM_EMOJI["folder"]} <b>Список модулей из репозиториев:</b>\n<blockquote>{msg_text}</blockquote>'
+
+                    if errors:
+                        final_msg += f'\n\n{CUSTOM_EMOJI["warning"]} <b>Ошибки:</b>\n<blockquote>{"<br>".join(errors)}</blockquote>'
+                else:
+                    final_msg = f'{CUSTOM_EMOJI["warning"]} <b>Не удалось получить список модулей</b>'
+                    if errors:
+                        final_msg += f'\n<blockquote>{"<br>".join(errors)}</blockquote>'
+
+                await edit_with_emoji(event, final_msg)
+                return
+            else:
+                module_name = args[2]
+                msg = await event.edit(f'{CUSTOM_EMOJI["loading"]} <b>Ищу модуль {module_name}...</b>', parse_mode='html')
+
+                repos = [kernel.default_repo] + kernel.repositories
+                found = False
+
+                for repo in repos:
+                    try:
+                        code = await kernel.download_module_from_repo(repo, module_name)
+                        if code:
+                            found = True
+                            metadata = await kernel.get_module_metadata(code)
+                            size = len(code.encode('utf-8'))
+
+                            info = (
+                                f'{CUSTOM_EMOJI["file"]} <b>Модуль:</b> <code>{module_name}</code>\n'
+                                f'{CUSTOM_EMOJI["idea"]} <b>Описание:</b> <i>{metadata["description"]}</i>\n'
+                                f'{CUSTOM_EMOJI["crystal"]} <b>Версия:</b> <code>{metadata["version"]}</code>\n'
+                                f'{CUSTOM_EMOJI["angel"]} <b>Автор:</b> <i>{metadata["author"]}</i>\n'
+                                f'{CUSTOM_EMOJI["folder"]} <b>Размер:</b> <code>{size} байт</code>\n'
+                                f'{CUSTOM_EMOJI["cloud"]} <b>Репозиторий:</b> <code>{repo}</code>'
+                            )
+                            await edit_with_emoji(msg, info)
+                            break
+                    except Exception as e:
+                        await kernel.log_error(f"Ошибка поиска модуля {module_name} в {repo}: {e}")
+                        continue
+
+                if not found:
+                    await edit_with_emoji(msg, f'{CUSTOM_EMOJI["warning"]} <b>Модуль {module_name} не найден ни в одном репозитории</b>')
+                return
 
         send_mode = False
         module_or_url = None
@@ -376,8 +462,8 @@ def register(kernel):
 
         if module_name in kernel.system_modules:
             await edit_with_emoji(event,
-                f'{CUSTOM_EMOJI["confused"]} <b>Ой, кажется ты попытался скачать системный модуль</b> <code>{module_name}</code>\n'
-                f'<blockquote><i>{CUSTOM_EMOJI["blocked"]} Системные модули нельзя скачивать через <code>dlm</code></i></blockquote>'
+                f'{CUSTOM_EMOJI["confused"]} <b>Ой, кажется ты попытался установить системный модуль</b> <code>{module_name}</code>\n'
+                f'<blockquote><i>{CUSTOM_EMOJI["blocked"]} Системные модули нельзя устанавливать через <code>dlm</code></i></blockquote>'
             )
             return
 
@@ -419,10 +505,14 @@ def register(kernel):
                     code = await kernel.download_module_from_repo(repo_url, module_name)
                 else:
                     for repo in repos:
-                        code = await kernel.download_module_from_repo(repo, module_name)
-                        if code:
-                            repo_url = repo
-                            break
+                        try:
+                            code = await kernel.download_module_from_repo(repo, module_name)
+                            if code:
+                                repo_url = repo
+                                break
+                        except Exception as e:
+                            await kernel.log_error(f"Ошибка скачивания модуля {module_name} из {repo}: {e}")
+                            continue
 
             if not code:
                 await edit_with_emoji(msg, f'{CUSTOM_EMOJI["warning"]} <b>Модуль {module_name} не найден в репозиториях</b>')
@@ -485,7 +575,7 @@ def register(kernel):
                 emoji = random.choice(RANDOM_EMOJIS)
 
                 final_msg = f'{CUSTOM_EMOJI["success"]} <b>Модуль {module_name} загружен!</b> {emoji}\n'
-                final_msg += f'<blockquote>📝 <i>D: {metadata["description"]}</i> | V: <code>{metadata["version"]}</code></blockquote>'
+                final_msg += f'<blockquote>📝 <i>D: {metadata["description"]}</i> | V: <code>{metadata["version"]}</code></blockquote>\n'
 
                 if commands:
                     final_msg += '<blockquote>'

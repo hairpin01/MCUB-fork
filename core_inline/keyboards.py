@@ -5,7 +5,14 @@ class InlineKeyboards:
     def __init__(self, kernel):
         self.kernel = kernel
     
+    def check_admin(self, event):
+        return event.sender_id == getattr(self.kernel, 'ADMIN_ID', None)
+
     async def handle_confirm_yes(self, event):
+        if not self.check_admin(event):
+            await event.answer('❌ Эта кнопка не ваша', alert=True)
+            return
+
         sender = await event.get_sender()
         chat_id = event.chat_id
         confirm_key = f'{chat_id}_{sender.id}'
@@ -23,6 +30,10 @@ class InlineKeyboards:
             await event.edit('❌ Команда не найдена или уже выполнена')
     
     async def handle_confirm_no(self, event):
+        if not self.check_admin(event):
+            await event.answer('❌ Эта кнопка не ваша', alert=True)
+            return
+
         sender = await event.get_sender()
         chat_id = event.chat_id
         confirm_key = f'{chat_id}_{sender.id}'
@@ -36,6 +47,10 @@ class InlineKeyboards:
             await event.edit('❌ Нечего отменять')
     
     async def handle_catalog_page(self, event):
+        if not self.check_admin(event):
+            await event.answer('❌ Эта кнопка не ваша', alert=True)
+            return
+
         page = int(event.data.decode().split('_')[1])
         await event.answer()
         
@@ -82,6 +97,10 @@ class InlineKeyboards:
         await event.edit(msg, buttons=buttons if buttons else None, parse_mode='html')
     
     async def handle_custom_page(self, event):
+        if not self.check_admin(event):
+            await event.answer('❌ Эта кнопка не ваша', alert=True)
+            return
+
         page_data = event.data.decode().split('_', 1)[1]
         await event.answer(f'Страница: {page_data}')
         await event.edit(f'📄 Навигация: {page_data}')

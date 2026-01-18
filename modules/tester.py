@@ -1,8 +1,3 @@
-# requires: telethon>=1.24
-# author: @Hairpin00
-# version: 1.0.6
-# description: тестированье, ping, logs
-
 import asyncio
 import os
 import time
@@ -12,7 +7,6 @@ import socket
 from telethon.tl.types import MessageEntityTextUrl, InputMediaWebPage
 from telethon import functions, types
 
-# premium emoji dictionary
 CUSTOM_EMOJI = {
     '📝': '<tg-emoji emoji-id="5334882760735598374">📝</tg-emoji>',
     '📁': '<tg-emoji emoji-id="5433653135799228968">📁</tg-emoji>',
@@ -64,13 +58,13 @@ def register(kernel):
     kernel.config.setdefault('ping_quote_media', False)
     kernel.config.setdefault('ping_banner_url', 'https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/ping.png')
     kernel.config.setdefault('ping_invert_media', False)
+    kernel.config.setdefault('ping_custom_text', None)
 
     @kernel.register_command('ping')
-    # ping
     async def ping_handler(event):
         try:
             start_time = time.time()
-            msg = await event.edit(CUSTOM_EMOJI['❄️'], parse_mode='html')
+            msg = await event.edit(CUSTOM_EMOJI['✏️'], parse_mode='html')
             end_time = time.time()
             ping_time = round((end_time - start_time) * 1000, 2)
 
@@ -89,7 +83,20 @@ def register(kernel):
             system_user = getpass.getuser()
             hostname = socket.gethostname()
 
-            response = f"""<blockquote>{CUSTOM_EMOJI['❄️']} <b>ping:</b> {ping_time} ms</blockquote>
+            custom_text = kernel.config.get('ping_custom_text')
+            if custom_text:
+                try:
+                    response = custom_text.format(
+                        ping_time=ping_time,
+                        uptime=uptime,
+                        system_user=system_user,
+                        hostname=hostname
+                    )
+                except Exception as e:
+                    await kernel.handle_error(e, source="ping:custom_text_format", event=event)
+                    response = f"""<b>Error in custom text format:</b> {str(e)}"""
+            else:
+                response = f"""<blockquote>{CUSTOM_EMOJI['❄️']} <b>ping:</b> {ping_time} ms</blockquote>
 <blockquote>{CUSTOM_EMOJI['❄️']} <b>uptime:</b> {uptime}</blockquote>"""
 
             banner_url = kernel.config.get('ping_banner_url')
@@ -103,24 +110,49 @@ def register(kernel):
 
                     await msg.delete()
 
+                    chat = await event.get_chat()
+                    reply_to = None
+                    if hasattr(chat, 'forum') and chat.forum and event.message.reply_to:
+                        reply_to = event.message.reply_to.reply_to_top_id or event.message.reply_to.reply_to_msg_id
+
                     try:
-                        await client.send_message(
-                            entity=await event.get_input_chat(),
-                            message=text,
-                            formatting_entities=entities,
-                            link_preview=True,
-                            invert_media=invert_media
-                        )
+                        if reply_to:
+                            await client.send_message(
+                                entity=await event.get_input_chat(),
+                                message=text,
+                                formatting_entities=entities,
+                                link_preview=True,
+                                invert_media=invert_media,
+                                reply_to=reply_to
+                            )
+                        else:
+                            await client.send_message(
+                                entity=await event.get_input_chat(),
+                                message=text,
+                                formatting_entities=entities,
+                                link_preview=True,
+                                invert_media=invert_media
+                            )
                         return
                     except TypeError as e:
                         if "invert_media" in str(e):
-                            await client(functions.messages.SendMessageRequest(
-                                peer=await event.get_input_chat(),
-                                message=text,
-                                entities=entities,
-                                invert_media=invert_media,
-                                no_webpage=False
-                            ))
+                            if reply_to:
+                                await client(functions.messages.SendMessageRequest(
+                                    peer=await event.get_input_chat(),
+                                    message=text,
+                                    entities=entities,
+                                    invert_media=invert_media,
+                                    no_webpage=False,
+                                    reply_to_msg_id=reply_to
+                                ))
+                            else:
+                                await client(functions.messages.SendMessageRequest(
+                                    peer=await event.get_input_chat(),
+                                    message=text,
+                                    entities=entities,
+                                    invert_media=invert_media,
+                                    no_webpage=False
+                                ))
                             return
                         else:
                             raise
@@ -132,23 +164,44 @@ def register(kernel):
                 await msg.delete()
                 banner_sent = False
 
+                chat = await event.get_chat()
+                reply_to = None
+                if hasattr(chat, 'forum') and chat.forum and event.message.reply_to:
+                    reply_to = event.message.reply_to.reply_to_top_id or event.message.reply_to.reply_to_msg_id
+
                 if os.path.exists(banner_url):
                     try:
-                        await event.respond(
-                            response,
-                            file=banner_url,
-                            parse_mode='html'
-                        )
+                        if reply_to:
+                            await event.respond(
+                                response,
+                                file=banner_url,
+                                parse_mode='html',
+                                reply_to=reply_to
+                            )
+                        else:
+                            await event.respond(
+                                response,
+                                file=banner_url,
+                                parse_mode='html'
+                            )
                         banner_sent = True
                     except Exception as e:
                         pass
                 else:
                     try:
-                        await event.respond(
-                            response,
-                            file=banner_url,
-                            parse_mode='html'
-                        )
+                        if reply_to:
+                            await event.respond(
+                                response,
+                                file=banner_url,
+                                parse_mode='html',
+                                reply_to=reply_to
+                            )
+                        else:
+                            await event.respond(
+                                response,
+                                file=banner_url,
+                                parse_mode='html'
+                            )
                         banner_sent = True
                     except Exception as e:
                         pass
@@ -157,13 +210,24 @@ def register(kernel):
                     try:
                         text, entities = await client._parse_message_text(response, 'html')
                         text, entities = add_link_preview(text, entities, banner_url)
-                        await event.respond(
-                            text,
-                            formatting_entities=entities,
-                            parse_mode=None
-                        )
+                        if reply_to:
+                            await event.respond(
+                                text,
+                                formatting_entities=entities,
+                                parse_mode=None,
+                                reply_to=reply_to
+                            )
+                        else:
+                            await event.respond(
+                                text,
+                                formatting_entities=entities,
+                                parse_mode=None
+                            )
                     except Exception as e:
-                        await event.respond(response, parse_mode='html')
+                        if reply_to:
+                            await event.respond(response, parse_mode='html', reply_to=reply_to)
+                        else:
+                            await event.respond(response, parse_mode='html')
             else:
                 await msg.edit(response, parse_mode='html')
 
@@ -172,7 +236,6 @@ def register(kernel):
             await kernel.handle_error(e, source="ping", event=event)
 
     @kernel.register_command('logs')
-    # logs
     async def logs_handler(event):
         try:
             if not os.path.exists(kernel.LOGS_DIR):
@@ -186,7 +249,25 @@ def register(kernel):
 
             latest_log = os.path.join(kernel.LOGS_DIR, log_files[-1])
             await event.edit(f'{CUSTOM_EMOJI["🖨"]} Отправляю логи...')
-            await client.send_file(event.chat_id, latest_log, caption=f'{CUSTOM_EMOJI["📝"]} Логи за {log_files[-1][:-4]}')
+
+            chat = await event.get_chat()
+            reply_to = None
+            if hasattr(chat, 'forum') and chat.forum and event.message.reply_to:
+                reply_to = event.message.reply_to.reply_to_top_id or event.message.reply_to.reply_to_msg_id
+
+            if reply_to:
+                await client.send_file(
+                    event.chat_id,
+                    latest_log,
+                    caption=f'{CUSTOM_EMOJI["📝"]} Логи за {log_files[-1][:-4]}',
+                    reply_to=reply_to
+                )
+            else:
+                await client.send_file(
+                    event.chat_id,
+                    latest_log,
+                    caption=f'{CUSTOM_EMOJI["📝"]} Логи за {log_files[-1][:-4]}'
+                )
             await event.delete()
 
         except Exception as e:
@@ -194,7 +275,6 @@ def register(kernel):
             await kernel.handle_error(e, source="logs", event=event)
 
     @kernel.register_command('freezing')
-    # freezing
     async def freezing_handler(event):
         try:
             args = event.text.split()

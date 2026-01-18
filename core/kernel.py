@@ -1,5 +1,5 @@
 # author: @Hairpin00
-# version: 1.0.1.7
+# version: 1.0.1.9.3
 # description: kernel core
 # Спасибо @Mitrichq за основу юзербота
 # Лицензия? какая лицензия ещё
@@ -12,6 +12,24 @@ import json
 import subprocess
 import random
 from pathlib import Path
+import logging
+from logging.handlers import RotatingFileHandler
+import aiosqlite
+from contextlib import asynccontextmanager
+try:
+    from utils.html_parser import parse_html
+    from utils.message_helpers import edit_with_html, reply_with_html, send_with_html, send_file_with_html
+    HTML_PARSER_AVAILABLE = True
+except ImportError as e:
+    print(f"=X HTML парсер не загружен: {e}")
+    HTML_PARSER_AVAILABLE = False
+
+# try:
+#     import telethon_patch
+# except:
+#     print("пач не загрузился")
+#     pass
+
 try:
     import io
     import html
@@ -20,13 +38,16 @@ try:
     import psutil
     import aiohttp
     import asyncio
-    from datetime import datetime
+    import aiosqlite
+    from collections import OrderedDict
+    from datetime import datetime, timedelta
     from telethon import TelegramClient, events, Button
     from telethon.errors import SessionPasswordNeededError
-except ImportError:
+except ImportError as e:
     print(
         "Установите зависимости",
-        "pip install -r requirements.txt"
+        "pip install -r requirements.txt",
+        f"{e}"
         )
 
 class Colors:
@@ -47,16 +68,82 @@ class CommandConflictError(Exception):
         self.command = command
 
 
+class TTLCache:
+    def __init__(self, max_size=1000, ttl=300):
+        from collections import OrderedDict
+        self.cache = OrderedDict()
+        self.max_size = max_size
+        self.ttl = ttl
+
+    def set(self, key, value, ttl=None):
+        from collections import OrderedDict
+        expire_time = time.time() + (ttl if ttl is not None else self.ttl)
+        self.cache[key] = (expire_time, value)
+        if len(self.cache) > self.max_size:
+            self.cache.popitem(last=False)
+
+    def get(self, key):
+        if key in self.cache:
+            expire_time, value = self.cache[key]
+            if time.time() < expire_time:
+                return value
+            else:
+                del self.cache[key]
+        return None
+
+    def clear(self):
+        self.cache.clear()
+
+    def size(self):
+        return len(self.cache)
+
+
+class TaskScheduler:
+    def __init__(self, kernel):
+        self.kernel = kernel
+        self.tasks = []
+        self.running = False
+
+    async def add_interval_task(self, func, interval_seconds):
+        async def wrapper():
+            while True:
+                await asyncio.sleep(interval_seconds)
+                try:
+                    await func()
+                except Exception as e:
+                    self.kernel.log_error(f"Task error: {e}")
+
+        task = asyncio.create_task(wrapper())
+        self.tasks.append(task)
+
+    async def add_daily_task(self, func, hour, minute):
+        async def wrapper():
+            while True:
+                now = datetime.now()
+                target = now.replace(hour=hour, minute=minute, second=0)
+                if now > target:
+                    target += timedelta(days=1)
+
+                delay = (target - now).total_seconds()
+                await asyncio.sleep(delay)
+                await func()
+
+        task = asyncio.create_task(wrapper())
+        self.tasks.append(task)
+
+
+
+
 class Kernel:
     def __init__(self):
-        self.VERSION = '1.0.1.7'
+        self.VERSION = '1.0.1.9.3'
         self.DB_VERSION = 2
         self.start_time = time.time()
         self.loaded_modules = {}
         self.system_modules = {}
         self.command_handlers = {}
         self.command_owners = {}
-        self.custom_prefix = '.'
+        self.custom_prefix = '.' 
         self.aliases = {}
         self.config = {}
         self.client = None
@@ -66,7 +153,8 @@ class Kernel:
         self.shutdown_flag = False
         self.power_save_mode = False
         self.Colors = Colors
-
+        self.db_conn = None
+        self.cache = TTLCache(max_size=500, ttl=600)
         self.MODULES_DIR = 'modules'
         self.MODULES_LOADED_DIR = 'modules_loaded'
         self.IMG_DIR = 'img'
@@ -90,18 +178,293 @@ class Kernel:
         self.repositories = []
         self.default_repo = self.MODULES_REPO
 
+        self.HTML_PARSER_AVAILABLE = HTML_PARSER_AVAILABLE
         try:
             from utils.emoji_parser import emoji_parser
             self.emoji_parser = emoji_parser
-            self.cprint(f'{Colors.GREEN}The emoji parser is loaded{Colors.RESET}')
+            self.cprint(f'{Colors.GREEN}=> The emoji parser is loaded{Colors.RESET}')
 
         except ImportError:
             self.emoji_parser = None
-            self.cprint(f'{Colors.YELLOW}The emoji parser is not loaded{Colors.RESET}')
+            self.cprint(f'{Colors.YELLOW}=X The emoji parser is not loaded{Colors.RESET}')
+        if self.HTML_PARSER_AVAILABLE:
+            try:
+                self.parse_html = parse_html
+                self.edit_with_html = lambda event, html, **kwargs: edit_with_html(self, event, html, **kwargs)
+                self.reply_with_html = lambda event, html, **kwargs: reply_with_html(self, event, html, **kwargs)
+                self.send_with_html = lambda chat_id, html, **kwargs: send_with_html(self, self.client, chat_id, html, **kwargs)
+                self.send_file_with_html = lambda chat_id, html, file, **kwargs: send_file_with_html(self, self.client, chat_id, html, file, **kwargs)
+                self.cprint(f'{Colors.GREEN}=> HTML парсер загружен{Colors.RESET}')
+            except Exception as e:
+                self.cprint(f'{Colors.RED}=X Ошибка инициализации HTML парсера: {e}{Colors.RESET}')
+                self.HTML_PARSER_AVAILABLE = False
 
+        if not self.HTML_PARSER_AVAILABLE:
+            self.parse_html = None
+            self.edit_with_html = None
+            self.reply_with_html = None
+            self.send_with_html = None
+            self.send_file_with_html = None
+            self.cprint(f'{Colors.YELLOW}=X HTML парсер не загружен{Colors.RESET}')
 
         self.setup_directories()
         self.load_or_create_config()
+        self.logger = self.setup_logging()
+        self.middleware_chain = []
+        self.scheduler = None
+
+
+
+    async def init_scheduler(self):
+        """Инициализация планировщика задач"""
+        class SimpleScheduler:
+            def __init__(self, kernel):
+                self.kernel = kernel
+                self.tasks = []
+                self.running = True
+                self.task_counter = 0
+                self.task_registry = {}  # Реестр задач для управления
+
+            async def add_interval_task(self, func, interval_seconds, task_id=None):
+                """Добавление задачи с интервалом"""
+                if not self.running:
+                    return None
+
+                if task_id is None:
+                    task_id = f"task_{self.task_counter}"
+                    self.task_counter += 1
+
+                async def wrapper():
+                    while self.running and task_id in self.task_registry:
+                        await asyncio.sleep(interval_seconds)
+                        if not self.running or task_id not in self.task_registry:
+                            break
+                        try:
+                            await func()
+                        except Exception as e:
+                            self.kernel.log_error(f"Task {task_id} error: {e}")
+
+                task = asyncio.create_task(wrapper())
+                self.tasks.append(task)
+                self.task_registry[task_id] = {
+                    'task': task,
+                    'func': func,
+                    'interval': interval_seconds,
+                    'type': 'interval'
+                }
+                return task_id
+
+            async def add_daily_task(self, func, hour, minute, task_id=None):
+                """Добавление ежедневной задачи"""
+                if not self.running:
+                    return None
+
+                if task_id is None:
+                    task_id = f"daily_{self.task_counter}"
+                    self.task_counter += 1
+
+                async def wrapper():
+                    while self.running and task_id in self.task_registry:
+                        now = datetime.now()
+                        target = now.replace(hour=hour, minute=minute, second=0)
+                        if now > target:
+                            target += timedelta(days=1)
+
+                        delay = (target - now).total_seconds()
+                        if delay > 0:
+                            await asyncio.sleep(delay)
+
+                        if not self.running or task_id not in self.task_registry:
+                            break
+                        try:
+                            await func()
+                        except Exception as e:
+                            self.kernel.log_error(f"Task {task_id} error: {e}")
+
+                task = asyncio.create_task(wrapper())
+                self.tasks.append(task)
+                self.task_registry[task_id] = {
+                    'task': task,
+                    'func': func,
+                    'hour': hour,
+                    'minute': minute,
+                    'type': 'daily'
+                }
+                return task_id
+
+            async def add_task(self, func, delay_seconds, task_id=None):
+                """Добавление одноразовой задачи"""
+                if not self.running:
+                    return None
+
+                if task_id is None:
+                    task_id = f"once_{self.task_counter}"
+                    self.task_counter += 1
+
+                async def wrapper():
+                    await asyncio.sleep(delay_seconds)
+                    if not self.running or task_id not in self.task_registry:
+                        return
+                    try:
+                        await func()
+                    except Exception as e:
+                        self.kernel.log_error(f"Task {task_id} error: {e}")
+                    finally:
+                        self.cancel_task(task_id)
+
+                task = asyncio.create_task(wrapper())
+                self.tasks.append(task)
+                self.task_registry[task_id] = {
+                    'task': task,
+                    'func': func,
+                    'delay': delay_seconds,
+                    'type': 'once'
+                }
+                return task_id
+
+            def cancel_task(self, task_id):
+                """Отмена задачи по ID"""
+                if task_id in self.task_registry:
+                    task_info = self.task_registry[task_id]
+                    task_info['task'].cancel()
+                    # Удаляем из списков
+                    if task_info['task'] in self.tasks:
+                        self.tasks.remove(task_info['task'])
+                    del self.task_registry[task_id]
+                    return True
+                return False
+
+            def cancel_all_tasks(self):
+                """Отмена всех задач"""
+                self.running = False
+                for task_id in list(self.task_registry.keys()):
+                    self.cancel_task(task_id)
+
+            def get_tasks(self):
+                """Получение списка всех задач"""
+                return [
+                    {
+                        'id': task_id,
+                        'type': info['type'],
+                        'status': 'running' if info['task'].done() else 'stopped'
+                    }
+                    for task_id, info in self.task_registry.items()
+                ]
+
+        self.scheduler = SimpleScheduler(self)
+        self.cprint(f'{self.Colors.GREEN}=> Планировщик инициализирован{self.Colors.RESET}')
+
+    def add_middleware(self, middleware_func):
+        self.middleware_chain.append(middleware_func)
+
+    async def process_with_middleware(self, event, handler):
+        for middleware in self.middleware_chain:
+            result = await middleware(event, handler)
+            if result is False:
+                return False
+        return await handler(event)
+
+    async def get_module_config(self, module_name, default=None):
+        config_key = f"module_config_{module_name}"
+        config_json = await self.db_get('kernel', config_key)
+        if config_json:
+            return json.loads(config_json)
+        return default or {}
+
+    async def save_module_config(self, module_name, config):
+        config_key = f"module_config_{module_name}"
+        await self.db_set('kernel', config_key, json.dumps(config))
+
+
+    async def init_db(self):
+        """Инициализация базы данных."""
+        import aiosqlite
+        try:
+            self.db_conn = await aiosqlite.connect('userbot.db')
+            await self.create_tables()
+            self.cprint(f'{Colors.GREEN}=> База данных инициализирована{Colors.RESET}')
+            return True
+        except Exception as e:
+            self.cprint(f'{Colors.RED}=X Ошибка инициализации БД: {e}{Colors.RESET}')
+            return False
+
+    async def create_tables(self):
+        """Создание таблиц в БД."""
+        await self.db_conn.execute('''
+            CREATE TABLE IF NOT EXISTS module_data (
+                module TEXT,
+                key TEXT,
+                value TEXT,
+                PRIMARY KEY (module, key)
+            )
+        ''')
+        await self.db_conn.commit()
+
+    async def db_set(self, module, key, value):
+        """Store key-value pair for module."""
+        if not self.db_conn:
+            raise Exception("База данных не инициализирована")
+
+        await self.db_conn.execute(
+            'INSERT OR REPLACE INTO module_data VALUES (?, ?, ?)',
+            (module, key, str(value))
+        )
+        await self.db_conn.commit()
+
+    async def db_get(self, module, key):
+        """Retrieve value for module."""
+        if not self.db_conn:
+            raise Exception("База данных не инициализирована")
+
+        cursor = await self.db_conn.execute(
+            'SELECT value FROM module_data WHERE module = ? AND key = ?',
+            (module, key)
+        )
+        row = await cursor.fetchone()
+        return row[0] if row else None
+
+    async def db_delete(self, module, key):
+        """Delete key from module storage."""
+        if not self.db_conn:
+            raise Exception("База данных не инициализирована")
+
+        await self.db_conn.execute(
+            'DELETE FROM module_data WHERE module = ? AND key = ?',
+            (module, key)
+        )
+        await self.db_conn.commit()
+
+    async def db_query(self, query, parameters):
+        """Execute custom SQL query."""
+        if not self.db_conn:
+            raise Exception("База данных не инициализирована")
+
+        cursor = await self.db_conn.execute(query, parameters)
+        rows = await cursor.fetchall()
+        return rows
+
+
+    def setup_logging(self):
+        logger = logging.getLogger('kernel')
+        logger.setLevel(logging.INFO)
+
+        handler = RotatingFileHandler(
+            'logs/kernel.log',
+            maxBytes=10*1024*1024,
+            backupCount=5
+        )
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        return logger
+
+    def log_debug(self, message):
+        self.logger.debug(message)
+
+    def log_error(self, message):
+        self.logger.error(message)
 
     def load_repositories(self):
         """Загружает список репозиториев из конфига"""
@@ -113,6 +476,10 @@ class Kernel:
         with open(self.CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(self.config, f, ensure_ascii=False, indent=2)
 
+    def save_config(self):
+        """Сохраняет конфигурацию в файл"""
+        with open(self.CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(self.config, f, ensure_ascii=False, indent=2)
 
     def set_loading_module(self, module_name, module_type):
         """Устанавливает текущий загружаемый модуль"""
@@ -249,6 +616,146 @@ class Kernel:
         else:
             return False
 
+    def is_bot_available(self):
+        """
+        Проверяет, доступен ли бот-клиент
+        
+        Returns:
+            bool: True если bot_client существует и авторизован
+        """
+        return (
+            hasattr(self, 'bot_client') and 
+            self.bot_client is not None and 
+            self.bot_client.is_connected()
+        )
+
+    async def inline_query_and_click(self, chat_id, query, bot_username=None, 
+                                    result_index=0, buttons=None, silent=False, 
+                                    reply_to=None, **kwargs):
+        """
+        Perform an inline query and automatically click on the specified result.
+        
+        Args:
+            chat_id (int): Target chat ID where to send the result
+            query (str): Inline query text
+            bot_username (str, optional): Bot username for inline query. If not provided,
+                                        uses the configured inline bot username from config
+            result_index (int, optional): Index of result to click (default: 0 = first result)
+            buttons (list, optional): Buttons to send with the result
+            silent (bool, optional): Send message silently
+            reply_to (int, optional): Reply to message ID
+            **kwargs: Additional parameters for click method
+        
+        Returns:
+            tuple: (success, result) - success bool and the result message or None
+            
+        Raises:
+            ValueError: If bot_username is not specified and not configured
+        """
+        try:
+            # Determine bot username
+            if not bot_username:
+                bot_username = self.config.get('inline_bot_username')
+                if not bot_username:
+                    raise ValueError("Bot username not specified and not configured in config")
+            
+            self.cprint(f'{self.Colors.BLUE}Performing inline query: {query} with @{bot_username}{self.Colors.RESET}')
+            
+            # Perform inline query
+            results = await self.client.inline_query(bot_username, query)
+            
+            if not results:
+                self.cprint(f'{self.Colors.YELLOW}No inline results found for query: {query}{self.Colors.RESET}')
+                return False, None
+            
+            # Check if result_index is valid
+            if result_index >= len(results):
+                self.cprint(f'{self.Colors.YELLOW}Result index {result_index} out of range, using first result{self.Colors.RESET}')
+                result_index = 0
+            
+            # Click on the specified result
+            result = results[result_index]
+            
+            click_kwargs = {}
+            if buttons:
+                click_kwargs['buttons'] = buttons
+            if silent:
+                click_kwargs['silent'] = silent
+            if reply_to:
+                click_kwargs['reply_to'] = reply_to
+            
+            # Add any additional kwargs
+            click_kwargs.update(kwargs)
+            
+            message = await result.click(chat_id, **click_kwargs)
+            
+            self.cprint(f'{self.Colors.GREEN}Successfully clicked inline result #{result_index} for query: {query}{self.Colors.RESET}')
+            return True, message
+            
+        except Exception as e:
+            self.cprint(f'{self.Colors.RED}Error performing inline query: {e}{self.Colors.RESET}')
+            await self.handle_error(e, source="inline_query_and_click")
+            return False, None
+    
+    
+    async def manual_inline_example(self, chat_id, query, bot_username=None):
+        """
+        Manual method for inline query execution with more control.
+        
+        This method allows full manual control over inline query execution,
+        including custom result selection and manual sending.
+        
+        Args:
+            chat_id (int): Target chat ID
+            query (str): Inline query text
+            bot_username (str, optional): Specific bot username to use
+            
+        Returns:
+            list: List of inline query results or empty list on error
+        """
+        try:
+            if not bot_username:
+                bot_username = self.config.get('inline_bot_username')
+                if not bot_username:
+                    self.cprint(f'{self.Colors.RED}No bot username specified{self.Colors.RESET}')
+                    return []
+            
+            # Get all results
+            results = await self.client.inline_query(bot_username, query)
+            
+            if not results:
+                return []
+            
+            # Return raw results for manual processing
+            return results
+            
+        except Exception as e:
+            self.cprint(f'{self.Colors.RED}Manual inline query failed: {e}{self.Colors.RESET}')
+            return []
+    
+    
+    async def send_inline_from_config(self, chat_id, query, buttons=None):
+        """
+        Simplified method that uses configured inline bot.
+        
+        This is the simplest way to use inline queries when you want
+        to use the bot configured in config.json.
+        
+        Args:
+            chat_id (int): Target chat ID
+            query (str): Inline query text
+            buttons (list, optional): Buttons to attach
+            
+        Returns:
+            bool: Success status
+        """
+        return await self.inline_query_and_click(
+            chat_id=chat_id,
+            query=query,
+            bot_username=self.config.get('inline_bot_username'),
+            buttons=buttons
+        )
+
     def register_inline_handler(self, pattern, handler):
         """Регистрация обработчика инлайн-запросов"""
         if not hasattr(self, 'inline_handlers'):
@@ -259,12 +766,22 @@ class Kernel:
         """Регистрация обработчика callback-кнопок"""
         if not hasattr(self, 'callback_handlers'):
             self.callback_handlers = {}
-        self.callback_handlers[pattern] = handler
 
-        if self.client:
-            @self.client.on(events.CallbackQuery(pattern=pattern.encode()))
-            async def callback_wrapper(event):
-                await handler(event)
+        try:
+            # Убедимся, что pattern - bytes
+            if isinstance(pattern, str):
+                pattern = pattern.encode()
+            self.callback_handlers[pattern] = handler
+
+            if self.client:
+                @self.client.on(events.CallbackQuery(data=pattern))
+                async def callback_wrapper(event):
+                    try:
+                        await handler(event)
+                    except Exception as e:
+                        await self.handle_error(e, source="callback_handler", event=event)
+        except Exception as e:
+            self.cprint(f'{self.Colors.RED}❌ Ошибка регистрации callback: {e}{self.Colors.RESET}')
 
     async def log_network(self, message):
         """Логирование сетевых событий"""
@@ -355,21 +872,16 @@ class Kernel:
             return result
         except Exception as e:
             self.cprint(f'{self.Colors.RED}❌ Ошибка отправки с эмодзи: {e}{self.Colors.RESET}')
-            fallback_text = self.emoji_parser.remove_emoji_tags(text)
+            fallback_text = self.emoji_parser.remove_emoji_tags(text) if self.emoji_parser else text
             return await self.client.send_message(chat_id, fallback_text, **kwargs)
 
-            return await self.client.get_messages(chat_id, ids=[result.id])
-
-        except Exception as e:
-            self.cprint(f'{Colors.RED}❌ Ошибка отправки с эмодзи: {e}{Colors.RESET}')
-            fallback_text = EmojiParser.remove_emoji_tags(text) if self.emoji_parser else text
-            return await self.client.send_message(chat_id, fallback_text, **kwargs)
-
-    def format_with_emoji(self, text, entities):
-        if not self.emoji_parser:
+    def format_with_html(self, text, entities):
+        """Форматирует текст с сущностями в HTML"""
+        if not HTML_PARSER_AVAILABLE:
             return html.escape(text)
 
-        return self.emoji_parser.entities_to_html(text, entities)
+        from utils.html_parser import telegram_to_html
+        return telegram_to_html(text, entities)
 
 
     async def get_module_metadata(self, code):
@@ -569,14 +1081,34 @@ class Kernel:
         except:
             pass
 
+
+
+    async def get_thread_id(self, event):
+        if not event:
+            return None
+
+        thread_id = None
+
+        if hasattr(event, 'reply_to') and event.reply_to:
+            thread_id = getattr(event.reply_to, 'reply_to_top_id', None)
+
+        if not thread_id and hasattr(event, 'message'):
+            thread_id = getattr(event.message, 'reply_to_top_id', None)
+
+        return thread_id
+
     async def get_user_info(self, user_id):
         try:
-            user = await self.client.get_entity(user_id)
-            if user.first_name or user.last_name:
-                name = f"{user.first_name or ''} {user.last_name or ''}".strip()
-                return f"{name} (@{user.username or 'без username'})"
-            return f"ID: {user_id}"
-        except:
+            entity = await self.client.get_entity(user_id)
+
+            if hasattr(entity, 'first_name') or hasattr(entity, 'last_name'):
+                name = f"{entity.first_name or ''} {entity.last_name or ''}".strip()
+                return f"{name} (@{entity.username or 'без username'})"
+            elif hasattr(entity, 'title'):
+                return f"{entity.title} (чат/канал)"
+            else:
+                return f"ID: {user_id}"
+        except Exception as e:
             return f"ID: {user_id}"
 
     def setup_config(self):
@@ -650,16 +1182,66 @@ class Kernel:
     def cprint(self, text, color=''):
         print(f'{color}{text}{Colors.RESET}')
 
+    def is_admin(self, user_id):
+        return hasattr(self, 'ADMIN_ID') and user_id == self.ADMIN_ID
+
     async def init_client(self):
+        import sys
+        import platform
+
+        print(f"{self.Colors.CYAN}Инициализация MCUB на {platform.system()} (Python {sys.version_info.major}.{sys.version_info.minor})...{self.Colors.RESET}")
+
+
+
+        from telethon.sessions import SQLiteSession
+
         proxy = self.config.get('proxy')
-        self.client = TelegramClient('user_session', self.API_ID, self.API_HASH, proxy=proxy)
+
+
+        session = SQLiteSession('user_session')
+
+        self.client = TelegramClient(
+            session,
+            self.API_ID,
+            self.API_HASH,
+            proxy=proxy,
+            connection_retries=3,
+            request_retries=3,
+            flood_sleep_threshold=30,
+            device_model=f"PC-MCUB-{platform.system()}",
+            system_version=f"Python {sys.version}",
+            app_version="MCUB 1.0.1.9.2",
+            lang_code="en",
+            system_lang_code="en-US",
+            base_logger=None,
+            catch_up=False
+        )
 
         try:
-            await self.client.start(phone=self.PHONE)
-            self.cprint(f'{Colors.GREEN}MCUB ядро запущено{Colors.RESET}')
+            await self.client.start(
+                phone=self.PHONE,
+                max_attempts=3
+            )
+
+            if not await self.client.is_user_authorized():
+                print(f"{self.Colors.RED}❌ Не удалось авторизоваться{self.Colors.RESET}")
+                return False
+
+            me = await self.client.get_me()
+            if not me or not hasattr(me, 'id'):
+                print(f"{self.Colors.RED}❌ Неверные данные пользователя{self.Colors.RESET}")
+                return False
+
+            self.ADMIN_ID = me.id
+            print(f"{self.Colors.GREEN}Авторизован как: {me.first_name} (ID: {me.id}){self.Colors.RESET}")
+            print(f"{self.Colors.CYAN}📱 Номер: {self.PHONE}{self.Colors.RESET}")
+
             return True
+
         except Exception as e:
-            self.cprint(f'{Colors.RED}❌ Ошибка авторизации: {e}{Colors.RESET}')
+            print(f"{self.Colors.RED}=X Ошибка инициализации клиента: {e}{self.Colors.RESET}")
+            import traceback
+            traceback.print_exc()
             return False
 
     async def load_system_modules(self):
@@ -684,14 +1266,14 @@ class Kernel:
                     if hasattr(module, 'register'):
                         module.register(self)
                         self.system_modules[module_name] = module
-                        self.cprint(f'{Colors.GREEN}✅ Загружен системный модуль: {module_name}{Colors.RESET}')
+                        self.cprint(f'{Colors.GREEN}=> Загружен системный модуль: {module_name}{Colors.RESET}')
                     else:
-                        self.cprint(f'{Colors.YELLOW}⚠️ Модуль {module_name} не имеет функции register{Colors.RESET}')
+                        self.cprint(f'{Colors.YELLOW}=> Модуль {module_name} не имеет функции register{Colors.RESET}')
 
                 except CommandConflictError as e:
-                    self.cprint(f'{Colors.RED}❌ Ошибка загрузки системного модуля {module_name}: {e}{Colors.RESET}')
+                    self.cprint(f'{Colors.RED}=X Ошибка загрузки системного модуля {module_name}: {e}{Colors.RESET}')
                 except Exception as e:
-                    self.cprint(f'{Colors.RED}❌ Ошибка загрузки модуля {file_name}: {e}{Colors.RESET}')
+                    self.cprint(f'{Colors.RED}=X Ошибка загрузки модуля {file_name}: {e}{Colors.RESET}')
                 finally:
                     self.clear_loading_module()
 
@@ -727,6 +1309,7 @@ class Kernel:
                         if hasattr(module, 'register'):
                             module.register(self)
                             self.loaded_modules[module_name] = module
+                            self.cprint(f'{self.Colors.BLUE}=> Модуль загружен {module_name}{self.Colors.RESET}')
                     else:
                         spec = importlib.util.spec_from_file_location(module_name, file_path)
                         module = importlib.util.module_from_spec(spec)
@@ -738,11 +1321,11 @@ class Kernel:
                         if hasattr(module, 'register'):
                             module.register(self.client)
                             self.loaded_modules[module_name] = module
-                            self.cprint(f'{self.Colors.GREEN}✅ Загружен пользовательский модуль (старый стиль): {module_name}{self.Colors.RESET}')
+                            self.cprint(f'{self.Colors.GREEN}=> Загружен пользовательский модуль (старый стиль): {module_name}{self.Colors.RESET}')
 
                 except CommandConflictError as e:
                     error_msg = f"Конфликт команд при загрузке модуля {file_name}: {e}"
-                    self.cprint(f'{self.Colors.RED}❌ {error_msg}{self.Colors.RESET}')
+                    self.cprint(f'{self.Colors.RED}=X {error_msg}{self.Colors.RESET}')
                     try:
                         await self.handle_error(e, source=f"load_module_conflict:{file_name}")
                     except:
@@ -750,7 +1333,7 @@ class Kernel:
 
                 except Exception as e:
                     error_msg = f"Ошибка загрузки модуля {file_name}: {e}"
-                    self.cprint(f'{self.Colors.RED}❌ {error_msg}{self.Colors.RESET}')
+                    self.cprint(f'{self.Colors.RED}=X {error_msg}{self.Colors.RESET}')
                     try:
                         await self.handle_error(e, source=f"load_module:{file_name}")
                     except:
@@ -815,24 +1398,97 @@ class Kernel:
 
     async def setup_inline_bot(self):
         try:
-            from core_inline.bot import InlineBot
-            self.inline_bot = InlineBot(self)
-            await self.inline_bot.setup()
+            inline_bot_token = self.config.get('inline_bot_token')
+            if not inline_bot_token:
+                self.cprint(f'{Colors.YELLOW}=X Инлайн-бот не настроен (отсутствует токен){Colors.RESET}')
+                return False
+
+            self.cprint(f'{Colors.BLUE}=- Запускаю инлайн-бота...{Colors.RESET}')
+
+
+            self.bot_client = TelegramClient(
+                'inline_bot_session',
+                self.API_ID,
+                self.API_HASH,
+                timeout=30
+            )
+
+
+            await self.bot_client.start(bot_token=inline_bot_token)
+
+            bot_me = await self.bot_client.get_me()
+            bot_username = bot_me.username
+
+
+            self.config['inline_bot_username'] = bot_username
+
+            with open(self.CONFIG_FILE, 'w', encoding='utf-8') as f:
+                json.dump(self.config, f, ensure_ascii=False, indent=2)
+
+            try:
+                import sys
+                import os
+                sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+                from core_inline.handlers import InlineHandlers
+                handlers = InlineHandlers(self, self.bot_client)
+                await handlers.register_handlers()
+
+                import asyncio
+                asyncio.create_task(self.bot_client.run_until_disconnected())
+
+                self.cprint(f'{Colors.GREEN}=> Инлайн-бот запущен: {bot_username}{Colors.RESET}')
+                return True
+            except Exception as e:
+                self.cprint(f'{Colors.RED}=> Ошибка регистрации обработчиков инлайн-бота: {str(e)}{Colors.RESET}')
+                import traceback
+                traceback.print_exc()
+                return False
+
         except Exception as e:
-            self.cprint(f'{Colors.YELLOW}⚠️ Инлайн-бот не запущен: {e}{Colors.RESET}')
+            self.cprint(f'{Colors.RED}=X Инлайн-бот не запущен: {str(e)}{Colors.RESET}')
+            import traceback
+            traceback.print_exc()
+            return False
 
     async def run(self):
         if not self.load_or_create_config():
             if not self.first_time_setup():
-                self.cprint(f'{Colors.RED}❌ Не удалось настроить юзербот{Colors.RESET}')
+                self.cprint(f'{Colors.RED}=X Не удалось настроить юзербот{Colors.RESET}')
                 return
+        import telethon.errors
+        from telethon import TelegramClient
 
+        import logging
+        logging.basicConfig(level=logging.WARNING)
+        await self.init_scheduler()
         kernel_start_time = time.time()
 
         if not await self.init_client():
             return
 
+        try:
+            await self.init_db()
+        except ImportError:
+            self.cprint(f'{Colors.YELLOW}Установите: pip install aiosqlite{Colors.RESET}')
+        except Exception as e:
+            self.cprint(f'{Colors.RED}=X Ошибка инициализации БД: {e}{Colors.RESET}')
+
+
         await self.setup_inline_bot()
+
+
+        if not self.config.get('inline_bot_token'):
+            self.cprint(f'{Colors.CYAN}🤖 Начинаем настройку инлайн-бота...{Colors.RESET}')
+            from core_inline.bot import InlineBot
+            self.inline_bot = InlineBot(self)
+            await self.inline_bot.setup()
+    
+
+
+
+
+
 
         modules_start_time = time.time()
         await self.load_system_modules()
@@ -841,24 +1497,27 @@ class Kernel:
 
         @self.client.on(events.NewMessage(outgoing=True))
         async def message_handler(event):
+            premium_emoji_telescope = '<tg-emoji emoji-id="5429283852684124412">🔭</tg-emoji>'
             try:
                 await self.process_command(event)
             except Exception as e:
                 await self.handle_error(e, source="message_handler", event=event)
 
                 try:
-                    await event.edit(f"🔭 <b>Ошибка, смотри логи</b>", parse_mode='html')
+                    await event.edit(f"{premium_emoji_telescope} <b>Ошибка, смотри логи</b>", parse_mode='html')
                 except:
                     pass
 
-        self.cprint(f'{Colors.CYAN}The kernel is loaded{Colors.RESET}')
-
+        self.cprint(f'{Colors.CYAN}==> The kernel is loaded{Colors.RESET}')
         if os.path.exists(self.RESTART_FILE):
             with open(self.RESTART_FILE, 'r') as f:
                 data = f.read().split(',')
                 if len(data) >= 3:
-                    chat_id, msg_id, restart_time = data[0], data[1], float(data[2])
+                    chat_id, msg_id, restart_time = int(data[0]), int(data[1]), float(data[2])
                     os.remove(self.RESTART_FILE)
+
+
+                    thread_id = int(data[3]) if len(data) >= 4 and data[3].isdigit() else None
 
                     kbl = round((modules_start_time - kernel_start_time) * 1000, 2)
                     mlfb = round((modules_end_time - modules_start_time) * 1000, 2)
@@ -866,32 +1525,44 @@ class Kernel:
                     emojis = ['ಠ_ಠ', '( ཀ ʖ̯ ཀ)', '(◕‿◕✿)', '(つ･･)つ', '༼つ◕_◕༽つ', '(•_•)', '☜(ﾟヮﾟ☜)', '(☞ﾟヮﾟ)☞', 'ʕ•ᴥ•ʔ', '(づ￣ ³￣)づ']
                     emoji = random.choice(emojis)
 
+
+                    premium_emoji_alembic = '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>'
+                    premium_emoji_package = '<tg-emoji emoji-id="5399898266265475100">📦</tg-emoji>'
+
                     total_time = round((time.time() - restart_time) * 1000, 2)
 
                     if self.client.is_connected():
                         try:
+
                             await self.client.edit_message(
-                                int(chat_id),
-                                int(msg_id),
-                                f'⚗️ Перезагрузка <b>успешна!</b> {emoji}\n'
+                                chat_id,
+                                msg_id,
+                                f'{premium_emoji_alembic} Перезагрузка <b>успешна!</b> {emoji}\n'
                                 f'<i>но модули ещё загружаются...</i> <b>CLB:</b> <code>{total_time} ms</code>',
                                 parse_mode='html'
                             )
 
                             await asyncio.sleep(1)
 
-                            await self.client.delete_messages(int(chat_id), int(msg_id))
+                            await self.client.delete_messages(chat_id, msg_id)
+
+
+                            send_params = {}
+                            if thread_id:
+                                send_params['reply_to'] = thread_id
 
                             await self.client.send_message(
-                                int(chat_id),
-                                f'📦 Твой <b>MCUB</b> полностью загрузился!\n'
+                                chat_id,
+                                f'{premium_emoji_package} Твой <b>MCUB</b> полностью загрузился!\n'
                                 f'<blockquote><b>KBL:</b> <code>{kbl} ms</code>. <b>MLFB:</b> <code>{mlfb} ms</code>.</blockquote>',
-                                parse_mode='html'
+                                parse_mode='html',
+                                **send_params
                             )
                         except Exception as e:
-                            self.cprint(f'{Colors.YELLOW}⚠️ Не удалось отправить сообщение о перезагрузке: {e}{Colors.RESET}')
-                            await self.handle_error(e, source="restart", event=event)
+                            self.cprint(f'{Colors.YELLOW}=X Не удалось отправить сообщение о перезагрузке: {e}{Colors.RESET}')
+                            await self.handle_error(e, source="restart")
+
                     else:
-                        self.cprint(f'{Colors.YELLOW}⚠️ Не удалось отправить сообщение о перезагрузке: нет соединения{Colors.RESET}')
+                        self.cprint(f'{Colors.YELLOW}=X Не удалось отправить сообщение о перезагрузке: нет соединения{Colors.RESET}')
 
         await self.client.run_until_disconnected()

@@ -17,21 +17,21 @@
 
 `MCUB fork` это userbot и форк `MCUBFB` с улучшенным `api`, и с правильной структурой 
 > [!TIP]
-> [api documentation](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md)
+> документация по модулям: [api documentation](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md)
 
 ## Установка
 
 ```bash
-git clone https://github.com/hairpin01/MCUB-fork.git && cd MCUB-fork ; pip install -r requirements.txt ; python3 main.py
+git clone https://github.com/hairpin01/MCUB-fork.git && cd MCUB-fork ; pip install -r requirements.txt ; python3 MCUB.py
 ```
 
 ## Настройка
 
 1. Получите `API_ID` и `API_HASH` на https://my.telegram.org
 
-2. Запустите main.py
+2. Запустите MCUB.py
 ```shell
-python3 main.py
+python3 MCUB.py
 ```
 3. Заполните:
    - `api_id` - ваш API ID
@@ -51,8 +51,8 @@ python3 main.py
 - `.ping` - проверка задержки
 - `.info` - информация о юзерботе
 - `.restart` - перезагрузка
-- `.im` - установить модуль (ответ на `.py` файл)
-- `.man` - список модулей
+- `.im` - установить модуль __(ответ на `.py` файл)__
+- `.man` - список модулей __(и их команды)__
 - `.um [название]` - удалить модуль, потом лучше всего перезагрузить `userbot`
 
 > [!TIP]
@@ -64,10 +64,13 @@ python3 main.py
 Модули устанавливаются через команду `.im` (ответ на .py файл).
 Дириктория для модулей в `modules_loaded/`.
 
-## support?
+## Support?
 Чат в Telegram [*жмяк*](https://t.me/+LVnbdp4DNVE5YTFi)
 
-## Офицальные репозиторий (`.dlml`)
-Установить: `.dlm` {название-модуля)
+## Офицальные репозиторий (`.dlm`)
+Установить: `.dlm` {название-модуля/без аргумента все модули}
 
-Нужнен модуль который для MCUB-fork? [жмакни здесь](https://github.com/hairpin01/repo-MCUB-fork#repo-%D0%B4%D0%BB%D1%8F-mcub-%D1%8E%D0%B7%D0%B5%D1%80%D0%B1%D0%BE%D1%82%D0%B0)
+Список модулей ___(без инлайн бота)___: `.dlm -list {название модуля/нечего}`
+
+
+Нужнен модуль который для MCUB-fork? [жмякни здесь](https://github.com/hairpin01/repo-MCUB-fork#repo-%D0%B4%D0%BB%D1%8F-mcub-%D1%8E%D0%B7%D0%B5%D1%80%D0%B1%D0%BE%D1%82%D0%B0)

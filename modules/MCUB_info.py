@@ -67,6 +67,7 @@ def register(kernel):
     kernel.config.setdefault('info_quote_media', False)
     kernel.config.setdefault('info_banner_url', 'https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/info.png')
     kernel.config.setdefault('info_invert_media', False)
+    kernel.config.setdefault('info_custom_text', None)
 
     def format_uptime(seconds):
         hours = int(seconds) // 3600
@@ -208,7 +209,32 @@ def register(kernel):
             except:
                 pass
 
-            info_text = f"""{CUSTOM_EMOJI['💠']} <b>Mitrich UserBot</b>
+            update_emoji = CUSTOM_EMOJI['💔'] if update_needed else CUSTOM_EMOJI['🔮']
+            update_text = "Update needed" if update_needed else "No update needed"
+
+            custom_text = kernel.config.get('info_custom_text')
+            if custom_text:
+                try:
+                    info_text = custom_text.format(
+                        kernel_version=kernel.VERSION,
+                        ping_time=ping_time,
+                        uptime_str=uptime_str,
+                        distro_name=distro_name,
+                        distro_emoji=distro_emoji,
+                        platform_type=platform_type,
+                        cpu_usage=cpu_usage,
+                        ram_usage=ram_usage,
+                        system_user=system_user,
+                        hostname=hostname,
+                        update_emoji=update_emoji,
+                        update_text=update_text,
+                        update_needed=update_needed
+                    )
+                except Exception as e:
+                    await kernel.handle_error(e, source="info_cmd:custom_text_format", event=event)
+                    info_text = f"""<b>Error in custom text format:</b> {str(e)}"""
+            else:
+                info_text = f"""{CUSTOM_EMOJI['💠']} <b>Mitrich UserBot</b>
 <blockquote>{CUSTOM_EMOJI['🌩️']} <b>Version:</b> <code>{kernel.VERSION}</code>
 {f"{CUSTOM_EMOJI['💔']} <b>Update needed</b>" if update_needed else f"{CUSTOM_EMOJI['🔮']} <b>No update needed</b>"}</blockquote>
 

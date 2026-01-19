@@ -26,7 +26,7 @@ def register(kernel):
         code = event.text[len(kernel.custom_prefix)+2:].strip()
 
         if not code:
-            await event.edit(f"{CUSTOM_EMOJI['❌']} Использование: `{kernel.custom_prefix}py код_на_python`")
+            await event.edit(f"{CUSTOM_EMOJI['❌']} Использование: `{kernel.custom_prefix}py код_на_python`", parse_mode='html')
             return
 
         start_time = time.time()

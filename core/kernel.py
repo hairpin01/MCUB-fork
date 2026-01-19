@@ -212,7 +212,8 @@ class Kernel:
         self.logger = self.setup_logging()
         self.middleware_chain = []
         self.scheduler = None
-
+        self.bot_command_handlers = {}
+        self.bot_command_owners = {}
 
 
     async def init_scheduler(self):
@@ -595,6 +596,48 @@ class Kernel:
                 self.command_owners[cmd] = self.current_loading_module
                 return f
             return decorator
+
+    def register_command_bot(self, pattern, func=None):
+        """Регистрация команд для бота (начинающихся с /)"""
+        if not pattern.startswith('/'):
+            pattern = '/' + pattern
+        
+        # Убираем префикс и параметры для хранения
+        cmd = pattern.lstrip('/').split()[0] if ' ' in pattern else pattern.lstrip('/')
+        
+        if self.current_loading_module is None:
+            raise ValueError("Не установлен текущий модуль для регистрации бот-команд")
+        
+        if cmd in self.bot_command_handlers:
+            existing_owner = self.bot_command_owners.get(cmd)
+            raise CommandConflictError(
+                f"Конфликт бот-команд: {cmd} уже зарегистрирована модулем {existing_owner}",
+                conflict_type='bot',
+                command=cmd
+            )
+        
+        if func:
+            self.bot_command_handlers[cmd] = (pattern, func)
+            self.bot_command_owners[cmd] = self.current_loading_module
+            return func
+        else:
+            def decorator(f):
+                self.bot_command_handlers[cmd] = (pattern, f)
+                self.bot_command_owners[cmd] = self.current_loading_module
+                return f
+            return decorator
+    
+    def unregister_module_bot_commands(self, module_name):
+        """Удаляет все бот-команды модуля"""
+        to_remove = []
+        for cmd, owner in self.bot_command_owners.items():
+            if owner == module_name:
+                to_remove.append(cmd)
+        
+        for cmd in to_remove:
+            del self.bot_command_handlers[cmd]
+            del self.bot_command_owners[cmd]
+    
 
     def setup_directories(self):
         for directory in [self.MODULES_DIR, self.MODULES_LOADED_DIR, self.IMG_DIR, self.LOGS_DIR]:
@@ -1210,7 +1253,7 @@ class Kernel:
             flood_sleep_threshold=30,
             device_model=f"PC-MCUB-{platform.system()}",
             system_version=f"Python {sys.version}",
-            app_version="MCUB 1.0.1.9.2",
+            app_version="MCUB {kernel.VERSION}",
             lang_code="en",
             system_lang_code="en-US",
             base_logger=None,
@@ -1361,6 +1404,28 @@ class Kernel:
 
         return False
 
+    async def process_bot_command(self, event):
+        """Обработка команд бота"""
+        text = event.text
+        
+        if not text.startswith('/'):
+            return False
+        
+        # Получаем команду (первое слово без /)
+        cmd = text.split()[0][1:] if ' ' in text else text[1:]
+        
+        # Убираем @username бота если есть
+        if '@' in cmd:
+            cmd = cmd.split('@')[0]
+        
+        if cmd in self.bot_command_handlers:
+            pattern, handler = self.bot_command_handlers[cmd]
+            await handler(event)
+            return True
+        
+        return False
+
+
     async def safe_connect(self):
         while self.reconnect_attempts < self.max_reconnect_attempts:
             if self.shutdown_flag:
@@ -1477,19 +1542,6 @@ class Kernel:
 
         await self.setup_inline_bot()
 
-
-        if not self.config.get('inline_bot_token'):
-            self.cprint(f'{Colors.CYAN}🤖 Начинаем настройку инлайн-бота...{Colors.RESET}')
-            from core_inline.bot import InlineBot
-            self.inline_bot = InlineBot(self)
-            await self.inline_bot.setup()
-    
-
-
-
-
-
-
         modules_start_time = time.time()
         await self.load_system_modules()
         await self.load_user_modules()
@@ -1507,6 +1559,15 @@ class Kernel:
                     await event.edit(f"{premium_emoji_telescope} <b>Ошибка, смотри логи</b>", parse_mode='html')
                 except:
                     pass
+                    
+        if hasattr(self, 'bot_client') and self.bot_client:
+                @self.bot_client.on(events.NewMessage(pattern='/'))
+                async def bot_command_handler(event):
+                    try:
+                        await self.process_bot_command(event)
+                    except Exception as e:
+                        await self.handle_error(e, source="bot_command_handler", event=event)
+
 
         self.cprint(f'{Colors.CYAN}==> The kernel is loaded{Colors.RESET}')
         if os.path.exists(self.RESTART_FILE):

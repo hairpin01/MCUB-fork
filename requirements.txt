@@ -1,7 +1,5 @@
 telethon
 psutil
 aiohttp
-google-generativeai
 pysocks
 aiosqlite
-collections

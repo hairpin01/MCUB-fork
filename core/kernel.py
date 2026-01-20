@@ -1253,7 +1253,7 @@ class Kernel:
             flood_sleep_threshold=30,
             device_model=f"PC-MCUB-{platform.system()}",
             system_version=f"Python {sys.version}",
-            app_version=f"MCUB {kernel.VERSION}",
+            app_version=f"MCUB {self.VERSION}",
             lang_code="en",
             system_lang_code="en-US",
             base_logger=None,

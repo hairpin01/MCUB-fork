@@ -1210,7 +1210,7 @@ class Kernel:
             flood_sleep_threshold=30,
             device_model=f"PC-MCUB-{platform.system()}",
             system_version=f"Python {sys.version}",
-            app_version="MCUB 1.0.1.9.2",
+            app_version=f"MCUB {kernel.VERSION}",
             lang_code="en",
             system_lang_code="en-US",
             base_logger=None,
@@ -1484,11 +1484,6 @@ class Kernel:
             self.inline_bot = InlineBot(self)
             await self.inline_bot.setup()
     
-
-
-
-
-
 
         modules_start_time = time.time()
         await self.load_system_modules()

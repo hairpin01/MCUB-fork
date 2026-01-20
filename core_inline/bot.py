@@ -84,6 +84,10 @@ class InlineBot:
                     
                     print(f'{self.kernel.Colors.GREEN}✅ Инлайн-бот создан: @{self.username}{self.kernel.Colors.RESET}')
                     await self.start_bot()
+                    await self.bot_client.send_message(
+                            self.ADMIN_ID,
+                            "Ку ты только что настройл юзербота?\nа ну да что я спрашиваю\nМини гайд:\n  .im - загрузить файл из ответа\n..."
+                            )
                 else:
                     print(f'{self.kernel.Colors.RED}❌ Не удалось получить данные бота{self.kernel.Colors.RESET}')
             else:
@@ -125,6 +129,34 @@ class InlineBot:
         except Exception as e:
             print(f'{self.kernel.Colors.RED}❌ Ошибка проверки токена: {str(e)}{self.kernel.Colors.RESET}')
     
+    async def register_bot_commands(self):
+        """Регистрация команд в BotFather"""
+        try:
+            botfather = await self.kernel.client.get_entity('BotFather')
+            
+            commands = [
+                ('start', 'Ну старт')
+            ]
+            
+            # Добавляем кастомные команды из ядра
+            for cmd, (pattern, handler) in self.kernel.bot_command_handlers.items():
+                
+                doc = handler.__doc__ or f"Команда {cmd}"
+                commands.append((cmd, doc.split('\n')[0]))
+            
+            # Формируем сообщение для BotFather
+            command_list = '\n'.join([f'{cmd} - {desc}' for cmd, desc in commands])
+            await self.kernel.client.send_message(
+                botfather,
+                f'/setcommands\n@{self.username}\n{command_list}'
+            )
+            
+            print(f'{self.kernel.Colors.GREEN}=> Команды бота зарегистрированы{self.kernel.Colors.RESET}')
+        except Exception as e:
+            print(f'{self.kernel.Colors.YELLOW}=X Не удалось зарегистрировать команды бота: {e}{self.kernel.Colors.RESET}')
+        
+        
+    
     async def start_bot(self):
         if not self.token:
             return
@@ -142,7 +174,11 @@ class InlineBot:
             
             print(f'{self.kernel.Colors.GREEN}✅ Инлайн-бот запущен @{self.username}{self.kernel.Colors.RESET}')
             # asyncio.create_task(self.bot_client.run_until_disconnected())
-            
+            start_bot_sms = await self.kernel.client.send_message(
+                    self.kernel.config.get('inline_bot_username'),
+                    '/init'
+                    )
+            self.start_bot_sms.deleted()
         except Exception as e:
             print(f'{self.kernel.Colors.RED}❌ Ошибка запуска инлайн-бота: {str(e)}{self.kernel.Colors.RESET}')
     

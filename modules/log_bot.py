@@ -46,14 +46,14 @@ def register(kernel):
         try:
             result = subprocess.run(['git', 'status', '--porcelain'], capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(__file__)))
             if result.returncode == 0 and result.stdout.strip():
-                return '⚠️ Есть несохранённые изменения'
+            #    return '⚠️ Есть несохранённые изменения'
             result = subprocess.run(['git', 'fetch', 'origin'], capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(__file__)))
             result = subprocess.run(['git', 'log', 'HEAD..origin/main', '--oneline'], capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(__file__)))
             if result.returncode == 0 and result.stdout.strip():
-                return '🔄 Доступны обновления'
+                return 'Updates are available'
         except:
             pass
-        return '✅ Актуальная версия'
+        return 'Current version'
 
     async def setup_log_chat():
         if kernel.config.get('log_chat_id'):
@@ -73,6 +73,7 @@ def register(kernel):
             me = await client.get_me()
             try:
                 result = await client.create_dialog(title=f'MCUB-logs [{me.first_name}]', users=[me])
+       # create_dialog is metod does not exist
                 kernel.log_chat_id = result.id
                 kernel.config['log_chat_id'] = result.id
                 try:
@@ -133,16 +134,6 @@ def register(kernel):
         except Exception as e:
             await event.edit(f"❌ <i>Ошибка теста:</i> <code>{html.escape(str(e))}</code>", parse_mode='html')
 
-    @kernel.register_command('log_status')
-    async def log_status_handler(event):
-        status = '✅ включен' if kernel.log_chat_id else '❌ выключен'
-        chat_info = f'`{kernel.log_chat_id}`' if kernel.log_chat_id else 'Не настроен'
-        bot_status = '✅ запущен' if bot_client else '❌ не запущен'
-        msg = f'''📊 <b>Статус лог-бота:</b> {status}
-<b>Лог-группа:</b> {chat_info}
-<b>Отправка через бота:</b> {bot_status}
-<b>Ошибки:</b> {'✅ отправляются' if kernel.log_chat_id else '❌ не отправляются'}'''
-        await event.edit(msg, parse_mode='html')
 
     async def send_startup_message():
         if not kernel.log_chat_id:
@@ -168,15 +159,15 @@ def register(kernel):
                     await bot_client.send_file(kernel.log_chat_id, image_path, caption=message, parse_mode='html')
                 else:
                     await bot_client.send_message(kernel.log_chat_id, message, parse_mode='html')
-                kernel.cprint(f'{kernel.Colors.GREEN}✅ Стартовое сообщение через бота{kernel.Colors.RESET}')
+                kernel.cprint(f'{kernel.Colors.GREEN}=> Стартовое сообщение через бота{kernel.Colors.RESET}')
             else:
                 if image_path:
                     await client.send_file(kernel.log_chat_id, image_path, caption=message, parse_mode='html')
                 else:
                     await client.send_message(kernel.log_chat_id, message, parse_mode='html')
-                kernel.cprint(f'{kernel.Colors.YELLOW}⚠️ Стартовое сообщение через юзербота{kernel.Colors.RESET}')
+                kernel.cprint(f'{kernel.Colors.YELLOW}=? Стартовое сообщение через юзербота{kernel.Colors.RESET}')
         except Exception as e:
-            kernel.cprint(f'{kernel.Colors.RED}❌ Ошибка отправки: {e}{kernel.Colors.RESET}')
+            kernel.cprint(f'{kernel.Colors.RED}=X Ошибка отправки: {e}{kernel.Colors.RESET}')
 
     async def send_log_message_via_bot(self, text, file=None):
         if not self.log_chat_id:
@@ -209,6 +200,7 @@ def register(kernel):
             return False
 
     async def log_info(text):
+        # why
         await send_log_message_via_bot(kernel, f"🧬 {text}")
 
     async def log_warning(text):
@@ -230,6 +222,7 @@ def register(kernel):
     kernel.log_network = log_network
     kernel.log_module = log_module
     kernel.bot_client = None
+    
 
     async def initialize():
         await init_bot_client()

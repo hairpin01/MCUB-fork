@@ -46,7 +46,7 @@ def register(kernel):
         try:
             result = subprocess.run(['git', 'status', '--porcelain'], capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(__file__)))
             if result.returncode == 0 and result.stdout.strip():
-                return '⚠️ Есть несохранённые изменения'
+                pass
             result = subprocess.run(['git', 'fetch', 'origin'], capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(__file__)))
             result = subprocess.run(['git', 'log', 'HEAD..origin/main', '--oneline'], capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(__file__)))
             if result.returncode == 0 and result.stdout.strip():

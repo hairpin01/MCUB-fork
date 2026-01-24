@@ -274,6 +274,46 @@ kernel.cprint("Warning message", kernel.Colors.YELLOW)
 > These utility methods are available in kernel version 1.0.1.9 and later.
 
 
+### Language
+
+MCUB provides built-in support for internationalization (i18n) through the kernel configuration system. Modules can support multiple languages by accessing the `language` key in `kernel.config`.
+
+**Language Configuration**
+
+The kernel stores the current language setting in `kernel.config['language']` with possible values:
+- `'ru'` - Russian (default)
+- `'en'` - English 
+
+**Usage in Modules:**
+
+```python
+async def register(kernel):
+    # Get current language from config
+    language = kernel.config.get('language', 'en')
+    
+    # Define localized strings
+    strings = {
+        'en': {
+            'greeting': 'Hello!',
+            'error': 'An error occurred',
+            'success': 'Operation completed successfully'
+        },
+        'ru': {
+            'greeting': 'Привет!',
+            'error': 'Произошла ошибка',
+            'success': 'Операция выполнена успешно'
+        }
+    }
+    
+    # Get strings for current language
+    lang_strings = strings.get(language, strings['en'])
+    
+    # Use localized strings
+    @kernel.register_command('test')
+    async def test_handler(event):
+        await event.edit(lang_strings['greeting'])
+```
+
 ### Bot Client Access
 
 The bot client is directly accessible via `kernel.bot_client` attribute.
@@ -514,6 +554,8 @@ kernel.add_middleware(rate_limit_middleware)
 # Check bot responsiveness
 async def ping_handler(event):
     start = time.time()
+
+
     message = await event.edit("Pong!")
     delay = (time.time() - start) * 1000
     await message.edit(f"🏓 Pong! {delay:.2f}ms")

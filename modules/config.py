@@ -243,7 +243,7 @@ def register(kernel):
         end_idx = start_idx + ITEMS_PER_PAGE
         page_keys = visible_keys[start_idx:end_idx]
         
-        text = "🪡 <b>Kernel Config</b>\n"
+        text = f"{CUSTOM_EMOJI['✏️']} <b>Kernel Config</b>\n"
         text += f"{CUSTOM_EMOJI['📰']} Page <b>{page + 1}/{total_pages}</b> ({total_keys} keys)"
         
         buttons = create_kernel_buttons_grid(page_keys, page, total_pages)
@@ -408,7 +408,7 @@ def register(kernel):
         data = event.data.decode()
         
         if data == 'config_menu':
-            text = "🪡 <b>Config Menu</b>\nВыберите раздел конфигурации:"
+            text = "<tg-emoji emoji-id=\"5404451992456156919\">🧬</tg-emoji> <b>Config Menu</b>\nВыберите раздел конфигурации:"
             buttons = [
                 [Button.inline("🪄 Kernel Config", data=b'config_kernel_page_0')],
                 [Button.inline("🚂 Modules Config", data=b'config_modules_page_0')]
@@ -429,7 +429,7 @@ def register(kernel):
                 end_idx = start_idx + ITEMS_PER_PAGE
                 page_keys = visible_keys[start_idx:end_idx]
                 
-                text = "🪡 <b>Kernel Config</b>\n"
+                text = "<tg-emoji emoji-id=\"5404451992456156919\">🧬</tg-emoji> <b>Kernel Config</b>\n"
                 text += f"{CUSTOM_EMOJI['📰']} Page <b>{page + 1}/{total_pages}</b> ({total_keys} keys)"
                 buttons = create_kernel_buttons_grid(page_keys, page, total_pages)
                 await event.edit(text, buttons=buttons, parse_mode='html')

@@ -128,7 +128,7 @@ async def test_handler(event):
 ---
 
 **Inline**
-```
+```python
 async def test_inline_handler(event):
     builder = event.builder.article(
     title="test command",

@@ -417,20 +417,6 @@ def register(kernel):
     # terminal
     async def terminal_handler(event):
         args = event.text.split(maxsplit=1)
-        if len(args) < 2:
-            await event.edit(
-                f"{CUSTOM_EMOJI['💻']} <i>Использование:</i> <code>.t команда</code>\n\n"
-                f"{CUSTOM_EMOJI['✏️']} <i>Примеры:</i>\n"
-                "<code>.t pwd</code> - текущая директория\n"
-                "<code>.t ls -la</code> - список файлов\n"
-                "<code>.t echo 'test'</code> - вывод текста\n"
-                "<code>.t python3 -c \"print('hello')\"</code> - Python код\n"
-                f"{CUSTOM_EMOJI['🔐']} <i>Sudo команды:</i>\n"
-                "<code>.t sudo apt update</code> - потребует пароль",
-                parse_mode='html'
-            )
-            return
-
         await event.delete()
         command = args[1]
         await terminal.run_command(event.chat_id, command)

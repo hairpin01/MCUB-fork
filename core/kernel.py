@@ -1496,6 +1496,7 @@ class Kernel:
                 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
                 from core_inline.handlers import InlineHandlers
+                self.inline_handlers = InlineHandlers(self, self.bot_client)  
                 handlers = InlineHandlers(self, self.bot_client)
                 await handlers.register_handlers()
 

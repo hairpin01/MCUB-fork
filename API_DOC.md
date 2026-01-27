@@ -169,7 +169,9 @@ async def register(kernel):
 `kernel.start_time` - Kernel start timestamp
 
 `log_chat_id` - log chat id
+
 ---
+
 kernel.get_thread_id(event)
 
 > Description:

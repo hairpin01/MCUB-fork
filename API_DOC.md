@@ -67,10 +67,10 @@ Structured logging instance.
 **Usage:**
 
 ```python
-kernel.logger.debug("Debug message")
-kernel.logger.info("Info message")
-kernel.logger.warning("Warning message")
-kernel.logger.error("Error message")
+await kernel.logger.debug("Debug message")
+await kernel.logger.info("Info message")
+await kernel.logger.warning("Warning message")
+await kernel.logger.error("Error message")
 ```
 
 Logging Methods
@@ -125,7 +125,39 @@ Register callback query handler.
 async def test_handler(event):
     await event.edit("Test command")
 ```
+---
 
+**Inline**
+```
+async def test_inline_handler(event):
+    builder = event.builder.article(
+    title="test command",
+    text="test command",
+    description="test"
+    )
+    await event.answer([builder])
+
+async def register(kernel):
+
+    @kernel.register_command('test')
+    async def test_cmd(event):
+        try:
+            success, result = await kernel.inline_query_and_click(
+            event.chat_id,
+            "test"
+            )
+            if success:
+                event.delete()
+            else:
+                event.edit("error test")
+
+        except Exception as e:
+            await kernel.handle_error(e, source="test_cmd", event)
+            await event.edit("Error, please check log chat")
+
+    # inline team registration (@MCUB_bot test)
+    kernel.register_inline_handler("test", test_inline_handler)
+```
 ### Utility Properties
 
 `kernel.LOGS_DIR` - Path to logs directory
@@ -137,7 +169,7 @@ async def test_handler(event):
 `kernel.start_time` - Kernel start timestamp
 
 `log_chat_id` - log chat id
-
+---
 kernel.get_thread_id(event)
 
 > Description:

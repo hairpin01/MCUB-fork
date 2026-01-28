@@ -297,9 +297,11 @@ def get_platform():
     """Returns platform name"""
     return detector.detect()
 
-def get_platform_info():
+def get_detailed_info():
     """Returns detailed platform information"""
     return detector.get_detailed_info()
+
+get_platform_info = get_detailed_info
 
 def get_platform_name():
     """Returns human-readable platform name"""
@@ -340,5 +342,5 @@ if __name__ == "__main__":
     print(f"Platform: {get_platform()}")
     print(f"Friendly Name: {get_platform_name()}")
     print(f"Detailed Info:")
-    for key, value in get_platform_info().items():
+    for key, value in get_detailed_info().items():
         print(f"  {key}: {value}")

@@ -697,18 +697,18 @@ class Kernel:
                 if not bot_username:
                     raise ValueError("Bot username not specified and not configured in config")
             
-            self.cprint(f'{self.Colors.BLUE}Performing inline query: {query} with @{bot_username}{self.Colors.RESET}')
+            self.cprint(f'{self.Colors.BLUE}=> Performing inline query: {query} with @{bot_username}{self.Colors.RESET}')
             
             # Perform inline query
             results = await self.client.inline_query(bot_username, query)
             
             if not results:
-                self.cprint(f'{self.Colors.YELLOW}No inline results found for query: {query}{self.Colors.RESET}')
+                self.cprint(f'{self.Colors.YELLOW}=? No inline results found for query: {query}{self.Colors.RESET}')
                 return False, None
             
             # Check if result_index is valid
             if result_index >= len(results):
-                self.cprint(f'{self.Colors.YELLOW}Result index {result_index} out of range, using first result{self.Colors.RESET}')
+                self.cprint(f'{self.Colors.YELLOW}=> Result index {result_index} out of range, using first result{self.Colors.RESET}')
                 result_index = 0
             
             # Click on the specified result
@@ -727,11 +727,11 @@ class Kernel:
             
             message = await result.click(chat_id, **click_kwargs)
             
-            self.cprint(f'{self.Colors.GREEN}Successfully clicked inline result #{result_index} for query: {query}{self.Colors.RESET}')
+            self.cprint(f'{self.Colors.GREEN}=> Successfully clicked inline result #{result_index} for query: {query}{self.Colors.RESET}')
             return True, message
             
         except Exception as e:
-            self.cprint(f'{self.Colors.RED}Error performing inline query: {e}{self.Colors.RESET}')
+            self.cprint(f'{self.Colors.RED}=X Error performing inline query: {e}{self.Colors.RESET}')
             await self.handle_error(e, source="inline_query_and_click")
             return False, None
     
@@ -796,17 +796,19 @@ class Kernel:
 
     def register_inline_handler(self, pattern, handler):
         """Регистрация обработчика инлайн-запросов"""
-        if not hasattr(self, 'inline_handlers'):
-            self.inline_handlers = {}
-        self.inline_handlers[pattern] = handler
-
+        try:
+            if not hasattr(self, 'inline_handlers'):
+                self.inline_handlers = {}
+            self.inline_handlers[pattern] = handler
+        except Exception as e:
+            print(f"=X Error register inline commands: {e}")
+            
     def register_callback_handler(self, pattern, handler):
         """Регистрация обработчика callback-кнопок"""
         if not hasattr(self, 'callback_handlers'):
             self.callback_handlers = {}
 
         try:
-            # Убедимся, что pattern - bytes
             if isinstance(pattern, str):
                 pattern = pattern.encode()
             self.callback_handlers[pattern] = handler

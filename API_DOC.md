@@ -92,6 +92,8 @@ Log error message.
 ```python
 await kernel.log_info("log message")
 ```
+> [!TIP]
+> But it's better not to do that.
 
 ### Error Handling
 

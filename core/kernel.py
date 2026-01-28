@@ -821,7 +821,7 @@ class Kernel:
                     except Exception as e:
                         await self.handle_error(e, source="callback_handler", event=event)
         except Exception as e:
-            self.cprint(f'{self.Colors.RED}❌ Ошибка регистрации callback: {e}{self.Colors.RESET}')
+            self.cprint(f'{self.Colors.RED}=X Ошибка регистрации callback: {e}{self.Colors.RESET}')
 
     async def log_network(self, message):
         """Логирование сетевых событий"""
@@ -911,7 +911,7 @@ class Kernel:
             )
             return result
         except Exception as e:
-            self.cprint(f'{self.Colors.RED}❌ Ошибка отправки с эмодзи: {e}{self.Colors.RESET}')
+            self.cprint(f'{self.Colors.RED}=X Ошибка отправки с эмодзи: {e}{self.Colors.RESET}')
             fallback_text = self.emoji_parser.remove_emoji_tags(text) if self.emoji_parser else text
             return await self.client.send_message(chat_id, fallback_text, **kwargs)
 
@@ -1071,8 +1071,10 @@ class Kernel:
 
         if message_info:
             formatted_error += f'\n🃏 <b>Message:</b> <code>{message_info[:300]}</code>'
-
-        await self.send_log_message(formatted_error)
+        try:
+            await self.send_log_message(formatted_error)
+        except:
+            self.logger.error(f"Error sending error log: {error_text}")
 
     async def handle_error(self, error, source="unknown", event=None):
         error_text = str(error)
@@ -1094,6 +1096,7 @@ class Kernel:
             full_error = f"Ошибка в {source}:\n{error_traceback}"
             self.save_error_to_file(full_error)
             await self.send_log_message(formatted_error)
+            print(f"=X {error_traceback}")
 
             if len(error_traceback) > 500:
                 error_file = io.BytesIO(error_traceback.encode('utf-8'))
@@ -1229,7 +1232,7 @@ class Kernel:
         import sys
         import platform
 
-        print(f"{self.Colors.CYAN}Инициализация MCUB на {platform.system()} (Python {sys.version_info.major}.{sys.version_info.minor})...{self.Colors.RESET}")
+        print(f"{self.Colors.CYAN}=- Инициализация MCUB на {platform.system()} (Python {sys.version_info.major}.{sys.version_info.minor})...{self.Colors.RESET}")
 
 
 
@@ -1264,12 +1267,12 @@ class Kernel:
             )
 
             if not await self.client.is_user_authorized():
-                print(f"{self.Colors.RED}❌ Не удалось авторизоваться{self.Colors.RESET}")
+                print(f"{self.Colors.RED}=X Не удалось авторизоваться{self.Colors.RESET}")
                 return False
 
             me = await self.client.get_me()
             if not me or not hasattr(me, 'id'):
-                print(f"{self.Colors.RED}❌ Неверные данные пользователя{self.Colors.RESET}")
+                print(f"{self.Colors.RED}=X Неверные данные пользователя{self.Colors.RESET}")
                 return False
 
             self.ADMIN_ID = me.id
@@ -1604,7 +1607,7 @@ class Kernel:
                                 chat_id,
                                 msg_id,
                                 f'{premium_emoji_alembic} Перезагрузка <b>успешна!</b> {emoji}\n'
-                                f'<i>но модули ещё загружаются...</i> <b>CLB:</b> <code>{total_time} ms</code>',
+                                f'<i>но модули ещё загружаются...</i> <b>KLB:</b> <code>{total_time} ms</code>',
                                 parse_mode='html'
                             )
 
@@ -1620,7 +1623,7 @@ class Kernel:
                             await self.client.send_message(
                                 chat_id,
                                 f'{premium_emoji_package} Твой <b>MCUB</b> полностью загрузился!\n'
-                                f'<blockquote><b>KBL:</b> <code>{kbl} ms</code>. <b>MLFB:</b> <code>{mlfb} ms</code>.</blockquote>',
+                                f'<blockquote><b>KBL:</b> <code>{total_time} ms</code>. <b>MLFB:</b> <code>{mlfb} ms</code>.</blockquote>',
                                 parse_mode='html',
                                 **send_params
                             )

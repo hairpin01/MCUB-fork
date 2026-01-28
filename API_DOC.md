@@ -522,7 +522,7 @@ async def optimize_for_platform():
 ```
 
 > [!NOTE]
-> **Availability:** The utility is available in MCUB kernel version 1.0.1.9.3 and later
+> **Availability:** The utility is available in MCUB kernel version 1.0.1.9.4 and later
 
 > [!TIP]
 > **Kernel Integration:** Kernel automatically sets `kernel.platform` and `kernel.platform_name` <br>

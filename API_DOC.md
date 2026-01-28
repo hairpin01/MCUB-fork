@@ -69,11 +69,11 @@ Structured logging instance.
 ```python
 await kernel.logger.debug("Debug message")
 await kernel.logger.info("Info message")
-await kernel.logger.warning("Warning message") 
+await kernel.logger.warning("Warning message")
 await kernel.logger.error("Error message")
 ```
 
-Logging Methods
+Logging Methods for __inline bot__
 
 `kernel.log_debug(message)`
 Log debug message.
@@ -90,7 +90,7 @@ Log error message.
 **Usage:**
 
 ```python
-await kernel.log_info("Module loaded successfully")
+await kernel.log_info("log message")
 ```
 > [!TIP]
 > But it's better not to do that.
@@ -109,7 +109,7 @@ except Exception as e:
     await kernel.handle_error(e, source="module:function", event=event)
 ```
 
-Registration Methods
+### Registration Methods
 
 `kernel.register_command(pattern, func=None)`
 Register a command handler.
@@ -127,6 +127,8 @@ Register callback query handler.
 async def test_handler(event):
     await event.edit("Test command")
 ```
+---
+
 **Inline**
 ```python
 async def test_inline_handler(event):
@@ -158,8 +160,6 @@ async def register(kernel):
     # inline team registration (@MCUB_bot test)
     kernel.register_inline_handler("test", test_inline_handler)
 ```
-
-
 ### Utility Properties
 
 `kernel.LOGS_DIR` - Path to logs directory
@@ -170,7 +170,7 @@ async def register(kernel):
 
 `kernel.start_time` - Kernel start timestamp
 
-`log_chat_id` - log chat id
+`kernel.log_chat_id` - log chat id
 
 ---
 
@@ -280,19 +280,19 @@ kernel.cprint("Initializing database...", kernel.Colors.CYAN)
 
 Class Variables:
 
-· RESET = '\033[0m' - Reset to default terminal color
+· `RESET = '\033[0m'` - Reset to default terminal color
 
-· RED = '\033[91m' - Bright red
+· `RED = '\033[91m'` - Bright red
 
-· GREEN = '\033[92m' - Bright green
+· `GREEN = '\033[92m'` - Bright green
 
-· YELLOW = '\033[93m' - Bright yellow
+· `YELLOW = '\033[93m'` - Bright yellow
 
-· BLUE = '\033[94m' - Bright blue
+· `BLUE = '\033[94m'` - Bright blue
 
-· PURPLE = '\033[95m' - Bright purple
+· `PURPLE = '\033[95m'` - Bright purple
 
-· CYAN = '\033[96m' - Bright cyan
+· `CYAN = '\033[96m'` - Bright cyan
 
 **Usage:**
 
@@ -309,6 +309,267 @@ kernel.cprint("Warning message", kernel.Colors.YELLOW)
 > [!NOTE]
 > These utility methods are available in kernel version 1.0.1.9 and later.
 
+---
+
+### Platform Detection Utility
+
+MCUB includes a comprehensive platform detection utility in `utils.platform` that helps modules adapt to different environments (Termux, WSL, VPS, etc.).
+
+Importing
+--- 
+
+```python
+# Import the entire module
+from utils import platform
+
+# Or import specific functions
+from utils.platform import get_platform, get_platform_name, is_termux, is_vds
+```
+
+**Functions and Classes**
+
+`PlatformDetector`
+---
+Main class for platform detection. Provides detailed detection capabilities.
+
+`get_platform()`
+---
+Returns the platform identifier as a string. 
+
+**Possible values:**
+- `'termux'` - Android Termux
+- `'wsl'` - Windows Subsystem for Linux (v1)
+- `'wsl2'` - Windows Subsystem for Linux 2
+- `'docker'` - Docker container
+- `'vds'` - VDS/VPS server
+- `'macos'` - macOS
+- `'windows'` - Windows
+- `'linux'` - Linux Desktop
+- `'unknown'` - Unknown platform
+
+`get_platform_info()` / `get_detailed_info()`
+---
+Returns a dictionary with detailed platform information.
+
+**Example output:**
+```python
+{
+    "platform": "vds",
+    "system": "linux",
+    "machine": "x86_64",
+    "platform_string": "Linux-5.15.0-x86_64-with-glibc2.35",
+    "python_version": "3.11.0",
+    "hostname": "vps-server-01",
+    "processor": "Intel Xeon",
+    "release": "5.15.0",
+    "version": "#1 SMP Debian 5.15.0-1",
+    "architecture": "64bit",
+    "is_64bit": True,
+    "env_vars": {
+        "termux": False,
+        "wsl": False,
+        "docker": False,
+        "display": False,
+        "wayland": False
+    }
+}
+```
+
+`get_platform_name()`
+---
+Returns a human-readable platform name with emoji.
+
+**Examples:**
+- `"📱 Termux (Android)"`
+- `"🪟 Windows Subsystem for Linux"`
+- `"🖥️ VDS/VPS Server"`
+- `"🐧 Linux Desktop"`
+
+### Platform Detection Functions
+| Function | Returns True for | Description |
+|----------|------------------|-------------|
+| `is_termux()` | Android Termux | Mobile environment on Android |
+| `is_wsl()` | WSL or WSL2 | Windows Subsystem for Linux |
+| `is_vds()` | VDS/VPS | Virtual server environment |
+| `is_docker()` | Docker | Docker container environment |
+| `is_mobile()` | Termux | Mobile platforms only |
+| `is_desktop()` | macOS, Windows, Linux Desktop | Desktop operating systems |
+| `is_virtualized()` | Termux, WSL, Docker, VDS | Virtualized/containerized environments |
+
+__Usage Examples__
+
+**Basic Platform Detection**
+```python
+# Get current platform
+platform_name = platform.get_platform()
+await event.edit(f"Running on: {platform_name}")
+
+# Get human-readable name
+friendly_name = platform.get_platform_name()
+await event.edit(f"Platform: {friendly_name}")
+
+# Get detailed information
+info = platform.get_platform_info()
+await event.edit(
+    f"System: {info['system']}\n"
+    f"Hostname: {info['hostname']}\n"
+    f"Python: {info['python_version']}"
+)
+```
+
+**Conditional Code Based on Platform**
+```python
+# Termux-specific code
+if platform.is_termux():
+    # Use Termux-specific paths or commands
+    storage_path = "/sdcard"
+    await event.edit("Running on Android Termux 📱")
+
+# VPS-specific optimizations
+elif platform.is_vds():
+    # Disable resource-intensive tasks on VPS
+    await event.edit("Running on VPS - limited resources 🖥️")
+    # Reduce cache size, disable animations, etc.
+
+# Desktop environment
+elif platform.is_desktop():
+    # Enable desktop-specific features
+    await event.edit("Running on desktop - full features available 💻")
+
+# Virtualized environment check
+if platform.is_virtualized():
+    # Be conservative with resources
+    await event.edit("Running in virtualized environment 🐳")
+```
+
+**Module Initialization Based on Platform**
+```python
+async def register(kernel):
+    # Check platform during module load
+    if platform.is_termux():
+        # Load Android-specific configurations
+        config = {"notifications": True, "vibrate": False}
+    elif platform.is_vds():
+        # Load VPS-optimized configurations
+        config = {"cache_ttl": 600, "background_tasks": False}
+    else:
+        # Default configuration for desktops
+        config = {"cache_ttl": 300, "notifications": True}
+    
+    # Platform-aware command registration
+    @kernel.register_command('sysinfo')
+    async def sysinfo_handler(event):
+        info = platform.get_platform_info()
+        
+        # Format platform-specific information
+        if platform.is_termux():
+            extra = "📱 Android environment detected"
+        elif platform.is_vds():
+            extra = "🖥️ Server environment - resource monitoring enabled"
+        else:
+            extra = "💻 Desktop environment - all features available"
+        
+        await event.edit(
+            f"**System Information**\n"
+            f"Platform: {platform.get_platform_name()}\n"
+            f"OS: {info['system']} {info['release']}\n"
+            f"Architecture: {info['architecture']}\n"
+            f"Python: {info['python_version']}\n"
+            f"Hostname: {info['hostname']}\n\n"
+            f"{extra}"
+        )
+```
+
+**Platform-Specific File Paths**
+```python
+# Determine appropriate paths based on platform
+def get_config_path():
+    if platform.is_termux():
+        return "/data/data/com.termux/files/home/.config/mcub"
+    elif platform.is_wsl():
+        return "/mnt/c/Users/username/.mcub"
+    elif platform.is_vds():
+        return "/opt/mcub/config"
+    else:
+        return os.path.expanduser("~/.config/mcub")
+
+# Use in module
+config_path = get_config_path()
+os.makedirs(config_path, exist_ok=True)
+```
+
+**Resource Management by Platform**
+```python
+async def optimize_for_platform():
+    if platform.is_termux():
+        # Limit concurrent tasks on mobile
+        max_tasks = 2
+        cache_size = 100
+    elif platform.is_vds():
+        # Conservative settings for VPS
+        max_tasks = 3
+        cache_size = 200
+    else:
+        # Full resources for desktop
+        max_tasks = 10
+        cache_size = 1000
+    
+    return {
+        "max_concurrent_tasks": max_tasks,
+        "cache_max_size": cache_size,
+        "enable_animations": not platform.is_vds()
+    }
+```
+
+> [!NOTE]
+> **Availability:** The utility is available in MCUB kernel version 1.0.1.9.3 and later
+
+> [!TIP]
+> **Kernel Integration:** Kernel automatically sets `kernel.platform` and `kernel.platform_name` <br>
+</br>**Fallback:** If platform detection fails, returns `'unknown'` platform type <br>
+</br>**Detection Methods:** Uses multiple detection methods for accuracy (environment variables, file paths, process inspection)<br>
+</br>**Performance:** Detection is lightweight and cached after first call
+---
+
+### Language
+
+MCUB provides built-in support for internationalization (i18n) through the kernel configuration system. Modules can support multiple languages by accessing the `language` key in `kernel.config`.
+
+**Language Configuration**
+
+The kernel stores the current language setting in `kernel.config['language']` with possible values:
+- `'ru'` - Russian (default)
+- `'en'` - English 
+
+**Usage in Modules:**
+
+```python
+async def register(kernel):
+    # Get current language from config
+    language = kernel.config.get('language', 'en')
+    
+    # Define localized strings
+    strings = {
+        'en': {
+            'greeting': 'Hello!',
+            'error': 'An error occurred',
+            'success': 'Operation completed successfully'
+        },
+        'ru': {
+            'greeting': 'Привет!',
+            'error': 'Произошла ошибка',
+            'success': 'Операция выполнена успешно'
+        }
+    }
+    
+    # Get strings for current language
+    lang_strings = strings.get(language, strings['en'])
+    
+    # Use localized strings
+    @kernel.register_command('test')
+    async def test_handler(event):
+        await event.edit(lang_strings['greeting'])
+```
 
 ### Bot Client Access
 
@@ -461,7 +722,7 @@ Schedule task at fixed intervals.
 ```python
 async def backup_data():
     await kernel.db_set('backup', 'time', time.time())
-    kernel.log_info("Backup completed")
+    await kernel.log_info("Backup completed")
 
 # Run every 5 minutes
 await kernel.scheduler.add_interval_task(backup_data, 300)
@@ -521,7 +782,7 @@ kernel.add_middleware(spam_filter_middleware)
 
 ```python
 async def logging_middleware(event, next_handler):
-    kernel.log_info(f"Message from {event.sender_id}: {event.text[:50]}")
+    await kernel.log_info(f"Message from {event.sender_id}: {event.text[:50]}")
     return await next_handler(event)
 
 async def rate_limit_middleware(event, next_handler):
@@ -550,6 +811,8 @@ kernel.add_middleware(rate_limit_middleware)
 # Check bot responsiveness
 async def ping_handler(event):
     start = time.time()
+
+
     message = await event.edit("Pong!")
     delay = (time.time() - start) * 1000
     await message.edit(f"🏓 Pong! {delay:.2f}ms")
@@ -593,7 +856,7 @@ async def counter_handler(event):
 from telethon import events
 
 async def message_logger(event):
-    kernel.log_info(f"New message: {event.chat_id} - {event.text[:100]}")
+    await kernel.log_info(f"New message: {event.chat_id} - {event.text[:100]}")
 
 kernel.client.on(events.NewMessage(incoming=True))(message_logger)
 ```
@@ -602,7 +865,7 @@ Edited Message
 
 ```python
 async def edit_logger(event):
-    kernel.log_info(f"Message edited: {event.id}")
+    await kernel.log_info(f"Message edited: {event.id}")
 
 kernel.client.on(events.MessageEdited(incoming=True))(edit_logger)
 ```
@@ -780,8 +1043,6 @@ def register(kernel):
         'cache_ttl': 300
     })
     
-    # Log module load
-    kernel.log_info(f"Module {__name__} loaded with config: {module_config}")
     
     # Middleware: Rate limiter
     async def rate_limit_middleware(event, next_handler):

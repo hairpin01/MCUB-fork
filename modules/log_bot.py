@@ -46,7 +46,7 @@ def register(kernel):
         try:
             result = subprocess.run(['git', 'status', '--porcelain'], capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(__file__)))
             if result.returncode == 0 and result.stdout.strip():
-                return '⚠️ Есть несохранённые изменения'
+                pass
             result = subprocess.run(['git', 'fetch', 'origin'], capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(__file__)))
             result = subprocess.run(['git', 'log', 'HEAD..origin/main', '--oneline'], capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(__file__)))
             if result.returncode == 0 and result.stdout.strip():
@@ -69,34 +69,56 @@ def register(kernel):
                         json.dump(kernel.config, f, ensure_ascii=False, indent=2)
                     kernel.cprint(f'{kernel.Colors.GREEN}✅ Найден лог-чат: {dialog.title}{kernel.Colors.RESET}')
                     return True
+
             kernel.cprint(f'{kernel.Colors.YELLOW}📝 Создаю лог-группу...{kernel.Colors.RESET}')
             me = await client.get_me()
             try:
-                result = await client.create_dialog(title=f'MCUB-logs [{me.first_name}]', users=[me])
-                kernel.log_chat_id = result.id
-                kernel.config['log_chat_id'] = result.id
+                created = await client(CreateChatRequest(
+                    title=f'MCUB-logs [{me.first_name}]',
+                    users=[InputUserSelf()]
+                ))
+
+                if hasattr(created, 'updates') and created.updates:
+                    for update in created.updates:
+                        if hasattr(update, 'chat_id'):
+                            kernel.log_chat_id = update.chat_id
+                            kernel.config['log_chat_id'] = update.chat_id
+                            break
+
+                if not kernel.log_chat_id and hasattr(created, 'chats') and created.chats:
+                    kernel.log_chat_id = created.chats[0].id
+                    kernel.config['log_chat_id'] = created.chats[0].id
+
+                if not kernel.log_chat_id:
+                    kernel.cprint(f'{kernel.Colors.RED}❌ Не удалось получить ID созданного чата{kernel.Colors.RESET}')
+                    return False
+
                 try:
-                    full_chat = await client.get_entity(result.id)
+                    full_chat = await client.get_entity(kernel.log_chat_id)
                     try:
-                        invite = await client(ExportChatInviteRequest(result.id))
+                        invite = await client(ExportChatInviteRequest(kernel.log_chat_id))
                         if hasattr(invite, 'link'):
                             kernel.cprint(f'{kernel.Colors.GREEN}✅ Ссылка: {invite.link}{kernel.Colors.RESET}')
-                    except:
-                        pass
+                    except Exception as e:
+                        kernel.cprint(f'{kernel.Colors.YELLOW}⚠️ Не удалось получить ссылку: {e}{kernel.Colors.RESET}')
                 except Exception as e:
-                    kernel.cprint(f'{kernel.Colors.YELLOW}⚠️ Не удалось получить ссылку: {e}{kernel.Colors.RESET}')
+                    kernel.cprint(f'{kernel.Colors.YELLOW}⚠️ Не удалось получить full_chat: {e}{kernel.Colors.RESET}')
+
                 if bot_client and await bot_client.is_user_authorized():
                     try:
                         bot_me = await bot_client.get_me()
                         bot_entity = await client.get_entity(bot_me.id)
-                        await client.add_chat_users(result.id, [bot_entity])
+                        await client.add_chat_users(kernel.log_chat_id, [bot_entity])
                         kernel.cprint(f'{kernel.Colors.GREEN}✅ Бот добавлен{kernel.Colors.RESET}')
                     except Exception as e:
                         kernel.cprint(f'{kernel.Colors.YELLOW}⚠️ Не удалось добавить бота: {e}{kernel.Colors.RESET}')
+
                 with open(kernel.CONFIG_FILE, 'w', encoding='utf-8') as f:
                     json.dump(kernel.config, f, ensure_ascii=False, indent=2)
-                kernel.cprint(f'{kernel.Colors.GREEN}✅ Лог-группа создана: {result.id}{kernel.Colors.RESET}')
+
+                kernel.cprint(f'{kernel.Colors.GREEN}✅ Лог-группа создана: {kernel.log_chat_id}{kernel.Colors.RESET}')
                 return True
+
             except Exception as e:
                 kernel.cprint(f'{kernel.Colors.RED}❌ Ошибка создания: {e}{kernel.Colors.RESET}')
                 return False

@@ -3,19 +3,7 @@
 # description: kernel core
 # Спасибо @Mitrichq за основу юзербота
 # Лицензия? какая лицензия ещё
-import time
-import sys
-import os
-import importlib.util
-import re
-import json
-import subprocess
-import random
-from pathlib import Path
-import logging
-from logging.handlers import RotatingFileHandler
-import aiosqlite
-from contextlib import asynccontextmanager
+
 try:
     from utils.html_parser import parse_html
     from utils.message_helpers import edit_with_html, reply_with_html, send_with_html, send_file_with_html
@@ -24,13 +12,20 @@ except ImportError as e:
     print(f"=X HTML парсер не загружен: {e}")
     HTML_PARSER_AVAILABLE = False
 
-# try:
-#     import telethon_patch
-# except:
-#     print("пач не загрузился")
-#     pass
-
 try:
+    import time
+    import sys
+    import os
+    import importlib.util
+    import re
+    import json
+    import subprocess
+    import random
+    from pathlib import Path
+    import logging
+    from logging.handlers import RotatingFileHandler
+    import aiosqlite
+    from contextlib import asynccontextmanager
     import io
     import html
     import socks

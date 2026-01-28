@@ -1,5 +1,5 @@
 # author: @Hairpin00
-# version: 1.0.1.9.3
+# version: 1.0.1.9.4
 # description: kernel core
 # Спасибо @Mitrichq за основу юзербота
 # Лицензия? какая лицензия ещё
@@ -131,7 +131,7 @@ class TaskScheduler:
 
 class Kernel:
     def __init__(self):
-        self.VERSION = '1.0.1.9.3'
+        self.VERSION = '1.0.1.9.4'
         self.DB_VERSION = 2
         self.start_time = time.time()
         self.loaded_modules = {}

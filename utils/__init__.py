@@ -69,6 +69,6 @@ def get_utils_status():
 
 __all__.append('get_utils_status')
 
-# # Для обратной совместимости
+# Для обратной совместимости
 # MCUBHTMLParser = TelegramHTMLParser
 # escape_html = lambda x: x  # Заглушка

@@ -18,6 +18,37 @@ from .platform import (
 
 from . import platform
 
+try:
+    from .html_parser import parse_html, telegram_to_html
+    HTML_PARSER_AVAILABLE = True
+except ImportError:
+    HTML_PARSER_AVAILABLE = False
+
+try:
+    from .emoji_parser import emoji_parser
+    EMOJI_PARSER_AVAILABLE = True
+except ImportError:
+    EMOJI_PARSER_AVAILABLE = False
+
+try:
+    from .message_helpers import edit_with_html, reply_with_html, send_with_html, send_file_with_html
+    MESSAGE_HELPERS_AVAILABLE = True
+except ImportError:
+    MESSAGE_HELPERS_AVAILABLE = False
+
+try:
+    from .arg_parser import (
+        ArgumentParser,
+        parse_arguments,
+        extract_command,
+        split_args,
+        parse_kwargs,
+        ArgumentValidator
+    )
+    ARG_PARSER_AVAILABLE = True
+except ImportError:
+    ARG_PARSER_AVAILABLE = False
+
 __all__ = [
     'PlatformDetector',
     'get_platform',
@@ -33,42 +64,25 @@ __all__ = [
     'platform'
 ]
 
+if HTML_PARSER_AVAILABLE:
+    __all__.extend(['parse_html', 'telegram_to_html', 'html_parser'])
 
-try:
-    from .html_parser import parse_html, telegram_to_html
-    __all__.extend(['parse_html', 'telegram_to_html'])
-except ImportError:
-    pass
-
-try:
-    from .emoji_parser import emoji_parser
+if EMOJI_PARSER_AVAILABLE:
     __all__.extend(['emoji_parser'])
-except ImportError:
-    pass
 
-try:
-    from .message_helpers import edit_with_html, reply_with_html, send_with_html, send_file_with_html
-    __all__.extend(['edit_with_html', 'reply_with_html', 'send_with_html', 'send_file_with_html'])
-except ImportError:
-    pass
+if MESSAGE_HELPERS_AVAILABLE:
+    __all__.extend(['edit_with_html', 'reply_with_html', 'send_with_html', 'send_file_with_html', 'message_helpers'])
 
-__version__ = '1.0.1'
-__author__ = '@Hairpin00'
-__description__ = 'MCUB Utils Package'
+if ARG_PARSER_AVAILABLE:
+    __all__.extend([
+        'ArgumentParser',
+        'parse_arguments',
+        'extract_command',
+        'split_args',
+        'parse_kwargs',
+        'ArgumentValidator',
+        'arg_parser'
+    ])
 
-def get_utils_status():
-    """Returns the availability status of all utilities"""
-    status = {
-        'platform': 'platform' in globals(),
-        'html_parser': 'parse_html' in globals(),
-        'emoji_parser': 'emoji_parser' in globals(),
-        'message_helpers': 'edit_with_html' in globals(),
-        'version': __version__
-    }
-    return status
 
 __all__.append('get_utils_status')
-
-# Для обратной совместимости
-# MCUBHTMLParser = TelegramHTMLParser
-# escape_html = lambda x: x  # Заглушка

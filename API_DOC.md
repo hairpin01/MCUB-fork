@@ -344,7 +344,8 @@ Returns the platform identifier as a string.
 - `'vds'` - VDS/VPS server
 - `'macos'` - macOS
 - `'windows'` - Windows
-- `'linux'` - Linux Desktop
+- `'linux'` - Linux 
+- `'linux_desktop'` - Linux Desktop
 - `'unknown'` - Unknown platform
 
 `get_platform_info()` / `get_detailed_info()`

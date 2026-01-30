@@ -1384,6 +1384,77 @@ class Kernel:
                 finally:
                     self.clear_loading_module()
 
+
+    async def inline_form(self, chat_id, title, fields=None, buttons=None, auto_send=True, **kwargs):
+        """
+        Создание и отправка инлайн-формы в один метод.
+
+        Args:
+            chat_id (int): ID чата для отправки
+            title (str): Заголовок формы
+            fields (list/dict, optional): Поля формы
+            buttons (list, optional): Кнопки в формате [["Текст", "callback_data"]]
+            auto_send (bool): Автоматически отправить форму
+            **kwargs: Дополнительные параметры
+
+        Returns:
+            tuple: (success, message) или строку запроса
+
+        Example:
+            await kernel.inline_form(
+                chat_id=123456789,
+                title="Настройки",
+                buttons=[["Сохранить", "save"], ["Отмена", "cancel"]]
+            )
+        """
+        try:
+
+            query_parts = [title]
+
+
+            if fields:
+                if isinstance(fields, dict):
+                    for field, desc in fields.items():
+                        query_parts.append(f"{field}: {desc}")
+                elif isinstance(fields, list):
+                    for i, field in enumerate(fields, 1):
+                        query_parts.append(f"Поле {i}: {field}")
+
+            query = "\n".join(query_parts)
+
+
+            if buttons:
+                button_strings = []
+                for button in buttons:
+                    if isinstance(button, (list, tuple)) and len(button) >= 2:
+                        btn_text, btn_action = button[0], button[1]
+
+                        if btn_action.startswith(('http://', 'https://', 't.me/', 'tg://')):
+                            button_strings.append(f"{btn_text}:{btn_action}")
+                        else:
+
+                            button_strings.append(f"{btn_text}:{btn_action}")
+
+                if button_strings:
+                    query += "|" + "|".join(button_strings)
+
+
+            if auto_send:
+                success, message = await self.inline_query_and_click(
+                    chat_id=chat_id,
+                    query=query,
+                    **kwargs
+                )
+                return success, message
+            else:
+                return query
+
+        except Exception as e:
+            self.cprint(f'{self.Colors.RED}=X Ошибка создания инлайн-формы: {e}{self.Colors.RESET}')
+            await self.handle_error(e, source="create_inline_form")
+            return False, None
+
+
     async def process_command(self, event):
         text = event.text
 

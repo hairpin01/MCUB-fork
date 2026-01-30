@@ -21,6 +21,10 @@ def register(kernel):
         'alembic': '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>',
         'package': '<tg-emoji emoji-id="5399898266265475100">📦</tg-emoji>',
     }
+    async def mcub_handler():
+        me = await kernel.client.get_me()
+        mcub_emoji =  '<tg-emoji emoji-id="5470015630302287916">🔮</tg-emoji><tg-emoji emoji-id="5469945764069280010">🔮</tg-emoji><tg-emoji emoji-id="5469943045354984820">🔮</tg-emoji><tg-emoji emoji-id="5469879466954098867">🔮</tg-emoji>' if me.premium else "MCUB"
+        return mcub_emoji
 
 
     @kernel.register_command('restart')
@@ -33,7 +37,7 @@ def register(kernel):
 
             thread_id = getattr(event.reply_to, 'reply_to_top_id', None) or getattr(event.reply_to, 'reply_to_msg_id', None)
 
-        msg = await event.edit(f'{PREMIUM_EMOJI["telescope"]} <i>Твой</i> <b>MCUB</b> перезагружается...', parse_mode='html')
+        msg = await event.edit(f'{PREMIUM_EMOJI["telescope"]} <i>Твой</i> <b>{await mcub_handler()}</b> перезагружается...', parse_mode='html')
 
         with open(kernel.RESTART_FILE, 'w') as f:
             if thread_id:
@@ -51,7 +55,6 @@ def register(kernel):
         try:
 
             try:
-                await msg.edit('❄️ <b>обновляюсь...</b>', parse_mode='html')
                 result = subprocess.run(
                     ['git', 'pull', 'origin', 'main'],
                     capture_output=True,
@@ -119,7 +122,7 @@ def register(kernel):
     async def stop_handler(event):
         kernel.shutdown_flag = True
         emoji = random.choice(emojis)
-        await event.edit(f'🧲 <b>Твой <i>MCUB</i> останавливается...</b> {emoji}', parse_mode='html')
+        await event.edit(f'🧲 <b>Твой <i>{await mcub_handler()}</i> останавливается...</b> {emoji}', parse_mode='html')
         await asyncio.sleep(1)
         await client.disconnect()
 

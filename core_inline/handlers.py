@@ -1,6 +1,6 @@
 # author: @Hairpin00
 # version: 1.0.4
-# description: handler fixed UnboundLocalError
+# description: handler fixed
 from telethon import events, Button
 import aiohttp
 import traceback
@@ -37,7 +37,7 @@ class InlineHandlers:
                 await event.answer([builder])
                 return
 
-            # Если запрос пустой (просто открыли бота)
+            # Если запрос пустой
             if not query:
                 builder = event.builder.article(
                     'MCUB Info',
@@ -68,7 +68,7 @@ class InlineHandlers:
                 else:
                     builder = event.builder.article('Error', text='❌ Ошибка подтверждения')
 
-            # Логика каталога - ИСПРАВЛЕНО
+            # Логика каталога
             elif query.startswith('catalog'):
                 try:
                     # Разбираем запрос вида "catalog_0_1"
@@ -158,7 +158,7 @@ class InlineHandlers:
                 except Exception as e:
                     builder = event.builder.article('Error', text=f'❌ Ошибка загрузки каталога: {str(e)[:100]}')
 
-            # Логика сообщений с кнопками через разделитель |
+            # сообщений с кнопками через разделитель |
             elif '|' in query:
                 parts = query.split('|')
                 text = parts[0].strip()
@@ -175,44 +175,44 @@ class InlineHandlers:
 
                         if btn_url.startswith(('http://', 'https://', 't.me/', 'tg://')):
                             buttons.append([Button.url(btn_text, btn_url)])
-                        elif btn_url.startswith('page_'):
+                        else:
+                            #
                             buttons.append([Button.inline(btn_text, btn_url.encode())])
 
                 builder = event.builder.article('Message', text=text, buttons=buttons if buttons else None, parse_mode='html')
 
-            # Просто эхо
             else:
                 if query:
                     builder = event.builder.article('Message', text=query, parse_mode='html')
                 else:
                     builder = event.builder.article('Empty', text='...', parse_mode='html')
 
-            # Финальная отправка
+
             if builder:
                 await event.answer([builder])
 
-        # Обработчик нажатий на кнопки (CallbackQuery) - ИСПРАВЛЕНО
+        # CallbackQuery
         @self.bot_client.on(events.CallbackQuery)
         async def callback_query_handler(event):
             try:
                 if not event.data:
                     return
 
-                # Декодируем данные
+
                 if isinstance(event.data, bytes):
                     data_str = event.data.decode('utf-8')
                 else:
                     data_str = str(event.data)
 
-                # Проверка кастомных обработчиков ядра - ИСПРАВЛЕНО
+
                 for pattern, handler in self.kernel.callback_handlers.items():
-                    # Приводим pattern к строке если это bytes
+
                     if isinstance(pattern, bytes):
                         pattern_str = pattern.decode('utf-8')
                     else:
                         pattern_str = str(pattern)
                     
-                    # Проверяем соответствие
+
                     if data_str.startswith(pattern_str):
                         if not self.check_admin(event):
                             await event.answer('❌ Эта кнопка не ваша', alert=True)
@@ -237,10 +237,7 @@ class InlineHandlers:
                     await keyboards.handle_confirm_no(event)
                 elif data_str.startswith('dlml_'):
                     await keyboards.handle_catalog_page(event)
-                elif data_str.startswith('page_'):
-                    await keyboards.handle_custom_page(event)
-                elif data_str.startswith('catalog_'):
-                    # Обработка каталога из callback
+
                     try:
                         parts = data_str.split('_')
                         

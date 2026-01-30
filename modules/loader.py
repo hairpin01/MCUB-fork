@@ -334,9 +334,7 @@ def register(kernel):
 
         if len(args) < 2:
             try:
-                # Пытаемся вызвать каталог через инлайн бота
                 bot_username = None
-                # Проверяем наличие клиента бота в ядре
                 if hasattr(kernel, 'bot_client') and kernel.bot_client:
                     bot_info = await kernel.bot_client.get_me()
                     bot_username = bot_info.username
@@ -347,15 +345,13 @@ def register(kernel):
                     if results:
                         # Нажимаем на первый результат (отправляем сообщение каталога)
                         await results[0].click(event.chat_id)
-                        # Удаляем команду .dlm
                         await event.delete()
                         return
             except Exception as e:
-                # Если не вышло (нет бота, ошибка сети и т.д.), просто игнорируем и показываем помощь
-                # print(f"Error calling inline catalog: {e}")
+                print(f"Error calling inline catalog: {e}")
                 pass
 
-            # Если не получилось вызвать инлайн или просто ошибка
+
             await edit_with_emoji(event,
                 f'{CUSTOM_EMOJI["warning"]} <b>Использование:</b> <code>{kernel.custom_prefix}dlm [-send/-s/-list] название_модуля или ссылка [номер_репозитория]</code>'
             )
@@ -542,7 +538,7 @@ def register(kernel):
                         )
 
                 os.remove(file_path)
-                await log_to_bot(f"✅ Модуль {module_name} отправлен в чат")
+
                 return
 
             dependencies = []

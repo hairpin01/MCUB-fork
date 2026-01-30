@@ -212,6 +212,11 @@ def register(kernel):
             update_emoji = CUSTOM_EMOJI['💔'] if update_needed else CUSTOM_EMOJI['🔮']
             update_text = "Update needed" if update_needed else "No update needed"
 
+            me = await client.get_me()
+
+            mcub_emoji =  '<tg-emoji emoji-id="5470015630302287916">🔮</tg-emoji><tg-emoji emoji-id="5469945764069280010">🔮</tg-emoji><tg-emoji emoji-id="5469943045354984820">🔮</tg-emoji><tg-emoji emoji-id="5469879466954098867">🔮</tg-emoji>' if me.premium else "Mitrich UserBot"
+            # спасибо '@HenerTLG' за эмодзи пак
+
             custom_text = kernel.config.get('info_custom_text')
             if custom_text:
                 try:
@@ -234,7 +239,7 @@ def register(kernel):
                     await kernel.handle_error(e, source="info_cmd:custom_text_format", event=event)
                     info_text = f"""<b>Error in custom text format:</b> {str(e)}"""
             else:
-                info_text = f"""{CUSTOM_EMOJI['💠']} <b>Mitrich UserBot</b>
+                info_text = f"""<b>{mcub_emoji}</b>
 <blockquote>{CUSTOM_EMOJI['🌩️']} <b>Version:</b> <code>{kernel.VERSION}</code>
 {f"{CUSTOM_EMOJI['💔']} <b>Update needed</b>" if update_needed else f"{CUSTOM_EMOJI['🔮']} <b>No update needed</b>"}</blockquote>
 

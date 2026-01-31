@@ -13,6 +13,11 @@ except ImportError as e:
     HTML_PARSER_AVAILABLE = False
 
 try:
+    from utils.raw_html import RawHTMLConverter
+except Exception as e:
+    print(e)
+
+try:
     import time
     import sys
     import os
@@ -1409,6 +1414,23 @@ class Kernel:
                 finally:
                     self.clear_loading_module()
 
+    def raw_text(self, source: any) -> str:
+        try:
+
+            if not hasattr(self, 'html_converter') or self.html_converter is None:
+                from utils.raw_html import RawHTMLConverter
+                self.html_converter = RawHTMLConverter(keep_newlines=True)
+
+
+            if isinstance(source, str):
+                return html.escape(source).replace('\n', '<br/>')
+
+            return self.html_converter.convert_message(source)
+
+        except Exception as e:
+            # Резервный вариант, если что-то пошло не так
+            text = getattr(source, 'message', str(source))
+            return html.escape(text).replace('\n', '<br/>')
 
     async def inline_form(self, chat_id, title, fields=None, buttons=None, auto_send=True, **kwargs):
         """

@@ -1494,11 +1494,11 @@ class Kernel:
 
                 if json_buttons:
                     json_str = json.dumps(json_buttons, ensure_ascii=False)
-                    query = f'"{base_text}" | {json_str}'
+                    query = f'{base_text} | {json_str}'
                 else:
-                    query = f'"{base_text}"'
+                    query = f'{base_text}'
             else:
-                query = f'"{base_text}"'
+                query = f'{base_text}'
 
 
             if auto_send:

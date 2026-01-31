@@ -32,6 +32,7 @@ def register(kernel):
         sys.stdout = sys.stderr = output = io.StringIO()
         me = await client.get_me()
         m = event
+        bot = kernel.bot_client
 
         local_vars = {
             'm': m,
@@ -39,6 +40,7 @@ def register(kernel):
             'start_time': start_time,
             'kernel': kernel,
             'client': client,
+            'bot': bot,
             'event': event,
             'utils': __import__('utils'),
             'asyncio': __import__('asyncio'),

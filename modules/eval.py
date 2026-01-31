@@ -33,8 +33,12 @@ def register(kernel):
         me = await client.get_me()
         m = event
         bot = kernel.bot_client
+        reply = await m.get_reply_message()
+        r_text = html.unescape(kernel.raw_text(reply))
 
         local_vars = {
+            'r_text': r_text,
+            'r': reply,
             'm': m,
             'me': me,
             'start_time': start_time,

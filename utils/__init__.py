@@ -84,5 +84,31 @@ if ARG_PARSER_AVAILABLE:
         'arg_parser'
     ])
 
+try:
+    from .raw_html import (
+        RawHTMLConverter,
+        message_to_html,
+        event_to_html,
+        extract_raw_html,
+        debug_entities,
+        save_html_to_file,
+        raw_html_converter
+    )
+    RAW_HTML_AVAILABLE = True
+except ImportError as e:
+    RAW_HTML_AVAILABLE = False
 
+if RAW_HTML_AVAILABLE:
+    __all__.extend([
+        'RawHTMLConverter',
+        'message_to_html',
+        'event_to_html',
+        'extract_raw_html',
+        'debug_entities',
+        'save_html_to_file',
+        'raw_html_converter',
+        'raw_html'
+    ])
+
+__all__.append('RAW_HTML_AVAILABLE')
 __all__.append('get_utils_status')

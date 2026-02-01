@@ -17,6 +17,7 @@ try:
 except Exception as e:
     print(e)
 
+
 try:
     import time
     import sys
@@ -49,6 +50,7 @@ except ImportError as e:
         "pip install -r requirements.txt\n",
         f"{e}"
         )
+    return
 
 class Colors:
     RESET = '\033[0m'

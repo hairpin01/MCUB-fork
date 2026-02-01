@@ -1,7 +1,7 @@
 # requires: telethon>=1.24
 # author: @Hairpin00
 # version: 1.0.2
-# description: выполнить python код с премиум эмодзи
+# description: выполнить python код
 
 import html
 import traceback
@@ -9,7 +9,7 @@ import sys
 import io
 import time
 
-# premium emoji dictionary
+
 CUSTOM_EMOJI = {
     '🧿': '<tg-emoji emoji-id="5426900601101374618">🧿</tg-emoji>',
     '❌': '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji>',
@@ -30,11 +30,23 @@ def register(kernel):
         old_stdout = sys.stdout
         old_stderr = sys.stderr
         sys.stdout = sys.stderr = output = io.StringIO()
+        me = await client.get_me()
+        m = event
+        bot = kernel.bot_client
+        reply = await m.get_reply_message()
+        r_text = html.unescape(kernel.raw_text(reply))
 
         local_vars = {
+            'r_text': r_text,
+            'r': reply,
+            'm': m,
+            'me': me,
+            'start_time': start_time,
             'kernel': kernel,
             'client': client,
+            'bot': bot,
             'event': event,
+            'utils': __import__('utils'),
             'asyncio': __import__('asyncio'),
             'telethon': __import__('telethon'),
             'Button': __import__('telethon').Button,

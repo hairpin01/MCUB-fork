@@ -1,9 +1,10 @@
 # author: @Hairpin00
 # version: 1.0.4
-# description: handler fixed UnboundLocalError
+# description: handler fixed
 from telethon import events, Button
 import aiohttp
 import traceback
+import json
 
 class InlineHandlers:
     def __init__(self, kernel, bot_client):
@@ -22,36 +23,120 @@ class InlineHandlers:
             print(f"[DEBUG] Ошибка в check_admin: {e}")
             return False
 
+    def parse_json_buttons(self, json_str):
+
+        try:
+            data = json.loads(json_str)
+            buttons = []
+
+            if isinstance(data, list):
+                for btn in data:
+                    if isinstance(btn, dict):
+                        btn_text = btn.get('text', 'Кнопка')
+                        btn_type = btn.get('type', 'callback').lower()
+
+                        if btn_type == 'callback':
+                            btn_data = btn.get('data', '')
+                            buttons.append([Button.inline(btn_text, btn_data.encode())])
+                        elif btn_type == 'url':
+                            btn_url = btn.get('url', btn.get('data', ''))
+                            buttons.append([Button.url(btn_text, btn_url)])
+                        elif btn_type == 'switch':
+                            btn_query = btn.get('query', btn.get('data', ''))
+                            btn_hint = btn.get('hint', '')
+                            buttons.append([Button.switch_inline(btn_text, btn_query, btn_hint)])
+            elif isinstance(data, dict):
+
+                btn_text = data.get('text', 'Кнопка')
+                btn_type = data.get('type', 'callback').lower()
+
+                if btn_type == 'callback':
+                    btn_data = data.get('data', '')
+                    buttons.append([Button.inline(btn_text, btn_data.encode())])
+                elif btn_type == 'url':
+                    btn_url = data.get('url', data.get('data', ''))
+                    buttons.append([Button.url(btn_text, btn_url)])
+                elif btn_type == 'switch':
+                    btn_query = data.get('query', data.get('data', ''))
+                    btn_hint = data.get('hint', '')
+                    buttons.append([Button.switch_inline(btn_text, btn_query, btn_hint)])
+
+            return buttons
+
+        except json.JSONDecodeError as e:
+            print(f"[DEBUG] Ошибка парсинга JSON: {e}")
+            return []
+        except Exception as e:
+            print(f"[DEBUG] Ошибка обработки кнопок: {e}")
+            return []
+
     async def register_handlers(self):
         # Обработчик InlineQuery (поиск через @bot)
         @self.bot_client.on(events.InlineQuery)
         async def inline_query_handler(event):
+            from telethon.tl.types import InputWebDocument
             query = event.text or ""
+
+            premium_emoji_telescope = '<tg-emoji emoji-id="5429283852684124412">🔭</tg-emoji>'
+            premium_emoji_block = '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji>'
+            premium_emoji_crystal = '<tg-emoji emoji-id="5361837567463399422">🔮</tg-emoji>'
+            premium_emoji_shield = '<tg-emoji emoji-id="5379679518740978720">🛡</tg-emoji>'
+            premium_emoji_tot = '<tg-emoji emoji-id="5085121109574025951">🫧</tg-emoji>'
+
+            kernel = self.kernel
             builder = None
 
+
             if not self.check_admin(event):
+                thumb = InputWebDocument(
+                    url='https://x0.at/fo6m.jpg',
+                    size=0,
+                    mime_type='image/jpeg',
+                    attributes=[]
+                )
+
                 builder = event.builder.article(
                     'У вас нету доступа и MCUB боту',
-                    text='🫨 У вас нету доступа к inline MCUB bot'
+                    text=f'{premium_emoji_block} У вас нету доступа к inline MCUB bot\n<blockquote>{premium_emoji_shield} ID: {event.sender_id}</blockquote>',
+                    parse_mode='html',
+                    thumb=thumb,
+                    description='нельзя'
                 )
                 await event.answer([builder])
                 return
 
-            # Если запрос пустой (просто открыли бота)
+            usr_modules = sorted(list(kernel.loaded_modules.keys()))
+            sys_modules = sorted(list(kernel.system_modules.keys()))
+            modules = int(len(usr_modules)) + int(len(sys_modules))
+
+            # Если запрос ни какои
             if not query:
+                thumb = InputWebDocument(
+                    url='https://x0.at/fo6m.jpg',
+                    size=0,
+                    mime_type='image/jpeg',
+                    attributes=[]
+                )
+
                 builder = event.builder.article(
-                    'MCUB Info',
-                    text=f'🤖 <b>MCUB Bot</b>\n\nЯ работаю! Введите запрос или используйте команды.',
-                    parse_mode='html'
+                    title='MCUB Info',
+                    text=f'{premium_emoji_crystal} <b>MCUB Bot</b>\n<blockquote>{premium_emoji_shield} Version: {kernel.VERSION}</blockquote>\n<blockquote>{premium_emoji_tot} Modules: {modules}</blockquote>',
+                    parse_mode='html',
+                    thumb=thumb,
+                    description='info',
                 )
                 await event.answer([builder])
                 return
 
-            # Проверка кастомных обработчиков ядра
-            for pattern, handler in self.kernel.inline_handlers.items():
-                if query.startswith(pattern):
-                    await handler(event)
-                    return
+            # кастомные оброботчики
+            try:
+                for pattern, handler in self.kernel.inline_handlers.items():
+                    if query.startswith(pattern):
+                        await handler(event)
+                        return
+            except Exception as e:
+                await self.kernel.handle_error(e, source="inline_handlers:custom")
+
 
             # Логика 2FA
             if query.startswith('2fa_'):
@@ -68,29 +153,29 @@ class InlineHandlers:
                 else:
                     builder = event.builder.article('Error', text='❌ Ошибка подтверждения')
 
-            # Логика каталога - ИСПРАВЛЕНО
+            # Логика каталога
             elif query.startswith('catalog'):
                 try:
                     # Разбираем запрос вида "catalog_0_1"
                     parts = query.split('_')
-                    
+
                     # Устанавливаем значения по умолчанию
                     repo_index = 0
                     page = 1
-                    
+
                     if len(parts) >= 2 and parts[1].isdigit():
                         repo_index = int(parts[1])
-                    
+
                     if len(parts) >= 3 and parts[2].isdigit():
                         page = int(parts[2])
-                    
+
                     repos = [self.kernel.default_repo] + self.kernel.repositories
-                    
+
                     if repo_index < 0 or repo_index >= len(repos):
                         repo_index = 0
-                    
+
                     repo_url = repos[repo_index]
-                    
+
                     try:
                         async with aiohttp.ClientSession() as session:
                             async with session.get(f'{repo_url}/modules.ini') as resp:
@@ -154,68 +239,60 @@ class InlineHandlers:
                         buttons.append(repo_buttons)
 
                     builder = event.builder.article('Catalog', text=msg, buttons=buttons if buttons else None, parse_mode='html')
-                    
+
                 except Exception as e:
                     builder = event.builder.article('Error', text=f'❌ Ошибка загрузки каталога: {str(e)[:100]}')
 
-            # Логика сообщений с кнопками через разделитель |
+            # Обработка инлайн-форм с JSON форматом
             elif '|' in query:
-                parts = query.split('|')
-                text = parts[0].strip()
-                if not text:
-                    text = "Message"
-                buttons = []
+                try:
+                    # Разделяем текст и JSON
+                    parts = query.split('|', 1)
+                    text = parts[0].strip().strip('"\'')
 
-                for btn_data in parts[1:]:
-                    btn_data = btn_data.strip()
-                    if ':' in btn_data:
-                        btn_parts = btn_data.split(':', 1)
-                        btn_text = btn_parts[0].strip()
-                        btn_url = btn_parts[1].strip()
+                    if len(parts) > 1:
+                        json_str = parts[1].strip()
+                        buttons = self.parse_json_buttons(json_str)
+                    else:
+                        buttons = []
 
-                        if btn_url.startswith(('http://', 'https://', 't.me/', 'tg://')):
-                            buttons.append([Button.url(btn_text, btn_url)])
-                        elif btn_url.startswith('page_'):
-                            buttons.append([Button.inline(btn_text, btn_url.encode())])
+                    builder = event.builder.article('Message', text=text, buttons=buttons if buttons else None, parse_mode='html')
 
-                builder = event.builder.article('Message', text=text, buttons=buttons if buttons else None, parse_mode='html')
+                except Exception as e:
+                    print(f"[DEBUG] Ошибка обработки JSON формы: {e}")
+                    text = query.split('|')[0].strip().strip('"\'')
+                    builder = event.builder.article('Message', text=text, parse_mode='html')
 
-            # Просто эхо
             else:
                 if query:
                     builder = event.builder.article('Message', text=query, parse_mode='html')
                 else:
                     builder = event.builder.article('Empty', text='...', parse_mode='html')
 
-            # Финальная отправка
             if builder:
                 await event.answer([builder])
 
-        # Обработчик нажатий на кнопки (CallbackQuery) - ИСПРАВЛЕНО
+        # CallbackQuery
         @self.bot_client.on(events.CallbackQuery)
         async def callback_query_handler(event):
             try:
                 if not event.data:
                     return
 
-                # Декодируем данные
                 if isinstance(event.data, bytes):
                     data_str = event.data.decode('utf-8')
                 else:
                     data_str = str(event.data)
 
-                # Проверка кастомных обработчиков ядра - ИСПРАВЛЕНО
                 for pattern, handler in self.kernel.callback_handlers.items():
-                    # Приводим pattern к строке если это bytes
                     if isinstance(pattern, bytes):
                         pattern_str = pattern.decode('utf-8')
                     else:
                         pattern_str = str(pattern)
-                    
-                    # Проверяем соответствие
+
                     if data_str.startswith(pattern_str):
                         if not self.check_admin(event):
-                            await event.answer('❌ Эта кнопка не ваша', alert=True)
+                            await event.answer('Нет доступа', alert=False)
                             return
                         try:
                             await handler(event)
@@ -228,39 +305,36 @@ class InlineHandlers:
                 keyboards = InlineKeyboards(self.kernel)
 
                 if not keyboards.check_admin(event):
-                    await event.answer('❌ Эта кнопка не ваша', alert=True)
+                    await event.answer('Нет доступа', alert=False)
                     return
 
                 if data_str == 'confirm_yes':
                     await keyboards.handle_confirm_yes(event)
                 elif data_str == 'confirm_no':
                     await keyboards.handle_confirm_no(event)
-                elif data_str.startswith('dlml_'):
-                    await keyboards.handle_catalog_page(event)
-                elif data_str.startswith('page_'):
-                    await keyboards.handle_custom_page(event)
                 elif data_str.startswith('catalog_'):
-                    # Обработка каталога из callback
+                    await keyboards.handle_catalog_page(event)
+
                     try:
                         parts = data_str.split('_')
-                        
-                        # Устанавливаем значения по умолчанию
+
+
                         repo_index = 0
                         page = 1
-                        
+
                         if len(parts) >= 2 and parts[1].isdigit():
                             repo_index = int(parts[1])
-                        
+
                         if len(parts) >= 3 and parts[2].isdigit():
                             page = int(parts[2])
-                        
+
                         repos = [self.kernel.default_repo] + self.kernel.repositories
-                        
+
                         if repo_index < 0 or repo_index >= len(repos):
                             repo_index = 0
-                        
+
                         repo_url = repos[repo_index]
-                        
+
                         async with aiohttp.ClientSession() as session:
                             async with session.get(f'{repo_url}/modules.ini') as resp:
                                 if resp.status == 200:

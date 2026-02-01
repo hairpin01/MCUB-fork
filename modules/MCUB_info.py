@@ -10,6 +10,7 @@ import subprocess
 from telethon.tl.types import MessageEntityTextUrl, InputMediaWebPage
 from telethon import functions, types
 from pathlib import Path
+from typing import Set
 
 CUSTOM_EMOJI = {
     "load": '<tg-emoji emoji-id="5469913852462242978">🏓</tg-emoji>',
@@ -79,6 +80,8 @@ def register(kernel):
             return f"{minutes}m {secs}s"
         else:
             return f"{secs}s"
+
+
 
     async def check_update():
         try:
@@ -212,6 +215,24 @@ def register(kernel):
             update_emoji = CUSTOM_EMOJI['💔'] if update_needed else CUSTOM_EMOJI['🔮']
             update_text = "Update needed" if update_needed else "No update needed"
 
+            me = await client.get_me()
+            user_ids = me.id
+            if user_ids == 6020965582:
+                user = '<tg-emoji emoji-id="5469888215802482605">Ⓜ️</tg-emoji>'
+            elif user_ids == 2037125547:
+                user = '<tg-emoji emoji-id="5467932472379480411">Ⓜ️</tg-emoji>'
+            elif user_ids == 779572293:
+                user = '<tg-emoji emoji-id="5470163024989952512">Ⓜ️</tg-emoji>'
+            elif user_ids == 8405520863:
+                user = '<tg-emoji emoji-id="5470170528297817805">Ⓜ️</tg-emoji>'
+            elif user_ids == 855890735:
+                user = '<tg-emoji emoji-id="5470063433288290290">Ⓜ️</tg-emoji>'
+            else:
+                user = '<tg-emoji emoji-id="5470015630302287916">🕳</tg-emoji>'
+
+            mcub_emoji =  f'{user}<tg-emoji emoji-id="5469945764069280010">🔮</tg-emoji><tg-emoji emoji-id="5469943045354984820">🔮</tg-emoji><tg-emoji emoji-id="5469879466954098867">🔮</tg-emoji>' if me.premium else "Mitrich UserBot"
+            # спасибо '@HenerTLG' за эмодзи пак
+
             custom_text = kernel.config.get('info_custom_text')
             if custom_text:
                 try:
@@ -234,7 +255,7 @@ def register(kernel):
                     await kernel.handle_error(e, source="info_cmd:custom_text_format", event=event)
                     info_text = f"""<b>Error in custom text format:</b> {str(e)}"""
             else:
-                info_text = f"""{CUSTOM_EMOJI['💠']} <b>Mitrich UserBot</b>
+                info_text = f"""<b>{mcub_emoji}</b>
 <blockquote>{CUSTOM_EMOJI['🌩️']} <b>Version:</b> <code>{kernel.VERSION}</code>
 {f"{CUSTOM_EMOJI['💔']} <b>Update needed</b>" if update_needed else f"{CUSTOM_EMOJI['🔮']} <b>No update needed</b>"}</blockquote>
 

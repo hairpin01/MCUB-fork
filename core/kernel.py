@@ -1,5 +1,5 @@
 # author: @Hairpin00
-# version: 1.0.1.9.3
+# version: 1.0.1.9.5
 # description: kernel core
 # Спасибо @Mitrichq за основу юзербота
 # Лицензия? какая лицензия ещё
@@ -11,6 +11,11 @@ try:
 except ImportError as e:
     print(f"=X HTML парсер не загружен: {e}")
     HTML_PARSER_AVAILABLE = False
+
+try:
+    from utils.raw_html import RawHTMLConverter
+except Exception as e:
+    print(e)
 
 try:
     import time
@@ -41,7 +46,7 @@ try:
 except ImportError as e:
     print(
         "Установите зависимости",
-        "pip install -r requirements.txt",
+        "pip install -r requirements.txt\n",
         f"{e}"
         )
 
@@ -131,7 +136,7 @@ class TaskScheduler:
 
 class Kernel:
     def __init__(self):
-        self.VERSION = '1.0.1.9.3'
+        self.VERSION = '1.0.1.9.5'
         self.DB_VERSION = 2
         self.start_time = time.time()
         self.loaded_modules = {}
@@ -667,71 +672,96 @@ class Kernel:
             self.bot_client.is_connected()
         )
 
-    async def inline_query_and_click(self, chat_id, query, bot_username=None, 
-                                    result_index=0, buttons=None, silent=False, 
+    async def inline_query_and_click(self, chat_id, query, bot_username=None,
+                                    result_index=0, buttons=None, silent=False,
                                     reply_to=None, **kwargs):
         """
-        Perform an inline query and automatically click on the specified result.
-        
+        Выполнение инлайн-запроса и автоматический клик по указанному результату.
+
         Args:
-            chat_id (int): Target chat ID where to send the result
-            query (str): Inline query text
-            bot_username (str, optional): Bot username for inline query. If not provided,
-                                        uses the configured inline bot username from config
-            result_index (int, optional): Index of result to click (default: 0 = first result)
-            buttons (list, optional): Buttons to send with the result
-            silent (bool, optional): Send message silently
-            reply_to (int, optional): Reply to message ID
-            **kwargs: Additional parameters for click method
-        
+            chat_id (int): ID чата для отправки
+            query (str): Текст инлайн-запроса
+            bot_username (str, optional): Username бота для инлайн-запроса
+            result_index (int): Индекс результата для клика (по умолчанию 0)
+            buttons (list, optional): Дополнительные кнопки в формате словарей
+            silent (bool): Отправлять сообщение тихо
+            reply_to (int): ID сообщения для ответа
+            **kwargs: Дополнительные параметры
+
         Returns:
-            tuple: (success, result) - success bool and the result message or None
-            
-        Raises:
-            ValueError: If bot_username is not specified and not configured
+            tuple: (success, message) - статус и сообщение
+
+        Example:
+            # С кнопками
+            success, msg = await kernel.inline_query_and_click(
+                chat_id=123456789,
+                query='"Привет мир" | [{"text": "Кнопка 1", "type": "callback", "data": "action_1"}]'
+            )
         """
         try:
-            # Determine bot username
+
             if not bot_username:
                 bot_username = self.config.get('inline_bot_username')
                 if not bot_username:
                     raise ValueError("Bot username not specified and not configured in config")
-            
-            self.cprint(f'{self.Colors.BLUE}=> Performing inline query: {query} with @{bot_username}{self.Colors.RESET}')
-            
-            # Perform inline query
+
+            self.cprint(f'{self.Colors.BLUE}=> Выполняю инлайн-запрос: {query[:100]}... с @{bot_username}{self.Colors.RESET}')
+
+
             results = await self.client.inline_query(bot_username, query)
-            
+
             if not results:
-                self.cprint(f'{self.Colors.YELLOW}=? No inline results found for query: {query}{self.Colors.RESET}')
+                self.cprint(f'{self.Colors.YELLOW}=? Не найдено инлайн-результатов для запроса: {query[:50]}...{self.Colors.RESET}')
                 return False, None
-            
-            # Check if result_index is valid
+
+
             if result_index >= len(results):
-                self.cprint(f'{self.Colors.YELLOW}=> Result index {result_index} out of range, using first result{self.Colors.RESET}')
+                self.cprint(f'{self.Colors.YELLOW}=> Индекс результата {result_index} выходит за пределы, использую первый результат{self.Colors.RESET}')
                 result_index = 0
-            
-            # Click on the specified result
+
+
             result = results[result_index]
-            
+
+
             click_kwargs = {}
             if buttons:
-                click_kwargs['buttons'] = buttons
+                formatted_buttons = []
+                for button in buttons:
+                    if isinstance(button, dict):
+                        btn_text = button.get('text', 'Кнопка')
+                        btn_type = button.get('type', 'callback').lower()
+
+                        if btn_type == 'callback':
+                            btn_data = button.get('data', '')
+                            formatted_buttons.append([Button.inline(btn_text, btn_data.encode())])
+                        elif btn_type == 'url':
+                            btn_url = button.get('url', button.get('data', ''))
+                            formatted_buttons.append([Button.url(btn_text, btn_url)])
+                        elif btn_type == 'switch':
+                            btn_query = button.get('query', button.get('data', ''))
+                            btn_hint = button.get('hint', '')
+                            formatted_buttons.append([Button.switch_inline(btn_text, btn_query, btn_hint)])
+
+                if formatted_buttons:
+                    click_kwargs['buttons'] = formatted_buttons
+
+
             if silent:
                 click_kwargs['silent'] = silent
             if reply_to:
                 click_kwargs['reply_to'] = reply_to
-            
-            # Add any additional kwargs
+
+
             click_kwargs.update(kwargs)
-            
+
+
             message = await result.click(chat_id, **click_kwargs)
-            
-            self.cprint(f'{self.Colors.GREEN}=> Successfully clicked inline result #{result_index} for query: {query}{self.Colors.RESET}')
+
+            self.cprint(f'{self.Colors.GREEN}=> Успешно выполнен инлайн-запрос: {query[:50]}...{self.Colors.RESET}')
             return True, message
-            
+
         except Exception as e:
-            self.cprint(f'{self.Colors.RED}=X Error performing inline query: {e}{self.Colors.RESET}')
+            self.cprint(f'{self.Colors.RED}=X Ошибка выполнения инлайн-запроса: {e}{self.Colors.RESET}')
             await self.handle_error(e, source="inline_query_and_click")
             return False, None
     
@@ -1384,6 +1414,131 @@ class Kernel:
                 finally:
                     self.clear_loading_module()
 
+    def raw_text(self, source: any) -> str:
+        try:
+
+            if not hasattr(self, 'html_converter') or self.html_converter is None:
+                from utils.raw_html import RawHTMLConverter
+                self.html_converter = RawHTMLConverter(keep_newlines=True)
+
+
+            if isinstance(source, str):
+                return html.escape(source).replace('\n', '<br/>')
+
+            return self.html_converter.convert_message(source)
+
+        except Exception as e:
+            # Резервный вариант, если что-то пошло не так
+            text = getattr(source, 'message', str(source))
+            return html.escape(text).replace('\n', '<br/>')
+
+    async def inline_form(self, chat_id, title, fields=None, buttons=None, auto_send=True, **kwargs):
+        """
+        Создание и отправка инлайн-формы
+
+        Args:
+            chat_id (int): ID чата для отправки
+            title (str): Заголовок формы
+            fields (list/dict, optional): Поля формы
+            buttons (list, optional): Кнопки в формате словарей:
+                - Для callback: {"text": "Текст", "type": "callback", "data": "callback_data"}
+                - Для URL: {"text": "Текст", "type": "url", "url": "https://ссылка"}
+                - Для switch: {"text": "Текст", "type": "switch", "query": "запрос", "hint": "подсказка"}
+            auto_send (bool): Автоматически отправить форму
+            **kwargs: Дополнительные параметры
+
+        Returns:
+            tuple: (success, message) или строку запроса
+
+        Example:
+            # Простая форма
+            await kernel.inline_form(
+                chat_id=123456789,
+                title="Настройки",
+                buttons=[
+                    {"text": "Сохранить", "type": "callback", "data": "save_123"},
+                    {"text": "Сайт", "type": "url", "url": "https://example.com"},
+                    {"text": "Поиск", "type": "switch", "query": "искать", "hint": "Найти..."}
+                ]
+            )
+
+            # или (не советую)
+            await kernel.inline_form(
+                chat_id=123456789,
+                title="Профиль",
+                buttons=[
+                    ["Редактировать", "callback", "edit"],
+                    ["Сайт", "url", "https://example.com"]
+                ]
+            )
+        """
+        try:
+
+            query_parts = [title]
+
+
+            if fields:
+                if isinstance(fields, dict):
+                    for field, value in fields.items():
+                        query_parts.append(f'{field}: {value}')
+                elif isinstance(fields, list):
+                    for i, field in enumerate(fields, 1):
+                        query_parts.append(f'Поле {i}: {field}')
+
+            base_text = "\n".join(query_parts)
+
+            if buttons:
+                json_buttons = []
+
+                for button in buttons:
+                    if isinstance(button, dict):
+                        json_buttons.append(button)
+                    elif isinstance(button, (list, tuple)):
+                        if len(button) >= 2:
+                            btn_data = {
+                                "text": str(button[0])
+                            }
+
+                            if len(button) >= 2:
+                                btn_type = str(button[1]).lower() if len(button) > 1 else "callback"
+                                btn_data["type"] = btn_type
+
+                                if len(button) >= 3:
+                                    if btn_type == "callback":
+                                        btn_data["data"] = str(button[2])
+                                    elif btn_type == "url":
+                                        btn_data["url"] = str(button[2])
+                                    elif btn_type == "switch":
+                                        btn_data["query"] = str(button[2])
+                                        if len(button) >= 4:
+                                            btn_data["hint"] = str(button[3])
+                            json_buttons.append(btn_data)
+
+                if json_buttons:
+                    json_str = json.dumps(json_buttons, ensure_ascii=False)
+                    query = f'{base_text} | {json_str}'
+                else:
+                    query = f'{base_text}'
+            else:
+                query = f'{base_text}'
+
+
+            if auto_send:
+                success, message = await self.inline_query_and_click(
+                    chat_id=chat_id,
+                    query=query,
+                    **kwargs
+                )
+                return success, message
+            else:
+                return query
+
+        except Exception as e:
+            self.cprint(f'{self.Colors.RED}=X Ошибка создания инлайн-формы: {e}{self.Colors.RESET}')
+            await self.handle_error(e, source="create_inline_form")
+            return False, None
+
+
     async def process_command(self, event):
         text = event.text
 
@@ -1584,7 +1739,9 @@ class Kernel:
                 if len(data) >= 3:
                     chat_id, msg_id, restart_time = int(data[0]), int(data[1]), float(data[2])
                     os.remove(self.RESTART_FILE)
+                    me = await self.client.get_me()
 
+                    mcub_emoji =  '<tg-emoji emoji-id="5470015630302287916">🔮</tg-emoji><tg-emoji emoji-id="5469945764069280010">🔮</tg-emoji><tg-emoji emoji-id="5469943045354984820">🔮</tg-emoji><tg-emoji emoji-id="5469879466954098867">🔮</tg-emoji>' if me.premium else "MCUB"
 
                     thread_id = int(data[3]) if len(data) >= 4 and data[3].isdigit() else None
 
@@ -1622,7 +1779,7 @@ class Kernel:
 
                             await self.client.send_message(
                                 chat_id,
-                                f'{premium_emoji_package} Твой <b>MCUB</b> полностью загрузился!\n'
+                                f'{premium_emoji_package} Твой <b>{mcub_emoji}</b> полностью загрузился!\n'
                                 f'<blockquote><b>KBL:</b> <code>{total_time} ms</code>. <b>MLFB:</b> <code>{mlfb} ms</code>.</blockquote>',
                                 parse_mode='html',
                                 **send_params

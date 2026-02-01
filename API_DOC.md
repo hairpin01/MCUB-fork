@@ -1,5 +1,5 @@
 
-# `MCUB` Module API Documentation `1.0.1.9.2`
+# `MCUB` Module API Documentation `1.0.1.9.4`
 
 __Table of Contents__
 
@@ -17,7 +17,7 @@ __Table of Contents__
 > 12. [Best Practices](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#best-practices)
 > 13. [Example Module](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#example-module)
 > 14. [Premium Emoji Guide](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#premium-emoji-guide)
-> 15. [Inline Query Automation Methods](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#inline-query-automation-methods)
+> 15. [Inline Query Automation Methods](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#inline-query-automation-methods-and-inline-form)
 
 # Introduction
 
@@ -41,6 +41,7 @@ def register(kernel):
 Core Properties
 
 `kernel.client`
+---
 The Telethon client instance for Telegram API operations.
 
 **Usage:**
@@ -50,9 +51,11 @@ await kernel.client.send_message('username', 'Hello')
 ```
 
 `kernel.custom_prefix`
-Command prefix (default: '`.`').
+---
+Command prefix (keys `commad_prefix` kernel config) (default: '`.`').
 
 `kernel.config`
+---
 Persistent configuration storage.
 
 Usage:
@@ -62,6 +65,7 @@ kernel.save_config()
 ```
 
 `kernel.logger`
+---
 Structured logging instance.
 
 **Usage:**
@@ -73,18 +77,22 @@ await kernel.logger.warning("Warning message")
 await kernel.logger.error("Error message")
 ```
 
-Logging Methods for __inline bot__
+Logging Methods for __bot_client:__
 
 `kernel.log_debug(message)`
+---
 Log debug message.
 
 `kernel.log_info(message)`
+---
 Log info message.
 
 `kernel.log_warning(message)`
+---
 Log warning message.
 
 `kernel.log_error(message)`
+---
 Log error message.
 
 **Usage:**
@@ -98,6 +106,7 @@ await kernel.log_info("log message")
 ### Error Handling
 
 `kernel.handle_error(e, source="module:function", event=None)`
+---
 Centralized error handling.
 
 **Usage:**
@@ -112,12 +121,15 @@ except Exception as e:
 ### Registration Methods
 
 `kernel.register_command(pattern, func=None)`
+---
 Register a command handler.
 
 `kernel.register_inline_handler(pattern, function)`
+---
 Register inline query handler.
 
 `kernel.register_callback_handler(pattern, function)`
+---
 Register callback query handler.
 
 **Usage:**
@@ -139,7 +151,7 @@ async def test_inline_handler(event):
     )
     await event.answer([builder])
 
-async def register(kernel):
+def register(kernel):
 
     @kernel.register_command('test')
     async def test_cmd(event):
@@ -175,6 +187,7 @@ async def register(kernel):
 ---
 
 `kernel.get_thread_id(event)`
+---
 
 > Description:
 > Returns the thread ID (topic ID) for a given event in groups with topics enabled.
@@ -196,6 +209,7 @@ if thread_id:
 ```
 
 `kernel.get_user_info(user_id)`
+---
 
 > Description:
 > Retrieves formatted user information for the given user ID.
@@ -216,6 +230,7 @@ await event.edit(f"Message from: {user_info}")
 ```
 
 `kernel.is_admin(user_id)`
+---
 
 > Description:
 > Checks if the specified user ID matches the admin ID of the userbot.
@@ -239,6 +254,7 @@ else:
 ```
 
 `kernel.cprint(text, color='')`
+---
 
 > Description:
 > Prints colored text to the console using ANSI escape codes.
@@ -264,16 +280,18 @@ kernel.Colors.CYAN     # Cyan text
 
 ```python
 # Success message
-kernel.cprint("Module loaded successfully", kernel.Colors.GREEN)
+kernel.cprint("success message", kernel.Colors.GREEN)
+
 
 # Error message
-kernel.cprint("Failed to load module", kernel.Colors.RED)
+kernel.cprint(f"error:{__name__}:{e}", kernel.Colors.RED)
 
 # Info message
 kernel.cprint("Initializing database...", kernel.Colors.CYAN)
 ```
 
 `kernel.Colors` Class
+---
 
 > Description:
 > Static class containing ANSI escape codes for terminal text coloring. Used by kernel.cprint() method.
@@ -315,7 +333,7 @@ kernel.cprint("Warning message", kernel.Colors.YELLOW)
 
 MCUB includes a comprehensive platform detection utility in `utils.platform` that helps modules adapt to different environments (Termux, WSL, VPS, etc.).
 
-Importing
+**Importing**
 --- 
 
 ```python
@@ -344,7 +362,8 @@ Returns the platform identifier as a string.
 - `'vds'` - VDS/VPS server
 - `'macos'` - macOS
 - `'windows'` - Windows
-- `'linux'` - Linux Desktop
+- `'linux'` - Linux 
+- `'linux_desktop'` - Linux Desktop
 - `'unknown'` - Unknown platform
 
 `get_platform_info()` / `get_detailed_info()`
@@ -444,7 +463,7 @@ if platform.is_virtualized():
 
 **Module Initialization Based on Platform**
 ```python
-async def register(kernel):
+def register(kernel):
     # Check platform during module load
     if platform.is_termux():
         # Load Android-specific configurations
@@ -522,7 +541,7 @@ async def optimize_for_platform():
 ```
 
 > [!NOTE]
-> **Availability:** The utility is available in MCUB kernel version 1.0.1.9.3 and later
+> **Availability:** The utility is available in MCUB kernel version 1.0.1.9.4 and later
 
 > [!TIP]
 > **Kernel Integration:** Kernel automatically sets `kernel.platform` and `kernel.platform_name` <br>
@@ -544,7 +563,7 @@ The kernel stores the current language setting in `kernel.config['language']` wi
 **Usage in Modules:**
 
 ```python
-async def register(kernel):
+def register(kernel):
     # Get current language from config
     language = kernel.config.get('language', 'en')
     
@@ -607,6 +626,7 @@ kernel.send_with_emoji(chat_id, text, **kwargs)`
 Send message with custom emoji support.
 
 `kernel.format_with_html(text, entities)`
+---
 Format text with Telegram entities to HTML.
 
 `kernel.edit_with_html(event, html_text, **kwargs)`
@@ -621,12 +641,15 @@ MCUB provides a `SQLite` database interface for persistent storage.
 **Basic Operations**
 
 `await kernel.db_set(module, key, value)`
+---
 Store **key-value** pair for module.
 
 `await kernel.db_get(module, key)`
+---
 Retrieve **value** for module.
 
 `await kernel.db_delete(module, key)`
+---
 **Delete key** from module storage.
 
 **Usage:**
@@ -644,6 +667,7 @@ await kernel.db_delete('mymodule', 'user_data')
 
 ## Query Operations
 `await kernel.db_query(query, parameters)`
+---
 Execute **custom** SQL query.
 
 **Usage:**
@@ -658,9 +682,11 @@ rows = await kernel.db_query(
 
 ## Module Configuration
 `await kernel.get_module_config(module_name, default=None)`
+---
 Get module-specific configuration.
 
 `await kernel.save_module_config(module_name, config)`
+---
 Save module configuration.
 
 **Usage:**
@@ -681,9 +707,11 @@ await kernel.save_module_config(__name__, config)
 **Basic Usage**
 
 `kernel.cache.set(key, value)`
+---
 Store value in cache.
 
 `kernel.cache.get(key)`
+---
 Retrieve value from cache.
 
 **Usage:**
@@ -731,6 +759,7 @@ await kernel.scheduler.add_interval_task(backup_data, 300)
 Daily Tasks
 
 `await kernel.scheduler.add_daily_task(func, hour, minute)`
+---
 Schedule task at specific time daily.
 
 **Usage:**
@@ -746,6 +775,7 @@ await kernel.scheduler.add_daily_task(send_daily_report, 9, 0)
 **One-time Tasks**
 
 `await kernel.scheduler.add_task(func, delay_seconds)`
+---
 Schedule one-time delayed task.
 
 **Usage:**
@@ -782,7 +812,7 @@ kernel.add_middleware(spam_filter_middleware)
 
 ```python
 async def logging_middleware(event, next_handler):
-    await kernel.log_info(f"Message from {event.sender_id}: {event.text[:50]}")
+    await kernel.logger.info(f"Message from {event.sender_id}: {event.text[:50]}")
     return await next_handler(event)
 
 async def rate_limit_middleware(event, next_handler):
@@ -856,7 +886,7 @@ async def counter_handler(event):
 from telethon import events
 
 async def message_logger(event):
-    await kernel.log_info(f"New message: {event.chat_id} - {event.text[:100]}")
+    await kernel.logger.info(f"New message: {event.chat_id} - {event.text[:100]}")
 
 kernel.client.on(events.NewMessage(incoming=True))(message_logger)
 ```
@@ -865,7 +895,7 @@ Edited Message
 
 ```python
 async def edit_logger(event):
-    await kernel.log_info(f"Message edited: {event.id}")
+    await kernel.logger.info(f"Message edited: {event.id}")
 
 kernel.client.on(events.MessageEdited(incoming=True))(edit_logger)
 ```
@@ -875,7 +905,7 @@ Custom Filter
 ```python
 async def keyword_handler(event):
     if "urgent" in event.text.lower():
-        await kernel.send_log_message(f"⚠️ Urgent: {event.text[:200]}")
+        await kernel.logger.info(f"⚠️ Urgent: {event.text[:200]}")
 
 kernel.client.on(events.NewMessage(
     func=lambda e: e.text and len(e.text) > 10
@@ -1108,44 +1138,11 @@ def register(kernel):
             await kernel.handle_error(e, source="weather_handler", event=event)
             await event.edit("❌ Error fetching weather")
     
-    # Inline handler
-    async def weather_inline(event):
-        query = event.text.strip()
-        if not query:
-            return
-        
-        weather = await fetch_weather(query)
-        builder = event.builder.article(
-            title=f"Weather in {query}",
-            text=f"🌤️ {weather}",
-            buttons=[
-                [Button.inline('Refresh', f'weather_refresh_{query}'.encode())]
-            ]
-        )
-        await event.answer([builder])
-    
-    kernel.register_inline_handler('weather', weather_inline)
-    
-    # Callback handler
-    async def weather_callback(event):
-        data = event.data.decode()
-        if data.startswith('weather_refresh_'):
-            city = data.split('_', 2)[2]
-            weather = await fetch_weather(city)
-            await event.edit(f"🔄 {city}: {weather}")
-    
-    kernel.register_callback_handler('weather_refresh_', weather_callback)
-    
-    async def fetch_weather(city):
-        # Simulated API call
-        await asyncio.sleep(0.5)
-        weather_data = {
-            'Moscow': '☀️ 22°C',
-            'London': '🌧️ 15°C',
-            'Tokyo': '⛅ 25°C'
-        }
-        return weather_data.get(city, '❓ Unknown city')
 ```
+> [!NOTE]
+> All new APIs (_Database, Cache, Scheduler, Middleware_),
+> require **MCUB kernel** version `1.0.1.9` or later.
+> Check your kernel version with `.py print(f"version kernel: {kernel.VERSION}")` command. (or `info` commad)
 
 ## Premium Emoji Guide
 
@@ -1181,11 +1178,181 @@ async for message in client.iter_messages('me', limit=10):
             print(f"ID: {entity.document_id}")
 ```
 
-## **Inline Query Automation Methods**
+## **Inline Query Automation Methods and Inline form**
+
+> In MCUB, the bot specified in config.json can operate in two modes:
+> 1. Regular bot mode: using the bot_client to send messages as the bot, for example, to send a message to the admin user.
+> 2. Inline mode: using the inline_form method to create inline forms with buttons and other elements, or using the inline_query_and_click method to call an inline query from any bot (including third-party bots).
+
+
+`inline_form()`
+---
+
+> Creating and submitting an inline form in one method.
+
+__Args:__
+*    chat_id (int): The ID of the chat to send
+*    title (str): The title of the form
+*    fields (list/dict, optional): Form fields
+*    buttons (list, optional): Buttons in the format `{"text": "1", "type": "callback", "data": "main"}`
+*    auto_send (bool): Automatically submit the form
+*    **kwargs: Additional parameters
+
+**Returns:**
+    __tuple:__ (`success`, `message`) or query string
+    
+**Example:**
+```
+buttons = [
+    {"text": "1", "type": "callback", "data": "menu_page_1"},
+    {"text": "2", "type": "callback", "data": "menu_page_2"}
+]
+success, message = await kernel.inline_form(
+    event.chat_id,
+    "menu",
+    buttons=buttons
+)
+if success:
+    await event.delete()
+```
+### __Inline practices__
+**Menu_buttons**
+```
+from telethon import events, Button
+
+def register(kernel):
+    client = kernel.client # client
+    bot = kernel.bot_client # inline bot
+    @kernel.register_command('menu_button') # register command: {kernel.custom_prefix}menu_button. '' <- yes. "" <- not usage
+    async def menu_cmd(event):
+        buttons = [
+            {"text": "1", "type": "callback", "data": "menu_page_1"},
+            {"text": "2", "type": "callback", "data": "menu_page_2"}
+            # text: text msg inline, type: format buttons, data: callback data
+        ]
+        success, message = await kernel.inline_form(
+            event.chat_id, # chat
+            "menu", # text
+            buttons=buttons # buttons
+        )
+        if success:
+            await event.delete()
+            # edit inline msg for 'message'
+            # await bot.edit_message(message.peer_id, message.id, "test")
+
+
+    async def menu_callback_handler(event):
+        data = event.data # data buttons callback
+
+        if data == b'menu_page_1':
+            buttons = [
+                [
+                    Button.inline("edit test", b"menu_edit_1")
+                ],
+                [
+                    Button.inline("<-", b"menu_main")
+                ]
+            ]
+            await event.edit(
+                "menu 1",
+                buttons=buttons
+            )
+        elif data == b'menu_page_2':
+            buttons = [
+                [
+                    Button.inline("edit test", b"menu_edit_1")
+                ],
+                [
+                    Button.inline("<-", b"menu_main")
+                ]
+            ]
+            await event.edit(
+                "menu 2",
+                buttons=buttons
+            )
+        elif data == b'menu_edit_1':
+            buttons = [
+                [
+                    Button.inline("<-", b"menu_main")
+                ]
+            ]
+            await event.edit(
+                "hello word",
+                buttons=buttons
+                )
+        elif data == b'menu_edit_2':
+            buttons = [
+                [
+                    Button.inline("<-", b"menu_main")
+                ]
+            ]
+            await event.edit(
+                "Привет мир",
+                buttons=buttons
+                )
+
+        else:
+            buttons = [
+            [
+                Button.inline("1", b"menu_page_1")
+            ],
+            [
+                Button.inline("2", b"menu_page_2")
+            ]
+            ]
+            await event.edit(
+                "menu",
+                buttons=buttons
+            )
+    # register callback
+    kernel.register_callback_handler("menu_", menu_callback_handler)
+
+```
+**fields**
+```
+fields = {
+    "name": "user",
+    "status": "MCUB user",
+    "coin": "100 MCUB coin"
+}
+
+success, msg = await kernel.inline_form(
+    event.chat_id,
+    "👤 profile user",
+    fields=fields,
+    buttons=[
+        {"text": "Play", "type": "callback", "data": "casino_play_callback"},
+        {"text": "History", "type": "callback", "data": f"casino_{fields[name]}_history"}
+    ]
+)
+
+```
+__output:__
+```
+👤 profile user
+name: user
+status: MCUB user
+coin: 100 MCUB coin
+[
+buttons = [
+    [
+    play
+    ],
+    [
+    History
+    ]
+]
+]
+```
+> [!NOTE]
+> kernel version 1.0.9.5
 
 `inline_query_and_click()`
+---
 
 Performs an inline query through the specified bot and automatically clicks on the selected result. This method handles the complete workflow from query to message sending with configurable parameters.
+> [!NOTE]
+> kernel version `1.0.9.4`
 
 **Usage Examples:**
 
@@ -1204,25 +1371,17 @@ success, message = await kernel.inline_query_and_click(
     result_index=2  # Click third result
 )
 
-# With buttons and reply
-success, message = await kernel.inline_query_and_click(
-    chat_id=event.chat_id,
-    query="video meme",
-    buttons=[[Button.url("Source", "https://example.com")]],
-    reply_to=event.message.id
-)
 ```
 
 `manual_inline_example()`
+---
 
 Provides manual control over inline query execution, returning raw results for custom processing. Useful when you need to implement custom logic for result selection or processing.
 
 `send_inline_from_config()`
+---
 
 Simplified wrapper that uses the bot **username** configured in __config.json__. For quick usage when you don't need to specify a bot username.
 
 ---
-> [!NOTE]
-> All new APIs (_Database, Cache, Scheduler, Middleware_),
-> require **MCUB kernel** version `1.0.1.9` or later.
-> Check your kernel version with `.info` command.
+

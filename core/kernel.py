@@ -50,7 +50,8 @@ except ImportError as e:
         "pip install -r requirements.txt\n",
         f"{e}"
         )
-    return
+    import sys
+    sys.exit(1)
 
 class Colors:
     RESET = '\033[0m'

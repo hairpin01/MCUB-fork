@@ -21,7 +21,7 @@ if __name__ == '__main__':
         asyncio.run(main())
     except KeyboardInterrupt:
         print('\nStop Kernel...')
-        kernel.client.disconnect()
+        Kernel.client.disconnect()
         sys.exit(0)
         
 

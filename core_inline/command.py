@@ -15,14 +15,12 @@ async def setup_bot_commands(bot_client, kernel):
         try:
             await event.reply(
                 file='https://x0.at/z6Uu.jpg',
-                message = (
-                '<b>Привет! я бот от MCUB-fork</b>\n',
-                '<a href="https://github.com/hairpin01/MCUB-fork">🔭 Мой репозиторий</a>\n',
-                '<a href="https://github.com/Mitrichdfklwhcluio/MCUBFB">🚂 Оригинальный MCUBFB</a>\n\n',
-                '<blockquote>Developers: \n',
-                'fork: @Hairpin01,\n',
-                'Original: @Mitrichq</blockquote>'
-                          )
+                message = '<b>Привет! я бот от MCUB-fork</b>\n'
+                '<a href="https://github.com/hairpin01/MCUB-fork">🔭 Мой репозиторий</a>\n'
+                '<a href="https://github.com/Mitrichdfklwhcluio/MCUBFB">🚂 Оригинальный MCUBFB</a>\n\n'
+                '<blockquote>Developers: \n'
+                'fork: @Hairpin01,\n'
+                'Original: @Mitrichq</blockquote>',
                 parse_mode='html',
                 buttons=[
                     [Button.url('🔭 Репозиторий', 'https://github.com/hairpin01/MCUB-fork'),

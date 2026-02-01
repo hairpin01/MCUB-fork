@@ -1261,23 +1261,32 @@ class Kernel:
     async def init_client(self):
         import sys
         import platform
-
-        print(f"{self.Colors.CYAN}=- Инициализация MCUB на {platform.system()} (Python {sys.version_info.major}.{sys.version_info.minor})...{self.Colors.RESET}")
-
-
-
+        from telethon.network import ConnectionTcpFull
+    
+        print(f"{self.Colors.CYAN}Инициализация MCUB на {platform.system()} (Python {sys.version_info.major}.{sys.version_info.minor})...{self.Colors.RESET}")
+    
+        
+        TEST_DC_OPTIONS = {
+            1: ('149.154.175.10', 443),   # Тестовый DC1
+            2: ('149.154.167.40', 443),   # Тестовый DC2
+            3: ('149.154.175.117', 443),  # Тестовый DC3
+            4: ('149.154.167.151', 443),  # Тестовый DC4
+            5: ('91.108.56.165', 443),    # Тестовый DC5
+        }
+    
         from telethon.sessions import SQLiteSession
-
         proxy = self.config.get('proxy')
-
-
+        
         session = SQLiteSession('user_session')
-
+        
+        
         self.client = TelegramClient(
             session,
             self.API_ID,
             self.API_HASH,
             proxy=proxy,
+            connection=ConnectionTcpFull,
+            use_ipv6=False,
             connection_retries=3,
             request_retries=3,
             flood_sleep_threshold=30,
@@ -1289,30 +1298,39 @@ class Kernel:
             base_logger=None,
             catch_up=False
         )
-
+    
         try:
-            await self.client.start(
-                phone=self.PHONE,
-                max_attempts=3
-            )
-
+            
+            dc_id = 2
+            dc_ip, dc_port = TEST_DC_OPTIONS[dc_id]
+            
+            # Устанавливаем параметры подключения для сессии
+            session.set_dc(dc_id, dc_ip, dc_port)
+            
+            await self.client.connect()
+            
             if not await self.client.is_user_authorized():
-                print(f"{self.Colors.RED}=X Не удалось авторизоваться{self.Colors.RESET}")
+                print(f"{self.Colors.YELLOW}⚠️ Запрашиваю авторизацию для тестового сервера...{self.Colors.RESET}")
+                await self.client.start(phone=self.PHONE, max_attempts=3)
+            
+            if not await self.client.is_user_authorized():
+                print(f"{self.Colors.RED}❌ Не удалось авторизоваться на тестовом сервере{self.Colors.RESET}")
                 return False
-
+    
             me = await self.client.get_me()
             if not me or not hasattr(me, 'id'):
-                print(f"{self.Colors.RED}=X Неверные данные пользователя{self.Colors.RESET}")
+                print(f"{self.Colors.RED}❌ Неверные данные пользователя{self.Colors.RESET}")
                 return False
-
+    
             self.ADMIN_ID = me.id
-            print(f"{self.Colors.GREEN}Авторизован как: {me.first_name} (ID: {me.id}){self.Colors.RESET}")
+            print(f"{self.Colors.GREEN}✅ Авторизован на тестовом сервере как: {me.first_name} (ID: {me.id}){self.Colors.RESET}")
             print(f"{self.Colors.CYAN}📱 Номер: {self.PHONE}{self.Colors.RESET}")
-
+            print(f"{self.Colors.BLUE}📡 Подключено к тестовому DC{dc_id}: {dc_ip}:{dc_port}{self.Colors.RESET}")
+            
             return True
-
+    
         except Exception as e:
-            print(f"{self.Colors.RED}=X Ошибка инициализации клиента: {e}{self.Colors.RESET}")
+            print(f"{self.Colors.RED}=X Ошибка инициализации клиента на тестовом сервере: {e}{self.Colors.RESET}")
             import traceback
             traceback.print_exc()
             return False
@@ -1622,49 +1640,78 @@ class Kernel:
             if not inline_bot_token:
                 self.cprint(f'{Colors.YELLOW}=X Инлайн-бот не настроен (отсутствует токен){Colors.RESET}')
                 return False
-
-            self.cprint(f'{Colors.BLUE}=- Запускаю инлайн-бота...{Colors.RESET}')
-
-
+    
+            self.cprint(f'{Colors.BLUE}=- Запускаю инлайн-бота на тестовом сервере...{Colors.RESET}')
+            
+            from telethon.network import ConnectionTcpFull
+            
+            
+            TEST_DC_OPTIONS = {
+                1: ('149.154.175.10', 443),
+                2: ('149.154.167.40', 443),
+                3: ('149.154.175.117', 443),
+                4: ('149.154.167.151', 443),
+                5: ('91.108.56.165', 443),
+            }
+    
             self.bot_client = TelegramClient(
                 'inline_bot_session',
                 self.API_ID,
                 self.API_HASH,
+                connection=ConnectionTcpFull,
+                use_ipv6=False,
                 timeout=30
             )
-
-
+    
+            dc_id = 2
+            dc_ip, dc_port = TEST_DC_OPTIONS[dc_id]
+            
+            
+            from telethon.sessions import StringSession
+            bot_session = StringSession()
+            bot_session.set_dc(dc_id, dc_ip, dc_port)
+            
+            
+            self.bot_client = TelegramClient(
+                bot_session,
+                self.API_ID,
+                self.API_HASH,
+                connection=ConnectionTcpFull,
+                use_ipv6=False,
+                timeout=30
+            )
+            
             await self.bot_client.start(bot_token=inline_bot_token)
-
+    
+            
             bot_me = await self.bot_client.get_me()
             bot_username = bot_me.username
-
-
+            
             self.config['inline_bot_username'] = bot_username
-
+            
             with open(self.CONFIG_FILE, 'w', encoding='utf-8') as f:
                 json.dump(self.config, f, ensure_ascii=False, indent=2)
-
-            try:
-                import sys
-                import os
-                sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-                from core_inline.handlers import InlineHandlers
-                handlers = InlineHandlers(self, self.bot_client)
-                await handlers.register_handlers()
-
-                import asyncio
-                asyncio.create_task(self.bot_client.run_until_disconnected())
-
-                self.cprint(f'{Colors.GREEN}=> Инлайн-бот запущен: {bot_username}{Colors.RESET}')
-                return True
-            except Exception as e:
-                self.cprint(f'{Colors.RED}=> Ошибка регистрации обработчиков инлайн-бота: {str(e)}{Colors.RESET}')
-                import traceback
-                traceback.print_exc()
-                return False
-
+    
+                try:
+                    import sys
+                    import os
+                    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    
+                    from core_inline.handlers import InlineHandlers
+                    handlers = InlineHandlers(self, self.bot_client)
+                    await handlers.register_handlers()
+    
+                    import asyncio
+                    asyncio.create_task(self.bot_client.run_until_disconnected())
+    
+                    self.cprint(f'{Colors.GREEN}=> Инлайн-бот запущен: {bot_username}{Colors.RESET}')
+                    return True
+                except Exception as e:
+                    self.cprint(f'{Colors.RED}=> Ошибка регистрации обработчиков инлайн-бота: {str(e)}{Colors.RESET}')
+                    import traceback
+                    traceback.print_exc()
+                    return False
+    
         except Exception as e:
             self.cprint(f'{Colors.RED}=X Инлайн-бот не запущен: {str(e)}{Colors.RESET}')
             import traceback

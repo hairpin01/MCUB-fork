@@ -139,6 +139,7 @@ class InlineHandlers:
 
 
             # Логика 2FA
+            # не юзается :(
             if query.startswith('2fa_'):
                 parts = query.split('_', 3)
                 if len(parts) >= 4:
@@ -279,53 +280,53 @@ class InlineHandlers:
                 if not event.data:
                     return
 
-                if isinstance(event.data, bytes):
-                    data_str = event.data.decode('utf-8')
-                else:
-                    data_str = str(event.data)
+                data_str = event.data.decode('utf-8') if isinstance(event.data, bytes) else str(event.data)
+
+                is_admin = self.check_admin(event=event)
+                has_permission = self.kernel.callback_permissions.is_allowed(event.sender_id, data_str)
+
+                if not is_admin and not has_permission:
+                    await event.answer('Нет доступа (callback)', alert=True)
+                    return
+
 
                 for pattern, handler in self.kernel.callback_handlers.items():
-                    if isinstance(pattern, bytes):
-                        pattern_str = pattern.decode('utf-8')
-                    else:
-                        pattern_str = str(pattern)
+                    pattern_str = pattern.decode('utf-8') if isinstance(pattern, bytes) else str(pattern)
 
                     if data_str.startswith(pattern_str):
-                        if not self.check_admin(event):
-                            await event.answer('Нет доступа', alert=False)
-                            return
                         try:
                             await handler(event)
                         except Exception as e:
-                            print(f"Ошибка в кастомном обработчике: {e}")
+                            print(f"Ошибка в кастомном обработчике [{pattern_str}]: {e}")
                             traceback.print_exc()
                         return
 
-                from .keyboards import InlineKeyboards
-                keyboards = InlineKeyboards(self.kernel)
-
-                if not keyboards.check_admin(event):
-                    await event.answer('Нет доступа', alert=False)
-                    return
-
+                # Обработка стандартных callback'ов
                 if data_str == 'confirm_yes':
+                    from .keyboards import InlineKeyboards
+                    keyboards = InlineKeyboards(self.kernel)
                     await keyboards.handle_confirm_yes(event)
-                elif data_str == 'confirm_no':
-                    await keyboards.handle_confirm_no(event)
-                elif data_str.startswith('catalog_'):
-                    await keyboards.handle_catalog_page(event)
 
+                elif data_str == 'confirm_no':
+                    from .keyboards import InlineKeyboards
+                    keyboards = InlineKeyboards(self.kernel)
+                    await keyboards.handle_confirm_no(event)
+
+                elif data_str.startswith('catalog_'):
                     try:
                         parts = data_str.split('_')
 
+                        if len(parts) < 3:
+                            await event.answer('Некорректный запрос каталога', alert=True)
+                            return
 
                         repo_index = 0
                         page = 1
 
-                        if len(parts) >= 2 and parts[1].isdigit():
+                        if parts[1].isdigit():
                             repo_index = int(parts[1])
 
-                        if len(parts) >= 3 and parts[2].isdigit():
+                        if parts[2].isdigit():
                             page = int(parts[2])
 
                         repos = [self.kernel.default_repo] + self.kernel.repositories
@@ -397,6 +398,7 @@ class InlineHandlers:
 
                     except Exception as e:
                         await event.answer(f'Ошибка: {str(e)[:50]}', alert=True)
+
                 else:
                     await event.answer('❌ Неизвестная команда', alert=True)
 

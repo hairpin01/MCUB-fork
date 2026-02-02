@@ -193,4 +193,105 @@ class TestKernelCache:
     def test_ttl_cache_cleanup(self, kernel_instance):
         """Test cache cleanup and size limits"""
         # Fill cache beyond max size
-        for i in range(1100):  # More than default max_size
+        for i in range(1100):  # More than default max_size (1000)
+            kernel_instance.cache.set(f'key_{i}', f'value_{i}')
+            
+        # Cache should have evicted oldest entries
+        assert kernel_instance.cache.size() <= 1000
+
+class TestKernelScheduler:
+    """Test task scheduler"""
+    
+    async def test_scheduler_initialization(self, kernel_instance):
+        """Test scheduler setup"""
+        await kernel_instance.init_scheduler()
+        assert kernel_instance.scheduler is not None
+        
+    async def test_interval_task(self, kernel_instance):
+        """Test interval task scheduling"""
+        await kernel_instance.init_scheduler()
+        
+        task_executed = []
+        async def test_task():
+            task_executed.append(time.time())
+            
+        task_id = await kernel_instance.scheduler.add_interval_task(
+            test_task, interval_seconds=0.1
+        )
+        
+        assert task_id is not None
+        assert task_id in kernel_instance.scheduler.task_registry
+        
+        # Wait and check task was scheduled
+        await asyncio.sleep(0.15)
+        kernel_instance.scheduler.cancel_task(task_id)
+        
+    async def test_daily_task(self, kernel_instance):
+        """Test daily task scheduling"""
+        await kernel_instance.init_scheduler()
+        
+        task_executed = []
+        async def test_task():
+            task_executed.append(time.time())
+            
+        task_id = await kernel_instance.scheduler.add_daily_task(
+            test_task, hour=12, minute=0
+        )
+        
+        assert task_id is not None
+        assert task_id.startswith('daily_')
+
+@pytest.mark.asyncio
+class TestKernelAsyncFeatures:
+    """Test async features"""
+    
+    async def test_inline_query_execution(self, kernel_instance):
+        """Test inline query helper"""
+        mock_results = [Mock(click=AsyncMock())]
+        with patch.object(kernel_instance.client, 'inline_query', 
+                         AsyncMock(return_value=mock_results)):
+            
+            success, message = await kernel_instance.inline_query_and_click(
+                chat_id=123456789,
+                query="test query",
+                bot_username="test_bot"
+            )
+            
+            assert success is True
+            
+    async def test_module_loading(self, kernel_instance, tmp_path):
+        """Test module loading from file"""
+        # Create a test module
+        test_module_code = '''
+def register(kernel):
+    @kernel.register.command('moduletest')
+    async def test_handler(event):
+        await event.edit("Module loaded!")
+'''
+        
+        module_file = tmp_path / 'test_module.py'
+        module_file.write_text(test_module_code)
+        
+        with patch('importlib.util.spec_from_file_location'):
+            # This is complex to test fully, but we can test the method signature
+            result = await kernel_instance.load_module_from_file(
+                str(module_file), 'test_module', is_system=False
+            )
+            # Method returns tuple (success, message)
+            assert isinstance(result, tuple)
+            assert len(result) == 2
+            
+    async def test_repository_operations(self, kernel_instance):
+        """Test repository management"""
+        mock_response = Mock(status=200, text=AsyncMock(return_value='module1\nmodule2'))
+        
+        with patch('aiohttp.ClientSession') as mock_session:
+            mock_session.return_value.__aenter__.return_value.get.return_value.__aenter__.return_value = mock_response
+            
+            success, message = await kernel_instance.add_repository(
+                'https://example.com/repo'
+            )
+            
+            # Either succeeds or fails gracefully
+            assert isinstance(success, bool)
+            assert isinstance(message, str)

@@ -121,6 +121,7 @@ def register(kernel):
 
     def get_module_commands(module_name, kernel):
         commands = []
+        aliases_info = {}
         file_path = None
 
         if module_name in kernel.system_modules:
@@ -134,6 +135,10 @@ def register(kernel):
                     code = f.read()
 
                     patterns = [
+                        # Новая регистрация
+                        r"@kernel\.register\.command\('([^']+)'",
+                        r"kernel\.register\.command\('([^']+)'",
+                        # Старая регистрация
                         r"pattern\s*=\s*r['\"]\^?\\?\.([a-zA-Z0-9_]+)",
                         r"register_command\s*\('([^']+)'",
                         r"@kernel\.register_command\('([^']+)'\)",
@@ -145,10 +150,42 @@ def register(kernel):
                         found = re.findall(pattern, code)
                         commands.extend(found)
 
+                    # Ищем алиасы
+                    alias_patterns = [
+                        r"alias\s*=\s*['\"]([^'\"]+)['\"]",
+                        r"alias\s*=\s*\[([^\]]+)\]"
+                    ]
+
+                    for i, cmd in enumerate(commands):
+                        # Ищем строку с регистрацией этой команды
+                        cmd_pattern = rf"(?:@kernel\.register\.command|kernel\.register\.command)\(['\"]{cmd}['\"][^)]+\)"
+                        cmd_match = re.search(cmd_pattern, code, re.DOTALL)
+                        if cmd_match:
+                            cmd_line = cmd_match.group(0)
+                            # Ищем алиасы
+                            for alias_pattern in alias_patterns:
+                                alias_matches = re.findall(alias_pattern, cmd_line)
+                                for alias_match in alias_matches:
+                                    if '[' in alias_match:
+                                        # Список алиасов
+                                        alias_list = [a.strip().strip("'\"") for a in alias_match.split(',')]
+                                        aliases_info[cmd] = alias_list
+                                    else:
+                                        # Одиночный алиас
+                                        aliases_info[cmd] = [alias_match.strip()]
+
             except:
                 pass
 
-        return list(set([cmd for cmd in commands if cmd]))
+        # Добавляем информацию об алиасах из kernel
+        for cmd in commands:
+            if cmd in kernel.aliases:
+                if isinstance(kernel.aliases[cmd], str):
+                    aliases_info[cmd] = [kernel.aliases[cmd]]
+                elif isinstance(kernel.aliases[cmd], list):
+                    aliases_info[cmd] = kernel.aliases[cmd]
+
+        return list(set([cmd for cmd in commands if cmd])), aliases_info
 
     def detect_module_type(module):
         if hasattr(module, 'register'):
@@ -221,8 +258,7 @@ def register(kernel):
         finally:
             kernel.clear_loading_module()
 
-    @kernel.register_command('im')
-    # загрузить модуль
+    @kernel.register.command('iload', alias='im') # загрузить модуль
     async def install_module_handler(event):
         if not event.is_reply:
             await edit_with_emoji(event, f'{CUSTOM_EMOJI["warning"]} <b>Ответьте на .py файл</b>')
@@ -256,7 +292,8 @@ def register(kernel):
                 code = f.read()
 
             if 'from .. import' in code or 'import loader' in code:
-                await log_error_to_bot(f"Модуль {module_name} не совместим")
+
+                kernel.logger.info(f"Модуль {module_name} не совместим")
                 await edit_with_emoji(msg, f'{CUSTOM_EMOJI["warning"]} <b>Модуль не совместим</b>')
                 os.remove(file_path)
                 return
@@ -286,23 +323,33 @@ def register(kernel):
             success, message_text = await kernel.load_module_from_file(file_path, module_name, False)
 
             if success:
-                commands = get_module_commands(module_name, kernel)
+                commands, aliases_info = get_module_commands(name, kernel)
 
                 emoji = random.choice(RANDOM_EMOJIS)
 
                 final_msg = f'{CUSTOM_EMOJI["success"]} <b>Модуль {module_name} загружен!</b> {emoji}\n'
                 final_msg += f'<blockquote>{CUSTOM_EMOJI["idea"]} <i>D: {metadata["description"]}</i> | V: <code>{metadata["version"]}</code></blockquote>\n'
                 final_msg += '<blockquote>'
-                if commands:
 
+                if commands:
                     for cmd in commands:
                         cmd_desc = metadata['commands'].get(cmd, f'{CUSTOM_EMOJI["no_cmd"]} У команды нету описания')
-                        final_msg += f'{CUSTOM_EMOJI["crystal"]} <code>{kernel.custom_prefix}{cmd}</code> – <b>{cmd_desc}</b>\n'
-                final_msg += '</blockquote>'
+                        final_msg += f'{CUSTOM_EMOJI["crystal"]} <code>{kernel.custom_prefix}{cmd}</code> – <b>{cmd_desc}</b>'
 
-                await log_to_bot(f"Модуль {module_name} установлен")
+
+                        if cmd in aliases_info:
+                            aliases = aliases_info[cmd]
+                            if isinstance(aliases, str):
+                                aliases = [aliases]
+                            if aliases:
+                                alias_text = ', '.join([f"<code>{kernel.custom_prefix}{a}</code>" for a in aliases])
+                                final_msg += f' (Aliases: {alias_text})'
+                        final_msg += '\n'
+
+                await kernel.logger,info(f"Модуль {module_name} установлен")
                 await edit_with_emoji(msg, final_msg)
             else:
+                kernel.logger.error(message_text)
                 await log_to_bot(f"{module_name}: {message_text}")
                 await edit_with_emoji(msg, f'{CUSTOM_EMOJI["warning"]} <b>Ошибка, смотри логи</b>')
                 if os.path.exists(file_path):
@@ -340,10 +387,10 @@ def register(kernel):
                     bot_username = bot_info.username
 
                 if bot_username:
-                    # Отправляем инлайн запрос catalog_ боту
+
                     results = await client.inline_query(bot_username, 'catalog_')
                     if results:
-                        # Нажимаем на первый результат (отправляем сообщение каталога)
+
                         await results[0].click(event.chat_id)
                         await event.delete()
                         return
@@ -567,7 +614,7 @@ def register(kernel):
             success, message_text = await kernel.load_module_from_file(file_path, module_name, False)
 
             if success:
-                commands = get_module_commands(module_name, kernel)
+                commands, aliases_info = get_module_commands(module_name, kernel)
                 emoji = random.choice(RANDOM_EMOJIS)
 
                 final_msg = f'{CUSTOM_EMOJI["success"]} <b>Модуль {module_name} загружен!</b> {emoji}\n'
@@ -576,11 +623,21 @@ def register(kernel):
                 if commands:
                     final_msg += '<blockquote>'
                     for cmd in commands:
-                        cmd_desc = metadata['commands'].get(cmd, '🫨 У команды нету описания')
-                        final_msg += f'{CUSTOM_EMOJI["crystal"]} <code>{kernel.custom_prefix}{cmd}</code> – <b>{cmd_desc}</b>\n'
+                        cmd_desc = metadata['commands'].get(cmd, f'{CUSTOM_EMOJI["no_cmd"]} У команды нету описания')
+                        final_msg += f'{CUSTOM_EMOJI["crystal"]} <code>{kernel.custom_prefix}{cmd}</code> – <b>{cmd_desc}</b>'
+
+
+                        if cmd in aliases_info:
+                            aliases = aliases_info[cmd]
+                            if isinstance(aliases, str):
+                                aliases = [aliases]
+                            if aliases:
+                                alias_text = ', '.join([f"<code>{kernel.custom_prefix}{a}</code>" for a in aliases])
+                                final_msg += f' (aliases: {alias_text})'
+                        final_msg += '\n'
                     final_msg += '</blockquote>'
 
-                await log_to_bot(f"✅ Модуль {module_name} скачан")
+                kernel.logger.info(f"✅ Модуль {module_name} скачан")
                 await edit_with_emoji(msg, final_msg)
             else:
                 await log_error_to_bot(f"⛈️ Ошибка загрузки {module_name}: {message_text}")
@@ -689,9 +746,10 @@ def register(kernel):
 
         module_name = args[1]
 
-        if module_name not in kernel.loaded_modules:
+        if module_name not in kernel.loaded_modules or kernel.system_modules:
             await edit_with_emoji(event, f'{CUSTOM_EMOJI["warning"]} <b>Модуль {module_name} не найден</b>')
             return
+
 
         file_path = os.path.join(kernel.MODULES_LOADED_DIR, f'{module_name}.py')
 

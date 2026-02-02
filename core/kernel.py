@@ -145,7 +145,6 @@ class Register:
         if func is None:
             return lambda f: self.method(f)
 
-
         import inspect
         module = inspect.getmodule(inspect.stack()[1][0])
         if module:
@@ -154,6 +153,38 @@ class Register:
             module.register.method = func
 
         return func
+
+    def event(self, event_type, *args, **kwargs):
+        # newmessage, messageedited, userupdat, chatupload, inlinequery, callbackquery, raw
+        def decorator(handler):
+            from telethon import events
+
+            event_class = None
+            pattern = None
+
+            if event_type.lower() in ['newmessage', 'message']:
+                event_class = events.NewMessage
+            elif event_type.lower() in ['messageedited', 'edited']:
+                event_class = events.MessageEdited
+            elif event_type.lower() in ['messagedeleted', 'deleted']:
+                event_class = events.MessageDeleted
+            elif event_type.lower() in ['userupdate', 'user']:
+                event_class = events.UserUpdate
+            elif event_type.lower() in ['chatupload', 'upload']:
+                event_class = events.ChatUpload
+            elif event_type.lower() in ['inlinequery', 'inline']:
+                event_class = events.InlineQuery
+            elif event_type.lower() in ['callbackquery', 'callback']:
+                event_class = events.CallbackQuery
+            elif event_type.lower() in ['raw', 'custom']:
+                event_class = events.Raw
+
+            if event_class:
+                self.kernel.client.add_event_handler(handler, event_class(*args, **kwargs))
+
+            return handler
+
+        return decorator
 
 
 class Kernel:

@@ -1389,6 +1389,9 @@ Simplified wrapper that uses the bot **username** configured in __config.json__.
 
 MCUB includes a built-in callback permission manager to control user access to inline button interactions.
 
+> [!TIP]
+> By default, everyone does not have the right to press inline buttons (except ADMIN_ID)
+
 ## `CallbackPermissionManager` Class
 
 Manages temporary permissions for callback query patterns.
@@ -1475,7 +1478,7 @@ import kernel # without this, method will not work
 from telethon import events
 
 @kernel.Register.method
-def custom_register(kernel):
+def custom_register(kernel): # or class
     
     @kernel.register.command('version', alias='v')
     async def version_mcub(event)

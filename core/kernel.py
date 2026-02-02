@@ -248,7 +248,20 @@ class CallbackPermissionManager:
         self.allowed_users[user_id][pattern] = expiry
         self.allowed_patterns[pattern][user_id] = expiry
 
+    def prohibit(self, user_id, pattern=None):
+        """запретить нажатия"""
+        import time
 
+        if pattern:
+            if user_id in self.allowed_users and pattern in self.allowed_users[user_id]:
+                del self.allowed_users[user_id][pattern]
+
+            if pattern in self.allowed_patterns and user_id in self.allowed_patterns[pattern]:
+                del self.allowed_patterns[pattern][user_id]
+        else:
+            if user_id in self.allowed_users:
+                for p in list(self.allowed_users[user_id].keys()):
+                    self.prohibit(user_id, p)
 
 class Kernel:
     def __init__(self):

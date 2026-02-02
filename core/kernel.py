@@ -230,70 +230,61 @@ class Register:
         return decorator
 
 class CallbackPermissionManager:
-
     def __init__(self):
-        self.allowed_users = {}  # {user_id: {callback_pattern: expiry_time}}
-        self.allowed_patterns = {}  # {pattern: {user_id: expiry_time}}
+        # {user_id: {pattern: expiry_time}}
+        self.permissions = {}
 
     def allow(self, user_id, pattern, duration_seconds=60):
-        import time
         expiry = time.time() + duration_seconds
 
-        if user_id not in self.allowed_users:
-            self.allowed_users[user_id] = {}
+        if user_id not in self.permissions:
+            self.permissions[user_id] = {}
 
-        if pattern not in self.allowed_patterns:
-            self.allowed_patterns[pattern] = {}
-
-        self.allowed_users[user_id][pattern] = expiry
-        self.allowed_patterns[pattern][user_id] = expiry
+        self.permissions[user_id][pattern] = expiry
 
     def prohibit(self, user_id, pattern=None):
-        """запретить нажатия"""
-        import time
+        """
+        Запретить нажатия.
+        Если pattern не передан, удаляет все разрешения для пользователя.
+        """
+        if user_id not in self.permissions:
+            return
 
         if pattern:
-            if user_id in self.allowed_users and pattern in self.allowed_users[user_id]:
-                del self.allowed_users[user_id][pattern]
+            if pattern in self.permissions[user_id]:
+                del self.permissions[user_id][pattern]
 
-            if pattern in self.allowed_patterns and user_id in self.allowed_patterns[pattern]:
-                del self.allowed_patterns[pattern][user_id]
+            if not self.permissions[user_id]:
+                del self.permissions[user_id]
         else:
-            if user_id in self.allowed_users:
-                for p in list(self.allowed_users[user_id].keys()):
-                    self.prohibit(user_id, p)
+            del self.permissions[user_id]
 
     def is_allowed(self, user_id, pattern):
-        import time
         current_time = time.time()
 
-        if user_id in self.allowed_users and pattern in self.allowed_users[user_id]:
-            if self.allowed_users[user_id][pattern] > current_time:
-                return True
-            else:
-                self.prohibit(user_id, pattern)
+        if user_id in self.permissions and pattern in self.permissions[user_id]:
+            expiry = self.permissions[user_id][pattern]
 
-        if pattern in self.allowed_patterns and user_id in self.allowed_patterns[pattern]:
-            if self.allowed_patterns[pattern][user_id] > current_time:
+            if expiry > current_time:
                 return True
             else:
                 self.prohibit(user_id, pattern)
+                return False
 
         return False
 
     def cleanup(self):
-        import time
         current_time = time.time()
 
-        for user_id in list(self.allowed_users.keys()):
-            for pattern in list(self.allowed_users[user_id].keys()):
-                if self.allowed_users[user_id][pattern] <= current_time:
-                    self.prohibit(user_id, pattern)
+        for user_id in list(self.permissions.keys()):
+            user_patterns = self.permissions[user_id]
 
-        for pattern in list(self.allowed_patterns.keys()):
-            for user_id in list(self.allowed_patterns[pattern].keys()):
-                if self.allowed_patterns[pattern][user_id] <= current_time:
-                    self.prohibit(user_id, pattern)
+            for pattern in list(user_patterns.keys()):
+                if user_patterns[pattern] <= current_time:
+                    del user_patterns[pattern]
+
+            if not user_patterns:
+                del self.permissions[user_id]
 
 class Kernel:
     def __init__(self):

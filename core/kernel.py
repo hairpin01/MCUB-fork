@@ -229,6 +229,12 @@ class Register:
 
         return decorator
 
+class CallbackPermissionManager:
+
+    def __init__(self):
+        self.allowed_users = {}  # {user_id: {callback_pattern: expiry_time}}
+        self.allowed_patterns = {}  # {pattern: {user_id: expiry_time}}
+
 
 class Kernel:
     def __init__(self):

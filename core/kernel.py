@@ -252,11 +252,16 @@ class CallbackPermissionManager:
         pattern = self._to_str(pattern)
         current_time = time.time()
 
-        if user_id in self.permissions and pattern in self.permissions[user_id]:
-            if self.permissions[user_id][pattern] > current_time:
+        if user_id not in self.permissions:
+            return False
+
+        for allowed_pattern, expiry_time in self.permissions[user_id].items():
+            if expiry_time <= current_time:
+                continue
+
+            if pattern.startswith(allowed_pattern):
                 return True
-            else:
-                self.prohibit(user_id, pattern) # Срок истёк
+
         return False
 
     def prohibit(self, user_id, pattern=None):

@@ -135,6 +135,13 @@ class TaskScheduler:
         self.tasks.append(task)
 
 
+class Register:
+
+    def __init__(self, kernel):
+        self.kernel = kernel
+        self._methods = {}
+
+
 
 
 class Kernel:

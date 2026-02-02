@@ -21,10 +21,6 @@ CUSTOM_EMOJI = {
 def register(kernel):
     client = kernel.client
 
-    def is_admin(user_id):
-        """Check if user is admin (owner) of the userbot"""
-        return hasattr(kernel, 'ADMIN_ID') and user_id == kernel.ADMIN_ID
-
     def get_module_commands(module_name, kernel):
         """Extract commands from module file"""
         commands = []
@@ -178,14 +174,6 @@ def register(kernel):
     async def man_inline_handler(event):
         """Handle inline queries for module manager"""
         # Check if user is admin
-        if not is_admin(event.sender_id):
-            builder = event.builder.article(
-                title='Access Denied',
-                text='🚫 You are not authorized to use this bot',
-                parse_mode='html'
-            )
-            await event.answer([builder])
-            return
 
         query = event.text.strip()
         
@@ -225,9 +213,6 @@ def register(kernel):
     async def man_callback_handler(event):
         """Handle callback queries from inline buttons"""
         # Check if user is admin
-        if not is_admin(event.sender_id):
-            await event.answer('🚫 You are not authorized', alert=True)
-            return
 
         data = event.data.decode()
         

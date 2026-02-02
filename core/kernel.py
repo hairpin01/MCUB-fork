@@ -1395,7 +1395,10 @@ class Kernel:
                         spec.loader.exec_module(module)
 
                         if hasattr(module, 'register'):
-                            module.register(self.client)
+                            try:
+                                module.register(self.client)
+                            except:
+                                await module.register(self.client)    
                             self.loaded_modules[module_name] = module
                             self.cprint(f'{self.Colors.GREEN}=> Загружен пользовательский модуль (старый стиль): {module_name}{self.Colors.RESET}')
 
@@ -1727,15 +1730,25 @@ class Kernel:
                     pass
                     
         if hasattr(self, 'bot_client') and self.bot_client:
-                @self.bot_client.on(events.NewMessage(pattern='/'))
-                async def bot_command_handler(event):
-                    try:
-                        await self.process_bot_command(event)
-                    except Exception as e:
-                        await self.handle_error(e, source="bot_command_handler", event=event)
+            @self.bot_client.on(events.NewMessage(pattern='/'))
+            async def bot_command_handler(event):
+                try:
+                    await self.process_bot_command(event)
+                except Exception as e:
+                    await self.handle_error(e, source="bot_command_handler", event=event)
 
 
-        self.cprint(f'{Colors.CYAN}==> The kernel is loaded{Colors.RESET}')
+        print(f"""
+ _    _  ____ _   _ ____   
+| \\  / |/ ___| | | | __ )  
+| |\\/| | |   | | | |  _ \\  
+| |  | | |___| |_| | |_) | 
+|_|  |_|\\____|\\___/|____/  
+Kernel is load.
+
+• Version: {self.VERSION}
+• Prefix: {self.custom_prefix}
+              """)
         if os.path.exists(self.RESTART_FILE):
             with open(self.RESTART_FILE, 'r') as f:
                 data = f.read().split(',')

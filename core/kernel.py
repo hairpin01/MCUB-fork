@@ -186,6 +186,32 @@ class Register:
 
         return decorator
 
+    def command(self, pattern, **kwargs):
+        # new register command
+        def decorator(func):
+            cmd = pattern.lstrip('^\\' + self.kernel.custom_prefix)
+            if cmd.endswith('$'):
+                cmd = cmd[:-1]
+
+            if self.kernel.current_loading_module is None:
+                raise ValueError("не установлен текущий модуль для регистрации команд")
+
+            self.kernel.command_handlers[cmd] = func
+            self.kernel.command_owners[cmd] = self.kernel.current_loading_module
+
+            # alias: @kernel.register.command('GetRawText', alias='grt', more=more)
+            alias = kwargs.get('alias')
+            if alias:
+                if isinstance(alias, str):
+                    self.kernel.aliases[alias] = cmd
+                elif isinstance(alias, list):
+                    for a in alias:
+                        self.kernel.aliases[a] = cmd
+
+            return func
+
+        return decorator
+
 
 class Kernel:
     def __init__(self):

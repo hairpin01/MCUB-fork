@@ -263,6 +263,38 @@ class CallbackPermissionManager:
                 for p in list(self.allowed_users[user_id].keys()):
                     self.prohibit(user_id, p)
 
+    def is_allowed(self, user_id, pattern):
+        import time
+        current_time = time.time()
+
+        if user_id in self.allowed_users and pattern in self.allowed_users[user_id]:
+            if self.allowed_users[user_id][pattern] > current_time:
+                return True
+            else:
+                self.prohibit(user_id, pattern)
+
+        if pattern in self.allowed_patterns and user_id in self.allowed_patterns[pattern]:
+            if self.allowed_patterns[pattern][user_id] > current_time:
+                return True
+            else:
+                self.prohibit(user_id, pattern)
+
+        return False
+
+    def cleanup(self):
+        import time
+        current_time = time.time()
+
+        for user_id in list(self.allowed_users.keys()):
+            for pattern in list(self.allowed_users[user_id].keys()):
+                if self.allowed_users[user_id][pattern] <= current_time:
+                    self.prohibit(user_id, pattern)
+
+        for pattern in list(self.allowed_patterns.keys()):
+            for user_id in list(self.allowed_patterns[pattern].keys()):
+                if self.allowed_patterns[pattern][user_id] <= current_time:
+                    self.prohibit(user_id, pattern)
+
 class Kernel:
     def __init__(self):
         self.VERSION = '1.0.1.9.5'

@@ -1029,9 +1029,15 @@ class Kernel:
         import inspect
 
         if hasattr(module, 'register'):
-            if hasattr(module.register, 'method') and callable(module.register.method):
-                return 'method'
+            if hasattr(self.register, 'method'):
+                try:
+                    source = inspect.getsource(module.register)
+                    if '@kernel.Register.method' in source or '@Register.method' in source:
+                        return 'method'
+                except:
+                    pass
 
+            # Старый стиль
             if callable(module.register):
                 sig = inspect.signature(module.register)
                 params = list(sig.parameters.keys())
@@ -1105,91 +1111,91 @@ class Kernel:
         finally:
             self.clear_loading_module()
 
-        async def install_from_url(self, url, module_name=None, auto_dependencies=True):
-            """
-            Установка модуля из URL
+    async def install_from_url(self, url, module_name=None, auto_dependencies=True):
+        """
+        Установка модуля из URL
 
-            Args:
-                url (str): URL модуля
-                module_name (str, optional): Имя модуля (если None, извлекается из URL)
-                auto_dependencies (bool): Автоматически устанавливать зависимости
+        Args:
+            url (str): URL модуля
+            module_name (str, optional): Имя модуля (если None, извлекается из URL)
+            auto_dependencies (bool): Автоматически устанавливать зависимости
 
-            Returns:
-                tuple: (success, message)
-            """
-            import os
-            import aiohttp
+        Returns:
+            tuple: (success, message)
+        """
+        import os
+        import aiohttp
+
+        try:
+
+            if not module_name:
+                if url.endswith('.py'):
+                    module_name = os.path.basename(url)[:-3]
+                else:
+
+                    parts = url.rstrip('/').split('/')
+                    module_name = parts[-1]
+                    if '.' in module_name:
+                        module_name = module_name.split('.')[0]
+
+            if module_name in self.system_modules:
+                return False, f"Модуль: {module_name}, системный"
+
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as resp:
+                    if resp.status != 200:
+                        return False, f"Не удалось скачать модуль (статус: {resp.status})"
+
+                    code = await resp.text()
+
+
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as f:
+                f.write(code)
+                temp_path = f.name
 
             try:
 
-                if not module_name:
-                    if url.endswith('.py'):
-                        module_name = os.path.basename(url)[:-3]
-                    else:
-
-                        parts = url.rstrip('/').split('/')
-                        module_name = parts[-1]
-                        if '.' in module_name:
-                            module_name = module_name.split('.')[0]
-
-                if module_name in self.system_modules:
-                    return False, f"Модуль: {module_name}, системный"
+                dependencies = []
+                if auto_dependencies and 'requires' in code:
+                    import re
+                    reqs = re.findall(r'# requires: (.+)', code)
+                    if reqs:
+                        dependencies = [req.strip() for req in reqs[0].split(',')]
 
 
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(url) as resp:
-                        if resp.status != 200:
-                            return False, f"Не удалось скачать модуль (статус: {resp.status})"
-
-                        code = await resp.text()
-
-
-                import tempfile
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as f:
-                    f.write(code)
-                    temp_path = f.name
-
-                try:
-
-                    dependencies = []
-                    if auto_dependencies and 'requires' in code:
-                        import re
-                        reqs = re.findall(r'# requires: (.+)', code)
-                        if reqs:
-                            dependencies = [req.strip() for req in reqs[0].split(',')]
+                if dependencies:
+                    import subprocess
+                    import sys
+                    for dep in dependencies:
+                        subprocess.run(
+                            [sys.executable, '-m', 'pip', 'install', dep],
+                            capture_output=True,
+                            text=True
+                        )
 
 
-                    if dependencies:
-                        import subprocess
-                        import sys
-                        for dep in dependencies:
-                            subprocess.run(
-                                [sys.executable, '-m', 'pip', 'install', dep],
-                                capture_output=True,
-                                text=True
-                            )
+                success, message = await self.load_module_from_file(temp_path, module_name, False)
 
+                if success:
 
-                    success, message = await self.load_module_from_file(temp_path, module_name, False)
+                    target_path = os.path.join(self.MODULES_LOADED_DIR, f'{module_name}.py')
+                    with open(target_path, 'w', encoding='utf-8') as f:
+                        f.write(code)
 
-                    if success:
+                    return True, f"Модуль {module_name} успешно установлен из URL"
+                else:
+                    return False, f"Ошибка загрузки модуля: {message}"
 
-                        target_path = os.path.join(self.MODULES_LOADED_DIR, f'{module_name}.py')
-                        with open(target_path, 'w', encoding='utf-8') as f:
-                            f.write(code)
+            finally:
 
-                        return True, f"Модуль {module_name} успешно установлен из URL"
-                    else:
-                        return False, f"Ошибка загрузки модуля: {message}"
+                import os
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
 
-                finally:
-
-                    import os
-                    if os.path.exists(temp_path):
-                        os.remove(temp_path)
-
-            except Exception as e:
-                return False, f"Ошибка установки из URL: {str(e)}"
+        except Exception as e:
+            return False, f"Ошибка установки из URL: {str(e)}"
 
     async def send_with_emoji(self, chat_id, text, **kwargs):
         """Универсальная отправка с поддержкой кастомных эмодзи"""
@@ -1241,45 +1247,63 @@ class Kernel:
             if match:
                 metadata[key] = match.group(1).strip()
 
-        # Ищем команды нового стиля: @kernel.register_command('cmd') с описанием
-        # Описание может быть в комментарии на следующей строке
-        kernel_patterns = [
+        # Ищем команды с комментариями в НОВОМ формате:
+        # Вариант 1: Комментарий на строке перед декоратором
+        # @kernel.register.command('cmd')
+        # # описание
+        # async def ...
+        new_patterns = [
+            # Комментарий на строке перед декоратором
+            r"#\s*(.+?)\s*\n\s*@kernel\.register\.command\(('|\")([^']+)('|\")\)",
+            r"#\s*(.+?)\s*\n\s*kernel\.register\.command\(('|\")([^']+)('|\")\)",
+
+            # Комментарий на той же строке что и декоратор
+            r"@kernel\.register\.command\(('|\")([^']+)('|\")\)\s*#\s*(.+?)\s*\n",
+            r"kernel\.register\.command\(('|\")([^']+)'\)\s*#\s*(.+?)\s*\n",
+
+            # Комментарий на строке между декоратором и функцией
+            r"@kernel\.register\.command\(('|\")([^']+)('|\")\)\s*\n\s*#\s*(.+?)\s*\n\s*async def",
+            r"kernel\.register\.command\(('|\")([^']+)('|\')\)\s*\n\s*#\s*(.+?)\s*\n\s*async def",
+        ]
+
+        for pattern in new_patterns:
+            matches = re.finditer(pattern, code, re.DOTALL)
+            for match in matches:
+                # Определяем порядок групп в зависимости от паттерна
+                if pattern.startswith(r"#\s*"):
+                    # Паттерн типа: # описание\n@kernel.register.command('cmd')
+                    desc = match.group(1).strip()
+                    cmd = match.group(2).strip()
+                elif pattern.startswith(r"\"\"\"\s*\"\"\""):
+                    # @kernel.register.command('cmd')
+                    # """описание"""
+                    cmd = match.group(1).strip()
+                    desc = match.group(2).strip()
+                else:
+                    # Паттерн типа: @kernel.register.command('cmd') # описание
+                    cmd = match.group(1).strip()
+                    desc = match.group(2).strip()
+
+                if cmd and desc:
+                    metadata['commands'][cmd] = desc
+
+
+        old_patterns = [
             # Формат: @kernel.register_command('cmd')
             #         # описание
             #         async def ...
             r"@kernel\.register_command\('([^']+)'\)\s*\n\s*#\s*(.+?)\s*\n.*?async def",
-
-            # Формат: kernel.register_command('cmd')
-            #         # описание
-            #         async def ...
             r"kernel\.register_command\('([^']+)'\)\s*\n\s*#\s*(.+?)\s*\n.*?async def",
 
             # Формат: @kernel.register_command('cmd')  # описание
             #         async def ...
             r"@kernel\.register_command\('([^']+)'\)\s*#\s*(.+?)\s*\n.*?async def",
+            r"kernel\.register_command\('([^']+)'\)\s*#\s*(.+?)\s*\n.*?async def",
 
-            # Формат: kernel.register_command('cmd')  # описание
-            #         async def ...
-            r"kernel\.register_command\('([^']+)'\)\s*#\s*(.+?)\s*\n.*?async def"
-        ]
-
-        for pattern in kernel_patterns:
-            matches = re.finditer(pattern, code, re.DOTALL)
-            for match in matches:
-                cmd = match.group(1)
-                desc = match.group(2)
-                if cmd and desc:
-                    metadata['commands'][cmd] = desc.strip()
-
-        # Ищем команды старого стиля
-        old_patterns = [
             # Формат: @client.on(events.NewMessage(outgoing=True, pattern=r'\.cmd'))
             #         # описание
             #         async def ...
             r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'\\\\.([^']+)'\)\)\s*\n\s*#\s*(.+?)\s*\n.*?async def",
-
-            # Формат: @client.on(events.NewMessage(outgoing=True, pattern=r'\.cmd'))  # описание
-            #         async def ...
             r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'\\\\.([^']+)'\)\)\s*#\s*(.+?)\s*\n.*?async def"
         ]
 

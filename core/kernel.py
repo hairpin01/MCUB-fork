@@ -1113,90 +1113,90 @@ class Kernel:
             self.clear_loading_module()
 
         async def install_from_url(self, url, module_name=None, auto_dependencies=True):
-        """
-        Установка модуля из URL
+            """
+            Установка модуля из URL
 
-        Args:
-            url (str): URL модуля
-            module_name (str, optional): Имя модуля (если None, извлекается из URL)
-            auto_dependencies (bool): Автоматически устанавливать зависимости
+            Args:
+                url (str): URL модуля
+                module_name (str, optional): Имя модуля (если None, извлекается из URL)
+                auto_dependencies (bool): Автоматически устанавливать зависимости
 
-        Returns:
-            tuple: (success, message)
-        """
-        import os
-        import aiohttp
-
-        try:
-
-            if not module_name:
-                if url.endswith('.py'):
-                    module_name = os.path.basename(url)[:-3]
-                else:
-
-                    parts = url.rstrip('/').split('/')
-                    module_name = parts[-1]
-                    if '.' in module_name:
-                        module_name = module_name.split('.')[0]
-
-            if module_name in self.system_modules:
-                return False, f"Модуль: {module_name}, системный"
-
-
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as resp:
-                    if resp.status != 200:
-                        return False, f"Не удалось скачать модуль (статус: {resp.status})"
-
-                    code = await resp.text()
-
-
-            import tempfile
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as f:
-                f.write(code)
-                temp_path = f.name
+            Returns:
+                tuple: (success, message)
+            """
+            import os
+            import aiohttp
 
             try:
 
-                dependencies = []
-                if auto_dependencies and 'requires' in code:
-                    import re
-                    reqs = re.findall(r'# requires: (.+)', code)
-                    if reqs:
-                        dependencies = [req.strip() for req in reqs[0].split(',')]
+                if not module_name:
+                    if url.endswith('.py'):
+                        module_name = os.path.basename(url)[:-3]
+                    else:
+
+                        parts = url.rstrip('/').split('/')
+                        module_name = parts[-1]
+                        if '.' in module_name:
+                            module_name = module_name.split('.')[0]
+
+                if module_name in self.system_modules:
+                    return False, f"Модуль: {module_name}, системный"
 
 
-                if dependencies:
-                    import subprocess
-                    import sys
-                    for dep in dependencies:
-                        subprocess.run(
-                            [sys.executable, '-m', 'pip', 'install', dep],
-                            capture_output=True,
-                            text=True
-                        )
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(url) as resp:
+                        if resp.status != 200:
+                            return False, f"Не удалось скачать модуль (статус: {resp.status})"
+
+                        code = await resp.text()
 
 
-                success, message = await self.load_module_from_file(temp_path, module_name, False)
+                import tempfile
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as f:
+                    f.write(code)
+                    temp_path = f.name
 
-                if success:
+                try:
 
-                    target_path = os.path.join(self.MODULES_LOADED_DIR, f'{module_name}.py')
-                    with open(target_path, 'w', encoding='utf-8') as f:
-                        f.write(code)
+                    dependencies = []
+                    if auto_dependencies and 'requires' in code:
+                        import re
+                        reqs = re.findall(r'# requires: (.+)', code)
+                        if reqs:
+                            dependencies = [req.strip() for req in reqs[0].split(',')]
 
-                    return True, f"Модуль {module_name} успешно установлен из URL"
-                else:
-                    return False, f"Ошибка загрузки модуля: {message}"
 
-            finally:
+                    if dependencies:
+                        import subprocess
+                        import sys
+                        for dep in dependencies:
+                            subprocess.run(
+                                [sys.executable, '-m', 'pip', 'install', dep],
+                                capture_output=True,
+                                text=True
+                            )
 
-                import os
-                if os.path.exists(temp_path):
-                    os.remove(temp_path)
 
-        except Exception as e:
-            return False, f"Ошибка установки из URL: {str(e)}"
+                    success, message = await self.load_module_from_file(temp_path, module_name, False)
+
+                    if success:
+
+                        target_path = os.path.join(self.MODULES_LOADED_DIR, f'{module_name}.py')
+                        with open(target_path, 'w', encoding='utf-8') as f:
+                            f.write(code)
+
+                        return True, f"Модуль {module_name} успешно установлен из URL"
+                    else:
+                        return False, f"Ошибка загрузки модуля: {message}"
+
+                finally:
+
+                    import os
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+
+            except Exception as e:
+                return False, f"Ошибка установки из URL: {str(e)}"
 
     async def send_with_emoji(self, chat_id, text, **kwargs):
         """Универсальная отправка с поддержкой кастомных эмодзи"""

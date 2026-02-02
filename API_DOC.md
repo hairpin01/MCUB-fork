@@ -1385,3 +1385,177 @@ Simplified wrapper that uses the bot **username** configured in __config.json__.
 
 ---
 
+# Callback Permission Management 
+
+MCUB includes a built-in callback permission manager to control user access to inline button interactions.
+
+## `CallbackPermissionManager` Class
+
+Manages temporary permissions for callback query patterns.
+
+### Initialization
+
+```python
+permission_manager = CallbackPermissionManager()
+```
+
+### Methods
+
+`allow(user_id, pattern, duration_seconds=60)`
+---
+Grant permission for a user to trigger callbacks starting with the specified pattern.
+
+**Parameters:**
+- `user_id` (int): Telegram user ID
+- `pattern` (str/bytes): Callback data pattern
+- `duration_seconds` (int): Permission duration (default: 60s)
+
+`is_allowed(user_id, pattern)`
+---
+Check if a user has permission for a callback pattern.
+
+**Returns:** bool - True if allowed
+
+`prohibit(user_id, pattern=None)`
+---
+Revoke permission(s) for a user.
+- If `pattern` specified: revokes only that pattern
+- If `pattern` is None: revokes all permissions for user
+
+`cleanup()`
+---
+Remove expired permissions (automatically called internally).
+
+## Usage Example
+
+```python
+def register(kernel):
+    # Create permission manager
+    perm_mgr = CallbackPermissionManager()
+    
+    # Grant permission when user starts interaction
+    @kernel.register.command('start_game')
+    async def start_handler(event):
+        user_id = event.sender_id
+        perm_mgr.allow(user_id, 'game_', duration_seconds=300)
+        await event.edit("Game started! You have 5 minutes.")
+    
+    # Check permission in callback handler
+    async def game_callback_handler(event):
+        user_id = event.sender_id
+        
+        if not perm_mgr.is_allowed(user_id, event.data):
+            await event.answer("⏱️ Session expired!", alert=True)
+            return
+        
+        # Process callback
+        await event.edit("Game action processed!")
+    
+    kernel.register_callback_handler('game_', game_callback_handler)
+```
+
+> [!NOTE]
+> Available in MCUB kernel version 1.0.2 and later.
+
+---
+
+# Enhanced Registration API v1.0.2
+
+MCUB introduces a new `Register` class with decorator-based registration methods for cleaner module syntax.
+
+### Method Registration
+
+`@kernel.Register.method`
+---
+You can make your register using the @kernel.Register.method decorator-based
+
+**Usage:**
+```python
+import kernel # without this, method will not work
+from telethon import events
+
+@kernel.Register.method
+def custom_register(kernel):
+    
+    @kernel.register.command('version', alias='v')
+    async def version_mcub(event)
+        await event.edit(f"Kernel version {kernel.VERSION}")
+```
+
+### Event Registration
+
+`@kernel.Register.event(event_type, **kwargs)`
+---
+Register event handlers with cleaner syntax.
+
+**Event types:** `'newmessage'`, `'messageedited'`, `'messagedeleted'`, `'userupdate'`, `'chatupload'`, `'inlinequery'`, `'callbackquery'`, `'raw'`
+
+**Examples:**
+```python
+@kernel.Register.event('newmessage', pattern='hello')
+async def greeting_handler(event):
+    await event.reply("Hi!")
+
+@kernel.Register.event('callbackquery', pattern=b'menu_')
+async def menu_handler(event):
+    await event.answer("Menu clicked")
+```
+
+### Command Registration
+
+`@kernel.Register.command(pattern, **kwargs)`
+---
+Alternative to `kernel.register_command()` with alias support.
+
+**Parameters:**
+- `alias` (str/list): Command aliases
+- `more` (str): Additional options
+
+**Example:**
+```python
+@kernel.Register.command('test', alias=['t', 'check'])
+async def test_handler(event):
+    await event.edit("Test passed")
+    
+# All work: .test, .t, .check
+```
+
+### Bot Command Registration
+
+`@kernel.Register.bot_command(pattern, **kwargs)`
+---
+Register bot commands (requires bot client).
+
+**Example:**
+```python
+@kernel.Register.bot_command('start')
+async def start_handler(event):
+    await event.respond("Bot started!")
+
+# Also works with arguments
+@kernel.Register.bot_command('help topic')
+async def help_handler(event):
+    await event.respond("Help topic details")
+```
+
+### Complete Module Example
+
+```python
+@kernel.Register.method
+def test(kernel):
+    
+    
+    @kernel.register.event('newmessage', pattern='(?i)ping')
+    async def ping_handler(event):
+        await event.reply("Pong!")
+    
+    @kernel.register.bot_command('status')
+    async def status_cmd(event):
+        if kernel.is_bot_available():
+            await event.respond("Bot is running")
+```
+
+> [!NOTE]
+> Available in MCUB kernel version 1.0.2 and later.  
+> `Register.command` supports the same alias system as `kernel.register_command()`.
+

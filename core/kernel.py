@@ -1032,15 +1032,35 @@ class Kernel:
         if hasattr(self, 'send_log_message'):
             await self.send_log_message(f"⚙️ {message}")
 
+    async def detected_module_type(self, module):
+        import inspect
+
+        if hasattr(module, 'register'):
+            if hasattr(module.register, 'method') and callable(module.register.method):
+                return 'method'
+
+            if callable(module.register):
+                sig = inspect.signature(module.register)
+                params = list(sig.parameters.keys())
+
+                if len(params) == 1:
+                    param_name = params[0]
+                    if param_name == 'kernel':
+                        return 'new'
+                    elif param_name == 'client':
+                        return 'old'
+
+                return 'unknown'
+
+        return 'none'
 
     async def load_module_from_file(self, file_path, module_name, is_system=False):
-        """Загрузка модуля из файла"""
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 code = f.read()
 
             if 'from .. import' in code or 'import loader' in code:
-                return False, 'Несовместимый модуль (старая версия)'
+                return False, 'Несовместимый модуль (Тип: Heroku/hikka модуль)'
 
             if module_name in sys.modules:
                 del sys.modules[module_name]
@@ -1057,13 +1077,17 @@ class Kernel:
             self.set_loading_module(module_name, 'system' if is_system else 'user')
             spec.loader.exec_module(module)
 
-            if hasattr(module, 'register'):
-                try:
+
+            module_type = await self.detected_module_type(module)
+
+            if module_type == 'method':
+                module.register.method(self)
+            elif module_type == 'new':
+                if hasattr(module, 'register'):
                     module.register(self)
-                except CommandConflictError as e:
-                    raise e
-                except Exception as e:
-                    return False, f'Ошибка регистрации: {str(e)}'
+            elif module_type == 'old':
+                if hasattr(module, 'register'):
+                    module.register(self.client)
             else:
                 return False, 'Модуль не имеет функции register'
 
@@ -1072,7 +1096,7 @@ class Kernel:
             else:
                 self.loaded_modules[module_name] = module
 
-            return True, f'Модуль {module_name} загружен'
+            return True, f'Модуль {module_name} загружен ({module_type})'
 
         except ImportError as e:
             error_msg = str(e)

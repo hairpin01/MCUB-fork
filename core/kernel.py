@@ -290,14 +290,14 @@ class CallbackPermissionManager:
 
 class Kernel:
     def __init__(self):
-        self.VERSION = '1.0.2.0'
+        self.VERSION = '1.0.2'
         self.DB_VERSION = 2
         self.start_time = time.time()
         self.loaded_modules = {}
         self.system_modules = {}
         self.command_handlers = {}
         self.command_owners = {}
-        self.custom_prefix = '.' 
+        self.custom_prefix = '.'
         self.aliases = {}
         self.config = {}
         self.client = None
@@ -758,13 +758,13 @@ class Kernel:
         """Регистрация команд для бота (начинающихся с /)"""
         if not pattern.startswith('/'):
             pattern = '/' + pattern
-        
+
         # Убираем префикс и параметры для хранения
         cmd = pattern.lstrip('/').split()[0] if ' ' in pattern else pattern.lstrip('/')
-        
+
         if self.current_loading_module is None:
             raise ValueError("Не установлен текущий модуль для регистрации бот-команд")
-        
+
         if cmd in self.bot_command_handlers:
             existing_owner = self.bot_command_owners.get(cmd)
             raise CommandConflictError(
@@ -772,7 +772,7 @@ class Kernel:
                 conflict_type='bot',
                 command=cmd
             )
-        
+
         if func:
             self.bot_command_handlers[cmd] = (pattern, func)
             self.bot_command_owners[cmd] = self.current_loading_module
@@ -783,18 +783,18 @@ class Kernel:
                 self.bot_command_owners[cmd] = self.current_loading_module
                 return f
             return decorator
-    
+
     def unregister_module_bot_commands(self, module_name):
         """Удаляет все бот-команды модуля"""
         to_remove = []
         for cmd, owner in self.bot_command_owners.items():
             if owner == module_name:
                 to_remove.append(cmd)
-        
+
         for cmd in to_remove:
             del self.bot_command_handlers[cmd]
             del self.bot_command_owners[cmd]
-    
+
 
     def setup_directories(self):
         for directory in [self.MODULES_DIR, self.MODULES_LOADED_DIR, self.IMG_DIR, self.LOGS_DIR]:
@@ -819,13 +819,13 @@ class Kernel:
     def is_bot_available(self):
         """
         Проверяет, доступен ли бот-клиент
-        
+
         Returns:
             bool: True если bot_client существует и авторизован
         """
         return (
-            hasattr(self, 'bot_client') and 
-            self.bot_client is not None and 
+            hasattr(self, 'bot_client') and
+            self.bot_client is not None and
             self.bot_client.is_connected()
         )
 
@@ -921,20 +921,20 @@ class Kernel:
             self.cprint(f'{self.Colors.RED}=X Ошибка выполнения инлайн-запроса: {e}{self.Colors.RESET}')
             await self.handle_error(e, source="inline_query_and_click")
             return False, None
-    
-    
+
+
     async def manual_inline_example(self, chat_id, query, bot_username=None):
         """
         Manual method for inline query execution with more control.
-        
+
         This method allows full manual control over inline query execution,
         including custom result selection and manual sending.
-        
+
         Args:
             chat_id (int): Target chat ID
             query (str): Inline query text
             bot_username (str, optional): Specific bot username to use
-            
+
         Returns:
             list: List of inline query results or empty list on error
         """
@@ -944,33 +944,33 @@ class Kernel:
                 if not bot_username:
                     self.cprint(f'{self.Colors.RED}No bot username specified{self.Colors.RESET}')
                     return []
-            
+
             # Get all results
             results = await self.client.inline_query(bot_username, query)
-            
+
             if not results:
                 return []
-            
+
             # Return raw results for manual processing
             return results
-            
+
         except Exception as e:
             self.cprint(f'{self.Colors.RED}Manual inline query failed: {e}{self.Colors.RESET}')
             return []
-    
-    
+
+
     async def send_inline_from_config(self, chat_id, query, buttons=None):
         """
         Simplified method that uses configured inline bot.
-        
+
         This is the simplest way to use inline queries when you want
         to use the bot configured in config.json.
-        
+
         Args:
             chat_id (int): Target chat ID
             query (str): Inline query text
             buttons (list, optional): Buttons to attach
-            
+
         Returns:
             bool: Success status
         """
@@ -989,7 +989,7 @@ class Kernel:
             self.inline_handlers[pattern] = handler
         except Exception as e:
             print(f"=X Error register inline commands: {e}")
-            
+
     def register_callback_handler(self, pattern, handler):
         """Регистрация обработчика callback-кнопок"""
         if not hasattr(self, 'callback_handlers'):
@@ -1686,7 +1686,7 @@ class Kernel:
                             try:
                                 module.register(self.client)
                             except:
-                                await module.register(self.client)    
+                                await module.register(self.client)
                             self.loaded_modules[module_name] = module
                             self.cprint(f'{self.Colors.GREEN}=> Загружен пользовательский модуль (старый стиль): {module_name}{self.Colors.RESET}')
 
@@ -1856,22 +1856,22 @@ class Kernel:
     async def process_bot_command(self, event):
         """Обработка команд бота"""
         text = event.text
-        
+
         if not text.startswith('/'):
             return False
-        
+
         # Получаем команду (первое слово без /)
         cmd = text.split()[0][1:] if ' ' in text else text[1:]
-        
+
         # Убираем @username бота если есть
         if '@' in cmd:
             cmd = cmd.split('@')[0]
-        
+
         if cmd in self.bot_command_handlers:
             pattern, handler = self.bot_command_handlers[cmd]
             await handler(event)
             return True
-        
+
         return False
 
 
@@ -1997,7 +1997,7 @@ class Kernel:
             from core_inline.bot import InlineBot
             self.inline_bot = InlineBot(self)
             await self.inline_bot.setup()
-    
+
 
         modules_start_time = time.time()
         await self.load_system_modules()
@@ -2016,7 +2016,7 @@ class Kernel:
                     await event.edit(f"{premium_emoji_telescope} <b>Ошибка, смотри логи</b>", parse_mode='html')
                 except:
                     pass
-                    
+
         if hasattr(self, 'bot_client') and self.bot_client:
             @self.bot_client.on(events.NewMessage(pattern='/'))
             async def bot_command_handler(event):
@@ -2027,11 +2027,11 @@ class Kernel:
 
 
         print(f"""
- _    _  ____ _   _ ____   
-| \\  / |/ ___| | | | __ )  
-| |\\/| | |   | | | |  _ \\  
-| |  | | |___| |_| | |_) | 
-|_|  |_|\\____|\\___/|____/  
+ _    _  ____ _   _ ____
+| \\  / |/ ___| | | | __ )
+| |\\/| | |   | | | |  _ \\
+| |  | | |___| |_| | |_) |
+|_|  |_|\\____|\\___/|____/
 Kernel is load.
 
 • Version: {self.VERSION}

@@ -235,6 +235,20 @@ class CallbackPermissionManager:
         self.allowed_users = {}  # {user_id: {callback_pattern: expiry_time}}
         self.allowed_patterns = {}  # {pattern: {user_id: expiry_time}}
 
+    def allow(self, user_id, pattern, duration_seconds=60):
+        import time
+        expiry = time.time() + duration_seconds
+
+        if user_id not in self.allowed_users:
+            self.allowed_users[user_id] = {}
+
+        if pattern not in self.allowed_patterns:
+            self.allowed_patterns[pattern] = {}
+
+        self.allowed_users[user_id][pattern] = expiry
+        self.allowed_patterns[pattern][user_id] = expiry
+
+
 
 class Kernel:
     def __init__(self):

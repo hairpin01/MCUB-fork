@@ -214,11 +214,10 @@ class Register:
 
     def bot_command(self, pattern, **kwargs):
         def decorator(func):
-            if not pattern.startswith('/'):
-                pattern = '/' + pattern # /{command}
-
-            cmd = pattern.lstrip('/').split()[0] if ' ' in pattern else pattern.lstrip('/')
-
+            cmd_pattern = pattern  # Используем другую переменную
+            if not cmd_pattern.startswith('/'):
+                cmd_pattern = '/' + cmd_pattern
+            cmd = cmd_pattern.lstrip('/').split()[0] if ' ' in cmd_pattern else cmd_pattern.lstrip('/')
             if self.kernel.current_loading_module is None:
                 raise ValueError("не установлен текущий модуль для регистрации бот-команд")
 

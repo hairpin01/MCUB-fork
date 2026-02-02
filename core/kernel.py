@@ -234,44 +234,41 @@ class CallbackPermissionManager:
         # {user_id: {pattern: expiry_time}}
         self.permissions = {}
 
-    def allow(self, user_id, pattern, duration_seconds=60):
-        expiry = time.time() + duration_seconds
+    def _to_str(self, val):
 
+        if isinstance(val, bytes):
+            return val.decode('utf-8')
+        return str(val)
+
+    def allow(self, user_id, pattern, duration_seconds=60):
+        pattern = self._to_str(pattern)
+
+        expiry = time.time() + duration_seconds
         if user_id not in self.permissions:
             self.permissions[user_id] = {}
-
         self.permissions[user_id][pattern] = expiry
 
-    def prohibit(self, user_id, pattern=None):
-        """
-        Запретить нажатия.
-        Если pattern не передан, удаляет все разрешения для пользователя.
-        """
-        if user_id not in self.permissions:
-            return
+    def is_allowed(self, user_id, pattern):
+        pattern = self._to_str(pattern)
+        current_time = time.time()
 
+        if user_id in self.permissions and pattern in self.permissions[user_id]:
+            if self.permissions[user_id][pattern] > current_time:
+                return True
+            else:
+                self.prohibit(user_id, pattern) # Срок истёк
+        return False
+
+    def prohibit(self, user_id, pattern=None):
+        if user_id not in self.permissions: return
         if pattern:
+            pattern = self._to_str(pattern)
             if pattern in self.permissions[user_id]:
                 del self.permissions[user_id][pattern]
-
             if not self.permissions[user_id]:
                 del self.permissions[user_id]
         else:
             del self.permissions[user_id]
-
-    def is_allowed(self, user_id, pattern):
-        current_time = time.time()
-
-        if user_id in self.permissions and pattern in self.permissions[user_id]:
-            expiry = self.permissions[user_id][pattern]
-
-            if expiry > current_time:
-                return True
-            else:
-                self.prohibit(user_id, pattern)
-                return False
-
-        return False
 
     def cleanup(self):
         current_time = time.time()

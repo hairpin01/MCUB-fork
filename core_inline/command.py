@@ -8,23 +8,25 @@ import json
 
 async def setup_bot_commands(bot_client, kernel):
     """Настройка обработчиков команд бота"""
-    
-    @bot_client.on(events.NewMessage(pattern='/start'))
+
+    @bot_client.on(events.NewMessage(pattern='/start', incoming=True))
     async def start_handler(event):
         """Обработчик команды /start для всех пользователей"""
         try:
             await event.reply(
-                file='https://x0.at/z6Uu.jpg',
-                message = '<b>Привет! я бот от MCUB-fork</b>\n'
-                '<a href="https://github.com/hairpin01/MCUB-fork">🔭 Мой репозиторий</a>\n'
-                '<a href="https://github.com/Mitrichdfklwhcluio/MCUBFB">🚂 Оригинальный MCUBFB</a>\n\n'
-                '<blockquote>Developers: \n'
-                'fork: @Hairpin01,\n'
-                'Original: @Mitrichq</blockquote>',
+                #file='https://x0.at/z6Uu.jpg',
+                message=(
+                    '<b>Привет! я бот от MCUB-fork</b>\n'
+                    '<blockquote>Developers: \n'
+                    'fork: @Hairpin01,\n'
+                    'Original: @Mitrichq</blockquote>'
+                ),
                 parse_mode='html',
                 buttons=[
-                    [Button.url('🔭 Репозиторий', 'https://github.com/hairpin01/MCUB-fork'),
-                     Button.url('🚂 Оригинальный MCUBFB', 'https://github.com/Mitrichdfklwhcluio/MCUBFB')]
+                    [
+                        Button.url('🔭 Репозиторий', 'https://github.com/hairpin01/MCUB-fork'),
+                        Button.url('🚂 Оригинальный MCUBFB', 'https://github.com/Mitrichdfklwhcluio/MCUBFB')
+                    ]
                 ]
             )
         except Exception as e:

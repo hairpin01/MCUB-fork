@@ -327,6 +327,8 @@ class Kernel:
         self.MODULES_REPO = 'https://raw.githubusercontent.com/hairpin01/repo-MCUB-fork/main/'
         self.UPDATE_REPO = 'https://raw.githubusercontent.com/Mitrichdfklwhcluio/MCUBFB/main/'
 
+        self.register = Register(self)
+        self.callback_permissions = CallbackPermissionManager()
         self.inline_handlers = {}
         self.callback_handlers = {}
         self.log_chat_id = None
@@ -375,6 +377,7 @@ class Kernel:
         self.scheduler = None
         self.bot_command_handlers = {}
         self.bot_command_owners = {}
+
 
 
     async def init_scheduler(self):

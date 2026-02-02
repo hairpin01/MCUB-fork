@@ -141,7 +141,19 @@ class Register:
         self.kernel = kernel
         self._methods = {}
 
+    def method(self, func=None):
+        if func is None:
+            return lambda f: self.method(f)
 
+
+        import inspect
+        module = inspect.getmodule(inspect.stack()[1][0])
+        if module:
+            if not hasattr(module, 'register'):
+                module.register = type('RegisterObject', (), {})()
+            module.register.method = func
+
+        return func
 
 
 class Kernel:

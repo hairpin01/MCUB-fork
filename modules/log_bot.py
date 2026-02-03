@@ -42,88 +42,139 @@ def register(kernel):
             pass
         return 'unknown'
 
-    async def get_update_status():
+    async def get_update_status(self):
         try:
-            result = subprocess.run(['git', 'status', '--porcelain'], capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(__file__)))
-            if result.returncode == 0 and result.stdout.strip():
-                pass
-            result = subprocess.run(['git', 'fetch', 'origin'], capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(__file__)))
-            result = subprocess.run(['git', 'log', 'HEAD..origin/main', '--oneline'], capture_output=True, text=True, cwd=os.path.dirname(os.path.abspath(__file__)))
-            if result.returncode == 0 and result.stdout.strip():
-                return '🔄 Доступны обновления'
-        except:
-            pass
-        return '✅ Актуальная версия'
+
+            repo_path = os.path.dirname(os.path.abspath(__file__))
+
+
+            async def run_git(args):
+                process = await asyncio.create_subprocess_exec(
+                    'git', *args,
+                    cwd=repo_path,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, _ = await process.communicate()
+                return process.returncode, stdout.decode().strip()
+
+
+            try:
+                await asyncio.wait_for(run_git(['fetch', 'origin']), timeout=5)
+            except asyncio.TimeoutError:
+                return '⚠️ Git: тайм-аут (нет сети)'
+
+            code, output = await run_git(['rev-list', '--count', 'HEAD..@{u}'])
+
+            if code == 0 and output.isdigit():
+                updates_count = int(output)
+                if updates_count > 0:
+                    return f'🔄 Доступны обновления ({updates_count})'
+
+            return '✅ Актуальная версия'
+
+        except Exception as e:
+            kernel.logger.error(f"Ошибка проверки обновлений: {e}")
+            return '⚠️ Ошибка Git'
 
     async def setup_log_chat():
+
         if kernel.config.get('log_chat_id'):
             kernel.log_chat_id = kernel.config['log_chat_id']
             return True
-        kernel.cprint(f'{kernel.Colors.YELLOW}🤖 Настройка лог-группы{kernel.Colors.RESET}')
+
+        kernel.logger.info(f'{kernel.Colors.YELLOW}🤖 Настройка лог-группы{kernel.Colors.RESET}')
+
+
         try:
-            async for dialog in client.iter_dialogs():
+            async for dialog in kernel.client.iter_dialogs():
                 if dialog.title and 'MCUB-logs' in dialog.title:
                     kernel.log_chat_id = dialog.id
                     kernel.config['log_chat_id'] = dialog.id
+                    # Сохраняем конфиг
                     with open(kernel.CONFIG_FILE, 'w', encoding='utf-8') as f:
                         json.dump(kernel.config, f, ensure_ascii=False, indent=2)
+
                     kernel.cprint(f'{kernel.Colors.GREEN}✅ Найден лог-чат: {dialog.title}{kernel.Colors.RESET}')
                     return True
-
-            kernel.cprint(f'{kernel.Colors.YELLOW}📝 Создаю лог-группу...{kernel.Colors.RESET}')
-            me = await client.get_me()
-            try:
-                created = await client(CreateChatRequest(
-                    title=f'MCUB-logs [{me.first_name}]',
-                    users=[InputUserSelf()]
-                ))
-
-                if hasattr(created, 'updates') and created.updates:
-                    for update in created.updates:
-                        if hasattr(update, 'chat_id'):
-                            kernel.log_chat_id = update.chat_id
-                            kernel.config['log_chat_id'] = update.chat_id
-                            break
-
-                if not kernel.log_chat_id and hasattr(created, 'chats') and created.chats:
-                    kernel.log_chat_id = created.chats[0].id
-                    kernel.config['log_chat_id'] = created.chats[0].id
-
-                if not kernel.log_chat_id:
-                    kernel.cprint(f'{kernel.Colors.RED}❌ Не удалось получить ID созданного чата{kernel.Colors.RESET}')
-                    return False
-
-                try:
-                    full_chat = await client.get_entity(kernel.log_chat_id)
-                    try:
-                        invite = await client(ExportChatInviteRequest(kernel.log_chat_id))
-                        if hasattr(invite, 'link'):
-                            kernel.cprint(f'{kernel.Colors.GREEN}✅ Ссылка: {invite.link}{kernel.Colors.RESET}')
-                    except Exception as e:
-                        kernel.cprint(f'{kernel.Colors.YELLOW}⚠️ Не удалось получить ссылку: {e}{kernel.Colors.RESET}')
-                except Exception as e:
-                    kernel.cprint(f'{kernel.Colors.YELLOW}⚠️ Не удалось получить full_chat: {e}{kernel.Colors.RESET}')
-
-                if bot_client and await bot_client.is_user_authorized():
-                    try:
-                        bot_me = await bot_client.get_me()
-                        bot_entity = await client.get_entity(bot_me.id)
-                        await client.add_chat_users(kernel.log_chat_id, [bot_entity])
-                        kernel.cprint(f'{kernel.Colors.GREEN}✅ Бот добавлен{kernel.Colors.RESET}')
-                    except Exception as e:
-                        kernel.cprint(f'{kernel.Colors.YELLOW}⚠️ Не удалось добавить бота: {e}{kernel.Colors.RESET}')
-
-                with open(kernel.CONFIG_FILE, 'w', encoding='utf-8') as f:
-                    json.dump(kernel.config, f, ensure_ascii=False, indent=2)
-
-                kernel.cprint(f'{kernel.Colors.GREEN}✅ Лог-группа создана: {kernel.log_chat_id}{kernel.Colors.RESET}')
-                return True
-
-            except Exception as e:
-                kernel.cprint(f'{kernel.Colors.RED}❌ Ошибка создания: {e}{kernel.Colors.RESET}')
-                return False
         except Exception as e:
-            kernel.cprint(f'{kernel.Colors.RED}❌ Ошибка настройки: {e}{kernel.Colors.RESET}')
+            kernel.logger.error(f"Error searching logs: {e}")
+
+
+        kernel.logger.info(f'{kernel.Colors.YELLOW}📝 Создаю лог-группу...{kernel.Colors.RESET}')
+
+        users_to_invite = [InputUserSelf()]
+        bot_entity = None
+
+
+        if hasattr(kernel, 'bot_client') and kernel.bot_client and await kernel.bot_client.is_user_authorized():
+            try:
+                bot_me = await kernel.bot_client.get_me()
+                bot_entity = await kernel.client.get_input_entity(bot_me.username)
+                users_to_invite.append(bot_entity)
+            except Exception as e:
+                kernel.logger.warning(f"Не удалось подготовить бота для добавления: {e}")
+
+        try:
+            me = await kernel.client.get_me()
+            # Создаем чат
+            created = await kernel.client(CreateChatRequest(
+                title=f'MCUB-logs [{me.first_name}]',
+                users=users_to_invite
+            ))
+
+            # Ищем ID чата в обновлениях
+            chat_id = None
+            if hasattr(created, 'updates') and created.updates:
+                for update in created.updates:
+                    if hasattr(update, 'participants') and hasattr(update.participants, 'chat_id'):
+                        chat_id = update.participants.chat_id
+                        break
+            kernel.logger.debug(f"chat_id:{chat_id}")
+
+            # Резервный поиск ID
+            if not chat_id and hasattr(created, 'chats') and created.chats:
+                chat_id = created.chats[0].id
+
+            if not chat_id:
+                kernel.logger.error(f'{kernel.Colors.RED}❌ Не удалось получить ID созданного чата{kernel.Colors.RESET}')
+                return False
+
+            kernel.log_chat_id = int(f"-{chat_id}")
+            kernel.log_chat_id = chat_id
+            kernel.config['log_chat_id'] = kernel.log_chat_id
+
+            kernel.logger.debug(f"Chat created. ID: {kernel.log_chat_id}")
+
+
+            try:
+                invite = await kernel.client(ExportChatInviteRequest(kernel.log_chat_id))
+                if hasattr(invite, 'link'):
+                    kernel.logger.info(f'{kernel.Colors.GREEN}✅ Ссылка: {invite.link}{kernel.Colors.RESET}')
+            except Exception as e:
+                kernel.logger.warning(f'{kernel.Colors.YELLOW}⚠️ Не удалось получить ссылку (возможно нет прав): {e}{kernel.Colors.RESET}')
+
+            if bot_entity and len(users_to_invite) == 1:
+                try:
+                    await kernel.client(AddChatUserRequest(
+                        chat_id=kernel.log_chat_id,
+                        user_id=bot_entity,
+                        fwd_limit=0
+                    ))
+                    kernel.logger.info(f'{kernel.Colors.GREEN}✅ Бот добавлен{kernel.Colors.RESET}')
+                except Exception as e:
+                    kernel.logger.error(f'{kernel.Colors.YELLOW}⚠️ Не удалось добавить бота постфактум: {e}{kernel.Colors.RESET}')
+
+            with open(kernel.CONFIG_FILE, 'w', encoding='utf-8') as f:
+                json.dump(kernel.config, f, ensure_ascii=False, indent=2)
+
+            kernel.logger.info(f'{kernel.Colors.GREEN}✅ Лог-группа создана: {kernel.log_chat_id}{kernel.Colors.RESET}')
+            return True
+
+        except Exception as e:
+            kernel.logger.error(f'{kernel.Colors.RED}❌ Ошибка создания чата: {e}{kernel.Colors.RESET}')
+            import traceback
+            traceback.print_exc()
             return False
 
     @kernel.register_command('log_setup')
@@ -260,3 +311,24 @@ def register(kernel):
         await send_startup_message()
 
     asyncio.create_task(initialize())
+
+    @kernel.bot_client.on(events.CallbackQuery(data=re.compile(b"show_tb:(.*)")))
+    async def handle_show_traceback(event):
+        error_id = event.data_match.group(1).decode()
+
+        traceback_text = kernel.cache.get(f"tb_{error_id}")
+
+        if not traceback_text:
+            return await event.answer("⚠️ Трейсбэк не найден (истекло время жизни кэша)", alert=True)
+
+
+        if len(traceback_text) > 3800:
+            traceback_text = traceback_text[:3800] + "\n... [truncated]"
+
+        new_text = event.message.text + f"\n\n<b>Full Traceback:</b>\n<pre>{html.escape(traceback_text)}</pre>"
+
+        try:
+            # Убираем кнопки после нажатия
+            await event.edit(new_text, parse_mode='html', buttons=None)
+        except Exception as e:
+            await event.answer(f"Ошибка: {e}", alert=True)

@@ -428,7 +428,7 @@ class InlineHandlers:
                     keyboards = InlineKeyboards(self.kernel)
                     await keyboards.handle_confirm_no(event)
                 elif data_str.startswith("show_tb"):
-                    await handle_show_traceback(event)
+                    await self.handle_show_traceback(event)
 
 
                 elif data_str.startswith("catalog_"):

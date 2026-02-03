@@ -1,8 +1,0 @@
-{
-    "backup_chat_id": 3440258661,
-    "backup_interval_hours": 1,
-    "last_backup_time": null,
-    "backup_count": 0,
-    "enable_auto_backup": true,
-    "timezone": "UTC",
-}

@@ -387,7 +387,7 @@ def register(kernel):
                                 final_msg += f" (Aliases: {alias_text})"
                         final_msg += "\n"
 
-                await kernel.logger.info(f"Модуль {module_name} установлен")
+                kernel.logger.info(f"Модуль {module_name} установлен")
                 await edit_with_emoji(msg, final_msg)
             else:
                 kernel.logger.error(message_text)

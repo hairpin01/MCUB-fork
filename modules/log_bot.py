@@ -377,27 +377,4 @@ def register(kernel):
 
     asyncio.create_task(initialize())
 
-    @kernel.bot_client.on(events.CallbackQuery(data=re.compile(b"show_tb:(.*)")))
-    async def handle_show_traceback(event):
-        error_id = event.data_match.group(1).decode()
 
-        traceback_text = kernel.cache.get(f"tb_{error_id}")
-
-        if not traceback_text:
-            return await event.answer(
-                "⚠️ Трейсбэк не найден (истекло время жизни кэша)", alert=True
-            )
-
-        if len(traceback_text) > 3800:
-            traceback_text = traceback_text[:3800] + "\n... [truncated]"
-
-        new_text = (
-            event.message.text
-            + f"\n\n<b>Full Traceback:</b>\n<pre>{html.escape(traceback_text)}</pre>"
-        )
-
-        try:
-            # Убираем кнопки после нажатия
-            await event.edit(new_text, parse_mode="html", buttons=None)
-        except Exception as e:
-            await event.answer(f"Ошибка: {e}", alert=True)

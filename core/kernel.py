@@ -635,7 +635,7 @@ class Kernel:
     def setup_logging(self):
 
         logger = logging.getLogger("kernel")
-        logger.setLevel(logging.INFO)
+        logger.setLevel(logging.DEBUG)
 
         handler = RotatingFileHandler(
             "logs/kernel.log", maxBytes=10 * 1024 * 1024, backupCount=5
@@ -2137,7 +2137,7 @@ class Kernel:
 
         import logging
 
-        logging.basicConfig(level=logging.DEBUG)
+        logging.basicConfig(level=logging.INFO)
         await self.init_scheduler()
         kernel_start_time = time.time()
 

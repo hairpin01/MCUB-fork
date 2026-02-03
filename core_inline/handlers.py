@@ -106,7 +106,7 @@ class InlineHandlers:
                 traceback_text = traceback_text[:3800] + "\n... [truncated]"
 
             new_text = (
-                event.message.text
+                event.text
                 + f"\n\n<b>Full Traceback:</b>\n<pre>{html.escape(traceback_text)}</pre>"
             )
 

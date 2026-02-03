@@ -35,7 +35,7 @@ def register(kernel):
             pass
         return "unknown"
 
-    async def get_update_status(self):
+    async def get_update_status():
         try:
 
             repo_path = os.path.dirname(os.path.abspath(__file__))

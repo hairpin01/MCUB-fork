@@ -635,7 +635,7 @@ class Kernel:
     def setup_logging(self):
 
         logger = logging.getLogger("kernel")
-        logger.setLevel(logging.DEBUG)
+        logger.setLevel(logging.INFO)
 
         handler = RotatingFileHandler(
             "logs/kernel.log", maxBytes=10 * 1024 * 1024, backupCount=5

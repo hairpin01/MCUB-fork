@@ -16,29 +16,10 @@ from telethon.tl.types import PeerChat
 
 def register(kernel):
     client = kernel.client
-    bot_client = None
+    bot_client = kernel.bot_client
 
     async def init_bot_client():
-        nonlocal bot_client
-        bot_token = kernel.config.get("inline_bot_token")
-        if not bot_token:
-            kernel.cprint(
-                f"{kernel.Colors.YELLOW}⚠️ Токен бота не указан{kernel.Colors.RESET}"
-            )
-            return False
-        try:
-            bot_client = TelegramClient("bot_session", kernel.API_ID, kernel.API_HASH)
-            await bot_client.start(bot_token=bot_token)
-            kernel.cprint(
-                f"{kernel.Colors.GREEN}✅ Бот для логов запущен{kernel.Colors.RESET}"
-            )
-            kernel.bot_client = bot_client
-            return True
-        except Exception as e:
-            kernel.cprint(
-                f"{kernel.Colors.RED}❌ Ошибка запуска бота: {e}{kernel.Colors.RESET}"
-            )
-            return False
+        pass
 
     async def get_git_commit():
         try:

@@ -275,7 +275,7 @@ def register(kernel):
         finally:
             kernel.clear_loading_module()
 
-    @kernel.register.command("iload", alias="im")  # загрузить модуль
+    @kernel.register.command("iload", alias="im") # загрузить модуль
     async def install_module_handler(event):
         if not event.is_reply:
             await edit_with_emoji(
@@ -358,7 +358,7 @@ def register(kernel):
             )
 
             if success:
-                commands, aliases_info = get_module_commands(name, kernel)
+                commands, aliases_info = get_module_commands(module_name, kernel)
 
                 emoji = random.choice(RANDOM_EMOJIS)
 
@@ -387,7 +387,7 @@ def register(kernel):
                                 final_msg += f" (Aliases: {alias_text})"
                         final_msg += "\n"
 
-                await kernel.logger, info(f"Модуль {module_name} установлен")
+                await kernel.logger.info(f"Модуль {module_name} установлен")
                 await edit_with_emoji(msg, final_msg)
             else:
                 kernel.logger.error(message_text)

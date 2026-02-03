@@ -105,10 +105,7 @@ class InlineHandlers:
             if len(traceback_text) > 3800:
                 traceback_text = traceback_text[:3800] + "\n... [truncated]"
 
-            new_text = (
-                event.text
-                + f"\n\n<b>Full Traceback:</b>\n<pre>{html.escape(traceback_text)}</pre>"
-            )
+            new_text = f"<b>Full Traceback:</b>\n<pre>{html.escape(traceback_text)}</pre>"
 
             try:
                 await event.edit(new_text, parse_mode="html", buttons=None)

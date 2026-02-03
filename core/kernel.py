@@ -6,7 +6,13 @@
 
 try:
     from utils.html_parser import parse_html
-    from utils.message_helpers import edit_with_html, reply_with_html, send_with_html, send_file_with_html
+    from utils.message_helpers import (
+        edit_with_html,
+        reply_with_html,
+        send_with_html,
+        send_file_with_html,
+    )
+
     HTML_PARSER_AVAILABLE = True
 except ImportError as e:
     print(f"=X HTML парсер не загружен: {e}")
@@ -45,26 +51,25 @@ try:
     from telethon import TelegramClient, events, Button
     from telethon.errors import SessionPasswordNeededError
 except ImportError as e:
-    print(
-        "Установите зависимости",
-        "pip install -r requirements.txt\n",
-        f"{e}"
-        )
+    print("Установите зависимости", "pip install -r requirements.txt\n", f"{e}")
     import sys
+
     sys.exit(1)
 
+
 class Colors:
-    RESET = '\033[0m'
-    RED = '\033[91m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    PURPLE = '\033[95m'
-    CYAN = '\033[96m'
+    RESET = "\033[0m"
+    RED = "\033[91m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    BLUE = "\033[94m"
+    PURPLE = "\033[95m"
+    CYAN = "\033[96m"
 
 
 class CommandConflictError(Exception):
     """Исключение для конфликта команд"""
+
     def __init__(self, message, conflict_type=None, command=None):
         super().__init__(message)
         self.conflict_type = conflict_type
@@ -74,12 +79,14 @@ class CommandConflictError(Exception):
 class TTLCache:
     def __init__(self, max_size=1000, ttl=300):
         from collections import OrderedDict
+
         self.cache = OrderedDict()
         self.max_size = max_size
         self.ttl = ttl
 
     def set(self, key, value, ttl=None):
         from collections import OrderedDict
+
         expire_time = time.time() + (ttl if ttl is not None else self.ttl)
         self.cache[key] = (expire_time, value)
         if len(self.cache) > self.max_size:
@@ -146,10 +153,11 @@ class Register:
             return lambda f: self.method(f)
 
         import inspect
+
         module = inspect.getmodule(inspect.stack()[1][0])
         if module:
-            if not hasattr(module, 'register'):
-                module.register = type('RegisterObject', (), {})()
+            if not hasattr(module, "register"):
+                module.register = type("RegisterObject", (), {})()
             module.register.method = func
 
         return func
@@ -162,25 +170,27 @@ class Register:
             event_class = None
             pattern = None
 
-            if event_type.lower() in ['newmessage', 'message']:
+            if event_type.lower() in ["newmessage", "message"]:
                 event_class = events.NewMessage
-            elif event_type.lower() in ['messageedited', 'edited']:
+            elif event_type.lower() in ["messageedited", "edited"]:
                 event_class = events.MessageEdited
-            elif event_type.lower() in ['messagedeleted', 'deleted']:
+            elif event_type.lower() in ["messagedeleted", "deleted"]:
                 event_class = events.MessageDeleted
-            elif event_type.lower() in ['userupdate', 'user']:
+            elif event_type.lower() in ["userupdate", "user"]:
                 event_class = events.UserUpdate
-            elif event_type.lower() in ['chatupload', 'upload']:
+            elif event_type.lower() in ["chatupload", "upload"]:
                 event_class = events.ChatUpload
-            elif event_type.lower() in ['inlinequery', 'inline']:
+            elif event_type.lower() in ["inlinequery", "inline"]:
                 event_class = events.InlineQuery
-            elif event_type.lower() in ['callbackquery', 'callback']:
+            elif event_type.lower() in ["callbackquery", "callback"]:
                 event_class = events.CallbackQuery
-            elif event_type.lower() in ['raw', 'custom']:
+            elif event_type.lower() in ["raw", "custom"]:
                 event_class = events.Raw
 
             if event_class:
-                self.kernel.client.add_event_handler(handler, event_class(*args, **kwargs))
+                self.kernel.client.add_event_handler(
+                    handler, event_class(*args, **kwargs)
+                )
 
             return handler
 
@@ -189,8 +199,8 @@ class Register:
     def command(self, pattern, **kwargs):
         # new register command
         def decorator(func):
-            cmd = pattern.lstrip('^\\' + self.kernel.custom_prefix)
-            if cmd.endswith('$'):
+            cmd = pattern.lstrip("^\\" + self.kernel.custom_prefix)
+            if cmd.endswith("$"):
                 cmd = cmd[:-1]
 
             if self.kernel.current_loading_module is None:
@@ -200,7 +210,7 @@ class Register:
             self.kernel.command_owners[cmd] = self.kernel.current_loading_module
 
             # alias: @kernel.register.command('GetRawText', alias='grt', more=more)
-            alias = kwargs.get('alias')
+            alias = kwargs.get("alias")
             if alias:
                 if isinstance(alias, str):
                     self.kernel.aliases[alias] = cmd
@@ -215,11 +225,17 @@ class Register:
     def bot_command(self, pattern, **kwargs):
         def decorator(func):
             cmd_pattern = pattern  # Используем другую переменную
-            if not cmd_pattern.startswith('/'):
-                cmd_pattern = '/' + cmd_pattern
-            cmd = cmd_pattern.lstrip('/').split()[0] if ' ' in cmd_pattern else cmd_pattern.lstrip('/')
+            if not cmd_pattern.startswith("/"):
+                cmd_pattern = "/" + cmd_pattern
+            cmd = (
+                cmd_pattern.lstrip("/").split()[0]
+                if " " in cmd_pattern
+                else cmd_pattern.lstrip("/")
+            )
             if self.kernel.current_loading_module is None:
-                raise ValueError("не установлен текущий модуль для регистрации бот-команд")
+                raise ValueError(
+                    "не установлен текущий модуль для регистрации бот-команд"
+                )
 
             self.kernel.bot_command_handlers[cmd] = (pattern, func)
             self.kernel.bot_command_owners[cmd] = self.kernel.current_loading_module
@@ -227,6 +243,7 @@ class Register:
             return func
 
         return decorator
+
 
 class CallbackPermissionManager:
     def __init__(self):
@@ -236,7 +253,7 @@ class CallbackPermissionManager:
     def _to_str(self, val):
 
         if isinstance(val, bytes):
-            return val.decode('utf-8')
+            return val.decode("utf-8")
         return str(val)
 
     def allow(self, user_id, pattern, duration_seconds=60):
@@ -264,7 +281,8 @@ class CallbackPermissionManager:
         return False
 
     def prohibit(self, user_id, pattern=None):
-        if user_id not in self.permissions: return
+        if user_id not in self.permissions:
+            return
         if pattern:
             pattern = self._to_str(pattern)
             if pattern in self.permissions[user_id]:
@@ -287,16 +305,17 @@ class CallbackPermissionManager:
             if not user_patterns:
                 del self.permissions[user_id]
 
+
 class Kernel:
     def __init__(self):
-        self.VERSION = '1.0.2'
+        self.VERSION = "1.0.2"
         self.DB_VERSION = 2
         self.start_time = time.time()
         self.loaded_modules = {}
         self.system_modules = {}
         self.command_handlers = {}
         self.command_owners = {}
-        self.custom_prefix = '.'
+        self.custom_prefix = "."
         self.aliases = {}
         self.config = {}
         self.client = None
@@ -308,16 +327,20 @@ class Kernel:
         self.Colors = Colors
         self.db_conn = None
         self.cache = TTLCache(max_size=500, ttl=600)
-        self.MODULES_DIR = 'modules'
-        self.MODULES_LOADED_DIR = 'modules_loaded'
-        self.IMG_DIR = 'img'
-        self.LOGS_DIR = 'logs'
-        self.CONFIG_FILE = 'config.json'
-        self.BACKUP_FILE = 'userbot.py.backup'
-        self.ERROR_FILE = 'crash.tmp'
-        self.RESTART_FILE = 'restart.tmp'
-        self.MODULES_REPO = 'https://raw.githubusercontent.com/hairpin01/repo-MCUB-fork/main/'
-        self.UPDATE_REPO = 'https://raw.githubusercontent.com/Mitrichdfklwhcluio/MCUBFB/main/'
+        self.MODULES_DIR = "modules"
+        self.MODULES_LOADED_DIR = "modules_loaded"
+        self.IMG_DIR = "img"
+        self.LOGS_DIR = "logs"
+        self.CONFIG_FILE = "config.json"
+        self.BACKUP_FILE = "userbot.py.backup"
+        self.ERROR_FILE = "crash.tmp"
+        self.RESTART_FILE = "restart.tmp"
+        self.MODULES_REPO = (
+            "https://raw.githubusercontent.com/hairpin01/repo-MCUB-fork/main/"
+        )
+        self.UPDATE_REPO = (
+            "https://raw.githubusercontent.com/Mitrichdfklwhcluio/MCUBFB/main/"
+        )
 
         self.register = Register(self)
         self.callback_permissions = CallbackPermissionManager()
@@ -336,21 +359,32 @@ class Kernel:
         self.HTML_PARSER_AVAILABLE = HTML_PARSER_AVAILABLE
         try:
             from utils.emoji_parser import emoji_parser
+
             self.emoji_parser = emoji_parser
 
         except ImportError:
             self.emoji_parser = None
-            print('=X The emoji parser is not loaded')
+            print("=X The emoji parser is not loaded")
         if self.HTML_PARSER_AVAILABLE:
             try:
                 self.parse_html = parse_html
-                self.edit_with_html = lambda event, html, **kwargs: edit_with_html(self, event, html, **kwargs)
-                self.reply_with_html = lambda event, html, **kwargs: reply_with_html(self, event, html, **kwargs)
-                self.send_with_html = lambda chat_id, html, **kwargs: send_with_html(self, self.client, chat_id, html, **kwargs)
-                self.send_file_with_html = lambda chat_id, html, file, **kwargs: send_file_with_html(self, self.client, chat_id, html, file, **kwargs)
-                print('=> HTML парсер загружен')
+                self.edit_with_html = lambda event, html, **kwargs: edit_with_html(
+                    self, event, html, **kwargs
+                )
+                self.reply_with_html = lambda event, html, **kwargs: reply_with_html(
+                    self, event, html, **kwargs
+                )
+                self.send_with_html = lambda chat_id, html, **kwargs: send_with_html(
+                    self, self.client, chat_id, html, **kwargs
+                )
+                self.send_file_with_html = (
+                    lambda chat_id, html, file, **kwargs: send_file_with_html(
+                        self, self.client, chat_id, html, file, **kwargs
+                    )
+                )
+                print("=> HTML парсер загружен")
             except Exception as e:
-                print(f'=X Ошибка инициализации HTML парсера: {e}')
+                print(f"=X Ошибка инициализации HTML парсера: {e}")
                 self.HTML_PARSER_AVAILABLE = False
 
         if not self.HTML_PARSER_AVAILABLE:
@@ -359,7 +393,7 @@ class Kernel:
             self.reply_with_html = None
             self.send_with_html = None
             self.send_file_with_html = None
-            self.logger.warning(f'=X HTML парсер не загружен')
+            self.logger.warning(f"=X HTML парсер не загружен")
 
         self.setup_directories()
         self.load_or_create_config()
@@ -369,10 +403,9 @@ class Kernel:
         self.bot_command_handlers = {}
         self.bot_command_owners = {}
 
-
-
     async def init_scheduler(self):
         """Инициализация планировщика задач"""
+
         class SimpleScheduler:
             def __init__(self, kernel):
                 self.kernel = kernel
@@ -403,10 +436,10 @@ class Kernel:
                 task = asyncio.create_task(wrapper())
                 self.tasks.append(task)
                 self.task_registry[task_id] = {
-                    'task': task,
-                    'func': func,
-                    'interval': interval_seconds,
-                    'type': 'interval'
+                    "task": task,
+                    "func": func,
+                    "interval": interval_seconds,
+                    "type": "interval",
                 }
                 return task_id
 
@@ -440,11 +473,11 @@ class Kernel:
                 task = asyncio.create_task(wrapper())
                 self.tasks.append(task)
                 self.task_registry[task_id] = {
-                    'task': task,
-                    'func': func,
-                    'hour': hour,
-                    'minute': minute,
-                    'type': 'daily'
+                    "task": task,
+                    "func": func,
+                    "hour": hour,
+                    "minute": minute,
+                    "type": "daily",
                 }
                 return task_id
 
@@ -471,10 +504,10 @@ class Kernel:
                 task = asyncio.create_task(wrapper())
                 self.tasks.append(task)
                 self.task_registry[task_id] = {
-                    'task': task,
-                    'func': func,
-                    'delay': delay_seconds,
-                    'type': 'once'
+                    "task": task,
+                    "func": func,
+                    "delay": delay_seconds,
+                    "type": "once",
                 }
                 return task_id
 
@@ -482,10 +515,10 @@ class Kernel:
                 """Отмена задачи по ID"""
                 if task_id in self.task_registry:
                     task_info = self.task_registry[task_id]
-                    task_info['task'].cancel()
+                    task_info["task"].cancel()
                     # Удаляем из списков
-                    if task_info['task'] in self.tasks:
-                        self.tasks.remove(task_info['task'])
+                    if task_info["task"] in self.tasks:
+                        self.tasks.remove(task_info["task"])
                     del self.task_registry[task_id]
                     return True
                 return False
@@ -500,15 +533,15 @@ class Kernel:
                 """Получение списка всех задач"""
                 return [
                     {
-                        'id': task_id,
-                        'type': info['type'],
-                        'status': 'running' if info['task'].done() else 'stopped'
+                        "id": task_id,
+                        "type": info["type"],
+                        "status": "running" if info["task"].done() else "stopped",
                     }
                     for task_id, info in self.task_registry.items()
                 ]
 
         self.scheduler = SimpleScheduler(self)
-        self.logger.info(f'=> Планировщик инициализирован')
+        self.logger.info(f"=> Планировщик инициализирован")
 
     def add_middleware(self, middleware_func):
         self.middleware_chain.append(middleware_func)
@@ -522,38 +555,40 @@ class Kernel:
 
     async def get_module_config(self, module_name, default=None):
         config_key = f"module_config_{module_name}"
-        config_json = await self.db_get('kernel', config_key)
+        config_json = await self.db_get("kernel", config_key)
         if config_json:
             return json.loads(config_json)
         return default or {}
 
     async def save_module_config(self, module_name, config):
         config_key = f"module_config_{module_name}"
-        await self.db_set('kernel', config_key, json.dumps(config))
-
+        await self.db_set("kernel", config_key, json.dumps(config))
 
     async def init_db(self):
         """Инициализация базы данных."""
         import aiosqlite
+
         try:
-            self.db_conn = await aiosqlite.connect('userbot.db')
+            self.db_conn = await aiosqlite.connect("userbot.db")
             await self.create_tables()
-            self.logger.info(f'=> База данных инициализирована')
+            self.logger.info(f"=> База данных инициализирована")
             return True
         except Exception as e:
-            self.logger.error(f'=X Ошибка инициализации БД: {e}')
+            self.logger.error(f"=X Ошибка инициализации БД: {e}")
             return False
 
     async def create_tables(self):
         """Создание таблиц в БД."""
-        await self.db_conn.execute('''
+        await self.db_conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS module_data (
                 module TEXT,
                 key TEXT,
                 value TEXT,
                 PRIMARY KEY (module, key)
             )
-        ''')
+        """
+        )
         await self.db_conn.commit()
 
     async def db_set(self, module, key, value):
@@ -562,8 +597,8 @@ class Kernel:
             raise Exception("База данных не инициализирована")
 
         await self.db_conn.execute(
-            'INSERT OR REPLACE INTO module_data VALUES (?, ?, ?)',
-            (module, key, str(value))
+            "INSERT OR REPLACE INTO module_data VALUES (?, ?, ?)",
+            (module, key, str(value)),
         )
         await self.db_conn.commit()
 
@@ -573,8 +608,7 @@ class Kernel:
             raise Exception("База данных не инициализирована")
 
         cursor = await self.db_conn.execute(
-            'SELECT value FROM module_data WHERE module = ? AND key = ?',
-            (module, key)
+            "SELECT value FROM module_data WHERE module = ? AND key = ?", (module, key)
         )
         row = await cursor.fetchone()
         return row[0] if row else None
@@ -585,8 +619,7 @@ class Kernel:
             raise Exception("База данных не инициализирована")
 
         await self.db_conn.execute(
-            'DELETE FROM module_data WHERE module = ? AND key = ?',
-            (module, key)
+            "DELETE FROM module_data WHERE module = ? AND key = ?", (module, key)
         )
         await self.db_conn.commit()
 
@@ -599,19 +632,16 @@ class Kernel:
         rows = await cursor.fetchall()
         return rows
 
-
     def setup_logging(self):
 
-        logger = logging.getLogger('kernel')
+        logger = logging.getLogger("kernel")
         logger.setLevel(logging.DEBUG)
 
         handler = RotatingFileHandler(
-            'logs/kernel.log',
-            maxBytes=10*1024*1024,
-            backupCount=5
+            "logs/kernel.log", maxBytes=10 * 1024 * 1024, backupCount=5
         )
         formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
         handler.setFormatter(formatter)
         logger.addHandler(handler)
@@ -625,19 +655,19 @@ class Kernel:
 
     def load_repositories(self):
         """Загружает список репозиториев из конфига"""
-        self.repositories = self.config.get('repositories', [])
+        self.repositories = self.config.get("repositories", [])
         print(f"load repositorie: {self.repositories}")
 
     async def save_repositories(self):
         """Сохраняет список репозиториев в конфиг"""
-        self.config['repositories'] = self.repositories
-        with open(self.CONFIG_FILE, 'w', encoding='utf-8') as f:
+        self.config["repositories"] = self.repositories
+        with open(self.CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(self.config, f, ensure_ascii=False, indent=2)
             self.logger.debug("save repositories")
 
     def save_config(self):
         """Сохраняет конфигурацию в файл"""
-        with open(self.CONFIG_FILE, 'w', encoding='utf-8') as f:
+        with open(self.CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(self.config, f, ensure_ascii=False, indent=2)
             self.logger.debug("save config")
 
@@ -668,18 +698,18 @@ class Kernel:
     async def add_repository(self, url):
         """Добавляет новый репозиторий"""
         if url in self.repositories or url == self.default_repo:
-            return False, '⛈️ Репозиторий уже существует'
+            return False, "⛈️ Репозиторий уже существует"
 
         try:
             modules = await self.get_repo_modules_list(url)
             if modules:
                 self.repositories.append(url)
                 await self.save_repositories()
-                return True, f'🧬 Репозиторий добавлен ({len(modules)} модулей)'
+                return True, f"🧬 Репозиторий добавлен ({len(modules)} модулей)"
             else:
-                return False, '⛈️ Не удалось получить список модулей'
+                return False, "⛈️ Не удалось получить список модулей"
         except:
-            return False, '⛈️ Ошибка при проверке репозитория'
+            return False, "⛈️ Ошибка при проверке репозитория"
 
     async def remove_repository(self, index):
         """Удаляет репозиторий по индексу"""
@@ -689,26 +719,24 @@ class Kernel:
                 removed = self.repositories.pop(idx)
                 await self.save_repositories()
                 self.logger.debug("del repository:YES")
-                return True, f'🗑️ Репозиторий удален'
+                return True, f"🗑️ Репозиторий удален"
             else:
-                return False, '⛈️ Неверный индекс'
+                return False, "⛈️ Неверный индекс"
         except Exception as e:
-            self.logger.error(f'del repository:{e}')
-            return False, f'⛈️ Ошибка удаления: {e}'
-
+            self.logger.error(f"del repository:{e}")
+            return False, f"⛈️ Ошибка удаления: {e}"
 
     async def get_repo_name(self, url):
         """Получает название репозитория из modules.ini"""
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(f'{url}/name.ini') as resp:
+                async with session.get(f"{url}/name.ini") as resp:
                     if resp.status == 200:
                         content = await resp.text()
                         return content.strip()
         except:
             pass
-        return url.split('/')[-2] if '/' in url else url
-
+        return url.split("/")[-2] if "/" in url else url
 
     async def get_command_description(self, module_name, command):
         if module_name in self.system_modules:
@@ -716,21 +744,20 @@ class Kernel:
         elif module_name in self.loaded_modules:
             file_path = f"modules_loaded/{module_name}.py"
         else:
-            return '🫨 У команды нету описания'
+            return "🫨 У команды нету описания"
 
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 code = f.read()
                 metadata = await self.get_module_metadata(code)
-                return metadata['commands'].get(command, '🫨 У команды нету описания')
+                return metadata["commands"].get(command, "🫨 У команды нету описания")
         except:
-            return '🫨 У команды нету описания'
-
+            return "🫨 У команды нету описания"
 
     def register_command(self, pattern, func=None):
         """Регистрация команды с проверкой конфликтов"""
-        cmd = pattern.lstrip('^\\' + self.custom_prefix)
-        if cmd.endswith('$'):
+        cmd = pattern.lstrip("^\\" + self.custom_prefix)
+        if cmd.endswith("$"):
             cmd = cmd[:-1]
 
         if self.current_loading_module is None:
@@ -739,18 +766,20 @@ class Kernel:
         if cmd in self.command_handlers:
             existing_owner = self.command_owners.get(cmd)
             if existing_owner in self.system_modules:
-                self.logger.error(f'Попытка перезаписать системную команду: {cmd}')
+                self.logger.error(f"Попытка перезаписать системную команду: {cmd}")
                 raise CommandConflictError(
                     f"Попытка перезаписать системную команду: {cmd}",
-                    conflict_type='system',
-                    command=cmd
+                    conflict_type="system",
+                    command=cmd,
                 )
             else:
-                self.logger.error(f'Конфликт команд: {cmd} уже зарегистрирована модулем {existing_owner}')
+                self.logger.error(
+                    f"Конфликт команд: {cmd} уже зарегистрирована модулем {existing_owner}"
+                )
                 raise CommandConflictError(
                     f"Конфликт команд: {cmd} уже зарегистрирована модулем {existing_owner}",
-                    conflict_type='user',
-                    command=cmd
+                    conflict_type="user",
+                    command=cmd,
                 )
 
         if func:
@@ -758,30 +787,34 @@ class Kernel:
             self.command_owners[cmd] = self.current_loading_module
             return func
         else:
+
             def decorator(f):
                 self.command_handlers[cmd] = f
                 self.command_owners[cmd] = self.current_loading_module
                 return f
+
             return decorator
 
     def register_command_bot(self, pattern, func=None):
         """Регистрация команд для бота (начинающихся с /)"""
-        if not pattern.startswith('/'):
-            pattern = '/' + pattern
+        if not pattern.startswith("/"):
+            pattern = "/" + pattern
 
         # Убираем префикс и параметры для хранения
-        cmd = pattern.lstrip('/').split()[0] if ' ' in pattern else pattern.lstrip('/')
+        cmd = pattern.lstrip("/").split()[0] if " " in pattern else pattern.lstrip("/")
 
         if self.current_loading_module is None:
             raise ValueError("Не установлен текущий модуль для регистрации бот-команд")
 
         if cmd in self.bot_command_handlers:
             existing_owner = self.bot_command_owners.get(cmd)
-            self.logger.error(f'Конфликт бот-команд: {cmd} уже зарегистрирована модулем {existing_owner}')
+            self.logger.error(
+                f"Конфликт бот-команд: {cmd} уже зарегистрирована модулем {existing_owner}"
+            )
             raise CommandConflictError(
                 f"Конфликт бот-команд: {cmd} уже зарегистрирована модулем {existing_owner}",
-                conflict_type='bot',
-                command=cmd
+                conflict_type="bot",
+                command=cmd,
             )
 
         if func:
@@ -789,10 +822,12 @@ class Kernel:
             self.bot_command_owners[cmd] = self.current_loading_module
             return func
         else:
+
             def decorator(f):
                 self.bot_command_handlers[cmd] = (pattern, f)
                 self.bot_command_owners[cmd] = self.current_loading_module
                 return f
+
             return decorator
 
     def unregister_module_bot_commands(self, module_name):
@@ -805,24 +840,31 @@ class Kernel:
         for cmd in to_remove:
             del self.bot_command_handlers[cmd]
             del self.bot_command_owners[cmd]
-            self.logger.debug(f'del bot command:{cmd}')
+            self.logger.debug(f"del bot command:{cmd}")
 
     def setup_directories(self):
-        for directory in [self.MODULES_DIR, self.MODULES_LOADED_DIR, self.IMG_DIR, self.LOGS_DIR]:
+        for directory in [
+            self.MODULES_DIR,
+            self.MODULES_LOADED_DIR,
+            self.IMG_DIR,
+            self.LOGS_DIR,
+        ]:
             if not os.path.exists(directory):
                 os.makedirs(directory)
 
     def load_or_create_config(self):
         if os.path.exists(self.CONFIG_FILE):
-            with open(self.CONFIG_FILE, 'r', encoding='utf-8') as f:
+            with open(self.CONFIG_FILE, "r", encoding="utf-8") as f:
                 self.config = json.load(f)
 
-            required_fields = ['api_id', 'api_hash', 'phone']
-            if all(field in self.config and self.config[field] for field in required_fields):
+            required_fields = ["api_id", "api_hash", "phone"]
+            if all(
+                field in self.config and self.config[field] for field in required_fields
+            ):
                 self.setup_config()
                 return True
             else:
-                print(f'{Colors.RED}❌ Конфиг поврежден или неполный{Colors.RESET}')
+                print(f"{Colors.RED}❌ Конфиг поврежден или неполный{Colors.RESET}")
                 return False
         else:
             return False
@@ -835,14 +877,22 @@ class Kernel:
             bool: True если bot_client существует и авторизован
         """
         return (
-            hasattr(self, 'bot_client') and
-            self.bot_client is not None and
-            self.bot_client.is_connected()
+            hasattr(self, "bot_client")
+            and self.bot_client is not None
+            and self.bot_client.is_connected()
         )
 
-    async def inline_query_and_click(self, chat_id, query, bot_username=None,
-                                    result_index=0, buttons=None, silent=False,
-                                    reply_to=None, **kwargs):
+    async def inline_query_and_click(
+        self,
+        chat_id,
+        query,
+        bot_username=None,
+        result_index=0,
+        buttons=None,
+        silent=False,
+        reply_to=None,
+        **kwargs,
+    ):
         """
         Выполнение инлайн-запроса и автоматический клик по указанному результату.
 
@@ -869,70 +919,74 @@ class Kernel:
         try:
 
             if not bot_username:
-                bot_username = self.config.get('inline_bot_username')
+                bot_username = self.config.get("inline_bot_username")
                 if not bot_username:
-                    raise ValueError("Bot username not specified and not configured in config")
+                    raise ValueError(
+                        "Bot username not specified and not configured in config"
+                    )
 
-            self.cprint(f'{self.Colors.BLUE}=> Выполняю инлайн-запрос: {query[:100]}... с @{bot_username}{self.Colors.RESET}')
-
+            self.cprint(
+                f"{self.Colors.BLUE}=> Выполняю инлайн-запрос: {query[:100]}... с @{bot_username}{self.Colors.RESET}"
+            )
 
             results = await self.client.inline_query(bot_username, query)
 
             if not results:
-                self.logger.warning(f'=? Не найдено инлайн-результатов для запроса: {query[:50]}...')
+                self.logger.warning(
+                    f"=? Не найдено инлайн-результатов для запроса: {query[:50]}..."
+                )
                 return False, None
 
-
             if result_index >= len(results):
-                self.logger.warning(f'=> Индекс результата {result_index} выходит за пределы, использую первый результат')
+                self.logger.warning(
+                    f"=> Индекс результата {result_index} выходит за пределы, использую первый результат"
+                )
                 result_index = 0
 
-
             result = results[result_index]
-
 
             click_kwargs = {}
             if buttons:
                 formatted_buttons = []
                 for button in buttons:
                     if isinstance(button, dict):
-                        btn_text = button.get('text', 'Кнопка')
-                        btn_type = button.get('type', 'callback').lower()
+                        btn_text = button.get("text", "Кнопка")
+                        btn_type = button.get("type", "callback").lower()
 
-                        if btn_type == 'callback':
-                            btn_data = button.get('data', '')
-                            formatted_buttons.append([Button.inline(btn_text, btn_data.encode())])
-                        elif btn_type == 'url':
-                            btn_url = button.get('url', button.get('data', ''))
+                        if btn_type == "callback":
+                            btn_data = button.get("data", "")
+                            formatted_buttons.append(
+                                [Button.inline(btn_text, btn_data.encode())]
+                            )
+                        elif btn_type == "url":
+                            btn_url = button.get("url", button.get("data", ""))
                             formatted_buttons.append([Button.url(btn_text, btn_url)])
-                        elif btn_type == 'switch':
-                            btn_query = button.get('query', button.get('data', ''))
-                            btn_hint = button.get('hint', '')
-                            formatted_buttons.append([Button.switch_inline(btn_text, btn_query, btn_hint)])
+                        elif btn_type == "switch":
+                            btn_query = button.get("query", button.get("data", ""))
+                            btn_hint = button.get("hint", "")
+                            formatted_buttons.append(
+                                [Button.switch_inline(btn_text, btn_query, btn_hint)]
+                            )
 
                 if formatted_buttons:
-                    click_kwargs['buttons'] = formatted_buttons
-
+                    click_kwargs["buttons"] = formatted_buttons
 
             if silent:
-                click_kwargs['silent'] = silent
+                click_kwargs["silent"] = silent
             if reply_to:
-                click_kwargs['reply_to'] = reply_to
-
+                click_kwargs["reply_to"] = reply_to
 
             click_kwargs.update(kwargs)
 
-
             message = await result.click(chat_id, **click_kwargs)
 
-            self.logger.info(f'=> Успешно выполнен инлайн-запрос: {query[:50]}...')
+            self.logger.info(f"=> Успешно выполнен инлайн-запрос: {query[:50]}...")
             return True, message
 
         except Exception as e:
-            self.logger.error(f'=X Ошибка выполнения инлайн-запроса: {e}')
+            self.logger.error(f"=X Ошибка выполнения инлайн-запроса: {e}")
             await self.handle_error(e, source="inline_query_and_click")
             return False, None
-
 
     async def manual_inline_example(self, chat_id, query, bot_username=None):
         """
@@ -951,9 +1005,11 @@ class Kernel:
         """
         try:
             if not bot_username:
-                bot_username = self.config.get('inline_bot_username')
+                bot_username = self.config.get("inline_bot_username")
                 if not bot_username:
-                    self.cprint(f'{self.Colors.RED}No bot username specified{self.Colors.RESET}')
+                    self.cprint(
+                        f"{self.Colors.RED}No bot username specified{self.Colors.RESET}"
+                    )
                     return []
 
             # Get all results
@@ -966,9 +1022,10 @@ class Kernel:
             return results
 
         except Exception as e:
-            self.cprint(f'{self.Colors.RED}Manual inline query failed: {e}{self.Colors.RESET}')
+            self.cprint(
+                f"{self.Colors.RED}Manual inline query failed: {e}{self.Colors.RESET}"
+            )
             return []
-
 
     async def send_inline_from_config(self, chat_id, query, buttons=None):
         """
@@ -988,14 +1045,14 @@ class Kernel:
         return await self.inline_query_and_click(
             chat_id=chat_id,
             query=query,
-            bot_username=self.config.get('inline_bot_username'),
-            buttons=buttons
+            bot_username=self.config.get("inline_bot_username"),
+            buttons=buttons,
         )
 
     def register_inline_handler(self, pattern, handler):
         """Регистрация обработчика инлайн-запросов"""
         try:
-            if not hasattr(self, 'inline_handlers'):
+            if not hasattr(self, "inline_handlers"):
                 self.inline_handlers = {}
             self.inline_handlers[pattern] = handler
         except Exception as e:
@@ -1003,7 +1060,7 @@ class Kernel:
 
     def register_callback_handler(self, pattern, handler):
         """Регистрация обработчика callback-кнопок"""
-        if not hasattr(self, 'callback_handlers'):
+        if not hasattr(self, "callback_handlers"):
             self.callback_handlers = {}
 
         try:
@@ -1012,43 +1069,52 @@ class Kernel:
             self.callback_handlers[pattern] = handler
 
             if self.client:
+
                 @self.client.on(events.CallbackQuery(data=pattern))
                 async def callback_wrapper(event):
                     try:
                         await handler(event)
 
                     except Exception as e:
-                        await self.handle_error(e, source="callback_handler", event=event)
+                        await self.handle_error(
+                            e, source="callback_handler", event=event
+                        )
+
         except Exception as e:
-            self.cprint(f'{self.Colors.RED}=X Ошибка регистрации callback: {e}{self.Colors.RESET}')
+            self.cprint(
+                f"{self.Colors.RED}=X Ошибка регистрации callback: {e}{self.Colors.RESET}"
+            )
 
     async def log_network(self, message):
         """Логирование сетевых событий"""
-        if hasattr(self, 'send_log_message'):
+        if hasattr(self, "send_log_message"):
             await self.send_log_message(f"🌐 {message}")
             self.logger.info(message)
 
     async def log_error(self, message):
         """Логирование ошибок"""
-        if hasattr(self, 'send_log_message'):
+        if hasattr(self, "send_log_message"):
             await self.send_log_message(f"🔴 {message}")
             self.logger.info(message)
 
     async def log_module(self, message):
         """Логирование событий модулей"""
-        if hasattr(self, 'send_log_message'):
+        if hasattr(self, "send_log_message"):
             await self.send_log_message(f"⚙️ {message}")
             self.logger.info(message)
 
     async def detected_module_type(self, module):
         import inspect
 
-        if hasattr(module, 'register'):
-            if hasattr(self.register, 'method'):
+        if hasattr(module, "register"):
+            if hasattr(self.register, "method"):
                 try:
                     source = inspect.getsource(module.register)
-                    if '@kernel.Register.method' in source or '@Register.method' in source:
-                        return 'method'
+                    if (
+                        "@kernel.Register.method" in source
+                        or "@Register.method" in source
+                    ):
+                        return "method"
                 except:
                     pass
 
@@ -1059,22 +1125,22 @@ class Kernel:
 
                 if len(params) == 1:
                     param_name = params[0]
-                    if param_name == 'kernel':
-                        return 'new'
-                    elif param_name == 'client':
-                        return 'old'
+                    if param_name == "kernel":
+                        return "new"
+                    elif param_name == "client":
+                        return "old"
 
-                return 'unknown'
+                return "unknown"
 
-        return 'none'
+        return "none"
 
     async def load_module_from_file(self, file_path, module_name, is_system=False):
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 code = f.read()
 
-            if 'from .. import' in code or 'import loader' in code:
-                return False, 'Несовместимый модуль (Тип: Heroku/hikka модуль)'
+            if "from .. import" in code or "import loader" in code:
+                return False, "Несовместимый модуль (Тип: Heroku/hikka модуль)"
 
             if module_name in sys.modules:
                 del sys.modules[module_name]
@@ -1088,41 +1154,43 @@ class Kernel:
 
             sys.modules[module_name] = module
 
-            self.set_loading_module(module_name, 'system' if is_system else 'user')
+            self.set_loading_module(module_name, "system" if is_system else "user")
             spec.loader.exec_module(module)
-
 
             module_type = await self.detected_module_type(module)
 
-            if module_type == 'method':
+            if module_type == "method":
                 module.register.method(self)
-            elif module_type == 'new':
-                if hasattr(module, 'register'):
+            elif module_type == "new":
+                if hasattr(module, "register"):
                     module.register(self)
-            elif module_type == 'old':
-                if hasattr(module, 'register'):
+            elif module_type == "old":
+                if hasattr(module, "register"):
                     module.register(self.client)
             else:
-                return False, 'Модуль не имеет функции register'
+                return False, "Модуль не имеет функции register"
 
             if is_system:
                 self.system_modules[module_name] = module
             else:
                 self.loaded_modules[module_name] = module
 
-            return True, f'Модуль {module_name} загружен ({module_type})'
+            return True, f"Модуль {module_name} загружен ({module_type})"
 
         except ImportError as e:
             error_msg = str(e)
             match = re.search(r"No module named '([^']+)'", error_msg)
             if match:
                 dep = match.group(1)
-                return False, f'Требуется зависимость: {dep}. Используйте: pip install {dep}'
-            return False, f'Ошибка импорта: {error_msg}'
+                return (
+                    False,
+                    f"Требуется зависимость: {dep}. Используйте: pip install {dep}",
+                )
+            return False, f"Ошибка импорта: {error_msg}"
         except CommandConflictError as e:
             raise e
         except Exception as e:
-            return False, f'Ошибка загрузки: {str(e)}'
+            return False, f"Ошибка загрузки: {str(e)}"
         finally:
             self.clear_loading_module()
 
@@ -1144,59 +1212,70 @@ class Kernel:
         try:
 
             if not module_name:
-                if url.endswith('.py'):
+                if url.endswith(".py"):
                     module_name = os.path.basename(url)[:-3]
                 else:
 
-                    parts = url.rstrip('/').split('/')
+                    parts = url.rstrip("/").split("/")
                     module_name = parts[-1]
-                    if '.' in module_name:
-                        module_name = module_name.split('.')[0]
+                    if "." in module_name:
+                        module_name = module_name.split(".")[0]
 
             if module_name in self.system_modules:
                 return False, f"Модуль: {module_name}, системный"
-                self.logger.debug(f'install_from_url:modules is system {module_name}')
+                self.logger.debug(f"install_from_url:modules is system {module_name}")
 
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as resp:
                     if resp.status != 200:
-                        return False, f"Не удалось скачать модуль (статус: {resp.status})"
-                        self.logger.warning(f"Не удалось скачать модуль (статус: {resp.status}")
+                        return (
+                            False,
+                            f"Не удалось скачать модуль (статус: {resp.status})",
+                        )
+                        self.logger.warning(
+                            f"Не удалось скачать модуль (статус: {resp.status}"
+                        )
                     code = await resp.text()
 
-
             import tempfile
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as f:
+
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".py", delete=False, encoding="utf-8"
+            ) as f:
                 f.write(code)
                 temp_path = f.name
 
             try:
 
                 dependencies = []
-                if auto_dependencies and 'requires' in code:
+                if auto_dependencies and "requires" in code:
                     import re
-                    reqs = re.findall(r'# requires: (.+)', code)
-                    if reqs:
-                        dependencies = [req.strip() for req in reqs[0].split(',')]
 
+                    reqs = re.findall(r"# requires: (.+)", code)
+                    if reqs:
+                        dependencies = [req.strip() for req in reqs[0].split(",")]
 
                 if dependencies:
                     import subprocess
                     import sys
+
                     for dep in dependencies:
                         subprocess.run(
-                            [sys.executable, '-m', 'pip', 'install', dep],
+                            [sys.executable, "-m", "pip", "install", dep],
                             capture_output=True,
-                            text=True
+                            text=True,
                         )
 
-
-                success, message = await self.load_module_from_file(temp_path, module_name, False)
+                success, message = await self.load_module_from_file(
+                    temp_path, module_name, False
+                )
 
                 if success:
 
-                    target_path = os.path.join(self.MODULES_LOADED_DIR, f'{module_name}.py')
-                    with open(target_path, 'w', encoding='utf-8') as f:
+                    target_path = os.path.join(
+                        self.MODULES_LOADED_DIR, f"{module_name}.py"
+                    )
+                    with open(target_path, "w", encoding="utf-8") as f:
                         f.write(code)
 
                     return True, f"Модуль {module_name} успешно установлен из URL"
@@ -1206,6 +1285,7 @@ class Kernel:
             finally:
 
                 import os
+
                 if os.path.exists(temp_path):
                     os.remove(temp_path)
 
@@ -1225,13 +1305,17 @@ class Kernel:
                 input_peer,
                 parsed_text,
                 entities=entities,
-                **{k: v for k, v in kwargs.items() if k != 'entities'}
+                **{k: v for k, v in kwargs.items() if k != "entities"},
             )
             self.logger.debug(f"text:{parsed_text}:{input_peer}")
             return result
         except Exception as e:
-            self.cprint(f'{self.Colors.RED}=X Ошибка отправки с эмодзи: {e}{self.Colors.RESET}')
-            fallback_text = self.emoji_parser.remove_emoji_tags(text) if self.emoji_parser else text
+            self.cprint(
+                f"{self.Colors.RED}=X Ошибка отправки с эмодзи: {e}{self.Colors.RESET}"
+            )
+            fallback_text = (
+                self.emoji_parser.remove_emoji_tags(text) if self.emoji_parser else text
+            )
             return await self.client.send_message(chat_id, fallback_text, **kwargs)
 
     def format_with_html(self, text, entities):
@@ -1240,22 +1324,22 @@ class Kernel:
             return html.escape(text)
 
         from utils.html_parser import telegram_to_html
-        return telegram_to_html(text, entities)
 
+        return telegram_to_html(text, entities)
 
     async def get_module_metadata(self, code):
         """Извлекает метаданные из кода модуля"""
         metadata = {
-            'author': 'неизвестен',
-            'version': 'X.X.X',
-            'description': 'описание отсутствует',
-            'commands': {}
+            "author": "неизвестен",
+            "version": "X.X.X",
+            "description": "описание отсутствует",
+            "commands": {},
         }
 
         patterns = {
-            'author': r'# author:\s*(.+)',
-            'version': r'# version:\s*(.+)',
-            'description': r'# description:\s*(.+)'
+            "author": r"# author:\s*(.+)",
+            "version": r"# version:\s*(.+)",
+            "description": r"# description:\s*(.+)",
         }
 
         for key, pattern in patterns.items():
@@ -1272,11 +1356,9 @@ class Kernel:
             # Комментарий на строке перед декоратором
             r"#\s*(.+?)\s*\n\s*@kernel\.register\.command\(('|\")([^']+)('|\")\)",
             r"#\s*(.+?)\s*\n\s*kernel\.register\.command\(('|\")([^']+)('|\")\)",
-
             # Комментарий на той же строке что и декоратор
             r"@kernel\.register\.command\(('|\")([^']+)('|\")\)\s*#\s*(.+?)\s*\n",
             r"kernel\.register\.command\(('|\")([^']+)'\)\s*#\s*(.+?)\s*\n",
-
             # Комментарий на строке между декоратором и функцией
             r"@kernel\.register\.command\(('|\")([^']+)('|\")\)\s*\n\s*#\s*(.+?)\s*\n\s*async def",
             r"kernel\.register\.command\(('|\")([^']+)('|\')\)\s*\n\s*#\s*(.+?)\s*\n\s*async def",
@@ -1301,8 +1383,7 @@ class Kernel:
                     desc = match.group(2).strip()
 
                 if cmd and desc:
-                    metadata['commands'][cmd] = desc
-
+                    metadata["commands"][cmd] = desc
 
         old_patterns = [
             # Формат: @kernel.register_command('cmd')
@@ -1310,17 +1391,15 @@ class Kernel:
             #         async def ...
             r"@kernel\.register_command\('([^']+)'\)\s*\n\s*#\s*(.+?)\s*\n.*?async def",
             r"kernel\.register_command\('([^']+)'\)\s*\n\s*#\s*(.+?)\s*\n.*?async def",
-
             # Формат: @kernel.register_command('cmd')  # описание
             #         async def ...
             r"@kernel\.register_command\('([^']+)'\)\s*#\s*(.+?)\s*\n.*?async def",
             r"kernel\.register_command\('([^']+)'\)\s*#\s*(.+?)\s*\n.*?async def",
-
             # Формат: @client.on(events.NewMessage(outgoing=True, pattern=r'\.cmd'))
             #         # описание
             #         async def ...
             r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'\\\\.([^']+)'\)\)\s*\n\s*#\s*(.+?)\s*\n.*?async def",
-            r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'\\\\.([^']+)'\)\)\s*#\s*(.+?)\s*\n.*?async def"
+            r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'\\\\.([^']+)'\)\)\s*#\s*(.+?)\s*\n.*?async def",
         ]
 
         for pattern in old_patterns:
@@ -1329,7 +1408,7 @@ class Kernel:
                 cmd = match.group(1)
                 desc = match.group(2)
                 if cmd and desc:
-                    metadata['commands'][cmd] = desc.strip()
+                    metadata["commands"][cmd] = desc.strip()
 
         return metadata
 
@@ -1337,7 +1416,7 @@ class Kernel:
         """Скачивает модуль из репозитория с проверкой метаданных"""
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(f'{repo_url}/{module_name}.py') as resp:
+                async with session.get(f"{repo_url}/{module_name}.py") as resp:
                     if resp.status == 200:
                         code = await resp.text()
                         return code
@@ -1349,15 +1428,16 @@ class Kernel:
         """Получает список модулей из репозитория"""
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(f'{repo_url}/modules.ini') as resp:
+                async with session.get(f"{repo_url}/modules.ini") as resp:
                     if resp.status == 200:
                         content = await resp.text()
-                        modules = [line.strip() for line in content.split('\n') if line.strip()]
+                        modules = [
+                            line.strip() for line in content.split("\n") if line.strip()
+                        ]
                         return modules
         except:
             pass
         return []
-
 
     async def send_log_message(self, text, file=None):
         if not self.log_chat_id:
@@ -1369,7 +1449,11 @@ class Kernel:
         print(f"[DEBUG] bot_client существует: {hasattr(self, 'bot_client')}")
 
         try:
-            if hasattr(self, 'bot_client') and self.bot_client and await self.bot_client.is_user_authorized():
+            if (
+                hasattr(self, "bot_client")
+                and self.bot_client
+                and await self.bot_client.is_user_authorized()
+            ):
                 print("[DEBUG] Использую bot_client для отправки")
                 client_to_use = self.bot_client
             else:
@@ -1377,25 +1461,23 @@ class Kernel:
                 client_to_use = self.client
 
             if file:
-                print(f"[DEBUG] Отправляю файл: {file.name if hasattr(file, 'name') else 'unknown'}")
+                print(
+                    f"[DEBUG] Отправляю файл: {file.name if hasattr(file, 'name') else 'unknown'}"
+                )
                 await client_to_use.send_file(
-                    self.log_chat_id,
-                    file,
-                    caption=text,
-                    parse_mode='html'
+                    self.log_chat_id, file, caption=text, parse_mode="html"
                 )
             else:
                 print("[DEBUG] Отправляю текстовое сообщение")
                 await client_to_use.send_message(
-                    self.log_chat_id,
-                    text,
-                    parse_mode='html'
+                    self.log_chat_id, text, parse_mode="html"
                 )
             print("[DEBUG] Сообщение отправлено успешно")
             return True
         except Exception as e:
             print(f"[DEBUG] Ошибка отправки: {e}")
             import traceback
+
             traceback.print_exc()
             return False
 
@@ -1403,76 +1485,85 @@ class Kernel:
         if not self.log_chat_id:
             return
 
-        formatted_error = f'''💠 <b>Source:</b> <code>{source_file}</code>
-🔮 <b>Error:</b> <blockquote><code>{error_text[:500]}</code></blockquote>'''
+        formatted_error = f"""💠 <b>Source:</b> <code>{source_file}</code>
+🔮 <b>Error:</b> <blockquote><code>{error_text[:500]}</code></blockquote>"""
 
         if message_info:
-            formatted_error += f'\n🃏 <b>Message:</b> <code>{message_info[:300]}</code>'
+            formatted_error += f"\n🃏 <b>Message:</b> <code>{message_info[:300]}</code>"
         try:
             await self.send_log_message(formatted_error)
         except:
             self.logger.error(f"Error sending error log: {error_text}")
 
     async def handle_error(self, error, source="unknown", event=None):
-            import uuid
-            error_id = f"err_{uuid.uuid4().hex[:8]}"
-            error_text = str(error)
-            error_traceback = ''.join(traceback.format_exception(type(error), error, error.__traceback__))
+        import uuid
 
+        error_id = f"err_{uuid.uuid4().hex[:8]}"
+        error_text = str(error)
+        error_traceback = "".join(
+            traceback.format_exception(type(error), error, error.__traceback__)
+        )
 
-            self.cache.set(f"tb_{error_id}", error_traceback)
+        self.cache.set(f"tb_{error_id}", error_traceback)
 
-            formatted_error = (
-                f"💠 <b>Source:</b> <code>{html.escape(source)}</code>\n"
-                f"🔮 <b>Error:</b> <blockquote>👉 <code>{html.escape(error_text[:300])}</code></blockquote>"
+        formatted_error = (
+            f"💠 <b>Source:</b> <code>{html.escape(source)}</code>\n"
+            f"🔮 <b>Error:</b> <blockquote>👉 <code>{html.escape(error_text[:300])}</code></blockquote>"
+        )
+
+        if event:
+            try:
+                chat_title = getattr(event.chat, "title", "ЛС")
+                user_info = (
+                    await self.get_user_info(event.sender_id)
+                    if event.sender_id
+                    else "unknown"
+                )
+                formatted_error += (
+                    f"\n💬 <b>Message info:</b>\n"
+                    f"<blockquote>🪬 <b>User:</b> {user_info}\n"
+                    f"⌨️ <b>Text:</b> <code>{html.escape(event.text[:200] if event.text else 'not text')}</code>\n"
+                    f"📬 <b>Chat:</b> {chat_title}</blockquote>"
+                )
+            except:
+                pass
+
+        try:
+            full_error_log = f"Ошибка в {source}:\n{error_traceback}"
+            self.save_error_to_file(full_error_log)
+            print(f"=X {error_traceback}")
+
+            buttons = [Button.inline("🔍 Traceback", data=f"show_tb:{error_id}")]
+
+            client_to_use = (
+                self.bot_client
+                if (hasattr(self, "bot_client") and self.bot_client)
+                else self.client
             )
 
-            if event:
-                try:
-                    chat_title = getattr(event.chat, 'title', 'ЛС')
-                    user_info = await self.get_user_info(event.sender_id) if event.sender_id else "unknown"
-                    formatted_error += (
-                        f"\n💬 <b>Message info:</b>\n"
-                        f"<blockquote>🪬 <b>User:</b> {user_info}\n"
-                        f"⌨️ <b>Text:</b> <code>{html.escape(event.text[:200] if event.text else 'not text')}</code>\n"
-                        f"📬 <b>Chat:</b> {chat_title}</blockquote>"
-                    )
-                except:
-                    pass
+            await client_to_use.send_message(
+                self.log_chat_id,
+                formatted_error,
+                file=None,
+                buttons=buttons,
+                parse_mode="html",
+            )
 
-            try:
-                full_error_log = f"Ошибка в {source}:\n{error_traceback}"
-                self.save_error_to_file(full_error_log)
-                print(f"=X {error_traceback}")
-
-
-                buttons = [Button.inline("🔍 Traceback", data=f"show_tb:{error_id}")]
-
-                client_to_use = self.bot_client if (hasattr(self, 'bot_client') and self.bot_client) else self.client
-
-                await client_to_use.send_message(
-                    self.log_chat_id,
-                    formatted_error,
-                    file=None,
-                    buttons=buttons,
-                    parse_mode='html'
-                )
-
-            except Exception as e:
-                self.logger.error(f'Не удалось отправить лог ошибки: {e}')
-                self.logger.error(f"Оригинальная ошибка: {error_traceback}")
+        except Exception as e:
+            self.logger.error(f"Не удалось отправить лог ошибки: {e}")
+            self.logger.error(f"Оригинальная ошибка: {error_traceback}")
 
     def save_error_to_file(self, error_text):
         """save to logs/kernel.log"""
         try:
             from pathlib import Path
+
             log_dir = Path("logs")
             log_dir.mkdir(exist_ok=True)
 
-
             error_file = log_dir / "kernel.log"
 
-            with open(error_file, 'a', encoding='utf-8') as f:
+            with open(error_file, "a", encoding="utf-8") as f:
                 f.write(f"\n\n{'='*60}\n")
                 f.write(f"Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
                 f.write(f"{'='*60}\n")
@@ -1480,19 +1571,17 @@ class Kernel:
         except Exception as e:
             self.logger.error(f"Ошибка при записи в kernel.log: {e}")
 
-
-
     async def get_thread_id(self, event):
         if not event:
             return None
 
         thread_id = None
 
-        if hasattr(event, 'reply_to') and event.reply_to:
-            thread_id = getattr(event.reply_to, 'reply_to_top_id', None)
+        if hasattr(event, "reply_to") and event.reply_to:
+            thread_id = getattr(event.reply_to, "reply_to_top_id", None)
 
-        if not thread_id and hasattr(event, 'message'):
-            thread_id = getattr(event.message, 'reply_to_top_id', None)
+        if not thread_id and hasattr(event, "message"):
+            thread_id = getattr(event.message, "reply_to_top_id", None)
 
         return thread_id
 
@@ -1500,10 +1589,10 @@ class Kernel:
         try:
             entity = await self.client.get_entity(user_id)
 
-            if hasattr(entity, 'first_name') or hasattr(entity, 'last_name'):
+            if hasattr(entity, "first_name") or hasattr(entity, "last_name"):
                 name = f"{entity.first_name or ''} {entity.last_name or ''}".strip()
                 return f"{name} (@{entity.username or 'без username'})"
-            elif hasattr(entity, 'title'):
+            elif hasattr(entity, "title"):
                 return f"{entity.title} (чат/канал)"
             else:
                 return f"ID: {user_id}"
@@ -1512,41 +1601,47 @@ class Kernel:
 
     def setup_config(self):
         try:
-            self.custom_prefix = self.config.get('command_prefix', '.')
-            self.aliases = self.config.get('aliases', {})
-            self.power_save_mode = self.config.get('power_save_mode', False)
-            self.API_ID = int(self.config['api_id'])
-            self.API_HASH = str(self.config['api_hash'])
-            self.PHONE = str(self.config['phone'])
+            self.custom_prefix = self.config.get("command_prefix", ".")
+            self.aliases = self.config.get("aliases", {})
+            self.power_save_mode = self.config.get("power_save_mode", False)
+            self.API_ID = int(self.config["api_id"])
+            self.API_HASH = str(self.config["api_hash"])
+            self.PHONE = str(self.config["phone"])
             return True
         except (KeyError, ValueError, TypeError) as e:
-            print(f'{Colors.RED}❌ Ошибка в конфиге: {e}{Colors.RESET}')
+            print(f"{Colors.RED}❌ Ошибка в конфиге: {e}{Colors.RESET}")
             return False
 
     def first_time_setup(self):
-        print(f'\n{Colors.CYAN}⚙️  Первоначальная настройка юзербота{Colors.RESET}\n')
+        print(f"\n{Colors.CYAN}⚙️  Первоначальная настройка юзербота{Colors.RESET}\n")
 
         while True:
             try:
-                api_id_input = input(f'{Colors.YELLOW}📝 Введите API ID: {Colors.RESET}').strip()
+                api_id_input = input(
+                    f"{Colors.YELLOW}📝 Введите API ID: {Colors.RESET}"
+                ).strip()
                 if not api_id_input.isdigit():
-                    print(f'{Colors.RED}❌ API ID должен быть числом{Colors.RESET}')
+                    print(f"{Colors.RED}❌ API ID должен быть числом{Colors.RESET}")
                     continue
 
-                api_hash_input = input(f'{Colors.YELLOW}📝 Введите API HASH: {Colors.RESET}').strip()
+                api_hash_input = input(
+                    f"{Colors.YELLOW}📝 Введите API HASH: {Colors.RESET}"
+                ).strip()
                 if not api_hash_input:
-                    print(f'{Colors.RED}❌ API HASH не может быть пустым{Colors.RESET}')
+                    print(f"{Colors.RED}❌ API HASH не может быть пустым{Colors.RESET}")
                     continue
 
-                phone_input = input(f'{Colors.YELLOW}📝 Введите номер телефона (формат: +1234567890): {Colors.RESET}').strip()
-                if not phone_input.startswith('+'):
-                    print(f'{Colors.RED}❌ Номер должен начинаться с +{Colors.RESET}')
+                phone_input = input(
+                    f"{Colors.YELLOW}📝 Введите номер телефона (формат: +1234567890): {Colors.RESET}"
+                ).strip()
+                if not phone_input.startswith("+"):
+                    print(f"{Colors.RED}❌ Номер должен начинаться с +{Colors.RESET}")
                     continue
 
                 try:
                     api_id = int(api_id_input)
                 except ValueError:
-                    print(f'{Colors.RED}❌ API ID должен быть числом{Colors.RESET}')
+                    print(f"{Colors.RED}❌ API ID должен быть числом{Colors.RESET}")
                     continue
 
                 self.config = {
@@ -1564,40 +1659,39 @@ class Kernel:
                     "proxy": None,
                     "inline_bot_token": None,
                     "inline_bot_username": None,
-                    "db_version": self.DB_VERSION
+                    "db_version": self.DB_VERSION,
                 }
 
-                with open(self.CONFIG_FILE, 'w', encoding='utf-8') as f:
+                with open(self.CONFIG_FILE, "w", encoding="utf-8") as f:
                     json.dump(self.config, f, ensure_ascii=False, indent=2)
 
                 self.setup_config()
-                print(f'{Colors.GREEN}✅ Конфиг сохранен{Colors.RESET}')
+                print(f"{Colors.GREEN}✅ Конфиг сохранен{Colors.RESET}")
                 return True
 
             except KeyboardInterrupt:
-                print(f'\n{Colors.RED}❌ Настройка прервана{Colors.RESET}')
+                print(f"\n{Colors.RED}❌ Настройка прервана{Colors.RESET}")
                 sys.exit(1)
 
-    def cprint(self, text, color=''):
-        print(f'{color}{text}{Colors.RESET}')
+    def cprint(self, text, color=""):
+        print(f"{color}{text}{Colors.RESET}")
 
     def is_admin(self, user_id):
-        return hasattr(self, 'ADMIN_ID') and user_id == self.ADMIN_ID
+        return hasattr(self, "ADMIN_ID") and user_id == self.ADMIN_ID
 
     async def init_client(self):
         import sys
         import platform
 
-        print(f"{self.Colors.CYAN}=- Инициализация MCUB на {platform.system()} (Python {sys.version_info.major}.{sys.version_info.minor})...{self.Colors.RESET}")
-
-
+        print(
+            f"{self.Colors.CYAN}=- Инициализация MCUB на {platform.system()} (Python {sys.version_info.major}.{sys.version_info.minor})...{self.Colors.RESET}"
+        )
 
         from telethon.sessions import SQLiteSession
 
-        proxy = self.config.get('proxy')
+        proxy = self.config.get("proxy")
 
-
-        session = SQLiteSession('user_session')
+        session = SQLiteSession("user_session")
 
         self.client = TelegramClient(
             session,
@@ -1613,44 +1707,52 @@ class Kernel:
             lang_code="en",
             system_lang_code="en-US",
             base_logger=None,
-            catch_up=False
+            catch_up=False,
         )
 
         try:
-            await self.client.start(
-                phone=self.PHONE,
-                max_attempts=3
-            )
+            await self.client.start(phone=self.PHONE, max_attempts=3)
 
             if not await self.client.is_user_authorized():
-                print(f"{self.Colors.RED}=X Не удалось авторизоваться{self.Colors.RESET}")
+                print(
+                    f"{self.Colors.RED}=X Не удалось авторизоваться{self.Colors.RESET}"
+                )
                 return False
 
             me = await self.client.get_me()
-            if not me or not hasattr(me, 'id'):
-                print(f"{self.Colors.RED}=X Неверные данные пользователя{self.Colors.RESET}")
+            if not me or not hasattr(me, "id"):
+                print(
+                    f"{self.Colors.RED}=X Неверные данные пользователя{self.Colors.RESET}"
+                )
                 return False
 
             self.ADMIN_ID = me.id
-            print(f"{self.Colors.GREEN}Авторизован как: {me.first_name} (ID: {me.id}){self.Colors.RESET}")
+            print(
+                f"{self.Colors.GREEN}Авторизован как: {me.first_name} (ID: {me.id}){self.Colors.RESET}"
+            )
             self.logger.info(f"📱 Номер: {self.PHONE}")
 
             return True
 
         except Exception as e:
-            print(f"{self.Colors.RED}=X Ошибка инициализации клиента: {e}{self.Colors.RESET}")
+            print(
+                f"{self.Colors.RED}=X Ошибка инициализации клиента: {e}{self.Colors.RESET}"
+            )
             import traceback
+
             traceback.print_exc()
             return False
 
     async def load_system_modules(self):
         for file_name in os.listdir(self.MODULES_DIR):
-            if file_name.endswith('.py'):
+            if file_name.endswith(".py"):
                 try:
                     module_name = file_name[:-3]
                     file_path = os.path.join(self.MODULES_DIR, file_name)
 
-                    spec = importlib.util.spec_from_file_location(module_name, file_path)
+                    spec = importlib.util.spec_from_file_location(
+                        module_name, file_path
+                    )
                     module = importlib.util.module_from_spec(spec)
 
                     module.kernel = self
@@ -1659,41 +1761,51 @@ class Kernel:
 
                     sys.modules[module_name] = module
 
-                    self.set_loading_module(module_name, 'system')
+                    self.set_loading_module(module_name, "system")
                     spec.loader.exec_module(module)
 
-                    if hasattr(module, 'register'):
+                    if hasattr(module, "register"):
                         module.register(self)
                         self.system_modules[module_name] = module
-                        self.cprint(f'{Colors.GREEN}=> Загружен системный модуль: {module_name}{Colors.RESET}')
+                        self.cprint(
+                            f"{Colors.GREEN}=> Загружен системный модуль: {module_name}{Colors.RESET}"
+                        )
                     else:
-                        self.cprint(f'{Colors.YELLOW}=> Модуль {module_name} не имеет функции register{Colors.RESET}')
+                        self.cprint(
+                            f"{Colors.YELLOW}=> Модуль {module_name} не имеет функции register{Colors.RESET}"
+                        )
 
                 except CommandConflictError as e:
-                    self.cprint(f'{Colors.RED}=X Ошибка загрузки системного модуля {module_name}: {e}{Colors.RESET}')
+                    self.cprint(
+                        f"{Colors.RED}=X Ошибка загрузки системного модуля {module_name}: {e}{Colors.RESET}"
+                    )
                 except Exception as e:
-                    self.cprint(f'{Colors.RED}=X Ошибка загрузки модуля {file_name}: {e}{Colors.RESET}')
+                    self.cprint(
+                        f"{Colors.RED}=X Ошибка загрузки модуля {file_name}: {e}{Colors.RESET}"
+                    )
                 finally:
                     self.clear_loading_module()
 
     async def load_user_modules(self):
         files = os.listdir(self.MODULES_LOADED_DIR)
 
-        if 'log_bot.py' in files:
-            files.remove('log_bot.py')
-            files.insert(0, 'log_bot.py')
+        if "log_bot.py" in files:
+            files.remove("log_bot.py")
+            files.insert(0, "log_bot.py")
 
         for file_name in files:
-            if file_name.endswith('.py'):
+            if file_name.endswith(".py"):
                 try:
                     module_name = file_name[:-3]
                     file_path = os.path.join(self.MODULES_LOADED_DIR, file_name)
 
-                    with open(file_path, 'r', encoding='utf-8') as f:
+                    with open(file_path, "r", encoding="utf-8") as f:
                         content = f.read()
 
-                    if 'def register(kernel):' in content:
-                        spec = importlib.util.spec_from_file_location(module_name, file_path)
+                    if "def register(kernel):" in content:
+                        spec = importlib.util.spec_from_file_location(
+                            module_name, file_path
+                        )
                         module = importlib.util.module_from_spec(spec)
 
                         module.kernel = self
@@ -1702,40 +1814,48 @@ class Kernel:
 
                         sys.modules[module_name] = module
 
-                        self.set_loading_module(module_name, 'user')
+                        self.set_loading_module(module_name, "user")
                         spec.loader.exec_module(module)
 
-                        if hasattr(module, 'register'):
+                        if hasattr(module, "register"):
                             module.register(self)
                             self.loaded_modules[module_name] = module
-                            self.cprint(f'{self.Colors.BLUE}=> Модуль загружен {module_name}{self.Colors.RESET}')
+                            self.cprint(
+                                f"{self.Colors.BLUE}=> Модуль загружен {module_name}{self.Colors.RESET}"
+                            )
                     else:
-                        spec = importlib.util.spec_from_file_location(module_name, file_path)
+                        spec = importlib.util.spec_from_file_location(
+                            module_name, file_path
+                        )
                         module = importlib.util.module_from_spec(spec)
 
                         sys.modules[module_name] = module
-                        self.set_loading_module(module_name, 'user')
+                        self.set_loading_module(module_name, "user")
                         spec.loader.exec_module(module)
 
-                        if hasattr(module, 'register'):
+                        if hasattr(module, "register"):
                             try:
                                 module.register(self.client)
                             except:
                                 await module.register(self.client)
                             self.loaded_modules[module_name] = module
-                            self.cprint(f'{self.Colors.GREEN}=> Загружен пользовательский модуль (старый стиль): {module_name}{self.Colors.RESET}')
+                            self.cprint(
+                                f"{self.Colors.GREEN}=> Загружен пользовательский модуль (старый стиль): {module_name}{self.Colors.RESET}"
+                            )
 
                 except CommandConflictError as e:
                     error_msg = f"Конфликт команд при загрузке модуля {file_name}: {e}"
-                    self.cprint(f'{self.Colors.RED}=X {error_msg}{self.Colors.RESET}')
+                    self.cprint(f"{self.Colors.RED}=X {error_msg}{self.Colors.RESET}")
                     try:
-                        await self.handle_error(e, source=f"load_module_conflict:{file_name}")
+                        await self.handle_error(
+                            e, source=f"load_module_conflict:{file_name}"
+                        )
                     except:
                         pass
 
                 except Exception as e:
                     error_msg = f"Ошибка загрузки модуля {file_name}: {e}"
-                    self.cprint(f'{self.Colors.RED}=X {error_msg}{self.Colors.RESET}')
+                    self.cprint(f"{self.Colors.RED}=X {error_msg}{self.Colors.RESET}")
                     try:
                         await self.handle_error(e, source=f"load_module:{file_name}")
                     except:
@@ -1746,22 +1866,24 @@ class Kernel:
     def raw_text(self, source: any) -> str:
         try:
 
-            if not hasattr(self, 'html_converter') or self.html_converter is None:
+            if not hasattr(self, "html_converter") or self.html_converter is None:
                 from utils.raw_html import RawHTMLConverter
+
                 self.html_converter = RawHTMLConverter(keep_newlines=True)
 
-
             if isinstance(source, str):
-                return html.escape(source).replace('\n', '<br/>')
+                return html.escape(source).replace("\n", "<br/>")
 
             return self.html_converter.convert_message(source)
 
         except Exception as e:
             # Резервный вариант, если что-то пошло не так
-            text = getattr(source, 'message', str(source))
-            return html.escape(text).replace('\n', '<br/>')
+            text = getattr(source, "message", str(source))
+            return html.escape(text).replace("\n", "<br/>")
 
-    async def inline_form(self, chat_id, title, fields=None, buttons=None, auto_send=True, **kwargs):
+    async def inline_form(
+        self, chat_id, title, fields=None, buttons=None, auto_send=True, **kwargs
+    ):
         """
         Создание и отправка инлайн-формы
 
@@ -1805,14 +1927,13 @@ class Kernel:
 
             query_parts = [title]
 
-
             if fields:
                 if isinstance(fields, dict):
                     for field, value in fields.items():
-                        query_parts.append(f'{field}: {value}')
+                        query_parts.append(f"{field}: {value}")
                 elif isinstance(fields, list):
                     for i, field in enumerate(fields, 1):
-                        query_parts.append(f'Поле {i}: {field}')
+                        query_parts.append(f"Поле {i}: {field}")
 
             base_text = "\n".join(query_parts)
 
@@ -1824,12 +1945,14 @@ class Kernel:
                         json_buttons.append(button)
                     elif isinstance(button, (list, tuple)):
                         if len(button) >= 2:
-                            btn_data = {
-                                "text": str(button[0])
-                            }
+                            btn_data = {"text": str(button[0])}
 
                             if len(button) >= 2:
-                                btn_type = str(button[1]).lower() if len(button) > 1 else "callback"
+                                btn_type = (
+                                    str(button[1]).lower()
+                                    if len(button) > 1
+                                    else "callback"
+                                )
                                 btn_data["type"] = btn_type
 
                                 if len(button) >= 3:
@@ -1845,28 +1968,26 @@ class Kernel:
 
                 if json_buttons:
                     json_str = json.dumps(json_buttons, ensure_ascii=False)
-                    query = f'{base_text} | {json_str}'
+                    query = f"{base_text} | {json_str}"
                 else:
-                    query = f'{base_text}'
+                    query = f"{base_text}"
             else:
-                query = f'{base_text}'
-
+                query = f"{base_text}"
 
             if auto_send:
                 success, message = await self.inline_query_and_click(
-                    chat_id=chat_id,
-                    query=query,
-                    **kwargs
+                    chat_id=chat_id, query=query, **kwargs
                 )
                 return success, message
             else:
                 return query
 
         except Exception as e:
-            self.cprint(f'{self.Colors.RED}=X Ошибка создания инлайн-формы: {e}{self.Colors.RESET}')
+            self.cprint(
+                f"{self.Colors.RED}=X Ошибка создания инлайн-формы: {e}{self.Colors.RESET}"
+            )
             await self.handle_error(e, source="create_inline_form")
             return False, None
-
 
     async def process_command(self, event):
         text = event.text
@@ -1874,7 +1995,11 @@ class Kernel:
         if not text.startswith(self.custom_prefix):
             return False
 
-        cmd = text[len(self.custom_prefix):].split()[0] if ' ' in text else text[len(self.custom_prefix):]
+        cmd = (
+            text[len(self.custom_prefix) :].split()[0]
+            if " " in text
+            else text[len(self.custom_prefix) :]
+        )
 
         if cmd in self.aliases:
             alias_cmd = self.aliases[cmd]
@@ -1892,15 +2017,15 @@ class Kernel:
         """Обработка команд бота"""
         text = event.text
 
-        if not text.startswith('/'):
+        if not text.startswith("/"):
             return False
 
         # Получаем команду (первое слово без /)
-        cmd = text.split()[0][1:] if ' ' in text else text[1:]
+        cmd = text.split()[0][1:] if " " in text else text[1:]
 
         # Убираем @username бота если есть
-        if '@' in cmd:
-            cmd = cmd.split('@')[0]
+        if "@" in cmd:
+            cmd = cmd.split("@")[0]
 
         if cmd in self.bot_command_handlers:
             pattern, handler = self.bot_command_handlers[cmd]
@@ -1908,7 +2033,6 @@ class Kernel:
             return True
 
         return False
-
 
     async def safe_connect(self):
         while self.reconnect_attempts < self.max_reconnect_attempts:
@@ -1929,7 +2053,7 @@ class Kernel:
         return False
 
     async def send_inline(self, chat_id, query, buttons=None):
-        bot_username = self.config.get('inline_bot_username')
+        bot_username = self.config.get("inline_bot_username")
         if not bot_username:
             return False
 
@@ -1947,68 +2071,72 @@ class Kernel:
 
     async def setup_inline_bot(self):
         try:
-            inline_bot_token = self.config.get('inline_bot_token')
+            inline_bot_token = self.config.get("inline_bot_token")
             if not inline_bot_token:
-                self.cprint(f'{Colors.YELLOW}=X Инлайн-бот не настроен (отсутствует токен){Colors.RESET}')
+                self.cprint(
+                    f"{Colors.YELLOW}=X Инлайн-бот не настроен (отсутствует токен){Colors.RESET}"
+                )
                 return False
 
-            self.logger.info(f'=- Запускаю инлайн-бота...')
-
+            self.logger.info(f"=- Запускаю инлайн-бота...")
 
             self.bot_client = TelegramClient(
-                'inline_bot_session',
-                self.API_ID,
-                self.API_HASH,
-                timeout=30
+                "inline_bot_session", self.API_ID, self.API_HASH, timeout=30
             )
-
 
             await self.bot_client.start(bot_token=inline_bot_token)
 
             bot_me = await self.bot_client.get_me()
             bot_username = bot_me.username
 
+            self.config["inline_bot_username"] = bot_username
 
-            self.config['inline_bot_username'] = bot_username
-
-            with open(self.CONFIG_FILE, 'w', encoding='utf-8') as f:
+            with open(self.CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(self.config, f, ensure_ascii=False, indent=2)
 
             try:
                 import sys
                 import os
+
                 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
                 from core_inline.handlers import InlineHandlers
+
                 handlers = InlineHandlers(self, self.bot_client)
                 await handlers.register_handlers()
 
                 import asyncio
+
                 asyncio.create_task(self.bot_client.run_until_disconnected())
 
-                self.logger.info(f'=> Инлайн-бот запущен: {bot_username}')
+                self.logger.info(f"=> Инлайн-бот запущен: {bot_username}")
                 return True
             except Exception as e:
-                self.logger.error(f'=> Ошибка регистрации обработчиков инлайн-бота: {str(e)}')
+                self.logger.error(
+                    f"=> Ошибка регистрации обработчиков инлайн-бота: {str(e)}"
+                )
                 import traceback
+
                 traceback.print_exc()
                 return False
 
         except Exception as e:
-            self.cprint(f'{Colors.RED}=X Инлайн-бот не запущен: {str(e)}{Colors.RESET}')
+            self.cprint(f"{Colors.RED}=X Инлайн-бот не запущен: {str(e)}{Colors.RESET}")
             import traceback
+
             traceback.print_exc()
             return False
 
     async def run(self):
         if not self.load_or_create_config():
             if not self.first_time_setup():
-                self.logger.error(f'=X Не удалось настроить юзербот')
+                self.logger.error(f"=X Не удалось настроить юзербот")
                 return
         import telethon.errors
         from telethon import TelegramClient
 
         import logging
+
         logging.basicConfig(level=logging.DEBUG)
         await self.init_scheduler()
         kernel_start_time = time.time()
@@ -2019,20 +2147,22 @@ class Kernel:
         try:
             await self.init_db()
         except ImportError:
-            self.cprint(f'{Colors.YELLOW}Установите: pip install aiosqlite{Colors.RESET}')
+            self.cprint(
+                f"{Colors.YELLOW}Установите: pip install aiosqlite{Colors.RESET}"
+            )
         except Exception as e:
-            self.cprint(f'{Colors.RED}=X Ошибка инициализации БД: {e}{Colors.RESET}')
-
+            self.cprint(f"{Colors.RED}=X Ошибка инициализации БД: {e}{Colors.RESET}")
 
         await self.setup_inline_bot()
 
-
-        if not self.config.get('inline_bot_token'):
-            self.cprint(f'{Colors.CYAN}🤖 Начинаем настройку инлайн-бота...{Colors.RESET}')
+        if not self.config.get("inline_bot_token"):
+            self.cprint(
+                f"{Colors.CYAN}🤖 Начинаем настройку инлайн-бота...{Colors.RESET}"
+            )
             from core_inline.bot import InlineBot
+
             self.inline_bot = InlineBot(self)
             await self.inline_bot.setup()
-
 
         modules_start_time = time.time()
         await self.load_system_modules()
@@ -2041,28 +2171,36 @@ class Kernel:
 
         @self.client.on(events.NewMessage(outgoing=True))
         async def message_handler(event):
-            premium_emoji_telescope = '<tg-emoji emoji-id="5429283852684124412">🔭</tg-emoji>'
+            premium_emoji_telescope = (
+                '<tg-emoji emoji-id="5429283852684124412">🔭</tg-emoji>'
+            )
             try:
                 await self.process_command(event)
             except Exception as e:
                 await self.handle_error(e, source="message_handler", event=event)
 
                 try:
-                    await event.edit(f"{premium_emoji_telescope} <b>Ошибка, смотри логи</b>", parse_mode='html')
+                    await event.edit(
+                        f"{premium_emoji_telescope} <b>Ошибка, смотри логи</b>",
+                        parse_mode="html",
+                    )
                 except:
                     pass
 
-        if hasattr(self, 'bot_client') and self.bot_client:
-            @self.bot_client.on(events.NewMessage(pattern='/'))
+        if hasattr(self, "bot_client") and self.bot_client:
+
+            @self.bot_client.on(events.NewMessage(pattern="/"))
             async def bot_command_handler(event):
                 try:
                     await self.process_bot_command(event)
-                    self.logger.debug(f'cmd:{event.text}|{event.id}')
+                    self.logger.debug(f"cmd:{event.text}|{event.id}")
                 except Exception as e:
-                    await self.handle_error(e, source="bot_command_handler", event=event)
+                    await self.handle_error(
+                        e, source="bot_command_handler", event=event
+                    )
 
-
-        print(f"""
+        print(
+            f"""
  _    _  ____ _   _ ____
 | \\  / |/ ___| | | | __ )
 | |\\/| | |   | | | |  _ \\
@@ -2072,29 +2210,54 @@ Kernel is load.
 
 • Version: {self.VERSION}
 • Prefix: {self.custom_prefix}
-              """)
+              """
+        )
         self.logger.debug("start MCUB")
         if os.path.exists(self.RESTART_FILE):
-            with open(self.RESTART_FILE, 'r') as f:
-                data = f.read().split(',')
+            with open(self.RESTART_FILE, "r") as f:
+                data = f.read().split(",")
                 if len(data) >= 3:
-                    chat_id, msg_id, restart_time = int(data[0]), int(data[1]), float(data[2])
+                    chat_id, msg_id, restart_time = (
+                        int(data[0]),
+                        int(data[1]),
+                        float(data[2]),
+                    )
                     os.remove(self.RESTART_FILE)
                     me = await self.client.get_me()
 
-                    mcub_emoji =  '<tg-emoji emoji-id="5470015630302287916">🔮</tg-emoji><tg-emoji emoji-id="5469945764069280010">🔮</tg-emoji><tg-emoji emoji-id="5469943045354984820">🔮</tg-emoji><tg-emoji emoji-id="5469879466954098867">🔮</tg-emoji>' if me.premium else "MCUB"
+                    mcub_emoji = (
+                        '<tg-emoji emoji-id="5470015630302287916">🔮</tg-emoji><tg-emoji emoji-id="5469945764069280010">🔮</tg-emoji><tg-emoji emoji-id="5469943045354984820">🔮</tg-emoji><tg-emoji emoji-id="5469879466954098867">🔮</tg-emoji>'
+                        if me.premium
+                        else "MCUB"
+                    )
 
-                    thread_id = int(data[3]) if len(data) >= 4 and data[3].isdigit() else None
+                    thread_id = (
+                        int(data[3]) if len(data) >= 4 and data[3].isdigit() else None
+                    )
 
                     kbl = round((modules_start_time - kernel_start_time) * 1000, 2)
                     mlfb = round((modules_end_time - modules_start_time) * 1000, 2)
 
-                    emojis = ['ಠ_ಠ', '( ཀ ʖ̯ ཀ)', '(◕‿◕✿)', '(つ･･)つ', '༼つ◕_◕༽つ', '(•_•)', '☜(ﾟヮﾟ☜)', '(☞ﾟヮﾟ)☞', 'ʕ•ᴥ•ʔ', '(づ￣ ³￣)づ']
+                    emojis = [
+                        "ಠ_ಠ",
+                        "( ཀ ʖ̯ ཀ)",
+                        "(◕‿◕✿)",
+                        "(つ･･)つ",
+                        "༼つ◕_◕༽つ",
+                        "(•_•)",
+                        "☜(ﾟヮﾟ☜)",
+                        "(☞ﾟヮﾟ)☞",
+                        "ʕ•ᴥ•ʔ",
+                        "(づ￣ ³￣)づ",
+                    ]
                     emoji = random.choice(emojis)
 
-
-                    premium_emoji_alembic = '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>'
-                    premium_emoji_package = '<tg-emoji emoji-id="5399898266265475100">📦</tg-emoji>'
+                    premium_emoji_alembic = (
+                        '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>'
+                    )
+                    premium_emoji_package = (
+                        '<tg-emoji emoji-id="5399898266265475100">📦</tg-emoji>'
+                    )
 
                     total_time = round((time.time() - restart_time) * 1000, 2)
 
@@ -2104,32 +2267,35 @@ Kernel is load.
                             await self.client.edit_message(
                                 chat_id,
                                 msg_id,
-                                f'{premium_emoji_alembic} Перезагрузка <b>успешна!</b> {emoji}\n'
-                                f'<i>но модули ещё загружаются...</i> <b>KLB:</b> <code>{total_time} ms</code>',
-                                parse_mode='html'
+                                f"{premium_emoji_alembic} Перезагрузка <b>успешна!</b> {emoji}\n"
+                                f"<i>но модули ещё загружаются...</i> <b>KLB:</b> <code>{total_time} ms</code>",
+                                parse_mode="html",
                             )
 
                             await asyncio.sleep(1)
 
                             await self.client.delete_messages(chat_id, msg_id)
 
-
                             send_params = {}
                             if thread_id:
-                                send_params['reply_to'] = thread_id
+                                send_params["reply_to"] = thread_id
 
                             await self.client.send_message(
                                 chat_id,
-                                f'{premium_emoji_package} Твой <b>{mcub_emoji}</b> полностью загрузился!\n'
-                                f'<blockquote><b>KBL:</b> <code>{total_time} ms</code>. <b>MLFB:</b> <code>{mlfb} ms</code>.</blockquote>',
-                                parse_mode='html',
-                                **send_params
+                                f"{premium_emoji_package} Твой <b>{mcub_emoji}</b> полностью загрузился!\n"
+                                f"<blockquote><b>KBL:</b> <code>{total_time} ms</code>. <b>MLFB:</b> <code>{mlfb} ms</code>.</blockquote>",
+                                parse_mode="html",
+                                **send_params,
                             )
                         except Exception as e:
-                            self.logger.error(f'=X Не удалось отправить сообщение о перезагрузке: {e}{Colors.RESET}')
+                            self.logger.error(
+                                f"=X Не удалось отправить сообщение о перезагрузке: {e}{Colors.RESET}"
+                            )
                             await self.handle_error(e, source="restart")
 
                     else:
-                        self.cprint(f'{Colors.YELLOW}=X Не удалось отправить сообщение о перезагрузке: нет соединения{Colors.RESET}')
+                        self.cprint(
+                            f"{Colors.YELLOW}=X Не удалось отправить сообщение о перезагрузке: нет соединения{Colors.RESET}"
+                        )
 
         await self.client.run_until_disconnected()

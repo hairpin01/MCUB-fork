@@ -382,6 +382,9 @@ class InlineHandlers:
 
                     keyboards = InlineKeyboards(self.kernel)
                     await keyboards.handle_confirm_no(event)
+                elif data_str.startswith("show_tb"):
+                    await handle_show_traceback(event)
+
 
                 elif data_str.startswith("catalog_"):
                     try:
@@ -503,3 +506,25 @@ class InlineHandlers:
             except Exception as e:
                 print(f"Критическая ошибка в bot_callback_handler: {e}")
                 traceback.print_exc()
+    async def handle_show_traceback(event):
+        error_id = event.data_match.group(1).decode()
+
+        traceback_text = kernel.cache.get(f"tb_{error_id}")
+
+        if not traceback_text:
+            return await event.answer(
+                "⚠️ Трейсбэк не найден (истекло время жизни кэша)", alert=True
+            )
+
+        if len(traceback_text) > 3800:
+            traceback_text = traceback_text[:3800] + "\n... [truncated]"
+
+        new_text = (
+            event.message.text
+            + f"\n\n<b>Full Traceback:</b>\n<pre>{html.escape(traceback_text)}</pre>"
+        )
+
+        try:
+            await event.edit(new_text, parse_mode="html", buttons=None)
+        except Exception as e:
+            await event.answer(f"Ошибка: {e}", alert=True)

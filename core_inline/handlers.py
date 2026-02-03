@@ -76,35 +76,49 @@ class InlineHandlers:
             print(f"[DEBUG] Ошибка обработки кнопок: {e}")
             return []
 
-    async def handle_show_traceback(event):
-        data_str = event.data.decode("utf-8") if isinstance(event.data, bytes) else str(event.data)
-        if not data_str.startswith("show_tb"):
-            return await event.answer("Неверный формат команды", alert=True)
+    async def handle_show_traceback(self, event):
+        try:
+            data_str = event.data.decode("utf-8") if isinstance(event.data, bytes) else str(event.data)
 
-        к
-        parts = data_str.split(":")
-        if len(parts) < 3:
-            return await event.answer("Не указан ID ошибки", alert=True)
 
-        error_id = parts[2]  # show_tb:<id>
+            if not (data_str.startswith("show_tb_") or data_str.startswith("show_tb:")):
+                return await event.answer("Неверный формат команды", alert=True)
 
-        if not traceback_text:
-            return await event.answer(
-                "⚠️ Трейсбэк не найден (истекло время жизни кэша)", alert=True
+
+            if ":" in data_str:
+                parts = data_str.split(":")
+            else:
+                parts = data_str.split("_")
+
+            if len(parts) < 2:
+                return await event.answer("Не указан ID ошибки", alert=True)
+
+            error_id = parts[1]  # show_tb:<id> or show_tb_<id>
+
+            traceback_text = self.kernel.cache.get(f"tb_{error_id}")
+
+            if not traceback_text:
+                return await event.answer(
+                    "⚠️ Трейсбэк не найден (истекло время жизни кэша)", alert=True
+                )
+
+            if len(traceback_text) > 3800:
+                traceback_text = traceback_text[:3800] + "\n... [truncated]"
+
+            new_text = (
+                event.message.text
+                + f"\n\n<b>Full Traceback:</b>\n<pre>{html.escape(traceback_text)}</pre>"
             )
 
-        if len(traceback_text) > 3800:
-            traceback_text = traceback_text[:3800] + "\n... [truncated]"
+            try:
+                await event.edit(new_text, parse_mode="html", buttons=None)
+            except Exception as e:
+                await event.answer(f"Ошибка редактирования: {e}", alert=True)
 
-        new_text = (
-            event.message.text
-            + f"\n\n<b>Full Traceback:</b>\n<pre>{html.escape(traceback_text)}</pre>"
-        )
-
-        try:
-            await event.edit(new_text, parse_mode="html", buttons=None)
         except Exception as e:
-            await event.answer(f"Ошибка: {e}", alert=True)
+            print(f"Ошибка в handle_show_traceback: {e}")
+            traceback.print_exc()
+            await event.answer(f"Критическая ошибка: {e}", alert=True)
 
     async def register_handlers(self):
         # Обработчик InlineQuery (поиск через @bot)
@@ -414,7 +428,7 @@ class InlineHandlers:
                     keyboards = InlineKeyboards(self.kernel)
                     await keyboards.handle_confirm_no(event)
                 elif data_str.startswith("show_tb"):
-                    await self.handle_show_traceback(event)
+                    await handle_show_traceback(event)
 
 
                 elif data_str.startswith("catalog_"):

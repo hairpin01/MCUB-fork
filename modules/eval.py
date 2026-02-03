@@ -82,5 +82,7 @@ def register(kernel):
 {CUSTOM_EMOJI['🧬']} <b>Результат</b>
 <blockquote><code>{complete_display}</code></blockquote>
 <blockquote>{CUSTOM_EMOJI['💠']} <i>Выполнено за</i> <code>{elapsed}ms</code></blockquote>"""
-
-        await event.edit(response, parse_mode="html")
+        try:
+            await event.edit(response, parse_mode="html")
+        except:
+            pass

@@ -337,11 +337,10 @@ class Kernel:
         try:
             from utils.emoji_parser import emoji_parser
             self.emoji_parser = emoji_parser
-            self.cprint(f'{Colors.GREEN}=> The emoji parser is loaded{Colors.RESET}')
 
         except ImportError:
             self.emoji_parser = None
-            self.cprint(f'{Colors.YELLOW}=X The emoji parser is not loaded{Colors.RESET}')
+            print('=X The emoji parser is not loaded')
         if self.HTML_PARSER_AVAILABLE:
             try:
                 self.parse_html = parse_html
@@ -349,9 +348,9 @@ class Kernel:
                 self.reply_with_html = lambda event, html, **kwargs: reply_with_html(self, event, html, **kwargs)
                 self.send_with_html = lambda chat_id, html, **kwargs: send_with_html(self, self.client, chat_id, html, **kwargs)
                 self.send_file_with_html = lambda chat_id, html, file, **kwargs: send_file_with_html(self, self.client, chat_id, html, file, **kwargs)
-                self.cprint(f'{Colors.GREEN}=> HTML парсер загружен{Colors.RESET}')
+                print('=> HTML парсер загружен')
             except Exception as e:
-                self.cprint(f'{Colors.RED}=X Ошибка инициализации HTML парсера: {e}{Colors.RESET}')
+                print(f'=X Ошибка инициализации HTML парсера: {e}')
                 self.HTML_PARSER_AVAILABLE = False
 
         if not self.HTML_PARSER_AVAILABLE:
@@ -360,7 +359,7 @@ class Kernel:
             self.reply_with_html = None
             self.send_with_html = None
             self.send_file_with_html = None
-            self.cprint(f'{Colors.YELLOW}=X HTML парсер не загружен{Colors.RESET}')
+            self.logger.warning(f'=X HTML парсер не загружен')
 
         self.setup_directories()
         self.load_or_create_config()
@@ -509,7 +508,7 @@ class Kernel:
                 ]
 
         self.scheduler = SimpleScheduler(self)
-        self.cprint(f'{self.Colors.GREEN}=> Планировщик инициализирован{self.Colors.RESET}')
+        self.logger.info(f'=> Планировщик инициализирован')
 
     def add_middleware(self, middleware_func):
         self.middleware_chain.append(middleware_func)
@@ -539,10 +538,10 @@ class Kernel:
         try:
             self.db_conn = await aiosqlite.connect('userbot.db')
             await self.create_tables()
-            self.cprint(f'{Colors.GREEN}=> База данных инициализирована{Colors.RESET}')
+            self.logger.info(f'=> База данных инициализирована')
             return True
         except Exception as e:
-            self.cprint(f'{Colors.RED}=X Ошибка инициализации БД: {e}{Colors.RESET}')
+            self.logger.error(f'=X Ошибка инициализации БД: {e}')
             return False
 
     async def create_tables(self):
@@ -602,8 +601,9 @@ class Kernel:
 
 
     def setup_logging(self):
+
         logger = logging.getLogger('kernel')
-        logger.setLevel(logging.INFO)
+        logger.setLevel(logging.DEBUG)
 
         handler = RotatingFileHandler(
             'logs/kernel.log',
@@ -626,27 +626,32 @@ class Kernel:
     def load_repositories(self):
         """Загружает список репозиториев из конфига"""
         self.repositories = self.config.get('repositories', [])
+        print(f"load repositorie: {self.repositories}")
 
     async def save_repositories(self):
         """Сохраняет список репозиториев в конфиг"""
         self.config['repositories'] = self.repositories
         with open(self.CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(self.config, f, ensure_ascii=False, indent=2)
+            self.logger.debug("save repositories")
 
     def save_config(self):
         """Сохраняет конфигурацию в файл"""
         with open(self.CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(self.config, f, ensure_ascii=False, indent=2)
+            self.logger.debug("save config")
 
     def set_loading_module(self, module_name, module_type):
         """Устанавливает текущий загружаемый модуль"""
         self.current_loading_module = module_name
         self.current_loading_module_type = module_type
+        self.logger.debug(f"set loading module:{module_name}, {module_type}")
 
     def clear_loading_module(self):
         """Очищает информацию о загружаемом модуле"""
         self.current_loading_module = None
         self.current_loading_module_type = None
+        self.logger.debug("clear loading module")
 
     def unregister_module_commands(self, module_name):
         """Удаляет все команды модуля"""
@@ -658,6 +663,7 @@ class Kernel:
         for cmd in to_remove:
             del self.command_handlers[cmd]
             del self.command_owners[cmd]
+            self.logger.debug(f"del command:{cmd}")
 
     async def add_repository(self, url):
         """Добавляет новый репозиторий"""
@@ -682,11 +688,14 @@ class Kernel:
             if 0 <= idx < len(self.repositories):
                 removed = self.repositories.pop(idx)
                 await self.save_repositories()
+                self.logger.debug("del repository:YES")
                 return True, f'🗑️ Репозиторий удален'
             else:
                 return False, '⛈️ Неверный индекс'
-        except:
-            return False, '⛈️ Ошибка удаления'
+        except Exception as e:
+            self.logger.error(f'del repository:{e}')
+            return False, f'⛈️ Ошибка удаления: {e}'
+
 
     async def get_repo_name(self, url):
         """Получает название репозитория из modules.ini"""
@@ -730,12 +739,14 @@ class Kernel:
         if cmd in self.command_handlers:
             existing_owner = self.command_owners.get(cmd)
             if existing_owner in self.system_modules:
+                self.logger.error(f'Попытка перезаписать системную команду: {cmd}')
                 raise CommandConflictError(
                     f"Попытка перезаписать системную команду: {cmd}",
                     conflict_type='system',
                     command=cmd
                 )
             else:
+                self.logger.error(f'Конфликт команд: {cmd} уже зарегистрирована модулем {existing_owner}')
                 raise CommandConflictError(
                     f"Конфликт команд: {cmd} уже зарегистрирована модулем {existing_owner}",
                     conflict_type='user',
@@ -766,6 +777,7 @@ class Kernel:
 
         if cmd in self.bot_command_handlers:
             existing_owner = self.bot_command_owners.get(cmd)
+            self.logger.error(f'Конфликт бот-команд: {cmd} уже зарегистрирована модулем {existing_owner}')
             raise CommandConflictError(
                 f"Конфликт бот-команд: {cmd} уже зарегистрирована модулем {existing_owner}",
                 conflict_type='bot',
@@ -793,7 +805,7 @@ class Kernel:
         for cmd in to_remove:
             del self.bot_command_handlers[cmd]
             del self.bot_command_owners[cmd]
-
+            self.logger.debug(f'del bot command:{cmd}')
 
     def setup_directories(self):
         for directory in [self.MODULES_DIR, self.MODULES_LOADED_DIR, self.IMG_DIR, self.LOGS_DIR]:
@@ -867,12 +879,12 @@ class Kernel:
             results = await self.client.inline_query(bot_username, query)
 
             if not results:
-                self.cprint(f'{self.Colors.YELLOW}=? Не найдено инлайн-результатов для запроса: {query[:50]}...{self.Colors.RESET}')
+                self.logger.warning(f'=? Не найдено инлайн-результатов для запроса: {query[:50]}...')
                 return False, None
 
 
             if result_index >= len(results):
-                self.cprint(f'{self.Colors.YELLOW}=> Индекс результата {result_index} выходит за пределы, использую первый результат{self.Colors.RESET}')
+                self.logger.warning(f'=> Индекс результата {result_index} выходит за пределы, использую первый результат')
                 result_index = 0
 
 
@@ -913,11 +925,11 @@ class Kernel:
 
             message = await result.click(chat_id, **click_kwargs)
 
-            self.cprint(f'{self.Colors.GREEN}=> Успешно выполнен инлайн-запрос: {query[:50]}...{self.Colors.RESET}')
+            self.logger.info(f'=> Успешно выполнен инлайн-запрос: {query[:50]}...')
             return True, message
 
         except Exception as e:
-            self.cprint(f'{self.Colors.RED}=X Ошибка выполнения инлайн-запроса: {e}{self.Colors.RESET}')
+            self.logger.error(f'=X Ошибка выполнения инлайн-запроса: {e}')
             await self.handle_error(e, source="inline_query_and_click")
             return False, None
 
@@ -987,7 +999,7 @@ class Kernel:
                 self.inline_handlers = {}
             self.inline_handlers[pattern] = handler
         except Exception as e:
-            print(f"=X Error register inline commands: {e}")
+            self.logger.error(f"=X Error register inline commands: {e}")
 
     def register_callback_handler(self, pattern, handler):
         """Регистрация обработчика callback-кнопок"""
@@ -1004,6 +1016,7 @@ class Kernel:
                 async def callback_wrapper(event):
                     try:
                         await handler(event)
+
                     except Exception as e:
                         await self.handle_error(e, source="callback_handler", event=event)
         except Exception as e:
@@ -1013,16 +1026,19 @@ class Kernel:
         """Логирование сетевых событий"""
         if hasattr(self, 'send_log_message'):
             await self.send_log_message(f"🌐 {message}")
+            self.logger.info(message)
 
     async def log_error(self, message):
         """Логирование ошибок"""
         if hasattr(self, 'send_log_message'):
             await self.send_log_message(f"🔴 {message}")
+            self.logger.info(message)
 
     async def log_module(self, message):
         """Логирование событий модулей"""
         if hasattr(self, 'send_log_message'):
             await self.send_log_message(f"⚙️ {message}")
+            self.logger.info(message)
 
     async def detected_module_type(self, module):
         import inspect
@@ -1139,13 +1155,13 @@ class Kernel:
 
             if module_name in self.system_modules:
                 return False, f"Модуль: {module_name}, системный"
-
+                self.logger.debug(f'install_from_url:modules is system {module_name}')
 
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as resp:
                     if resp.status != 200:
                         return False, f"Не удалось скачать модуль (статус: {resp.status})"
-
+                        self.logger.warning(f"Не удалось скачать модуль (статус: {resp.status}")
                     code = await resp.text()
 
 
@@ -1211,6 +1227,7 @@ class Kernel:
                 entities=entities,
                 **{k: v for k, v in kwargs.items() if k != 'entities'}
             )
+            self.logger.debug(f"text:{parsed_text}:{input_peer}")
             return result
         except Exception as e:
             self.cprint(f'{self.Colors.RED}=X Ошибка отправки с эмодзи: {e}{self.Colors.RESET}')
@@ -1397,52 +1414,71 @@ class Kernel:
             self.logger.error(f"Error sending error log: {error_text}")
 
     async def handle_error(self, error, source="unknown", event=None):
-        error_text = str(error)
-        error_traceback = ''.join(traceback.format_exception(type(error), error, error.__traceback__))
+            import uuid
+            error_id = f"err_{uuid.uuid4().hex[:8]}"
+            error_text = str(error)
+            error_traceback = ''.join(traceback.format_exception(type(error), error, error.__traceback__))
 
-        formatted_error = f"""💠 <b>Source:</b> <code>{html.escape(source)}</code>
-🔮 <b>Error:</b> <blockquote>👉 <code>{html.escape(error_text[:300])}</code></blockquote>
-        """
 
-        if event:
+            self.cache.set(f"tb_{error_id}", error_traceback)
+
+            formatted_error = (
+                f"💠 <b>Source:</b> <code>{html.escape(source)}</code>\n"
+                f"🔮 <b>Error:</b> <blockquote>👉 <code>{html.escape(error_text[:300])}</code></blockquote>"
+            )
+
+            if event:
+                try:
+                    chat_title = getattr(event.chat, 'title', 'ЛС')
+                    user_info = await self.get_user_info(event.sender_id) if event.sender_id else "unknown"
+                    formatted_error += (
+                        f"\n💬 <b>Message info:</b>\n"
+                        f"<blockquote>🪬 <b>User:</b> {user_info}\n"
+                        f"⌨️ <b>Text:</b> <code>{html.escape(event.text[:200] if event.text else 'not text')}</code>\n"
+                        f"📬 <b>Chat:</b> {chat_title}</blockquote>"
+                    )
+                except:
+                    pass
+
             try:
-                chat_title = getattr(event.chat, 'title', 'ЛС')
-                user_info = await self.get_user_info(event.sender_id) if event.sender_id else "unknown"
-                formatted_error += f"\n💬 <b>Message info:</b>\n<blockquote>🪬 <b>User:</b> {user_info}\n⌨️ <b>Text:</b> <code>{html.escape(event.text[:200] if event.text else 'not text')}</code>\n📬 <b>Chat:</b> {chat_title}</blockquote>"
-            except:
-                pass
+                full_error_log = f"Ошибка в {source}:\n{error_traceback}"
+                self.save_error_to_file(full_error_log)
+                print(f"=X {error_traceback}")
 
-        try:
-            full_error = f"Ошибка в {source}:\n{error_traceback}"
-            self.save_error_to_file(full_error)
-            await self.send_log_message(formatted_error)
-            print(f"=X {error_traceback}")
 
-            if len(error_traceback) > 500:
-                error_file = io.BytesIO(error_traceback.encode('utf-8'))
-                error_file.name = f"error_{int(time.time())}.txt"
-                await self.send_log_message("📎 <b>Полный трейсбэк во вложении</b>", error_file)
+                buttons = [Button.inline("🔍 Traceback", data=f"show_tb:{error_id}")]
 
-        except Exception as e:
-            self.cprint(f'{self.Colors.RED}❌ Не удалось отправить лог ошибки: {e}{self.Colors.RESET}')
-            print(f"Оригинальная ошибка: {error_traceback}")
+                client_to_use = self.bot_client if (hasattr(self, 'bot_client') and self.bot_client) else self.client
+
+                await client_to_use.send_message(
+                    self.log_chat_id,
+                    formatted_error,
+                    file=None,
+                    buttons=buttons,
+                    parse_mode='html'
+                )
+
+            except Exception as e:
+                self.logger.error(f'Не удалось отправить лог ошибки: {e}')
+                self.logger.error(f"Оригинальная ошибка: {error_traceback}")
 
     def save_error_to_file(self, error_text):
+        """save to logs/kernel.log"""
         try:
             from pathlib import Path
             log_dir = Path("logs")
             log_dir.mkdir(exist_ok=True)
 
-            timestamp = datetime.now().strftime("%Y%m%d")
-            error_file = log_dir / f"errors_{timestamp}.log"
+
+            error_file = log_dir / "kernel.log"
 
             with open(error_file, 'a', encoding='utf-8') as f:
                 f.write(f"\n\n{'='*60}\n")
                 f.write(f"Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
                 f.write(f"{'='*60}\n")
                 f.write(error_text)
-        except:
-            pass
+        except Exception as e:
+            self.logger.error(f"Ошибка при записи в kernel.log: {e}")
 
 
 
@@ -1597,7 +1633,7 @@ class Kernel:
 
             self.ADMIN_ID = me.id
             print(f"{self.Colors.GREEN}Авторизован как: {me.first_name} (ID: {me.id}){self.Colors.RESET}")
-            print(f"{self.Colors.CYAN}📱 Номер: {self.PHONE}{self.Colors.RESET}")
+            self.logger.info(f"📱 Номер: {self.PHONE}")
 
             return True
 
@@ -1916,7 +1952,7 @@ class Kernel:
                 self.cprint(f'{Colors.YELLOW}=X Инлайн-бот не настроен (отсутствует токен){Colors.RESET}')
                 return False
 
-            self.cprint(f'{Colors.BLUE}=- Запускаю инлайн-бота...{Colors.RESET}')
+            self.logger.info(f'=- Запускаю инлайн-бота...')
 
 
             self.bot_client = TelegramClient(
@@ -1950,10 +1986,10 @@ class Kernel:
                 import asyncio
                 asyncio.create_task(self.bot_client.run_until_disconnected())
 
-                self.cprint(f'{Colors.GREEN}=> Инлайн-бот запущен: {bot_username}{Colors.RESET}')
+                self.logger.info(f'=> Инлайн-бот запущен: {bot_username}')
                 return True
             except Exception as e:
-                self.cprint(f'{Colors.RED}=> Ошибка регистрации обработчиков инлайн-бота: {str(e)}{Colors.RESET}')
+                self.logger.error(f'=> Ошибка регистрации обработчиков инлайн-бота: {str(e)}')
                 import traceback
                 traceback.print_exc()
                 return False
@@ -1967,13 +2003,13 @@ class Kernel:
     async def run(self):
         if not self.load_or_create_config():
             if not self.first_time_setup():
-                self.cprint(f'{Colors.RED}=X Не удалось настроить юзербот{Colors.RESET}')
+                self.logger.error(f'=X Не удалось настроить юзербот')
                 return
         import telethon.errors
         from telethon import TelegramClient
 
         import logging
-        logging.basicConfig(level=logging.WARNING)
+        logging.basicConfig(level=logging.DEBUG)
         await self.init_scheduler()
         kernel_start_time = time.time()
 
@@ -2021,6 +2057,7 @@ class Kernel:
             async def bot_command_handler(event):
                 try:
                     await self.process_bot_command(event)
+                    self.logger.debug(f'cmd:{event.text}|{event.id}')
                 except Exception as e:
                     await self.handle_error(e, source="bot_command_handler", event=event)
 
@@ -2036,6 +2073,7 @@ Kernel is load.
 • Version: {self.VERSION}
 • Prefix: {self.custom_prefix}
               """)
+        self.logger.debug("start MCUB")
         if os.path.exists(self.RESTART_FILE):
             with open(self.RESTART_FILE, 'r') as f:
                 data = f.read().split(',')
@@ -2088,7 +2126,7 @@ Kernel is load.
                                 **send_params
                             )
                         except Exception as e:
-                            self.cprint(f'{Colors.YELLOW}=X Не удалось отправить сообщение о перезагрузке: {e}{Colors.RESET}')
+                            self.logger.error(f'=X Не удалось отправить сообщение о перезагрузке: {e}{Colors.RESET}')
                             await self.handle_error(e, source="restart")
 
                     else:

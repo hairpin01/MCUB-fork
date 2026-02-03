@@ -386,6 +386,7 @@ def register(kernel):
                                 )
                                 final_msg += f" (Aliases: {alias_text})"
                         final_msg += "\n"
+                final_msg += '</blockquote>'
 
                 kernel.logger.info(f"Модуль {module_name} установлен")
                 await edit_with_emoji(msg, final_msg)
@@ -607,7 +608,7 @@ def register(kernel):
                                 )
                                 return
                 except Exception as e:
-                    await kernel.handle_error(e, source="install for url", event=event)
+                    await kernel.handle_error(e, source="install_for_url", event=event)
                     await edit_with_emoji(
                         msg,
                         f'{CUSTOM_EMOJI["warning"]} <b>Ошибка скачивания:</b> {str(e)[:100]}',

@@ -4,4 +4,4 @@
 
 from .kernel import Kernel, Colors, Register, CallbackPermissionManager
 
-__all__ = ['Kernel', 'Colors', 'Register', 'CallbackPermissionManager']
+__all__ = ["Kernel", "Colors", "Register", "CallbackPermissionManager"]

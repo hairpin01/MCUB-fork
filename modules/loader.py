@@ -14,7 +14,6 @@ import random
 from telethon import events, Button
 from telethon.tl.functions.messages import EditMessageRequest
 
-
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
@@ -63,13 +62,11 @@ RANDOM_EMOJIS = [
 try:
     from core.kernel import CommandConflictError
 except ImportError:
-
     class CommandConflictError(Exception):
         def __init__(self, message, conflict_type=None, command=None):
             super().__init__(message)
             self.conflict_type = conflict_type
             self.command = command
-
 
 def register(kernel):
     client = kernel.client
@@ -87,26 +84,11 @@ def register(kernel):
             await kernel.send_log_message(f"{CUSTOM_EMOJI['error']} {text}")
 
     async def edit_with_emoji(message, text, **kwargs):
-        """Редактирование сообщения с поддержкой кастомных эмодзи и HTML"""
         try:
-            # Если есть кастомные эмодзи или HTML-теги, используем HTML
-            if "<tg-emoji" in text or "<emoji" in text or re.search(r"<[^>]+>", text):
-                # Преобразуем старый формат в новый
-                text = text.replace("<emoji document_id=", "<tg-emoji emoji-id=")
-                text = text.replace("</emoji>", "</tg-emoji>")
-
-                # Всегда используем HTML парсинг
-                if "parse_mode" not in kwargs:
-                    kwargs["parse_mode"] = "html"
-
-                await message.edit(text, **kwargs)
-                return True
-            else:
-                # Обычное редактирование
-                await message.edit(text, **kwargs)
-                return True
+            await message.edit(text, parse_mode='html', **kwargs)
+            return True
         except Exception as e:
-            print(f"Error in edit_with_emoji: {e}")
+            kernel.logger.error('loader', f"Error in edit_with_emoji: {e}")
             return False
 
     async def send_with_emoji(chat_id, text, **kwargs):
@@ -114,7 +96,6 @@ def register(kernel):
             if "<emoji" in text:
                 text = text.replace("<emoji document_id=", "<tg-emoji emoji-id=")
                 text = text.replace("</emoji>", "</tg-emoji>")
-
             if "<tg-emoji" in text or re.search(r"<[^>]+>", text):
                 parse_mode = kwargs.pop("parse_mode", "html")
                 return await client.send_message(
@@ -144,68 +125,56 @@ def register(kernel):
             try:
                 with open(file_path, "r", encoding="utf-8") as f:
                     code = f.read()
-
                     patterns = [
-                        # Новая регистрация
+
                         r"@kernel\.register\.command\('([^']+)'",
                         r"kernel\.register\.command\('([^']+)'",
-                        # Старая регистрация
+
                         r"pattern\s*=\s*r['\"]\^?\\?\.([a-zA-Z0-9_]+)",
                         r"register_command\s*\('([^']+)'",
                         r"@kernel\.register_command\('([^']+)'\)",
                         r"kernel\.register_command\('([^']+)'",
                         r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'\\\\.([^']+)'\)\)",
                     ]
-
                     for pattern in patterns:
                         found = re.findall(pattern, code)
                         commands.extend(found)
 
-                    # Ищем алиасы
                     alias_patterns = [
                         r"alias\s*=\s*['\"]([^'\"]+)['\"]",
                         r"alias\s*=\s*\[([^\]]+)\]",
                     ]
-
                     for i, cmd in enumerate(commands):
-                        # Ищем строку с регистрацией этой команды
+
                         cmd_pattern = rf"(?:@kernel\.register\.command|kernel\.register\.command)\(['\"]{cmd}['\"][^)]+\)"
                         cmd_match = re.search(cmd_pattern, code, re.DOTALL)
                         if cmd_match:
                             cmd_line = cmd_match.group(0)
-                            # Ищем алиасы
                             for alias_pattern in alias_patterns:
                                 alias_matches = re.findall(alias_pattern, cmd_line)
                                 for alias_match in alias_matches:
                                     if "[" in alias_match:
-                                        # Список алиасов
                                         alias_list = [
                                             a.strip().strip("'\"")
                                             for a in alias_match.split(",")
                                         ]
                                         aliases_info[cmd] = alias_list
                                     else:
-                                        # Одиночный алиас
                                         aliases_info[cmd] = [alias_match.strip()]
-
             except:
                 pass
-
-        # Добавляем информацию об алиасах из kernel
         for cmd in commands:
             if cmd in kernel.aliases:
                 if isinstance(kernel.aliases[cmd], str):
                     aliases_info[cmd] = [kernel.aliases[cmd]]
                 elif isinstance(kernel.aliases[cmd], list):
                     aliases_info[cmd] = kernel.aliases[cmd]
-
         return list(set([cmd for cmd in commands if cmd])), aliases_info
 
     def detect_module_type(module):
         if hasattr(module, "register"):
             sig = inspect.signature(module.register)
             params = list(sig.parameters.keys())
-
             if len(params) == 0:
                 return "unknown"
             elif len(params) == 1:
@@ -221,27 +190,19 @@ def register(kernel):
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 code = f.read()
-
             if "from .. import" in code or "import loader" in code:
-                return False, "Несовместимый модуль (старая версия)"
-
+                return False, "Несовместимый модуль, [Heroku/Hikka]"
             if module_name in sys.modules:
                 del sys.modules[module_name]
-
             spec = importlib.util.spec_from_file_location(module_name, file_path)
             module = importlib.util.module_from_spec(spec)
-
             module.kernel = kernel
             module.client = client
             module.custom_prefix = kernel.custom_prefix
-
             sys.modules[module_name] = module
-
             kernel.set_loading_module(module_name, "system" if is_system else "user")
             spec.loader.exec_module(module)
-
             module_type = detect_module_type(module)
-
             if module_type == "new":
                 module.register(kernel)
             elif module_type == "old":
@@ -250,14 +211,11 @@ def register(kernel):
                 return False, "Модуль не имеет функции register"
             else:
                 return False, "Неизвестный тип модуля"
-
             if is_system:
                 kernel.system_modules[module_name] = module
             else:
                 kernel.loaded_modules[module_name] = module
-
             return True, f"Модуль {module_name} загружен ({module_type})"
-
         except kernel.CommandConflictError as e:
             raise e
         except ImportError as e:
@@ -274,6 +232,165 @@ def register(kernel):
             return False, f"Ошибка загрузки: {str(e)}"
         finally:
             kernel.clear_loading_module()
+
+    async def handle_catalog(event, query_or_data):
+        try:
+            parts = query_or_data.split('_')
+
+            repo_index = 0
+            page = 1
+
+            if len(parts) >= 2 and parts[1].isdigit():
+                repo_index = int(parts[1])
+
+            if len(parts) >= 3 and parts[2].isdigit():
+                page = int(parts[2])
+
+            repos = [kernel.default_repo] + kernel.repositories
+
+            if repo_index < 0 or repo_index >= len(repos):
+                repo_index = 0
+
+            repo_url = repos[repo_index]
+
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(f"{repo_url}/modules.ini") as resp:
+                        if resp.status == 200:
+                            modules_text = await resp.text()
+                            modules = [
+                                line.strip()
+                                for line in modules_text.split("\n")
+                                if line.strip()
+                            ]
+                        else:
+                            modules = []
+
+                    async with session.get(f"{repo_url}/name.ini") as resp:
+                        if resp.status == 200:
+                            repo_name = await resp.text()
+                            repo_name = repo_name.strip()
+                        else:
+                            repo_name = (
+                                repo_url.split("/")[-2]
+                                if "/" in repo_url
+                                else repo_url
+                            )
+            except Exception as e:
+                modules = []
+                repo_name = repo_url.split("/")[-2] if "/" in repo_url else repo_url
+
+            per_page = 8
+            total_pages = (
+                (len(modules) + per_page - 1) // per_page if modules else 1
+            )
+
+            if page < 1:
+                page = 1
+            if page > total_pages:
+                page = total_pages
+
+            start_idx = (page - 1) * per_page
+            end_idx = start_idx + per_page
+            page_modules = modules[start_idx:end_idx] if modules else []
+
+            if repo_index == 0:
+                msg = f"<b>🌩️ Официальный репозиторий MCUB</b> <code>{repo_url}</code>\n\n"
+            else:
+                msg = f"<i>{repo_name}</i> <code>{repo_url}</code>\n\n"
+
+            if page_modules:
+                modules_text = " | ".join(
+                    [f"<code>{m}</code>" for m in page_modules]
+                )
+                msg += modules_text
+            else:
+                msg += "📭 Нет модулей"
+
+            msg += f"\n\n📄 Страница {page}/{total_pages}"
+
+            buttons = []
+            nav_buttons = []
+
+            if page > 1:
+                nav_buttons.append(
+                    Button.inline(
+                        "⬅️ Назад", f"catalog_{repo_index}_{page-1}".encode()
+                    )
+                )
+
+            if page < total_pages:
+                nav_buttons.append(
+                    Button.inline(
+                        "➡️ Вперёд", f"catalog_{repo_index}_{page+1}".encode()
+                    )
+                )
+
+            if nav_buttons:
+                buttons.append(nav_buttons)
+
+            if len(repos) > 1:
+                repo_buttons = []
+                for i in range(len(repos)):
+                    repo_buttons.append(
+                        Button.inline(f"{i+1}", f"catalog_{i}_1".encode())
+                    )
+                buttons.append(repo_buttons)
+
+            return msg, buttons
+
+        except Exception as e:
+            print(f"Ошибка в handle_catalog: {e}")
+            import traceback
+            traceback.print_exc()
+            return f"❌ Ошибка загрузки каталога: {str(e)[:100]}", []
+
+    async def catalog_inline_handler(event):
+        try:
+
+
+            query = event.text or ""
+
+
+            if not query or query == "catalog":
+                query = "catalog_0_1"
+
+            msg, buttons = await handle_catalog(event, query)
+
+            if buttons:
+                builder = event.builder.article(
+                    "Catalog",
+                    text=msg,
+                    buttons=buttons,
+                    parse_mode="html"
+                )
+            else:
+                builder = event.builder.article(
+                    "Catalog",
+                    text=msg,
+                    parse_mode="html"
+                )
+
+            await event.answer([builder])
+
+        except Exception as e:
+            print(f"Ошибка в catalog_inline_handler: {e}")
+
+    async def catalog_callback_handler(event):
+        try:
+
+            data_str = event.data.decode("utf-8") if isinstance(event.data, bytes) else str(event.data)
+
+            msg, buttons = await handle_catalog(event, data_str)
+
+            await event.edit(msg, buttons=buttons if buttons else None, parse_mode="html")
+
+        except Exception as e:
+            print(f"Ошибка в catalog_callback_handler: {e}")
+            await event.answer(f"Ошибка: {str(e)[:50]}", alert=True)
+
+    kernel.register_inline_handler("catalog", catalog_inline_handler)
+    kernel.register_callback_handler("catalog_", catalog_callback_handler)
 
     @kernel.register.command("iload", alias="im") # загрузить модуль
     async def install_module_handler(event):
@@ -322,8 +439,7 @@ def register(kernel):
                 code = f.read()
 
             if "from .. import" in code or "import loader" in code:
-
-                kernel.logger.info(f"Модуль {module_name} не совместим")
+                kernel.logger.info(f"Модуль {module_name} не совместим [Heroku/Hikka]")
                 await edit_with_emoji(
                     msg, f'{CUSTOM_EMOJI["warning"]} <b>Модуль не совместим</b>'
                 )
@@ -392,7 +508,7 @@ def register(kernel):
                 await edit_with_emoji(msg, final_msg)
             else:
                 kernel.logger.error(message_text)
-                await log_to_bot(f"{module_name}: {message_text}")
+                await event.edit(f"{module_name}: {message_text}")
                 await edit_with_emoji(
                     msg, f'{CUSTOM_EMOJI["warning"]} <b>Ошибка, смотри логи</b>'
                 )
@@ -423,7 +539,7 @@ def register(kernel):
             if os.path.exists(file_path):
                 os.remove(file_path)
 
-    @kernel.register_command("dlm")
+    @kernel.register.command("dlm")
     async def download_module_handler(event):
         args = event.text.split()
 
@@ -438,7 +554,6 @@ def register(kernel):
 
                     results = await client.inline_query(bot_username, "catalog_")
                     if results:
-
                         await results[0].click(event.chat_id)
                         await event.delete()
                         return
@@ -448,7 +563,7 @@ def register(kernel):
 
             await edit_with_emoji(
                 event,
-                f'{CUSTOM_EMOJI["warning"]} <b>Использование:</b> <code>{kernel.custom_prefix}dlm [-send/-s/-list] название_модуля или ссылка [номер_репозитория]</code>',
+                f'{CUSTOM_EMOJI["warning"]} <b>Использование:</b> <code>{kernel.custom_prefix}dlm [-send/-s/-list] название_модуля или ссылка</code>',
             )
             return
 
@@ -537,7 +652,7 @@ def register(kernel):
             if len(args) < 3:
                 await edit_with_emoji(
                     event,
-                    f'{CUSTOM_EMOJI["warning"]} <b>Использование:</b> <code>{kernel.custom_prefix}dlm -send название_модуля или ссылка [номер_репозитория]</code>',
+                    f'{CUSTOM_EMOJI["warning"]} <b>Использование:</b> <code>{kernel.custom_prefix}dlm -send название_модуля или ссылка</code>',
                 )
                 return
             send_mode = True
@@ -769,7 +884,7 @@ def register(kernel):
             if os.path.exists(file_path):
                 os.remove(file_path)
 
-    @kernel.register_command("um")
+    @kernel.register.command("um")
     # удалить модуль
     async def unload_module_handler(event):
         args = event.text.split()
@@ -806,7 +921,7 @@ def register(kernel):
             event, f'{CUSTOM_EMOJI["success"]} <b>Модуль {module_name} удален</b>'
         )
 
-    @kernel.register_command("unlm")
+    @kernel.register.command("unlm")
     # выгрузить в виде файла
     async def upload_module_handler(event):
         args = event.text.split()
@@ -852,7 +967,7 @@ def register(kernel):
         )
         await event.delete()
 
-    @kernel.register_command("reload")
+    @kernel.register.command("reload")
     # <модуль> перезагрузить модуль
     async def reload_module_handler(event):
         args = event.text.split()
@@ -865,14 +980,19 @@ def register(kernel):
 
         module_name = args[1]
 
-        if module_name not in kernel.loaded_modules or kernel.system_modules:
+        if module_name not in kernel.loaded_modules and module_name not in kernel.system_modules:
             await edit_with_emoji(
                 event,
                 f'{CUSTOM_EMOJI["warning"]} <b>Модуль {module_name} не найден</b>',
             )
             return
 
-        file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
+        if module_name in kernel.system_modules:
+            file_path = os.path.join(kernel.MODULES_DIR, f"{module_name}.py")
+            is_system = True
+        else:
+            file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
+            is_system = False
 
         if not os.path.exists(file_path):
             await edit_with_emoji(
@@ -889,14 +1009,21 @@ def register(kernel):
             del sys.modules[module_name]
 
         kernel.unregister_module_commands(module_name)
-        del kernel.loaded_modules[module_name]
+
+
+        if is_system:
+            if module_name in kernel.system_modules:
+                del kernel.system_modules[module_name]
+        else:
+            if module_name in kernel.loaded_modules:
+                del kernel.loaded_modules[module_name]
 
         success, message_text = await load_module_from_file(
-            file_path, module_name, False
+            file_path, module_name, is_system
         )
 
         if success:
-            commands = get_module_commands(module_name, kernel)
+            commands, aliases = get_module_commands(module_name, kernel)
             cmd_text = (
                 f'{CUSTOM_EMOJI["crystal"]} {", ".join([f"<code>{kernel.custom_prefix}{cmd}</code>" for cmd in commands])}'
                 if commands
@@ -904,18 +1031,18 @@ def register(kernel):
             )
 
             emoji = random.choice(RANDOM_EMOJIS)
-            await log_to_bot(f"⚗️ Модуль {module_name} перезагружен")
+            kernel.logger.info(f"Модуль {module_name} перезагружен")
             await edit_with_emoji(
                 msg,
-                f'{CUSTOM_EMOJI["success"]} <b>Модуль {module_name} перезагружен!</b> {emoji}\n\n{cmd_text}',
+                f'{CUSTOM_EMOJI["success"]} <b>Модуль {module_name} перезагружен!</b> {emoji}\n\n<blockquote>{cmd_text}</blockquote>',
             )
         else:
-            await kernel.handle_error(e, source="reload_module_handler", event=event)
+            await kernel.handle_error(Exception(message_text), source="reload_module_handler", event=event)
             await edit_with_emoji(
                 msg, f'{CUSTOM_EMOJI["warning"]} <b>Ошибка, смотри логи</b>'
             )
 
-    @kernel.register_command("modules")
+    @kernel.register.command("modules")
     # модули
     async def modules_list_handler(event):
         await log_to_bot(f"🔷 Просмотр списка модулей")
@@ -943,7 +1070,7 @@ def register(kernel):
 
         await edit_with_emoji(event, msg)
 
-    @kernel.register_command("addrepo")
+    @kernel.register.command("addrepo")
     # <URL> добавить repo
     async def add_repo_handler(event):
         args = event.text.split()
@@ -962,7 +1089,7 @@ def register(kernel):
         else:
             await edit_with_emoji(event, f'{CUSTOM_EMOJI["warning"]} <b>{message}</b>')
 
-    @kernel.register_command("delrepo")
+    @kernel.register.command("delrepo")
     # <id> удалить repo
     async def del_repo_handler(event):
         args = event.text.split()

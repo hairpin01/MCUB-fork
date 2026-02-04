@@ -20,11 +20,9 @@ CUSTOM_EMOJI = {
 
 
 def get_module_commands(module_name, kernel):
-    """Extract commands from module file or from kernel's command_owners"""
     commands = []
     aliases_info = {}
 
-    # 1) Try kernel command_owners first
     for cmd, owner in kernel.command_owners.items():
         if owner == module_name:
             commands.append(cmd)
@@ -39,7 +37,6 @@ def get_module_commands(module_name, kernel):
                 aliases_info[cmd] = cmd_aliases
         return commands, aliases_info
 
-    # 2) Parse module file
     file_path = None
     if module_name in kernel.system_modules:
         file_path = f"modules/{module_name}.py"
@@ -68,7 +65,6 @@ def get_module_commands(module_name, kernel):
                     found = re.findall(pattern, code)
                     commands.extend(found)
 
-                # Alias parsing
                 alias_patterns = [
                     r"alias\s*=\s*['\"]([^'\"]+)['\"]",
                     r"alias\s*=\s*\[([^\]]+)\]",
@@ -108,7 +104,6 @@ def get_module_commands(module_name, kernel):
             kernel.log_error(f"Error reading module {module_name}: {e}")
             return [], {}
 
-    # De-dup while keeping order
     seen = set()
     uniq = []
     for c in commands:
@@ -117,7 +112,6 @@ def get_module_commands(module_name, kernel):
             uniq.append(c)
     commands = uniq
 
-    # Supplement aliases from kernel
     for cmd in commands:
         cmd_aliases = []
         for alias, target in kernel.aliases.items():
@@ -130,7 +124,6 @@ def get_module_commands(module_name, kernel):
 
 
 async def generate_detailed_page(search_term, kernel):
-    """Generate detailed info for a module"""
     search_term = search_term.lower()
     exact_match = None
     similar_modules = []
@@ -191,7 +184,7 @@ async def generate_detailed_page(search_term, kernel):
         msg += f'\n<blockquote>{CUSTOM_EMOJI["pancake"]} <b>Author:</b> <i>{metadata.get("author", "Unknown")}</i></blockquote>'
         return msg
 
-    # Find similar modules
+
     for name, (typ, module) in all_modules.items():
         if search_term in name.lower():
             commands, _ = get_module_commands(name, kernel)
@@ -225,7 +218,6 @@ async def generate_detailed_page(search_term, kernel):
 
 
 def get_paginated_data(kernel, page=0):
-    """Get paginated module list for inline interface"""
     CHUNK_SIZE = 10
     sys_modules = sorted(list(kernel.system_modules.keys()))
     usr_modules = sorted(list(kernel.loaded_modules.keys()))
@@ -234,7 +226,6 @@ def get_paginated_data(kernel, page=0):
     total_pages = 1 + user_pages_count
 
     if page == 0:
-        # System modules page
         msg = f'{CUSTOM_EMOJI["crystal"]} <b>System modules:</b> <code>{len(sys_modules)}</code>\n\n'
         msg += "<blockquote expandable>"
         for name in sys_modules:
@@ -265,7 +256,6 @@ def get_paginated_data(kernel, page=0):
                 msg += f"<b>{name}:</b> {cmd_text}\n"
         msg += "</blockquote>"
     else:
-        # User modules page
         start_idx = (page - 1) * CHUNK_SIZE
         end_idx = start_idx + CHUNK_SIZE
         current_chunk = usr_modules[start_idx:end_idx]
@@ -337,7 +327,7 @@ def register(kernel):
                 await event.answer([builder])
                 return
 
-        # Default response
+
         builder = event.builder.article(
             title="Module Manager",
             text=f'{CUSTOM_EMOJI["crystal"]} <b>Module Manager</b>\n\nUse "man" to browse modules or "man [module]" to search.',

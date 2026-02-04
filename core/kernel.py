@@ -332,7 +332,7 @@ class Kernel:
         self.IMG_DIR = "img"
         self.LOGS_DIR = "logs"
         self.CONFIG_FILE = "config.json"
-        self.BACKUP_FILE = "userbot.py.backup"
+        self.BACKUP_FILE = "kernel.py.backup"
         self.ERROR_FILE = "crash.tmp"
         self.RESTART_FILE = "restart.tmp"
         self.MODULES_REPO = (
@@ -1681,10 +1681,12 @@ class Kernel:
 
     async def init_client(self):
         import sys
-        import platform
+        from utils.platform import get_platform_name
+        from utils.platform import PlatformDetector
+        platform = PlatformDetector()
 
-        print(
-            f"{self.Colors.CYAN}=- Инициализация MCUB на {platform.system()} (Python {sys.version_info.major}.{sys.version_info.minor})...{self.Colors.RESET}"
+        self.logger.info(
+            f"{self.Colors.CYAN}=- Инициализация MCUB на {get_platform_name()} (Python {sys.version_info.major}.{sys.version_info.minor})...{self.Colors.RESET}"
         )
 
         from telethon.sessions import SQLiteSession
@@ -1701,7 +1703,7 @@ class Kernel:
             connection_retries=3,
             request_retries=3,
             flood_sleep_threshold=30,
-            device_model=f"PC-MCUB-{platform.system()}",
+            device_model=f"MCUB-{platform.detect()}",
             system_version=f"Python {sys.version}",
             app_version=f"MCUB {self.VERSION}",
             lang_code="en",
@@ -1714,28 +1716,27 @@ class Kernel:
             await self.client.start(phone=self.PHONE, max_attempts=3)
 
             if not await self.client.is_user_authorized():
-                print(
+                self.logger.error(
                     f"{self.Colors.RED}=X Не удалось авторизоваться{self.Colors.RESET}"
                 )
                 return False
 
             me = await self.client.get_me()
             if not me or not hasattr(me, "id"):
-                print(
+                self.logger.error(
                     f"{self.Colors.RED}=X Неверные данные пользователя{self.Colors.RESET}"
                 )
                 return False
 
             self.ADMIN_ID = me.id
-            print(
+            self.logger.info(
                 f"{self.Colors.GREEN}Авторизован как: {me.first_name} (ID: {me.id}){self.Colors.RESET}"
             )
-            self.logger.info(f"📱 Номер: {self.PHONE}")
 
             return True
 
         except Exception as e:
-            print(
+            self.logger.error(
                 f"{self.Colors.RED}=X Ошибка инициализации клиента: {e}{self.Colors.RESET}"
             )
             import traceback
@@ -1764,23 +1765,19 @@ class Kernel:
                     self.set_loading_module(module_name, "system")
                     spec.loader.exec_module(module)
 
-                    if hasattr(module, "register"):
-                        module.register(self)
-                        self.system_modules[module_name] = module
-                        self.cprint(
+
+                    module.register(self)
+                    self.system_modules[module_name] = module
+                    self.logger.info(
                             f"{Colors.GREEN}=> Загружен системный модуль: {module_name}{Colors.RESET}"
-                        )
-                    else:
-                        self.cprint(
-                            f"{Colors.YELLOW}=> Модуль {module_name} не имеет функции register{Colors.RESET}"
                         )
 
                 except CommandConflictError as e:
-                    self.cprint(
+                    self.logger.error(
                         f"{Colors.RED}=X Ошибка загрузки системного модуля {module_name}: {e}{Colors.RESET}"
                     )
                 except Exception as e:
-                    self.cprint(
+                    self.logger.error(
                         f"{Colors.RED}=X Ошибка загрузки модуля {file_name}: {e}{Colors.RESET}"
                     )
                 finally:
@@ -1820,7 +1817,7 @@ class Kernel:
                         if hasattr(module, "register"):
                             module.register(self)
                             self.loaded_modules[module_name] = module
-                            self.cprint(
+                            self.logger.info(
                                 f"{self.Colors.BLUE}=> Модуль загружен {module_name}{self.Colors.RESET}"
                             )
                     else:
@@ -1839,13 +1836,13 @@ class Kernel:
                             except:
                                 await module.register(self.client)
                             self.loaded_modules[module_name] = module
-                            self.cprint(
+                            self.logger.warning(
                                 f"{self.Colors.GREEN}=> Загружен пользовательский модуль (старый стиль): {module_name}{self.Colors.RESET}"
                             )
 
                 except CommandConflictError as e:
                     error_msg = f"Конфликт команд при загрузке модуля {file_name}: {e}"
-                    self.cprint(f"{self.Colors.RED}=X {error_msg}{self.Colors.RESET}")
+                    self.logger.error(f"{self.Colors.RED}{error_msg}{self.Colors.RESET}")
                     try:
                         await self.handle_error(
                             e, source=f"load_module_conflict:{file_name}"
@@ -1855,7 +1852,7 @@ class Kernel:
 
                 except Exception as e:
                     error_msg = f"Ошибка загрузки модуля {file_name}: {e}"
-                    self.cprint(f"{self.Colors.RED}=X {error_msg}{self.Colors.RESET}")
+                    self.logger.error(f"{self.Colors.RED}{error_msg}{self.Colors.RESET}")
                     try:
                         await self.handle_error(e, source=f"load_module:{file_name}")
                     except:
@@ -1873,7 +1870,7 @@ class Kernel:
 
             if isinstance(source, str):
                 return html.escape(source).replace("\n", "<br/>")
-
+            self.logger.debug(f"raw_text:{self.html_converter.convert_message(source)}")
             return self.html_converter.convert_message(source)
 
         except Exception as e:
@@ -1983,7 +1980,7 @@ class Kernel:
                 return query
 
         except Exception as e:
-            self.cprint(
+            self.logger.error(
                 f"{self.Colors.RED}=X Ошибка создания инлайн-формы: {e}{self.Colors.RESET}"
             )
             await self.handle_error(e, source="create_inline_form")
@@ -2073,8 +2070,8 @@ class Kernel:
         try:
             inline_bot_token = self.config.get("inline_bot_token")
             if not inline_bot_token:
-                self.cprint(
-                    f"{Colors.YELLOW}=X Инлайн-бот не настроен (отсутствует токен){Colors.RESET}"
+                self.logger.warning(
+                    f"{Colors.YELLOW}Инлайн-бот не настроен (отсутствует токен){Colors.RESET}"
                 )
                 return False
 
@@ -2121,7 +2118,7 @@ class Kernel:
                 return False
 
         except Exception as e:
-            self.cprint(f"{Colors.RED}=X Инлайн-бот не запущен: {str(e)}{Colors.RESET}")
+            self.logger.error(f"{Colors.RED}=X Инлайн-бот не запущен: {str(e)}{Colors.RESET}")
             import traceback
 
             traceback.print_exc()
@@ -2156,9 +2153,6 @@ class Kernel:
         await self.setup_inline_bot()
 
         if not self.config.get("inline_bot_token"):
-            self.cprint(
-                f"{Colors.CYAN}🤖 Начинаем настройку инлайн-бота...{Colors.RESET}"
-            )
             from core_inline.bot import InlineBot
 
             self.inline_bot = InlineBot(self)

@@ -1228,7 +1228,7 @@ def register(kernel):
         buttons = [
             {"text": "1", "type": "callback", "data": "menu_page_1"},
             {"text": "2", "type": "callback", "data": "menu_page_2"}
-            # text: text msg inline, type: format buttons, data: callback data
+            # text: text buttons inline, type: format buttons, data: callback data
         ]
         success, message = await kernel.inline_form(
             event.chat_id, # chat

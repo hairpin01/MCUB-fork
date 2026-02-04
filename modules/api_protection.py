@@ -77,7 +77,7 @@ def register(kernel):
         await kernel.client.connect()
         await event.edit(f"❄️ Бот разблокирован после {seconds} секунд ожидания")
 
-    @kernel.register_command("api_protection")
+    @kernel.register_command('api_protection')
     async def api_protection_handler(event):
         nonlocal protection_enabled
         args = event.text.split()
@@ -97,14 +97,17 @@ def register(kernel):
                 )
                 return
         else:
-            status = "✅ включена" if protection_enabled else "❌ выключена"
-            limits_info = "\n".join(
-                [
-                    f'• {k}: {v["requests"]} запросов за {v["seconds"]} сек'
-                    for k, v in RATE_LIMITS.items()
-                ]
-            )
-            await event.edit(f"🔒 API защита: {status}\n\n**Лимиты:**\n{limits_info}")
+            buttons = [{"text": "Yes", "type": "callback", "data": "api_protection_yes"},
+                       {"text": "No", "type": "callback", "data": "api_protection_no"}]
+
+            success = await kernel.inline_form(
+                event.chat_id,
+                'Вы уверены?',
+                buttons=buttons
+                )
+            if success:
+                await event.delete()
+
 
         with open(kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(kernel.config, f, ensure_ascii=False, indent=2)
@@ -127,7 +130,7 @@ def register(kernel):
             await enforce_cooldown(event, 30, f"Превышен лимит запросов ({limit_type})")
             raise StopAsyncIteration
 
-    @kernel.register_command("reset_limits")
+    @kernel.register_command('reset_limits')
     async def reset_limits_handler(event):
         if event.sender_id not in kernel.config.get("admins", []):
             await event.edit("❌ Недостаточно прав")
@@ -138,3 +141,20 @@ def register(kernel):
         blocked_until = 0
 
         await event.edit("✅ Лимиты сброшены")
+
+    async def api_protection_callback_handler(event):
+        nonlocal protection_enabled
+        data = event.data
+        if data == b'api_protection_yes':
+            kernel.config["api_protection"] = True
+            protection_enabled = True
+            await event.edit('<tg-emoji emoji-id="5368585403467048206">🪬</tg-emoji> api защита включена', parse_mode='html')
+        else:
+            kernel.config["api_protection"] = False
+            protection_enabled = False
+            await event.edit(f'<tg-emoji emoji-id="5368585403467048206">🪬</tg-emoji> api защита выключена', parse_mode='html')
+
+
+        with open(kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(kernel.config, f, ensure_ascii=False, indent=2)
+    kernel.register_callback_handler(b"api_protection_", api_protection_callback_handler)

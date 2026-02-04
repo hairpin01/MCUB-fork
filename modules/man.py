@@ -1,6 +1,6 @@
 # requires: telethon>=1.24, re, math
 # author: @Hairpin00
-# version: 1.0.2
+# version: 1.0.3
 # description: Module manager with inline interface
 from telethon import events, Button
 import re
@@ -20,11 +20,27 @@ CUSTOM_EMOJI = {
 
 
 def get_module_commands(module_name, kernel):
-    """Extract commands from module file"""
+    """Extract commands from module file or from kernel's command_owners"""
     commands = []
     aliases_info = {}
-    file_path = None
 
+    # 1) Try kernel command_owners first
+    for cmd, owner in kernel.command_owners.items():
+        if owner == module_name:
+            commands.append(cmd)
+
+    if commands:
+        for cmd in commands:
+            cmd_aliases = []
+            for alias, target in kernel.aliases.items():
+                if target == cmd:
+                    cmd_aliases.append(alias)
+            if cmd_aliases:
+                aliases_info[cmd] = cmd_aliases
+        return commands, aliases_info
+
+    # 2) Parse module file
+    file_path = None
     if module_name in kernel.system_modules:
         file_path = f"modules/{module_name}.py"
     elif module_name in kernel.loaded_modules:
@@ -34,66 +50,81 @@ def get_module_commands(module_name, kernel):
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 code = f.read()
-                # Patterns to find commands
+
+                # NOTE: support both ' and "
                 patterns = [
-                    r"@kernel\.register\.command\('([^']+)'",
-                    r"kernel\.register\.command\('([^']+)'",
-                    r"pattern\s*=\s*r['\"]\^?\\?\.([a-zA-Z0-9_]+)",
-                    r"register_command\s*\('([^']+)'",
-                    r"@kernel\.register_command\('([^']+)'\)",
-                    r"kernel\.register_command\('([^']+)'",
-                    r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'\\\\.([^']+)'\)\)",
+                    r"@kernel\.register\.command\(\s*['\"]([^'\"]+)['\"]",
+                    r"kernel\.register\.command\(\s*['\"]([^'\"]+)['\"]",
+                    r"@kernel\.register_command\(\s*['\"]([^'\"]+)['\"]\)",
+                    r"kernel\.register_command\(\s*['\"]([^'\"]+)['\"]",
+                    r"register_command\s*\(\s*['\"]([^'\"]+)['\"]",
+                    # common telethon style: pattern=r'\.cmd'
+                    r"pattern\s*=\s*r['\"]\^?\\?\.([a-zA-Z0-9_]+)['\"]",
+                    # optional: client.on(...) pattern=r'\.cmd'
+                    r"pattern\s*=\s*r['\"]\\\\.([^'\"]+)['\"]",
                 ]
 
                 for pattern in patterns:
                     found = re.findall(pattern, code)
                     commands.extend(found)
 
+                # Alias parsing
                 alias_patterns = [
                     r"alias\s*=\s*['\"]([^'\"]+)['\"]",
                     r"alias\s*=\s*\[([^\]]+)\]",
                 ]
 
-                for cmd in commands:
-
+                for cmd in list(set(commands)):
+                    if not cmd:
+                        continue
+                    esc = re.escape(cmd)
                     cmd_patterns = [
-                        rf"(?:@kernel\.register\.command|kernel\.register\.command)\(['\"]{cmd}['\"][^)]+\)",
-                        rf"(?:@kernel\.register_command|kernel\.register_command)\(['\"]{cmd}['\"][^)]+\)",
+                        rf"(?:@kernel\.register\.command|kernel\.register\.command)\(\s*['\"]{esc}['\"][^)]+\)",
+                        rf"(?:@kernel\.register_command|kernel\.register_command)\(\s*['\"]{esc}['\"][^)]+\)",
                     ]
 
                     for cmd_pattern in cmd_patterns:
                         cmd_match = re.search(cmd_pattern, code, re.DOTALL)
-                        if cmd_match:
-                            cmd_line = cmd_match.group(0)
+                        if not cmd_match:
+                            continue
 
-                            for alias_pattern in alias_patterns:
-                                alias_matches = re.findall(alias_pattern, cmd_line)
-                                for alias_match in alias_matches:
-                                    if "[" in alias_match:
-
-                                        alias_list = [
-                                            a.strip().strip("'\"")
-                                            for a in alias_match.split(",")
-                                        ]
+                        cmd_line = cmd_match.group(0)
+                        for alias_pattern in alias_patterns:
+                            alias_matches = re.findall(alias_pattern, cmd_line)
+                            for alias_match in alias_matches:
+                                if "[" in alias_match:
+                                    alias_list = [
+                                        a.strip().strip("'\"")
+                                        for a in alias_match.split(",")
+                                        if a.strip()
+                                    ]
+                                    if alias_list:
                                         aliases_info[cmd] = alias_list
-                                    else:
+                                else:
+                                    aliases_info[cmd] = [alias_match.strip()]
+                        break
 
-                                        aliases_info[cmd] = [alias_match.strip()]
-                            break
         except Exception as e:
             kernel.log_error(f"Error reading module {module_name}: {e}")
-
             return [], {}
 
-    commands = list(set([cmd for cmd in commands if cmd]))
+    # De-dup while keeping order
+    seen = set()
+    uniq = []
+    for c in commands:
+        if c and c not in seen:
+            seen.add(c)
+            uniq.append(c)
+    commands = uniq
 
+    # Supplement aliases from kernel
     for cmd in commands:
-        if cmd in kernel.aliases:
-            alias_value = kernel.aliases[cmd]
-            if isinstance(alias_value, str):
-                aliases_info[cmd] = [alias_value]
-            elif isinstance(alias_value, list):
-                aliases_info[cmd] = alias_value
+        cmd_aliases = []
+        for alias, target in kernel.aliases.items():
+            if target == cmd:
+                cmd_aliases.append(alias)
+        if cmd_aliases:
+            aliases_info[cmd] = cmd_aliases
 
     return commands, aliases_info
 
@@ -173,9 +204,9 @@ async def generate_detailed_page(search_term, kernel):
                     break
 
     if similar_modules:
-        msg = f'{CUSTOM_EMOJI["crystal"]} <b>Found modules:</b>\n<blockquote>'
+        msg = f'{CUSTOM_EMOJI["crystal"]} <b>Found modules:</b>\n<blockquote expandable>'
         for name, typ, module in similar_modules[:5]:
-            commands, _ = get_module_commands(name, kernel)  # Распаковываем
+            commands, _ = get_module_commands(name, kernel)
             if commands:
                 cmd_text = ", ".join(
                     [
@@ -189,7 +220,7 @@ async def generate_detailed_page(search_term, kernel):
             msg += f'... and <code>{len(similar_modules)-5} more</code> {CUSTOM_EMOJI["tot"]}\n'
         msg += f'\n<blockquote><i>No exact match found</i> {CUSTOM_EMOJI["map"]}</blockquote>'
     else:
-        msg = f'<blockquote>{CUSTOM_EMOJI["blocked"]} Module not found</blockquote>'
+        msg = f'<blockquote expandable>{CUSTOM_EMOJI["blocked"]} Module not found</blockquote>'
     return msg
 
 
@@ -205,11 +236,10 @@ def get_paginated_data(kernel, page=0):
     if page == 0:
         # System modules page
         msg = f'{CUSTOM_EMOJI["crystal"]} <b>System modules:</b> <code>{len(sys_modules)}</code>\n\n'
-        msg += "<blockquote exp>"
+        msg += "<blockquote expandable>"
         for name in sys_modules:
             commands, aliases_info = get_module_commands(name, kernel)
             if commands:
-
                 cmd_display = []
                 for cmd in commands[:3]:
                     display_cmd = f"<code>{kernel.custom_prefix}{cmd}</code>"
@@ -241,7 +271,7 @@ def get_paginated_data(kernel, page=0):
         current_chunk = usr_modules[start_idx:end_idx]
 
         msg = f'{CUSTOM_EMOJI["crystal"]} <b>User modules (Page {page}/<code>{len(usr_modules)}</code>):</b>\n'
-        msg += "<blockquote exp>"
+        msg += "<blockquote expandable>"
         for name in current_chunk:
             commands, aliases_info = get_module_commands(name, kernel)
             if commands:
@@ -287,11 +317,10 @@ def register(kernel):
     client = kernel.client
 
     async def man_inline_handler(event):
-
         query = event.text.strip()
 
         if query == "man":
-            msg, buttons = get_paginated_data(kernel, 0)  # Передаем kernel
+            msg, buttons = get_paginated_data(kernel, 0)
             builder = event.builder.article(
                 title="Module Manager", text=msg, buttons=buttons, parse_mode="html"
             )
@@ -301,9 +330,7 @@ def register(kernel):
         if query.startswith("man "):
             search_term = query[4:].strip()
             if search_term:
-                msg = await generate_detailed_page(
-                    search_term, kernel
-                )  # Передаем kernel
+                msg = await generate_detailed_page(search_term, kernel)
                 builder = event.builder.article(
                     title=f"Search: {search_term}", text=msg, parse_mode="html"
                 )
@@ -319,11 +346,9 @@ def register(kernel):
         await event.answer([builder])
 
     async def man_callback_handler(event):
-
         data = event.data.decode()
 
         if data == "man_close":
-
             try:
                 await event.delete()
             except:
@@ -338,14 +363,11 @@ def register(kernel):
                 await event.answer(f"Error: {str(e)[:50]}", alert=True)
 
     @kernel.register_command("man")
-    # Browse and search modules
     async def man_handler(event):
-
         try:
             args = event.text.split()
 
             if len(args) == 1:
-
                 bot_username = kernel.config.get("inline_bot_username")
                 if not bot_username:
                     await event.edit(
@@ -371,7 +393,6 @@ def register(kernel):
                     )
 
             else:
-
                 search_term = " ".join(args[1:])
                 msg = await generate_detailed_page(search_term, kernel)
                 await event.edit(msg, parse_mode="html")

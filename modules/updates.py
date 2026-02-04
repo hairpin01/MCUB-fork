@@ -58,6 +58,7 @@ def register(kernel):
             f'{PREMIUM_EMOJI["telescope"]} <i>Твой</i> <b>{await mcub_handler()}</b> перезагружается...',
             parse_mode="html",
         )
+        kernel.logger.info("Restart...")
 
         with open(kernel.RESTART_FILE, "w") as f:
             if thread_id:
@@ -71,7 +72,7 @@ def register(kernel):
     # update userbot
     async def update_handler(event):
         msg = await event.edit("❄️")
-
+        kernel.logger.info("update MCUB-fork")
         try:
 
             try:
@@ -81,6 +82,7 @@ def register(kernel):
                     text=True,
                     cwd=os.path.dirname(os.path.abspath(__file__)),
                 )
+                kernel.logger.debug("run -> 'git pull origin main'")
 
                 if result.returncode == 0:
                     if "Already up to date" in result.stdout:
@@ -88,19 +90,22 @@ def register(kernel):
                             f"✅ <b>Уже последняя версия {kernel.VERSION}</b>",
                             parse_mode="html",
                         )
+                        kernel.logger.info("Already up to date")
                         return
 
                     await msg.edit(
                         f"📝 <b>Git pull успешен!</b>\n\n<code>{result.stdout[:200]}</code>",
                         parse_mode="html",
                     )
+                    kernel.logger.info("successfully git pull")
                     await asyncio.sleep(2)
 
                     emoji = random.choice(emojis)
                     await msg.edit(
-                        f"⚗️ <b>Обновление успешно!</b> {emoji}\n\nПерезагрузка через 2 секунды...",
+                        f"⚗️ <b>Обновление успешно!</b> {emoji}\nПерезагрузка через 2 секунды...",
                         parse_mode="html",
                     )
+                    kernel.logger.info('Restart...')
                     await asyncio.sleep(2)
                     os.execl(sys.executable, sys.executable, *sys.argv)
                     return

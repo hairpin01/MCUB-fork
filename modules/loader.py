@@ -106,7 +106,8 @@ def register(kernel):
             else:
                 return await client.send_message(chat_id, text, **kwargs)
         except Exception as e:
-            print(f"Error in send_with_emoji: {e}")
+            kernel.logger.error(f"Error in send_with_emoji: {e}")
+            await kernel.handle_error(e, source='send_with_emoji')
             # Fallback
             fallback_text = re.sub(r"<tg-emoji[^>]*>.*?</tg-emoji>", "", text)
             fallback_text = re.sub(r"<emoji[^>]*>.*?</emoji>", "", fallback_text)
@@ -116,62 +117,78 @@ def register(kernel):
     def get_module_commands(module_name, kernel):
         commands = []
         aliases_info = {}
-        file_path = None
 
+        module = None
         if module_name in kernel.system_modules:
-            file_path = f"modules/{module_name}.py"
+            module = kernel.system_modules[module_name]
         elif module_name in kernel.loaded_modules:
-            file_path = f"modules_loaded/{module_name}.py"
+            module = kernel.loaded_modules[module_name]
 
-        if file_path and os.path.exists(file_path):
-            try:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    code = f.read()
-                    patterns = [
+        if module:
+            for cmd, owner in kernel.command_owners.items():
+                if owner == module_name:
+                    commands.append(cmd)
 
-                        r"@kernel\.register\.command\('([^']+)'",
-                        r"kernel\.register\.command\('([^']+)'",
+        file_path = None
+        if not commands:
+            if module_name in kernel.system_modules:
+                file_path = f"modules/{module_name}.py"
+            elif module_name in kernel.loaded_modules:
+                file_path = f"modules_loaded/{module_name}.py"
 
-                        r"pattern\s*=\s*r['\"]\^?\\?\.([a-zA-Z0-9_]+)",
-                        r"register_command\s*\('([^']+)'",
-                        r"@kernel\.register_command\('([^']+)'\)",
-                        r"kernel\.register_command\('([^']+)'",
-                        r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'\\\\.([^']+)'\)\)",
-                    ]
-                    for pattern in patterns:
-                        found = re.findall(pattern, code)
-                        commands.extend(found)
+            if file_path and os.path.exists(file_path):
+                try:
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        code = f.read()
 
-                    alias_patterns = [
-                        r"alias\s*=\s*['\"]([^'\"]+)['\"]",
-                        r"alias\s*=\s*\[([^\]]+)\]",
-                    ]
-                    for i, cmd in enumerate(commands):
+                        patterns = [
+                            # Новый формат
+                            r"@kernel\.register\.command\('([^']+)'\)",
+                            r"kernel\.register\.command\('([^']+)'\)",
+                            # Старый формат
+                            r"@kernel\.register_command\('([^']+)'\)",
+                            r"kernel\.register_command\('([^']+)'\)",
+                            # Формат с client.on
+                            r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'\\\\.([^']+)'\)\)",
+                            # Формат с декоратором register
+                            r"@register\.command\('([^']+)'\)",
+                            # Формат с кастомным префиксом
+                            r"pattern=r'\\{}(\[^'\]]+)'".format(re.escape(kernel.custom_prefix)),
+                        ]
 
-                        cmd_pattern = rf"(?:@kernel\.register\.command|kernel\.register\.command)\(['\"]{cmd}['\"][^)]+\)"
-                        cmd_match = re.search(cmd_pattern, code, re.DOTALL)
-                        if cmd_match:
-                            cmd_line = cmd_match.group(0)
-                            for alias_pattern in alias_patterns:
-                                alias_matches = re.findall(alias_pattern, cmd_line)
-                                for alias_match in alias_matches:
-                                    if "[" in alias_match:
-                                        alias_list = [
-                                            a.strip().strip("'\"")
-                                            for a in alias_match.split(",")
-                                        ]
-                                        aliases_info[cmd] = alias_list
-                                    else:
-                                        aliases_info[cmd] = [alias_match.strip()]
-            except:
-                pass
-        for cmd in commands:
-            if cmd in kernel.aliases:
-                if isinstance(kernel.aliases[cmd], str):
-                    aliases_info[cmd] = [kernel.aliases[cmd]]
-                elif isinstance(kernel.aliases[cmd], list):
-                    aliases_info[cmd] = kernel.aliases[cmd]
-        return list(set([cmd for cmd in commands if cmd])), aliases_info
+                        for pattern in patterns:
+                            found = re.findall(pattern, code)
+                            commands.extend(found)
+
+                        for cmd in commands:
+                            cmd_pattern = rf"(?:@kernel\.register\.command|kernel\.register\.command|@kernel\.register_command|kernel\.register_command)\(['\"]{cmd}['\"][^)]+alias\s*=\s*(.+?)\)"
+                            cmd_match = re.search(cmd_pattern, code, re.DOTALL)
+                            if cmd_match:
+                                alias_part = cmd_match.group(1)
+                                if alias_part.startswith("["):
+                                    aliases = re.findall(r"['\"]([^'\"]+)['\"]", alias_part)
+                                    if aliases:
+                                        aliases_info[cmd] = aliases
+                                else:
+
+                                    alias_match = re.search(r"['\"]([^'\"]+)['\"]", alias_part)
+                                    if alias_match:
+                                        aliases_info[cmd] = [alias_match.group(1)]
+
+                except Exception as e:
+                    kernel.logger.error(f"Ошибка при парсинге команд модуля {module_name}: {e}")
+
+
+        for alias, target_cmd in kernel.aliases.items():
+            if target_cmd in commands:
+                if target_cmd not in aliases_info:
+                    aliases_info[target_cmd] = []
+                if alias not in aliases_info[target_cmd]:
+                    aliases_info[target_cmd].append(alias)
+
+        commands = list(set([cmd for cmd in commands if cmd]))
+
+        return commands, aliases_info
 
     def detect_module_type(module):
         if hasattr(module, "register"):
@@ -349,7 +366,6 @@ def register(kernel):
 
     async def catalog_inline_handler(event):
         try:
-
 
             query = event.text or ""
 

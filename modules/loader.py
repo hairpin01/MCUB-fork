@@ -1,6 +1,6 @@
 # author: @Hairpin00
 # version: 1.0.9
-# description: loader modules with custom emoji and HTML support
+# description: loader modules
 import asyncio
 import os
 import re
@@ -9,6 +9,8 @@ import subprocess
 import importlib.util
 import inspect
 import aiohttp
+from datetime import datetime
+import html
 import json
 import random
 from telethon import events, Button
@@ -401,9 +403,7 @@ def register(kernel):
             return
 
         reply = await event.get_reply_message()
-        if not reply.document or not reply.document.attributes[0].file_name.endswith(
-            ".py"
-        ):
+        if not reply.document or not reply.document.attributes[0].file_name.endswith(".py"):
             await edit_with_emoji(
                 event, f'{CUSTOM_EMOJI["warning"]} <b>Это не .py файл</b>'
             )
@@ -411,6 +411,15 @@ def register(kernel):
 
         file_name = reply.document.attributes[0].file_name
         module_name = file_name[:-3]
+
+
+        install_log = []
+
+        def add_log(message):
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            log_entry = f"[{timestamp}] {message}"
+            install_log.append(log_entry)
+            kernel.logger.debug(log_entry)
 
         if module_name in kernel.system_modules:
             await edit_with_emoji(
@@ -431,49 +440,76 @@ def register(kernel):
             f"{action} модуль <b>{module_name}</b>", parse_mode="html"
         )
 
+        add_log(f"=- Начинаю {'обновление' if is_update else 'установку'} модуля {module_name}")
+        add_log(f"=> Имя файла: {file_name}")
+
         file_path = os.path.join(kernel.MODULES_LOADED_DIR, file_name)
-        await reply.download_media(file_path)
 
         try:
+
+            add_log(f"=- Скачиваю файл в {file_path}")
+            await reply.download_media(file_path)
+            add_log("=> Файл успешно скачан")
+
             with open(file_path, "r", encoding="utf-8") as f:
                 code = f.read()
+            add_log("=> Файл прочитан")
 
+
+            add_log("=- Проверяю совместимость модуля...")
             if "from .. import" in code or "import loader" in code:
-                kernel.logger.info(f"Модуль {module_name} не совместим [Heroku/Hikka]")
+                add_log("=X Модуль не совместим (Heroku/Hikka тип)")
                 await edit_with_emoji(
                     msg, f'{CUSTOM_EMOJI["warning"]} <b>Модуль не совместим</b>'
                 )
                 os.remove(file_path)
                 return
+            add_log("=> Модуль совместим")
 
+
+            add_log("Получаю метаданные модуля...")
             metadata = await kernel.get_module_metadata(code)
+            add_log(f"Автор: {metadata['author']}")
+            add_log(f"Версия: {metadata['version']}")
+            add_log(f"Описание: {metadata['description']}")
 
             dependencies = []
+            add_log("=- Проверяю зависимости...")
             if "requires" in code:
                 reqs = re.findall(r"# requires: (.+)", code)
                 if reqs:
                     dependencies = [req.strip() for req in reqs[0].split(",")]
+                    add_log(f"=> Найдены зависимости: {', '.join(dependencies)}")
 
             if dependencies:
                 await edit_with_emoji(
                     msg,
                     f'{CUSTOM_EMOJI["dependencies"]} <b>ставлю зависимости:</b>\n<code>{chr(10).join(dependencies)}</code>',
                 )
+
                 for dep in dependencies:
-                    subprocess.run(
+                    add_log(f"=- Устанавливаю зависимость: {dep}")
+                    result = subprocess.run(
                         [sys.executable, "-m", "pip", "install", dep],
                         capture_output=True,
                         text=True,
                     )
+                    if result.returncode == 0:
+                        add_log(f"=> Зависимость {dep} установлена успешно")
+                    else:
+                        add_log(f"=X Ошибка установки {dep}: {result.stderr[:200]}")
 
             if is_update:
+                add_log(f"=- Удаляю старые команды модуля {module_name}")
                 kernel.unregister_module_commands(module_name)
 
+            add_log(f"=- Загружаю модуль {module_name}...")
             success, message_text = await kernel.load_module_from_file(
                 file_path, module_name, False
             )
 
             if success:
+                add_log("=> Модуль успешно загружен")
                 commands, aliases_info = get_module_commands(module_name, kernel)
 
                 emoji = random.choice(RANDOM_EMOJIS)
@@ -483,6 +519,7 @@ def register(kernel):
                 final_msg += "<blockquote>"
 
                 if commands:
+                    add_log(f"=> Найдено команд: {len(commands)}")
                     for cmd in commands:
                         cmd_desc = metadata["commands"].get(
                             cmd, f'{CUSTOM_EMOJI["no_cmd"]} У команды нету описания'
@@ -501,41 +538,58 @@ def register(kernel):
                                     ]
                                 )
                                 final_msg += f" (Aliases: {alias_text})"
+                                add_log(f"Команда {cmd} имеет алиасы: {', '.join(aliases)}")
                         final_msg += "\n"
                 final_msg += '</blockquote>'
 
                 kernel.logger.info(f"Модуль {module_name} установлен")
                 await edit_with_emoji(msg, final_msg)
+
             else:
-                kernel.logger.error(message_text)
-                await event.edit(f"{module_name}: {message_text}")
+                add_log(f"=X Ошибка загрузки модуля: {message_text}")
+                log_text = "\n".join(install_log)
                 await edit_with_emoji(
-                    msg, f'{CUSTOM_EMOJI["warning"]} <b>Ошибка, смотри логи</b>'
+                    msg,
+                    f'<b>{CUSTOM_EMOJI['blocked']} Кажется установка прошла не удачно</b>\n'
+                    f'<b>{CUSTOM_EMOJI['idea']} Install Log:</b>\n<pre>{html.escape(log_text)}</pre>'
                 )
+
                 if os.path.exists(file_path):
                     os.remove(file_path)
 
         except CommandConflictError as e:
+            add_log(f"✗ Конфликт команд: {e}")
+            log_text = "\n".join(install_log)
+
             if e.conflict_type == "system":
                 await edit_with_emoji(
                     msg,
                     f'{CUSTOM_EMOJI["shield"]} <b>Ой, этот модуль хотел перезаписать системную команду</b> (<code>{e.command}</code>)\n'
-                    f"<blockquote><i>Это не ошибка а мера <b>предосторожности</b></i></blockquote>",
+                    f"<blockquote><i>Это не ошибка а мера <b>предосторожности</b></i></blockquote>\n"
+                    f"<b>Лог установки:</b>\n<pre>{html.escape(log_text)}</pre>",
                 )
             elif e.conflict_type == "user":
                 await edit_with_emoji(
                     msg,
                     f'{CUSTOM_EMOJI["error"]} <b>Ой, кажется случился конфликт модулей</b> <i>(их команд)</i>\n'
-                    f"<blockquote><i>Детали конфликта в логах 🔭</i></blockquote>",
+                    f"<blockquote><i>Детали конфликта в логах 🔭</i></blockquote>\n"
+                    f"<b>Лог установки:</b>\n<pre>{html.escape(log_text)}</pre>",
                 )
-                await kernel.handle_error(e, source=f"module_conflict:{module_name}")
             if os.path.exists(file_path):
                 os.remove(file_path)
+
         except Exception as e:
-            await kernel.handle_error(e, source="install_module_handler", event=event)
+            add_log(f"=X Критическая ошибка: {str(e)}")
+            import traceback
+            add_log(f"Трейсбэк:\n{traceback.format_exc()}")
+
+            log_text = "\n".join(install_log)
             await edit_with_emoji(
-                msg, f'{CUSTOM_EMOJI["warning"]} <b>Ошибка, смотри логи</b>'
+                msg,
+                f'<b>{CUSTOM_EMOJI['blocked']} Кажется установка прошла не удачно</b>\n'
+                f'<b>{CUSTOM_EMOJI['idea']} Install Log:</b>\n<pre>{html.escape(log_text)}</pre>'
             )
+            await kernel.handle_error(e, source="install_module_handler", event=event)
             if os.path.exists(file_path):
                 os.remove(file_path)
 
@@ -551,14 +605,13 @@ def register(kernel):
                     bot_username = bot_info.username
 
                 if bot_username:
-
                     results = await client.inline_query(bot_username, "catalog_")
                     if results:
                         await results[0].click(event.chat_id)
                         await event.delete()
                         return
             except Exception as e:
-                print(f"Error calling inline catalog: {e}")
+                kernel.logger.error(f"Error calling inline catalog: {e}")
                 pass
 
             await edit_with_emoji(
@@ -702,27 +755,41 @@ def register(kernel):
             f"{action} модуль <b>{module_name}</b>", parse_mode="html"
         )
 
+
+        install_log = []
+
+        def add_log(message):
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            log_entry = f"[{timestamp}] {message}"
+            install_log.append(log_entry)
+            kernel.logger.debug(log_entry)
+
         try:
             code = None
             repo_url = None
 
+            add_log(f"=> Начинаю {'скачивание' if send_mode else 'установку'} модуля {module_name}")
+            add_log(f"=+ Режим: {'отправка' if send_mode else 'установка'}")
+            add_log(f"=+ Тип: {'URL' if is_url else 'из репозитория'}")
+
             if is_url:
                 try:
+                    add_log(f"=- Скачиваю модуль по URL: {module_or_url}")
                     async with aiohttp.ClientSession() as session:
                         async with session.get(module_or_url) as resp:
                             if resp.status == 200:
                                 code = await resp.text()
+                                add_log(f"=> ✓ Модуль скачан успешно (статус: {resp.status})")
                                 save_name = module_name + ".py"
                             else:
-                                await log_error_to_bot(
-                                    f"Не удалось скачать модуль (статус: {resp.status})"
-                                )
+                                add_log(f"=X Ошибка скачивания (статус: {resp.status})")
                                 await edit_with_emoji(
                                     msg,
                                     f'{CUSTOM_EMOJI["warning"]} <b>Не удалось скачать модуль по ссылке</b> (статус: {resp.status})',
                                 )
                                 return
                 except Exception as e:
+                    add_log(f"=X Ошибка скачивания: {str(e)}")
                     await kernel.handle_error(e, source="install_for_url", event=event)
                     await edit_with_emoji(
                         msg,
@@ -731,26 +798,36 @@ def register(kernel):
                     return
             else:
                 repos = [kernel.default_repo] + kernel.repositories
+                add_log(f"=- Проверяю репозитории ({len(repos)} шт.)")
 
                 if repo_index is not None and 0 <= repo_index < len(repos):
                     repo_url = repos[repo_index]
+                    add_log(f"=- Использую указанный репозиторий: {repo_url}")
                     code = await kernel.download_module_from_repo(repo_url, module_name)
+                    if code:
+                        add_log(f"=> Модуль найден в указанном репозитории")
+                    else:
+                        add_log(f"=X Модуль не найден в указанном репозитории")
                 else:
-                    for repo in repos:
+                    for i, repo in enumerate(repos):
                         try:
-                            code = await kernel.download_module_from_repo(
-                                repo, module_name
-                            )
+                            add_log(f"=- Проверяю репозиторий {i+1}: {repo}")
+                            code = await kernel.download_module_from_repo(repo, module_name)
                             if code:
                                 repo_url = repo
+                                add_log(f"=> Модуль найден в репозитории {repo}")
                                 break
+                            else:
+                                add_log(f"=X Модуль не найден в репозитории {repo}")
                         except Exception as e:
+                            add_log(f"=X Ошибка проверки репозитория {repo}: {str(e)[:100]}")
                             await kernel.log_error(
                                 f"Ошибка скачивания модуля {module_name} из {repo}: {e}"
                             )
                             continue
 
             if not code:
+                add_log("=X Модуль не найден ни в одном репозитории")
                 await edit_with_emoji(
                     msg,
                     f'{CUSTOM_EMOJI["warning"]} <b>Модуль {module_name} не найден в репозиториях</b>',
@@ -758,9 +835,15 @@ def register(kernel):
                 return
 
             metadata = await kernel.get_module_metadata(code)
+            add_log(f"=> Получены метаданные модуля:")
+            add_log(f"=+  Автор: {metadata['author']}")
+            add_log(f"=+  Версия: {metadata['version']}")
+            add_log(f"=+  Описание: {metadata['description']}")
+
             file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
 
             if send_mode:
+                add_log("Сохраняю файл для отправки")
                 with open(file_path, "w", encoding="utf-8") as f:
                     f.write(code)
 
@@ -783,39 +866,53 @@ def register(kernel):
                     parse_mode="html",
                 )
 
+                add_log("=> Файл отправлен, удаляю временный файл")
                 os.remove(file_path)
-
                 return
+
+            # Режим установки
+            add_log("=- Режим установки, продолжаю...")
 
             dependencies = []
             if "requires" in code:
                 reqs = re.findall(r"# requires: (.+)", code)
                 if reqs:
                     dependencies = [req.strip() for req in reqs[0].split(",")]
+                    add_log(f"=- Найдены зависимости: {', '.join(dependencies)}")
 
             if dependencies:
                 await edit_with_emoji(
                     msg,
                     f'{CUSTOM_EMOJI["dependencies"]} <b>ставлю зависимости:</b>\n<code>{chr(10).join(dependencies)}</code>',
                 )
+
                 for dep in dependencies:
-                    subprocess.run(
+                    add_log(f"=- Устанавливаю зависимость: {dep}")
+                    result = subprocess.run(
                         [sys.executable, "-m", "pip", "install", dep],
                         capture_output=True,
                         text=True,
                     )
+                    if result.returncode == 0:
+                        add_log(f"=> Зависимость {dep} установлена")
+                    else:
+                        add_log(f"=X Ошибка установки {dep}: {result.stderr[:200]}")
 
             if is_update:
+                add_log(f"=- Обновляю модуль, удаляю старые команды")
                 kernel.unregister_module_commands(module_name)
 
+            add_log(f"=- Сохраняю файл модуля: {file_path}")
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(code)
 
+            add_log(f"=- Загружаю модуль в ядро")
             success, message_text = await kernel.load_module_from_file(
                 file_path, module_name, False
             )
 
             if success:
+                add_log("=> Модуль успешно загружен")
                 commands, aliases_info = get_module_commands(module_name, kernel)
                 emoji = random.choice(RANDOM_EMOJIS)
 
@@ -823,6 +920,7 @@ def register(kernel):
                 final_msg += f'<blockquote>📝 <i>D: {metadata["description"]}</i> | V: <code>{metadata["version"]}</code></blockquote>\n'
 
                 if commands:
+                    add_log(f"=> Найдено команд: {len(commands)}")
                     final_msg += "<blockquote>"
                     for cmd in commands:
                         cmd_desc = metadata["commands"].get(
@@ -842,46 +940,63 @@ def register(kernel):
                                     ]
                                 )
                                 final_msg += f" (aliases: {alias_text})"
+                                add_log(f"=> Команда {cmd} имеет алиасы: {', '.join(aliases)}")
                         final_msg += "\n"
                     final_msg += "</blockquote>"
 
-                kernel.logger.info(f"✅ Модуль {module_name} скачан")
+                kernel.logger.info(f"Модуль {module_name} скачан")
                 await edit_with_emoji(msg, final_msg)
             else:
-                await log_error_to_bot(
-                    f"⛈️ Ошибка загрузки {module_name}: {message_text}"
-                )
+                add_log(f"=X Ошибка загрузки модуля: {message_text}")
+                log_text = "\n".join(install_log)
                 await edit_with_emoji(
-                    msg, f'{CUSTOM_EMOJI["warning"]} <b>Ошибка, смотри логи</b>'
+                    msg,
+                    f'<b>{CUSTOM_EMOJI['blocked']} Кажется установка прошла не удачно</b>\n'
+                    f'<b>{CUSTOM_EMOJI['idea']} Install Log:</b>\n<pre>{html.escape(log_text)}</pre>'
                 )
                 if os.path.exists(file_path):
+                    add_log("=> Удаляю файл модуля из-за ошибки")
                     os.remove(file_path)
 
         except CommandConflictError as e:
+            add_log(f"=X Конфликт команд: {e}")
+            log_text = "\n".join(install_log)
+
             if e.conflict_type == "system":
                 await edit_with_emoji(
                     msg,
                     f'{CUSTOM_EMOJI["shield"]} <b>Ой, этот модуль хотел перезаписать системную команду</b> (<code>{e.command}</code>)\n'
-                    f"<blockquote><i>Это не ошибка а мера <b>предосторожности</b></i></blockquote>",
+                    f"<blockquote><i>Это не ошибка а мера <b>предосторожности</b></i></blockquote>\n"
+                    f"<b>Лог установки:</b>\n<pre>{html.escape(log_text)}</pre>",
                 )
             elif e.conflict_type == "user":
                 await edit_with_emoji(
                     msg,
                     f'{CUSTOM_EMOJI["error"]} <b>Ой, кажется случился конфликт модулей</b> <i>(их команд)</i>\n'
-                    f"<blockquote><i>Детали конфликта в логах 🔭</i></blockquote>",
+                    f"<blockquote><i>Детали конфликта в логах 🔭</i></blockquote>\n"
+                    f"<b>Лог установки:</b>\n<pre>{html.escape(log_text)}</pre>",
                 )
-                await kernel.handle_error(e, source=f"module_conflict:{module_name}")
+
             file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
             if os.path.exists(file_path):
+                add_log("=> Удаляю файл модуля из-за конфликта")
                 os.remove(file_path)
 
         except Exception as e:
-            await log_error_to_bot(f"⛈️ Ошибка скачивания {module_name}: {str(e)}")
+            add_log(f"=X Критическая ошибка: {str(e)}")
+            import traceback
+            add_log(f"Трейсбэк:\n{traceback.format_exc()}")
+
+            log_text = "\n".join(install_log)
             await edit_with_emoji(
-                msg, f'{CUSTOM_EMOJI["warning"]} <b>Ошибка, смотри логи</b>'
+                msg,
+                f'<b>{CUSTOM_EMOJI['blocked']} Кажется установка прошла не удачно</b>\n'
+                f'<b>{CUSTOM_EMOJI['idea']} Install Log:</b>\n<pre>{html.escape(log_text)}</pre>'
             )
+
             file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
             if os.path.exists(file_path):
+                add_log("=> Удаляю файл модуля из-за ошибки")
                 os.remove(file_path)
 
     @kernel.register.command("um")

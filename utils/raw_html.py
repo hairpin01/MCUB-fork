@@ -218,12 +218,22 @@ class RawHTMLConverter:
     def convert_message(self, message) -> str:
         if hasattr(message, 'media') and message.media:
             text = getattr(message, 'message', '') or getattr(message, 'text', '') or ''
-            entities = getattr(getattr(message, 'media', None), 'caption_entities', []) or []
+
+            if hasattr(message.media, 'caption'):
+                text = message.media.caption or ''
+            if hasattr(message.media, 'caption_entities'):
+                entities = message.media.caption_entities or []
+            elif hasattr(message, 'entities'):
+                entities = message.entities or []
+            else:
+                entities = []
+
         else:
             text = getattr(message, 'message', '') or getattr(message, 'text', '') or ''
             entities = getattr(message, 'entities', []) or []
 
-        if not text and not entities: return ""
+        if not text and not entities:
+            return ""
         return self._process_entities(text, entities)
 
     def convert_event(self, event) -> str:
@@ -232,8 +242,6 @@ class RawHTMLConverter:
         elif hasattr(event, 'text'):
             return self._escape_html_smart(event.text)
         return ""
-
-
 
 def message_to_html(message, detailed: bool = False) -> str:
     converter = RawHTMLConverter(keep_newlines=True)
@@ -266,7 +274,16 @@ def debug_entities(message) -> List[Dict]:
     """Debug entities."""
     if hasattr(message, 'media') and message.media:
         text = getattr(message, 'message', '') or getattr(message, 'text', '') or ''
-        entity_list = getattr(getattr(message, 'media', None), 'caption_entities', []) or []
+
+        if hasattr(message.media, 'caption'):
+            text = message.media.caption or ''
+
+        if hasattr(message.media, 'caption_entities'):
+            entity_list = message.media.caption_entities or []
+        elif hasattr(message, 'entities'):
+            entity_list = message.entities or []
+        else:
+            entity_list = []
     else:
         text = getattr(message, 'message', '') or getattr(message, 'text', '') or ''
         entity_list = getattr(message, 'entities', []) or []

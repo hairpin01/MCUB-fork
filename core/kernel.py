@@ -1498,6 +1498,11 @@ class Kernel:
     async def handle_error(self, error, source="unknown", event=None):
         import uuid
 
+        error_signature = f"error:{source}:{type(error).__name__}:{str(error)}"
+        if self.cache.get(error_signature):
+            return
+        self.cache.set(error_signature, True, ttl=60)
+
         error_id = f"err_{uuid.uuid4().hex[:8]}"
         error_text = str(error)
         error_traceback = "".join(

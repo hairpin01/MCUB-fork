@@ -199,7 +199,9 @@ class Register:
                 cmd = cmd[:-1]
 
             if self.kernel.current_loading_module is None:
-                raise ValueError("не установлен текущий модуль для регистрации команд")
+                raise ValueError(
+                    "не установлен текущий модуль для регистрации команд"
+                    )
 
             self.kernel.command_handlers[cmd] = func
             self.kernel.command_owners[cmd] = self.kernel.current_loading_module

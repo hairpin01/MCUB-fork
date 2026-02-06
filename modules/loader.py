@@ -602,8 +602,8 @@ def register(kernel):
             log_text = "\n".join(install_log)
             await edit_with_emoji(
                 msg,
-                f'<b>{CUSTOM_EMOJI['blocked']} Кажется установка прошла не удачно</b>\n'
-                f'<b>{CUSTOM_EMOJI['idea']} Install Log:</b>\n<pre>{html.escape(log_text)}</pre>'
+                f'<b>{CUSTOM_EMOJI["blocked"]} Кажется установка прошла не удачно</b>\n'
+                f'<b>{CUSTOM_EMOJI["idea"]} Install Log:</b>\n<pre>{html.escape(log_text)}</pre>'
             )
             await kernel.handle_error(e, source="install_module_handler", event=event)
             if os.path.exists(file_path):
@@ -1006,8 +1006,8 @@ def register(kernel):
             log_text = "\n".join(install_log)
             await edit_with_emoji(
                 msg,
-                f'<b>{CUSTOM_EMOJI['blocked']} Кажется установка прошла не удачно</b>\n'
-                f'<b>{CUSTOM_EMOJI['idea']} Install Log:</b>\n<pre>{html.escape(log_text)}</pre>'
+                f'<b>{CUSTOM_EMOJI["blocked"]} Кажется установка прошла не удачно</b>\n'
+                f'<b>{CUSTOM_EMOJI["idea"]} Install Log:</b>\n<pre>{html.escape(log_text)}</pre>'
             )
 
             file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")

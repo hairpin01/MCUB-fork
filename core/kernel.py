@@ -19,12 +19,6 @@ except ImportError as e:
     HTML_PARSER_AVAILABLE = False
 
 try:
-    from utils.raw_html import RawHTMLConverter
-except Exception as e:
-    print(e)
-
-
-try:
     import time
     import sys
     import os
@@ -51,7 +45,7 @@ try:
     from telethon import TelegramClient, events, Button
     from telethon.errors import SessionPasswordNeededError
 except ImportError as e:
-    print("Установите зависимости", "pip install -r requirements.txt\n", f"{e}")
+    print("Установите, зависимости" "pip install -r requirements.txt\n", e)
     import sys
 
     sys.exit(1)
@@ -78,14 +72,12 @@ class CommandConflictError(Exception):
 
 class TTLCache:
     def __init__(self, max_size=1000, ttl=300):
-        from collections import OrderedDict
 
         self.cache = OrderedDict()
         self.max_size = max_size
         self.ttl = ttl
 
     def set(self, key, value, ttl=None):
-        from collections import OrderedDict
 
         expire_time = time.time() + (ttl if ttl is not None else self.ttl)
         self.cache[key] = (expire_time, value)
@@ -163,7 +155,10 @@ class Register:
         return func
 
     def event(self, event_type, *args, **kwargs):
-        # newmessage, messageedited, userupdat, chatupload, inlinequery, callbackquery, raw
+        """newmessage, messageedited,
+        userupdat, chatupload,
+        inlinequery, callbackquery, raw"""
+
         def decorator(handler):
             from telethon import events
 
@@ -393,7 +388,7 @@ class Kernel:
             self.reply_with_html = None
             self.send_with_html = None
             self.send_file_with_html = None
-            self.logger.warning(f"=X HTML парсер не загружен")
+            self.logger.warning("=X HTML парсер не загружен")
 
         self.setup_directories()
         self.load_or_create_config()
@@ -541,7 +536,7 @@ class Kernel:
                 ]
 
         self.scheduler = SimpleScheduler(self)
-        self.logger.info(f"=> Планировщик инициализирован")
+        self.logger.info("=> Планировщик инициализирован")
 
     def add_middleware(self, middleware_func):
         self.middleware_chain.append(middleware_func)
@@ -566,12 +561,11 @@ class Kernel:
 
     async def init_db(self):
         """Инициализация базы данных."""
-        import aiosqlite
 
         try:
             self.db_conn = await aiosqlite.connect("userbot.db")
             await self.create_tables()
-            self.logger.info(f"=> База данных инициализирована")
+            self.logger.info("=> База данных инициализирована")
             return True
         except Exception as e:
             self.logger.error(f"=X Ошибка инициализации БД: {e}")
@@ -708,7 +702,7 @@ class Kernel:
                 return True, f"🧬 Репозиторий добавлен ({len(modules)} модулей)"
             else:
                 return False, "⛈️ Не удалось получить список модулей"
-        except:
+        except Exception:
             return False, "⛈️ Ошибка при проверке репозитория"
 
     async def remove_repository(self, index):
@@ -719,7 +713,7 @@ class Kernel:
                 removed = self.repositories.pop(idx)
                 await self.save_repositories()
                 self.logger.debug("del repository:YES")
-                return True, f"🗑️ Репозиторий удален"
+                return True, "🗑️ Репозиторий удален"
             else:
                 return False, "⛈️ Неверный индекс"
         except Exception as e:
@@ -734,7 +728,7 @@ class Kernel:
                     if resp.status == 200:
                         content = await resp.text()
                         return content.strip()
-        except:
+        except Exception:
             pass
         return url.split("/")[-2] if "/" in url else url
 
@@ -751,7 +745,7 @@ class Kernel:
                 code = f.read()
                 metadata = await self.get_module_metadata(code)
                 return metadata["commands"].get(command, "🫨 У команды нету описания")
-        except:
+        except Exception:
             return "🫨 У команды нету описания"
 
     def register_command(self, pattern, func=None):
@@ -1039,7 +1033,7 @@ class Kernel:
                 restart_data = {
                     "chat_id": chat_id,
                     "msg_id": message_id,
-                    "time": time.time()
+                    "time": time.time(),
                 }
                 with open(self.RESTART_FILE, "w") as f:
                     json.dump(restart_data, f)
@@ -1147,7 +1141,7 @@ class Kernel:
                         or "@Register.method" in source
                     ):
                         return "method"
-                except:
+                except Exception:
                     pass
 
             # Старый стиль
@@ -1295,16 +1289,22 @@ class Kernel:
                         self.logger.info(f"Установка зависимости: {dep}...")
                         try:
                             process = await asyncio.create_subprocess_exec(
-                                sys.executable, "-m", "pip", "install", dep,
+                                sys.executable,
+                                "-m",
+                                "pip",
+                                "install",
+                                dep,
                                 stdout=asyncio.subprocess.PIPE,
-                                stderr=asyncio.subprocess.PIPE
+                                stderr=asyncio.subprocess.PIPE,
                             )
                             stdout, stderr = await process.communicate()
 
                             if process.returncode == 0:
                                 self.logger.info(f"Зависимость {dep} установлена")
                             else:
-                                self.logger.error(f"Ошибка установки {dep}: {stderr.decode()}")
+                                self.logger.error(
+                                    f"Ошибка установки {dep}: {stderr.decode()}"
+                                )
                                 return False, f"Ошибка установки зависимости {dep}"
                         except Exception as e:
                             self.logger.error(f"Ошибка запуска pip: {e}")
@@ -1464,7 +1464,7 @@ class Kernel:
                     if resp.status == 200:
                         code = await resp.text()
                         return code
-        except:
+        except Exception:
             pass
         return None
 
@@ -1479,7 +1479,7 @@ class Kernel:
                             line.strip() for line in content.split("\n") if line.strip()
                         ]
                         return modules
-        except:
+        except Exception:
             pass
         return []
 
@@ -1536,7 +1536,7 @@ class Kernel:
             formatted_error += f"\n🃏 <b>Message:</b> <code>{message_info[:300]}</code>"
         try:
             await self.send_log_message(formatted_error)
-        except:
+        except Exception:
             self.logger.error(f"Error sending error log: {error_text}")
 
     async def handle_error(self, error, source="unknown", event=None):
@@ -1574,7 +1574,7 @@ class Kernel:
                     f"⌨️ <b>Text:</b> <code>{html.escape(event.text[:200] if event.text else 'not text')}</code>\n"
                     f"📬 <b>Chat:</b> {chat_title}</blockquote>"
                 )
-            except:
+            except Exception:
                 pass
 
         try:
@@ -1645,7 +1645,7 @@ class Kernel:
                 return f"{entity.title} (чат/канал)"
             else:
                 return f"ID: {user_id}"
-        except Exception as e:
+        except Exception:
             return f"ID: {user_id}"
 
     def setup_config(self):
@@ -1732,6 +1732,7 @@ class Kernel:
         import sys
         from utils.platform import get_platform_name
         from utils.platform import PlatformDetector
+
         platform = PlatformDetector()
 
         self.logger.info(
@@ -1814,12 +1815,11 @@ class Kernel:
                     self.set_loading_module(module_name, "system")
                     spec.loader.exec_module(module)
 
-
                     module.register(self)
                     self.system_modules[module_name] = module
                     self.logger.info(
-                            f"{Colors.GREEN}=> Загружен системный модуль: {module_name}{Colors.RESET}"
-                        )
+                        f"{Colors.GREEN}=> Загружен системный модуль: {module_name}{Colors.RESET}"
+                    )
 
                 except CommandConflictError as e:
                     self.logger.error(
@@ -1889,20 +1889,24 @@ class Kernel:
 
                 except CommandConflictError as e:
                     error_msg = f"Конфликт команд при загрузке модуля {file_name}: {e}"
-                    self.logger.error(f"{self.Colors.RED}{error_msg}{self.Colors.RESET}")
+                    self.logger.error(
+                        f"{self.Colors.RED}{error_msg}{self.Colors.RESET}"
+                    )
                     try:
                         await self.handle_error(
                             e, source=f"load_module_conflict:{file_name}"
                         )
-                    except:
+                    except Exception:
                         pass
 
                 except Exception as e:
                     error_msg = f"Ошибка загрузки модуля {file_name}: {e}"
-                    self.logger.error(f"{self.Colors.RED}{error_msg}{self.Colors.RESET}")
+                    self.logger.error(
+                        f"{self.Colors.RED}{error_msg}{self.Colors.RESET}"
+                    )
                     try:
                         await self.handle_error(e, source=f"load_module:{file_name}")
-                    except:
+                    except Exception:
                         pass
                 finally:
                     self.clear_loading_module()
@@ -1920,7 +1924,7 @@ class Kernel:
             self.logger.debug(f"raw_text:{self.html_converter.convert_message(source)}")
             return self.html_converter.convert_message(source)
 
-        except Exception as e:
+        except Exception:
             # Резервный вариант, если что-то пошло не так
             text = getattr(source, "message", str(source))
             return html.escape(text).replace("\n", "<br/>")
@@ -2090,7 +2094,7 @@ class Kernel:
                 if await self.client.is_user_authorized():
                     self.reconnect_attempts = 0
                     return True
-            except Exception as e:
+            except Exception:
                 self.reconnect_attempts += 1
                 await asyncio.sleep(self.reconnect_delay * self.reconnect_attempts)
 
@@ -2122,7 +2126,7 @@ class Kernel:
                 )
                 return False
 
-            self.logger.info(f"=- Запускаю инлайн-бота...")
+            self.logger.info("=- Запускаю инлайн-бота...")
 
             self.bot_client = TelegramClient(
                 "inline_bot_session", self.API_ID, self.API_HASH, timeout=30
@@ -2165,7 +2169,9 @@ class Kernel:
                 return False
 
         except Exception as e:
-            self.logger.error(f"{Colors.RED}=X Инлайн-бот не запущен: {str(e)}{Colors.RESET}")
+            self.logger.error(
+                f"{Colors.RED}=X Инлайн-бот не запущен: {str(e)}{Colors.RESET}"
+            )
             import traceback
 
             traceback.print_exc()
@@ -2174,10 +2180,8 @@ class Kernel:
     async def run(self):
         if not self.load_or_create_config():
             if not self.first_time_setup():
-                self.logger.error(f"=X Не удалось настроить юзербот")
+                self.logger.error("=X Не удалось настроить юзербот")
                 return
-        import telethon.errors
-        from telethon import TelegramClient
 
         import logging
 
@@ -2236,7 +2240,9 @@ class Kernel:
                         parse_mode="html",
                     )
                 except Exception as edit_err:
-                    kernel.logger.error(f"Не удалось отредактировать сообщение: {edit_err}")
+                    self.logger.error(
+                        f"Не удалось отредактировать сообщение: {edit_err}"
+                    )
 
         if hasattr(self, "bot_client") and self.bot_client:
 
@@ -2286,7 +2292,6 @@ Kernel is load.
                         int(data[3]) if len(data) >= 4 and data[3].isdigit() else None
                     )
 
-                    kbl = round((modules_start_time - kernel_start_time) * 1000, 2)
                     mlfb = round((modules_end_time - modules_start_time) * 1000, 2)
 
                     emojis = [

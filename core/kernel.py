@@ -2168,18 +2168,28 @@ class Kernel:
             premium_emoji_telescope = (
                 '<tg-emoji emoji-id="5429283852684124412">🔭</tg-emoji>'
             )
+            premium_emoji_karandash = (
+                '<tg-emoji emoji-id="5334882760735598374">📝</tg-emoji>'
+            )
             try:
                 await self.process_command(event)
             except Exception as e:
                 await self.handle_error(e, source="message_handler", event=event)
 
+                error_log = traceback.format_exc()
+
+                if len(error_log) > 1000:
+                    error_log = error_log[-1000:] + "\n...(truncated)"
+
                 try:
                     await event.edit(
-                        f"{premium_emoji_telescope} <b>Ошибка, смотри логи</b>",
+                        f"{premium_emoji_telescope} <b>Ошибка, смотри логи</b>\n"
+                        f"{premium_emoji_karandash} <i>Full Log command:</i>\n"
+                        f"<pre>{error_log}</pre>",
                         parse_mode="html",
                     )
-                except:
-                    pass
+                except Exception as edit_err:
+                    kernel.logger.error(f"Не удалось отредактировать сообщение: {edit_err}")
 
         if hasattr(self, "bot_client") and self.bot_client:
 

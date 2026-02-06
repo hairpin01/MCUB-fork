@@ -1260,11 +1260,23 @@ class Kernel:
                     import sys
 
                     for dep in dependencies:
-                        subprocess.run(
-                            [sys.executable, "-m", "pip", "install", dep],
-                            capture_output=True,
-                            text=True,
-                        )
+                        self.logger.info(f"Установка зависимости: {dep}...")
+                        try:
+                            process = await asyncio.create_subprocess_exec(
+                                sys.executable, "-m", "pip", "install", dep,
+                                stdout=asyncio.subprocess.PIPE,
+                                stderr=asyncio.subprocess.PIPE
+                            )
+                            stdout, stderr = await process.communicate()
+
+                            if process.returncode == 0:
+                                self.logger.info(f"Зависимость {dep} установлена")
+                            else:
+                                self.logger.error(f"Ошибка установки {dep}: {stderr.decode()}")
+                                return False, f"Ошибка установки зависимости {dep}"
+                        except Exception as e:
+                            self.logger.error(f"Ошибка запуска pip: {e}")
+                            return False, f"Ошибка запуска pip: {e}"
 
                 success, message = await self.load_module_from_file(
                     temp_path, module_name, False

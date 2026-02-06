@@ -1103,7 +1103,7 @@ def register(kernel):
     await kernel.scheduler.add_daily_task(daily_summary, 23, 59)
     
     # Command: Weather with caching
-    @kernel.register_command('weather')
+    @kernel.register.command('weather')
     # Get weather for city
     async def weather_handler(event):
         if not module_config['enabled']:
@@ -1136,7 +1136,11 @@ def register(kernel):
             await event.edit(f"🌤️ {city}: {weather}")
         except Exception as e:
             await kernel.handle_error(e, source="weather_handler", event=event)
-            await event.edit("❌ Error fetching weather")
+            await event.edit(
+            "❌ Error fetching weather\n"
+            f"Full Logs:\n<pre>{e}</pre>",
+            parse_mode='html'
+            )
     
 ```
 > [!NOTE]
@@ -1548,7 +1552,7 @@ async def help_handler(event):
 def test(kernel):
     
     
-    @kernel.register.event('newmessage', pattern='(?i)ping')
+    @kernel.register.event('newmessage', pattern=f'{kernel.custom_prefix}ping')
     async def ping_handler(event):
         await event.reply("Pong!")
     

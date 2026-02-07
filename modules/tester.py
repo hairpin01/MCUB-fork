@@ -60,15 +60,6 @@ def register(kernel):
     kernel.config.setdefault('ping_invert_media', False)
     kernel.config.setdefault('ping_custom_text', None)
 
-    async def mcub_handler():
-        me = await kernel.client.get_me()
-        mcub_emoji = (
-            '<tg-emoji emoji-id="5470015630302287916">🔮</tg-emoji><tg-emoji emoji-id="5469945764069280010">🔮</tg-emoji><tg-emoji emoji-id="5469943045354984820">🔮</tg-emoji><tg-emoji emoji-id="5469879466954098867">🔮</tg-emoji>'
-            if me.premium
-            else "MCUB"
-        )
-        return mcub_emoji
-
     @kernel.register_command('ping')
     async def ping_handler(event):
         try:
@@ -170,7 +161,7 @@ def register(kernel):
                     await kernel.handle_error(e, source="ping:quote_mode", event=event)
 
             if banner_url:
-                
+                await msg.delete()
                 banner_sent = False
 
                 chat = await event.get_chat()
@@ -181,15 +172,14 @@ def register(kernel):
                 if os.path.exists(banner_url):
                     try:
                         if reply_to:
-                            await msg.edit(
+                            await event.respond(
                                 response,
                                 file=banner_url,
                                 parse_mode='html',
                                 reply_to=reply_to
                             )
-                            
                         else:
-                            await msg.edit(
+                            await event.respond(
                                 response,
                                 file=banner_url,
                                 parse_mode='html'
@@ -212,7 +202,6 @@ def register(kernel):
                                 file=banner_url,
                                 parse_mode='html'
                             )
-                        await msg.delete()    
                         banner_sent = True
                     except Exception as e:
                         pass
@@ -234,7 +223,6 @@ def register(kernel):
                                 formatting_entities=entities,
                                 parse_mode=None
                             )
-                        await msg.delete()    
                     except Exception as e:
                         if reply_to:
                             await event.respond(response, parse_mode='html', reply_to=reply_to)
@@ -247,34 +235,40 @@ def register(kernel):
             await event.edit(f"{CUSTOM_EMOJI['❄️']} <b>Ошибка, смотри логи</b>", parse_mode='html')
             await kernel.handle_error(e, source="ping", event=event)
 
-    @kernel.register.command('logs')
+    @kernel.register_command('logs')
     async def logs_handler(event):
         try:
-
-            kernel_log_path = os.path.join(kernel.LOGS_DIR, "kernel.log")
-
-            if not os.path.exists(kernel_log_path):
-                await event.edit(f'{CUSTOM_EMOJI["📁"]} Файл kernel.log не найден', parse_mode='html')
+            if not os.path.exists(kernel.LOGS_DIR):
+                await event.edit(f'{CUSTOM_EMOJI["📁"]} Папка с логами не найдена')
                 return
 
-            await event.edit(f'{CUSTOM_EMOJI["🖨"]} Отправляю логи kernel', parse_mode='html')
+            log_files = sorted([f for f in os.listdir(kernel.LOGS_DIR) if f.endswith('.log')])
+            if not log_files:
+                await event.edit(f'{CUSTOM_EMOJI["📝"]} Логи отсутствуют')
+                return
 
+            latest_log = os.path.join(kernel.LOGS_DIR, log_files[-1])
+            await event.edit(f'{CUSTOM_EMOJI["🖨"]} Отправляю логи...')
 
             chat = await event.get_chat()
             reply_to = None
             if hasattr(chat, 'forum') and chat.forum and event.message.reply_to:
                 reply_to = event.message.reply_to.reply_to_top_id or event.message.reply_to.reply_to_msg_id
 
-
             if reply_to:
-                send_params['reply_to'] = reply_to
-
-            await event.edit(
-                f'{CUSTOM_EMOJI["📝"]} Логи {await mcub_handler()}\n{CUSTOM_EMOJI['✏️']} Version kernel: {kernel.VERSION    }',
-                file=kernel_log_path,
-                parse_mode='html'
-            )
-            # await event.delete()
+                await client.send_file(
+                    event.chat_id,
+                    latest_log,
+                    caption=f'{CUSTOM_EMOJI["📝"]} Логи за {log_files[-1][:-4]}',
+                    reply_to=reply_to
+                )
+            else:
+                await client.send_file(
+                    event.chat_id,
+                    latest_log,
+                    caption=f'{CUSTOM_EMOJI["📝"]} Логи за {log_files[-1][:-4]}'
+                )
+            await event.delete()
 
         except Exception as e:
             await event.edit(f"{CUSTOM_EMOJI['❄️']} <b>Ошибка, смотри логи</b>", parse_mode='html')
@@ -301,6 +295,16 @@ def register(kernel):
 
             if client.is_connected():
                 await client.disconnect()
+
+            await asyncio.sleep(seconds)
+
+            await client.connect()
+            await event.edit(f'{CUSTOM_EMOJI["☑️"]} Разморожено после {seconds} секунд')
+
+        except Exception as e:
+            await event.edit(f"{CUSTOM_EMOJI['❄️']} <b>Ошибка, смотри логи</b>", parse_mode='html')
+            await kernel.handle_error(e, source="freezing", event=event)
+it client.disconnect()
 
             await asyncio.sleep(seconds)
 

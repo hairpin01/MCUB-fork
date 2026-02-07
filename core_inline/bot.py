@@ -30,7 +30,7 @@ class InlineBot:
         choice = input(
             f"{self.kernel.Colors.YELLOW}1. Автоматически создать бота\n2. Ввести токен вручную\nВыберите (1/2): {self.kernel.Colors.RESET}"
         ).strip()
-        await kernel.db_set("kernel", "HELLO_BOT", "False")
+        await self.kernel.db_set("kernel", "HELLO_BOT", "False")
         if choice == "1":
             await self.auto_create_bot()
         elif choice == "2":

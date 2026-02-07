@@ -181,7 +181,7 @@ def register(kernel):
             'catalog_error': '❌ Catalog loading error: {error}',
             'btn_back': '⬅️ Back',
             'btn_next': '➡️ Next',
-            'not_mcub_modules': f'{warning} Module is not {mcub} type, [Heroku/Hikka]'
+            'not_mcub_modules': '{warning} Module is not {mcub} type, [Heroku/Hikka]'
         },
         'ru': {
             'reply_to_py': '{warning} <b>Ответьте на .py файл</b>',

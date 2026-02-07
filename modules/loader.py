@@ -828,7 +828,7 @@ def register(kernel):
             if os.path.exists(file_path):
                 os.remove(file_path)
 
-    @kernel.register.command("dlm")
+    @kernel.register.command('dlm')
     # <args> <URL/модуль> - args = -s отправить файлом, -list список модулей
     async def download_module_handler(event):
         args = event.text.split()

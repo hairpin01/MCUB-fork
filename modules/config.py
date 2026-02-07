@@ -56,12 +56,120 @@ TYPE_EMOJIS = {
 
 def register(kernel):
     client = kernel.client
+    language = kernel.config.get('language', 'en')
+
+
+    strings = {
+        'en': {
+            'config_menu_text': '{menu_emoji} <b>Config Menu</b>\nChoose configuration section:',
+            'btn_kernel_config': '🪄 Kernel Config',
+            'btn_modules_config': '🚂 Modules Config',
+            'kernel_config_title': '{pencil} <b>Kernel Config</b>\n{page_emoji} Page <b>{page}/{total_pages}</b> ({total_keys} keys)',
+            'modules_config_title': '{puzzle} <b>Modules Config</b>\n{page_emoji} Page <b>{page}/{total_pages}</b> ({total_modules} modules)',
+            'module_config_title': '{puzzle} <b>Module:</b> <code>{module_name}</code>\n{page_emoji} Page <b>{page}/{total_pages}</b> ({total_items} keys)',
+            'key_view': '{note} <b>{key}</b> ({type_emoji} {value_type})\n{display_value}',
+            'btn_back': '⬅️',
+            'btn_next': '➡️',
+            'btn_menu': '🔙 Menu',
+            'btn_modules': '🔙 Modules',
+            'btn_back_simple': '🔙 Back',
+            'expired': '❌ Expired',
+            'invalid_type': '❌ Invalid config type',
+            'not_found': '❌ Not found',
+            'no_config': '❌ Module has no config',
+            'not_boolean': '❌ Not boolean',
+            'changed_to': '✅ Changed to {value}',
+            'error': '❌ Error: {error}',
+            'cfg_usage': '{gear} <b>Config</b>: Use inline or <code>.cfg [now/hide/unhide]</code>',
+            'hidden_key': '{briefcase} <b>Hidden</b>: <code>{key}</code>',
+            'key_not_found': '{ballot} <b>Not found</b>: <code>{key}</code>',
+            'system_key': '{paperclip} <b>System key</b>',
+            'visible_key': '{book} <b>Visible</b>: <code>{key}</code>',
+            'fcfg_usage': '{gear} <code>.fcfg [set/del/add/dict/list] -m [modules]</code>',
+            'specify_module': '{cross} Specify module name after -m',
+            'not_enough_args': '{cross} Not enough arguments',
+            'protected_key': '{cross} <b>Protected</b>',
+            'set_success': '{check} <b>Set</b> <code>{key}</code> = <code>{value}</code>',
+            'set_module_success': '{check} <b>Set</b> module <code>{module}</code> key <code>{key}</code> = <code>{value}</code>',
+            'delete_success': '{ballot} <b>Deleted</b> <code>{key}</code>',
+            'delete_module_success': '{ballot} <b>Deleted</b> module <code>{module}</code> key <code>{key}</code>',
+            'not_found_in_module': '{cross} Not found in module config',
+            'key_exists': '{cross} Exists',
+            'add_success': '{check} <b>Added</b> <code>{key}</code>',
+            'add_module_success': '{check} <b>Added</b> module <code>{module}</code> key <code>{key}</code>',
+            'not_dict': '{cross} Key is not a dict',
+            'dict_success': '{check} <b>Dict</b> <code>{key}[{subkey}]</code> updated',
+            'dict_module_success': '{check} <b>Dict</b> module <code>{module}</code> key <code>{key}[{subkey}]</code> updated',
+            'not_list': '{cross} Key is not a list',
+            'list_success': '{check} <b>List</b> <code>{key}</code> appended',
+            'list_module_success': '{check} <b>List</b> module <code>{module}</code> key <code>{key}</code> appended',
+            'toggle_false': '❌ Set false',
+            'toggle_true': '✅ Set true',
+            'invalid_format': '❌ Invalid format',
+        },
+        'ru': {
+            'config_menu_text': '{menu_emoji} <b>Меню конфигурации</b>\nВыберите раздел конфигурации:',
+            'btn_kernel_config': '🪄 Конфиг ядра',
+            'btn_modules_config': '🚂 Конфиг модулей',
+            'kernel_config_title': '{pencil} <b>Конфиг ядра</b>\n{page_emoji} Страница <b>{page}/{total_pages}</b> ({total_keys} ключей)',
+            'modules_config_title': '{puzzle} <b>Конфиг модулей</b>\n{page_emoji} Страница <b>{page}/{total_pages}</b> ({total_modules} модулей)',
+            'module_config_title': '{puzzle} <b>Модуль:</b> <code>{module_name}</code>\n{page_emoji} Страница <b>{page}/{total_pages}</b> ({total_items} ключей)',
+            'key_view': '{note} <b>{key}</b> ({type_emoji} {value_type})\n{display_value}',
+            'btn_back': '⬅️',
+            'btn_next': '➡️',
+            'btn_menu': '🔙 Меню',
+            'btn_modules': '🔙 Модули',
+            'btn_back_simple': '🔙 Назад',
+            'expired': '❌ Истекло',
+            'invalid_type': '❌ Неверный тип конфига',
+            'not_found': '❌ Не найдено',
+            'no_config': '❌ У модуля нет конфига',
+            'not_boolean': '❌ Не булево значение',
+            'changed_to': '✅ Изменено на {value}',
+            'error': '❌ Ошибка: {error}',
+            'cfg_usage': '{gear} <b>Конфиг</b>: Используйте инлайн или <code>.cfg [now/hide/unhide]</code>',
+            'hidden_key': '{briefcase} <b>Скрыто</b>: <code>{key}</code>',
+            'key_not_found': '{ballot} <b>Не найдено</b>: <code>{key}</code>',
+            'system_key': '{paperclip} <b>Системный ключ</b>',
+            'visible_key': '{book} <b>Видимый</b>: <code>{key}</code>',
+            'fcfg_usage': '{gear} <code>.fcfg [set/del/add/dict/list] -m [modules]</code>',
+            'specify_module': '{cross} Укажите имя модуля после -m',
+            'not_enough_args': '{cross} Недостаточно аргументов',
+            'protected_key': '{cross} <b>Защищено</b>',
+            'set_success': '{check} <b>Установлено</b> <code>{key}</code> = <code>{value}</code>',
+            'set_module_success': '{check} <b>Установлено</b> модуль <code>{module}</code> ключ <code>{key}</code> = <code>{value}</code>',
+            'delete_success': '{ballot} <b>Удалено</b> <code>{key}</code>',
+            'delete_module_success': '{ballot} <b>Удалено</b> модуль <code>{module}</code> ключ <code>{key}</code>',
+            'not_found_in_module': '{cross} Не найдено в конфиге модуля',
+            'key_exists': '{cross} Уже существует',
+            'add_success': '{check} <b>Добавлено</b> <code>{key}</code>',
+            'add_module_success': '{check} <b>Добавлено</b> модуль <code>{module}</code> ключ <code>{key}</code>',
+            'not_dict': '{cross} Ключ не является словарем',
+            'dict_success': '{check} <b>Словарь</b> <code>{key}[{subkey}]</code> обновлен',
+            'dict_module_success': '{check} <b>Словарь</b> модуль <code>{module}</code> ключ <code>{key}[{subkey}]</code> обновлен',
+            'not_list': '{cross} Ключ не является списком',
+            'list_success': '{check} <b>Список</b> <code>{key}</code> дополнен',
+            'list_module_success': '{check} <b>Список</b> модуль <code>{module}</code> ключ <code>{key}</code> дополнен',
+            'toggle_false': '❌ Установить false',
+            'toggle_true': '✅ Установить true',
+            'invalid_format': '❌ Неверный формат',
+        }
+    }
+
+
+    lang_strings = strings.get(language, strings['en'])
+
+    # FIXED: Renamed parameter from 'key' to 'string_key' to avoid conflict
+    def t(string_key, **kwargs):
+        if string_key not in lang_strings:
+            return string_key
+        return lang_strings[string_key].format(**kwargs)
+
     SENSITIVE_KEYS = ["inline_bot_token", "api_id", "api_hash", "phone"]
 
     class CustomJSONEncoder(json.JSONEncoder):
         def encode(self, o):
             result = super().encode(o)
-            # Исправляем двойные escape-последовательности
             result = re.sub(r'(?<!\\)\\\\(n|t|r|f|b|")', r"\\\1", result)
             return result
 
@@ -100,12 +208,11 @@ def register(kernel):
             elif expected_type == "list":
                 return json.loads(value_str)
             elif expected_type == "str":
-                # Правильная обработка escape-последовательностей
                 value_str = re.sub(r"(?<!\\)\\n", "\n", value_str)
                 value_str = re.sub(r"(?<!\\)\\t", "\t", value_str)
                 value_str = re.sub(r"(?<!\\)\\r", "\r", value_str)
-                value_str = re.sub(r"\\\\n", "\\n", value_str)  # Сохраняем \\n как \n
-                value_str = re.sub(r"\\\\t", "\\t", value_str)  # Сохраняем \\t как \t
+                value_str = re.sub(r"\\\\n", "\\n", value_str)
+                value_str = re.sub(r"\\\\t", "\\t", value_str)
                 return value_str
 
         if value_str.lower() == "true":
@@ -129,7 +236,6 @@ def register(kernel):
             except:
                 return value_str
         else:
-            # Правильная обработка escape-последовательностей для строк
             value_str = re.sub(r"(?<!\\)\\n", "\n", value_str)
             value_str = re.sub(r"(?<!\\)\\t", "\t", value_str)
             value_str = re.sub(r"(?<!\\)\\r", "\r", value_str)
@@ -181,13 +287,13 @@ def register(kernel):
         nav_buttons = []
         if page > 0:
             nav_buttons.append(
-                Button.inline("⬅️", data=f"config_kernel_page_{page - 1}".encode())
+                Button.inline(t('btn_back'), data=f"config_kernel_page_{page - 1}".encode())
             )
         if page < total_pages - 1:
             nav_buttons.append(
-                Button.inline("➡️", data=f"config_kernel_page_{page + 1}".encode())
+                Button.inline(t('btn_next'), data=f"config_kernel_page_{page + 1}".encode())
             )
-        nav_buttons.append(Button.inline("🔙 Menu", data=f"config_menu".encode()))
+        nav_buttons.append(Button.inline(t('btn_menu'), data=f"config_menu".encode()))
         if nav_buttons:
             buttons.append(nav_buttons)
         return buttons
@@ -210,13 +316,13 @@ def register(kernel):
         nav_buttons = []
         if page > 0:
             nav_buttons.append(
-                Button.inline("⬅️", data=f"config_modules_page_{page - 1}".encode())
+                Button.inline(t('btn_back'), data=f"config_modules_page_{page - 1}".encode())
             )
         if page < total_pages - 1:
             nav_buttons.append(
-                Button.inline("➡️", data=f"config_modules_page_{page + 1}".encode())
+                Button.inline(t('btn_next'), data=f"config_modules_page_{page + 1}".encode())
             )
-        nav_buttons.append(Button.inline("🔙 Menu", data=f"config_menu".encode()))
+        nav_buttons.append(Button.inline(t('btn_menu'), data=f"config_menu".encode()))
         if nav_buttons:
             buttons.append(nav_buttons)
         return buttons
@@ -226,7 +332,6 @@ def register(kernel):
         row = []
         for i, (key, value) in enumerate(page_keys):
             display_key = truncate_key(key)
-            # Используем новый формат для callback data с разделителем __
             key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
             kernel.cache.set(
                 f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400
@@ -243,17 +348,17 @@ def register(kernel):
         if page > 0:
             nav_buttons.append(
                 Button.inline(
-                    "⬅️", data=f"module_cfg_page_{module_name}__{page - 1}".encode()
+                    t('btn_back'), data=f"module_cfg_page_{module_name}__{page - 1}".encode()
                 )
             )
         if page < total_pages - 1:
             nav_buttons.append(
                 Button.inline(
-                    "➡️", data=f"module_cfg_page_{module_name}__{page + 1}".encode()
+                    t('btn_next'), data=f"module_cfg_page_{module_name}__{page + 1}".encode()
                 )
             )
         nav_buttons.append(
-            Button.inline("🔙 Modules", data=f"config_modules_page_0".encode())
+            Button.inline(t('btn_modules'), data=f"config_modules_page_0".encode())
         )
         if nav_buttons:
             buttons.append(nav_buttons)
@@ -261,11 +366,11 @@ def register(kernel):
 
     async def config_menu_handler(event):
         query = event.text.strip()
-        text = f"{CUSTOM_EMOJI['📋']} <b>Config Menu</b>\nВыберите раздел конфигурации:"
+        text = t('config_menu_text', menu_emoji=CUSTOM_EMOJI['📋'])
 
         buttons = [
-            [Button.inline("🪄 Kernel Config", data=b"config_kernel_page_0")],
-            [Button.inline("🚂 Modules Config", data=b"config_modules_page_0")],
+            [Button.inline(t('btn_kernel_config'), data=b"config_kernel_page_0")],
+            [Button.inline(t('btn_modules_config'), data=b"config_modules_page_0")],
         ]
 
         builder = event.builder.article(
@@ -300,8 +405,12 @@ def register(kernel):
         end_idx = start_idx + ITEMS_PER_PAGE
         page_keys = visible_keys[start_idx:end_idx]
 
-        text = f"{CUSTOM_EMOJI['✏️']} <b>Kernel Config</b>\n"
-        text += f"{CUSTOM_EMOJI['📰']} Page <b>{page + 1}/{total_pages}</b> ({total_keys} keys)"
+        text = t('kernel_config_title',
+                pencil=CUSTOM_EMOJI['✏️'],
+                page_emoji=CUSTOM_EMOJI['📰'],
+                page=page + 1,
+                total_pages=total_pages,
+                total_keys=total_keys)
 
         buttons = create_kernel_buttons_grid(page_keys, page, total_pages)
         builder = event.builder.article(
@@ -344,8 +453,12 @@ def register(kernel):
         end_idx = start_idx + MODULES_PER_PAGE
         page_modules = all_modules[start_idx:end_idx]
 
-        text = f"{CUSTOM_EMOJI['🧩']} <b>Modules Config</b>\n"
-        text += f"{CUSTOM_EMOJI['📰']} Page <b>{page + 1}/{total_pages}</b> ({total_modules} modules)"
+        text = t('modules_config_title',
+                puzzle=CUSTOM_EMOJI['🧩'],
+                page_emoji=CUSTOM_EMOJI['📰'],
+                page=page + 1,
+                total_pages=total_pages,
+                total_modules=total_modules)
 
         buttons = create_modules_buttons_grid(page_modules, page, total_pages)
         builder = event.builder.article(
@@ -359,16 +472,16 @@ def register(kernel):
     async def show_key_view(event, key_id):
         cached = kernel.cache.get(f"cfg_view_{key_id}")
         if not cached:
-            await event.answer("❌ Expired", alert=True)
+            await event.answer(t('expired'), alert=True)
             return None, None, None, None, None
 
         key, page, config_type = cached
         if config_type != "kernel":
-            await event.answer("❌ Invalid config type", alert=True)
+            await event.answer(t('invalid_type'), alert=True)
             return None, None, None, None, None
 
         if key not in kernel.config:
-            await event.answer("❌ Not found", alert=True)
+            await event.answer(t('not_found'), alert=True)
             return None, None, None, None, None
 
         value = kernel.config[key]
@@ -389,14 +502,19 @@ def register(kernel):
         else:
             display_value = f"<code>{html.escape(str(value))}</code>"
 
-        text = f"{CUSTOM_EMOJI['📝']} <b>{key}</b> ({type_emoji} {value_type})\n{display_value}"
+        text = t('key_view',
+                note=CUSTOM_EMOJI['📝'],
+                key=key,
+                type_emoji=type_emoji,
+                value_type=value_type,
+                display_value=display_value)
         return text, key, page, value_type, "kernel"
 
     async def show_module_config_view(event, module_name, page=0):
         try:
             module_config = await kernel.get_module_config(module_name, {})
             if not module_config:
-                await event.answer("❌ Module has no config", alert=True)
+                await event.answer(t('no_config'), alert=True)
                 return
 
             items = list(module_config.items())
@@ -416,8 +534,13 @@ def register(kernel):
             end_idx = start_idx + ITEMS_PER_PAGE
             page_keys = items[start_idx:end_idx]
 
-            text = f"{CUSTOM_EMOJI['🧩']} <b>Module:</b> <code>{module_name}</code>\n"
-            text += f"{CUSTOM_EMOJI['📰']} Page <b>{page + 1}/{total_pages}</b> ({total_items} keys)"
+            text = t('module_config_title',
+                    puzzle=CUSTOM_EMOJI['🧩'],
+                    module_name=module_name,
+                    page_emoji=CUSTOM_EMOJI['📰'],
+                    page=page + 1,
+                    total_pages=total_pages,
+                    total_items=total_items)
 
             buttons = create_module_config_buttons(
                 module_name, page_keys, page, total_pages
@@ -425,13 +548,13 @@ def register(kernel):
             await event.edit(text, buttons=buttons, parse_mode="html")
 
         except Exception as e:
-            await event.answer(f"❌ Error: {str(e)[:50]}", alert=True)
+            await event.answer(t('error', error=str(e)[:50]), alert=True)
 
     async def show_module_key_view(event, module_name, key, page):
         try:
             module_config = await kernel.get_module_config(module_name, {})
             if key not in module_config:
-                await event.answer("❌ Key not found", alert=True)
+                await event.answer(t('not_found'), alert=True)
                 return
 
             value = module_config[key]
@@ -454,12 +577,16 @@ def register(kernel):
             else:
                 display_value = f"<code>{html.escape(str(value))}</code>"
 
-            text = f"{CUSTOM_EMOJI['📝']} <b>{key}</b> ({type_emoji} {value_type})\n{display_value}"
+            text = t('key_view',
+                    note=CUSTOM_EMOJI['📝'],
+                    key=key,
+                    type_emoji=type_emoji,
+                    value_type=value_type,
+                    display_value=display_value)
 
             buttons = []
             if value_type == "bool":
-                toggle_text = f"❌ Set false" if value else f"✅ Set true"
-                # Используем новый формат с __
+                toggle_text = t('toggle_false') if value else t('toggle_true')
                 buttons.append(
                     [
                         Button.inline(
@@ -472,7 +599,7 @@ def register(kernel):
             buttons.append(
                 [
                     Button.inline(
-                        "🔙 Back",
+                        t('btn_back_simple'),
                         data=f"module_cfg_page_{module_name}__{page}".encode(),
                     )
                 ]
@@ -480,37 +607,37 @@ def register(kernel):
             await event.edit(text, buttons=buttons, parse_mode="html")
 
         except Exception as e:
-            await event.answer(f"❌ Error: {str(e)[:50]}", alert=True)
+            await event.answer(t('error', error=str(e)[:50]), alert=True)
 
     async def toggle_module_bool_key(event, module_name, key, page):
         try:
             module_config = await kernel.get_module_config(module_name, {})
             if key not in module_config:
-                await event.answer("❌ Key not found", alert=True)
+                await event.answer(t('not_found'), alert=True)
                 return
 
             value = module_config[key]
             if not isinstance(value, bool):
-                await event.answer("❌ Not boolean", alert=True)
+                await event.answer(t('not_boolean'), alert=True)
                 return
 
             module_config[key] = not value
             await kernel.save_module_config(module_name, module_config)
 
             await show_module_key_view(event, module_name, key, page)
-            await event.answer(f"✅ Changed to {module_config[key]}", alert=False)
+            await event.answer(t('changed_to', value=module_config[key]), alert=False)
 
         except Exception as e:
-            await event.answer(f"❌ Error: {str(e)[:50]}", alert=True)
+            await event.answer(t('error', error=str(e)[:50]), alert=True)
 
     async def config_callback_handler(event):
         data = event.data.decode()
 
         if data == "config_menu":
-            text = '<tg-emoji emoji-id="5404451992456156919">🧬</tg-emoji> <b>Config Menu</b>\nВыберите раздел конфигурации:'
+            text = t('config_menu_text', menu_emoji='<tg-emoji emoji-id="5404451992456156919">🧬</tg-emoji>')
             buttons = [
-                [Button.inline("🪄 Kernel Config", data=b"config_kernel_page_0")],
-                [Button.inline("🚂 Modules Config", data=b"config_modules_page_0")],
+                [Button.inline(t('btn_kernel_config'), data=b"config_kernel_page_0")],
+                [Button.inline(t('btn_modules_config'), data=b"config_modules_page_0")],
             ]
             try:
                 await event.edit(text, buttons=buttons, parse_mode="html")
@@ -536,8 +663,12 @@ def register(kernel):
                 end_idx = start_idx + ITEMS_PER_PAGE
                 page_keys = visible_keys[start_idx:end_idx]
 
-                text = '<tg-emoji emoji-id="5404451992456156919">🧬</tg-emoji> <b>Kernel Config</b>\n'
-                text += f"{CUSTOM_EMOJI['📰']} Page <b>{page + 1}/{total_pages}</b> ({total_keys} keys)"
+                text = t('kernel_config_title',
+                        pencil='<tg-emoji emoji-id="5404451992456156919">🧬</tg-emoji>',
+                        page_emoji=CUSTOM_EMOJI['📰'],
+                        page=page + 1,
+                        total_pages=total_pages,
+                        total_keys=total_keys)
                 buttons = create_kernel_buttons_grid(page_keys, page, total_pages)
                 await event.edit(text, buttons=buttons, parse_mode="html")
             except Exception as e:
@@ -566,8 +697,12 @@ def register(kernel):
                 end_idx = start_idx + MODULES_PER_PAGE
                 page_modules = all_modules[start_idx:end_idx]
 
-                text = f"{CUSTOM_EMOJI['🧩']} <b>Modules Config</b>\n"
-                text += f"{CUSTOM_EMOJI['📰']} Page <b>{page + 1}/{total_pages}</b> ({total_modules} modules)"
+                text = t('modules_config_title',
+                        puzzle=CUSTOM_EMOJI['🧩'],
+                        page_emoji=CUSTOM_EMOJI['📰'],
+                        page=page + 1,
+                        total_pages=total_pages,
+                        total_modules=total_modules)
                 buttons = create_modules_buttons_grid(page_modules, page, total_pages)
                 await event.edit(text, buttons=buttons, parse_mode="html")
             except Exception as e:
@@ -578,7 +713,7 @@ def register(kernel):
                 key_id = data[14:]
                 cached = kernel.cache.get(f"module_select_{key_id}")
                 if not cached:
-                    await event.answer("❌ Expired", alert=True)
+                    await event.answer(t('expired'), alert=True)
                     return
 
                 module_name, page = cached
@@ -588,23 +723,18 @@ def register(kernel):
 
         elif data.startswith("module_cfg_page_"):
             try:
-                # Новый формат: module_cfg_page_{module_name}__{page}
                 if "__" in data:
                     parts = data.split("__")
                     module_name = parts[0].replace("module_cfg_page_", "")
                     page = int(parts[1])
                 else:
-                    # Старый формат для совместимости: module_cfg_page_{module_name}_{page}
                     parts = data.split("_")
-                    # Находим индекс, где начинается номер страницы (последний элемент)
                     page_part = parts[-1]
                     if page_part.isdigit():
                         page = int(page_part)
-                        module_name = "_".join(
-                            parts[3:-1]
-                        )  # module_cfg_page_ имеет 3 части
+                        module_name = "_".join(parts[3:-1])
                     else:
-                        await event.answer("❌ Invalid format", alert=True)
+                        await event.answer(t('invalid_format'), alert=True)
                         return
 
                 await show_module_config_view(event, module_name, page)
@@ -616,7 +746,7 @@ def register(kernel):
                 key_id = data[16:]
                 cached = kernel.cache.get(f"module_cfg_view_{key_id}")
                 if not cached:
-                    await event.answer("❌ Expired", alert=True)
+                    await event.answer(t('expired'), alert=True)
                     return
 
                 module_name, key, page = cached
@@ -626,7 +756,6 @@ def register(kernel):
 
         elif data.startswith("cfg_modules_bool_"):
             try:
-                # Новый формат: cfg_modules_bool_{module_name}__{key}__{page}
                 if "__" in data:
                     rest = data.replace("cfg_modules_bool_", "")
                     parts = rest.split("__")
@@ -635,21 +764,17 @@ def register(kernel):
                         key = parts[1]
                         page = int(parts[2])
                     else:
-                        await event.answer("❌ Invalid format", alert=True)
+                        await event.answer(t('invalid_format'), alert=True)
                         return
                 else:
-                    # Старый формат для совместимости: module_cfg_bool_{module_name}_{key}_{page}
                     rest = data.replace("module_cfg_bool_", "")
                     parts = rest.split("_")
-                    # Последний элемент - страница
                     if parts[-1].isdigit():
                         page = int(parts[-1])
-                        # Первая часть - имя модуля (может содержать дефисы)
                         module_name = parts[0]
-                        # Остальное - ключ
                         key = "_".join(parts[1:-1])
                     else:
-                        await event.answer("❌ Invalid format", alert=True)
+                        await event.answer(t('invalid_format'), alert=True)
                         return
 
                 await toggle_module_bool_key(event, module_name, key, page)
@@ -667,7 +792,7 @@ def register(kernel):
                 buttons = []
                 if value_type == "bool":
                     value = kernel.config[key]
-                    toggle_text = f"❌ Set false" if value else f"✅ Set true"
+                    toggle_text = t('toggle_false') if value else t('toggle_true')
                     buttons.append(
                         [
                             Button.inline(
@@ -679,7 +804,7 @@ def register(kernel):
                 buttons.append(
                     [
                         Button.inline(
-                            "🔙 Back", data=f"config_kernel_page_{page}".encode()
+                            t('btn_back_simple'), data=f"config_kernel_page_{page}".encode()
                         )
                     ]
                 )
@@ -692,17 +817,17 @@ def register(kernel):
                 key_id = data[16:]
                 cached = kernel.cache.get(f"cfg_view_{key_id}")
                 if not cached:
-                    await event.answer("❌ Expired", alert=True)
+                    await event.answer(t('expired'), alert=True)
                     return
 
                 key, page, config_type = cached
                 if key not in kernel.config:
-                    await event.answer("❌ Not found", alert=True)
+                    await event.answer(t('not_found'), alert=True)
                     return
 
                 value = kernel.config[key]
                 if not isinstance(value, bool):
-                    await event.answer("❌ Not boolean", alert=True)
+                    await event.answer(t('not_boolean'), alert=True)
                     return
 
                 kernel.config[key] = not value
@@ -714,7 +839,7 @@ def register(kernel):
                 text, key, page, value_type, config_type = result
 
                 new_value = kernel.config[key]
-                toggle_text = f"❌ Set false" if new_value else f"✅ Set true"
+                toggle_text = t('toggle_false') if new_value else t('toggle_true')
                 buttons = [
                     [
                         Button.inline(
@@ -723,13 +848,13 @@ def register(kernel):
                     ],
                     [
                         Button.inline(
-                            f"🔙 Back", data=f"config_kernel_page_{page}".encode()
+                            t('btn_back_simple'), data=f"config_kernel_page_{page}".encode()
                         )
                     ],
                 ]
 
                 await event.edit(text, buttons=buttons, parse_mode="html")
-                await event.answer(f"✅ Changed to {new_value}", alert=False)
+                await event.answer(t('changed_to', value=new_value), alert=False)
             except Exception as e:
                 await event.answer(str(e)[:50], alert=True)
 
@@ -765,7 +890,7 @@ def register(kernel):
                     except:
                         pass
                 await event.edit(
-                    f"{CUSTOM_EMOJI['⚙️']} <b>Config</b>: Use inline or <code>.cfg [now/hide/unhide]</code>",
+                    t('cfg_usage', gear=CUSTOM_EMOJI['⚙️']),
                     parse_mode="html",
                 )
 
@@ -776,13 +901,13 @@ def register(kernel):
                 if subcommand == "now":
                     if is_key_hidden(key):
                         await event.edit(
-                            f"{CUSTOM_EMOJI['💼']} <b>Hidden</b>: <code>{key}</code>",
+                            t('hidden_key', briefcase=CUSTOM_EMOJI['💼'], key=key),
                             parse_mode="html",
                         )
                         return
                     if key not in kernel.config:
                         await event.edit(
-                            f"{CUSTOM_EMOJI['🗳']} <b>Not found</b>: <code>{key}</code>",
+                            t('key_not_found', ballot=CUSTOM_EMOJI['🗳'], key=key),
                             parse_mode="html",
                         )
                         return
@@ -799,14 +924,19 @@ def register(kernel):
                         display_value = f"<code>{html.escape(str(value))}</code>"
 
                     await event.edit(
-                        f"{CUSTOM_EMOJI['📝']} <b>{key}</b> ({value_type})\n{display_value}",
+                        t('key_view',
+                          note=CUSTOM_EMOJI['📝'],
+                          key=key,
+                          type_emoji=get_type_emoji(value_type),
+                          value_type=value_type,
+                          display_value=display_value),
                         parse_mode="html",
                     )
 
                 elif subcommand == "hide":
                     if key in SENSITIVE_KEYS:
                         await event.edit(
-                            f"{CUSTOM_EMOJI['📎']} <b>System key</b>", parse_mode="html"
+                            t('system_key', paperclip=CUSTOM_EMOJI['📎']), parse_mode="html"
                         )
                         return
                     hidden = kernel.config.get("hidden_keys", [])
@@ -815,7 +945,7 @@ def register(kernel):
                         kernel.config["hidden_keys"] = hidden
                         await save_config()
                     await event.edit(
-                        f"{CUSTOM_EMOJI['💼']} <b>Hidden</b>: <code>{key}</code>",
+                        t('hidden_key', briefcase=CUSTOM_EMOJI['💼'], key=key),
                         parse_mode="html",
                     )
 
@@ -826,7 +956,7 @@ def register(kernel):
                         kernel.config["hidden_keys"] = hidden
                         await save_config()
                     await event.edit(
-                        f"{CUSTOM_EMOJI['📖']} <b>Visible</b>: <code>{key}</code>",
+                        t('visible_key', book=CUSTOM_EMOJI['📖'], key=key),
                         parse_mode="html",
                     )
         except Exception as e:
@@ -838,14 +968,13 @@ def register(kernel):
             args = event.text.split()
             if len(args) < 2:
                 await event.edit(
-                    f"{CUSTOM_EMOJI['⚙️']} <code>.fcfg [set/del/add/dict/list] -m [modules]</code>",
+                    t('fcfg_usage', gear=CUSTOM_EMOJI['⚙️']),
                     parse_mode="html",
                 )
                 return
 
             action = args[1].lower()
 
-            # Проверяем наличие флага -m
             module_mode = False
             module_name = None
 
@@ -854,18 +983,17 @@ def register(kernel):
                 m_index = args.index("-m")
                 if len(args) <= m_index + 1:
                     await event.edit(
-                        f"{CUSTOM_EMOJI['❌']} Specify module name after -m",
+                        t('specify_module', cross=CUSTOM_EMOJI['❌']),
                         parse_mode="html",
                     )
                     return
                 module_name = args[m_index + 1]
-                # Удаляем флаг -m и имя модуля из аргументов
                 args = args[:m_index] + args[m_index + 2 :]
 
             if action == "set":
                 if len(args) < 4:
                     await event.edit(
-                        f"{CUSTOM_EMOJI['❌']} Not enough arguments", parse_mode="html"
+                        t('not_enough_args', cross=CUSTOM_EMOJI['❌']), parse_mode="html"
                     )
                     return
 
@@ -873,7 +1001,6 @@ def register(kernel):
                 value_str = " ".join(args[3:]).strip()
 
                 if module_mode:
-                    # Режим модуля
                     try:
                         module_config = await kernel.get_module_config(module_name, {})
                         current_type = (
@@ -884,12 +1011,15 @@ def register(kernel):
                         value = parse_value(value_str, current_type)
                         module_config[key] = value
                         await kernel.save_module_config(module_name, module_config)
-                        # Показываем значение с переносами строк
                         display_value = value
                         if isinstance(value, str):
                             display_value = value.replace("\n", "\\n")
                         await event.edit(
-                            f"{CUSTOM_EMOJI['✅']} <b>Set</b> module <code>{module_name}</code> key <code>{key}</code> = <code>{html.escape(str(display_value))}</code>",
+                            t('set_module_success',
+                              check=CUSTOM_EMOJI['✅'],
+                              module=module_name,
+                              key=key,
+                              value=html.escape(str(display_value))),
                             parse_mode="html",
                         )
                     except Exception as e:
@@ -898,10 +1028,9 @@ def register(kernel):
                             parse_mode="html",
                         )
                 else:
-                    # Режим ядра
                     if key in SENSITIVE_KEYS:
                         await event.edit(
-                            f"{CUSTOM_EMOJI['❌']} <b>Protected</b>", parse_mode="html"
+                            t('protected_key', cross=CUSTOM_EMOJI['❌']), parse_mode="html"
                         )
                         return
                     try:
@@ -913,12 +1042,14 @@ def register(kernel):
                         value = parse_value(value_str, current_type)
                         kernel.config[key] = value
                         await save_config()
-                        # Показываем значение с переносами строк
                         display_value = value
                         if isinstance(value, str):
                             display_value = value.replace("\n", "\\n")
                         await event.edit(
-                            f"{CUSTOM_EMOJI['✅']} <b>Set</b> <code>{key}</code> = <code>{html.escape(str(display_value))}</code>",
+                            t('set_success',
+                              check=CUSTOM_EMOJI['✅'],
+                              key=key,
+                              value=html.escape(str(display_value))),
                             parse_mode="html",
                         )
                     except Exception as e:
@@ -930,32 +1061,33 @@ def register(kernel):
             elif action == "del":
                 if len(args) < 3:
                     await event.edit(
-                        f"{CUSTOM_EMOJI['❌']} Not enough arguments", parse_mode="html"
+                        t('not_enough_args', cross=CUSTOM_EMOJI['❌']), parse_mode="html"
                     )
                     return
 
                 key = args[2].strip()
 
                 if module_mode:
-                    # Режим модуля
                     module_config = await kernel.get_module_config(module_name, {})
                     if key in module_config:
                         module_config.pop(key)
                         await kernel.save_module_config(module_name, module_config)
                         await event.edit(
-                            f"{CUSTOM_EMOJI['🗳']} <b>Deleted</b> module <code>{module_name}</code> key <code>{key}</code>",
+                            t('delete_module_success',
+                              ballot=CUSTOM_EMOJI['🗳'],
+                              module=module_name,
+                              key=key),
                             parse_mode="html",
                         )
                     else:
                         await event.edit(
-                            f"{CUSTOM_EMOJI['❌']} Not found in module config",
+                            t('not_found_in_module', cross=CUSTOM_EMOJI['❌']),
                             parse_mode="html",
                         )
                 else:
-                    # Режим ядра
                     if key in SENSITIVE_KEYS:
                         await event.edit(
-                            f"{CUSTOM_EMOJI['❌']} <b>Protected</b>", parse_mode="html"
+                            t('protected_key', cross=CUSTOM_EMOJI['❌']), parse_mode="html"
                         )
                         return
                     if key in kernel.config:
@@ -964,18 +1096,20 @@ def register(kernel):
                             kernel.config["hidden_keys"].remove(key)
                         await save_config()
                         await event.edit(
-                            f"{CUSTOM_EMOJI['🗳']} <b>Deleted</b> <code>{key}</code>",
+                            t('delete_success',
+                              ballot=CUSTOM_EMOJI['🗳'],
+                              key=key),
                             parse_mode="html",
                         )
                     else:
                         await event.edit(
-                            f"{CUSTOM_EMOJI['❌']} Not found", parse_mode="html"
+                            t('not_found', cross=CUSTOM_EMOJI['❌']), parse_mode="html"
                         )
 
             elif action == "add":
                 if len(args) < 4:
                     await event.edit(
-                        f"{CUSTOM_EMOJI['❌']} Not enough arguments", parse_mode="html"
+                        t('not_enough_args', cross=CUSTOM_EMOJI['❌']), parse_mode="html"
                     )
                     return
 
@@ -983,11 +1117,10 @@ def register(kernel):
                 value_str = " ".join(args[3:]).strip()
 
                 if module_mode:
-                    # Режим модуля
                     module_config = await kernel.get_module_config(module_name, {})
                     if key in module_config:
                         await event.edit(
-                            f"{CUSTOM_EMOJI['❌']} Key already exists in module config",
+                            t('key_exists', cross=CUSTOM_EMOJI['❌']),
                             parse_mode="html",
                         )
                         return
@@ -996,7 +1129,10 @@ def register(kernel):
                         module_config[key] = value
                         await kernel.save_module_config(module_name, module_config)
                         await event.edit(
-                            f"{CUSTOM_EMOJI['✅']} <b>Added</b> module <code>{module_name}</code> key <code>{key}</code>",
+                            t('add_module_success',
+                              check=CUSTOM_EMOJI['✅'],
+                              module=module_name,
+                              key=key),
                             parse_mode="html",
                         )
                     except Exception as e:
@@ -1005,10 +1141,9 @@ def register(kernel):
                             parse_mode="html",
                         )
                 else:
-                    # Режим ядра
                     if key in kernel.config:
                         await event.edit(
-                            f"{CUSTOM_EMOJI['❌']} Exists", parse_mode="html"
+                            t('key_exists', cross=CUSTOM_EMOJI['❌']), parse_mode="html"
                         )
                         return
                     try:
@@ -1016,7 +1151,9 @@ def register(kernel):
                         kernel.config[key] = value
                         await save_config()
                         await event.edit(
-                            f"{CUSTOM_EMOJI['✅']} <b>Added</b> <code>{key}</code>",
+                            t('add_success',
+                              check=CUSTOM_EMOJI['✅'],
+                              key=key),
                             parse_mode="html",
                         )
                     except Exception as e:
@@ -1028,7 +1165,7 @@ def register(kernel):
             elif action == "dict":
                 if len(args) < 5:
                     await event.edit(
-                        f"{CUSTOM_EMOJI['❌']} Not enough arguments", parse_mode="html"
+                        t('not_enough_args', cross=CUSTOM_EMOJI['❌']), parse_mode="html"
                     )
                     return
 
@@ -1036,21 +1173,24 @@ def register(kernel):
                 value_str = " ".join(args[4:]).strip()
 
                 if module_mode:
-                    # Режим модуля
                     try:
                         module_config = await kernel.get_module_config(module_name, {})
                         if key not in module_config:
                             module_config[key] = {}
                         if not isinstance(module_config[key], dict):
                             await event.edit(
-                                f"{CUSTOM_EMOJI['❌']} Key is not a dict",
+                                t('not_dict', cross=CUSTOM_EMOJI['❌']),
                                 parse_mode="html",
                             )
                             return
                         module_config[key][subkey] = parse_value(value_str)
                         await kernel.save_module_config(module_name, module_config)
                         await event.edit(
-                            f"{CUSTOM_EMOJI['✅']} <b>Dict</b> module <code>{module_name}</code> key <code>{key}[{subkey}]</code> updated",
+                            t('dict_module_success',
+                              check=CUSTOM_EMOJI['✅'],
+                              module=module_name,
+                              key=key,
+                              subkey=subkey),
                             parse_mode="html",
                         )
                     except Exception as e:
@@ -1059,20 +1199,22 @@ def register(kernel):
                             parse_mode="html",
                         )
                 else:
-                    # Режим ядра
                     try:
                         if key not in kernel.config:
                             kernel.config[key] = {}
                         if not isinstance(kernel.config[key], dict):
                             await event.edit(
-                                f"{CUSTOM_EMOJI['❌']} Key is not a dict",
+                                t('not_dict', cross=CUSTOM_EMOJI['❌']),
                                 parse_mode="html",
                             )
                             return
                         kernel.config[key][subkey] = parse_value(value_str)
                         await save_config()
                         await event.edit(
-                            f"{CUSTOM_EMOJI['✅']} <b>Dict</b> <code>{key}[{subkey}]</code> updated",
+                            t('dict_success',
+                              check=CUSTOM_EMOJI['✅'],
+                              key=key,
+                              subkey=subkey),
                             parse_mode="html",
                         )
                     except Exception as e:
@@ -1084,7 +1226,7 @@ def register(kernel):
             elif action == "list":
                 if len(args) < 4:
                     await event.edit(
-                        f"{CUSTOM_EMOJI['❌']} Not enough arguments", parse_mode="html"
+                        t('not_enough_args', cross=CUSTOM_EMOJI['❌']), parse_mode="html"
                     )
                     return
 
@@ -1092,21 +1234,23 @@ def register(kernel):
                 value_str = " ".join(args[3:]).strip()
 
                 if module_mode:
-                    # Режим модуля
                     try:
                         module_config = await kernel.get_module_config(module_name, {})
                         if key not in module_config:
                             module_config[key] = []
                         if not isinstance(module_config[key], list):
                             await event.edit(
-                                f"{CUSTOM_EMOJI['❌']} Key is not a list",
+                                t('not_list', cross=CUSTOM_EMOJI['❌']),
                                 parse_mode="html",
                             )
                             return
                         module_config[key].append(parse_value(value_str))
                         await kernel.save_module_config(module_name, module_config)
                         await event.edit(
-                            f"{CUSTOM_EMOJI['✅']} <b>List</b> module <code>{module_name}</code> key <code>{key}</code> appended",
+                            t('list_module_success',
+                              check=CUSTOM_EMOJI['✅'],
+                              module=module_name,
+                              key=key),
                             parse_mode="html",
                         )
                     except Exception as e:
@@ -1115,20 +1259,21 @@ def register(kernel):
                             parse_mode="html",
                         )
                 else:
-                    # Режим ядра
                     try:
                         if key not in kernel.config:
                             kernel.config[key] = []
                         if not isinstance(kernel.config[key], list):
                             await event.edit(
-                                f"{CUSTOM_EMOJI['❌']} Key is not a list",
+                                t('not_list', cross=CUSTOM_EMOJI['❌']),
                                 parse_mode="html",
                             )
                             return
                         kernel.config[key].append(parse_value(value_str))
                         await save_config()
                         await event.edit(
-                            f"{CUSTOM_EMOJI['✅']} <b>List</b> <code>{key}</code> appended",
+                            t('list_success',
+                              check=CUSTOM_EMOJI['✅'],
+                              key=key),
                             parse_mode="html",
                         )
                     except Exception as e:

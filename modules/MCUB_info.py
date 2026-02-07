@@ -62,6 +62,32 @@ def add_link_preview(text, entities, link):
 
 def register(kernel):
     client = kernel.client
+    language = kernel.config.get('language', 'en')
+
+    # Локализованные строки
+    strings = {
+        'en': {
+            'custom_text_error': '<b>Error in custom text format:</b> {error}',
+            'quote_mode_error': 'Error in quote mode',
+            'send_banner_error': 'Error sending banner',
+            'error_see_logs': '{warning} <b>Error, see logs</b>',
+        },
+        'ru': {
+            'custom_text_error': '<b>Ошибка в форматировании кастомного текста:</b> {error}',
+            'quote_mode_error': 'Ошибка в режиме цитирования',
+            'send_banner_error': 'Ошибка отправки баннера',
+            'error_see_logs': '{warning} <b>Ошибка, смотри логи</b>',
+        }
+    }
+
+    # Получаем строки для текущего языка
+    lang_strings = strings.get(language, strings['en'])
+
+    def t(key, **kwargs):
+        """Возвращает локализованную строку с подстановкой значений"""
+        if key not in lang_strings:
+            return key
+        return lang_strings[key].format(**kwargs)
 
     kernel.config.setdefault("info_quote_media", False)
     kernel.config.setdefault(
@@ -241,7 +267,6 @@ def register(kernel):
                 if me.premium
                 else "Mitrich UserBot"
             )
-            # спасибо '@HenerTLG' за эмодзи пак
 
             custom_text = kernel.config.get("info_custom_text")
             if custom_text:
@@ -265,7 +290,7 @@ def register(kernel):
                     await kernel.handle_error(
                         e, source="info_cmd:custom_text_format", event=event
                     )
-                    info_text = f"""<b>Error in custom text format:</b> {str(e)}"""
+                    info_text = t('custom_text_error', error=str(e))
             else:
                 info_text = f"""<b>{mcub_emoji}</b>
 <blockquote>{CUSTOM_EMOJI['🌩️']} <b>Version:</b> <code>{kernel.VERSION}</code>
@@ -417,6 +442,6 @@ def register(kernel):
 
         except Exception as e:
             await event.edit(
-                f"{CUSTOM_EMOJI['⚠️']} <b>Error, see logs</b>", parse_mode="html"
+                t('error_see_logs', warning=CUSTOM_EMOJI['⚠️']), parse_mode="html"
             )
             await kernel.handle_error(e, source="info_cmd", event=event)

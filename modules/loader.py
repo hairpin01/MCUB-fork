@@ -72,6 +72,244 @@ except ImportError:
 
 def register(kernel):
     client = kernel.client
+    language = kernel.config.get('language', 'en')
+
+    # Локализованные строки
+    strings = {
+        'en': {
+            'reply_to_py': '{warning} <b>Reply to a .py file</b>',
+            'not_py_file': '{warning} <b>This is not a .py file</b>',
+            'system_module_update_attempt': '{confused} <b>Oops, looks like you tried to update a system module</b> <code>{module_name}</code>\n<blockquote><i>{blocked} Unfortunately, you cannot update system modules using <code>loadera</code></i></blockquote>',
+            'starting_install': 'Starting {action} module <b>{module_name}</b>',
+            'installing': '{test} installing',
+            'updating': '{reload} updating',
+            'log_start': '=- Starting {action} module {module_name}',
+            'log_filename': '=> File name: {filename}',
+            'log_downloading': '=- Downloading file to {file_path}',
+            'log_downloaded': '=> File downloaded successfully',
+            'log_file_read': '=> File read',
+            'log_checking_compatibility': '=- Checking module compatibility...',
+            'log_incompatible': '=X Module incompatible (Heroku/Hikka type)',
+            'log_compatible': '=> Module compatible',
+            'log_getting_metadata': 'Getting module metadata...',
+            'log_author': 'Author: {author}',
+            'log_version': 'Version: {version}',
+            'log_description': 'Description: {description}',
+            'log_checking_deps': '=- Checking dependencies...',
+            'log_deps_found': '=> Found dependencies: {deps}',
+            'installing_deps': '{dependencies} <b>installing dependencies:</b>\n<code>{deps_list}</code>',
+            'log_installing_dep': '=- Installing dependency: {dep}',
+            'log_dep_installed': '=> Dependency {dep} installed successfully',
+            'log_dep_error': '=X Error installing {dep}: {error}',
+            'log_removing_old': '=- Removing old module commands {module_name}',
+            'log_loading_module': '=- Loading module {module_name}...',
+            'log_module_loaded': '=> Module loaded successfully',
+            'log_commands_found': '=> Commands found: {count}',
+            'module_loaded': '{success} <b>Module {module_name} loaded!</b> {emoji}\n<blockquote>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote>{commands_list}</blockquote>',
+            'no_cmd_desc': '{no_cmd} Command has no description',
+            'command_line': '{crystal} <code>{prefix}{cmd}</code> – <b>{desc}</b>',
+            'aliases_text': ' (Aliases: {alias_text})',
+            'log_aliases_found': 'Command {cmd} has aliases: {aliases}',
+            'log_install_error': '=X Module loading error: {error}',
+            'install_failed': '<b>{blocked} Looks like the installation failed</b>\n<b>{idea} Install Log:</b>\n<pre>{log}</pre>',
+            'log_conflict': '✗ Command conflict: {error}',
+            'conflict_system': '{shield} <b>System command conflict!</b>\n<blockquote>Command <code>{prefix}{command}</code> already registered by system module.</blockquote>\n<b>Install Log:</b>\n<pre>{log}</pre>',
+            'conflict_user': '{error} <b>Module command conflict!</b>\n<blockquote>Command <code>{prefix}{command}</code> already registered by module <code>{command}</code>.</blockquote>\n<b>Install Log:</b>\n<pre>{log}</pre>',
+            'log_critical': '=X Critical error: {error}',
+            'log_traceback': 'Traceback:\n{traceback}',
+            'dlm_usage': '{warning} <b>Usage:</b> <code>{prefix}dlm [-send/-s/-list] module_name or URL</code>',
+            'dlm_list_loading': '{loading} <b>Getting module list...</b>',
+            'dlm_list_title': '{folder} <b>Module list from repositories:</b>\n<blockquote>{list}</blockquote>',
+            'dlm_list_errors': '\n\n{warning} <b>Errors:</b>\n<blockquote>{errors}</blockquote>',
+            'dlm_list_failed': '{warning} <b>Failed to get module list</b>',
+            'dlm_searching': '{loading} <b>Searching for module {module_name}...</b>',
+            'module_info': '{file} <b>Module:</b> <code>{module_name}</code>\n{idea} <b>Description:</b> <i>{description}</i>\n{crystal} <b>Version:</b> <code>{version}</code>\n{angel} <b>Author:</b> <i>{author}</i>\n{folder} <b>Size:</b> <code>{size} bytes</code>\n{cloud} <b>Repository:</b> <code>{repo}</code>',
+            'module_not_found': '{warning} <b>Module {module_name} not found in any repository</b>',
+            'dlm_send_usage': '{warning} <b>Usage:</b> <code>{prefix}dlm -send module_name or URL</code>',
+            'system_module_install_attempt': '{confused} <b>Oops, looks like you tried to install a system module</b> <code>{module_name}</code>\n<blockquote><i>{blocked} System modules cannot be installed via <code>dlm</code></i></blockquote>',
+            'downloading_module': '{download} downloading',
+            'log_mode': '=+ Mode: {mode}',
+            'log_type': '=+ Type: {type}',
+            'log_download_url': '=- Downloading module from URL: {url}',
+            'log_download_success': '=> ✓ Module downloaded successfully (status: {status})',
+            'log_download_failed': '=X Download error (status: {status})',
+            'url_download_error': '{warning} <b>Failed to download module from URL</b> (status: {status})',
+            'log_download_exception': '=X Download error: {error}',
+            'url_exception': '{warning} <b>Download error:</b> {error}',
+            'log_checking_repos': '=- Checking repositories ({count} items)',
+            'log_using_repo': '=- Using specified repository: {repo}',
+            'log_found_in_repo': '=> Module found in specified repository',
+            'log_not_found_in_repo': '=X Module not found in specified repository',
+            'log_checking_repo': '=- Checking repository {index}: {repo}',
+            'log_repo_error': '=X Error checking repository {repo}: {error}',
+            'module_not_found_repos': '{warning} <b>Module {module_name} not found in repositories</b>',
+            'log_saving_for_send': 'Saving file for sending',
+            'sending_module': '{upload} <b>Sending module {module_name}...</b>',
+            'file_sent_caption': '<blockquote>{file} <b>Module:</b> <code>{module_name}.py</code>\n{idea} <b>description:</b> <i>{description}</i>\n{crystal} <b>version:</b> <code>{version}</code>\n{angel} <b>author:</b> <i>{author}</i>\n{folder} <b>Size:</b> <code>{size} bytes</code></blockquote>',
+            'log_file_sent': '=> File sent, deleting temp file',
+            'log_install_mode': '=- Installation mode, continuing...',
+            'log_saving_file': '=- Saving module file: {file_path}',
+            'log_loading_to_kernel': '=- Loading module to kernel',
+            'log_module_loaded_kernel': '=> Module loaded successfully to kernel',
+            'conflict_system_alt': '{shield} <b>Oops, this module tried to overwrite a system command</b> (<code>{command}</code>)\n<blockquote><i>This is not an error but a <b>precaution</b></i></blockquote>\n<b>Install Log:</b>\n<pre>{log}</pre>',
+            'conflict_user_alt': '{error} <b>Oops, looks like a module conflict occurred</b> <i>(their commands)</i>\n<blockquote><i>Conflict details in logs 🔭</i></blockquote>\n<b>Install Log:</b>\n<pre>{log}</pre>',
+            'log_deleting_due_conflict': '=> Deleting module file due to conflict',
+            'log_deleting_due_error': '=> Deleting module file due to error',
+            'um_usage': '{warning} <b>Usage:</b> <code>{prefix}um module_name</code>',
+            'module_not_found_um': '{warning} <b>Module {module_name} not found</b>',
+            'module_unloaded': '{success} <b>Module {module_name} unloaded</b>',
+            'unlm_usage': '{warning} <b>Usage:</b> <code>{prefix}unlm module_name</code>',
+            'module_file_not_found': '{warning} <b>Module file not found</b>',
+            'uploading_module': '{upload} <b>Uploading module {module_name}...</b>',
+            'file_upload_caption': '{file} <b>Module:</b> {module_name}.py\n\n<blockquote><code>{prefix}im</code> to install</blockquote>',
+            'reload_usage': '{warning} <b>Usage:</b> <code>{prefix}reload module_name</code>',
+            'reloading': '{reload} <b>Reloading <code>{module_name}</code>...</b>',
+            'reload_success': '{success} <b>Module {module_name} reloaded!</b> {emoji}\n\n<blockquote>{cmd_text}</blockquote>',
+            'no_commands': 'No commands',
+            'reload_error': '{warning} <b>Error, check logs</b>',
+            'no_modules': '{folder} <b>No modules loaded</b>',
+            'loaded_modules': '{crystal} <b>Loaded modules:</b>\n\n',
+            'system_modules': '{shield} <b>System modules:</b>\n',
+            'user_modules': '{sparkle} <b>User modules:</b>\n',
+            'module_line': '• <b>{name}</b> <i>({count} commands)</i>\n',
+            'addrepo_usage': '{warning} <b>Usage:</b> <code>{prefix}addrepo URL</code>',
+            'delrepo_usage': '{warning} <b>Usage:</b> <code>{prefix}delrepo index</code>',
+            'catalog_title': '<b>🌩️ Official MCUB Repository</b> <code>{repo_url}</code>\n\n',
+            'catalog_custom': '<i>{repo_name}</i> <code>{repo_url}</code>\n\n',
+            'no_modules_catalog': '📭 No modules',
+            'catalog_page': '📄 Page {page}/{total_pages}',
+            'catalog_error': '❌ Catalog loading error: {error}',
+            'btn_back': '⬅️ Back',
+            'btn_next': '➡️ Next',
+            'not_mcub_modules': '{warning} Module is not {mcub} type, [Heroku/Hikka]'
+        },
+        'ru': {
+            'reply_to_py': '{warning} <b>Ответьте на .py файл</b>',
+            'not_py_file': '{warning} <b>Это не .py файл</b>',
+            'system_module_update_attempt': '{confused} <b>Ой, кажется ты попытался обновить системный модуль</b> <code>{module_name}</code>\n<blockquote><i>{blocked} К сожалению нельзя обновлять системные модули с помощью <code>loadera</code></i></blockquote>',
+            'starting_install': '{action} модуль <b>{module_name}</b>',
+            'installing': '{test} устанавливаю',
+            'updating': '{reload} обновляю',
+            'log_start': '=- Начинаю {action} модуля {module_name}',
+            'log_filename': '=> Имя файла: {filename}',
+            'log_downloading': '=- Скачиваю файл в {file_path}',
+            'log_downloaded': '=> Файл успешно скачан',
+            'log_file_read': '=> Файл прочитан',
+            'log_checking_compatibility': '=- Проверяю совместимость модуля...',
+            'log_incompatible': '=X Модуль не совместим (Heroku/Hikka тип)',
+            'log_compatible': '=> Модуль совместим',
+            'log_getting_metadata': 'Получаю метаданные модуля...',
+            'log_author': 'Автор: {author}',
+            'log_version': 'Версия: {version}',
+            'log_description': 'Описание: {description}',
+            'log_checking_deps': '=- Проверяю зависимости...',
+            'log_deps_found': '=> Найдены зависимости: {deps}',
+            'installing_deps': '{dependencies} <b>ставлю зависимости:</b>\n<code>{deps_list}</code>',
+            'log_installing_dep': '=- Устанавливаю зависимость: {dep}',
+            'log_dep_installed': '=> Зависимость {dep} установлена успешно',
+            'log_dep_error': '=X Ошибка установки {dep}: {error}',
+            'log_removing_old': '=- Удаляю старые команды модуля {module_name}',
+            'log_loading_module': '=- Загружаю модуль {module_name}...',
+            'log_module_loaded': '=> Модуль успешно загружен',
+            'log_commands_found': '=> Найдено команд: {count}',
+            'module_loaded': '{success} <b>Модуль {module_name} загружен!</b> {emoji}\n<blockquote>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote>{commands_list}</blockquote>',
+            'no_cmd_desc': '{no_cmd} У команды нету описания',
+            'command_line': '{crystal} <code>{prefix}{cmd}</code> – <b>{desc}</b>',
+            'aliases_text': ' (Aliases: {alias_text})',
+            'log_aliases_found': 'Команда {cmd} имеет алиасы: {aliases}',
+            'log_install_error': '=X Ошибка загрузки модуля: {error}',
+            'install_failed': '<b>{blocked} Кажется установка прошла не удачно</b>\n<b>{idea} Install Log:</b>\n<pre>{log}</pre>',
+            'log_conflict': '✗ Конфликт команд: {error}',
+            'conflict_system': '{shield} <b>Конфликт системной команды!</b>\n<blockquote>Команда <code>{prefix}{command}</code> уже зарегистрирована системным модулем.</blockquote>\n<b>Install Log:</b>\n<pre>{log}</pre>',
+            'conflict_user': '{error} <b>Конфликт команд модулей!</b>\n<blockquote>Команда <code>{prefix}{command}</code> уже зарегистрирована модулем <code>{command}</code>.</blockquote>\n<b>Install Log</b>\n<pre>{log}</pre>',
+            'log_critical': '=X Критическая ошибка: {error}',
+            'log_traceback': 'Трейсбэк:\n{traceback}',
+            'dlm_usage': '{warning} <b>Использование:</b> <code>{prefix}dlm [-send/-s/-list] название_модуля или ссылка</code>',
+            'dlm_list_loading': '{loading} <b>Получаю список модулей...</b>',
+            'dlm_list_title': '{folder} <b>Список модулей из репозиториев:</b>\n<blockquote>{list}</blockquote>',
+            'dlm_list_errors': '\n\n{warning} <b>Ошибки:</b>\n<blockquote>{errors}</blockquote>',
+            'dlm_list_failed': '{warning} <b>Не удалось получить список модулей</b>',
+            'dlm_searching': '{loading} <b>Ищу модуль {module_name}...</b>',
+            'module_info': '{file} <b>Модуль:</b> <code>{module_name}</code>\n{idea} <b>Описание:</b> <i>{description}</i>\n{crystal} <b>Версия:</b> <code>{version}</code>\n{angel} <b>Автор:</b> <i>{author}</i>\n{folder} <b>Размер:</b> <code>{size} байт</code>\n{cloud} <b>Репозиторий:</b> <code>{repo}</code>',
+            'module_not_found': '{warning} <b>Модуль {module_name} не найден ни в одном репозитории</b>',
+            'dlm_send_usage': '{warning} <b>Использование:</b> <code>{prefix}dlm -send название_модуля или ссылка</code>',
+            'system_module_install_attempt': '{confused} <b>Ой, кажется ты попытался установить системный модуль</b> <code>{module_name}</code>\n<blockquote><i>{blocked} Системные модули нельзя устанавливать через <code>dlm</code></i></blockquote>',
+            'downloading_module': '{download} скачиваю',
+            'log_mode': '=+ Режим: {mode}',
+            'log_type': '=+ Тип: {type}',
+            'log_download_url': '=- Скачиваю модуль по URL: {url}',
+            'log_download_success': '=> ✓ Модуль скачан успешно (статус: {status})',
+            'log_download_failed': '=X Ошибка скачивания (статус: {status})',
+            'url_download_error': '{warning} <b>Не удалось скачать модуль по ссылке</b> (статус: {status})',
+            'log_download_exception': '=X Ошибка скачивания: {error}',
+            'url_exception': '{warning} <b>Ошибка скачивания:</b> {error}',
+            'log_checking_repos': '=- Проверяю репозитории ({count} шт.)',
+            'log_using_repo': '=- Использую указанный репозиторий: {repo}',
+            'log_found_in_repo': '=> Модуль найден в указанном репозитории',
+            'log_not_found_in_repo': '=X Модуль не найден в указанном репозитории',
+            'log_checking_repo': '=- Проверяю репозиторий {index}: {repo}',
+            'log_repo_error': '=X Ошибка проверки репозитория {repo}: {error}',
+            'module_not_found_repos': '{warning} <b>Модуль {module_name} не найден в репозиториях</b>',
+            'log_saving_for_send': 'Сохраняю файл для отправки',
+            'sending_module': '{upload} <b>Отправляю модуль {module_name}...</b>',
+            'file_sent_caption': '<blockquote>{file} <b>Модуль:</b> <code>{module_name}.py</code>\n{idea} <b>описание:</b> <i>{description}</i>\n{crystal} <b>версия:</b> <code>{version}</code>\n{angel} <b>автор:</b> <i>{author}</i>\n{folder} <b>Размер:</b> <code>{size} байт</code></blockquote>',
+            'log_file_sent': '=> Файл отправлен, удаляю временный файл',
+            'log_install_mode': '=- Режим установки, продолжаю...',
+            'log_saving_file': '=- Сохраняю файл модуля: {file_path}',
+            'log_loading_to_kernel': '=- Загружаю модуль в ядро',
+            'log_module_loaded_kernel': '=> Модуль успешно загружен в ядро',
+            'conflict_system_alt': '{shield} <b>Ой, этот модуль хотел перезаписать системную команду</b> (<code>{command}</code>)\n<blockquote><i>Это не ошибка а мера <b>предосторожности</b></i></blockquote>\n<b>Лог установки:</b>\n<pre>{log}</pre>',
+            'conflict_user_alt': '{error} <b>Ой, кажется случился конфликт модулей</b> <i>(их команд)</i>\n<blockquote><i>Детали конфликта в логах 🔭</i></blockquote>\n<b>Лог установки:</b>\n<pre>{log}</pre>',
+            'log_deleting_due_conflict': '=> Удаляю файл модуля из-за конфликта',
+            'log_deleting_due_error': '=> Удаляю файл модуля из-за ошибки',
+            'um_usage': '{warning} <b>Использование:</b> <code>{prefix}um название_модуля</code>',
+            'module_not_found_um': '{warning} <b>Модуль {module_name} не найден</b>',
+            'module_unloaded': '{success} <b>Модуль {module_name} удален</b>',
+            'unlm_usage': '{warning} <b>Использование:</b> <code>{prefix}unlm название_модуля</code>',
+            'module_file_not_found': '{warning} <b>Файл модуля не найден</b>',
+            'uploading_module': '{upload} <b>Отправка модуля {module_name}...</b>',
+            'file_upload_caption': '{file} <b>Модуль:</b> {module_name}.py\n\n<blockquote><code>{prefix}im</code> для установки</blockquote>',
+            'reload_usage': '{warning} <b>Использование:</b> <code>{prefix}reload название_модуля</code>',
+            'reloading': '{reload} <b>Перезагрузка <code>{module_name}</code>...</b>',
+            'reload_success': '{success} <b>Модуль {module_name} перезагружен!</b> {emoji}\n\n<blockquote>{cmd_text}</blockquote>',
+            'no_commands': 'Нет команд',
+            'reload_error': '{warning} <b>Ошибка, смотри логи</b>',
+            'no_modules': '{folder} <b>Модули не загружены</b>',
+            'loaded_modules': '{crystal} <b>Загруженные модули:</b>\n\n',
+            'system_modules': '{shield} <b>Системные модули:</b>\n',
+            'user_modules': '{sparkle} <b>Пользовательские модули:</b>\n',
+            'module_line': '• <b>{name}</b> <i>({count} команд)</i>\n',
+            'addrepo_usage': '{warning} <b>Использование:</b> <code>{prefix}addrepo URL</code>',
+            'delrepo_usage': '{warning} <b>Использование:</b> <code>{prefix}delrepo индекс</code>',
+            'catalog_title': '<b>🌩️ Официальный репозиторий MCUB</b> <code>{repo_url}</code>\n\n',
+            'catalog_custom': '<i>{repo_name}</i> <code>{repo_url}</code>\n\n',
+            'no_modules_catalog': '📭 Нет модулей',
+            'catalog_page': '📄 Страница {page}/{total_pages}',
+            'catalog_error': '❌ Ошибка загрузки каталога: {error}',
+            'btn_back': '⬅️ Назад',
+            'btn_next': '➡️ Вперёд',
+            'modules_not_mcub': '{warning} Модуль не {mcub} типа <i>[Heroku/Hikka]</i>'
+        }
+    }
+
+    # Получаем строки для текущего языка
+    lang_strings = strings.get(language, strings['en'])
+
+
+    def t(key, **kwargs):
+        """Возвращает локализованную строку с подстановкой значений"""
+        if key not in lang_strings:
+            return key
+        return lang_strings[key].format(**kwargs)
+
+    async def mcub_handler():
+        me = await kernel.client.get_me()
+        mcub_emoji = (
+            '<tg-emoji emoji-id="5470015630302287916">🔮</tg-emoji><tg-emoji emoji-id="5469945764069280010">🔮</tg-emoji><tg-emoji emoji-id="5469943045354984820">🔮</tg-emoji><tg-emoji emoji-id="5469879466954098867">🔮</tg-emoji>'
+            if me.premium
+            else "MCUB"
+        )
+        return mcub_emoji
 
     async def log_to_bot(text):
         if hasattr(kernel, "log_module"):
@@ -276,9 +514,9 @@ def register(kernel):
             page_modules = modules[start_idx:end_idx] if modules else []
 
             if repo_index == 0:
-                msg = f"<b>🌩️ Официальный репозиторий MCUB</b> <code>{repo_url}</code>\n\n"
+                msg = t('catalog_title', repo_url=repo_url)
             else:
-                msg = f"<i>{repo_name}</i> <code>{repo_url}</code>\n\n"
+                msg = t('catalog_custom', repo_name=repo_name, repo_url=repo_url)
 
             if page_modules:
                 modules_text = " | ".join(
@@ -286,9 +524,9 @@ def register(kernel):
                 )
                 msg += modules_text
             else:
-                msg += "📭 Нет модулей"
+                msg += t('no_modules_catalog')
 
-            msg += f"\n\n📄 Страница {page}/{total_pages}"
+            msg += f"\n\n{t('catalog_page', page=page, total_pages=total_pages)}"
 
             buttons = []
             nav_buttons = []
@@ -296,14 +534,14 @@ def register(kernel):
             if page > 1:
                 nav_buttons.append(
                     Button.inline(
-                        "⬅️ Назад", f"catalog_{repo_index}_{page-1}".encode()
+                        t('btn_back'), f"catalog_{repo_index}_{page-1}".encode()
                     )
                 )
 
             if page < total_pages:
                 nav_buttons.append(
                     Button.inline(
-                        "➡️ Вперёд", f"catalog_{repo_index}_{page+1}".encode()
+                        t('btn_next'), f"catalog_{repo_index}_{page+1}".encode()
                     )
                 )
 
@@ -324,7 +562,7 @@ def register(kernel):
             print(f"Ошибка в handle_catalog: {e}")
             import traceback
             traceback.print_exc()
-            return f"❌ Ошибка загрузки каталога: {str(e)[:100]}", []
+            return t('catalog_error', error=str(e)[:100]), []
 
     async def catalog_inline_handler(event):
         try:
@@ -372,18 +610,18 @@ def register(kernel):
     kernel.register_inline_handler("catalog", catalog_inline_handler)
     kernel.register_callback_handler("catalog_", catalog_callback_handler)
 
-    @kernel.register.command("iload", alias="im") # загрузить модуль
+    @kernel.register.command("iload", alias="im")
     async def install_module_handler(event):
         if not event.is_reply:
             await edit_with_emoji(
-                event, f'{CUSTOM_EMOJI["warning"]} <b>Ответьте на .py файл</b>'
+                event, t('reply_to_py', warning=CUSTOM_EMOJI['warning'])
             )
             return
 
         reply = await event.get_reply_message()
         if not reply.document or not reply.document.attributes[0].file_name.endswith(".py"):
             await edit_with_emoji(
-                event, f'{CUSTOM_EMOJI["warning"]} <b>Это не .py файл</b>'
+                event, t('not_py_file', warning=CUSTOM_EMOJI['warning'])
             )
             return
 
@@ -402,107 +640,108 @@ def register(kernel):
         if module_name in kernel.system_modules:
             await edit_with_emoji(
                 event,
-                f'{CUSTOM_EMOJI["confused"]} <b>Ой, кажется ты попытался обновить системный модуль</b> <code>{module_name}</code>\n'
-                f'<blockquote><i>{CUSTOM_EMOJI["blocked"]} К сожалению нельзя обновлять системные модули с помощью <code>loadera</code></i></blockquote>',
+                t('system_module_update_attempt',
+                  confused=CUSTOM_EMOJI['confused'],
+                  module_name=module_name,
+                  blocked=CUSTOM_EMOJI['blocked'])
             )
             return
 
         is_update = module_name in kernel.loaded_modules
 
-        action = (
-            f'{CUSTOM_EMOJI["reload"]} обновляю'
-            if is_update
-            else f'{CUSTOM_EMOJI["test"]} устанавливаю'
-        )
+        action = t('updating', reload=CUSTOM_EMOJI['reload']) if is_update else t('installing', test=CUSTOM_EMOJI['test'])
         msg = await event.edit(
-            f"{action} модуль <b>{module_name}</b>", parse_mode="html"
+            t('starting_install', action=action, module_name=module_name), parse_mode="html"
         )
 
-        add_log(f"=- Начинаю {'обновление' if is_update else 'установку'} модуля {module_name}")
-        add_log(f"=> Имя файла: {file_name}")
+        add_log(t('log_start', action='обновление' if is_update else 'установку', module_name=module_name))
+        add_log(t('log_filename', filename=file_name))
 
         file_path = os.path.join(kernel.MODULES_LOADED_DIR, file_name)
 
         try:
 
-            add_log(f"=- Скачиваю файл в {file_path}")
+            add_log(t('log_downloading', file_path=file_path))
             await reply.download_media(file_path)
-            add_log("=> Файл успешно скачан")
+            add_log(t('log_downloaded'))
 
             with open(file_path, "r", encoding="utf-8") as f:
                 code = f.read()
-            add_log("=> Файл прочитан")
+            add_log(t('log_file_read'))
 
-
-            add_log("=- Проверяю совместимость модуля...")
+            mcub = await mcub_handler()
+            add_log(t('log_checking_compatibility'))
             if "from .. import" in code or "import loader" in code:
-                add_log("=X Модуль не совместим (Heroku/Hikka тип)")
+                add_log(t('log_incompatible'))
                 await edit_with_emoji(
-                    msg, f'{CUSTOM_EMOJI["warning"]} <b>Модуль не совместим</b>'
+                    msg, t('modules_not_mcub', mcub, warning=CUSTOM_EMOJI['warning'])
                 )
                 os.remove(file_path)
                 return
-            add_log("=> Модуль совместим")
+            add_log(t('log_compatible'))
 
 
-            add_log("Получаю метаданные модуля...")
+            add_log(t('log_getting_metadata'))
             metadata = await kernel.get_module_metadata(code)
-            add_log(f"Автор: {metadata['author']}")
-            add_log(f"Версия: {metadata['version']}")
-            add_log(f"Описание: {metadata['description']}")
+            add_log(t('log_author', author=metadata['author']))
+            add_log(t('log_version', version=metadata['version']))
+            add_log(t('log_description', description=metadata['description']))
 
             dependencies = []
-            add_log("=- Проверяю зависимости...")
+            add_log(t('log_checking_deps'))
             if "requires" in code:
                 reqs = re.findall(r"# requires: (.+)", code)
                 if reqs:
                     dependencies = [req.strip() for req in reqs[0].split(",")]
-                    add_log(f"=> Найдены зависимости: {', '.join(dependencies)}")
+                    add_log(t('log_deps_found', deps=', '.join(dependencies)))
 
             if dependencies:
                 await edit_with_emoji(
                     msg,
-                    f'{CUSTOM_EMOJI["dependencies"]} <b>ставлю зависимости:</b>\n<code>{chr(10).join(dependencies)}</code>',
+                    t('installing_deps',
+                      dependencies=CUSTOM_EMOJI['dependencies'],
+                      deps_list='\n'.join(dependencies)),
                 )
 
                 for dep in dependencies:
-                    add_log(f"=- Устанавливаю зависимость: {dep}")
+                    add_log(t('log_installing_dep', dep=dep))
                     result = subprocess.run(
                         [sys.executable, "-m", "pip", "install", dep],
                         capture_output=True,
                         text=True,
                     )
                     if result.returncode == 0:
-                        add_log(f"=> Зависимость {dep} установлена успешно")
+                        add_log(t('log_dep_installed', dep=dep))
                     else:
-                        add_log(f"=X Ошибка установки {dep}: {result.stderr[:200]}")
+                        add_log(t('log_dep_error', dep=dep, error=result.stderr[:200]))
 
             if is_update:
-                add_log(f"=- Удаляю старые команды модуля {module_name}")
+                add_log(t('log_removing_old', module_name=module_name))
                 kernel.unregister_module_commands(module_name)
 
-            add_log(f"=- Загружаю модуль {module_name}...")
+            add_log(t('log_loading_module', module_name=module_name))
             success, message_text = await kernel.load_module_from_file(
                 file_path, module_name, False
             )
 
             if success:
-                add_log("=> Модуль успешно загружен")
+                add_log(t('log_module_loaded'))
                 commands, aliases_info = get_module_commands(module_name, kernel)
 
                 emoji = random.choice(RANDOM_EMOJIS)
 
-                final_msg = f'{CUSTOM_EMOJI["success"]} <b>Модуль {module_name} загружен!</b> {emoji}\n'
-                final_msg += f'<blockquote>{CUSTOM_EMOJI["idea"]} <i>D: {metadata["description"]}</i> | V: <code>{metadata["version"]}</code></blockquote>\n'
-                final_msg += "<blockquote>"
-
+                commands_list = ""
                 if commands:
-                    add_log(f"=> Найдено команд: {len(commands)}")
+                    add_log(t('log_commands_found', count=len(commands)))
                     for cmd in commands:
                         cmd_desc = metadata["commands"].get(
-                            cmd, f'{CUSTOM_EMOJI["no_cmd"]} У команды нету описания'
+                            cmd, t('no_cmd_desc', no_cmd=CUSTOM_EMOJI['no_cmd'])
                         )
-                        final_msg += f'{CUSTOM_EMOJI["crystal"]} <code>{kernel.custom_prefix}{cmd}</code> – <b>{cmd_desc}</b>'
+                        command_line = t('command_line',
+                                        crystal=CUSTOM_EMOJI['crystal'],
+                                        prefix=kernel.custom_prefix,
+                                        cmd=cmd,
+                                        desc=cmd_desc)
 
                         if cmd in aliases_info:
                             aliases = aliases_info[cmd]
@@ -515,28 +754,38 @@ def register(kernel):
                                         for a in aliases
                                     ]
                                 )
-                                final_msg += f" (Aliases: {alias_text})"
-                                add_log(f"Команда {cmd} имеет алиасы: {', '.join(aliases)}")
-                        final_msg += "\n"
-                final_msg += '</blockquote>'
+                                command_line += t('aliases_text', alias_text=alias_text)
+                                add_log(t('log_aliases_found', cmd=cmd, aliases=', '.join(aliases)))
+                        commands_list += command_line + "\n"
+
+                final_msg = t('module_loaded',
+                             success=CUSTOM_EMOJI['success'],
+                             module_name=module_name,
+                             emoji=emoji,
+                             idea=CUSTOM_EMOJI['idea'],
+                             description=metadata["description"],
+                             version=metadata["version"],
+                             commands_list=commands_list)
 
                 kernel.logger.info(f"Модуль {module_name} установлен")
                 await edit_with_emoji(msg, final_msg)
 
             else:
-                add_log(f"=X Ошибка загрузки модуля: {message_text}")
+                add_log(t('log_install_error', error=message_text))
                 log_text = "\n".join(install_log)
                 await edit_with_emoji(
                     msg,
-                    f'<b>{CUSTOM_EMOJI['blocked']} Кажется установка прошла не удачно</b>\n'
-                    f'<b>{CUSTOM_EMOJI['idea']} Install Log:</b>\n<pre>{html.escape(log_text)}</pre>'
+                    t('install_failed',
+                      blocked=CUSTOM_EMOJI['blocked'],
+                      idea=CUSTOM_EMOJI['idea'],
+                      log=html.escape(log_text))
                 )
 
                 if os.path.exists(file_path):
                     os.remove(file_path)
 
         except CommandConflictError as e:
-            add_log(f"✗ Конфликт команд: {e}")
+            add_log(t('log_conflict', error=e))
             log_text = "\n".join(install_log)
 
             conflict_details = f"Команда '{e.command}' уже зарегистрирована модулем '{e.conflict_type}'"
@@ -544,36 +793,43 @@ def register(kernel):
             if e.conflict_type == "system":
                 await edit_with_emoji(
                     msg,
-                    f'{CUSTOM_EMOJI["shield"]} <b>Конфликт системной команды!</b>\n'
-                    f'<blockquote>Команда <code>{kernel.custom_prefix}{e.command}</code> уже зарегистрирована системным модулем.</blockquote>\n'
-                    f'<b>Install Log:</b>\n<pre>{html.escape(log_text)}</pre>',
+                    t('conflict_system',
+                      shield=CUSTOM_EMOJI['shield'],
+                      prefix=kernel.custom_prefix,
+                      command=e.command,
+                      log=html.escape(log_text)),
                 )
             elif e.conflict_type == "user":
                 await edit_with_emoji(
                     msg,
-                    f'{CUSTOM_EMOJI["error"]} <b>Конфликт команд модулей!</b>\n'
-                    f'<blockquote>Команда <code>{kernel.custom_prefix}{e.command}</code> уже зарегистрирована модулем <code>{e.command}</code>.</blockquote>\n'
-                    f'<b>Install Log</b>\n<pre>{html.escape(log_text)}</pre>',
+                    t('conflict_user',
+                      error=CUSTOM_EMOJI['error'],
+                      prefix=kernel.custom_prefix,
+                      command=e.command,
+                      log=html.escape(log_text)),
                 )
             if os.path.exists(file_path):
                 os.remove(file_path)
 
         except Exception as e:
-            add_log(f"=X Критическая ошибка: {str(e)}")
+            add_log(t('log_critical', error=str(e)))
             import traceback
-            add_log(f"Трейсбэк:\n{traceback.format_exc()}")
+            add_log(t('log_traceback', traceback=traceback.format_exc()))
 
             log_text = "\n".join(install_log)
             await edit_with_emoji(
                 msg,
-                f'<b>{CUSTOM_EMOJI["blocked"]} Кажется установка прошла не удачно</b>\n'
-                f'<b>{CUSTOM_EMOJI["idea"]} Install Log:</b>\n<pre>{html.escape(log_text)}</pre>'
+                t('install_failed',
+                  blocked=CUSTOM_EMOJI['blocked'],
+                  idea=CUSTOM_EMOJI['idea'],
+                  log=html.escape(log_text))
             )
             await kernel.handle_error(e, source="install_module_handler", event=event)
             if os.path.exists(file_path):
                 os.remove(file_path)
 
-    @kernel.register.command("dlm")
+    @kernel.register.command('dlm')
+    # <args> <URL/модуль> - args = -s отправить файлом, -list список модулей
     async def download_module_handler(event):
         args = event.text.split()
 
@@ -596,14 +852,14 @@ def register(kernel):
 
             await edit_with_emoji(
                 event,
-                f'{CUSTOM_EMOJI["warning"]} <b>Использование:</b> <code>{kernel.custom_prefix}dlm [-send/-s/-list] название_модуля или ссылка</code>',
+                t('dlm_usage', warning=CUSTOM_EMOJI['warning'], prefix=kernel.custom_prefix),
             )
             return
 
         if args[1] == "-list":
             if len(args) == 2:
                 await edit_with_emoji(
-                    event, f'{CUSTOM_EMOJI["loading"]} <b>Получаю список модулей...</b>'
+                    event, t('dlm_list_loading', loading=CUSTOM_EMOJI['loading'])
                 )
 
                 repos = [kernel.default_repo] + kernel.repositories
@@ -625,12 +881,12 @@ def register(kernel):
 
                 if message_lines:
                     msg_text = "\n".join(message_lines)
-                    final_msg = f'{CUSTOM_EMOJI["folder"]} <b>Список модулей из репозиториев:</b>\n<blockquote>{msg_text}</blockquote>'
+                    final_msg = t('dlm_list_title', folder=CUSTOM_EMOJI['folder'], list=msg_text)
 
                     if errors:
-                        final_msg += f'\n\n{CUSTOM_EMOJI["warning"]} <b>Ошибки:</b>\n<blockquote>{"<br>".join(errors)}</blockquote>'
+                        final_msg += t('dlm_list_errors', warning=CUSTOM_EMOJI['warning'], errors="<br>".join(errors))
                 else:
-                    final_msg = f'{CUSTOM_EMOJI["warning"]} <b>Не удалось получить список модулей</b>'
+                    final_msg = t('dlm_list_failed', warning=CUSTOM_EMOJI['warning'])
                     if errors:
                         final_msg += f'\n<blockquote>{"<br>".join(errors)}</blockquote>'
 
@@ -639,7 +895,7 @@ def register(kernel):
             else:
                 module_name = args[2]
                 msg = await event.edit(
-                    f'{CUSTOM_EMOJI["loading"]} <b>Ищу модуль {module_name}...</b>',
+                    t('dlm_searching', loading=CUSTOM_EMOJI['loading'], module_name=module_name),
                     parse_mode="html",
                 )
 
@@ -654,14 +910,19 @@ def register(kernel):
                             metadata = await kernel.get_module_metadata(code)
                             size = len(code.encode("utf-8"))
 
-                            info = (
-                                f'{CUSTOM_EMOJI["file"]} <b>Модуль:</b> <code>{module_name}</code>\n'
-                                f'{CUSTOM_EMOJI["idea"]} <b>Описание:</b> <i>{metadata["description"]}</i>\n'
-                                f'{CUSTOM_EMOJI["crystal"]} <b>Версия:</b> <code>{metadata["version"]}</code>\n'
-                                f'{CUSTOM_EMOJI["angel"]} <b>Автор:</b> <i>{metadata["author"]}</i>\n'
-                                f'{CUSTOM_EMOJI["folder"]} <b>Размер:</b> <code>{size} байт</code>\n'
-                                f'{CUSTOM_EMOJI["cloud"]} <b>Репозиторий:</b> <code>{repo}</code>'
-                            )
+                            info = t('module_info',
+                                    file=CUSTOM_EMOJI['file'],
+                                    module_name=module_name,
+                                    idea=CUSTOM_EMOJI['idea'],
+                                    description=metadata["description"],
+                                    crystal=CUSTOM_EMOJI['crystal'],
+                                    version=metadata["version"],
+                                    angel=CUSTOM_EMOJI['angel'],
+                                    author=metadata["author"],
+                                    folder=CUSTOM_EMOJI['folder'],
+                                    size=size,
+                                    cloud=CUSTOM_EMOJI['cloud'],
+                                    repo=repo)
                             await edit_with_emoji(msg, info)
                             break
                     except Exception as e:
@@ -673,7 +934,7 @@ def register(kernel):
                 if not found:
                     await edit_with_emoji(
                         msg,
-                        f'{CUSTOM_EMOJI["warning"]} <b>Модуль {module_name} не найден ни в одном репозитории</b>',
+                        t('module_not_found', warning=CUSTOM_EMOJI['warning'], module_name=module_name),
                     )
                 return
 
@@ -685,7 +946,7 @@ def register(kernel):
             if len(args) < 3:
                 await edit_with_emoji(
                     event,
-                    f'{CUSTOM_EMOJI["warning"]} <b>Использование:</b> <code>{kernel.custom_prefix}dlm -send название_модуля или ссылка</code>',
+                    t('dlm_send_usage', warning=CUSTOM_EMOJI['warning'], prefix=kernel.custom_prefix),
                 )
                 return
             send_mode = True
@@ -715,24 +976,22 @@ def register(kernel):
         if module_name in kernel.system_modules:
             await edit_with_emoji(
                 event,
-                f'{CUSTOM_EMOJI["confused"]} <b>Ой, кажется ты попытался установить системный модуль</b> <code>{module_name}</code>\n'
-                f'<blockquote><i>{CUSTOM_EMOJI["blocked"]} Системные модули нельзя устанавливать через <code>dlm</code></i></blockquote>',
+                t('system_module_install_attempt',
+                  confused=CUSTOM_EMOJI['confused'],
+                  module_name=module_name,
+                  blocked=CUSTOM_EMOJI['blocked']),
             )
             return
 
         is_update = module_name in kernel.loaded_modules
 
         if send_mode:
-            action = f"{CUSTOM_EMOJI['download']} скачиваю"
+            action = t('downloading_module', download=CUSTOM_EMOJI['download'])
         else:
-            action = (
-                f"{CUSTOM_EMOJI['test']} обновляю"
-                if is_update
-                else f"{CUSTOM_EMOJI['test']} устанавливаю"
-            )
+            action = t('updating', reload=CUSTOM_EMOJI['reload']) if is_update else t('installing', test=CUSTOM_EMOJI['test'])
 
         msg = await event.edit(
-            f"{action} модуль <b>{module_name}</b>", parse_mode="html"
+            t('starting_install', action=action, module_name=module_name), parse_mode="html"
         )
 
 
@@ -748,165 +1007,171 @@ def register(kernel):
             code = None
             repo_url = None
 
-            add_log(f"=> Начинаю {'скачивание' if send_mode else 'установку'} модуля {module_name}")
-            add_log(f"=+ Режим: {'отправка' if send_mode else 'установка'}")
-            add_log(f"=+ Тип: {'URL' if is_url else 'из репозитория'}")
+            add_log(t('log_start', action='скачивание' if send_mode else 'установку', module_name=module_name))
+            add_log(t('log_mode', mode='отправка' if send_mode else 'установка'))
+            add_log(t('log_type', type='URL' if is_url else 'из репозитория'))
 
             if is_url:
                 try:
-                    add_log(f"=- Скачиваю модуль по URL: {module_or_url}")
+                    add_log(t('log_download_url', url=module_or_url))
                     async with aiohttp.ClientSession() as session:
                         async with session.get(module_or_url) as resp:
                             if resp.status == 200:
                                 code = await resp.text()
-                                add_log(f"=> ✓ Модуль скачан успешно (статус: {resp.status})")
+                                add_log(t('log_download_success', status=resp.status))
                                 save_name = module_name + ".py"
                             else:
-                                add_log(f"=X Ошибка скачивания (статус: {resp.status})")
+                                add_log(t('log_download_failed', status=resp.status))
                                 await edit_with_emoji(
                                     msg,
-                                    f'{CUSTOM_EMOJI["warning"]} <b>Не удалось скачать модуль по ссылке</b> (статус: {resp.status})',
+                                    t('url_download_error', warning=CUSTOM_EMOJI['warning'], status=resp.status),
                                 )
                                 return
                 except Exception as e:
-                    add_log(f"=X Ошибка скачивания: {str(e)}")
+                    add_log(t('log_download_exception', error=str(e)))
                     await kernel.handle_error(e, source="install_for_url", event=event)
                     await edit_with_emoji(
                         msg,
-                        f'{CUSTOM_EMOJI["warning"]} <b>Ошибка скачивания:</b> {str(e)[:100]}',
+                        t('url_exception', warning=CUSTOM_EMOJI['warning'], error=str(e)[:100]),
                     )
                     return
             else:
                 repos = [kernel.default_repo] + kernel.repositories
-                add_log(f"=- Проверяю репозитории ({len(repos)} шт.)")
+                add_log(t('log_checking_repos', count=len(repos)))
 
                 if repo_index is not None and 0 <= repo_index < len(repos):
                     repo_url = repos[repo_index]
-                    add_log(f"=- Использую указанный репозиторий: {repo_url}")
+                    add_log(t('log_using_repo', repo=repo_url))
                     code = await kernel.download_module_from_repo(repo_url, module_name)
                     if code:
-                        add_log(f"=> Модуль найден в указанном репозитории")
+                        add_log(t('log_found_in_repo'))
                     else:
-                        add_log(f"=X Модуль не найден в указанном репозитории")
+                        add_log(t('log_not_found_in_repo'))
                 else:
                     for i, repo in enumerate(repos):
                         try:
-                            add_log(f"=- Проверяю репозиторий {i+1}: {repo}")
+                            add_log(t('log_checking_repo', index=i+1, repo=repo))
                             code = await kernel.download_module_from_repo(repo, module_name)
                             if code:
                                 repo_url = repo
-                                add_log(f"=> Модуль найден в репозитории {repo}")
+                                add_log(t('log_found_in_repo'))
                                 break
                             else:
-                                add_log(f"=X Модуль не найден в репозитории {repo}")
+                                add_log(t('log_not_found_in_repo'))
                         except Exception as e:
-                            add_log(f"=X Ошибка проверки репозитория {repo}: {str(e)[:100]}")
+                            add_log(t('log_repo_error', repo=repo, error=str(e)[:100]))
                             await kernel.log_error(
                                 f"Ошибка скачивания модуля {module_name} из {repo}: {e}"
                             )
                             continue
 
             if not code:
-                add_log("=X Модуль не найден ни в одном репозитории")
+                add_log(t('module_not_found_repos', module_name=module_name))
                 await edit_with_emoji(
                     msg,
-                    f'{CUSTOM_EMOJI["warning"]} <b>Модуль {module_name} не найден в репозиториях</b>',
+                    t('module_not_found_repos', warning=CUSTOM_EMOJI['warning'], module_name=module_name),
                 )
                 return
 
             metadata = await kernel.get_module_metadata(code)
-            add_log(f"=> Получены метаданные модуля:")
-            add_log(f"=+  Автор: {metadata['author']}")
-            add_log(f"=+  Версия: {metadata['version']}")
-            add_log(f"=+  Описание: {metadata['description']}")
+            add_log(t('log_getting_metadata'))
+            add_log(t('log_author', author=metadata['author']))
+            add_log(t('log_version', version=metadata['version']))
+            add_log(t('log_description', description=metadata['description']))
 
             file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
 
             if send_mode:
-                add_log("Сохраняю файл для отправки")
+                add_log(t('log_saving_for_send'))
                 with open(file_path, "w", encoding="utf-8") as f:
                     f.write(code)
 
                 await edit_with_emoji(
                     msg,
-                    f'{CUSTOM_EMOJI["upload"]} <b>Отправляю модуль {module_name}...</b>',
+                    t('sending_module', upload=CUSTOM_EMOJI['upload'], module_name=module_name),
                 )
                 await event.delete()
 
                 await client.send_file(
                     event.chat_id,
                     file_path,
-                    caption=(
-                        f'<blockquote>{CUSTOM_EMOJI["file"]} <b>Модуль:</b> <code>{module_name}.py</code>\n'
-                        f'{CUSTOM_EMOJI["idea"]} <b>описание:</b> <i>{metadata["description"]}</i>\n'
-                        f'{CUSTOM_EMOJI["crystal"]} <b>версия:</b> <code>{metadata["version"]}</code>\n'
-                        f'{CUSTOM_EMOJI["angel"]} <b>автор:</b> <i>{metadata["author"]}</i>\n'
-                        f'{CUSTOM_EMOJI["folder"]} <b>Размер:</b> <code>{os.path.getsize(file_path)} байт</code></blockquote>'
-                    ),
+                    caption=t('file_sent_caption',
+                            file=CUSTOM_EMOJI['file'],
+                            module_name=module_name,
+                            idea=CUSTOM_EMOJI['idea'],
+                            description=metadata["description"],
+                            crystal=CUSTOM_EMOJI['crystal'],
+                            version=metadata["version"],
+                            angel=CUSTOM_EMOJI['angel'],
+                            author=metadata["author"],
+                            folder=CUSTOM_EMOJI['folder'],
+                            size=os.path.getsize(file_path)),
                     parse_mode="html",
                 )
 
-                add_log("=> Файл отправлен, удаляю временный файл")
+                add_log(t('log_file_sent'))
                 os.remove(file_path)
                 return
 
-            # Режим установки
-            add_log("=- Режим установки, продолжаю...")
+            add_log(t('log_install_mode'))
 
             dependencies = []
             if "requires" in code:
                 reqs = re.findall(r"# requires: (.+)", code)
                 if reqs:
                     dependencies = [req.strip() for req in reqs[0].split(",")]
-                    add_log(f"=- Найдены зависимости: {', '.join(dependencies)}")
+                    add_log(t('log_deps_found', deps=', '.join(dependencies)))
 
             if dependencies:
                 await edit_with_emoji(
                     msg,
-                    f'{CUSTOM_EMOJI["dependencies"]} <b>ставлю зависимости:</b>\n<code>{chr(10).join(dependencies)}</code>',
+                    t('installing_deps',
+                      dependencies=CUSTOM_EMOJI['dependencies'],
+                      deps_list='\n'.join(dependencies)),
                 )
 
                 for dep in dependencies:
-                    add_log(f"=- Устанавливаю зависимость: {dep}")
+                    add_log(t('log_installing_dep', dep=dep))
                     result = subprocess.run(
                         [sys.executable, "-m", "pip", "install", dep],
                         capture_output=True,
                         text=True,
                     )
                     if result.returncode == 0:
-                        add_log(f"=> Зависимость {dep} установлена")
+                        add_log(t('log_dep_installed', dep=dep))
                     else:
-                        add_log(f"=X Ошибка установки {dep}: {result.stderr[:200]}")
+                        add_log(t('log_dep_error', dep=dep, error=result.stderr[:200]))
 
             if is_update:
-                add_log(f"=- Обновляю модуль, удаляю старые команды")
+                add_log(t('log_removing_old', module_name=module_name))
                 kernel.unregister_module_commands(module_name)
 
-            add_log(f"=- Сохраняю файл модуля: {file_path}")
+            add_log(t('log_saving_file', file_path=file_path))
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(code)
 
-            add_log(f"=- Загружаю модуль в ядро")
+            add_log(t('log_loading_to_kernel'))
             success, message_text = await kernel.load_module_from_file(
                 file_path, module_name, False
             )
 
             if success:
-                add_log("=> Модуль успешно загружен")
+                add_log(t('log_module_loaded_kernel'))
                 commands, aliases_info = get_module_commands(module_name, kernel)
                 emoji = random.choice(RANDOM_EMOJIS)
 
-                final_msg = f'{CUSTOM_EMOJI["success"]} <b>Модуль {module_name} загружен!</b> {emoji}\n'
-                final_msg += f'<blockquote>📝 <i>D: {metadata["description"]}</i> | V: <code>{metadata["version"]}</code></blockquote>\n'
-
+                commands_list = ""
                 if commands:
-                    add_log(f"=> Найдено команд: {len(commands)}")
-                    final_msg += "<blockquote>"
+                    add_log(t('log_commands_found', count=len(commands)))
                     for cmd in commands:
                         cmd_desc = metadata["commands"].get(
-                            cmd, f'{CUSTOM_EMOJI["no_cmd"]} У команды нету описания'
+                            cmd, t('no_cmd_desc', no_cmd=CUSTOM_EMOJI['no_cmd'])
                         )
-                        final_msg += f'{CUSTOM_EMOJI["crystal"]} <code>{kernel.custom_prefix}{cmd}</code> – <b>{cmd_desc}</b>'
+                        command_line = t('command_line',
+                                        crystal=CUSTOM_EMOJI['crystal'],
+                                        prefix=kernel.custom_prefix,
+                                        cmd=cmd,
+                                        desc=cmd_desc)
 
                         if cmd in aliases_info:
                             aliases = aliases_info[cmd]
@@ -919,74 +1184,87 @@ def register(kernel):
                                         for a in aliases
                                     ]
                                 )
-                                final_msg += f" (aliases: {alias_text})"
-                                add_log(f"=> Команда {cmd} имеет алиасы: {', '.join(aliases)}")
-                        final_msg += "\n"
-                    final_msg += "</blockquote>"
+                                command_line += t('aliases_text', alias_text=alias_text)
+                                add_log(t('log_aliases_found', cmd=cmd, aliases=', '.join(aliases)))
+                        commands_list += command_line + "\n"
+
+                final_msg = t('module_loaded',
+                             success=CUSTOM_EMOJI['success'],
+                             module_name=module_name,
+                             emoji=emoji,
+                             idea=CUSTOM_EMOJI['idea'],
+                             description=metadata["description"],
+                             version=metadata["version"],
+                             commands_list=commands_list)
 
                 kernel.logger.info(f"Модуль {module_name} скачан")
                 await edit_with_emoji(msg, final_msg)
             else:
-                add_log(f"=X Ошибка загрузки модуля: {message_text}")
+                add_log(t('log_install_error', error=message_text))
                 log_text = "\n".join(install_log)
                 await edit_with_emoji(
                     msg,
-                    f'<b>{CUSTOM_EMOJI['blocked']} Кажется установка прошла не удачно</b>\n'
-                    f'<b>{CUSTOM_EMOJI['idea']} Install Log:</b>\n<pre>{html.escape(log_text)}</pre>'
+                    t('install_failed',
+                      blocked=CUSTOM_EMOJI['blocked'],
+                      idea=CUSTOM_EMOJI['idea'],
+                      log=html.escape(log_text))
                 )
                 if os.path.exists(file_path):
-                    add_log("=> Удаляю файл модуля из-за ошибки")
+                    add_log(t('log_deleting_due_error'))
                     os.remove(file_path)
 
         except CommandConflictError as e:
-            add_log(f"=X Конфликт команд: {e}")
+            add_log(t('log_conflict', error=e))
             log_text = "\n".join(install_log)
 
             if e.conflict_type == "system":
                 await edit_with_emoji(
                     msg,
-                    f'{CUSTOM_EMOJI["shield"]} <b>Ой, этот модуль хотел перезаписать системную команду</b> (<code>{e.command}</code>)\n'
-                    f"<blockquote><i>Это не ошибка а мера <b>предосторожности</b></i></blockquote>\n"
-                    f"<b>Лог установки:</b>\n<pre>{html.escape(log_text)}</pre>",
+                    t('conflict_system_alt',
+                      shield=CUSTOM_EMOJI['shield'],
+                      command=e.command,
+                      log=html.escape(log_text)),
                 )
             elif e.conflict_type == "user":
                 await edit_with_emoji(
                     msg,
-                    f'{CUSTOM_EMOJI["error"]} <b>Ой, кажется случился конфликт модулей</b> <i>(их команд)</i>\n'
-                    f"<blockquote><i>Детали конфликта в логах 🔭</i></blockquote>\n"
-                    f"<b>Лог установки:</b>\n<pre>{html.escape(log_text)}</pre>",
+                    t('conflict_user_alt',
+                      error=CUSTOM_EMOJI['error'],
+                      log=html.escape(log_text)),
                 )
 
             file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
             if os.path.exists(file_path):
-                add_log("=> Удаляю файл модуля из-за конфликта")
+                add_log(t('log_deleting_due_conflict'))
                 os.remove(file_path)
 
         except Exception as e:
-            add_log(f"=X Критическая ошибка: {str(e)}")
+            add_log(t('log_critical', error=str(e)))
             import traceback
-            add_log(f"Трейсбэк:\n{traceback.format_exc()}")
+            add_log(t('log_traceback', traceback=traceback.format_exc()))
 
             log_text = "\n".join(install_log)
             await edit_with_emoji(
                 msg,
-                f'<b>{CUSTOM_EMOJI["blocked"]} Кажется установка прошла не удачно</b>\n'
-                f'<b>{CUSTOM_EMOJI["idea"]} Install Log:</b>\n<pre>{html.escape(log_text)}</pre>'
+                t('install_failed',
+                  blocked=CUSTOM_EMOJI['blocked'],
+                  idea=CUSTOM_EMOJI['idea'],
+                  log=html.escape(log_text))
             )
 
             file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
             if os.path.exists(file_path):
-                add_log("=> Удаляю файл модуля из-за ошибки")
+                add_log(t('log_deleting_due_error'))
                 os.remove(file_path)
 
-    @kernel.register.command("um")
-    # удалить модуль
+    @kernel.register_command('um')
+    # <модуль> удалить модуль
     async def unload_module_handler(event):
         args = event.text.split()
         if len(args) < 2:
             await edit_with_emoji(
                 event,
-                f'{CUSTOM_EMOJI["warning"]} <b>Использование:</b> <code>{kernel.custom_prefix}um название_модуля</code>',
+                t('um_usage', warning=CUSTOM_EMOJI['warning'], prefix=kernel.custom_prefix),
             )
             return
 
@@ -995,7 +1273,7 @@ def register(kernel):
         if module_name not in kernel.loaded_modules:
             await edit_with_emoji(
                 event,
-                f'{CUSTOM_EMOJI["warning"]} <b>Модуль {module_name} не найден</b>',
+                t('module_not_found_um', warning=CUSTOM_EMOJI['warning'], module_name=module_name),
             )
             return
 
@@ -1013,17 +1291,17 @@ def register(kernel):
 
         await log_to_bot(f"Модуль {module_name} удалён")
         await edit_with_emoji(
-            event, f'{CUSTOM_EMOJI["success"]} <b>Модуль {module_name} удален</b>'
+            event, t('module_unloaded', success=CUSTOM_EMOJI['success'], module_name=module_name)
         )
 
     @kernel.register.command("unlm")
-    # выгрузить в виде файла
+    # <модуль> - выгрузить в виде файла
     async def upload_module_handler(event):
         args = event.text.split()
         if len(args) < 2:
             await edit_with_emoji(
                 event,
-                f'{CUSTOM_EMOJI["warning"]} <b>Использование:</b> <code>{kernel.custom_prefix}unlm название_модуля</code>',
+                t('unlm_usage', warning=CUSTOM_EMOJI['warning'], prefix=kernel.custom_prefix),
             )
             return
 
@@ -1035,7 +1313,7 @@ def register(kernel):
         ):
             await edit_with_emoji(
                 event,
-                f'{CUSTOM_EMOJI["warning"]} <b>Модуль {module_name} не найден</b>',
+                t('module_not_found_um', warning=CUSTOM_EMOJI['warning'], module_name=module_name),
             )
             return
 
@@ -1047,29 +1325,30 @@ def register(kernel):
 
         if not os.path.exists(file_path):
             await edit_with_emoji(
-                event, f'{CUSTOM_EMOJI["warning"]} <b>Файл модуля не найден</b>'
+                event, t('module_file_not_found', warning=CUSTOM_EMOJI['warning'])
             )
             return
 
         await edit_with_emoji(
-            event, f'{CUSTOM_EMOJI["upload"]} <b>Отправка модуля {module_name}...</b>'
+            event, t('uploading_module', upload=CUSTOM_EMOJI['upload'], module_name=module_name)
         )
         await send_with_emoji(
             event.chat_id,
-            f'{CUSTOM_EMOJI["file"]} <b>Модуль:</b> {module_name}.py\n\n'
-            f"<blockquote><code>{kernel.custom_prefix}im</code> для установки</blockquote>",
+            t('file_upload_caption',
+              file=CUSTOM_EMOJI['file'],
+              module_name=module_name,
+              prefix=kernel.custom_prefix),
             file=file_path,
         )
         await event.delete()
 
     @kernel.register.command("reload")
-    # <модуль> перезагрузить модуль
     async def reload_module_handler(event):
         args = event.text.split()
         if len(args) < 2:
             await edit_with_emoji(
                 event,
-                f'{CUSTOM_EMOJI["warning"]} <b>Использование:</b> <code>{kernel.custom_prefix}reload название_модуля</code>',
+                t('reload_usage', warning=CUSTOM_EMOJI['warning'], prefix=kernel.custom_prefix),
             )
             return
 
@@ -1078,7 +1357,7 @@ def register(kernel):
         if module_name not in kernel.loaded_modules and module_name not in kernel.system_modules:
             await edit_with_emoji(
                 event,
-                f'{CUSTOM_EMOJI["warning"]} <b>Модуль {module_name} не найден</b>',
+                t('module_not_found_um', warning=CUSTOM_EMOJI['warning'], module_name=module_name),
             )
             return
 
@@ -1091,12 +1370,12 @@ def register(kernel):
 
         if not os.path.exists(file_path):
             await edit_with_emoji(
-                event, f'{CUSTOM_EMOJI["warning"]} <b>Файл модуля не найден</b>'
+                event, t('module_file_not_found', warning=CUSTOM_EMOJI['warning'])
             )
             return
 
         msg = await event.edit(
-            f'{CUSTOM_EMOJI["reload"]} <b>Перезагрузка <code>{module_name}</code>...</b>',
+            t('reloading', reload=CUSTOM_EMOJI['reload'], module_name=module_name),
             parse_mode="html",
         )
 
@@ -1122,57 +1401,60 @@ def register(kernel):
             cmd_text = (
                 f'{CUSTOM_EMOJI["crystal"]} {", ".join([f"<code>{kernel.custom_prefix}{cmd}</code>" for cmd in commands])}'
                 if commands
-                else "Нет команд"
+                else t('no_commands')
             )
 
             emoji = random.choice(RANDOM_EMOJIS)
             kernel.logger.info(f"Модуль {module_name} перезагружен")
             await edit_with_emoji(
                 msg,
-                f'{CUSTOM_EMOJI["success"]} <b>Модуль {module_name} перезагружен!</b> {emoji}\n\n<blockquote>{cmd_text}</blockquote>',
+                t('reload_success',
+                  success=CUSTOM_EMOJI['success'],
+                  module_name=module_name,
+                  emoji=emoji,
+                  cmd_text=cmd_text),
             )
         else:
             await kernel.handle_error(Exception(message_text), source="reload_module_handler", event=event)
             await edit_with_emoji(
-                msg, f'{CUSTOM_EMOJI["warning"]} <b>Ошибка, смотри логи</b>'
+                msg, t('reload_error', warning=CUSTOM_EMOJI['warning'])
             )
 
     @kernel.register.command("modules")
-    # модули
     async def modules_list_handler(event):
         await log_to_bot(f"🔷 Просмотр списка модулей")
 
         if not kernel.loaded_modules and not kernel.system_modules:
             await edit_with_emoji(
-                event, f'{CUSTOM_EMOJI["folder"]} <b>Модули не загружены</b>'
+                event, t('no_modules', folder=CUSTOM_EMOJI['folder'])
             )
             return
 
-        msg = f'{CUSTOM_EMOJI["crystal"]} <b>Загруженные модули:</b>\n\n'
+        msg = t('loaded_modules', crystal=CUSTOM_EMOJI['crystal'])
 
         if kernel.system_modules:
-            msg += f'{CUSTOM_EMOJI["shield"]} <b>Системные модули:</b>\n'
+            msg += t('system_modules', shield=CUSTOM_EMOJI['shield'])
             for name in sorted(kernel.system_modules.keys()):
-                commands = get_module_commands(name, kernel)
-                msg += f"• <b>{name}</b> <i>({len(commands)} команд)</i>\n"
+                commands, _ = get_module_commands(name, kernel)
+                msg += t('module_line', name=name, count=len(commands))
             msg += "\n"
 
         if kernel.loaded_modules:
-            msg += f'{CUSTOM_EMOJI["sparkle"]} <b>Пользовательские модули:</b>\n'
+            msg += t('user_modules', sparkle=CUSTOM_EMOJI['sparkle'])
             for name in sorted(kernel.loaded_modules.keys()):
-                commands = get_module_commands(name, kernel)
-                msg += f"• <b>{name}</b> <i>({len(commands)} команд)</i>\n"
+                commands, _ = get_module_commands(name, kernel)
+                msg += t('module_line', name=name, count=len(commands))
 
         await edit_with_emoji(event, msg)
 
-    @kernel.register.command("addrepo")
-    # <URL> добавить repo
+    @kernel.register_command('addrepo')
+    # <URL> добавить репо
     async def add_repo_handler(event):
         args = event.text.split()
         if len(args) < 2:
             await edit_with_emoji(
                 event,
-                f'{CUSTOM_EMOJI["warning"]} <b>Использование:</b> <code>{kernel.custom_prefix}addrepo URL</code>',
+                t('addrepo_usage', warning=CUSTOM_EMOJI['warning'], prefix=kernel.custom_prefix),
             )
             return
 
@@ -1184,14 +1466,14 @@ def register(kernel):
         else:
             await edit_with_emoji(event, f'{CUSTOM_EMOJI["warning"]} <b>{message}</b>')
 
-    @kernel.register.command("delrepo")
-    # <id> удалить repo
+    @kernel.register_command('delrepo')
+    # <id> удалить репо
     async def del_repo_handler(event):
         args = event.text.split()
         if len(args) < 2:
             await edit_with_emoji(
                 event,
-                f'{CUSTOM_EMOJI["warning"]} <b>Использование:</b> <code>{kernel.custom_prefix}delrepo индекс</code>',
+                t('delrepo_usage', warning=CUSTOM_EMOJI['warning'], prefix=kernel.custom_prefix),
             )
             return
 

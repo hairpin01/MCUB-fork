@@ -11,6 +11,83 @@ from telethon.tl.functions.channels import CreateChannelRequest, InviteToChannel
 
 
 def register(kernel):
+    language = kernel.config.get('language', 'en')
+
+    strings = {
+        'ru': {
+            'creating_backup': '⌛ Creating backup...',
+            'backup_created': '✅ Backup created',
+            'backup_failed': '❌ Backup failed',
+            'reply_to_backup': '❌ Reply to a backup message',
+            'not_backup_file': '❌ This is not a backup file',
+            'restoring': '⌛ Restoring...',
+            'restored': '✅ Restored:',
+            'no_files': '⚠️ No files to restore',
+            'restore_error': '❌ Error:',
+            'backup_settings': '⚙️ Backup Settings',
+            'chat_id': 'Chat ID:',
+            'interval': 'Interval:',
+            'auto_backup': 'Auto backup:',
+            'last_backup': 'Last backup:',
+            'total_backups': 'Total backups:',
+            'commands': 'Commands:',
+            'set_interval': 'Set backup interval',
+            'enable_disable': 'Enable/disable auto backup',
+            'set_chat': 'Set backup chat manually',
+            'interval_set': '✅ Interval set to {hours} hours',
+            'interval_invalid': '❌ Interval must be between 1 and 24 hours',
+            'auto_enabled': '✅ Auto backup enabled',
+            'auto_disabled': '✅ Auto backup disabled',
+            'chat_set': '✅ Backup chat set to {chat_id}',
+            'invalid_chat_id': '❌ Invalid chat ID',
+            'unknown_command': '❌ Unknown command',
+            'select_interval': '⏰ Select backup interval:',
+            'check_pm': '✅ Check your PM with the bot',
+            'bot_not_available': '⚠️ Bot is not available. Please start a chat with the bot first.',
+            'cant_send_pm': '❌ Can\'t send PM. Start a chat with the bot first',
+            'processing': '⌛ Processing...',
+            'group_created': '✅ Backup group created',
+            'tip_restore': 'tip: {prefix}restore to restore a backup',
+        },
+        'en': {
+            'creating_backup': '⌛ Creating backup...',
+            'backup_created': '✅ Backup created',
+            'backup_failed': '❌ Backup failed',
+            'reply_to_backup': '❌ Reply to a backup message',
+            'not_backup_file': '❌ This is not a backup file',
+            'restoring': '⌛ Restoring...',
+            'restored': '✅ Restored:',
+            'no_files': '⚠️ No files to restore',
+            'restore_error': '❌ Error:',
+            'backup_settings': '⚙️ Backup Settings',
+            'chat_id': 'Chat ID:',
+            'interval': 'Interval:',
+            'auto_backup': 'Auto backup:',
+            'last_backup': 'Last backup:',
+            'total_backups': 'Total backups:',
+            'commands': 'Commands:',
+            'set_interval': 'Set backup interval',
+            'enable_disable': 'Enable/disable auto backup',
+            'set_chat': 'Set backup chat manually',
+            'interval_set': '✅ Interval set to {hours} hours',
+            'interval_invalid': '❌ Interval must be between 1 and 24 hours',
+            'auto_enabled': '✅ Auto backup enabled',
+            'auto_disabled': '✅ Auto backup disabled',
+            'chat_set': '✅ Backup chat set to {chat_id}',
+            'invalid_chat_id': '❌ Invalid chat ID',
+            'unknown_command': '❌ Unknown command',
+            'select_interval': '⏰ Select backup interval:',
+            'check_pm': '✅ Check your PM with the bot',
+            'bot_not_available': '⚠️ Bot is not available. Please start a chat with the bot first.',
+            'cant_send_pm': '❌ Can\'t send PM. Start a chat with the bot first',
+            'processing': '⌛ Processing...',
+            'group_created': '✅ Backup group created',
+            'tip_restore': 'tip: {prefix}restore to restore a backup',
+        }
+    }
+
+    lang_strings = strings.get(language, strings['en'])
+
     class BackupModule:
         def __init__(self):
             self.kernel = kernel
@@ -133,7 +210,7 @@ def register(kernel):
                         )
 
                 chat = await self.client.get_entity(chat_id)
-                await self.client.send_message(chat_id, "✅ Backup group created")
+                await self.client.send_message(chat_id, lang_strings['group_created'])
                 return chat
             except Exception as e:
                 await kernel.handle_error(e, source="ensure_backup_chat", event=None)
@@ -182,7 +259,7 @@ def register(kernel):
                         message = await kernel.bot_client.send_file(
                             chat.id,
                             zip_path,
-                            caption=f"tip: <code>{kernel.custom_prefix}restore</code> <i>to restore a backup</i>",
+                            caption=lang_strings['tip_restore'].format(prefix=kernel.custom_prefix),
                             buttons=Button.inline("🔄 Restore", f"restore:{timestamp}"),
                             parse_mode="html",
                         )
@@ -193,14 +270,14 @@ def register(kernel):
                         message = await self.client.send_file(
                             chat.id,
                             zip_path,
-                            caption=f"tip: <code>{kernel.custom_prefix}restore</code> <i>to restore a backup</i>",
+                            caption=lang_strings['tip_restore'].format(prefix=kernel.custom_prefix),
                             parse_mode="html",
                         )
                 else:
                     message = await self.client.send_file(
                         chat.id,
                         zip_path,
-                        caption=f"tip: <code>{kernel.custom_prefix}restore</code> <i>to restore a backup</i>",
+                        caption=lang_strings['tip_restore'].format(prefix=kernel.custom_prefix),
                         parse_mode="html",
                     )
 
@@ -221,26 +298,26 @@ def register(kernel):
 
     @kernel.register_command("backup")
     async def backup_handler(event):
-        await event.edit("⌛ Creating backup...")
+        await event.edit(lang_strings['creating_backup'])
 
         if await backup_module.send_backup(manual=True):
-            await event.edit("✅ Backup created")
+            await event.edit(lang_strings['backup_created'])
         else:
-            await event.edit("❌ Backup failed")
+            await event.edit(lang_strings['backup_failed'])
 
     @kernel.register_command("restore")
     async def restore_handler(event):
         if not event.is_reply:
-            await event.edit("❌ Reply to a backup message")
+            await event.edit(lang_strings['reply_to_backup'])
             return
 
         reply = await event.get_reply_message()
 
         if not reply.document or not reply.file.name.endswith(".zip"):
-            await event.edit("❌ This is not a backup file")
+            await event.edit(lang_strings['not_backup_file'])
             return
 
-        await event.edit("⌛ Restoring...")
+        await event.edit(lang_strings['restoring'])
 
         temp_dir = tempfile.mkdtemp(prefix="restore_")
         zip_path = Path(temp_dir) / "backup.zip"
@@ -278,12 +355,12 @@ def register(kernel):
             shutil.rmtree(temp_dir, ignore_errors=True)
 
             if restored:
-                await event.edit("✅ Restored:\n" + "\n".join(restored))
+                await event.edit(f"{lang_strings['restored']}\n" + "\n".join(restored))
             else:
-                await event.edit("⚠️ No files to restore")
+                await event.edit(lang_strings['no_files'])
         except Exception as e:
             await kernel.handle_error(e, source="restore_handler", event=event)
-            await event.edit(f"❌ Error: {str(e)}")
+            await event.edit(f"{lang_strings['restore_error']} {str(e)}")
 
     @kernel.register_command("backupsettings")
     async def backup_settings_handler(event):
@@ -300,18 +377,18 @@ def register(kernel):
             else:
                 last_backup = "Never"
 
-            settings_text = f"""⚙️ **Backup Settings**
-            
-**Chat ID:** `{config['backup_chat_id'] or 'Not set'}`
-**Interval:** `{config['backup_interval_hours']} hours`
-**Auto backup:** `{'Enabled' if config['enable_auto_backup'] else 'Disabled'}`
-**Last backup:** `{last_backup}`
-**Total backups:** `{config['backup_count']}`
+            settings_text = f"""⚙️ **{lang_strings['backup_settings']}**
 
-**Commands:**
-`.backupsettings interval <hours>` - Set backup interval
-`.backupsettings auto on/off` - Enable/disable auto backup
-`.backupsettings chat` - Set backup chat manually"""
+**{lang_strings['chat_id']}** `{config['backup_chat_id'] or 'Not set'}`
+**{lang_strings['interval']}** `{config['backup_interval_hours']} hours`
+**{lang_strings['auto_backup']}** `{'Enabled' if config['enable_auto_backup'] else 'Disabled'}`
+**{lang_strings['last_backup']}** `{last_backup}`
+**{lang_strings['total_backups']}** `{config['backup_count']}`
+
+**{lang_strings['commands']}**
+`.backupsettings interval <hours>` - {lang_strings['set_interval']}
+`.backupsettings auto on/off` - {lang_strings['enable_disable']}
+`.backupsettings chat` - {lang_strings['set_chat']}"""
 
             await event.edit(settings_text)
             return
@@ -325,11 +402,11 @@ def register(kernel):
                     backup_module.config["backup_interval_hours"] = hours
                     await backup_module.save_config()
                     await backup_module.schedule_backups()
-                    await event.edit(f"✅ Interval set to {hours} hours")
+                    await event.edit(lang_strings['interval_set'].format(hours=hours))
                 else:
-                    await event.edit("❌ Interval must be between 1 and 24 hours")
+                    await event.edit(lang_strings['interval_invalid'])
             except ValueError:
-                await event.edit("❌ Invalid number format")
+                await event.edit(lang_strings['interval_invalid'])
 
         elif cmd == "auto" and len(args) > 2:
             state = args[2].lower()
@@ -337,25 +414,25 @@ def register(kernel):
                 backup_module.config["enable_auto_backup"] = True
                 await backup_module.save_config()
                 await backup_module.schedule_backups()
-                await event.edit("✅ Auto backup enabled")
+                await event.edit(lang_strings['auto_enabled'])
             elif state in ["off", "false", "0", "no"]:
                 backup_module.config["enable_auto_backup"] = False
                 await backup_module.save_config()
                 await backup_module.schedule_backups()
-                await event.edit("✅ Auto backup disabled")
+                await event.edit(lang_strings['auto_disabled'])
             else:
-                await event.edit("❌ Usage: .backupsettings auto on/off")
+                await event.edit(f"❌ {lang_strings['api_protection_usage']} .backupsettings auto on/off")
 
         elif cmd == "chat" and len(args) > 2:
             try:
                 chat_id = int(args[2])
                 backup_module.config["backup_chat_id"] = chat_id
                 await backup_module.save_config()
-                await event.edit(f"✅ Backup chat set to {chat_id}")
+                await event.edit(lang_strings['chat_set'].format(chat_id=chat_id))
             except ValueError:
-                await event.edit("❌ Invalid chat ID")
+                await event.edit(lang_strings['invalid_chat_id'])
         else:
-            await event.edit("❌ Unknown command")
+            await event.edit(lang_strings['unknown_command'])
 
     @kernel.register_command("backuptime")
     async def backup_time_handler(event):
@@ -371,15 +448,13 @@ def register(kernel):
         try:
             if kernel.is_bot_available():
                 await kernel.bot_client.send_message(
-                    user_id, "⏰ **Select backup interval:**", buttons=buttons
+                    user_id, f"⏰ **{lang_strings['select_interval']}**", buttons=buttons
                 )
-                await event.edit("✅ Check your PM with the bot")
+                await event.edit(lang_strings['check_pm'])
             else:
-                await event.edit(
-                    "⚠️ Bot is not available. Please start a chat with the bot first."
-                )
+                await event.edit(lang_strings['bot_not_available'])
         except Exception as e:
-            await event.edit("❌ Can't send PM. Start a chat with the bot first")
+            await event.edit(lang_strings['cant_send_pm'])
 
     async def backup_interval_callback(event):
         try:
@@ -390,8 +465,8 @@ def register(kernel):
                 await backup_module.save_config()
                 await backup_module.schedule_backups()
 
-                await event.answer(f"✅ Interval set to {interval} hours", alert=False)
-                await event.edit(f"⏰ Backup interval: {interval} hours")
+                await event.answer(f"✅ {lang_strings['interval_set'].format(hours=interval)}", alert=False)
+                await event.edit(f"⏰ {lang_strings['interval']}: {interval} hours")
             else:
                 await event.answer("❌ Invalid interval", alert=True)
         except Exception as e:
@@ -399,7 +474,7 @@ def register(kernel):
 
     async def restore_callback(event):
         try:
-            await event.answer("⌛ Processing...", alert=False)
+            await event.answer(lang_strings['processing'], alert=False)
 
             message = await event.get_message()
 
@@ -423,7 +498,7 @@ def register(kernel):
 
         except Exception as e:
             await kernel.handle_error(e, source="restore_callback", event=event)
-            await event.answer("❌ Error processing", alert=True)
+            await event.answer(lang_strings['error_processing'], alert=True)
 
     kernel.register_callback_handler("backup_interval:", backup_interval_callback)
     kernel.register_callback_handler("restore:", restore_callback)

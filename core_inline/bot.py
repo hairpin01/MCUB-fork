@@ -6,7 +6,6 @@ import getpass
 import sys
 import os
 from telethon import TelegramClient, Button, events
-import kernel
 
 class InlineBot:
     def __init__(self, kernel):

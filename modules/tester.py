@@ -54,6 +54,50 @@ def add_link_preview(text, entities, link):
 
 def register(kernel):
     client = kernel.client
+    language = kernel.config.get('language', 'en')
+
+    # Локализованные строки
+    strings = {
+        'en': {
+            'error_logs': '{snowflake} <b>Error, see logs</b>',
+            'logs_not_found': '{file} File kernel.log not found',
+            'logs_sending': '{printer} Sending kernel logs',
+            'freezing_usage': '{speech} Usage: {prefix}freezing [seconds]',
+            'freezing_range': '{speech} Specify from 1 to 60 seconds',
+            'freezing_number': '{speech} Specify number of seconds',
+            'freezing_start': '{snowflake} Freezing for {seconds} seconds...',
+            'freezing_done': '{check} Unfrozen after {seconds} seconds',
+            'custom_text_error': '<b>Error in custom text format:</b> {error}',
+            'quote_mode_error': 'Error in quote mode',
+            'send_banner_error': 'Error sending banner',
+            'logs': 'Logs',
+            'kernel_version': 'Kernel version'
+        },
+        'ru': {
+            'error_logs': '{snowflake} <b>Ошибка, смотри логи</b>',
+            'logs_not_found': '{file} Файл kernel.log не найден',
+            'logs_sending': '{printer} Отправляю логи kernel',
+            'freezing_usage': '{speech} Использование: {prefix}freezing [секунды]',
+            'freezing_range': '{speech} Укажите от 1 до 60 секунд',
+            'freezing_number': '{speech} Укажите число секунд',
+            'freezing_start': '{snowflake} Замораживаю на {seconds} секунд...',
+            'freezing_done': '{check} Разморожено после {seconds} секунд',
+            'custom_text_error': '<b>Error in custom text format:</b> {error}',
+            'quote_mode_error': 'Ошибка в режиме цитирования',
+            'send_banner_error': 'Ошибка отправки баннера',
+            'logs': 'Логи',
+            'kernel_version': 'Версия ядра'
+        }
+    }
+
+    # Получаем строки для текущего языка
+    lang_strings = strings.get(language, strings['en'])
+
+    def t(key, **kwargs):
+        """Возвращает локализованную строку с подстановкой значений"""
+        if key not in lang_strings:
+            return key
+        return lang_strings[key].format(**kwargs)
 
     kernel.config.setdefault('ping_quote_media', False)
     kernel.config.setdefault('ping_banner_url', 'https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/ping.png')
@@ -103,7 +147,7 @@ def register(kernel):
                     )
                 except Exception as e:
                     await kernel.handle_error(e, source="ping:custom_text_format", event=event)
-                    response = f"""<b>Error in custom text format:</b> {str(e)}"""
+                    response = t('custom_text_error', error=str(e))
             else:
                 response = f"""<blockquote>{CUSTOM_EMOJI['❄️']} <b>ping:</b> {ping_time} ms</blockquote>
 <blockquote>{CUSTOM_EMOJI['❄️']} <b>uptime:</b> {uptime}</blockquote>"""
@@ -170,7 +214,7 @@ def register(kernel):
                     await kernel.handle_error(e, source="ping:quote_mode", event=event)
 
             if banner_url:
-                
+
                 banner_sent = False
 
                 chat = await event.get_chat()
@@ -187,7 +231,7 @@ def register(kernel):
                                 parse_mode='html',
                                 reply_to=reply_to
                             )
-                            
+
                         else:
                             await msg.edit(
                                 response,
@@ -212,7 +256,7 @@ def register(kernel):
                                 file=banner_url,
                                 parse_mode='html'
                             )
-                        await msg.delete()    
+                        await msg.delete()
                         banner_sent = True
                     except Exception as e:
                         pass
@@ -234,7 +278,7 @@ def register(kernel):
                                 formatting_entities=entities,
                                 parse_mode=None
                             )
-                        await msg.delete()    
+                        await msg.delete()
                     except Exception as e:
                         if reply_to:
                             await event.respond(response, parse_mode='html', reply_to=reply_to)
@@ -244,20 +288,20 @@ def register(kernel):
                 await msg.edit(response, parse_mode='html')
 
         except Exception as e:
-            await event.edit(f"{CUSTOM_EMOJI['❄️']} <b>Ошибка, смотри логи</b>", parse_mode='html')
+            await event.edit(t('error_logs', snowflake=CUSTOM_EMOJI['❄️']), parse_mode='html')
             await kernel.handle_error(e, source="ping", event=event)
 
-    @kernel.register.command('logs')
+    @kernel.register_command('logs')
     async def logs_handler(event):
         try:
 
             kernel_log_path = os.path.join(kernel.LOGS_DIR, "kernel.log")
 
             if not os.path.exists(kernel_log_path):
-                await event.edit(f'{CUSTOM_EMOJI["📁"]} Файл kernel.log не найден', parse_mode='html')
+                await event.edit(t('logs_not_found', file=CUSTOM_EMOJI["📁"]), parse_mode='html')
                 return
 
-            await event.edit(f'{CUSTOM_EMOJI["🖨"]} Отправляю логи kernel', parse_mode='html')
+            await event.edit(t('logs_sending', printer=CUSTOM_EMOJI["🖨"]), parse_mode='html')
 
 
             chat = await event.get_chat()
@@ -270,14 +314,14 @@ def register(kernel):
                 send_params['reply_to'] = reply_to
 
             await event.edit(
-                f'{CUSTOM_EMOJI["📝"]} Логи {await mcub_handler()}\n{CUSTOM_EMOJI['✏️']} Version kernel: {kernel.VERSION    }',
+                f'{CUSTOM_EMOJI["📝"]} {t('logs')} {await mcub_handler()}\n{CUSTOM_EMOJI['✏️']} {t('kernel_version')} {kernel.VERSION}',
                 file=kernel_log_path,
                 parse_mode='html'
             )
             # await event.delete()
 
         except Exception as e:
-            await event.edit(f"{CUSTOM_EMOJI['❄️']} <b>Ошибка, смотри логи</b>", parse_mode='html')
+            await event.edit(t('error_logs', snowflake=CUSTOM_EMOJI['❄️']), parse_mode='html')
             await kernel.handle_error(e, source="logs", event=event)
 
     @kernel.register_command('freezing')
@@ -285,19 +329,19 @@ def register(kernel):
         try:
             args = event.text.split()
             if len(args) < 2:
-                await event.edit(f'{CUSTOM_EMOJI["🗯"]} Использование: {kernel.custom_prefix}freezing [секунды]')
+                await event.edit(t('freezing_usage', speech=CUSTOM_EMOJI["🗯"], prefix=kernel.custom_prefix), parse_mode='html')
                 return
 
             try:
                 seconds = int(args[1])
                 if seconds <= 0 or seconds > 60:
-                    await event.edit(f'{CUSTOM_EMOJI["🗯"]} Укажите от 1 до 60 секунд')
+                    await event.edit(t('freezing_range', speech=CUSTOM_EMOJI["🗯"]), parse_mode='html')
                     return
             except ValueError:
-                await event.edit(f'{CUSTOM_EMOJI["🗯"]} Укажите число секунд')
+                await event.edit(t('freezing_number', speech=CUSTOM_EMOJI["🗯"]), parse_mode='html')
                 return
 
-            await event.edit(f'{CUSTOM_EMOJI["🧊"]} Замораживаю на {seconds} секунд...')
+            await event.edit(t('freezing_start', snowflake=CUSTOM_EMOJI["🧊"], seconds=seconds), parse_mode='html')
 
             if client.is_connected():
                 await client.disconnect()
@@ -305,8 +349,8 @@ def register(kernel):
             await asyncio.sleep(seconds)
 
             await client.connect()
-            await event.edit(f'{CUSTOM_EMOJI["☑️"]} Разморожено после {seconds} секунд')
+            await event.edit(t('freezing_done', check=CUSTOM_EMOJI["☑️"], seconds=seconds), parse_mode='html')
 
         except Exception as e:
-            await event.edit(f"{CUSTOM_EMOJI['❄️']} <b>Ошибка, смотри логи</b>", parse_mode='html')
+            await event.edit(t('error_logs', snowflake=CUSTOM_EMOJI['❄️']), parse_mode='html')
             await kernel.handle_error(e, source="freezing", event=event)

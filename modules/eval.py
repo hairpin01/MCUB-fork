@@ -1,8 +1,7 @@
 # requires: telethon>=1.24
 # author: @Hairpin00
-# version: 1.0.2
-# description: выполнить python код
-
+# version: 1.0.3
+# description: Python code execution
 import html
 import traceback
 import sys
@@ -21,8 +20,26 @@ CUSTOM_EMOJI = {
 def register(kernel):
     client = kernel.client
 
+    language = kernel.config.get('language', 'en')
+
+    strings = {
+        'ru': {
+            'code': 'Код',
+            'result': 'Результат',
+            'executed_in': 'Выполнено за',
+            'ms': 'мс',
+        },
+        'en': {
+            'code': 'Code',
+            'result': 'Result',
+            'executed_in': 'Executed in',
+            'ms': 'ms',
+        }
+    }
+
+    lang_strings = strings.get(language, strings['en'])
+
     @kernel.register_command("py")
-    # python
     async def python_exec_handler(event):
         code = event.text[len(kernel.custom_prefix) + 2 :].strip()
 
@@ -77,11 +94,11 @@ def register(kernel):
             "..." if len(complete) > 2000 else ""
         )
 
-        response = f"""{CUSTOM_EMOJI['🧿']} <b>Код</b>
+        response = f"""{CUSTOM_EMOJI['🧿']} <b>{lang_strings['code']}</b>
 <blockquote><code>{code_display}</code></blockquote>
-{CUSTOM_EMOJI['🧬']} <b>Результат</b>
+{CUSTOM_EMOJI['🧬']} <b>{lang_strings['result']}</b>
 <blockquote><code>{complete_display}</code></blockquote>
-<blockquote>{CUSTOM_EMOJI['💠']} <i>Выполнено за</i> <code>{elapsed}ms</code></blockquote>"""
+<blockquote>{CUSTOM_EMOJI['💠']} <i>{lang_strings['executed_in']}</i> <code>{elapsed}{lang_strings['ms']}</code></blockquote>"""
         try:
             await event.edit(response, parse_mode="html")
         except:

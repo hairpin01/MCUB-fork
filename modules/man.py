@@ -1,7 +1,7 @@
 # requires: telethon>=1.24, re, math
 # author: @Hairpin00
-# version: 1.0.3
-# description: Module manager
+# version: 1.0.4
+# description: Module manager with localization support
 from telethon import events, Button
 import re
 import math
@@ -48,16 +48,13 @@ def get_module_commands(module_name, kernel):
             with open(file_path, "r", encoding="utf-8") as f:
                 code = f.read()
 
-                # NOTE: support both ' and "
                 patterns = [
                     r"@kernel\.register\.command\(\s*['\"]([^'\"]+)['\"]",
                     r"kernel\.register\.command\(\s*['\"]([^'\"]+)['\"]",
                     r"@kernel\.register_command\(\s*['\"]([^'\"]+)['\"]\)",
                     r"kernel\.register_command\(\s*['\"]([^'\"]+)['\"]",
                     r"register_command\s*\(\s*['\"]([^'\"]+)['\"]",
-                    # common telethon style: pattern=r'\.cmd'
                     r"pattern\s*=\s*r['\"]\^?\\?\.([a-zA-Z0-9_]+)['\"]",
-                    # optional: client.on(...) pattern=r'\.cmd'
                     r"pattern\s*=\s*r['\"]\\\\.([^'\"]+)['\"]",
                 ]
 
@@ -123,7 +120,7 @@ def get_module_commands(module_name, kernel):
     return commands, aliases_info
 
 
-async def generate_detailed_page(search_term, kernel):
+async def generate_detailed_page(search_term, kernel, strings):
     search_term = search_term.lower()
     exact_match = None
     similar_modules = []
@@ -152,19 +149,19 @@ async def generate_detailed_page(search_term, kernel):
         except:
             metadata = {
                 "commands": {},
-                "description": "No description",
+                "description": strings["no_description"],
                 "version": "?.?.?",
-                "author": "Unknown",
+                "author": strings["unknown"],
             }
 
-        msg = f'{CUSTOM_EMOJI["dna"]} <b>Module</b> <code>{name}</code>:\n'
-        msg += f'{CUSTOM_EMOJI["alembic"]} <b>Description:</b> <i>{metadata.get("description", "...")}</i>\n'
-        msg += f'{CUSTOM_EMOJI["snowflake"]} <b>Version:</b> <code>{metadata.get("version", "1.0.0")}</code>\n'
+        msg = f'{CUSTOM_EMOJI["dna"]} <b>{strings["module"]}</b> <code>{name}</code>:\n'
+        msg += f'{CUSTOM_EMOJI["alembic"]} <b>{strings["description"]}:</b> <i>{metadata.get("description", strings["no_description"])}</i>\n'
+        msg += f'{CUSTOM_EMOJI["snowflake"]} <b>{strings["version"]}:</b> <code>{metadata.get("version", "1.0.0")}</code>\n'
         msg += "<blockquote expandable>"
         if commands:
             for cmd in commands:
                 cmd_desc = metadata.get("commands", {}).get(
-                    cmd, f'{CUSTOM_EMOJI["confused"]} No description'
+                    cmd, f'{CUSTOM_EMOJI["confused"]} {strings["no_description"]}'
                 )
                 msg += f'{CUSTOM_EMOJI["tot"]} <code>{kernel.custom_prefix}{cmd}</code> – <b>{cmd_desc}</b>'
 
@@ -176,14 +173,13 @@ async def generate_detailed_page(search_term, kernel):
                         alias_text = ", ".join(
                             [f"<code>{kernel.custom_prefix}{a}</code>" for a in aliases]
                         )
-                        msg += f" | Aliases: {alias_text}"
+                        msg += f" | {strings['aliases']}: {alias_text}"
                 msg += "\n"
         else:
-            msg += f'{CUSTOM_EMOJI["blocked"]} No commands found\n'
+            msg += f'{CUSTOM_EMOJI["blocked"]} {strings["no_commands"]}\n'
         msg += "</blockquote>"
-        msg += f'\n<blockquote>{CUSTOM_EMOJI["pancake"]} <b>Author:</b> <i>{metadata.get("author", "Unknown")}</i></blockquote>'
+        msg += f'\n<blockquote>{CUSTOM_EMOJI["pancake"]} <b>{strings["author"]}:</b> <i>{metadata.get("author", strings["unknown"])}</i></blockquote>'
         return msg
-
 
     for name, (typ, module) in all_modules.items():
         if search_term in name.lower():
@@ -197,7 +193,7 @@ async def generate_detailed_page(search_term, kernel):
                     break
 
     if similar_modules:
-        msg = f'{CUSTOM_EMOJI["crystal"]} <b>Found modules:</b>\n<blockquote expandable>'
+        msg = f'{CUSTOM_EMOJI["crystal"]} <b>{strings["found_modules"]}:</b>\n<blockquote expandable>'
         for name, typ, module in similar_modules[:5]:
             commands, _ = get_module_commands(name, kernel)
             if commands:
@@ -210,14 +206,14 @@ async def generate_detailed_page(search_term, kernel):
                 msg += f"<b>{name}:</b> {cmd_text}\n"
         msg += "</blockquote>"
         if len(similar_modules) > 5:
-            msg += f'... and <code>{len(similar_modules)-5} more</code> {CUSTOM_EMOJI["tot"]}\n'
-        msg += f'\n<blockquote><i>No exact match found</i> {CUSTOM_EMOJI["map"]}</blockquote>'
+            msg += f'... {strings["and_more"].format(count=len(similar_modules)-5)} {CUSTOM_EMOJI["tot"]}\n'
+        msg += f'\n<blockquote><i>{strings["no_exact_match"]}</i> {CUSTOM_EMOJI["map"]}</blockquote>'
     else:
-        msg = f'<blockquote expandable>{CUSTOM_EMOJI["blocked"]} Module not found</blockquote>'
+        msg = f'<blockquote expandable>{CUSTOM_EMOJI["blocked"]} {strings["module_not_found"]}</blockquote>'
     return msg
 
 
-def get_paginated_data(kernel, page=0):
+def get_paginated_data(kernel, page, strings):
     CHUNK_SIZE = 10
     sys_modules = sorted(list(kernel.system_modules.keys()))
     usr_modules = sorted(list(kernel.loaded_modules.keys()))
@@ -226,7 +222,7 @@ def get_paginated_data(kernel, page=0):
     total_pages = 1 + user_pages_count
 
     if page == 0:
-        msg = f'{CUSTOM_EMOJI["crystal"]} <b>System modules:</b> <code>{len(sys_modules)}</code>\n\n'
+        msg = f'{CUSTOM_EMOJI["crystal"]} <b>{strings["system_modules"]}:</b> <code>{len(sys_modules)}</code>\n\n'
         msg += "<blockquote expandable>"
         for name in sys_modules:
             commands, aliases_info = get_module_commands(name, kernel)
@@ -260,7 +256,7 @@ def get_paginated_data(kernel, page=0):
         end_idx = start_idx + CHUNK_SIZE
         current_chunk = usr_modules[start_idx:end_idx]
 
-        msg = f'{CUSTOM_EMOJI["crystal"]} <b>User modules (Page {page}/<code>{len(usr_modules)}</code>):</b>\n'
+        msg = f'{CUSTOM_EMOJI["crystal"]} <b>{strings["user_modules_page"].format(page=page, count=len(usr_modules))}:</b>\n'
         msg += "<blockquote expandable>"
         for name in current_chunk:
             commands, aliases_info = get_module_commands(name, kernel)
@@ -298,7 +294,7 @@ def get_paginated_data(kernel, page=0):
         page_buttons.append(Button.inline(text, data=f"man_page_{i}"))
 
     buttons.append(page_buttons)
-    buttons.append([Button.inline("❌ Close", data="man_close")])
+    buttons.append([Button.inline("❌ " + strings["close"], data="man_close")])
 
     return msg, buttons
 
@@ -306,11 +302,60 @@ def get_paginated_data(kernel, page=0):
 def register(kernel):
     client = kernel.client
 
+    language = kernel.config.get('language', 'en')
+
+    strings = {
+        'ru': {
+            'module': 'Модуль',
+            'description': 'Описание',
+            'version': 'Версия',
+            'no_description': 'Нет описания',
+            'unknown': 'Неизвестно',
+            'aliases': 'Алиасы',
+            'no_commands': 'Нет команд',
+            'author': 'Автор',
+            'found_modules': 'Найдены модули',
+            'and_more': '... и еще <code>{count}</code>',
+            'no_exact_match': 'Точное совпадение не найдено',
+            'module_not_found': 'Модуль не найден',
+            'system_modules': 'Системные модули',
+            'user_modules_page': 'Пользовательские модули (Страница {page}/<code>{count}</code>)',
+            'close': 'Закрыть',
+            'inline_bot_not_configured': 'Inline бот не настроен\nУстановите inline_bot_token в config',
+            'no_inline_results': '❌ Нет inline результатов',
+            'error': '❌ Ошибка',
+            'module_manager': 'Менеджер модулей\n\nИспользуйте "man" для просмотра модулей или "man [модуль]" для поиска.',
+        },
+        'en': {
+            'module': 'Module',
+            'description': 'Description',
+            'version': 'Version',
+            'no_description': 'No description',
+            'unknown': 'Unknown',
+            'aliases': 'Aliases',
+            'no_commands': 'No commands',
+            'author': 'Author',
+            'found_modules': 'Found modules',
+            'and_more': '... and <code>{count}</code> more',
+            'no_exact_match': 'No exact match found',
+            'module_not_found': 'Module not found',
+            'system_modules': 'System modules',
+            'user_modules_page': 'User modules (Page {page}/<code>{count}</code>)',
+            'close': 'Close',
+            'inline_bot_not_configured': 'Inline bot not configured\nSet inline_bot_token in config',
+            'no_inline_results': '❌ No inline results',
+            'error': '❌ Error',
+            'module_manager': 'Module Manager\n\nUse "man" to browse modules or "man [module]" to search.',
+        }
+    }
+
+    lang_strings = strings.get(language, strings['en'])
+
     async def man_inline_handler(event):
         query = event.text.strip()
 
         if query == "man":
-            msg, buttons = get_paginated_data(kernel, 0)
+            msg, buttons = get_paginated_data(kernel, 0, lang_strings)
             builder = event.builder.article(
                 title="Module Manager", text=msg, buttons=buttons, parse_mode="html"
             )
@@ -320,17 +365,16 @@ def register(kernel):
         if query.startswith("man "):
             search_term = query[4:].strip()
             if search_term:
-                msg = await generate_detailed_page(search_term, kernel)
+                msg = await generate_detailed_page(search_term, kernel, lang_strings)
                 builder = event.builder.article(
                     title=f"Search: {search_term}", text=msg, parse_mode="html"
                 )
                 await event.answer([builder])
                 return
 
-
         builder = event.builder.article(
             title="Module Manager",
-            text=f'{CUSTOM_EMOJI["crystal"]} <b>Module Manager</b>\n\nUse "man" to browse modules or "man [module]" to search.',
+            text=f'{CUSTOM_EMOJI["crystal"]} <b>{lang_strings["module_manager"]}</b>',
             parse_mode="html",
         )
         await event.answer([builder])
@@ -347,7 +391,7 @@ def register(kernel):
         elif data.startswith("man_page_"):
             try:
                 page = int(data.split("_")[-1])
-                msg, buttons = get_paginated_data(kernel, page)
+                msg, buttons = get_paginated_data(kernel, page, lang_strings)
                 await event.edit(msg, buttons=buttons, parse_mode="html")
             except Exception as e:
                 await event.answer(f"Error: {str(e)[:50]}", alert=True)
@@ -361,7 +405,7 @@ def register(kernel):
                 bot_username = kernel.config.get("inline_bot_username")
                 if not bot_username:
                     await event.edit(
-                        f'{CUSTOM_EMOJI["blocked"]} <b>Inline bot not configured</b>\nSet inline_bot_token in config',
+                        f'{CUSTOM_EMOJI["blocked"]} <b>{lang_strings["inline_bot_not_configured"]}</b>',
                         parse_mode="html",
                     )
                     return
@@ -375,16 +419,16 @@ def register(kernel):
                             event.chat_id, reply_to=event.reply_to_msg_id
                         )
                     else:
-                        await client.send_message(event.chat_id, "❌ No inline results")
+                        await client.send_message(event.chat_id, lang_strings["no_inline_results"])
                 except Exception as e:
                     await kernel.handle_error(e, source="man_inline", event=event)
                     await client.send_message(
-                        event.chat_id, f"❌ Error: {str(e)[:100]}"
+                        event.chat_id, f'{lang_strings["error"]}: {str(e)[:100]}'
                     )
 
             else:
                 search_term = " ".join(args[1:])
-                msg = await generate_detailed_page(search_term, kernel)
+                msg = await generate_detailed_page(search_term, kernel, lang_strings)
                 await event.edit(msg, parse_mode="html")
 
         except Exception as e:

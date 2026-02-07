@@ -95,7 +95,7 @@ def register(kernel):
 
     @bot_client.on(events.NewMessage(pattern=r"/init$"))
     @private_only
-    async def init_handler(event)
+    async def init_handler(event):
         try:
             if int(event.sender_id) != int(kernel.ADMIN_ID):
                 return

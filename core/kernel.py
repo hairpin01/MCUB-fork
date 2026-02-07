@@ -39,19 +39,31 @@ try:
     import psutil
     import aiohttp
     import asyncio
-    import aiosqlite
     from collections import OrderedDict
     from datetime import datetime, timedelta
     from telethon import TelegramClient, events, Button
     from telethon.errors import SessionPasswordNeededError
+    from typing import (
+        Any,
+        Callable,
+        Dict, List,
+        Optional,
+        Union,
+        defaultdict,
+        Pattern,
+        Tuple
+    )
+    import inspect
+
 except ImportError as e:
-    print("Установите, зависимости" "pip install -r requirements.txt\n", e)
+    print("Установите зависимости" "pip install -r requirements.txt\n", str(e))
     import sys
 
     sys.exit(1)
 
 
 class Colors:
+    """цвета"""
     RESET = "\033[0m"
     RED = "\033[91m"
     GREEN = "\033[92m"
@@ -69,144 +81,499 @@ class CommandConflictError(Exception):
         self.conflict_type = conflict_type
         self.command = command
 
-
 class TTLCache:
-    def __init__(self, max_size=1000, ttl=300):
+    """
+    A Time-To-Live (TTL) cache implementation with LRU eviction policy.
 
+    This cache stores key-value pairs with an expiration time. When the cache
+    reaches its maximum size, it removes the least recently used item.
+    Expired items are automatically removed upon access.
+
+    Attributes:
+        max_size (int): Maximum number of items the cache can hold
+        ttl (int): Default time-to-live in seconds for cache entries
+        cache (OrderedDict): The underlying data storage with LRU ordering
+    """
+
+    def __init__(self, max_size: int = 1000, ttl: int = 300) -> None:
+        """
+        Initialize the TTL cache.
+
+        Args:
+            max_size: Maximum number of items the cache can hold (default: 1000)
+            ttl: Default time-to-live for cache entries in seconds (default: 300)
+        """
         self.cache = OrderedDict()
         self.max_size = max_size
         self.ttl = ttl
 
-    def set(self, key, value, ttl=None):
+    def set(self, key: Any, value: Any, ttl: Optional[int] = None) -> None:
+        """
+        Add or update a key-value pair in the cache.
 
+        Args:
+            key: The key to store
+            value: The value to associate with the key
+            ttl: Optional custom TTL in seconds. If not provided, uses default TTL
+
+        Note:
+            If the cache exceeds max_size after insertion, the least recently
+            used item is removed. The new item becomes the most recently used.
+        """
+        # Calculate expiration time: current time + custom TTL or default TTL
         expire_time = time.time() + (ttl if ttl is not None else self.ttl)
+
+        # Store the key with its expiration time and value
         self.cache[key] = (expire_time, value)
+
+        # Move to end to mark as recently used (OrderedDict maintains insertion order)
+        self.cache.move_to_end(key)
+
+        # Remove least recently used item if cache exceeds max size
         if len(self.cache) > self.max_size:
             self.cache.popitem(last=False)
 
-    def get(self, key):
-        if key in self.cache:
-            expire_time, value = self.cache[key]
-            if time.time() < expire_time:
-                return value
-            else:
-                del self.cache[key]
-        return None
+    def get(self, key: Any) -> Optional[Any]:
+        """
+        Retrieve a value from the cache by key.
 
-    def clear(self):
+        Args:
+            key: The key to look up
+
+        Returns:
+            The associated value if found and not expired, None otherwise
+
+        Note:
+            If an expired item is found, it is automatically removed from the cache.
+        """
+        if key not in self.cache:
+            return None
+
+        expire_time, value = self.cache[key]
+
+        # Check if the item has expired
+        if time.time() < expire_time:
+            # Mark as recently used and return value
+            self.cache.move_to_end(key)
+            return value
+        else:
+            # Remove expired item
+            del self.cache[key]
+            return None
+
+    def clear(self) -> None:
+        """
+        Remove all items from the cache.
+        """
         self.cache.clear()
 
-    def size(self):
+    def size(self) -> int:
+        """
+        Get the current number of items in the cache.
+
+        Returns:
+            Number of items currently stored in the cache
+        """
         return len(self.cache)
+
+    def _cleanup_expired(self) -> None:
+        """
+        Remove all expired items from the cache.
+
+        Note: This is an internal method that can be called periodically
+        to clean up expired items without requiring access attempts.
+        """
+        current_time = time.time()
+        expired_keys = [
+            key for key, (expire_time, _) in self.cache.items()
+            if current_time >= expire_time
+        ]
+
+        for key in expired_keys:
+            del self.cache[key]
 
 
 class TaskScheduler:
-    def __init__(self, kernel):
+    """
+    A scheduler for managing periodic and time-based asynchronous tasks.
+    This class provides methods to schedule tasks that run at fixed intervals
+    or at specific times daily. It integrates with a kernel for error logging
+    and supports graceful shutdown of running tasks.
+    Attributes:
+        kernel: Reference to the main kernel/application for logging and services
+        tasks: List of currently scheduled asyncio tasks
+        running: Flag indicating whether the scheduler is active
+    """
+    def __init__(self, kernel: Any) -> None:
+        """
+        Initialize the task scheduler.
+
+        Args:
+            kernel: The main application kernel providing logging and other services
+                    Must have a `log_error` method for error reporting.
+        """
         self.kernel = kernel
-        self.tasks = []
+        self.tasks: List[asyncio.Task] = []
         self.running = False
 
-    async def add_interval_task(self, func, interval_seconds):
-        async def wrapper():
-            while True:
-                await asyncio.sleep(interval_seconds)
+    async def start(self) -> None:
+        """Start the task scheduler and mark it as running."""
+        self.running = True
+
+    async def stop(self) -> None:
+        """
+        Stop all scheduled tasks and clean up resources.
+
+        This method cancels all running tasks and waits for them to complete
+        cancellation. It should be called before application shutdown.
+        """
+        self.running = False
+
+        # Cancel all tasks
+        for task in self.tasks:
+            if not task.done():
+                task.cancel()
+
+        # Wait for all tasks to be cancelled
+        if self.tasks:
+            await asyncio.gather(*self.tasks, return_exceptions=True)
+
+        self.tasks.clear()
+
+    async def add_interval_task(self,
+                               func: Callable[[], Any],
+                               interval_seconds: float) -> None:
+        """
+        Schedule a function to run at fixed intervals.
+
+        The function will be called repeatedly, waiting for `interval_seconds`
+        between the end of one execution and the start of the next.
+
+        Args:
+            func: Async function to execute periodically
+            interval_seconds: Time interval between executions in seconds
+
+        Example:
+            >>> await scheduler.add_interval_task(update_cache, 60.0)
+        """
+        async def wrapper() -> None:
+            """Wrapper function that handles the interval logic and error catching."""
+            while self.running:
                 try:
+                    await asyncio.sleep(interval_seconds)
                     await func()
+                except asyncio.CancelledError:
+                    # Task was cancelled, break out of the loop
+                    break
                 except Exception as e:
-                    self.kernel.log_error(f"Task error: {e}")
+                    # Log the error but keep the task running
+                    error_msg = f"Interval task error in {func.__name__}: {e}\n"
+                    error_msg += traceback.format_exc()
+                    self.kernel.log_error(error_msg)
 
-        task = asyncio.create_task(wrapper())
+        task = asyncio.create_task(wrapper(), name=f"interval_{func.__name__}")
         self.tasks.append(task)
 
-    async def add_daily_task(self, func, hour, minute):
-        async def wrapper():
-            while True:
-                now = datetime.now()
-                target = now.replace(hour=hour, minute=minute, second=0)
-                if now > target:
-                    target += timedelta(days=1)
+    async def add_daily_task(self,
+                            func: Callable[[], Any],
+                            hour: int,
+                            minute: int) -> None:
+        """
+        Schedule a function to run daily at a specific time.
 
-                delay = (target - now).total_seconds()
-                await asyncio.sleep(delay)
-                await func()
+        The function will be called every day at the specified hour and minute.
+        If the target time has already passed for today, it will run tomorrow.
 
-        task = asyncio.create_task(wrapper())
+        Args:
+            func: Async function to execute daily
+            hour: Hour of the day (0-23) to run the task
+            minute: Minute of the hour (0-59) to run the task
+
+        Raises:
+            ValueError: If hour or minute values are out of valid range
+
+        Example:
+            >>> await scheduler.add_daily_task(send_daily_report, 9, 30)
+        """
+        # Validate input parameters
+        if not (0 <= hour <= 23):
+            raise ValueError(f"Hour must be between 0 and 23, got {hour}")
+        if not (0 <= minute <= 59):
+            raise ValueError(f"Minute must be between 0 and 59, got {minute}")
+
+        async def wrapper() -> None:
+            """Wrapper function that handles the daily scheduling and error catching."""
+            while self.running:
+                try:
+                    # Calculate time until next execution
+                    now = datetime.now()
+                    target_time = now.replace(
+                        hour=hour,
+                        minute=minute,
+                        second=0,
+                        microsecond=0
+                    )
+
+
+                    # If target time has passed today, schedule for tomorrow
+                    if now >= target_time:
+                        target_time += timedelta(days=1)
+
+                    # Calculate delay in seconds
+                    delay_seconds = (target_time - now).total_seconds()
+
+                    # Wait until the target time
+                    await asyncio.sleep(delay_seconds)
+
+                    # Execute the scheduled function
+                    await func()
+
+                    # After execution, wait for the next day
+                    # This prevents multiple executions if the function takes time
+                    await asyncio.sleep(1)  # Small delay before recalculating
+
+                except asyncio.CancelledError:
+                    # Task was cancelled, break out of the loop
+                    break
+                except Exception as e:
+                    # Log the error but keep the task running
+                    error_msg = f"Daily task error in {func.__name__}: {e}\n"
+                    error_msg += traceback.format_exc()
+                    self.kernel.log_error(error_msg)
+
+                    # Wait a bit before retrying to avoid error loops
+                    await asyncio.sleep(60)
+
+        task_name = f"daily_{func.__name__}_{hour:02d}:{minute:02d}"
+        task = asyncio.create_task(wrapper(), name=task_name)
         self.tasks.append(task)
+
+    def get_active_tasks(self) -> List[asyncio.Task]:
+        """
+        Get a list of all currently scheduled tasks.
+
+        Returns:
+            List of asyncio.Task objects representing scheduled tasks
+        """
+        return self.tasks.copy()
+
+    def get_task_count(self) -> int:
+        """Return the number of currently scheduled tasks."""
+        return len(self.tasks)
+
+    async def remove_task(self, task: asyncio.Task) -> bool:
+        """
+        Remove and cancel a specific task.
+
+        Args:
+            task: The task to remove and cancel
+
+        Returns:
+            True if the task was found and cancelled, False otherwise
+        """
+        if task in self.tasks:
+            self.tasks.remove(task)
+            if not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+            return True
+        return False
 
 
 class Register:
+    """
+    A comprehensive registration system for Telegram bot handlers.
 
-    def __init__(self, kernel):
+    This class provides decorators for registering methods, event handlers,
+    and commands in a modular Telegram bot system. It integrates with a kernel
+    for centralized management of handlers and modules.
+
+    Attributes:
+        kernel: Reference to the main bot kernel for registration and management
+        _methods: Dictionary storing registered methods for internal use
+    """
+
+    def __init__(self, kernel: Any) -> None:
+        """
+        Initialize the register with a kernel reference.
+
+        Args:
+            kernel: The main bot kernel that manages modules and handlers.
+                    Must have attributes: client, custom_prefix, current_loading_module,
+                    command_handlers, command_owners, aliases, bot_command_handlers,
+                    bot_command_owners.
+        """
         self.kernel = kernel
-        self._methods = {}
+        self._methods: Dict[str, Callable] = {}
 
-    def method(self, func=None):
+    def method(self, func: Optional[Callable] = None) -> Callable:
+        """
+        Decorator to register a method in the module's register object.
+
+        This decorator makes the function accessible via the module's `register`
+        attribute, enabling cross-module method calls.
+
+        Args:
+            func: The function to register (provided automatically by decorator)
+
+        Returns:
+            The original function, registered to the module
+
+        Example:
+            >>> @kernel.register.method
+            >>> async def helper_function():
+            >>>     return "help"
+            >>>
+            >>> # Can be accessed in other modules as:
+            >>> # module.register.helper_function()
+        """
+        def decorator(f: Callable) -> Callable:
+            """Inner decorator that performs the actual registration."""
+            # Get the calling module using the caller's frame
+            caller_frame = inspect.stack()[1][0]
+            module = inspect.getmodule(caller_frame)
+
+            if module:
+                # Create or get the register object on the module
+                if not hasattr(module, "register"):
+                    # Create a simple object to hold registered methods
+                    module.register = type("RegisterObject", (), {})()
+
+                # Register the method on the module's register object
+                setattr(module.register, f.__name__, f)
+
+                # Also store in internal dictionary
+                self._methods[f.__name__] = f
+
+            return f
+
+        # Handle both @register.method and @register.method() syntax
         if func is None:
-            return lambda f: self.method(f)
+            return decorator
+        return decorator(func)
 
-        import inspect
+    def event(self, event_type: str, *args: Any, **kwargs: Any) -> Callable:
+        """
+        Decorator to register a Telegram event handler.
 
-        module = inspect.getmodule(inspect.stack()[1][0])
-        if module:
-            if not hasattr(module, "register"):
-                module.register = type("RegisterObject", (), {})()
-            module.register.method = func
+        Registers a function as a handler for specific Telegram events using
+        Telethon's event system. Supports multiple event type aliases.
 
-        return func
+        Args:
+            event_type: Type of event to handle. Supported values:
+                - "newmessage", "message": NewMessage events
+                - "messageedited", "edited": MessageEdited events
+                - "messagedeleted", "deleted": MessageDeleted events
+                - "userupdate", "user": UserUpdate events
+                - "chatupload", "upload": ChatUpload events
+                - "inlinequery", "inline": InlineQuery events
+                - "callbackquery", "callback": CallbackQuery events
+                - "raw", "custom": Raw events
+            *args: Positional arguments passed to the Telethon event constructor
+            **kwargs: Keyword arguments passed to the Telethon event constructor
 
-    def event(self, event_type, *args, **kwargs):
-        """newmessage, messageedited,
-        userupdat, chatupload,
-        inlinequery, callbackquery, raw"""
+        Returns:
+            Decorator function that registers the handler
 
-        def decorator(handler):
-            from telethon import events
+        Example:
+            >>> @kernel.register.event("newmessage", pattern=r'hello')
+            >>> async def handle_hello(event):
+            >>>     await event.reply("Hi there!")
+        """
+        # Map event type strings to Telethon event classes
+        EVENT_TYPE_MAP: Dict[str, Any] = {
+            "newmessage": events.NewMessage,
+            "message": events.NewMessage,
+            "messageedited": events.MessageEdited,
+            "edited": events.MessageEdited,
+            "messagedeleted": events.MessageDeleted,
+            "deleted": events.MessageDeleted,
+            "userupdate": events.UserUpdate,
+            "user": events.UserUpdate,
+            "chatupload": events.ChatUpload,
+            "upload": events.ChatUpload,
+            "inlinequery": events.InlineQuery,
+            "inline": events.InlineQuery,
+            "callbackquery": events.CallbackQuery,
+            "callback": events.CallbackQuery,
+            "raw": events.Raw,
+            "custom": events.Raw,
+        }
 
-            event_class = None
-            pattern = None
+        def decorator(handler: Callable) -> Callable:
+            """Inner decorator that registers the event handler."""
+            event_type_lower = event_type.lower()
 
-            if event_type.lower() in ["newmessage", "message"]:
-                event_class = events.NewMessage
-            elif event_type.lower() in ["messageedited", "edited"]:
-                event_class = events.MessageEdited
-            elif event_type.lower() in ["messagedeleted", "deleted"]:
-                event_class = events.MessageDeleted
-            elif event_type.lower() in ["userupdate", "user"]:
-                event_class = events.UserUpdate
-            elif event_type.lower() in ["chatupload", "upload"]:
-                event_class = events.ChatUpload
-            elif event_type.lower() in ["inlinequery", "inline"]:
-                event_class = events.InlineQuery
-            elif event_type.lower() in ["callbackquery", "callback"]:
-                event_class = events.CallbackQuery
-            elif event_type.lower() in ["raw", "custom"]:
-                event_class = events.Raw
-
-            if event_class:
-                self.kernel.client.add_event_handler(
-                    handler, event_class(*args, **kwargs)
+            if event_type_lower not in EVENT_TYPE_MAP:
+                valid_types = ", ".join(EVENT_TYPE_MAP.keys())
+                raise ValueError(
+                    f"Unknown event type: '{event_type}'. "
+                    f"Valid types are: {valid_types}"
                 )
+
+            event_class = EVENT_TYPE_MAP[event_type_lower]
+
+            # Register the handler with the Telegram client
+            self.kernel.client.add_event_handler(
+                handler,
+                event_class(*args, **kwargs)
+            )
 
             return handler
 
         return decorator
 
-    def command(self, pattern, **kwargs):
-        # new register command
-        def decorator(func):
+    def command(self, pattern: str, **kwargs: Any) -> Callable:
+        """
+        Decorator to register a custom command for the bot.
+
+        Commands are triggered by the bot's custom prefix (e.g., "!").
+        Supports command aliases and module ownership tracking.
+
+        Args:
+            pattern: Command pattern to match (can include regex anchors)
+            **kwargs: Additional options including:
+                - alias: Single string or list of strings for command aliases
+                - more: Additional metadata for the command
+
+        Returns:
+            Decorator function that registers the command handler
+
+        Raises:
+            ValueError: If no current module is set for registration
+
+        Example:
+            >>> @kernel.register.command('ping')
+            >>> async def ping_command(event):
+            >>>     await event.reply("Pong!")
+            >>>
+            >>> # With alias
+            >>> @kernel.register.command('help', alias=['h', 'помощь'])
+            >>> async def help_command(event):
+            >>>     await event.reply("Help text...")
+        """
+        def decorator(func: Callable) -> Callable:
+            """Inner decorator that registers the command."""
+            # Clean the command pattern to get the base command name
             cmd = pattern.lstrip("^\\" + self.kernel.custom_prefix)
             if cmd.endswith("$"):
                 cmd = cmd[:-1]
 
+            # Ensure we're registering in the context of a module
             if self.kernel.current_loading_module is None:
                 raise ValueError(
-                    "не установлен текущий модуль для регистрации команд"
-                    )
+                    "No current module set for command registration. "
+                    "Commands must be registered from within a module."
+                )
 
+            # Register the command handler
             self.kernel.command_handlers[cmd] = func
             self.kernel.command_owners[cmd] = self.kernel.current_loading_module
 
-            # alias: @kernel.register.command('GetRawText', alias='grt', more=more)
+            # Handle aliases if provided
             alias = kwargs.get("alias")
             if alias:
                 if isinstance(alias, str):
@@ -215,25 +582,68 @@ class Register:
                     for a in alias:
                         self.kernel.aliases[a] = cmd
 
+            # Store additional metadata if provided
+            more = kwargs.get("more")
+            if more:
+                if not hasattr(self.kernel, 'command_metadata'):
+                    self.kernel.command_metadata = {}
+                self.kernel.command_metadata[cmd] = more
+
             return func
 
         return decorator
 
-    def bot_command(self, pattern, **kwargs):
-        def decorator(func):
-            cmd_pattern = pattern  # Используем другую переменную
-            if not cmd_pattern.startswith("/"):
-                cmd_pattern = "/" + cmd_pattern
+    def bot_command(self, pattern: str, **kwargs: Any) -> Callable:
+        """
+        Decorator to register a bot command (Telegram's native /commands).
+
+        These commands appear in Telegram's command menu when users type "/".
+        Supports slash commands with optional parameters.
+
+        Args:
+            pattern: Command pattern (e.g., "start" or "/start")
+            **kwargs: Additional options (currently unused but reserved for future)
+
+        Returns:
+            Decorator function that registers the bot command
+
+        Raises:
+            ValueError: If no current module is set for registration
+
+        Example:
+            >>> @kernel.register.bot_command("start")
+            >>> async def start_command(event):
+            >>>     await event.reply("Welcome to the bot!")
+            >>>
+            >>> # With parameters in pattern
+            >>> @kernel.register.bot_command("search <query>")
+            >>> async def search_command(event):
+            >>>     query = event.pattern_match.group('query')
+            >>>     await event.reply(f"Searching for {query}...")
+        """
+        def decorator(func: Callable) -> Callable:
+            """Inner decorator that registers the bot command."""
+            # Ensure pattern starts with slash for consistency
+            if not pattern.startswith("/"):
+                cmd_pattern = "/" + pattern
+            else:
+                cmd_pattern = pattern
+
+            # Extract the base command name (first word after slash)
             cmd = (
                 cmd_pattern.lstrip("/").split()[0]
                 if " " in cmd_pattern
                 else cmd_pattern.lstrip("/")
             )
+
+            # Ensure we're registering in the context of a module
             if self.kernel.current_loading_module is None:
                 raise ValueError(
-                    "не установлен текущий модуль для регистрации бот-команд"
+                    "No current module set for bot command registration. "
+                    "Bot commands must be registered from within a module."
                 )
 
+            # Register the bot command
             self.kernel.bot_command_handlers[cmd] = (pattern, func)
             self.kernel.bot_command_owners[cmd] = self.kernel.current_loading_module
 
@@ -241,66 +651,283 @@ class Register:
 
         return decorator
 
+    def get_registered_methods(self) -> Dict[str, Callable]:
+        """
+        Get all methods registered through the @method decorator.
+
+        Returns:
+            Dictionary mapping method names to their functions
+        """
+        return self._methods.copy()
+
 
 class CallbackPermissionManager:
-    def __init__(self):
+    """
+    A manager for granting temporary permissions for callback operations.
+
+    This class provides time-based permission grants with pattern matching.
+    It's useful for implementing secure callback systems where users need
+    temporary access to specific operations or data patterns.
+
+    Attributes:
+        permissions: Nested dictionary storing user permissions
+                    Structure: {user_id: {pattern: expiry_time}}
+    """
+
+    def __init__(self) -> None:
+        """
+        Initialize the permission manager with empty permissions.
+        """
         # {user_id: {pattern: expiry_time}}
-        self.permissions = {}
+        self.permissions: Dict[int, Dict[str, float]] = defaultdict(dict)
 
-    def _to_str(self, val):
+    def _to_str(self, val: Union[str, bytes, Pattern]) -> str:
+        """
+        Convert various input types to a normalized string pattern.
 
+        Args:
+            val: Value to convert. Can be:
+                - str: Returned as-is
+                - bytes: Decoded from UTF-8
+                - Pattern (re.Pattern): Pattern string is extracted
+                - Any other type: Converted to string with str()
+
+        Returns:
+            Normalized string pattern
+
+        Raises:
+            UnicodeDecodeError: If bytes cannot be decoded from UTF-8
+        """
         if isinstance(val, bytes):
             return val.decode("utf-8")
+        elif isinstance(val, Pattern):
+            # Extract pattern string from compiled regex
+            return val.pattern
         return str(val)
 
-    def allow(self, user_id, pattern, duration_seconds=60):
-        pattern = self._to_str(pattern)
+    def allow(self,
+              user_id: int,
+              pattern: Union[str, bytes, Pattern],
+              duration_seconds: float = 60) -> None:
+        """
+        Grant temporary permission to a user for a specific pattern.
 
-        expiry = time.time() + duration_seconds
-        if user_id not in self.permissions:
-            self.permissions[user_id] = {}
-        self.permissions[user_id][pattern] = expiry
+        The permission will automatically expire after the specified duration.
+        Multiple patterns can be granted to the same user.
 
-    def is_allowed(self, user_id, pattern):
-        pattern = self._to_str(pattern)
+        Args:
+            user_id: User identifier (typically Telegram user ID)
+            pattern: Permission pattern (supports prefix matching)
+            duration_seconds: How long the permission lasts in seconds (default: 60)
+
+        Example:
+            >>> manager.allow(123456, "settings_edit_", duration_seconds=300)
+            # User 123456 can access any callback starting with "settings_edit_"
+            # for 5 minutes
+        """
+        pattern_str = self._to_str(pattern)
+        expiry_time = time.time() + duration_seconds
+
+        self.permissions[user_id][pattern_str] = expiry_time
+
+    def is_allowed(self,
+                   user_id: int,
+                   pattern: Union[str, bytes, Pattern]) -> bool:
+        """
+        Check if a user has permission for a specific pattern.
+
+        The check uses prefix matching: if the requested pattern starts with
+        any allowed pattern that hasn't expired, permission is granted.
+        Expired permissions are automatically skipped.
+
+        Args:
+            user_id: User identifier to check
+            pattern: Pattern to check permission for
+
+        Returns:
+            True if user has valid permission for the pattern, False otherwise
+
+        Example:
+            >>> manager.allow(123456, "menu_", duration_seconds=60)
+            >>> manager.is_allowed(123456, "menu_main")  # True
+            >>> manager.is_allowed(123456, "settings")   # False
+        """
+        pattern_str = self._to_str(pattern)
         current_time = time.time()
 
+        # Quick check: user has no permissions
         if user_id not in self.permissions:
             return False
 
+        # Check each allowed pattern for this user
         for allowed_pattern, expiry_time in self.permissions[user_id].items():
+            # Skip expired permissions
             if expiry_time <= current_time:
                 continue
 
-            if pattern.startswith(allowed_pattern):
+            # Prefix matching: if requested pattern starts with allowed pattern
+            if pattern_str.startswith(allowed_pattern):
                 return True
 
         return False
 
-    def prohibit(self, user_id, pattern=None):
+    def prohibit(self,
+                 user_id: int,
+                 pattern: Optional[Union[str, bytes, Pattern]] = None) -> None:
+        """
+        Revoke permission(s) for a user.
+
+        Args:
+            user_id: User identifier
+            pattern: Specific pattern to revoke. If None, revoke all permissions
+                     for this user
+
+        Example:
+            >>> manager.allow(123456, "menu_")
+            >>> manager.allow(123456, "settings_")
+            >>> manager.prohibit(123456, "menu_")  # Revoke only menu permissions
+            >>> manager.prohibit(123456)           # Revoke all permissions
+        """
         if user_id not in self.permissions:
             return
-        if pattern:
-            pattern = self._to_str(pattern)
-            if pattern in self.permissions[user_id]:
-                del self.permissions[user_id][pattern]
+
+        if pattern is not None:
+            pattern_str = self._to_str(pattern)
+            # Remove specific pattern
+            if pattern_str in self.permissions[user_id]:
+                del self.permissions[user_id][pattern_str]
+
+            # Clean up empty user entry
             if not self.permissions[user_id]:
                 del self.permissions[user_id]
         else:
+            # Remove all permissions for this user
             del self.permissions[user_id]
 
-    def cleanup(self):
-        current_time = time.time()
+    def cleanup(self) -> int:
+        """
+        Remove all expired permissions across all users.
 
+        This method should be called periodically to free up memory.
+
+        Returns:
+            Number of expired permissions removed
+
+        Example:
+            >>> expired_count = manager.cleanup()
+            >>> print(f"Cleaned up {expired_count} expired permissions")
+        """
+        current_time = time.time()
+        removed_count = 0
+
+        # Iterate over copy of keys to avoid modification during iteration
         for user_id in list(self.permissions.keys()):
             user_patterns = self.permissions[user_id]
 
-            for pattern in list(user_patterns.keys()):
-                if user_patterns[pattern] <= current_time:
-                    del user_patterns[pattern]
+            # Find expired patterns for this user
+            expired_patterns = [
+                pattern for pattern, expiry_time in user_patterns.items()
+                if expiry_time <= current_time
+            ]
 
+            # Remove expired patterns
+            for pattern in expired_patterns:
+                del user_patterns[pattern]
+                removed_count += 1
+
+            # Remove user entry if no patterns remain
             if not user_patterns:
                 del self.permissions[user_id]
+
+        return removed_count
+
+    def get_user_permissions(self, user_id: int) -> Dict[str, float]:
+        """
+        Get all active permissions for a specific user.
+
+        Args:
+            user_id: User identifier
+
+        Returns:
+            Dictionary of pattern -> expiry_time for active permissions
+            Empty dict if user has no active permissions
+        """
+        if user_id not in self.permissions:
+            return {}
+
+        current_time = time.time()
+        # Return only non-expired permissions
+        return {
+            pattern: expiry_time
+            for pattern, expiry_time in self.permissions[user_id].items()
+            if expiry_time > current_time
+        }
+
+    def get_expiry_time(self,
+                       user_id: int,
+                       pattern: Union[str, bytes, Pattern]) -> Optional[float]:
+        """
+        Get the expiry time for a specific user-pattern permission.
+
+        Args:
+            user_id: User identifier
+            pattern: Permission pattern
+
+        Returns:
+            Expiry timestamp in seconds since epoch, or None if permission
+            doesn't exist or has expired
+        """
+        pattern_str = self._to_str(pattern)
+
+        if user_id not in self.permissions:
+            return None
+
+        expiry_time = self.permissions[user_id].get(pattern_str)
+        if expiry_time is None or expiry_time <= time.time():
+            return None
+
+        return expiry_time
+
+    def remaining_time(self,
+                      user_id: int,
+                      pattern: Union[str, bytes, Pattern]) -> Optional[float]:
+        """
+        Get remaining time (in seconds) for a specific permission.
+
+        Args:
+            user_id: User identifier
+            pattern: Permission pattern
+
+        Returns:
+            Remaining time in seconds, or None if permission doesn't exist
+            or has expired
+        """
+        expiry_time = self.get_expiry_time(user_id, pattern)
+        if expiry_time is None:
+            return None
+
+        return max(0.0, expiry_time - time.time())
+
+    def clear_all(self) -> None:
+        """
+        Clear all permissions for all users.
+
+        This is useful for testing or complete reset of the permission system.
+        """
+        self.permissions.clear()
+
+    def get_all_permissions(self) -> Dict[int, Dict[str, float]]:
+        """
+        Get all permissions (including expired ones).
+
+        Returns:
+            Complete permissions dictionary
+        """
+        # Return a deep copy to prevent external modification
+        return {
+            user_id: patterns.copy()
+            for user_id, patterns in self.permissions.items()
+        }
 
 
 class Kernel:
@@ -1162,65 +1789,337 @@ class Kernel:
 
         return "none"
 
-    async def load_module_from_file(self, file_path, module_name, is_system=False):
+
+    async def load_module_from_file(
+        self,
+        file_path: str,
+        module_name: str,
+        is_system: bool = False
+    ) -> Tuple[bool, str]:
+        """
+        Dynamically loads a Python module from a file and registers it with the kernel.
+
+        This method handles module loading, dependency management, and integration
+        with the bot's ecosystem. It supports different module registration patterns
+        and automatic dependency installation.
+
+        Args:
+            file_path: Path to the Python module file
+            module_name: Name to assign to the loaded module
+            is_system: If True, loads as a system module with higher privileges
+
+        Returns:
+            Tuple of (success: bool, message: str)
+
+        Raises:
+            CommandConflictError: If module introduces conflicting commands
+            ImportError: If required dependencies cannot be installed
+
+        Example:
+            >>> success, message = await kernel.load_module_from_file(
+            ...     "modules/my_module.py",
+            ...     "my_module"
+            ... )
+            >>> if success:
+            ...     print(f"Loaded: {message}")
+        """
         try:
+            # Read the module source code
             with open(file_path, "r", encoding="utf-8") as f:
                 code = f.read()
 
-            if "from .. import" in code or "import loader" in code:
-                return False, "Несовместимый модуль (Тип: Heroku/hikka модуль)"
+            # Check for incompatible module patterns (Heroku/hikka)
+            incompatible_patterns = [
+                "from .. import",
+                "import loader",
+                "__import__('loader')",
+                "from hikkalt import",
+                "from herokult import"
+            ]
 
+            for pattern in incompatible_patterns:
+                if pattern in code:
+                    return False, "Incompatible module type (Heroku/hikka style modules not supported)"
+
+            # Clean up any previous instance of this module
             if module_name in sys.modules:
+                # Allow module reloading by removing from sys.modules
                 del sys.modules[module_name]
 
-            spec = importlib.util.spec_from_file_location(module_name, file_path)
+            # Create module specification and object
+            spec = importlib.util.spec_from_file_location(
+                module_name, file_path
+            )
+            if spec is None:
+                return False, f"Failed to create module spec for {module_name}"
+
             module = importlib.util.module_from_spec(spec)
 
+            # Inject kernel references into module
             module.kernel = self
             module.client = self.client
             module.custom_prefix = self.custom_prefix
+            module.__file__ = file_path
+            module.__name__ = module_name
 
+            # Store in sys.modules before execution for proper imports
             sys.modules[module_name] = module
 
-            self.set_loading_module(module_name, "system" if is_system else "user")
-            spec.loader.exec_module(module)
+            # Set loading context for command registration
+            self.set_loading_module(
+                module_name,
+                "system" if is_system else "user"
+                )
 
+            try:
+                # Execute the module
+                spec.loader.exec_module(module)
+            except ImportError as e:
+                # Handle missing dependencies
+                return await self._handle_missing_dependency(
+                    e,
+                    file_path,
+                    module_name,
+                    is_system
+                )
+            except SyntaxError as e:
+                # Provide detailed syntax error information
+                error_msg = f"Syntax error in {Path(file_path).name}: {e.msg}\n"
+                error_msg += f"  Line {e.lineno}: {e.text}"
+                return False, error_msg
+
+            # Detect module type and register appropriately
             module_type = await self.detected_module_type(module)
 
-            if module_type == "method":
-                module.register.method(self)
-            elif module_type == "new":
-                if hasattr(module, "register"):
-                    module.register(self)
-            elif module_type == "old":
-                if hasattr(module, "register"):
-                    module.register(self.client)
-            else:
-                return False, "Модуль не имеет функции register"
+            registration_success = await self._register_module(
+                module, module_type, module_name
+            )
 
+            if not registration_success:
+                return False, "Module registration failed"
+
+            # Store module reference
             if is_system:
                 self.system_modules[module_name] = module
+                self.logger.info(f"System module loaded: {module_name}")
             else:
                 self.loaded_modules[module_name] = module
+                self.logger.info(f"User module loaded: {module_name}")
 
-            return True, f"Модуль {module_name} загружен ({module_type})"
+            # Initialize module if it has an init function
+            if hasattr(module, 'init') and callable(module.init):
+                try:
+                    await module.init()
+                    self.logger.debug(f"Module {module_name} init() executed")
+                except Exception as e:
+                    self.logger.error(f"Module {module_name} init() failed: {e}")
+                    # Continue even if init fails, module is still loaded
 
-        except ImportError as e:
-            error_msg = str(e)
-            match = re.search(r"No module named '([^']+)'", error_msg)
-            if match:
-                dep = match.group(1)
-                return (
-                    False,
-                    f"Требуется зависимость: {dep}. Используйте: pip install {dep}",
-                )
-            return False, f"Ошибка импорта: {error_msg}"
+            return True, f"Module {module_name} loaded successfully ({module_type} type)"
+
         except CommandConflictError as e:
+            # Re-raise command conflicts for higher-level handling
             raise e
         except Exception as e:
-            return False, f"Ошибка загрузки: {str(e)}"
+            error_msg = f"Module loading error: {str(e)}"
+            self.logger.error(f"Failed to load {module_name}: {e}", exc_info=True)
+            return False, error_msg
         finally:
+            # Always clear loading context
             self.clear_loading_module()
+
+
+    async def _handle_missing_dependency(
+        self,
+        error: ImportError,
+        file_path: str,
+        module_name: str,
+        is_system: bool
+    ) -> Tuple[bool, str]:
+        """
+        Handle missing dependencies by attempting automatic installation.
+
+        Args:
+            error: The ImportError that occurred
+            file_path: Path to the module file
+            module_name: Name of the module being loaded
+            is_system: Whether it's a system module
+
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        error_msg = str(error)
+
+        # Try to extract module name from various error patterns
+        patterns = [
+            r"No module named '([^']+)'",
+            r"ModuleNotFoundError: No module named '([^']+)'",
+            r"cannot import name '([^']+)' from",
+            r"ImportError: cannot import name '([^']+)'"
+        ]
+
+        missing_dependency = None
+        for pattern in patterns:
+            match = re.search(pattern, error_msg)
+            if match:
+                missing_dependency = match.group(1)
+                break
+
+        if missing_dependency:
+            self.logger.info(f"Missing dependency detected: {missing_dependency}")
+
+            # Check if dependency is a standard library module
+            if missing_dependency in sys.builtin_module_names:
+                return False, f"Missing standard library module: {missing_dependency}"
+
+            # Ask for installation confirmation (if enabled)
+            if hasattr(self, 'auto_install_deps') and not self.auto_install_deps:
+                return False, f"Missing dependency: {missing_dependency}. Please install with: pip install {missing_dependency}"
+
+            # Attempt automatic installation
+            install_success, install_msg = await self._install_dependency(missing_dependency)
+
+            if install_success:
+                # Retry loading the module after successful installation
+                self.logger.info(f"Dependency installed, retrying module load: {missing_dependency}")
+                return await self.load_module_from_file(file_path, module_name, is_system)
+            else:
+                return False, f"Failed to install dependency {missing_dependency}: {install_msg}"
+
+        return False, f"Import error: {error_msg}"
+
+
+    async def _install_dependency(self, package_name: str) -> Tuple[bool, str]:
+        """
+        Install a Python package using pip.
+
+        Args:
+            package_name: Name of the package to install
+
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        try:
+            self.logger.info(f"Installing dependency: {package_name}")
+
+            # Use sys.executable to ensure we use the correct Python/pip
+            pip_command = [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "--quiet",  # Reduce output noise
+                package_name
+            ]
+
+            # Add --user flag if running in system Python without sudo
+            if not hasattr(os, 'geteuid') or os.geteuid() != 0:  # Not root
+                pip_command.append("--user")
+
+            # Run pip install
+            process = await asyncio.create_subprocess_exec(
+                *pip_command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+
+            stdout, stderr = await process.communicate()
+
+            if process.returncode == 0:
+                self.logger.info(f"Successfully installed {package_name}")
+                return True, f"Installed {package_name}"
+            else:
+                error_msg = stderr.decode().strip()
+                self.logger.error(f"Failed to install {package_name}: {error_msg}")
+
+                # Try without --user flag if that was the issue
+                if "--user" in pip_command and "Permission denied" in error_msg:
+                    self.logger.info("Retrying without --user flag")
+                    pip_command.remove("--user")
+                    # Retry in synchronous mode (simplified)
+                    try:
+                        subprocess.check_call(pip_command)
+                        return True, f"Installed {package_name}"
+                    except subprocess.CalledProcessError as e:
+                        return False, f"Installation failed: {e}"
+
+                return False, error_msg
+
+        except Exception as e:
+            self.logger.error(f"Error during dependency installation: {e}")
+            return False, str(e)
+
+    async def _register_module(self, module, module_type, module_name):
+        """
+        Register module based on its detected type, handling both sync and async register functions.
+        """
+        try:
+            if module_type == "method":
+                # Method-style registration
+                if hasattr(module, 'register') and hasattr(module.register, 'method'):
+                    if inspect.iscoroutinefunction(module.register.method):
+                        await module.register.method(self)
+                    else:
+                        module.register.method(self)
+                else:
+                    return False
+
+            elif module_type == "new":
+                # New-style registration (register function called with kernel)
+                if hasattr(module, 'register') and callable(module.register):
+                    if inspect.iscoroutinefunction(module.register):
+                        await module.register(self)
+                    else:
+                        module.register(self)
+                else:
+                    return False
+
+            elif module_type == "old":
+                # Old-style registration (register function called with client)
+                if hasattr(module, 'register') and callable(module.register):
+                    if inspect.iscoroutinefunction(module.register):
+                        await module.register(self.client)
+                    else:
+                        module.register(self.client)
+                else:
+                    return False
+
+            else:
+                # Unknown module type - try to detect and run
+                self.logger.warning(f"Module {module_name} has unknown type: {module_type}!")
+                if hasattr(module, 'register') and callable(module.register):
+                    # Try new style first
+                    try:
+                        if inspect.iscoroutinefunction(module.register):
+                            await module.register(self)
+                        else:
+                            module.register(self)
+                        return True
+                    except Exception:
+                        # Try old style if new style failed
+                        try:
+                            if inspect.iscoroutinefunction(module.register):
+                                await module.register(self.client)
+                            else:
+                                module.register(self.client)
+                            return True
+                        except Exception:
+                            return False
+                else:
+                    return False
+
+            return True
+
+        except CommandConflictError:
+            raise
+
+        except Exception as e:
+            self.logger.error(
+                f"Module registration failed for {module_name}: {e}!"
+            )
+            raise e
+
+
 
     async def install_from_url(self, url, module_name=None, auto_dependencies=True):
         """
@@ -1284,8 +2183,6 @@ class Kernel:
                         dependencies = [req.strip() for req in reqs[0].split(",")]
 
                 if dependencies:
-                    import subprocess
-                    import sys
 
                     for dep in dependencies:
                         self.logger.info(f"Установка зависимости: {dep}...")

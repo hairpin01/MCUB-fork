@@ -9,7 +9,7 @@ import json
 import html
 from datetime import datetime
 from telethon import TelegramClient, events, Button
-from telethon.tl.functions.messages import CreateChatRequest, ExportChatInviteRequest
+from telethon.tl.functions.messages import CreateChatRequest, ExportChatInviteRequest, AddChatUserRequest
 from telethon.tl.types import InputUserSelf
 from telethon.tl.types import PeerChat
 

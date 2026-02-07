@@ -190,6 +190,15 @@ def register(kernel):
 
         return commands, aliases_info
 
+    async def load_module_from_file(file_path, module_name, is_system=False):
+        try:
+            return await kernel.load_module_from_file(file_path, module_name, is_system)
+        except CommandConflictError as e:
+            raise e
+        except Exception as e:
+            kernel.logger.error(f"Ошибка загрузки модуля {module_name}: {e}")
+            return False, f"Ошибка загрузки: {str(e)}"
+
     def detect_module_type(module):
         if hasattr(module, "register"):
             sig = inspect.signature(module.register)
@@ -204,53 +213,6 @@ def register(kernel):
                     return "old"
             return "unknown"
         return "none"
-
-    async def load_module_from_file(file_path, module_name, is_system=False):
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                code = f.read()
-            if "from .. import" in code or "import loader" in code:
-                return False, "Несовместимый модуль, [Heroku/Hikka]"
-            if module_name in sys.modules:
-                del sys.modules[module_name]
-            spec = importlib.util.spec_from_file_location(module_name, file_path)
-            module = importlib.util.module_from_spec(spec)
-            module.kernel = kernel
-            module.client = client
-            module.custom_prefix = kernel.custom_prefix
-            sys.modules[module_name] = module
-            kernel.set_loading_module(module_name, "system" if is_system else "user")
-            spec.loader.exec_module(module)
-            module_type = detect_module_type(module)
-            if module_type == "new":
-                module.register(kernel)
-            elif module_type == "old":
-                module.register(client)
-            elif module_type == "none":
-                return False, "Модуль не имеет функции register"
-            else:
-                return False, "Неизвестный тип модуля"
-            if is_system:
-                kernel.system_modules[module_name] = module
-            else:
-                kernel.loaded_modules[module_name] = module
-            return True, f"Модуль {module_name} загружен ({module_type})"
-        except kernel.CommandConflictError as e:
-            raise e
-        except ImportError as e:
-            error_msg = str(e)
-            match = re.search(r"No module named '([^']+)'", error_msg)
-            if match:
-                dep = match.group(1)
-                return (
-                    False,
-                    f"Требуется зависимость: {dep}. Используйте: pip install {dep}",
-                )
-            return False, f"Ошибка импорта: {error_msg}"
-        except Exception as e:
-            return False, f"Ошибка загрузки: {str(e)}"
-        finally:
-            kernel.clear_loading_module()
 
     async def handle_catalog(event, query_or_data):
         try:
@@ -577,19 +539,21 @@ def register(kernel):
             add_log(f"✗ Конфликт команд: {e}")
             log_text = "\n".join(install_log)
 
+            conflict_details = f"Команда '{e.command}' уже зарегистрирована модулем '{e.conflict_type}'"
+
             if e.conflict_type == "system":
                 await edit_with_emoji(
                     msg,
-                    f'{CUSTOM_EMOJI["shield"]} <b>Ой, этот модуль хотел перезаписать системную команду</b> (<code>{e.command}</code>)\n'
-                    f"<blockquote><i>Это не ошибка а мера <b>предосторожности</b></i></blockquote>\n"
-                    f"<b>Лог установки:</b>\n<pre>{html.escape(log_text)}</pre>",
+                    f'{CUSTOM_EMOJI["shield"]} <b>Конфликт системной команды!</b>\n'
+                    f'<blockquote>Команда <code>{kernel.custom_prefix}{e.command}</code> уже зарегистрирована системным модулем.</blockquote>\n'
+                    f'<b>Install Log:</b>\n<pre>{html.escape(log_text)}</pre>',
                 )
             elif e.conflict_type == "user":
                 await edit_with_emoji(
                     msg,
-                    f'{CUSTOM_EMOJI["error"]} <b>Ой, кажется случился конфликт модулей</b> <i>(их команд)</i>\n'
-                    f"<blockquote><i>Детали конфликта в логах 🔭</i></blockquote>\n"
-                    f"<b>Лог установки:</b>\n<pre>{html.escape(log_text)}</pre>",
+                    f'{CUSTOM_EMOJI["error"]} <b>Конфликт команд модулей!</b>\n'
+                    f'<blockquote>Команда <code>{kernel.custom_prefix}{e.command}</code> уже зарегистрирована модулем <code>{e.command}</code>.</blockquote>\n'
+                    f'<b>Install Log</b>\n<pre>{html.escape(log_text)}</pre>',
                 )
             if os.path.exists(file_path):
                 os.remove(file_path)
@@ -602,8 +566,8 @@ def register(kernel):
             log_text = "\n".join(install_log)
             await edit_with_emoji(
                 msg,
-                f'<b>{CUSTOM_EMOJI['blocked']} Кажется установка прошла не удачно</b>\n'
-                f'<b>{CUSTOM_EMOJI['idea']} Install Log:</b>\n<pre>{html.escape(log_text)}</pre>'
+                f'<b>{CUSTOM_EMOJI["blocked"]} Кажется установка прошла не удачно</b>\n'
+                f'<b>{CUSTOM_EMOJI["idea"]} Install Log:</b>\n<pre>{html.escape(log_text)}</pre>'
             )
             await kernel.handle_error(e, source="install_module_handler", event=event)
             if os.path.exists(file_path):
@@ -1006,8 +970,8 @@ def register(kernel):
             log_text = "\n".join(install_log)
             await edit_with_emoji(
                 msg,
-                f'<b>{CUSTOM_EMOJI['blocked']} Кажется установка прошла не удачно</b>\n'
-                f'<b>{CUSTOM_EMOJI['idea']} Install Log:</b>\n<pre>{html.escape(log_text)}</pre>'
+                f'<b>{CUSTOM_EMOJI["blocked"]} Кажется установка прошла не удачно</b>\n'
+                f'<b>{CUSTOM_EMOJI["idea"]} Install Log:</b>\n<pre>{html.escape(log_text)}</pre>'
             )
 
             file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
@@ -1149,7 +1113,7 @@ def register(kernel):
             if module_name in kernel.loaded_modules:
                 del kernel.loaded_modules[module_name]
 
-        success, message_text = await load_module_from_file(
+        success, message_text = await kernel.load_module_from_file(
             file_path, module_name, is_system
         )
 

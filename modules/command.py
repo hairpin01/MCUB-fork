@@ -31,7 +31,6 @@ def register(kernel):
             username = (await kernel.bot_client.get_me()).username
 
             if hello_bot != "True":
-
                 start_sms = await kernel.client.send_message(username, '/init')
                 kernel.logger.info("Выполнена инициализация через start_init")
                 await start_sms.delete()
@@ -102,7 +101,7 @@ def register(kernel):
 
             hello_bot = await kernel.db_get("kernel", "HELLO_BOT")
 
-            if hello_bot != "True":
+            if hello_bot == "True":
                 return await start_handler(event)
             await bot_client.send_file(
                 event.chat_id,

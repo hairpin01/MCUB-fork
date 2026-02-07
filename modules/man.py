@@ -1,7 +1,7 @@
 # requires: telethon>=1.24, re, math
 # author: @Hairpin00
 # version: 1.0.3
-# description: Module manager with inline interface
+# description: Module manager
 from telethon import events, Button
 import re
 import math

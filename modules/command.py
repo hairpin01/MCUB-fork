@@ -101,8 +101,6 @@ def register(kernel):
 
             hello_bot = await kernel.db_get("kernel", "HELLO_BOT")
 
-            if hello_bot == "True":
-                return await start_handler(event)
             await bot_client.send_file(
                 event.chat_id,
                 file="https://x0.at/Y4ie.mp4"

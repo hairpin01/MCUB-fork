@@ -650,7 +650,7 @@ def register(kernel):
 
         is_update = module_name in kernel.loaded_modules
 
-        action = t('updating', reload=CUSTOM_EMOJI['reload']) if is_update else t('installing', test=CUSTOM_EMOJI['test'])
+        action = t('updating', reload=CUSTOM_EMOJI['loading']) if is_update else t('installing', test=CUSTOM_EMOJI['loading'])
         msg = await event.edit(
             t('starting_install', action=action), parse_mode="html"
         )

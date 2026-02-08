@@ -6,7 +6,7 @@ import aiohttp
 import traceback
 import json
 import html
-
+from telethon.tl.types import InputWebDocument, DocumentAttributeImageSize
 class InlineHandlers:
     def __init__(self, kernel, bot_client):
         self.kernel = kernel
@@ -103,6 +103,7 @@ class InlineHandlers:
                 )])
                 return
 
+
             for pattern, handler in self.kernel.inline_handlers.items():
                 if query.startswith(pattern):
                     await handler(event)
@@ -110,20 +111,87 @@ class InlineHandlers:
 
 
             if not query.strip():
+                results = []
+
+
                 modules_count = len(self.kernel.loaded_modules) + len(self.kernel.system_modules)
-                text = (
+                inline_cmd_count = len(self.kernel.inline_handlers)
+
+                info_text = (
                     f"{premium_emoji_crystal} <b>MCUB Bot</b>\n"
                     f"<blockquote>{premium_emoji_shield} Version: {self.kernel.VERSION}</blockquote>\n"
-                    f"<blockquote>{premium_emoji_tot} Modules: {modules_count}</blockquote>"
+                    f"<blockquote>{premium_emoji_tot} Modules: {modules_count}</blockquote>\n"
                 )
-                builder = event.builder.article("MCUB Info", text=text, parse_mode="html")
-                await event.answer([builder] if builder else [])
-                return
 
+
+                thumb = InputWebDocument(
+                    url='https://kappa.lol/KSKoOu',
+                    size=0,
+                    mime_type='image/jpeg',
+                    attributes=[DocumentAttributeImageSize(w=0, h=0)]
+                )
+
+                info_article = event.builder.article(
+                    "MCUB Info",
+                    text=info_text,
+                    description="Info userbot",
+                    parse_mode="html",
+                    thumb=thumb
+                )
+                results.append(info_article)
+
+
+                for pattern, handler in self.kernel.inline_handlers.items():
+                    if len(results) >= 50:
+                        break
+
+
+                    handler_name = handler.__name__ if hasattr(handler, '__name__') else 'Обработчик'
+                    docstring = handler.__doc__ or "commad"
+
+
+                    cmd_text = (
+                        f"{premium_emoji_telescope} <b>Команда:</b> <code>{html.escape(pattern)}</code>\n\n"
+                    )
+                    thumb = InputWebDocument(
+                        url='https://kappa.lol/EKhGKM',
+                        size=0,
+                        mime_type='image/jpeg',
+                        attributes=[DocumentAttributeImageSize(w=0, h=0)]
+                    )
+
+
+                    cmd_article = event.builder.article(
+                        f"Команда: {pattern[:20]}",
+                        text=cmd_text,
+                        parse_mode="html",
+                        thumb=thumb,
+                        description=html.escape(docstring.strip()),
+                        buttons=[
+                            [Button.switch_inline(f"🏄‍♀️ Выполнить: {pattern}",
+                                                 query=pattern, same_peer=True)]
+                        ]
+                    )
+                    results.append(cmd_article)
+
+
+                if len(results) == 1:
+                    no_cmds_text = (
+                        f"{premium_emoji_crystal} <b>MCUB Bot</b>\n\n"
+                        f"{premium_emoji_block} <i>Нет зарегистрированных inline-команд</i>\n\n"
+                    )
+                    no_cmds_article = event.builder.article(
+                        "Нет команд",
+                        text=no_cmds_text,
+                        parse_mode="html",
+                    )
+                    results.append(no_cmds_article)
+
+                await event.answer(results)
+                return
 
             elif "|" in query:
                 try:
-
                     parts = query.split("|", 1)
                     text = parts[0].strip().strip("\"'")
 
@@ -147,10 +215,9 @@ class InlineHandlers:
                         "Message", text=text, parse_mode="html"
                     )
 
-
             else:
                 text = query
-                builder = event.builder.article("Echo", text=text, parse_mode="html")
+                builder = event.builder.article("Message", text=text, parse_mode="html")
 
             await event.answer([builder] if builder else [])
 

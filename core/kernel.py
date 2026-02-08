@@ -39,7 +39,7 @@ try:
     import psutil
     import aiohttp
     import asyncio
-    from collections import OrderedDict
+    from collections import OrderedDict, defaultdict
     from datetime import datetime, timedelta
     from telethon import TelegramClient, events, Button
     from telethon.errors import SessionPasswordNeededError
@@ -49,7 +49,6 @@ try:
         Dict, List,
         Optional,
         Union,
-        defaultdict,
         Pattern,
         Tuple
     )

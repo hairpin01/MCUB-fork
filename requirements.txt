@@ -4,4 +4,3 @@ aiohttp
 pysocks
 aiosqlite
 socks
-html

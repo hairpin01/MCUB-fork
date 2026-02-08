@@ -306,6 +306,7 @@ def register(kernel):
 
     strings = {
         'ru': {
+            'help_not_command': 'Ты имел в виду ',
             'module': 'Модуль',
             'description': 'Описание',
             'version': 'Версия',
@@ -327,6 +328,7 @@ def register(kernel):
             'module_manager': 'Менеджер модулей\n\nИспользуйте "man" для просмотра модулей или "man [модуль]" для поиска.',
         },
         'en': {
+            'help_not_command': 'Did you mean ',
             'module': 'Module',
             'description': 'Description',
             'version': 'Version',
@@ -396,7 +398,7 @@ def register(kernel):
             except Exception as e:
                 await event.answer(f"Error: {str(e)[:50]}", alert=True)
 
-    @kernel.register_command("man")
+    @kernel.register.command("man")
     async def man_handler(event):
         try:
             args = event.text.split()
@@ -433,6 +435,9 @@ def register(kernel):
 
         except Exception as e:
             await kernel.handle_error(e, source="man", event=event)
+    @kernel.register.command("help")
+    async def help_cmd(event):
+        await event.edit(f'<b>{lang_strings['help_not_command']}</b><code>{kernel.custom_prefix}man?</code>', parse_mode='html')
 
     kernel.register_inline_handler("man", man_inline_handler)
     kernel.register_callback_handler("man_", man_callback_handler)

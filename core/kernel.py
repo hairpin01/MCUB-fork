@@ -963,7 +963,7 @@ class Kernel:
             "https://raw.githubusercontent.com/hairpin01/repo-MCUB-fork/main/"
         )
         self.UPDATE_REPO = (
-            "https://raw.githubusercontent.com/Mitrichdfklwhcluio/MCUBFB/main/"
+            "https://raw.githubusercontent.com/hairpin01/MCUB-fork/main/"
         )
 
         self.register = Register(self)
@@ -1321,18 +1321,18 @@ class Kernel:
     async def add_repository(self, url):
         """Добавляет новый репозиторий"""
         if url in self.repositories or url == self.default_repo:
-            return False, "⛈️ Репозиторий уже существует"
+            return False, "Репозиторий уже существует"
 
         try:
             modules = await self.get_repo_modules_list(url)
             if modules:
                 self.repositories.append(url)
                 await self.save_repositories()
-                return True, f"🧬 Репозиторий добавлен ({len(modules)} модулей)"
+                return True, f"Репозиторий добавлен ({len(modules)} модулей)"
             else:
-                return False, "⛈️ Не удалось получить список модулей"
+                return False, "Не удалось получить список модулей"
         except Exception:
-            return False, "⛈️ Ошибка при проверке репозитория"
+            return False, "Ошибка при проверке репозитория"
 
     async def remove_repository(self, index):
         """Удаляет репозиторий по индексу"""

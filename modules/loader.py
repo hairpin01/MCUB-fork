@@ -22,7 +22,7 @@ sys.path.insert(0, parent_dir)
 
 # Кастомные эмодзи
 CUSTOM_EMOJI = {
-    "loading": '<tg-emoji emoji-id="5323463142775202324">🏓</tg-emoji>',
+    "loading": '<tg-emoji emoji-id="5893368370530621889">🔜</tg-emoji>',
     "dependencies": '<tg-emoji emoji-id="5328311576736833844">🟠</tg-emoji>',
     "confused": '<tg-emoji emoji-id="5249119354825487565">🫨</tg-emoji>',
     "error": '<tg-emoji emoji-id="5370843963559254781">😖</tg-emoji>',
@@ -41,7 +41,7 @@ CUSTOM_EMOJI = {
     "angel": '<tg-emoji emoji-id="5404521025465518254">😇</tg-emoji>',
     "nerd": '<tg-emoji emoji-id="5465154440287757794">🤓</tg-emoji>',
     "cloud": '<tg-emoji emoji-id="5370947515220761242">🌩</tg-emoji>',
-    "reload": '<tg-emoji emoji-id="5332600281970517875">🔄</tg-emoji>',
+    "reload": '<tg-emoji emoji-id="5893368370530621889">🔜</tg-emoji>',
     "convert": '<tg-emoji emoji-id="5332600281970517875">🔄</tg-emoji>',
     "download": '<tg-emoji emoji-id="5469785308386041323">⬇️</tg-emoji>',
     "no_cmd": '<tg-emoji emoji-id="5429428837895141860">🫨</tg-emoji>',
@@ -80,9 +80,9 @@ def register(kernel):
             'reply_to_py': '{warning} <b>Reply to a .py file</b>',
             'not_py_file': '{warning} <b>This is not a .py file</b>',
             'system_module_update_attempt': '{confused} <b>Oops, looks like you tried to update a system module</b> <code>{module_name}</code>\n<blockquote><i>{blocked} Unfortunately, you cannot update system modules using <code>loadera</code></i></blockquote>',
-            'starting_install': 'Starting {action} module <b>{module_name}</b>',
-            'installing': '{test} installing',
-            'updating': '{reload} updating',
+            'starting_install': '{action} modules',
+            'installing': '{test} Installing',
+            'updating': '{reload} Updating',
             'log_start': '=- Starting {action} module {module_name}',
             'log_filename': '=> File name: {filename}',
             'log_downloading': '=- Downloading file to {file_path}',
@@ -181,15 +181,15 @@ def register(kernel):
             'catalog_error': '❌ Catalog loading error: {error}',
             'btn_back': '⬅️ Back',
             'btn_next': '➡️ Next',
-            'not_mcub_modules': '{warning} Module is not {mcub} type, [Heroku/Hikka]'
+            'modules_not_mcub': '{warning} Module is not {mcub} type, [Heroku/Hikka]'
         },
         'ru': {
             'reply_to_py': '{warning} <b>Ответьте на .py файл</b>',
             'not_py_file': '{warning} <b>Это не .py файл</b>',
             'system_module_update_attempt': '{confused} <b>Ой, кажется ты попытался обновить системный модуль</b> <code>{module_name}</code>\n<blockquote><i>{blocked} К сожалению нельзя обновлять системные модули с помощью <code>loadera</code></i></blockquote>',
-            'starting_install': '{action} модуль <b>{module_name}</b>',
-            'installing': '{test} устанавливаю',
-            'updating': '{reload} обновляю',
+            'starting_install': '{action} модуль',
+            'installing': '{test} Устанавливаю',
+            'updating': '{reload} Oбновляю',
             'log_start': '=- Начинаю {action} модуля {module_name}',
             'log_filename': '=> Имя файла: {filename}',
             'log_downloading': '=- Скачиваю файл в {file_path}',
@@ -610,7 +610,8 @@ def register(kernel):
     kernel.register_inline_handler("catalog", catalog_inline_handler)
     kernel.register_callback_handler("catalog_", catalog_callback_handler)
 
-    @kernel.register.command("iload", alias="im")
+    @kernel.register.command('iload', alias='im')
+    # <ответ> загрузить модуль
     async def install_module_handler(event):
         if not event.is_reply:
             await edit_with_emoji(
@@ -651,7 +652,7 @@ def register(kernel):
 
         action = t('updating', reload=CUSTOM_EMOJI['reload']) if is_update else t('installing', test=CUSTOM_EMOJI['test'])
         msg = await event.edit(
-            t('starting_install', action=action, module_name=module_name), parse_mode="html"
+            t('starting_install', action=action), parse_mode="html"
         )
 
         add_log(t('log_start', action='обновление' if is_update else 'установку', module_name=module_name))
@@ -674,7 +675,7 @@ def register(kernel):
             if "from .. import" in code or "import loader" in code:
                 add_log(t('log_incompatible'))
                 await edit_with_emoji(
-                    msg, t('modules_not_mcub', mcub, warning=CUSTOM_EMOJI['warning'])
+                    msg, t('modules_not_mcub', mcub=mcub, warning=CUSTOM_EMOJI['warning'])
                 )
                 os.remove(file_path)
                 return
@@ -828,7 +829,7 @@ def register(kernel):
             if os.path.exists(file_path):
                 os.remove(file_path)
 
-    @kernel.register.command('dlm')
+    @kernel.register_command('dlm')
     # <args> <URL/модуль> - args = -s отправить файлом, -list список модулей
     async def download_module_handler(event):
         args = event.text.split()

@@ -2936,29 +2936,44 @@ class Kernel:
             await self.handle_error(e, source="create_inline_form")
             return False, None
 
-    async def process_command(self, event):
-        text = event.text
+    async def process_command(self, event, depth=0):
+            if depth > 5:
+                self.logger.error(f"Recursion limit reached for aliases: {event.text}")
+                return False
+            text = event.text
 
-        if not text.startswith(self.custom_prefix):
-            return False
+            if not text.startswith(self.custom_prefix):
+                return False
 
-        cmd = (
-            text[len(self.custom_prefix) :].split()[0]
-            if " " in text
-            else text[len(self.custom_prefix) :]
-        )
+            cmd = (
+                text[len(self.custom_prefix) :].split()[0]
+                if " " in text
+                else text[len(self.custom_prefix) :]
+            )
+            if cmd in self.aliases:
+                alias_content = self.aliases[cmd]
 
-        if cmd in self.aliases:
-            alias_cmd = self.aliases[cmd]
-            if alias_cmd in self.command_handlers:
-                await self.command_handlers[alias_cmd](event)
+                if alias_content in self.command_handlers:
+                    await self.command_handlers[alias_content](event)
+                    return True
+
+                else:
+                    args = text[len(self.custom_prefix) + len(cmd):]
+
+                    new_text = self.custom_prefix + alias_content + args
+                    event.text = new_text
+                    if hasattr(event, 'message'):
+                        event.message.message = new_text
+                        event.message.text = new_text
+
+                    self.logger.debug(f"Alias processed: {cmd} -> {new_text[:50]}...")
+                    return await self.process_command(event, depth + 1)
+
+            if cmd in self.command_handlers:
+                await self.command_handlers[cmd](event)
                 return True
 
-        if cmd in self.command_handlers:
-            await self.command_handlers[cmd](event)
-            return True
-
-        return False
+            return False
 
     async def process_bot_command(self, event):
         """Обработка команд бота"""
@@ -3114,6 +3129,7 @@ class Kernel:
         modules_end_time = time.time()
 
         @self.client.on(events.NewMessage(outgoing=True))
+        @self.client.on(events.MessageEdited(outgoing=True))
         async def message_handler(event):
             premium_emoji_telescope = (
                 '<tg-emoji emoji-id="5429283852684124412">🔭</tg-emoji>'
@@ -3216,14 +3232,38 @@ Kernel is load.
 
                     total_time = round((time.time() - restart_time) * 1000, 2)
 
+                    restart_strings = {
+                        'ru': {
+                            'reboot_success': 'Перезагрузка <b>успешна!</b>',
+                            'modules_loading': 'но модули ещё загружаются...',
+                            'fully_loaded': 'Твой <b>{mcub_emoji}</b> полностью загрузился!',
+                            'restart_failed': '=X Не удалось отправить сообщение о перезагрузке: {error}',
+                            'no_connection': '=X Не удалось отправить сообщение о перезагрузке: нет соединения'
+                        },
+                        'en': {
+                            'reboot_success': 'Reboot <b>successful!</b>',
+                            'modules_loading': 'but modules are still loading...',
+                            'fully_loaded': 'Your <b>{mcub_emoji}</b> is fully loaded!',
+                            'restart_failed': '=X Failed to send restart message: {error}',
+                            'no_connection': '=X Failed to send restart message: no connection'
+                        }
+                    }
+
+                    # Функция для получения локализованной строки
+                    def get_restart_string(key, **kwargs):
+                        language = self.config.get('language', 'ru')
+                        strings = restart_strings.get(language, restart_strings['ru'])
+                        text = strings.get(key, key)
+                        return text.format(**kwargs) if kwargs else text
+
                     if self.client.is_connected():
                         try:
 
                             await self.client.edit_message(
                                 chat_id,
                                 msg_id,
-                                f"{premium_emoji_alembic} Перезагрузка <b>успешна!</b> {emoji}\n"
-                                f"<i>но модули ещё загружаются...</i> <b>KLB:</b> <code>{total_time} ms</code>",
+                                f"{premium_emoji_alembic} {get_restart_string('reboot_success')} {emoji}\n"
+                                f"<i>{get_restart_string('modules_loading')}</i> <b>KLB:</b> <code>{total_time} ms</code>",
                                 parse_mode="html",
                             )
 
@@ -3237,20 +3277,20 @@ Kernel is load.
 
                             await self.client.send_message(
                                 chat_id,
-                                f"{premium_emoji_package} Твой <b>{mcub_emoji}</b> полностью загрузился!\n"
+                                f"{premium_emoji_package} {get_restart_string('fully_loaded', mcub_emoji=mcub_emoji)}\n"
                                 f"<blockquote><b>KBL:</b> <code>{total_time} ms</code>. <b>MLFB:</b> <code>{mlfb} ms</code>.</blockquote>",
                                 parse_mode="html",
                                 **send_params,
                             )
                         except Exception as e:
                             self.logger.error(
-                                f"=X Не удалось отправить сообщение о перезагрузке: {e}{Colors.RESET}"
+                                f"{get_restart_string('restart_failed', error=e)}{Colors.RESET}"
                             )
                             await self.handle_error(e, source="restart")
 
                     else:
                         self.cprint(
-                            f"{Colors.YELLOW}=X Не удалось отправить сообщение о перезагрузке: нет соединения{Colors.RESET}"
+                            f"{Colors.YELLOW}{get_restart_string('no_connection')}{Colors.RESET}"
                         )
 
         await self.client.run_until_disconnected()

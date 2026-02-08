@@ -108,12 +108,8 @@ class InlineHandlers:
                     await handler(event)
                     return
 
-            if "|" in query:
-                parts = query.split("|", 1)
-                text = parts[0].strip().strip("\"'")
-                btns = self.parse_json_buttons(parts[1].strip()) if len(parts) > 1 else []
-                builder = event.builder.article("Send Message", text=text, buttons=btns or None, parse_mode="html")
-            else:
+
+            if not query.strip():
                 modules_count = len(self.kernel.loaded_modules) + len(self.kernel.system_modules)
                 text = (
                     f"{premium_emoji_crystal} <b>MCUB Bot</b>\n"
@@ -121,6 +117,40 @@ class InlineHandlers:
                     f"<blockquote>{premium_emoji_tot} Modules: {modules_count}</blockquote>"
                 )
                 builder = event.builder.article("MCUB Info", text=text, parse_mode="html")
+                await event.answer([builder] if builder else [])
+                return
+
+
+            elif "|" in query:
+                try:
+
+                    parts = query.split("|", 1)
+                    text = parts[0].strip().strip("\"'")
+
+                    if len(parts) > 1:
+                        json_str = parts[1].strip()
+                        buttons = self.parse_json_buttons(json_str)
+                    else:
+                        buttons = []
+
+                    builder = event.builder.article(
+                        "Message",
+                        text=text,
+                        buttons=buttons if buttons else None,
+                        parse_mode="html",
+                    )
+
+                except Exception as e:
+                    print(f"[DEBUG] Ошибка обработки JSON формы: {e}")
+                    text = query.split("|")[0].strip().strip("\"'")
+                    builder = event.builder.article(
+                        "Message", text=text, parse_mode="html"
+                    )
+
+
+            else:
+                text = query
+                builder = event.builder.article("Echo", text=text, parse_mode="html")
 
             await event.answer([builder] if builder else [])
 

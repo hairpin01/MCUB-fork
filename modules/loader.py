@@ -218,7 +218,7 @@ def register(kernel):
             'aliases_text': ' (Aliases: {alias_text})',
             'log_aliases_found': 'Команда {cmd} имеет алиасы: {aliases}',
             'log_install_error': '=X Ошибка загрузки модуля: {error}',
-            'install_failed': '<b>{blocked} Кажется установка прошла не удачно</b>\n<b>{idea} Install Log:</b>\n<pre>{log}</pre>',
+            'install_failed': '<b>{blocked} Кажется установка прошла неудачно</b>\n<b>{idea} Install Log:</b>\n<pre>{log}</pre>',
             'log_conflict': '✗ Конфликт команд: {error}',
             'conflict_system': '{shield} <b>Конфликт системной команды!</b>\n<blockquote>Команда <code>{prefix}{command}</code> уже зарегистрирована системным модулем.</blockquote>\n<b>Install Log:</b>\n<pre>{log}</pre>',
             'conflict_user': '{error} <b>Конфликт команд модулей!</b>\n<blockquote>Команда <code>{prefix}{command}</code> уже зарегистрирована модулем <code>{command}</code>.</blockquote>\n<b>Install Log</b>\n<pre>{log}</pre>',

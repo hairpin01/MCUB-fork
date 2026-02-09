@@ -2270,6 +2270,7 @@ class Kernel:
         return telegram_to_html(text, entities)
 
     async def get_module_metadata(self, code):
+        import re
         """Извлекает метаданные из кода модуля"""
         metadata = {
             "author": "неизвестен",

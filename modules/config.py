@@ -868,7 +868,7 @@ def register(kernel):
     kernel.register_callback_handler("cfg_view_", config_callback_handler)
     kernel.register_callback_handler("cfg_bool_toggle_", config_callback_handler)
 
-    @kernel.register_command("cfg")
+    @kernel.register.command("cfg")
     async def cfg_handler(event):
         try:
             args = event.text.split()
@@ -962,7 +962,7 @@ def register(kernel):
         except Exception as e:
             await kernel.handle_error(e, source="cfg", event=event)
 
-    @kernel.register_command("fcfg")
+    @kernel.register.command("fcfg")
     async def fcfg_handler(event):
         try:
             args = event.text.split()

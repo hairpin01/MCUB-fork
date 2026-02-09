@@ -325,14 +325,14 @@ def register(kernel):
 
     terminal = TerminalModule()
 
-    @kernel.register_command("t")
+    @kernel.register.command("t")
     async def terminal_handler(event):
         args = event.text.split(maxsplit=1)
         await event.delete()
         command = args[1]
         await terminal.run_command(event.chat_id, command)
 
-    @kernel.register_command("tkill")
+    @kernel.register.command("tkill")
     async def terminal_kill_handler(event):
         await event.delete()
         await terminal.kill_command(event.chat_id)

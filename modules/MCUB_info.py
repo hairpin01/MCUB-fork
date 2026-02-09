@@ -190,7 +190,7 @@ def register(kernel):
 
         return cpu_usage, ram_usage
 
-    @kernel.register_command("info")
+    @kernel.register.command("info")
     async def info_cmd(event):
         try:
             start_time = time.time()

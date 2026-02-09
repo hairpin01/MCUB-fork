@@ -103,7 +103,7 @@ def register(kernel):
         except Exception as e:
             return f"{lang_strings['translation_error_generic']} {str(e)}"
 
-    @kernel.register_command("tr")
+    @kernel.register.command("tr")
     async def tr_handler(event):
         try:
             quote_text = None

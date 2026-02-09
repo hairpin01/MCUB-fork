@@ -106,7 +106,7 @@ def register(kernel):
         text = lang_strings.get(key, key)
         return text.format(**kwargs) if kwargs else text
 
-    @kernel.register_command("prefix")
+    @kernel.register.command("prefix")
     async def prefix_handler(event):
         args = event.text.split()
         if len(args) < 2:
@@ -122,7 +122,7 @@ def register(kernel):
 
         await event.edit(_('prefix_changed', prefix=new_prefix, prefix_old=prefix_old), parse_mode='html')
 
-    @kernel.register_command("alias")
+    @kernel.register.command("alias")
     async def alias_handler(event):
         args = event.text[len(kernel.custom_prefix) + 6 :].strip()
         if "=" not in args:
@@ -145,7 +145,7 @@ def register(kernel):
 
         await event.edit(_('alias_created', prefix=kernel.custom_prefix, alias=alias, command=command), parse_mode='html')
 
-    @kernel.register_command("2fa")
+    @kernel.register.command("2fa")
     async def twofa_handler(event):
         current = kernel.config.get("2fa_enabled", False)
         kernel.config["2fa_enabled"] = not current
@@ -159,7 +159,7 @@ def register(kernel):
             parse_mode='html'
             )
 
-    @kernel.register_command("powersave")
+    @kernel.register.command("powersave")
     async def powersave_handler(event):
         kernel.power_save_mode = not kernel.power_save_mode
         kernel.config["power_save_mode"] = kernel.power_save_mode
@@ -171,7 +171,7 @@ def register(kernel):
         features = _('powersave_features') if kernel.power_save_mode else ""
         await event.edit(f"Режим энергосбережения {status}{features}", parse_mode='html')
 
-    @kernel.register_command("lang")
+    @kernel.register.command("lang")
     async def lang_handler(event):
         args = event.text.split()
         if len(args) < 2:
@@ -192,7 +192,7 @@ def register(kernel):
 
         await event.edit(_('lang_changed', lang=new_lang), parse_mode='html')
 
-    @kernel.register_command("settings")
+    @kernel.register.command("settings")
     async def settings_handler(event):
         bot_username = kernel.config.get("inline_bot_username")
         if not bot_username:
@@ -302,7 +302,7 @@ def register(kernel):
 
         await event.answer()
 
-    @kernel.register_command("mcubinfo")
+    @kernel.register.command("mcubinfo")
     async def mcubinfo_cmd(event):
         try:
             await event.edit('<tg-emoji emoji-id="5893368370530621889">🔜</tg-emoji>', parse_mode="html")

@@ -86,7 +86,7 @@ def register(kernel):
         )
         return mcub_emoji
 
-    @kernel.register_command("restart")
+    @kernel.register.command("restart")
     async def restart_handler(event):
         emoji = random.choice(emojis)
 
@@ -111,7 +111,7 @@ def register(kernel):
 
         os.execl(sys.executable, sys.executable, *sys.argv)
 
-    @kernel.register_command("update")
+    @kernel.register.command("update")
     async def update_handler(event):
         msg = await event.edit("❄️")
         kernel.logger.info("Updating MCUB-fork")
@@ -215,7 +215,7 @@ def register(kernel):
                 parse_mode="html",
             )
 
-    @kernel.register_command("stop")
+    @kernel.register.command("stop")
     async def stop_handler(event):
         kernel.shutdown_flag = True
         emoji = random.choice(emojis)
@@ -226,7 +226,7 @@ def register(kernel):
         await asyncio.sleep(1)
         await client.disconnect()
 
-    @kernel.register_command("rollback")
+    @kernel.register.command("rollback")
     async def rollback_handler(event):
         if not os.path.exists(kernel.BACKUP_FILE):
             await event.edit(lang_strings["backup_not_found"], parse_mode="html")

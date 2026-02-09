@@ -119,7 +119,7 @@ def register(kernel):
         await kernel.client.connect()
         await event.edit(lang_strings['bot_unlocked'].format(seconds=seconds))
 
-    @kernel.register_command('api_protection')
+    @kernel.register.command('api_protection')
     async def api_protection_handler(event):
         nonlocal protection_enabled
         args = event.text.split()
@@ -171,7 +171,7 @@ def register(kernel):
             await enforce_cooldown(event, 30, lang_strings['request_limit_exceeded'].format(limit_type=limit_type))
             raise StopAsyncIteration
 
-    @kernel.register_command('reset_limits')
+    @kernel.register.command('reset_limits')
     async def reset_limits_handler(event):
         if event.sender_id not in kernel.config.get("admins", []):
             await event.edit(lang_strings['insufficient_permissions'])

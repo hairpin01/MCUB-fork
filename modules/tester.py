@@ -113,7 +113,7 @@ def register(kernel):
         )
         return mcub_emoji
 
-    @kernel.register_command('ping')
+    @kernel.register.command('ping')
     async def ping_handler(event):
         try:
             start_time = time.time()
@@ -291,7 +291,7 @@ def register(kernel):
             await event.edit(t('error_logs', snowflake=CUSTOM_EMOJI['❄️']), parse_mode='html')
             await kernel.handle_error(e, source="ping", event=event)
 
-    @kernel.register_command('logs')
+    @kernel.register.command('logs')
     async def logs_handler(event):
         try:
 
@@ -324,7 +324,7 @@ def register(kernel):
             await event.edit(t('error_logs', snowflake=CUSTOM_EMOJI['❄️']), parse_mode='html')
             await kernel.handle_error(e, source="logs", event=event)
 
-    @kernel.register_command('freezing')
+    @kernel.register.command('freezing')
     async def freezing_handler(event):
         try:
             args = event.text.split()

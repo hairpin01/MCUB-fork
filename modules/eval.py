@@ -39,7 +39,7 @@ def register(kernel):
 
     lang_strings = strings.get(language, strings['en'])
 
-    @kernel.register_command("py")
+    @kernel.register.command("py")
     async def python_exec_handler(event):
         code = event.text[len(kernel.custom_prefix) + 2 :].strip()
 

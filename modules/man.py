@@ -437,7 +437,10 @@ def register(kernel):
             await kernel.handle_error(e, source="man", event=event)
     @kernel.register.command("help")
     async def help_cmd(event):
-        await event.edit(f'<b>{lang_strings['help_not_command']}</b><code>{kernel.custom_prefix}man?</code>', parse_mode='html')
+        await event.edit(
+            f'<b>{lang_strings['help_not_command']}</b><code>{kernel.custom_prefix}man?</code>',
+            parse_mode='html'
+        )
 
     kernel.register_inline_handler("man", man_inline_handler)
     kernel.register_callback_handler("man_", man_callback_handler)

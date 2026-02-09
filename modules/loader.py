@@ -829,7 +829,7 @@ def register(kernel):
             if os.path.exists(file_path):
                 os.remove(file_path)
 
-    @kernel.register_command('dlm')
+    @kernel.register.command('dlm')
     # <args> <URL/модуль> - args = -s отправить файлом, -list список модулей
     async def download_module_handler(event):
         args = event.text.split()
@@ -1258,7 +1258,7 @@ def register(kernel):
                 add_log(t('log_deleting_due_error'))
                 os.remove(file_path)
 
-    @kernel.register_command('um')
+    @kernel.register.command('um')
     # <модуль> удалить модуль
     async def unload_module_handler(event):
         args = event.text.split()
@@ -1448,7 +1448,7 @@ def register(kernel):
 
         await edit_with_emoji(event, msg)
 
-    @kernel.register_command('addrepo')
+    @kernel.register.command('addrepo')
     # <URL> добавить репо
     async def add_repo_handler(event):
         args = event.text.split()
@@ -1467,7 +1467,7 @@ def register(kernel):
         else:
             await edit_with_emoji(event, f'{CUSTOM_EMOJI["warning"]} <b>{message}</b>')
 
-    @kernel.register_command('delrepo')
+    @kernel.register.command('delrepo')
     # <id> удалить репо
     async def del_repo_handler(event):
         args = event.text.split()

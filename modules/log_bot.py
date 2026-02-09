@@ -197,7 +197,7 @@ def register(kernel):
             traceback.print_exc()
             return False
 
-    @kernel.register_command("log_setup")
+    @kernel.register.command("log_setup")
     async def log_setup_handler(event):
         await event.edit("🔄 Настраиваю лог-группу...")
         if await setup_log_chat():
@@ -205,7 +205,7 @@ def register(kernel):
         else:
             await event.edit("❌ Не удалось настроить")
 
-    @kernel.register_command("test_log")
+    @kernel.register.command("test_log")
     async def test_log_handler(event):
         try:
             await event.edit("🧪 <i>Тестирую отправку логов...</i>", parse_mode="html")
@@ -231,7 +231,7 @@ def register(kernel):
                 parse_mode="html",
             )
 
-    @kernel.register_command("log_status")
+    @kernel.register.command("log_status")
     async def log_status_handler(event):
         status = "✅ включен" if kernel.log_chat_id else "❌ выключен"
         chat_info = f"`{kernel.log_chat_id}`" if kernel.log_chat_id else "Не настроен"

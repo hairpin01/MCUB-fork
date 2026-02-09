@@ -296,7 +296,7 @@ def register(kernel):
 
     backup_module = BackupModule()
 
-    @kernel.register_command("backup")
+    @kernel.register.command("backup")
     async def backup_handler(event):
         await event.edit(lang_strings['creating_backup'])
 
@@ -305,7 +305,7 @@ def register(kernel):
         else:
             await event.edit(lang_strings['backup_failed'])
 
-    @kernel.register_command("restore")
+    @kernel.register.command("restore")
     async def restore_handler(event):
         if not event.is_reply:
             await event.edit(lang_strings['reply_to_backup'])
@@ -362,7 +362,7 @@ def register(kernel):
             await kernel.handle_error(e, source="restore_handler", event=event)
             await event.edit(f"{lang_strings['restore_error']} {str(e)}")
 
-    @kernel.register_command("backupsettings")
+    @kernel.register.command("backupsettings")
     async def backup_settings_handler(event):
         args = event.text.split()
 
@@ -434,7 +434,7 @@ def register(kernel):
         else:
             await event.edit(lang_strings['unknown_command'])
 
-    @kernel.register_command("backuptime")
+    @kernel.register.command("backuptime")
     async def backup_time_handler(event):
         user_id = event.sender_id
 

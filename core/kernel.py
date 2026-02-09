@@ -975,7 +975,7 @@ class Kernel:
         self.current_loading_module = None
         self.current_loading_module_type = None
 
-        self.load_repositories()
+        # self.load_repositories()
         self.repositories = []
         self.default_repo = self.MODULES_REPO
 
@@ -3095,9 +3095,9 @@ class Kernel:
             if not self.first_time_setup():
                 self.logger.error("=X Не удалось настроить юзербот")
                 return
-
         import logging
 
+        self.load_repositories()
         logging.basicConfig(level=logging.INFO)
         await self.init_scheduler()
         kernel_start_time = time.time()

@@ -2276,300 +2276,172 @@ class Kernel:
             "version": "X.X.X",
             "description": "описание отсутствует",
             "commands": {},
-            "bot_commands": {},
-            "events": {},
-            "methods": [],
-            "requires": [],
-            "tags": [],
         }
 
         # Базовые метаданные
         patterns = {
-            "author": [
-                r"#\s*author\s*:\s*(.+)",
-                r"#\s*Автор\s*:\s*(.+)",
-                r"__author__\s*=\s*(['\"])(.+?)\1",
-                r"@author\s+(.+)",
-            ],
-            "version": [
-                r"#\s*version\s*:\s*(.+)",
-                r"#\s*Версия\s*:\s*(.+)",
-                r"__version__\s*=\s*(['\"])(.+?)\1",
-                r"@version\s+(.+)",
-            ],
-            "description": [
-                r"#\s*description\s*:\s*(.+)",
-                r"#\s*описание\s*:\s*(.+)",
-                r"\"\"\"\s*(.+?)\s*\"\"\"",
-                r"'''\s*(.+?)\s*'''",
-                r"#\s*desc\s*:\s*(.+)",
-            ],
-            "requires": [
-                r"#\s*requires?\s*:\s*(.+)",
-                r"#\s*зависимости?\s*:\s*(.+)",
-                r"#\s*dependencies?\s*:\s*(.+)",
-                r"__requires__\s*=\s*(.+?)(\n|$)",
-            ],
-            "tags": [
-                r"#\s*tags?\s*:\s*(.+)",
-                r"#\s*теги?\s*:\s*(.+)",
-                r"@tags?\s+(.+)",
-            ],
+            "author": r"#\s*author\s*:\s*(.+)",
+            "version": r"#\s*version\s*:\s*(.+)",
+            "description": r"#\s*description\s*:\s*(.+)",
         }
 
-        for key, pattern_list in patterns.items():
-            for pattern in pattern_list:
-                matches = re.findall(pattern, code, re.IGNORECASE | re.MULTILINE)
-                if matches:
-                    # Обработка групп захвата
-                    for match in matches:
-                        if isinstance(match, tuple):
-                            # Берем первую непустую группу
-                            for item in match:
-                                if item and item.strip():
-                                    metadata[key] = item.strip()
-                                    if key in ["requires", "tags"]:
-                                        # Разделяем запятыми/пробелами
-                                        if isinstance(metadata[key], str):
-                                            items = [x.strip() for x in re.split(r'[,\s]+', metadata[key]) if x.strip()]
-                                            metadata[key] = items
-                                    break
-                        elif match and match.strip():
-                            metadata[key] = match.strip()
-                            if key in ["requires", "tags"]:
-                                items = [x.strip() for x in re.split(r'[,\s]+', metadata[key]) if x.strip()]
-                                metadata[key] = items
-                            break
-                    break
+        for key, pattern in patterns.items():
+            match = re.search(pattern, code, re.IGNORECASE)
+            if match:
+                metadata[key] = match.group(1).strip()
 
-        # Преобразуем строковые requires/tags в списки если еще не список
-        for key in ["requires", "tags"]:
-            if isinstance(metadata[key], str):
-                items = [x.strip() for x in re.split(r'[,\s]+', metadata[key]) if x.strip()]
-                metadata[key] = items
 
-        # Все возможные паттерны для поиска команд и их описаний
+
         command_patterns = []
 
-        # 1 @kernel.register.command (декоратор сверху)
-        command_patterns.extend([
-            # Комментарий перед декоратором
-            (r'#\s*(.+?)\s*\n\s*@kernel\.register\.command\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)',
-            lambda m: (m.group(2).strip(), m.group(1).strip())),
+        # 1. Комментарий перед декоратором
+        command_patterns.append(
+            (r'#\s*(.+?)\s*\n\s*@(?:kernel\.register\.command|register\.command|kernel\.register_command|kernel\.register\.bot_command|register\.bot_command)\s*\(\s*[\'"]([^\'"]+)[\'"]',
+            lambda m: (m.group(2).strip(), m.group(1).strip()))
+        )
 
-            # Комментарий после декоратора в той же строке
-            (r'@kernel\.register\.command\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)\s*#\s*(.+?)\s*\n',
-            lambda m: (m.group(1).strip(), m.group(2).strip())),
+        # 2. Комментарий в той же строке что и декоратор
+        command_patterns.append(
+            (r'@(?:kernel\.register\.command|register\.command|kernel\.register_command)\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)\s*#\s*(.+?)\s*\n',
+            lambda m: (m.group(1).strip(), m.group(2).strip()))
+        )
 
-            # Многострочный комментарий (тройные кавычки) после декоратора
-            (r'@kernel\.register\.command\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)\s*\n\s*["""\']{3}(.+?)["""\']{3}',
-            lambda m: (m.group(1).strip(), m.group(2).strip())),
+        # 3. Комментарий после декоратора
+        command_patterns.append(
+            (r'@(?:kernel\.register\.command|register\.command|kernel\.register_command)\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)\s*\n\s*#\s*(.+?)\s*\n\s*async def',
+            lambda m: (m.group(1).strip(), m.group(2).strip()))
+        )
 
-            # С использованием register (если импортирован локально)
-            (r'#\s*(.+?)\s*\n\s*@register\.command\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)',
-            lambda m: (m.group(2).strip(), m.group(1).strip())),
+        # 4.
+        command_patterns.append(
+            (r'@(?:kernel\.register\.bot_command|register\.bot_command)\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)\s*#\s*(.+?)\s*\n',
+            lambda m: (m.group(1).strip(), m.group(2).strip()))
+        )
 
-            # Без декоратора (прямой вызов)
-            (r'#\s*(.+?)\s*\n\s*kernel\.register\.command\s*\(\s*[\'"]([^\'"]+)[\'"]',
-            lambda m: (m.group(2).strip(), m.group(1).strip())),
+        command_patterns.append(
+            (r'#\s*(.+?)\s*\n\s*@(?:kernel\.register\.bot_command|register\.bot_command)\s*\(\s*[\'"]([^\'"]+)[\'"]',
+            lambda m: (m.group(2).strip(), m.group(1).strip()))
+        )
 
-            # С паттерном regex
-            (r'@kernel\.register\.command\s*\(\s*[\'"](\\.[^\'"]+)[\'"]\s*\)\s*#\s*(.+?)\s*\n',
-            lambda m: (m.group(1).lstrip('\\'), m.group(2).strip())),
-        ])
-
-        # 2. @kernel.register.bot_command
-        command_patterns.extend([
-            (r'#\s*(.+?)\s*\n\s*@kernel\.register\.bot_command\s*\(\s*[\'"]([^\'"]+)[\'"]',
-            lambda m: (m.group(2).strip(), m.group(1).strip())),
-
-            (r'@kernel\.register\.bot_command\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)\s*#\s*(.+?)\s*\n',
-            lambda m: (m.group(1).strip(), m.group(2).strip())),
-
-            (r'@register\.bot_command\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)\s*#\s*(.+?)\s*\n',
-            lambda m: (m.group(1).strip(), m.group(2).strip())),
-        ])
-
-        # 3. @kernel.register_command
-        command_patterns.extend([
-            (r'#\s*(.+?)\s*\n\s*@kernel\.register_command\s*\(\s*[\'"]([^\'"]+)[\'"]',
-            lambda m: (m.group(2).strip(), m.group(1).strip())),
-
-            (r'@kernel\.register_command\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)\s*#\s*(.+?)\s*\n',
-            lambda m: (m.group(1).strip(), m.group(2).strip())),
-
-            (r'kernel\.register_command\s*\(\s*[\'"]([^\'"]+)[\'"]',
-            lambda m: (m.group(1).strip(), None)),
-        ])
-
-        # 4. @client.on
-        command_patterns.extend([
-            # С паттерном r'\.cmd'
+        # 5. Старый стиль: @client.on
+        command_patterns.append(
             (r'@client\.on\s*\(\s*events\.NewMessage\s*\([^)]*pattern\s*=\s*r[\'"](\\.[^\'"]+)[\'"][^)]*\)\s*\)\s*#\s*(.+?)\s*\n',
-            lambda m: (m.group(1).lstrip('\\'), m.group(2).strip())),
+            lambda m: (m.group(1).lstrip('\\'), m.group(2).strip()))
+        )
 
-            # С паттерном '.cmd' (без r)
-            (r'@client\.on\s*\(\s*events\.NewMessage\s*\([^)]*pattern\s*=\s*[\'"](\\.[^\'"]+)[\'"][^)]*\)\s*\)\s*#\s*(.+?)\s*\n',
-            lambda m: (m.group(1).lstrip('\\'), m.group(2).strip())),
+        # 6. Самый старый стиль: @kernel.register_command
+        command_patterns.append(
+            (r'#\s*(.+?)\s*\n\s*@kernel\.register_command\s*\(\s*[\'"]([^\'"]+)[\'"]',
+            lambda m: (m.group(2).strip(), m.group(1).strip()))
+        )
 
-            # С outcoming=True
-            (r'@client\.on\s*\(\s*events\.NewMessage\s*\([^)]*outgoing\s*=\s*True[^)]*pattern\s*=\s*r[\'"](\\.[^\'"]+)[\'"][^)]*\)\s*\)\s*#\s*(.+?)\s*\n',
-            lambda m: (m.group(1).lstrip('\\'), m.group(2).strip())),
-        ])
+        # 7. Вариант без декоратора (прямой вызов)
+        command_patterns.append(
+            (r'kernel\.register_command\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)\s*#\s*(.+?)\s*\n',
+            lambda m: (m.group(1).strip(), m.group(2).strip()))
+        )
 
-        # 5. client.on (без декоратора)
-        command_patterns.extend([
-            (r'client\.add_event_handler\s*\([^,]+,\s*events\.NewMessage\s*\([^)]*pattern\s*=\s*r[\'"](\\.[^\'"]+)[\'"][^)]*\)\s*\)\s*#\s*(.+?)\s*\n',
-            lambda m: (m.group(1).lstrip('\\'), m.group(2).strip())),
-        ])
+        import re
 
-        # 6.
-        command_patterns.extend([
-            # Любой префикс (не только точка)
-            (r'pattern\s*=\s*r[\'"]([^\\][^\'"]+)[\'"][^)]*\)\s*\)\s*#\s*(.+?)\s*\n',
-            lambda m: (m.group(1), m.group(2).strip()) if not m.group(1).startswith('^') else None),
+        decorator_pattern = r'(@(?:kernel\.register\.command|register\.command|kernel\.register_command|kernel\.register\.bot_command|register\.bot_command|client\.on)\s*\([^)]+\))\s*\n'
 
-            # Специальные символы в паттерне
-            (r'pattern\s*=\s*r[\'"](\\[^\\][^\'"]*)[\'"][^)]*\)\s*\)\s*#\s*(.+?)\s*\n',
-            lambda m: (m.group(1).lstrip('\\'), m.group(2).strip())),
-        ])
+        # ищем прямые вызовы
+        direct_call_pattern = r'(kernel\.register_command\s*\([^)]+\))\s*\n'
 
-        # 7.(слэш-команды)
-        command_patterns.extend([
-            # Бот команды с описанием в той же строке
-            (r'@kernel\.register\.bot_command\s*\(\s*[\'"]/([^\'"]+)[\'"]\s*\)\s*#\s*(.+?)\s*\n',
-            lambda m: (f"/{m.group(1)}", m.group(2).strip())),
+        # Объединяем все позиции
+        positions = []
 
-            # Бот команды с описанием перед
-            (r'#\s*(.+?)\s*\n\s*@kernel\.register\.bot_command\s*\(\s*[\'"]/([^\'"]+)[\'"]',
-            lambda m: (f"/{m.group(2)}", m.group(1).strip())),
+        for match in re.finditer(decorator_pattern, code, re.MULTILINE):
+            positions.append((match.start(), match.group(1)))
 
-            # Бот команды через @client.on
-            (r'@client\.on\s*\(\s*events\.NewMessage\s*\([^)]*pattern\s*=\s*r[\'"]/([^\'"]+)[\'"][^)]*\)\s*\)\s*#\s*(.+?)\s*\n',
-            lambda m: (f"/{m.group(1)}", m.group(2).strip())),
-        ])
+        for match in re.finditer(direct_call_pattern, code, re.MULTILINE):
+            positions.append((match.start(), match.group(1)))
 
-        # 8.
-        command_patterns.extend([
-            # С параметром alias=
-            (r'@kernel\.register\.command\s*\([^)]*alias\s*=\s*(\[[^]]+\]|[^\'",]+)[^)]*\)\s*#\s*(.+?)\s*\n',
-            lambda m: (None, m.group(2).strip())),  # Только описание
 
-            # Алиасы в списке
-            (r'alias\s*=\s*\[([^]]+)\][^)]*\)\s*#\s*(.+?)\s*\n',
-            lambda m: (None, m.group(2).strip())),
-        ])
+        positions.sort(key=lambda x: x[0])
 
-        # 9.(register.method)
-        method_patterns = [
-            (r'@kernel\.register\.method\s*\(\s*\)\s*#\s*(.+?)\s*\n',
-            lambda m: m.group(1).strip()),
+        # Для каждого декоратора ищем описание
+        for i, (pos, decorator) in enumerate(positions):
+            # Определяем конец поиска
+            end_pos = positions[i + 1][0] if i + 1 < len(positions) else len(code)
 
-            (r'@register\.method\s*#\s*(.+?)\s*\n',
-            lambda m: m.group(1).strip()),
+            # Блок кода для этого декоратора
+            block = code[pos:end_pos]
 
-            (r'@kernel\.register\.method\s*\n\s*#\s*(.+?)\s*\n',
-            lambda m: m.group(1).strip()),
-        ]
+            # Извлекаем имя команды из декоратора
+            cmd_name = None
+            cmd_match = re.search(r'[\'"]([^\'"]+)[\'"]', decorator)
+            if cmd_match:
+                cmd_name = cmd_match.group(1)
+                # Убираем префикс если есть
+                if cmd_name.startswith('\\'):
+                    cmd_name = cmd_name[1:]
+                if cmd_name.startswith('.'):
+                    cmd_name = cmd_name[1:]
 
-        # 10. (register.event)
-        event_patterns = [
-            (r'@kernel\.register\.event\s*\([^)]*\)\s*#\s*(.+?)\s*\n',
-            lambda m: m.group(1).strip()),
+            # Ищем описание в этом блоке
+            description = None
 
-            (r'@register\.event\s*\([^)]*\)\s*#\s*(.+?)\s*\n',
-            lambda m: m.group(1).strip()),
-        ]
+            # Ищем комментарий
+            look_behind = code[max(0, pos-500):pos]
+            lines = look_behind.split('\n')
+            comment_lines = []
 
-        # Поиск всех совпадений в коде
-        for pattern, extractor in command_patterns:
-            matches = re.finditer(pattern, code, re.IGNORECASE | re.MULTILINE | re.DOTALL)
-            for match in matches:
-                try:
-                    result = extractor(match)
-                    if result:
-                        if isinstance(result, tuple) and len(result) == 2:
-                            cmd, desc = result
-                            if cmd:
-                                # Определяем тип команды
-                                if cmd.startswith('/'):
-                                    metadata["bot_commands"][cmd] = desc or "Без описания"
-                                else:
-                                    metadata["commands"][cmd] = desc or "Без описания"
-                        elif result and isinstance(result, str):
-                            # Только описание без команды
-                            pass
-                except (IndexError, AttributeError):
-                    continue
+            for line in reversed(lines):
+                line_stripped = line.strip()
+                if line_stripped.startswith('#'):
+                    comment_lines.insert(0, line_stripped.lstrip('#').strip())
+                elif line_stripped:
+                    break
 
-        # Поиск методов
-        for pattern, extractor in method_patterns:
-            matches = re.finditer(pattern, code, re.IGNORECASE | re.MULTILINE | re.DOTALL)
-            for match in matches:
-                try:
-                    desc = extractor(match)
-                    if desc:
-                        metadata["methods"].append(desc)
-                except (IndexError, AttributeError):
-                    continue
+            if comment_lines:
+                description = ' '.join(comment_lines)
 
-        # Поиск событий
-        for pattern, extractor in event_patterns:
-            matches = re.finditer(pattern, code, re.IGNORECASE | re.MULTILINE | re.DOTALL)
-            for match in matches:
-                try:
-                    desc = extractor(match)
-                    if desc:
-                        # Извлекаем тип события из паттерна если возможно
-                        event_match = re.search(r'event\s*\(\s*[\'"]([^\'"]+)[\'"]', match.group(0))
-                        event_type = event_match.group(1) if event_match else "unknown"
-                        metadata["events"][event_type] = desc
-                except (IndexError, AttributeError):
-                    continue
 
-        # Дополнительный поиск: имена функций после декораторов
-        func_patterns = [
-            # Стандартный async def после декоратора
-            (r'@(?:kernel\.register\.command|register\.command|kernel\.register_command)\s*\([^)]+\)\s*\n\s*async def (\w+)',
-            lambda m: m.group(1)),
+            if not description:
+                same_line_match = re.search(r'\)\s*#\s*(.+?)(?:\n|$)', decorator + block[:100])
+                if same_line_match:
+                    description = same_line_match.group(1).strip()
 
-            # Sync def
-            (r'@(?:kernel\.register\.command|register\.command|kernel\.register_command)\s*\([^)]+\)\s*\n\s*def (\w+)',
-            lambda m: m.group(1)),
 
-            # Бот команды
-            (r'@(?:kernel\.register\.bot_command|register\.bot_command)\s*\([^)]+\)\s*\n\s*async def (\w+)',
-            lambda m: m.group(1)),
-        ]
+            if not description:
+                next_line_match = re.search(r'\n\s*#\s*(.+?)\s*\n', block[:200])
+                if next_line_match:
+                    description = next_line_match.group(1).strip()
 
-        # Собираем имена функций команд для информации
-        command_functions = []
-        for pattern, extractor in func_patterns:
-            matches = re.finditer(pattern, code, re.IGNORECASE | re.MULTILINE)
-            for match in matches:
-                try:
-                    func_name = extractor(match)
-                    if func_name:
-                        command_functions.append(func_name)
-                except (IndexError, AttributeError):
-                    continue
+            if cmd_name and description:
+                metadata["commands"][cmd_name] = description
+            elif cmd_name:
+                metadata["commands"][cmd_name] = "🫨 Command has no description"
 
-        metadata["command_functions"] = command_functions
 
-        # Если команды найдены, но описания нет
-        for cmd in list(metadata["commands"].keys()):
-            if not metadata["commands"][cmd] or metadata["commands"][cmd] == "None":
-                metadata["commands"][cmd] = "Без описания"
+        if not metadata["commands"]:
+            simple_patterns = [
+                r'@kernel\.register\.command\s*\(\s*[\'"]([^\'"]+)[\'"]',
+                r'@register\.command\s*\(\s*[\'"]([^\'"]+)[\'"]',
+                r'@kernel\.register_command\s*\(\s*[\'"]([^\'"]+)[\'"]',
+                r'kernel\.register_command\s*\(\s*[\'"]([^\'"]+)[\'"]',
+                r'@kernel\.register\.bot_command\s*\(\s*[\'"]([^\'"]+)[\'"]',
+                r'@register\.bot_command\s*\(\s*[\'"]([^\'"]+)[\'"]',
+                r'@client\.on\s*\([^)]*pattern\s*=\s*r[\'"](\\.[^\'"]+)[\'"]',
+            ]
 
-        for cmd in list(metadata["bot_commands"].keys()):
-            if not metadata["bot_commands"][cmd] or metadata["bot_commands"][cmd] == "None":
-                metadata["bot_commands"][cmd] = "Без описания"
+            for pattern in simple_patterns:
+                matches = re.findall(pattern, code, re.IGNORECASE)
+                for match in matches:
+                    if isinstance(match, tuple):
+                        cmd = match[0]
+                    else:
+                        cmd = match
 
-        # Убираем дубликаты
-        metadata["requires"] = list(dict.fromkeys(metadata["requires"]))
-        metadata["tags"] = list(dict.fromkeys(metadata["tags"]))
-        metadata["methods"] = list(dict.fromkeys(metadata["methods"]))
-        metadata["command_functions"] = list(dict.fromkeys(metadata["command_functions"]))
+
+                    if cmd.startswith('\\'):
+                        cmd = cmd[1:]
+                    if cmd.startswith('.'):
+                        cmd = cmd[1:]
+
+                    if cmd not in metadata["commands"]:
+                        metadata["commands"][cmd] = "🫨 Command has no description"
 
         return metadata
 

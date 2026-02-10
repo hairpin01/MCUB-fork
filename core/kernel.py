@@ -1341,12 +1341,12 @@ class Kernel:
                 removed = self.repositories.pop(idx)
                 await self.save_repositories()
                 self.logger.debug("del repository:YES")
-                return True, "🗑️ Репозиторий удален"
+                return True, "Репозиторий удален"
             else:
-                return False, "⛈️ Неверный индекс"
+                return False, "Неверный индекс"
         except Exception as e:
             self.logger.error(f"del repository:{e}")
-            return False, f"⛈️ Ошибка удаления: {e}"
+            return False, f"Ошибка удаления: {e}"
 
     async def get_repo_name(self, url):
         """Получает название репозитория из modules.ini"""

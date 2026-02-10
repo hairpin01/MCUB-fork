@@ -55,9 +55,7 @@ try:
     import inspect
 
 except ImportError as e:
-    print("Установите зависимости" "pip install -r requirements.txt\n", str(e))
-    import sys
-
+    print("Установите зависимости: pip install -r requirements.txt\n", str(e))
     sys.exit(1)
 
 
@@ -151,7 +149,7 @@ class TTLCache:
         expire_time, value = self.cache[key]
 
         # Check if the item has expired
-        if time.time() < expire_time:
+        if time.time() <= expire_time:
             # Mark as recently used and return value
             self.cache.move_to_end(key)
             return value
@@ -3158,9 +3156,11 @@ class Kernel:
                 handlers = InlineHandlers(self, self.bot_client)
                 await handlers.register_handlers()
 
-                import asyncio
 
-                asyncio.create_task(self.bot_client.run_until_disconnected())
+                bot_task = asyncio.create_task(self.bot_client.run_until_disconnected())
+                if not hasattr(self, '_background_tasks'):
+                    self._background_tasks = []
+                self._background_tasks.append(bot_task)
 
                 self.logger.info(f"=> Инлайн-бот запущен: {bot_username}")
                 return True
@@ -3168,8 +3168,6 @@ class Kernel:
                 self.logger.error(
                     f"=> Ошибка регистрации обработчиков инлайн-бота: {str(e)}"
                 )
-                import traceback
-
                 traceback.print_exc()
                 return False
 
@@ -3177,8 +3175,6 @@ class Kernel:
             self.logger.error(
                 f"{Colors.RED}=X Инлайн-бот не запущен: {str(e)}{Colors.RESET}"
             )
-            import traceback
-
             traceback.print_exc()
             return False
 
@@ -3187,7 +3183,6 @@ class Kernel:
             if not self.first_time_setup():
                 self.logger.error("=X Не удалось настроить юзербот")
                 return
-        import logging
 
         self.load_repositories()
         logging.basicConfig(level=logging.INFO)
@@ -3277,31 +3272,41 @@ Kernel is load.
         )
         self.logger.debug("start MCUB")
         if os.path.exists(self.RESTART_FILE):
-            with open(self.RESTART_FILE, "r") as f:
-                data = f.read().split(",")
-                if len(data) >= 3:
-                    chat_id, msg_id, restart_time = (
-                        int(data[0]),
-                        int(data[1]),
-                        float(data[2]),
-                    )
-                    os.remove(self.RESTART_FILE)
-                    me = await self.client.get_me()
+            try:
+                with open(self.RESTART_FILE, "r") as f:
+                    data = f.read().split(",")
+                    if len(data) >= 3:
+                        try:
+                            chat_id = int(data[0])
+                            msg_id = int(data[1])
+                            restart_time = float(data[2])
+                        except (ValueError, IndexError) as e:
+                            self.logger.error(f"=X Некорректные данные в файле перезагрузки: {e}")
+                            os.remove(self.RESTART_FILE)
+                            return
 
-                    mcub_emoji = (
-                        '<tg-emoji emoji-id="5470015630302287916">🔮</tg-emoji><tg-emoji emoji-id="5469945764069280010">🔮</tg-emoji><tg-emoji emoji-id="5469943045354984820">🔮</tg-emoji><tg-emoji emoji-id="5469879466954098867">🔮</tg-emoji>'
-                        if me.premium
-                        else "MCUB"
-                    )
+                        os.remove(self.RESTART_FILE)
+                        me = await self.client.get_me()
 
-                    thread_id = (
-                        int(data[3]) if len(data) >= 4 and data[3].isdigit() else None
-                    )
+                        mcub_emoji = (
+                            '<tg-emoji emoji-id="5470015630302287916">🔮</tg-emoji><tg-emoji emoji-id="5469945764069280010">🔮</tg-emoji><tg-emoji emoji-id="5469943045354984820">🔮</tg-emoji><tg-emoji emoji-id="5469879466954098867">🔮</tg-emoji>'
+                            if me.premium
+                            else "MCUB"
+                        )
+
+
+                        thread_id = None
+                        if len(data) >= 4 and data[3]:
+                            try:
+                                thread_id = int(data[3])
+                            except ValueError:
+                                self.logger.warning(f"Некорректный thread_id: {data[3]}")
+                                thread_id = None
 
                     mlfb = round((modules_end_time - modules_start_time) * 1000, 2)
 
                     emojis = [
-                        "ಠ_ಠ",
+                                                  "ಠ_ಠ",
                         "( ཀ ʖ̯ ཀ)",
                         "(◕‿◕✿)",
                         "(つ･･)つ",
@@ -3340,7 +3345,7 @@ Kernel is load.
                         }
                     }
 
-                    # Функция для получения локализованной строки
+
                     def get_restart_string(key, **kwargs):
                         language = self.config.get('language', 'ru')
                         strings = restart_strings.get(language, restart_strings['ru'])
@@ -3383,5 +3388,16 @@ Kernel is load.
                         self.cprint(
                             f"{Colors.YELLOW}{get_restart_string('no_connection')}{Colors.RESET}"
                         )
+            except FileNotFoundError:
+                self.logger.error(f"=X Файл перезагрузки не найден: {self.RESTART_FILE}")
+            except IOError as e:
+                self.logger.error(f"=X Ошибка чтения файла перезагрузки: {e}")
+            except Exception as e:
+                self.logger.error(f"=X Непредвиденная ошибка при обработке перезагрузки: {e}")
+                if os.path.exists(self.RESTART_FILE):
+                    try:
+                        os.remove(self.RESTART_FILE)
+                    except Exception:
+                        pass
 
         await self.client.run_until_disconnected()

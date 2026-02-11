@@ -53,6 +53,7 @@ try:
         Tuple
     )
     import inspect
+    from utils.restart import restart_kernel
 
 except ImportError as e:
     print("Установите зависимости: pip install -r requirements.txt\n", str(e))
@@ -464,8 +465,7 @@ class Register:
                 - "newmessage", "message": NewMessage events
                 - "messageedited", "edited": MessageEdited events
                 - "messagedeleted", "deleted": MessageDeleted events
-                - "userupdate", "user": UserUpdate events
-                - "chatupload", "upload": ChatUpload events
+                # - "userupdate", "user": UserUpdate events
                 - "inlinequery", "inline": InlineQuery events
                 - "callbackquery", "callback": CallbackQuery events
                 - "raw", "custom": Raw events
@@ -1650,32 +1650,7 @@ class Kernel:
         Перезагружает процесс юзербота.
         Если переданы chat_id и message_id, они сохраняются для уведомления после рестарта.
         """
-        self.logger.info("Restart...")
-
-        if chat_id:
-            try:
-                restart_data = {
-                    "chat_id": chat_id,
-                    "msg_id": message_id,
-                    "time": time.time(),
-                }
-                with open(self.RESTART_FILE, "w") as f:
-                    json.dump(restart_data, f)
-                self.logger.debug(f"Данные рестарта сохранены в {self.RESTART_FILE}")
-            except Exception as e:
-                self.logger.error(f"Не удалось сохранить данные рестарта: {e}")
-
-        try:
-            if self.db_conn:
-                await self.db_conn.close()
-
-            if self.scheduler:
-                self.scheduler.cancel_all_tasks()
-        except Exception as e:
-            self.logger.error(f"Ошибка при закрытии ресурсов: {e}")
-
-        args = sys.argv[:]
-        os.execl(sys.executable, sys.executable, *args)
+        await restart_kernel(self, chat_id, message_id)
 
     async def send_inline_from_config(self, chat_id, query, buttons=None):
         """

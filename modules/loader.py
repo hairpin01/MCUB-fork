@@ -114,7 +114,7 @@ def register(kernel):
             'install_failed': '<b>{blocked} Looks like the installation failed</b>\n<b>{idea} Install Log:</b>\n<pre>{log}</pre>',
             'log_conflict': '✗ Command conflict: {error}',
             'conflict_system': '{shield} <b>System command conflict!</b>\n<blockquote>Command <code>{prefix}{command}</code> already registered by system module.</blockquote>\n<b>Install Log:</b>\n<pre>{log}</pre>',
-            'conflict_user': '{error} <b>Module command conflict!</b>\n<blockquote>Command <code>{prefix}{command}</code> already registered by module <code>{command}</code>.</blockquote>\n<b>Install Log:</b>\n<pre>{log}</pre>',
+            'conflict_user': '{error} <b>Module command conflict!</b>\n<blockquote>Command <code>{prefix}{command}</code> already registered by module <code>{owner_module}</code>.</blockquote>\n<b>Install Log:</b>\n<pre>{log}</pre>',
             'log_critical': '=X Critical error: {error}',
             'log_traceback': 'Traceback:\n{traceback}',
             'dlm_usage': '{warning} <b>Usage:</b> <code>{prefix}dlm [-send/-s/-list] module_name or URL</code>',
@@ -221,7 +221,7 @@ def register(kernel):
             'install_failed': '<b>{blocked} Кажется установка прошла неудачно</b>\n<b>{idea} Install Log:</b>\n<pre>{log}</pre>',
             'log_conflict': '✗ Конфликт команд: {error}',
             'conflict_system': '{shield} <b>Конфликт системной команды!</b>\n<blockquote>Команда <code>{prefix}{command}</code> уже зарегистрирована системным модулем.</blockquote>\n<b>Install Log:</b>\n<pre>{log}</pre>',
-            'conflict_user': '{error} <b>Конфликт команд модулей!</b>\n<blockquote>Команда <code>{prefix}{command}</code> уже зарегистрирована модулем <code>{command}</code>.</blockquote>\n<b>Install Log</b>\n<pre>{log}</pre>',
+            'conflict_user': '{error} <b>Конфликт команд модулей!</b>\n<blockquote>Команда <code>{prefix}{command}</code> уже зарегистрирована модулем <code>{owner_module}</code>.</blockquote>\n<b>Install Log</b>\n<pre>{log}</pre>',
             'log_critical': '=X Критическая ошибка: {error}',
             'log_traceback': 'Трейсбэк:\n{traceback}',
             'dlm_usage': '{warning} <b>Использование:</b> <code>{prefix}dlm [-send/-s/-list] название_модуля или ссылка</code>',
@@ -801,12 +801,14 @@ def register(kernel):
                       log=html.escape(log_text)),
                 )
             elif e.conflict_type == "user":
+                owner_module = kernel.command_owners.get(e.command, 'unknown')
                 await edit_with_emoji(
                     msg,
                     t('conflict_user',
                       error=CUSTOM_EMOJI['error'],
                       prefix=kernel.custom_prefix,
                       command=e.command,
+                      owner_module=owner_module,
                       log=html.escape(log_text)),
                 )
             if os.path.exists(file_path):

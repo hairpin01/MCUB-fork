@@ -1,5 +1,5 @@
 """
-Telegram HTML Parser - Bidirectional HTML ↔ Telegram Entities Converter
+Telegram HTML Parser - Bidirectional HTML to Telegram Entities Converter
 Supports parsing HTML to Telegram message entities and converting entities back to HTML.
 Fixed: Correctly handles nested entities and multi-byte characters.
 """

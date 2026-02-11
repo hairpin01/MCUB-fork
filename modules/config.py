@@ -11,6 +11,7 @@ import uuid
 import time
 import asyncio
 from telethon import Button, events, types
+from telethon.tl.types import InputWebDocument, DocumentAttributeImageSize
 
 CUSTOM_EMOJI = {
     "📁": '<tg-emoji emoji-id="5433653135799228968">📁</tg-emoji>',
@@ -134,7 +135,7 @@ def register(kernel):
             'not_boolean': '❌ Not boolean',
             'changed_to': '✅ Changed to {value}',
             'error': '❌ Error: {error}',
-            'cfg_usage': '{gear} <b>Config</b>: Use inline or <code>.cfg [now/hide/unhide]</code>',
+            'cfg_usage': '{gear} <b>Config</b>: Use inline or <code>.cfg [key]</code> or <code>.cfg [now/hide/unhide] [key]</code>',
             'hidden_key': '{briefcase} <b>Hidden</b>: <code>{key}</code>',
             'key_not_found': '{ballot} <b>Not found</b>: <code>{key}</code>',
             'system_key': '{paperclip} <b>System key</b>',
@@ -213,7 +214,7 @@ def register(kernel):
             'not_boolean': '❌ Не булево значение',
             'changed_to': '✅ Изменено на {value}',
             'error': '❌ Ошибка: {error}',
-            'cfg_usage': '{gear} <b>Конфиг</b>: Используйте инлайн или <code>.cfg [now/hide/unhide]</code>',
+            'cfg_usage': '{gear} <b>Конфиг</b>: Используйте инлайн или <code>.cfg [ключ]</code> или <code>.cfg [now/hide/unhide] [ключ]</code>',
             'hidden_key': '{briefcase} <b>Скрыто</b>: <code>{key}</code>',
             'key_not_found': '{ballot} <b>Не найдено</b>: <code>{key}</code>',
             'system_key': '{paperclip} <b>Системный ключ</b>',
@@ -471,6 +472,10 @@ def register(kernel):
         nav_buttons.append(Button.inline(t('btn_menu'), data=f"config_menu".encode()))
         if nav_buttons:
             buttons.append(nav_buttons)
+
+
+        buttons.append([Button.inline("❌ Close", data=b"cfg_close")])
+
         return buttons
 
     def create_modules_buttons_grid(modules, page, total_pages):
@@ -500,6 +505,10 @@ def register(kernel):
         nav_buttons.append(Button.inline(t('btn_menu'), data=f"config_menu".encode()))
         if nav_buttons:
             buttons.append(nav_buttons)
+
+
+        buttons.append([Button.inline("❌ Close", data=b"cfg_close")])
+
         return buttons
 
     def create_module_config_buttons(module_name, page_keys, page, total_pages):
@@ -537,6 +546,10 @@ def register(kernel):
         )
         if nav_buttons:
             buttons.append(nav_buttons)
+
+
+        buttons.append([Button.inline("❌ Close", data=b"cfg_close")])
+
         return buttons
 
     async def config_menu_handler(event):
@@ -544,12 +557,23 @@ def register(kernel):
         text = t('config_menu_text', menu_emoji=CUSTOM_EMOJI['📋'])
 
         buttons = [
-            [Button.inline(t('btn_kernel_config'), data=b"config_kernel_page_0")],
-            [Button.inline(t('btn_modules_config'), data=b"config_modules_page_0")],
+            [
+                Button.inline(t('btn_kernel_config'), data=b"config_kernel_page_0"),
+                Button.inline(t('btn_modules_config'), data=b"config_modules_page_0")
+            ],
+            [
+                Button.inline("❌ Close", data=b"cfg_close")
+            ],
         ]
-
+        thumb = InputWebDocument(
+            url='https://kappa.lol/GaFZ9I',
+            size=0,
+            mime_type='image/jpeg',
+            attributes=[DocumentAttributeImageSize(w=0, h=0)]
+        )
         builder = event.builder.article(
-            title="Config Menu", text=text, buttons=buttons, parse_mode="html"
+            title="Config Menu", text=text, buttons=buttons, parse_mode="html",
+            thumb=thumb
         )
         await event.answer([builder])
 
@@ -665,11 +689,18 @@ def register(kernel):
                 total_modules=total_modules)
 
         buttons = create_modules_buttons_grid(page_modules, page, total_pages)
+        thumb = InputWebDocument(
+            url='https://kappa.lol/GaFZ9I',
+            size=0,
+            mime_type='image/jpeg',
+            attributes=[DocumentAttributeImageSize(w=0, h=0)]
+        )
         builder = event.builder.article(
             title=f"Modules Config - {page + 1}",
             text=text,
             buttons=buttons,
             parse_mode="html",
+            thumb=thumb
         )
         await event.answer([builder])
 
@@ -759,14 +790,28 @@ def register(kernel):
                     ]
                 )
 
-            buttons.append(
-                [
-                    Button.inline(
-                        t('btn_back_simple'),
-                        data=f"module_cfg_page_{module_name}__{page}".encode(),
-                    )
-                ]
-            )
+            # Создаем key_id для обновления
+            key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
+            kernel.cache.set(f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400)
+
+            # Кнопки навигации
+            nav_buttons = [
+                Button.inline(
+                    t('btn_back_simple'),
+                    data=f"module_cfg_page_{module_name}__{page}".encode(),
+                ),
+                Button.inline(
+                    "🔄",
+                    data=f"module_cfg_view_{key_id}".encode(),
+                )
+            ]
+            buttons.append(nav_buttons)
+
+
+            buttons.append([
+                Button.inline("❌ Close", data=b"cfg_close")
+            ])
+
             await event.edit(text, buttons=buttons, parse_mode="html")
 
         except Exception as e:
@@ -1132,7 +1177,7 @@ def register(kernel):
 
 
                 kernel.cache.set(cache_key, None, ttl=1)
-
+                await client.delete_messages(event.chat_id, [event.message_id])
 
                 try:
                     if hasattr(event, 'query') and hasattr(event.query, 'inline_message_id'):
@@ -1150,6 +1195,7 @@ def register(kernel):
                                 text=new_text,
                                 parse_mode="html"
                             )
+
 
                 except Exception as e:
                     kernel.logger.error(f"Failed to edit inline message: {e}")
@@ -1300,12 +1346,29 @@ def register(kernel):
     async def config_callback_handler(event):
         data = event.data.decode()
 
+        # Обработчик кнопки закрыть
+        if data == "cfg_close":
+            try:
+                await kernel.client.delete_messages(event.chat_id, [event.message_id])
+            except Exception as e:
+                kernel.logger.error(e)
+                try:
+                    await event.edit("❌ Closed")
+                except Exception as e:
+                    await event.answer("Closed", alert=False)
+            return
+
         if data == "config_menu":
             text = t('config_menu_text', menu_emoji='<tg-emoji emoji-id="5404451992456156919">🧬</tg-emoji>')
             buttons = [
-                [Button.inline(t('btn_kernel_config'), data=b"config_kernel_page_0")],
-                [Button.inline(t('btn_modules_config'), data=b"config_modules_page_0")],
-            ]
+                    [
+                        Button.inline(t('btn_kernel_config'), data=b"config_kernel_page_0"),
+                        Button.inline(t('btn_modules_config'), data=b"config_modules_page_0")
+                    ],
+                    [
+                        Button.inline("❌ Close", data=b"cfg_close")
+                    ],
+                ]
             try:
                 await event.edit(text, buttons=buttons, parse_mode="html")
             except Exception as e:
@@ -1536,13 +1599,22 @@ def register(kernel):
                         )
                     ])
 
-                buttons.append(
-                    [
-                        Button.inline(
-                            t('btn_back_simple'), data=f"config_kernel_page_{page}".encode()
-                        )
-                    ]
-                )
+                # Кнопки навигации
+                nav_buttons = [
+                    Button.inline(
+                        t('btn_back_simple'), data=f"config_kernel_page_{page}".encode()
+                    ),
+                    Button.inline(
+                        "🔄", data=f"cfg_view_{key_id}".encode()
+                    )
+                ]
+                buttons.append(nav_buttons)
+
+
+                buttons.append([
+                    Button.inline("❌ Close", data=b"cfg_close")
+                ])
+
                 await event.edit(text, buttons=buttons, parse_mode="html")
             except Exception as e:
                 await event.answer(str(e)[:50], alert=True)
@@ -1707,8 +1779,16 @@ def register(kernel):
                     Button.inline(t('btn_delete'), data=f"cfg_delete_{key_id}".encode())
                 ])
 
+                # Кнопки навигации
+                nav_buttons = [
+                    Button.inline(t('btn_back_simple'), data=f"config_kernel_page_{page}".encode()),
+                    Button.inline("🔄", data=f"cfg_reveal_{key_id}".encode())
+                ]
+                buttons.append(nav_buttons)
+
+
                 buttons.append([
-                    Button.inline(t('btn_back_simple'), data=f"config_kernel_page_{page}".encode())
+                    Button.inline("❌ Close", data=b"cfg_close")
                 ])
 
                 await event.edit(text, buttons=buttons, parse_mode="html")
@@ -1723,6 +1803,7 @@ def register(kernel):
         try:
             args = event.text.split()
             if len(args) == 1:
+                # Без аргументов - показываем inline меню
                 if hasattr(kernel, "bot_client") and kernel.config.get(
                     "inline_bot_username"
                 ):
@@ -1741,6 +1822,44 @@ def register(kernel):
                         pass
                 await event.edit(
                     t('cfg_usage', gear=CUSTOM_EMOJI['⚙️']),
+                    parse_mode="html",
+                )
+
+            elif len(args) == 2:
+                # Только ключ - показываем значение (аналогично .cfg now key)
+                key = args[1].strip()
+
+                if is_key_hidden(key):
+                    await event.edit(
+                        t('hidden_key', briefcase=CUSTOM_EMOJI['💼'], key=key),
+                        parse_mode="html",
+                    )
+                    return
+                if key not in kernel.config:
+                    await event.edit(
+                        t('key_not_found', ballot=CUSTOM_EMOJI['🗳'], key=key),
+                        parse_mode="html",
+                    )
+                    return
+
+                value = kernel.config[key]
+                value_type = type(value).__name__
+                if isinstance(value, (dict, list)):
+                    display_value = f"<pre>{html.escape(json.dumps(value, ensure_ascii=False, indent=2))}</pre>"
+                elif isinstance(value, str):
+                    escaped_value = html.escape(value)
+                    escaped_value = escaped_value.replace("\n", "<br>")
+                    display_value = f"<code>{escaped_value}</code>"
+                else:
+                    display_value = f"<code>{html.escape(str(value))}</code>"
+
+                await event.edit(
+                    t('key_view',
+                      note=CUSTOM_EMOJI['📝'],
+                      key=key,
+                      type_emoji=get_type_emoji(value_type),
+                      value_type=value_type,
+                      display_value=display_value),
                     parse_mode="html",
                 )
 
@@ -1807,6 +1926,12 @@ def register(kernel):
                         await save_config()
                     await event.edit(
                         t('visible_key', book=CUSTOM_EMOJI['📖'], key=key),
+                        parse_mode="html",
+                    )
+                else:
+                    # Неизвестная субкоманда
+                    await event.edit(
+                        t('cfg_usage', gear=CUSTOM_EMOJI['⚙️']),
                         parse_mode="html",
                     )
         except Exception as e:
@@ -2152,6 +2277,7 @@ def register(kernel):
     kernel.register_callback_handler("cfg_bool_toggle_", config_callback_handler)
     kernel.register_callback_handler("cfg_delete_", config_callback_handler)
     kernel.register_callback_handler("cfg_reveal_", config_callback_handler)
+    kernel.register_callback_handler("cfg_close", config_callback_handler)
 
     if hasattr(kernel, 'bot_client') and kernel.bot_client:
         @kernel.bot_client.on(events.Raw(types.UpdateBotInlineSend))

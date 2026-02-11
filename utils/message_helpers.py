@@ -1,7 +1,7 @@
 # utils/message_helpers.py
 # author: @Hairpin00
 # version: 1.2.0
-# description: Хелперы для отправки сообщений с HTML разметкой
+# description: Helpers for sending messages with HTML markup
 
 import re
 import html
@@ -9,75 +9,75 @@ from .html_parser import parse_html, _utf16_len
 
 def clean_html_fallback(html_text: str) -> str:
     """
-    Универсальная очистка HTML при ошибках парсинга.
-    Удаляет теги форматирования, оставляя только текст.
+    Universal HTML cleanup in case of parsing errors.
+    Removes formatting tags, leaving only text.
 
     Args:
-        html_text (str): HTML текст для очистки
+        html_text (str): HTML text to clean
 
     Returns:
-        str: Текст без HTML тегов
+        str: Text without HTML tags
     """
     if not html_text:
         return ""
 
-    # Важно: сначала заменяем эмодзи
-    # Кастомные эмодзи (новый синтаксис)
+    # Important: replace emojis first
+    # Custom emojis (new syntax)
     text = re.sub(r'<tg-emoji[^>]*>(.*?)</tg-emoji>', r'\1', html_text)
 
-    # Кастомные эмодзи (старый синтаксис через img)
+    # Custom emojis (old syntax via img)
     text = re.sub(r'<img[^>]*src="tg://emoji\?id=[^"]+"[^>]*alt="([^"]*)"[^>]*>', r'\1', text)
     text = re.sub(r'<img[^>]*src="tg://emoji\?id=[^"]+"[^>]*>', '', text)
 
-    # Удаляем все теги форматирования (открывающие и закрывающие)
-    # Порядок важен: сначала закрывающие, потом открывающие
+    # Remove all formatting tags (opening and closing)
+    # Order is important: closing tags first, then opening ones
     tags_patterns = [
-        # Закрывающие теги
+        # Closing tags
         r'</(?:b|strong|i|em|u|s|del|code|pre|blockquote|a|tg-spoiler|spoiler)>',
 
-        # Открывающие теги (без атрибутов или с атрибутами)
+        # Opening tags (without attributes or with attributes)
         r'<(?:b|strong|i|em|u|s|del|code|tg-spoiler|spoiler)(?:\s[^>]*)?>',
 
-        # Открывающие теги с атрибутами
+        # Opening tags with attributes
         r'<pre(?:\s[^>]*)?>',
         r'<blockquote(?:\s[^>]*)?>',
         r'<a\s[^>]*>',
 
-        # Одиночные теги
+        # Self-closing tags
         r'<br(?:\s[^>]*)?>',
     ]
 
     for pattern in tags_patterns:
         text = re.sub(pattern, '', text, flags=re.IGNORECASE)
 
-    # Декодируем HTML-сущности
+    # Decode HTML entities
     text = html.unescape(text)
 
-    # Убираем лишние пробелы, оставшиеся после удаления тегов
+    # Remove extra spaces left after tag removal
     text = re.sub(r'\s+', ' ', text).strip()
 
     return text
 
 def truncate_text_with_entities(text: str, entities: list, max_length: int = 4096):
     """
-    Обрезает текст и сущности, чтобы уложиться в лимит Telegram.
+    Truncates text and entities to fit within Telegram's limit.
 
     Args:
-        text (str): Текст для обрезки
-        entities (list): Список сущностей
-        max_length (int): Максимальная длина текста (по умолчанию 4096 для Telegram)
+        text (str): Text to truncate
+        entities (list): List of entities
+        max_length (int): Maximum text length (default 4096 for Telegram)
 
     Returns:
-        tuple: (обрезанный текст, обрезанные сущности)
+        tuple: (truncated text, truncated entities)
     """
-    # Проверяем длину текста в UTF-16
+    # Check text length in UTF-16
     text_length = _utf16_len(text)
 
     if text_length <= max_length:
         return text, entities
 
-    # Обрезаем текст
-    # Ищем позицию, где можно безопасно обрезать (по границе UTF-16 символов)
+    # Truncate text
+    # Find position where we can safely truncate (by UTF-16 character boundary)
     truncated_text = ""
     current_length = 0
 
@@ -88,17 +88,17 @@ def truncate_text_with_entities(text: str, entities: list, max_length: int = 409
         truncated_text += char
         current_length += char_length
 
-    # Корректируем сущности
+    # Adjust entities
     truncated_entities = []
     for entity in entities:
-        # Если сущность полностью помещается в обрезанный текст
+        # If entity fits completely within truncated text
         if entity.offset + entity.length <= current_length:
             truncated_entities.append(entity)
-        # Если сущность начинается внутри, но заканчивается снаружи
+        # If entity starts inside but ends outside
         elif entity.offset < current_length:
-            # Создаем копию сущности с обрезанной длиной
+            # Create a copy of entity with truncated length
             if hasattr(entity, '__dict__'):
-                # Для большинства сущностей Telethon
+                # For most Telethon entities
                 entity_dict = entity.__dict__.copy()
                 entity_dict['length'] = current_length - entity.offset
                 new_entity = entity.__class__(**entity_dict)
@@ -108,35 +108,35 @@ def truncate_text_with_entities(text: str, entities: list, max_length: int = 409
 
 async def _send_html_generic(send_func, html_text: str, kernel, truncate: bool = True, **kwargs):
     """
-    Универсальная функция для отправки HTML с обработкой ошибок.
+    Universal function for sending HTML with error handling.
 
     Args:
-        send_func: Функция отправки (event.edit, event.reply, client.send_message)
-        html_text (str): HTML текст
-        kernel: Объект ядра для обработки ошибок
-        truncate (bool): Нужно ли обрезать текст по лимиту Telegram
-        **kwargs: Дополнительные аргументы для send_func
+        send_func: Send function (event.edit, event.reply, client.send_message)
+        html_text (str): HTML text
+        kernel: Kernel object for error handling
+        truncate (bool): Whether to truncate text by Telegram's limit
+        **kwargs: Additional arguments for send_func
 
     Returns:
-        Результат выполнения send_func
+        Result of send_func execution
     """
     try:
         text, entities = parse_html(html_text)
 
-        # Обрезаем текст и сущности при необходимости
+        # Truncate text and entities if needed
         if truncate:
             text, entities = truncate_text_with_entities(text, entities)
 
         return await send_func(text, formatting_entities=entities, **kwargs)
     except Exception as e:
-        # Получаем имя функции
+        # Get function name
         source_name = getattr(send_func, '__name__', str(send_func))
         await kernel.handle_error(e, source=f"{source_name}_with_html")
 
-        # Fallback: отправляем очищенный текст
+        # Fallback: send cleaned text
         fallback_text = clean_html_fallback(html_text)
 
-        # Обрезаем fallback текст тоже
+        # Truncate fallback text too
         if truncate:
             fallback_text = truncate_text_with_entities(fallback_text, [])[0]
 
@@ -144,17 +144,17 @@ async def _send_html_generic(send_func, html_text: str, kernel, truncate: bool =
 
 async def edit_with_html(kernel, event, html_text: str, truncate: bool = True, **kwargs):
     """
-    Редактирует сообщение с HTML разметкой.
+    Edits a message with HTML markup.
 
     Args:
-        kernel: Объект ядра
-        event: Событие Telethon
-        html_text (str): HTML текст для отправки
-        truncate (bool): Нужно ли обрезать текст по лимиту Telegram (по умолчанию True)
-        **kwargs: Дополнительные аргументы для event.edit
+        kernel: Kernel object
+        event: Telethon event
+        html_text (str): HTML text to send
+        truncate (bool): Whether to truncate text by Telegram's limit (default True)
+        **kwargs: Additional arguments for event.edit
 
     Returns:
-        Обновленное сообщение
+        Updated message
     """
     return await _send_html_generic(
         event.edit,
@@ -166,17 +166,17 @@ async def edit_with_html(kernel, event, html_text: str, truncate: bool = True, *
 
 async def reply_with_html(kernel, event, html_text: str, truncate: bool = True, **kwargs):
     """
-    Отвечает на сообщение с HTML разметкой.
+    Replies to a message with HTML markup.
 
     Args:
-        kernel: Объект ядра
-        event: Событие Telethon
-        html_text (str): HTML текст для отправки
-        truncate (bool): Нужно ли обрезать текст по лимиту Telegram (по умолчанию True)
-        **kwargs: Дополнительные аргументы для event.reply
+        kernel: Kernel object
+        event: Telethon event
+        html_text (str): HTML text to send
+        truncate (bool): Whether to truncate text by Telegram's limit (default True)
+        **kwargs: Additional arguments for event.reply
 
     Returns:
-        Отправленное сообщение
+        Sent message
     """
     return await _send_html_generic(
         event.reply,
@@ -188,18 +188,18 @@ async def reply_with_html(kernel, event, html_text: str, truncate: bool = True, 
 
 async def send_with_html(kernel, client, chat_id, html_text: str, truncate: bool = True, **kwargs):
     """
-    Отправляет сообщение с HTML разметкой.
+    Sends a message with HTML markup.
 
     Args:
-        kernel: Объект ядра
-        client: Клиент Telethon
-        chat_id: ID чата
-        html_text (str): HTML текст для отправки
-        truncate (bool): Нужно ли обрезать текст по лимиту Telegram (по умолчанию True)
-        **kwargs: Дополнительные аргументы для client.send_message
+        kernel: Kernel object
+        client: Telethon client
+        chat_id: Chat ID
+        html_text (str): HTML text to send
+        truncate (bool): Whether to truncate text by Telegram's limit (default True)
+        **kwargs: Additional arguments for client.send_message
 
     Returns:
-        Отправленное сообщение
+        Sent message
     """
     async def send_message(text, **inner_kwargs):
         return await client.send_message(chat_id, text, **inner_kwargs)
@@ -214,19 +214,19 @@ async def send_with_html(kernel, client, chat_id, html_text: str, truncate: bool
 
 async def send_file_with_html(kernel, client, chat_id, html_text: str, file, truncate: bool = True, **kwargs):
     """
-    Отправляет файл с HTML подписью.
+    Sends a file with HTML caption.
 
     Args:
-        kernel: Объект ядра
-        client: Клиент Telethon
-        chat_id: ID чата
-        html_text (str): HTML подпись
-        file: Файл для отправки
-        truncate (bool): Нужно ли обрезать текст по лимиту Telegram (по умолчанию True)
-        **kwargs: Дополнительные аргументы
+        kernel: Kernel object
+        client: Telethon client
+        chat_id: Chat ID
+        html_text (str): HTML caption
+        file: File to send
+        truncate (bool): Whether to truncate text by Telegram's limit (default True)
+        **kwargs: Additional arguments
 
     Returns:
-        Отправленное сообщение
+        Sent message
     """
     async def send_file(text, **inner_kwargs):
         return await client.send_file(
@@ -236,7 +236,7 @@ async def send_file_with_html(kernel, client, chat_id, html_text: str, file, tru
             **inner_kwargs
         )
 
-    # Для подписей к файлам лимит 1024 символа
+    # For file captions the limit is 1024 characters
     return await _send_html_generic(
         send_file,
         html_text,

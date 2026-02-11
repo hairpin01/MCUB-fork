@@ -303,4 +303,3 @@ def debug_entities(message) -> List[Dict]:
 raw_html_converter = RawHTMLConverter(keep_newlines=True)
 
 __all__ = ['RawHTMLConverter', 'message_to_html', 'event_to_html', 'extract_raw_html', 'debug_entities', 'raw_html_converter']
-

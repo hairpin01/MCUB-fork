@@ -16,8 +16,22 @@ from .platform import (
     is_virtualized
 )
 
-from . import platform
+from .helpers import (
+    get_args,
+    get_args_raw,
+    get_args_html,
+    answer,
+    answer_file,
+    escape_html,
+    escape_quotes,
+    get_chat_id,
+    get_sender_info,
+    get_thread_id,
+    relocate_entities,
+)
 
+from . import platform
+from .restart import restart_kernel
 try:
     from .html_parser import parse_html, telegram_to_html
     HTML_PARSER_AVAILABLE = True
@@ -110,5 +124,20 @@ if RAW_HTML_AVAILABLE:
         'raw_html'
     ])
 
+__all__.extend([
+    'get_args',
+    'get_args_raw',
+    'get_args_html',
+    'answer',
+    'answer_file',
+    'escape_html',
+    'escape_quotes',
+    'get_chat_id',
+    'get_sender_info',
+    'get_thread_id',
+    'relocate_entities',
+])
+
 __all__.append('RAW_HTML_AVAILABLE')
 __all__.append('get_utils_status')
+__all__.extend(['restart_kernel'])

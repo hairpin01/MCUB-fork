@@ -1,5 +1,5 @@
 
-# `MCUB` Module API Documentation `1.0.1.9.4`
+# `MCUB` Module API Documentation `1.0.1.9.5`
 
 __Table of Contents__
 

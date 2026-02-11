@@ -490,8 +490,6 @@ class Register:
             "deleted": events.MessageDeleted,
             "userupdate": events.UserUpdate,
             "user": events.UserUpdate,
-            "chatupload": events.ChatUpload,
-            "upload": events.ChatUpload,
             "inlinequery": events.InlineQuery,
             "inline": events.InlineQuery,
             "callbackquery": events.CallbackQuery,

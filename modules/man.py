@@ -1,10 +1,11 @@
 # requires: telethon>=1.24, re, math
 # author: @Hairpin00
-# version: 1.0.4
-# description: Module manager with localization support
+# version: 1.0.5
+# description: Module manager with localization support and enhanced inline
 from telethon import events, Button
 import re
 import math
+from telethon.tl.types import InputWebDocument, DocumentAttributeImageSize
 
 CUSTOM_EMOJI = {
     "crystal": '<tg-emoji emoji-id="5361837567463399422">🔮</tg-emoji>',
@@ -17,7 +18,6 @@ CUSTOM_EMOJI = {
     "map": '<tg-emoji emoji-id="5472064286752775254">🗺️</tg-emoji>',
     "tot": '<tg-emoji emoji-id="5085121109574025951">🫧</tg-emoji>',
 }
-
 
 def get_module_commands(module_name, kernel):
     commands = []
@@ -119,7 +119,6 @@ def get_module_commands(module_name, kernel):
 
     return commands, aliases_info
 
-
 async def generate_detailed_page(search_term, kernel, strings):
     search_term = search_term.lower()
     exact_match = None
@@ -212,7 +211,6 @@ async def generate_detailed_page(search_term, kernel, strings):
         msg = f'<blockquote expandable>{CUSTOM_EMOJI["blocked"]} {strings["module_not_found"]}</blockquote>'
     return msg
 
-
 def get_paginated_data(kernel, page, strings):
     CHUNK_SIZE = 10
     sys_modules = sorted(list(kernel.system_modules.keys()))
@@ -298,7 +296,6 @@ def get_paginated_data(kernel, page, strings):
 
     return msg, buttons
 
-
 def register(kernel):
     client = kernel.client
 
@@ -326,6 +323,8 @@ def register(kernel):
             'no_inline_results': '❌ Нет inline результатов',
             'error': '❌ Ошибка',
             'module_manager': 'Менеджер модулей\n\nИспользуйте "man" для просмотра модулей или "man [модуль]" для поиска.',
+            'search_hint': '🔍 Поиск модулей\n\nНапишите "man [название]" для поиска модулей и команд\nПример: man ping',
+            'search_results': 'Результаты поиска',
         },
         'en': {
             'help_not_command': 'Did you mean ',
@@ -346,36 +345,246 @@ def register(kernel):
             'close': 'Close',
             'inline_bot_not_configured': 'Inline bot not configured\nSet inline_bot_token in config',
             'no_inline_results': '❌ No inline results',
-            'error': '❌ Error',
+            'error': 'Error',
             'module_manager': 'Module Manager\n\nUse "man" to browse modules or "man [module]" to search.',
+            'search_hint': '🔍 Search Modules\n\nType "man [name]" to search for modules and commands\nExample: man ping',
+            'search_results': 'Search results',
         }
     }
 
     lang_strings = strings.get(language, strings['en'])
 
+    async def search_modules_for_inline(search_term, kernel, strings):
+        """Поиск модулей для inline режима"""
+        search_term = search_term.lower()
+        exact_matches = []
+        similar_modules = []
+
+        all_modules = {}
+        for name, module in kernel.system_modules.items():
+            all_modules[name] = ("system", module)
+        for name, module in kernel.loaded_modules.items():
+            all_modules[name] = ("user", module)
+
+        # Ищем точные совпадения по имени
+        for name, (typ, module) in all_modules.items():
+            if name.lower() == search_term:
+                exact_matches.append((name, typ, module))
+
+        # Ищем частичные совпадения
+        for name, (typ, module) in all_modules.items():
+            if search_term in name.lower():
+                if (name, typ, module) not in exact_matches:
+                    similar_modules.append((name, typ, module))
+            else:
+                commands, _ = get_module_commands(name, kernel)
+                for cmd in commands:
+                    if search_term in cmd.lower():
+                        if (name, typ, module) not in exact_matches:
+                            similar_modules.append((name, typ, module))
+                        break
+
+        return exact_matches, similar_modules
+
+    async def generate_module_article(module_info, kernel, strings):
+        """Генерирует статью для одного модуля"""
+        name, typ, module = module_info
+        commands, aliases_info = get_module_commands(name, kernel)
+        file_path = f"modules/{name}.py" if typ == "system" else f"modules_loaded/{name}.py"
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                code = f.read()
+                metadata = await kernel.get_module_metadata(code)
+        except:
+            metadata = {
+                "commands": {},
+                "description": strings["no_description"],
+                "version": "?.?.?",
+                "author": strings["unknown"],
+            }
+
+        msg = f'<blockquote>{CUSTOM_EMOJI["dna"]} <b>{strings["module"]}</b> <code>{name}</code></blockquote>\n'
+        msg += f'<blockquote>{CUSTOM_EMOJI["alembic"]} <b>{strings["description"]}:</b> <i>{metadata.get("description", strings["no_description"])}</i>\n</blockquote>'
+
+        if commands:
+            msg += f'\n<b>Command:</b>\n'
+            msg += '<blockquote>'
+            for cmd in commands[:5]:  # Показываем только первые 5 команд
+                cmd_desc = metadata.get("commands", {}).get(
+                    cmd, f'{CUSTOM_EMOJI["confused"]} {strings["no_description"]}'
+                )
+                msg += f'• <code>{kernel.custom_prefix}{cmd}</code> - {cmd_desc}\n'
+
+            if len(commands) > 5:
+                msg += f'... и еще {len(commands)-5} команд\n'
+        else:
+            msg += f'\n{CUSTOM_EMOJI["blocked"]} {strings["no_commands"]}\n'
+        msg += '</blockquote>'
+
+        msg += f'\n<blockquote>{CUSTOM_EMOJI["snowflake"]} <b>{strings["version"]}:</b> <code>{metadata.get("version", "1.0.0")}</code>'
+        msg += f'\n{CUSTOM_EMOJI["pancake"]} <b>{strings["author"]}:</b> <i>{metadata.get("author", strings["unknown"])}</i></blockquote>'
+
+        return msg
+
     async def man_inline_handler(event):
         query = event.text.strip()
 
         if query == "man":
-            msg, buttons = get_paginated_data(kernel, 0, lang_strings)
-            builder = event.builder.article(
-                title="Module Manager", text=msg, buttons=buttons, parse_mode="html"
+            # Первая статья: пагинированный список модулей
+            thumb1 = InputWebDocument(
+                url='https://kappa.lol/6plQLz',
+                size=0,
+                mime_type='image/jpeg',
+                attributes=[DocumentAttributeImageSize(w=0, h=0)]
             )
-            await event.answer([builder])
+            msg1, buttons = get_paginated_data(kernel, 0, lang_strings)
+            article1 = event.builder.article(
+                title="Module Manager",
+                description="Browse all modules",
+                text=msg1,
+                buttons=buttons,
+                parse_mode="html",
+                thumb=thumb1
+            )
+
+            # Вторая статья: подсказка по поиску
+            thumb2 = InputWebDocument(
+                url='https://kappa.lol/wujauv',
+                size=0,
+                mime_type='image/jpeg',
+                attributes=[DocumentAttributeImageSize(w=0, h=0)]
+            )
+            article2 = event.builder.article(
+                title="Search Modules",
+                description="Type 'man [name]' to search",
+                text=f'<b>{lang_strings["search_hint"]}</b>',
+                parse_mode="html",
+                thumb=thumb2
+            )
+
+            await event.answer([article1, article2])
             return
 
         if query.startswith("man "):
             search_term = query[4:].strip()
             if search_term:
-                msg = await generate_detailed_page(search_term, kernel, lang_strings)
-                builder = event.builder.article(
-                    title=f"Search: {search_term}", text=msg, parse_mode="html"
-                )
-                await event.answer([builder])
-                return
+                try:
+                    exact_matches, similar_modules = await search_modules_for_inline(
+                        search_term, kernel, lang_strings
+                    )
 
+                    articles = []
+
+                    if exact_matches or similar_modules:
+                        # Статья с заголовком поиска
+                        thumb_search = InputWebDocument(
+                            url='https://kappa.lol/LOuqBO',
+                            size=0,
+                            mime_type='image/jpeg',
+                            attributes=[DocumentAttributeImageSize(w=0, h=0)]
+                        )
+
+                        result_count = len(exact_matches) + len(similar_modules)
+                        search_header = event.builder.article(
+                            title=f"Search: {search_term}",
+                            description=f"Found {result_count} modules",
+                            text=f'<b>🔍 {lang_strings["search_results"]}: "{search_term}"</b>\n'
+                                 f'<i>Найдено {result_count} модулей</i>\n\n',
+                            parse_mode="html",
+                            thumb=thumb_search
+                        )
+                        articles.append(search_header)
+
+                        # Статьи для точных совпадений
+                        for module_info in exact_matches[:10]:  # Ограничиваем 10 результатами
+                            name, typ, _ = module_info
+                            msg = await generate_module_article(module_info, kernel, lang_strings)
+
+                            thumb_module = InputWebDocument(
+                                url='https://kappa.lol/POFDmQ',
+                                size=0,
+                                mime_type='image/jpeg',
+                                attributes=[DocumentAttributeImageSize(w=0, h=0)]
+                            )
+
+                            article = event.builder.article(
+                                title=f"📦 {name}",
+                                description="Exact match",
+                                text=msg,
+                                parse_mode="html",
+                                thumb=thumb_module
+                            )
+                            articles.append(article)
+
+                        # Статьи для похожих модулей
+                        for module_info in similar_modules[:10]:  # Ограничиваем 10 результатами
+                            name, typ, _ = module_info
+                            msg = await generate_module_article(module_info, kernel, lang_strings)
+
+                            thumb_module = InputWebDocument(
+                                url='https://kappa.lol/POFDmQ',
+                                size=0,
+                                mime_type='image/jpeg',
+                                attributes=[DocumentAttributeImageSize(w=0, h=0)]
+                            )
+
+                            article = event.builder.article(
+                                title=f"🔍 {name}",
+                                description="Similar match",
+                                text=msg,
+                                parse_mode="html",
+                                thumb=thumb_module
+                            )
+                            articles.append(article)
+
+                    else:
+                        # Статья "не найдено"
+                        thumb_not_found = InputWebDocument(
+                            url='https://kappa.lol/N5jMQR',
+                            size=0,
+                            mime_type='image/jpeg',
+                            attributes=[DocumentAttributeImageSize(w=0, h=0)]
+                        )
+
+                        not_found_article = event.builder.article(
+                            title="Module not found",
+                            description=f"No results for '{search_term}'",
+                            text=f'<b>{CUSTOM_EMOJI["blocked"]} {lang_strings["module_not_found"]}</b>\n\n'
+                                 f'<i>По запросу "{search_term}" ничего не найдено.</i>\n'
+                                 f'Попробуйте другой запрос.',
+                            parse_mode="html",
+                            thumb=thumb_not_found
+                        )
+                        articles.append(not_found_article)
+
+                    await event.answer(articles[:50])  # Telegram ограничивает 50 статьями
+                    return
+
+                except Exception as e:
+                    # Статья с ошибкой
+                    thumb_error = InputWebDocument(
+                        url='https://kappa.lol/N5jMQR',
+                        size=0,
+                        mime_type='image/jpeg',
+                        attributes=[DocumentAttributeImageSize(w=0, h=0)]
+                    )
+
+                    error_article = event.builder.article(
+                        title="Search Error",
+                        description="An error occurred",
+                        text=f'<b>{CUSTOM_EMOJI["blocked"]} {lang_strings["error"]}</b>\n\n'
+                             f'<code>{str(e)[:200]}</code>',
+                        parse_mode="html",
+                        thumb=thumb_error
+                    )
+                    await event.answer([error_article])
+                    return
+
+        # Статья по умолчанию
         builder = event.builder.article(
             title="Module Manager",
+            description="Type 'man' or 'man [module]'",
             text=f'{CUSTOM_EMOJI["crystal"]} <b>{lang_strings["module_manager"]}</b>',
             parse_mode="html",
         )
@@ -386,8 +595,8 @@ def register(kernel):
 
         if data == "man_close":
             try:
-                await event.delete()
-            except:
+                await kernel.client.delete_messages(event.chat_id, [event.message_id])
+            except Exception:
                 await event.answer("Closed", alert=False)
 
         elif data.startswith("man_page_"):
@@ -435,10 +644,11 @@ def register(kernel):
 
         except Exception as e:
             await kernel.handle_error(e, source="man", event=event)
+
     @kernel.register.command("help")
     async def help_cmd(event):
         await event.edit(
-            f'<b>{lang_strings['help_not_command']}</b><code>{kernel.custom_prefix}man?</code>',
+            f'<b>{lang_strings["help_not_command"]}</b><code>{kernel.custom_prefix}man?</code>',
             parse_mode='html'
         )
 

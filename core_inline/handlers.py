@@ -1,11 +1,12 @@
 # author: @Hairpin00
-# version: 1.0.6
-# description: Premium emojis restored + architecture fixes
+# version: 1.0.7
+# description: Inline forms
 from telethon import events, Button
 import aiohttp
 import traceback
 import json
 import html
+import time
 from telethon.tl.types import InputWebDocument, DocumentAttributeImageSize
 class InlineHandlers:
     def __init__(self, kernel, bot_client):
@@ -14,12 +15,131 @@ class InlineHandlers:
         if not hasattr(self.kernel, "session") or self.kernel.session.closed:
             self.kernel.session = aiohttp.ClientSession()
 
+        self._form_counter = 0
+
+    def create_inline_form(self, text, buttons=None, ttl=3600):
+        """
+        Создаёт инлайн-форму и возвращает её ID
+
+        Args:
+            text: Текст сообщения (поддерживает HTML)
+            buttons: Кнопки в формате:
+                - список списков Button объектов: [[Button.callback(...), ...], ...]
+                - список словарей: [{"text": "...", "type": "callback", "data": "..."}, ...]
+                - JSON строка
+            ttl: Время жизни формы в кэше (секунды)
+
+        Returns:
+            str: ID формы для использования в inline query
+        """
+        self._form_counter += 1
+        form_id = f"form_{int(time.time())}_{self._form_counter}"
+
+        if isinstance(buttons, str):
+            buttons = self.parse_json_buttons(buttons)
+
+        elif isinstance(buttons, list) and len(buttons) > 0:
+            if isinstance(buttons[0], dict):
+                parsed_buttons = []
+                for btn_dict in buttons:
+                    btn = self._dict_to_button(btn_dict)
+                    if btn:
+                        parsed_buttons.append([btn])
+                buttons = parsed_buttons if parsed_buttons else None
+            elif isinstance(buttons[0], list):
+                parsed_buttons = []
+                for row in buttons:
+                    if isinstance(row, list):
+                        parsed_row = []
+                        for item in row:
+                            if isinstance(item, dict):
+                                btn = self._dict_to_button(item)
+                                if btn:
+                                    parsed_row.append(btn)
+                            else:
+                                parsed_row.append(item)
+                        if parsed_row:
+                            parsed_buttons.append(parsed_row)
+                buttons = parsed_buttons if parsed_buttons else None
+
+        if buttons is not None:
+            if not isinstance(buttons, list):
+                buttons = None
+            elif len(buttons) == 0:
+                buttons = None
+            elif not all(isinstance(row, list) for row in buttons):
+                buttons = None
+
+        form_data = {
+            "text": text,
+            "buttons": buttons,
+            "created_at": time.time()
+        }
+
+        self.kernel.cache.set(form_id, form_data, ttl=ttl)
+
+        return form_id
+
+    def _dict_to_button(self, btn_dict):
+        if not isinstance(btn_dict, dict):
+            return None
+
+        text = btn_dict.get("text", "Кнопка")
+        b_type = btn_dict.get("type", "callback").lower()
+
+        if b_type == "callback":
+            data = btn_dict.get("data", "")
+            if isinstance(data, str):
+                data = data.encode()
+            return Button.inline(text, data)
+        elif b_type == "url":
+            url = btn_dict.get("url", btn_dict.get("data", ""))
+            return Button.url(text, url)
+        elif b_type == "switch":
+            query = btn_dict.get("query", "")
+            hint = btn_dict.get("hint", "")
+            return Button.switch_inline(text, query, hint)
+        return None
+
+    def get_inline_form(self, form_id):
+        """
+        Получает данные формы из кэша по ID
+
+        Args:
+            form_id: ID формы
+
+        Returns:
+            dict: Данные формы или None если не найдена
+        """
+        return self.kernel.cache.get(form_id)
+
     def check_admin(self, event):
         try:
             if not hasattr(self.kernel, "ADMIN_ID") or self.kernel.ADMIN_ID is None:
                 return False
 
             # Принудительно сравниваем как целые числа
+            return int(event.sender_id) == int(self.kernel.ADMIN_ID)
+        except (Exception, ValueError) as e:
+            self.kernel.logger.error(f"Ошибка в check_admin: {e}")
+            return False
+
+    def get_inline_form(self, form_id):
+        """
+        Получает данные формы из кэша по ID
+
+        Args:
+            form_id: ID формы
+
+        Returns:
+            dict: Данные формы или None если не найдена
+        """
+        return self.kernel.cache.get(form_id)
+
+    def check_admin(self, event):
+        try:
+            if not hasattr(self.kernel, "ADMIN_ID") or self.kernel.ADMIN_ID is None:
+                return False
             return int(event.sender_id) == int(self.kernel.ADMIN_ID)
         except (Exception, ValueError) as e:
             self.kernel.logger.error(f"Ошибка в check_admin: {e}")
@@ -43,10 +163,10 @@ class InlineHandlers:
 
             if isinstance(data, list):
                 for row in data:
-                    if isinstance(row, list): # Ряд кнопок
+                    if isinstance(row, list):
                         current_row = [make_btn(b) for b in row if isinstance(b, dict)]
                         markup.append([b for b in current_row if b])
-                    elif isinstance(row, dict): # Одна кнопка на ряд
+                    elif isinstance(row, dict):
                         btn = make_btn(row)
                         if btn: markup.append([btn])
             elif isinstance(data, dict):
@@ -101,6 +221,28 @@ class InlineHandlers:
                     text=f"{premium_emoji_block} У вас нет доступа к inline MCUB bot\n<blockquote>{premium_emoji_shield} ID: {event.sender_id}</blockquote>",
                     parse_mode="html"
                 )])
+                return
+
+            # Проверяем, является ли query ID формы
+            if query.startswith("form_"):
+                form_data = self.get_inline_form(query)
+
+                if form_data:
+                    # Создаём статью из данных формы
+                    builder = event.builder.article(
+                        "Inline Form",
+                        text=form_data["text"],
+                        buttons=form_data["buttons"] if form_data.get("buttons") else None,
+                        parse_mode="html"
+                    )
+                    await event.answer([builder])
+                else:
+                    # Форма не найдена или истекла
+                    await event.answer([event.builder.article(
+                        "Форма не найдена",
+                        text=f"{premium_emoji_block} <b>Форма не найдена или истекла</b>\n<i>ID: <code>{html.escape(query)}</code></i>",
+                        parse_mode="html"
+                    )])
                 return
 
 
@@ -241,4 +383,3 @@ class InlineHandlers:
                 p_str = pattern.decode() if isinstance(pattern, bytes) else str(pattern)
                 if data_str.startswith(p_str):
                     await handler(event)
-

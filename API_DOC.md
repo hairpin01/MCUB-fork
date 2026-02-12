@@ -1546,7 +1546,6 @@ Send inline message with formatted fields and buttons.
 - `title` (str): Form title
 - `fields` (dict, optional): Key-value pairs to display
 - `buttons` (list, optional): Button configuration list
-- `edit_message_id` (int, optional): Message ID to edit instead of sending new
 
 **Button Configuration:**
 Each button is a dict with:

@@ -57,6 +57,7 @@ def register(kernel):
         local_vars = {
             "r_text": r_text,
             "r": reply,
+            "c": client,
             "m": m,
             "me": me,
             "start_time": start_time,

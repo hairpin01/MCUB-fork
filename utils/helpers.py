@@ -6,7 +6,7 @@ import shlex
 import html as html_escape
 from typing import List, Optional, Union, Any
 
-from telethon import events
+from telethon import events, Button
 from telethon.tl.custom import Message
 from telethon.tl.types import TypeMessageEntity
 
@@ -110,61 +110,39 @@ async def answer(
 ) -> Any:
     """
     Universal method to reply to a message, edit an inline message, or send a file.
-
-    Automatically detects:
-        - Inline calls (has `.edit()` method) – uses `edit()`.
-        - Regular chat messages – uses `reply()` or kernel's HTML/emoji helpers.
-        - File sending – delegates to `answer_file()`.
-
-    Args:
-        event: The original event (Telegram message or inline object).
-        text: Text to send.
-        reply_markup: Inline keyboard (for non‑inline messages).
-        file: File to attach (path, URL, bytes, InputDocument).
-        as_html: Force interpretation of `text` as HTML.
-        as_emoji: Force custom emoji parsing (via `emoji_parser`).
-        caption: Caption for the file (if `file` is provided).
-        **kwargs: Additional arguments passed to the underlying send/edit method.
-
-    Returns:
-        The sent/edited message or inline object.
     """
     kernel = _get_kernel(event)
     is_inline = hasattr(event, 'edit') and callable(event.edit)
 
-    # If a file is provided, delegate to answer_file
     if file:
         return await answer_file(event, file, caption or text, **kwargs)
 
-    # Priority: explicit as_html / as_emoji flags, then auto‑detection
+    # Prepare the `buttons` argument for both edit and reply
+    if reply_markup is not None:
+        kwargs['buttons'] = reply_markup
 
-    # 1. HTML mode
     if as_html or (kernel and kernel.HTML_PARSER_AVAILABLE and _looks_like_html(text)):
         if is_inline:
-            return await event.edit(text, parse_mode='html', reply_markup=reply_markup, **kwargs)
+            return await event.edit(text, parse_mode='html', **kwargs)
         else:
             if kernel and hasattr(kernel, 'reply_with_html'):
                 return await kernel.reply_with_html(event, text, **kwargs)
             else:
                 return await event.reply(text, **kwargs)
 
-    # 2. Custom emoji mode
     if as_emoji or (kernel and kernel.emoji_parser and emoji_parser.is_emoji_tag(text)):
         if is_inline:
             parsed_text, entities = emoji_parser.parse_to_entities(text)
-            return await event.edit(parsed_text, entities=entities, reply_markup=reply_markup, **kwargs)
+            return await event.edit(parsed_text, entities=entities, **kwargs)
         else:
             if kernel and hasattr(kernel, 'send_with_emoji'):
                 return await kernel.send_with_emoji(event.chat_id, text, reply_to=event.id, **kwargs)
             else:
                 return await event.reply(text, **kwargs)
-
-    # 3. Plain text
     if is_inline:
-        return await event.edit(text, reply_markup=reply_markup, **kwargs)
+        return await event.edit(text, **kwargs)
     else:
         return await event.reply(text, **kwargs)
-
 
 async def answer_file(
     event: Union[Message, events.NewMessage.Event, 'InlineCall', 'InlineMessage'],
@@ -177,56 +155,28 @@ async def answer_file(
 ) -> Any:
     """
     Send a file in reply to a message.
-
-    Supports local paths, URLs, bytes, and Telethon InputDocument.
-    Caption can be formatted with HTML or custom emojis.
-
-    Args:
-        event: Original event.
-        file: File to send.
-        caption: Optional caption.
-        as_html: Treat caption as HTML.
-        as_emoji: Treat caption as custom‑emoji text.
-        **kwargs: Additional arguments for `send_file`.
-
-    Returns:
-        The sent message.
     """
     kernel = _get_kernel(event)
     is_inline = hasattr(event, 'edit') and callable(event.edit)
 
     if is_inline:
-        # For inline calls, we can't send a file directly; fallback to a text notice.
-        return await answer(event, caption or '📎 File attached', file=file, **kwargs)
+        # Inline context: cannot send a real file → send a plain text notice without the file
+        return await answer(event, caption or None, file=None, **kwargs)
 
     # Regular chat – send as a document
     chat_id = event.chat_id
     thread_id = await get_thread_id(event) if hasattr(event, 'client') else None
+    reply_to = thread_id or event.id
 
     # Process caption formatting
     if caption:
         if as_html or (kernel and kernel.HTML_PARSER_AVAILABLE):
-            return await kernel.send_file_with_html(
-                chat_id, caption, file,
-                reply_to=thread_id or event.id,
-                **kwargs
-            )
+            return await kernel.send_file_with_html(chat_id, caption, file, reply_to=reply_to, **kwargs)
         elif as_emoji or (kernel and kernel.emoji_parser):
-            return await kernel.send_with_emoji(
-                chat_id, caption,
-                file=file,
-                reply_to=thread_id or event.id,
-                **kwargs
-            )
+            return await kernel.send_with_emoji(chat_id, caption, file=file, reply_to=reply_to, **kwargs)
 
     # Plain caption
-    return await event.client.send_file(
-        chat_id, file,
-        caption=caption,
-        reply_to=thread_id or event.id,
-        **kwargs
-    )
-
+    return await event.client.send_file(chat_id, file, caption=caption, reply_to=reply_to, **kwargs)
 
 def escape_html(text: str) -> str:
     """

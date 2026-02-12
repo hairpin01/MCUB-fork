@@ -614,7 +614,7 @@ kernel.save_config()
     "command_prefix": ".",
     "log_chat_id": 0,
     "bot_username": "MCUB_bot",
-    # ....
+    // ...
 }
 ```
 

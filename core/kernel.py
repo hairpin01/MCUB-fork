@@ -2890,49 +2890,47 @@ class Kernel:
             text = getattr(source, "message", str(source))
             return html.escape(text).replace("\n", "<br/>")
 
-    async def inline_form(
-        self, chat_id, title, fields=None, buttons=None, auto_send=True, **kwargs
-    ):
+    async def inline_form(self, chat_id, title, fields=None, buttons=None, auto_send=True, ttl=200, **kwargs):
         """
         Создание и отправка инлайн-формы
 
         Args:
             chat_id (int): ID чата для отправки
             title (str): Заголовок формы
-            fields (list/dict, optional): Поля формы
+            fields (list/dict, optional): Поля формы (будут преобразованы в текст)
             buttons (list, optional): Кнопки в формате словарей:
-                - Для callback: {"text": "Текст", "type": "callback", "data": "callback_data"}
-                - Для URL: {"text": "Текст", "type": "url", "url": "https://ссылка"}
-                - Для switch: {"text": "Текст", "type": "switch", "query": "запрос", "hint": "подсказка"}
+                - {"text": "Текст", "type": "callback", "data": "callback_data"}
+                - {"text": "Текст", "type": "url", "url": "https://ссылка"}
+                - {"text": "Текст", "type": "switch", "query": "запрос", "hint": "подсказка"}
+                или упрощённый список: ["текст", "тип", "данные", "подсказка"]
             auto_send (bool): Автоматически отправить форму
-            **kwargs: Дополнительные параметры
+            ttl (int): Время жизни формы в кэше (секунды)
+            **kwargs: Дополнительные параметры для inline_query_and_click
 
         Returns:
-            tuple: (success, message) или строку запроса
+            tuple: (success, message) если auto_send=True
+            str: ID формы если auto_send=False
 
         Example:
-            # Простая форма
+            # Автоматическая отправка
             await kernel.inline_form(
                 chat_id=123456789,
                 title="Настройки",
                 buttons=[
-                    {"text": "Сохранить", "type": "callback", "data": "save_123"},
-                    {"text": "Сайт", "type": "url", "url": "https://example.com"},
-                    {"text": "Поиск", "type": "switch", "query": "искать", "hint": "Найти..."}
+                    {"text": "Сохранить", "type": "callback", "data": "save_123"}
                 ]
             )
 
-            # или (не советую)
-            await kernel.inline_form(
+            # Получить только ID формы
+            form_id = await kernel.inline_form(
                 chat_id=123456789,
                 title="Профиль",
-                buttons=[
-                    ["Редактировать", "callback", "edit"],
-                    ["Сайт", "url", "https://example.com"]
-                ]
+                buttons=[["Редактировать", "callback", "edit"]],
+                auto_send=False
             )
         """
         try:
+            from core_inline.handlers import InlineHandlers
 
             query_parts = [title]
 
@@ -2944,59 +2942,50 @@ class Kernel:
                     for i, field in enumerate(fields, 1):
                         query_parts.append(f"Поле {i}: {field}")
 
-            base_text = "\n".join(query_parts)
+            text = "\n".join(query_parts)
 
+            buttons_list = []
             if buttons:
-                json_buttons = []
-
                 for button in buttons:
                     if isinstance(button, dict):
-                        json_buttons.append(button)
+                        buttons_list.append(button)
                     elif isinstance(button, (list, tuple)):
                         if len(button) >= 2:
                             btn_data = {"text": str(button[0])}
+                            btn_type = str(button[1]).lower() if len(button) > 1 else "callback"
+                            btn_data["type"] = btn_type
 
-                            if len(button) >= 2:
-                                btn_type = (
-                                    str(button[1]).lower()
-                                    if len(button) > 1
-                                    else "callback"
-                                )
-                                btn_data["type"] = btn_type
+                            if len(button) >= 3:
+                                if btn_type == "callback":
+                                    btn_data["data"] = str(button[2])
+                                elif btn_type == "url":
+                                    btn_data["url"] = str(button[2])
+                                elif btn_type == "switch":
+                                    btn_data["query"] = str(button[2])
+                                    if len(button) >= 4:
+                                        btn_data["hint"] = str(button[3])
+                            buttons_list.append(btn_data)
 
-                                if len(button) >= 3:
-                                    if btn_type == "callback":
-                                        btn_data["data"] = str(button[2])
-                                    elif btn_type == "url":
-                                        btn_data["url"] = str(button[2])
-                                    elif btn_type == "switch":
-                                        btn_data["query"] = str(button[2])
-                                        if len(button) >= 4:
-                                            btn_data["hint"] = str(button[3])
-                            json_buttons.append(btn_data)
-
-                if json_buttons:
-                    json_str = json.dumps(json_buttons, ensure_ascii=False)
-                    query = f"{base_text} | {json_str}"
-                else:
-                    query = f"{base_text}"
-            else:
-                query = f"{base_text}"
+            handlers = InlineHandlers(self, self.bot_client)
+            form_id = handlers.create_inline_form(text, buttons_list, ttl)
 
             if auto_send:
                 success, message = await self.inline_query_and_click(
-                    chat_id=chat_id, query=query, **kwargs
+                    chat_id=chat_id,
+                    query=form_id,
+                    **kwargs
                 )
                 return success, message
             else:
-                return query
+                return form_id
 
         except Exception as e:
-            self.logger.error(
-                f"{self.Colors.RED}=X Ошибка создания инлайн-формы: {e}{self.Colors.RESET}"
-            )
-            await self.handle_error(e, source="create_inline_form")
-            return False, None
+            self.logger.error(f"{self.Colors.RED}=X Ошибка создания инлайн-формы: {e}{self.Colors.RESET}")
+            await self.handle_error(e, source="inline_form")
+            if auto_send:
+                return False, None
+            else:
+                return None
 
     async def process_command(self, event, depth=0):
             if depth > 5:

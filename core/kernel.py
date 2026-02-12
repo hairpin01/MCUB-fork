@@ -3317,7 +3317,7 @@ Kernel is load.
                     if self.client.is_connected():
                         try:
 
-                            await self.client.edit_message(
+                            sms = await self.client.edit_message(
                                 chat_id,
                                 msg_id,
                                 f"{premium_emoji_alembic} {get_restart_string('reboot_success')} {emoji}\n"
@@ -3327,18 +3327,16 @@ Kernel is load.
 
                             await asyncio.sleep(1)
 
-                            await self.client.delete_messages(chat_id, msg_id)
+                            # await self.client.delete_messages(chat_id, msg_id)
 
                             send_params = {}
                             if thread_id:
                                 send_params["reply_to"] = thread_id
 
-                            await self.client.send_message(
-                                chat_id,
+                            await sms.edit(
                                 f"{premium_emoji_package} {get_restart_string('fully_loaded', mcub_emoji=mcub_emoji)}\n"
                                 f"<blockquote><b>KBL:</b> <code>{total_time} ms</code>. <b>MLFB:</b> <code>{mlfb} ms</code>.</blockquote>",
                                 parse_mode="html",
-                                **send_params,
                             )
                         except Exception as e:
                             self.logger.error(

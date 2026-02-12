@@ -1,6 +1,6 @@
 # requires: telethon>=1.24
 # author: @Hairpin00
-# version: 1.0.6
+# version: 1.0.7
 # description: Terminal commands
 import asyncio
 import subprocess
@@ -14,10 +14,10 @@ from telethon import events
 
 CUSTOM_EMOJI = {
     "💻": '<tg-emoji emoji-id="5472111548572900003">💻</tg-emoji>',
-    "📝": '<tg-emoji emoji-id="5334882760735598374">📝</tg-emoji>',
+    "📔": '<tg-emoji emoji-id="5334882760735598374">📔</tg-emoji>',
     "🧮": '<tg-emoji emoji-id="5472404950673791399">🧮</tg-emoji>',
-    "📎": '<tg-emoji emoji-id="5377844313575150051">📎</tg-emoji>',
-    "📁": '<tg-emoji emoji-id="5433653135799228968">📁</tg-emoji>',
+    "🔎": '<tg-emoji emoji-id="5377844313575150051">🔎</tg-emoji>',
+    "📕": '<tg-emoji emoji-id="5433653135799228968">📕</tg-emoji>',
     "📰": '<tg-emoji emoji-id="5433982607035474385">📰</tg-emoji>',
     "📚": '<tg-emoji emoji-id="5373098009640836781">📚</tg-emoji>',
     "⌨️": '<tg-emoji emoji-id="5472111548572900003">⌨️</tg-emoji>',
@@ -30,11 +30,11 @@ CUSTOM_EMOJI = {
     "💭": '<tg-emoji emoji-id="5465143921912846619">💭</tg-emoji>',
     "🗯": '<tg-emoji emoji-id="5465132703458270101">🗯</tg-emoji>',
     "✏️": '<tg-emoji emoji-id="5334673106202010226">✏️</tg-emoji>',
-    "🐉": '<tg-emoji emoji-id="5470088387048266598">🐉</tg-emoji>',
-    "🐢": '<tg-emoji emoji-id="5350813992732338949">🐢</tg-emoji>',
+    "🉐": '<tg-emoji emoji-id="5470088387048266598">🉐</tg-emoji>',
+    "🢂": '<tg-emoji emoji-id="5350813992732338949">🢂</tg-emoji>',
     "🧊": '<tg-emoji emoji-id="5404728536810398694">🧊</tg-emoji>',
     "❄️": '<tg-emoji emoji-id="5431895003821513760">❄️</tg-emoji>',
-    "🔐": '<tg-emoji emoji-id="5413720894091851002">🔐</tg-emoji>',
+    "🔔": '<tg-emoji emoji-id="5413720894091851002">🔔</tg-emoji>',
     "⚠️": '<tg-emoji emoji-id="5453943626921666997">⚠️</tg-emoji>',
     "✅": '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji>',
 }
@@ -98,13 +98,12 @@ def register(kernel):
             if len(text) > max_length:
                 text = text[:max_length] + "..."
             text = html.escape(text)
-            text = text.replace("\n", "<br>")
-            text = text.replace("\t", "&nbsp;" * 4)
+            # Не заменяем переносы строк - оставляем как есть для <pre>
             return text
 
-        async def run_command(self, chat_id, command):
+        async def run_command(self, chat_id, command, message_id=None):
             if chat_id in self.running_commands:
-                await client.send_message(
+                msg = await client.send_message(
                     chat_id,
                     f"{CUSTOM_EMOJI['🗯']} <i>{lang_strings['command_already_running']}</i>",
                     parse_mode="html",
@@ -112,7 +111,6 @@ def register(kernel):
                 return
 
             try:
-
                 cmd_data = {
                     "command": command,
                     "stdout": b"",
@@ -122,10 +120,12 @@ def register(kernel):
                     "process": None,
                 }
 
+                # Создаем новую группу процессов для корректной остановки
                 process = await asyncio.create_subprocess_shell(
                     command,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
+                    preexec_fn=os.setsid if os.name != 'nt' else None,
                 )
 
                 cmd_data["process"] = process
@@ -133,14 +133,17 @@ def register(kernel):
                 cmd_data["start_time"] = start_time
                 self.running_commands[chat_id] = cmd_data
 
-                msg = await client.send_message(
-                    chat_id,
-                    f"{CUSTOM_EMOJI['💻']} <i>{lang_strings['system_command']}</i> <code>{html.escape(command)}</code>\n"
-                    f"{CUSTOM_EMOJI['❄️']} <i>{lang_strings['executing']}</i>",
-                    parse_mode="html",
-                )
-
-                cmd_data["message_id"] = msg.id
+                # Используем переданный message_id или создаем новое сообщение
+                if message_id:
+                    cmd_data["message_id"] = message_id
+                else:
+                    msg = await client.send_message(
+                        chat_id,
+                        f"{CUSTOM_EMOJI['💻']} <i>{lang_strings['system_command']}</i> <code>{html.escape(command)}</code>\n"
+                        f"{CUSTOM_EMOJI['❄️']} <i>{lang_strings['executing']}</i>",
+                        parse_mode="html",
+                    )
+                    cmd_data["message_id"] = msg.id
 
                 update_task = asyncio.create_task(self.update_output(chat_id))
                 read_task = asyncio.create_task(self.read_output(chat_id))
@@ -148,11 +151,11 @@ def register(kernel):
                 self.update_tasks[chat_id] = {"update": update_task, "read": read_task}
 
             except Exception as e:
-                await client.send_message(
-                    chat_id,
-                    f"{CUSTOM_EMOJI['🗯']} <i>{lang_strings['launch_error']}</i> <code>{html.escape(str(e))}</code>",
-                    parse_mode="html",
-                )
+                error_msg = f"{CUSTOM_EMOJI['🗯']} <i>{lang_strings['launch_error']}</i> <code>{html.escape(str(e))}</code>"
+                if message_id:
+                    await client.edit_message(chat_id, message_id, error_msg, parse_mode="html")
+                else:
+                    await client.send_message(chat_id, error_msg, parse_mode="html")
                 if chat_id in self.running_commands:
                     del self.running_commands[chat_id]
 
@@ -179,24 +182,33 @@ def register(kernel):
                 else:
                     cmd_data["stdout"] += data
 
-            await asyncio.gather(
-                read_stream(process.stdout, False), read_stream(process.stderr, True)
-            )
+            try:
+                await asyncio.gather(
+                    read_stream(process.stdout, False),
+                    read_stream(process.stderr, True)
+                )
 
-            await process.wait()
+                await process.wait()
 
-            cmd_data["completed"] = True
-            cmd_data["return_code"] = process.returncode
+                cmd_data["completed"] = True
+                cmd_data["return_code"] = process.returncode
 
-            await self.send_final_output(chat_id)
+                await self.send_final_output(chat_id)
 
-            if chat_id in self.update_tasks:
-                tasks = self.update_tasks[chat_id]
-                tasks["update"].cancel()
-                del self.update_tasks[chat_id]
+            except asyncio.CancelledError:
+                # Корректная обработка отмены задачи
+                pass
+            except Exception as e:
+                print(f"Error in read_output: {e}")
+            finally:
+                if chat_id in self.update_tasks:
+                    tasks = self.update_tasks[chat_id]
+                    if not tasks["update"].cancelled():
+                        tasks["update"].cancel()
+                    del self.update_tasks[chat_id]
 
-            if chat_id in self.running_commands:
-                del self.running_commands[chat_id]
+                if chat_id in self.running_commands:
+                    del self.running_commands[chat_id]
 
         async def update_output(self, chat_id):
             while chat_id in self.running_commands:
@@ -219,6 +231,7 @@ def register(kernel):
 
 <b>{lang_strings['stdout']}</b>
 <pre>{stdout_text}</pre>
+
 <b>{lang_strings['stderr']}</b>
 <pre>{stderr_text}</pre>
 
@@ -232,6 +245,8 @@ def register(kernel):
                         pass
 
                     await asyncio.sleep(3)
+                except asyncio.CancelledError:
+                    break
                 except Exception as e:
                     print(f"Update error: {e}")
                     break
@@ -256,6 +271,7 @@ def register(kernel):
 
 <b>{lang_strings['stdout']}</b>
 <pre>{stdout_text}</pre>
+
 <b>{lang_strings['stderr']}</b>
 <pre>{stderr_text}</pre>
 
@@ -265,74 +281,98 @@ def register(kernel):
                 await client.edit_message(
                     chat_id, cmd_data["message_id"], output, parse_mode="html"
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"Error editing final message: {e}")
 
-        async def kill_command(self, chat_id):
+        async def kill_command(self, chat_id, message_id=None):
             if chat_id not in self.running_commands:
-                await client.send_message(
-                    chat_id,
-                    f"{CUSTOM_EMOJI['🗯']} <i>{lang_strings['no_running_commands']}</i>",
-                    parse_mode="html",
-                )
+                msg_text = f"{CUSTOM_EMOJI['🗯']} <i>{lang_strings['no_running_commands']}</i>"
+                if message_id:
+                    await client.edit_message(chat_id, message_id, msg_text, parse_mode="html")
+                else:
+                    await client.send_message(chat_id, msg_text, parse_mode="html")
                 return
 
             cmd_data = self.running_commands[chat_id]
 
             if cmd_data["completed"]:
-                await client.send_message(
-                    chat_id,
-                    f"{CUSTOM_EMOJI['💬']} <i>{lang_strings['already_completed']}</i>",
-                    parse_mode="html",
-                )
+                msg_text = f"{CUSTOM_EMOJI['💬']} <i>{lang_strings['already_completed']}</i>"
+                if message_id:
+                    await client.edit_message(chat_id, message_id, msg_text, parse_mode="html")
+                else:
+                    await client.send_message(chat_id, msg_text, parse_mode="html")
                 return
 
             try:
                 process = cmd_data["process"]
                 if process and process.returncode is None:
+                    # Для Windows и Unix-подобных систем
+                    if os.name == 'nt':
+                        # Windows
+                        process.terminate()
+                        await asyncio.sleep(1)
+                        if process.returncode is None:
+                            process.kill()
+                    else:
+                        # Unix-like
+                        try:
+                            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+                            await asyncio.sleep(1)
+                            if process.returncode is None:
+                                os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                        except ProcessLookupError:
+                            # Процесс уже завершен
+                            pass
 
-                    os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-                    await asyncio.sleep(1)
-
-                    if process.returncode is None:
-                        os.killpg(os.getpgid(process.pid), signal.SIGKILL)
-                        await process.wait()
+                    try:
+                        await asyncio.wait_for(process.wait(), timeout=5.0)
+                    except asyncio.TimeoutError:
+                        pass
 
                 cmd_data["completed"] = True
-                cmd_data["return_code"] = -9
+                cmd_data["return_code"] = -9 if os.name != 'nt' else -1
 
                 await self.send_final_output(chat_id)
 
                 if chat_id in self.update_tasks:
                     tasks = self.update_tasks[chat_id]
-                    tasks["update"].cancel()
+                    if not tasks["update"].cancelled():
+                        tasks["update"].cancel()
+                    if not tasks["read"].cancelled():
+                        tasks["read"].cancel()
                     del self.update_tasks[chat_id]
 
-                del self.running_commands[chat_id]
+                if chat_id in self.running_commands:
+                    del self.running_commands[chat_id]
 
-                await client.send_message(
-                    chat_id,
-                    f"{CUSTOM_EMOJI['☑️']} <i>{lang_strings['command_stopped']}</i>",
-                    parse_mode="html",
-                )
+                # Редактируем сообщение tkill вместо отправки нового
+                if message_id:
+                    await client.edit_message(
+                        chat_id,
+                        message_id,
+                        f"{CUSTOM_EMOJI['☑️']} <i>{lang_strings['command_stopped']}</i>",
+                        parse_mode="html"
+                    )
 
             except Exception as e:
-                await client.send_message(
-                    chat_id,
-                    f"{CUSTOM_EMOJI['🗯']} <i>{lang_strings['stop_error']}</i> <code>{html.escape(str(e))}</code>",
-                    parse_mode="html",
-                )
+                error_msg = f"{CUSTOM_EMOJI['🗯']} <i>{lang_strings['stop_error']}</i> <code>{html.escape(str(e))}</code>"
+                if message_id:
+                    await client.edit_message(chat_id, message_id, error_msg, parse_mode="html")
+                else:
+                    await client.send_message(chat_id, error_msg, parse_mode="html")
 
     terminal = TerminalModule()
 
     @kernel.register.command("t")
     async def terminal_handler(event):
         args = event.text.split(maxsplit=1)
-        await event.delete()
+        if len(args) < 2:
+            await event.edit(f"{CUSTOM_EMOJI['🗯']} <i>Команда не указана</i>", parse_mode="html")
+            return
         command = args[1]
-        await terminal.run_command(event.chat_id, command)
+
+        await terminal.run_command(event.chat_id, command, event.id)
 
     @kernel.register.command("tkill")
     async def terminal_kill_handler(event):
-        await event.delete()
-        await terminal.kill_command(event.chat_id)
+        await terminal.kill_command(event.chat_id, event.id)

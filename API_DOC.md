@@ -1,5 +1,4 @@
-
-# `MCUB` Module API Documentation `1.0.1.9.5`
+# `MCUB` Module API Documentation `1.0.2`
 
 __Table of Contents__
 
@@ -14,10 +13,11 @@ __Table of Contents__
 > 9. [Event Handlers](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#event-handlers)
 > 10. [Configuration Management](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#configuration-management)
 > 11. [Error Handling](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#error-handling)
-> 12. [Best Practices](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#best-practices)
-> 13. [Example Module](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#example-module)
-> 14. [Premium Emoji Guide](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#premium-emoji-guide)
-> 15. [Inline Query Automation Methods](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#inline-query-automation-methods-and-inline-form)
+> 12. [Utils Package API](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#utils-package-api)
+> 13. [Best Practices](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#best-practices)
+> 14. [Example Module](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#example-module)
+> 15. [Premium Emoji Guide](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#premium-emoji-guide)
+> 16. [Inline Query Automation Methods](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#inline-query-automation-methods-and-inline-form)
 
 # Introduction
 
@@ -52,7 +52,7 @@ await kernel.client.send_message('username', 'Hello')
 
 `kernel.custom_prefix`
 ---
-Command prefix (keys `commad_prefix` kernel config) (default: '`.`').
+Command prefix (keys `command_prefix` kernel config) (default: '`.`').
 
 `kernel.config`
 ---
@@ -71,10 +71,11 @@ Structured logging instance.
 **Usage:**
 
 ```python
-await kernel.logger.debug("Debug message")
-await kernel.logger.info("Info message")
-await kernel.logger.warning("Warning message")
-await kernel.logger.error("Error message")
+# outputs to terminal
+kernel.logger.debug("Debug message")
+kernel.logger.info("Info message")
+kernel.logger.warning("Warning message")
+kernel.logger.error("Error message") 
 ```
 
 Logging Methods for __bot_client:__
@@ -98,6 +99,7 @@ Log error message.
 **Usage:**
 
 ```python
+# outputs to the chat log in telegram
 await kernel.log_info("log message")
 ```
 > [!TIP]
@@ -122,9 +124,15 @@ except Exception as e:
 
 `kernel.register_command(pattern, func=None)`
 ---
+
+or:
+
+`kernel.register.command(pattern, func=None)`
+---
+
 Register a command handler.
 
-`kernel.register_inline_handler(pattern, function)`
+`kernel.register_inline_handler(pattern, function)` 
 ---
 Register inline query handler.
 
@@ -135,7 +143,7 @@ Register callback query handler.
 **Usage:**
 
 ```python
-@kernel.register_command('test')
+@kernel.register.command('test')
 async def test_handler(event):
     await event.edit("Test command")
 ```
@@ -153,7 +161,7 @@ async def test_inline_handler(event):
 
 def register(kernel):
 
-    @kernel.register_command('test')
+    @kernel.register.command('test')
     async def test_cmd(event):
         try:
             success, result = await kernel.inline_query_and_click(
@@ -329,1034 +337,1421 @@ kernel.cprint("Warning message", kernel.Colors.YELLOW)
 
 ---
 
-### Platform Detection Utility
-
-MCUB includes a comprehensive platform detection utility in `utils.platform` that helps modules adapt to different environments (Termux, WSL, VPS, etc.).
-
-**Importing**
---- 
-
-```python
-# Import the entire module
-from utils import platform
-
-# Or import specific functions
-from utils.platform import get_platform, get_platform_name, is_termux, is_vds
-```
-
-**Functions and Classes**
-
-`PlatformDetector`
----
-Main class for platform detection. Provides detailed detection capabilities.
-
-`get_platform()`
----
-Returns the platform identifier as a string. 
-
-**Possible values:**
-- `'termux'` - Android Termux
-- `'wsl'` - Windows Subsystem for Linux (v1)
-- `'wsl2'` - Windows Subsystem for Linux 2
-- `'docker'` - Docker container
-- `'vds'` - VDS/VPS server
-- `'macos'` - macOS
-- `'windows'` - Windows
-- `'linux'` - Linux 
-- `'linux_desktop'` - Linux Desktop
-- `'unknown'` - Unknown platform
-
-`get_platform_info()` / `get_detailed_info()`
----
-Returns a dictionary with detailed platform information.
-
-**Example output:**
-```python
-{
-    "platform": "vds",
-    "system": "linux",
-    "machine": "x86_64",
-    "platform_string": "Linux-5.15.0-x86_64-with-glibc2.35",
-    "python_version": "3.11.0",
-    "hostname": "vps-server-01",
-    "processor": "Intel Xeon",
-    "release": "5.15.0",
-    "version": "#1 SMP Debian 5.15.0-1",
-    "architecture": "64bit",
-    "is_64bit": True,
-    "env_vars": {
-        "termux": False,
-        "wsl": False,
-        "docker": False,
-        "display": False,
-        "wayland": False
-    }
-}
-```
-
-`get_platform_name()`
----
-Returns a human-readable platform name with emoji.
-
-**Examples:**
-- `"📱 Termux (Android)"`
-- `"🪟 Windows Subsystem for Linux"`
-- `"🖥️ VDS/VPS Server"`
-- `"🐧 Linux Desktop"`
-
-### Platform Detection Functions
-| Function | Returns True for | Description |
-|----------|------------------|-------------|
-| `is_termux()` | Android Termux | Mobile environment on Android |
-| `is_wsl()` | WSL or WSL2 | Windows Subsystem for Linux |
-| `is_vds()` | VDS/VPS | Virtual server environment |
-| `is_docker()` | Docker | Docker container environment |
-| `is_mobile()` | Termux | Mobile platforms only |
-| `is_desktop()` | macOS, Windows, Linux Desktop | Desktop operating systems |
-| `is_virtualized()` | Termux, WSL, Docker, VDS | Virtualized/containerized environments |
-
-__Usage Examples__
-
-**Basic Platform Detection**
-```python
-# Get current platform
-platform_name = platform.get_platform()
-await event.edit(f"Running on: {platform_name}")
-
-# Get human-readable name
-friendly_name = platform.get_platform_name()
-await event.edit(f"Platform: {friendly_name}")
-
-# Get detailed information
-info = platform.get_platform_info()
-await event.edit(
-    f"System: {info['system']}\n"
-    f"Hostname: {info['hostname']}\n"
-    f"Python: {info['python_version']}"
-)
-```
-
-**Conditional Code Based on Platform**
-```python
-# Termux-specific code
-if platform.is_termux():
-    # Use Termux-specific paths or commands
-    storage_path = "/sdcard"
-    await event.edit("Running on Android Termux 📱")
-
-# VPS-specific optimizations
-elif platform.is_vds():
-    # Disable resource-intensive tasks on VPS
-    await event.edit("Running on VPS - limited resources 🖥️")
-    # Reduce cache size, disable animations, etc.
-
-# Desktop environment
-elif platform.is_desktop():
-    # Enable desktop-specific features
-    await event.edit("Running on desktop - full features available 💻")
-
-# Virtualized environment check
-if platform.is_virtualized():
-    # Be conservative with resources
-    await event.edit("Running in virtualized environment 🐳")
-```
-
-**Module Initialization Based on Platform**
-```python
-def register(kernel):
-    # Check platform during module load
-    if platform.is_termux():
-        # Load Android-specific configurations
-        config = {"notifications": True, "vibrate": False}
-    elif platform.is_vds():
-        # Load VPS-optimized configurations
-        config = {"cache_ttl": 600, "background_tasks": False}
-    else:
-        # Default configuration for desktops
-        config = {"cache_ttl": 300, "notifications": True}
-    
-    # Platform-aware command registration
-    @kernel.register_command('sysinfo')
-    async def sysinfo_handler(event):
-        info = platform.get_platform_info()
-        
-        # Format platform-specific information
-        if platform.is_termux():
-            extra = "📱 Android environment detected"
-        elif platform.is_vds():
-            extra = "🖥️ Server environment - resource monitoring enabled"
-        else:
-            extra = "💻 Desktop environment - all features available"
-        
-        await event.edit(
-            f"**System Information**\n"
-            f"Platform: {platform.get_platform_name()}\n"
-            f"OS: {info['system']} {info['release']}\n"
-            f"Architecture: {info['architecture']}\n"
-            f"Python: {info['python_version']}\n"
-            f"Hostname: {info['hostname']}\n\n"
-            f"{extra}"
-        )
-```
-
-**Platform-Specific File Paths**
-```python
-# Determine appropriate paths based on platform
-def get_config_path():
-    if platform.is_termux():
-        return "/data/data/com.termux/files/home/.config/mcub"
-    elif platform.is_wsl():
-        return "/mnt/c/Users/username/.mcub"
-    elif platform.is_vds():
-        return "/opt/mcub/config"
-    else:
-        return os.path.expanduser("~/.config/mcub")
-
-# Use in module
-config_path = get_config_path()
-os.makedirs(config_path, exist_ok=True)
-```
-
-**Resource Management by Platform**
-```python
-async def optimize_for_platform():
-    if platform.is_termux():
-        # Limit concurrent tasks on mobile
-        max_tasks = 2
-        cache_size = 100
-    elif platform.is_vds():
-        # Conservative settings for VPS
-        max_tasks = 3
-        cache_size = 200
-    else:
-        # Full resources for desktop
-        max_tasks = 10
-        cache_size = 1000
-    
-    return {
-        "max_concurrent_tasks": max_tasks,
-        "cache_max_size": cache_size,
-        "enable_animations": not platform.is_vds()
-    }
-```
-
-> [!NOTE]
-> **Availability:** The utility is available in MCUB kernel version 1.0.1.9.4 and later
-
-> [!TIP]
-> **Kernel Integration:** Kernel automatically sets `kernel.platform` and `kernel.platform_name` <br>
-</br>**Fallback:** If platform detection fails, returns `'unknown'` platform type <br>
-</br>**Detection Methods:** Uses multiple detection methods for accuracy (environment variables, file paths, process inspection)<br>
-</br>**Performance:** Detection is lightweight and cached after first call
----
-
-### Language
-
-MCUB provides built-in support for internationalization (i18n) through the kernel configuration system. Modules can support multiple languages by accessing the `language` key in `kernel.config`.
-
-**Language Configuration**
-
-The kernel stores the current language setting in `kernel.config['language']` with possible values:
-- `'ru'` - Russian (default)
-- `'en'` - English 
-
-**Usage in Modules:**
-
-```python
-def register(kernel):
-    # Get current language from config
-    language = kernel.config.get('language', 'en')
-    
-    # Define localized strings
-    strings = {
-        'en': {
-            'greeting': 'Hello!',
-            'error': 'An error occurred',
-            'success': 'Operation completed successfully'
-        },
-        'ru': {
-            'greeting': 'Привет!',
-            'error': 'Произошла ошибка',
-            'success': 'Операция выполнена успешно'
-        }
-    }
-    
-    # Get strings for current language
-    lang_strings = strings.get(language, strings['en'])
-    
-    # Use localized strings
-    @kernel.register_command('test')
-    async def test_handler(event):
-        await event.edit(lang_strings['greeting'])
-```
-
-### Bot Client Access
-
-The bot client is directly accessible via `kernel.bot_client` attribute.
-
-Check Availability:
-```python
-    if kernel.is_bot_available():
-        # Use bot_client
-```
-Direct Access Examples:
-```python
-    # Send message
-    await kernel.bot_client.send_message(chat_id, text)
-    
-    # Send file
-    await kernel.bot_client.send_file(chat_id, file)
-    
-    # Get bot info
-    bot = await kernel.bot_client.get_me()
-    
-    # Edit message
-    await kernel.bot_client.edit_message(chat_id, message_id, new_text)
-    
-    # Delete messages
-    await kernel.bot_client.delete_messages(chat_id, [msg_id1, msg_id2])
-```
-> [!NOTE]
-> Always check availability with `kernel.is_bot_available()` before use.
-
-
-### Message Helpers
-`
-kernel.send_with_emoji(chat_id, text, **kwargs)`
-Send message with custom emoji support.
-
-`kernel.format_with_html(text, entities)`
----
-Format text with Telegram entities to HTML.
-
-`kernel.edit_with_html(event, html_text, **kwargs)`
-`kernel.reply_with_html(event, html_text, **kwargs)`
-`kernel.send_with_html(chat_id, html_text, **kwargs)`
-`kernel.send_file_with_html(chat_id, html_text, file, **kwargs)`
-
 ## Database API
 
-MCUB provides a `SQLite` database interface for persistent storage.
-
-**Basic Operations**
-
-`await kernel.db_set(module, key, value)`
+`kernel.db.execute(query, params=None)`
 ---
-Store **key-value** pair for module.
+Execute SQL query.
 
-`await kernel.db_get(module, key)`
----
-Retrieve **value** for module.
+**Parameters:**
+- `query` (str): SQL query string
+- `params` (tuple, optional): Query parameters
 
-`await kernel.db_delete(module, key)`
----
-**Delete key** from module storage.
+**Returns:** Cursor object
 
 **Usage:**
-
 ```python
-# Store data
-await kernel.db_set('mymodule', 'user_data', '{"name": "John"}')
-
-# Retrieve data
-data = await kernel.db_get('mymodule', 'user_data')
-
-# Delete data
-await kernel.db_delete('mymodule', 'user_data')
-```
-
-## Query Operations
-`await kernel.db_query(query, parameters)`
----
-Execute **custom** SQL query.
-
-**Usage:**
-
-```python
-# Get all keys for module
-rows = await kernel.db_query(
-    "SELECT key, value FROM module_data WHERE module = ?",
-    ('mymodule',)
+await kernel.db.execute(
+    "INSERT INTO users (id, name) VALUES (?, ?)",
+    (user_id, name)
 )
 ```
 
-## Module Configuration
-`await kernel.get_module_config(module_name, default=None)`
+`kernel.db.fetchone(query, params=None)`
 ---
-Get module-specific configuration.
+Fetch single row from database.
 
-`await kernel.save_module_config(module_name, config)`
----
-Save module configuration.
+**Returns:** dict or None
 
 **Usage:**
-
 ```python
-# Get config
-config = await kernel.get_module_config(__name__, {'enabled': True})
-
-# Update config
-config['enabled'] = False
-await kernel.save_module_config(__name__, config)
+user = await kernel.db.fetchone(
+    "SELECT * FROM users WHERE id = ?",
+    (user_id,)
+)
 ```
+
+`kernel.db.fetchall(query, params=None)`
+---
+Fetch all rows matching query.
+
+**Returns:** list of dict
+
+**Usage:**
+```python
+users = await kernel.db.fetchall("SELECT * FROM users")
+```
+
+`kernel.db.commit()`
+---
+Commit pending transactions.
+
+**Usage:**
+```python
+await kernel.db.execute("UPDATE users SET active = 1")
+await kernel.db.commit()
+```
+
+---
 
 ## Cache API
 
-> TTL-based caching system for performance optimization.
-
-**Basic Usage**
-
-`kernel.cache.set(key, value)`
+`kernel.cache.set(key, value, ttl=None)`
 ---
 Store value in cache.
 
-`kernel.cache.get(key)`
+**Parameters:**
+- `key` (str): Cache key
+- `value` (any): Value to store
+- `ttl` (int, optional): Time to live in seconds
+
+**Usage:**
+```python
+kernel.cache.set('user_data', {'name': 'John'}, ttl=3600)
+```
+
+`kernel.cache.get(key, default=None)`
 ---
 Retrieve value from cache.
 
+**Returns:** Cached value or default
+
 **Usage:**
-
 ```python
-# Cache expensive API call
-data = kernel.cache.get('api_data')
-if not data:
-    data = await fetch_expensive_data()
-    kernel.cache.set('api_data', data, ttl=300)  # 5 minutes
-
-return data
+data = kernel.cache.get('user_data')
 ```
 
-**Cache with Custom TTL**
+`kernel.cache.delete(key)`
+---
+Remove key from cache.
 
+**Usage:**
 ```python
-# Set with custom TTL (seconds)
-kernel.cache.set('key', 'value', ttl=600)
-
-# Get with fallback
-value = kernel.cache.get('key') or 'default'
+kernel.cache.delete('user_data')
 ```
+
+`kernel.cache.clear()`
+---
+Clear all cache entries.
+
+**Usage:**
+```python
+kernel.cache.clear()
+```
+
+---
 
 ## Task Scheduler API
 
-Schedule periodic tasks with the built-in **scheduler**.
-
-**Interval Tasks**
-
-`await kernel.scheduler.add_interval_task(func, interval_seconds)`
-Schedule task at fixed intervals.
-
-**Usage:**
-
-```python
-async def backup_data():
-    await kernel.db_set('backup', 'time', time.time())
-    await kernel.log_info("Backup completed")
-
-# Run every 5 minutes
-await kernel.scheduler.add_interval_task(backup_data, 300)
-```
-
-Daily Tasks
-
-`await kernel.scheduler.add_daily_task(func, hour, minute)`
+`kernel.scheduler.schedule_task(func, delay=0, interval=0, name=None)`
 ---
-Schedule task at specific time daily.
+Schedule task execution.
+
+**Parameters:**
+- `func` (callable): Function to execute
+- `delay` (int): Initial delay in seconds
+- `interval` (int): Repeat interval (0 = run once)
+- `name` (str, optional): Task identifier
+
+**Returns:** Task ID
 
 **Usage:**
-
 ```python
-async def send_daily_report():
-    await kernel.send_log_message("📊 Daily report generated")
+# Run once after 60 seconds
+task_id = kernel.scheduler.schedule_task(
+    cleanup_function,
+    delay=60
+)
 
-# Run at 9:00 AM daily
-await kernel.scheduler.add_daily_task(send_daily_report, 9, 0)
+# Run every 300 seconds
+task_id = kernel.scheduler.schedule_task(
+    periodic_check,
+    interval=300,
+    name="health_check"
+)
 ```
 
-**One-time Tasks**
-
-`await kernel.scheduler.add_task(func, delay_seconds)`
+`kernel.scheduler.cancel_task(task_id)`
 ---
-Schedule one-time delayed task.
+Cancel scheduled task.
 
 **Usage:**
-
 ```python
-async def remind_later():
-    await event.reply("Reminder!")
-
-# Remind in 1 hour
-await kernel.scheduler.add_task(remind_later, 3600)
+kernel.scheduler.cancel_task(task_id)
 ```
+
+`kernel.scheduler.cancel_all_tasks()`
+---
+Cancel all scheduled tasks.
+
+**Usage:**
+```python
+kernel.scheduler.cancel_all_tasks()
+```
+
+---
 
 ## Middleware API
 
-Process messages through middleware chain for _filtering/transformation._
+`kernel.add_middleware(middleware_func)`
+---
+Add middleware to process events before handlers.
 
-**Creating Middleware**
+**Parameters:**
+- `middleware_func` (callable): Async function receiving (event, handler)
 
+**Usage:**
 ```python
-async def spam_filter_middleware(event, next_handler):
-    # Skip spam messages
-    if "spam" in event.text.lower():
-        await event.delete()
-        return None
-    
-    # Pass to next middleware/handler
-    return await next_handler(event)
+async def auth_middleware(event, handler):
+    if not kernel.is_admin(event.sender_id):
+        await event.reply("Access denied")
+        return
+    return await handler(event)
 
-# Register middleware
-kernel.add_middleware(spam_filter_middleware)
+kernel.add_middleware(auth_middleware)
 ```
 
-**Multiple Middleware**
-
-```python
-async def logging_middleware(event, next_handler):
-    await kernel.logger.info(f"Message from {event.sender_id}: {event.text[:50]}")
-    return await next_handler(event)
-
-async def rate_limit_middleware(event, next_handler):
-    user_id = event.sender_id
-    key = f"rate_limit_{user_id}"
-    
-    last_time = await kernel.db_get('ratelimit', key)
-    if last_time and time.time() - float(last_time) < 2:
-        await event.reply("⏳ Please wait...")
-        return None
-    
-    await kernel.db_set('ratelimit', key, str(time.time()))
-    return await next_handler(event)
-
-# Register in order
-kernel.add_middleware(logging_middleware)
-kernel.add_middleware(rate_limit_middleware)
-```
+---
 
 ## Command Registration
 
-**Basic Command**
+### Standard Registration
 
 ```python
-@kernel.register_command('ping')
-# Check bot responsiveness
-async def ping_handler(event):
-    start = time.time()
-
-
-    message = await event.edit("Pong!")
-    delay = (time.time() - start) * 1000
-    await message.edit(f"🏓 Pong! {delay:.2f}ms")
+@kernel.register.command('example')
+async def example_handler(event):
+    await event.edit("Example command")
 ```
 
-**Command with Arguments**
+### Registration with Aliases
 
 ```python
-@kernel.register_command('echo')
-# Echo back the provided text
-async def echo_handler(event):
-    args = event.text.split(maxsplit=1)
-    if len(args) < 2:
-        await event.edit("Usage: .echo <text>")
-        return
-    
-    await event.edit(args[1])
+@kernel.register.command('example', alias=['ex', 'e'])
+async def example_handler(event):
+    await event.edit(f"Works with {kernel.custom_prefix}example, {kernel.custom_prefix}ex, or {kernel.custom_prefix}e")
 ```
 
-**Command with Database**
+### Multiple Commands
 
 ```python
-@kernel.register_command('counter')
-# Count command invocations
-async def counter_handler(event):
-    user_id = event.sender_id
-    key = f"count_{user_id}"
+def register(kernel):
+    @kernel.register.command('cmd1')
+    async def handler1(event):
+        await event.edit("Command 1")
     
-    current = await kernel.db_get('counter', key) or 0
-    new_count = int(current) + 1
-    
-    await kernel.db_set('counter', key, str(new_count))
-    await event.edit(f"Count: {new_count}")
+    @kernel.register.command('cmd2')
+    async def handler2(event):
+        await event.edit("Command 2")
 ```
+
+---
 
 ## Event Handlers
 
-**Message Event**
+### Message Events
 
 ```python
 from telethon import events
 
-async def message_logger(event):
-    await kernel.logger.info(f"New message: {event.chat_id} - {event.text[:100]}")
-
-kernel.client.on(events.NewMessage(incoming=True))(message_logger)
-```
-
-Edited Message
-
-```python
-async def edit_logger(event):
-    await kernel.logger.info(f"Message edited: {event.id}")
-
-kernel.client.on(events.MessageEdited(incoming=True))(edit_logger)
-```
-
-Custom Filter
-
-```python
+@kernel.client.on(events.NewMessage(pattern='keyword'))
 async def keyword_handler(event):
-    if "urgent" in event.text.lower():
-        await kernel.logger.info(f"⚠️ Urgent: {event.text[:200]}")
-
-kernel.client.on(events.NewMessage(
-    func=lambda e: e.text and len(e.text) > 10
-))(keyword_handler)
+    await event.reply("Keyword detected")
 ```
+
+### Callback Query Events
+
+```python
+
+async def button_handler(event):
+    data = event.data.decode('utf-8')
+    await event.answer(f"Button {data} clicked")
+kernel.register_callback_handler('button_', button_handler)
+```
+
+### Inline Query Events
+
+```python
+
+async def search_handler(event):
+    results = []
+    builder = event.builder.article(
+        title="Result",
+        text="Result text"
+    )
+    results.append(builder)
+    await event.answer(results)
+kernel.register_inline_handler('search', search_handler)
+```
+
+---
 
 ## Configuration Management
 
-Module Settings
+### Reading Configuration
 
 ```python
-def register(kernel):
-    # Set defaults
-    defaults = {
-        'enabled': True,
-        'interval': 60,
-        'notify_chat': None
-    }
-    
-    # Merge with existing config
-    config = await kernel.get_module_config(__name__, defaults)
-    
-    # Use configuration
-    if config['enabled']:
-        await start_module_tasks(config)
+# Get value with default
+api_key = kernel.config.get('api_key', 'default_key')
+
+# Direct access
+timeout = kernel.config['timeout']
 ```
 
-User Settings
+### Writing Configuration
 
 ```python
-async def user_settings_handler(event):
-    user_id = event.sender_id
-    user_config = await kernel.get_module_config(f'user_{user_id}', {})
-    
-    # Update settings
-    args = event.text.split()
-    if len(args) > 2:
-        user_config[args[1]] = args[2]
-        await kernel.save_module_config(f'user_{user_id}', user_config)
-        await event.edit("✅ Settings updated")
+# Set value
+kernel.config['new_setting'] = 'value'
+
+# Save to disk
+kernel.save_config()
 ```
+
+### Configuration Structure
+
+```json
+{
+    "command_prefix": ".",
+    "log_chat_id": 0,
+    "bot_username": "MCUB_bot",
+    # ....
+}
+```
+
+---
 
 ## Error Handling
 
-_Network_ Operations
+### Basic Error Handling
 
 ```python
-import aiohttp
-import asyncio
-
-async def fetch_api(event, url):
+@kernel.register.command('risky')
+async def risky_handler(event):
     try:
-        timeout = aiohttp.ClientTimeout(total=10)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get(url) as response:
-                if response.status == 200:
-                    return await response.text()
-                else:
-                    await event.edit(f"API error: {response.status}")
-                    return None
-    except asyncio.TimeoutError:
-        await event.edit("⏰ Request timeout")
+        result = await risky_operation()
+        await event.edit(f"Success: {result}")
     except Exception as e:
-        await kernel.handle_error(e, source="fetch_api", event=event)
-    return None
+        await kernel.handle_error(e, source="risky_handler", event=event)
+        await event.edit("Operation failed")
 ```
 
-_File_ Operations
+### Error Logging
 
 ```python
-import aiofiles
+try:
+    await operation()
+except ValueError as e:
+    await kernel.logger.error(f"Value error in module: {e}")
+except Exception as e:
+    await kernel.logger.critical(f"Critical error: {e}")
+```
 
-async def read_large_file(event, filepath):
-    if not os.path.exists(filepath):
-        await event.edit("❌ File not found")
-        return
+---
+
+## Utils Package API
+
+MCUB provides a comprehensive utils package for common operations. Import utilities as needed:
+
+```python
+from utils import (
+    get_args,
+    answer,
+    escape_html,
+    parse_html,
+    restart_kernel
+)
+```
+
+### Argument Parsing
+
+`get_args(event)`
+---
+Extract command arguments split by spaces, respecting quotes.
+
+**Parameters:**
+- `event` (Message or Event): Message event object
+
+**Returns:** List of string arguments
+
+**Usage:**
+```python
+@kernel.register.command('echo')
+async def echo_handler(event):
+    args = get_args(event)
+    if args:
+        await event.edit(f"Echo: {' '.join(args)}")
+```
+
+`get_args_raw(event)`
+---
+Return raw argument string (everything after command).
+
+**Returns:** String of arguments
+
+**Usage:**
+```python
+args = get_args_raw(event)
+await event.edit(f"Raw args: {args}")
+```
+
+`get_args_html(event)`
+---
+Return command arguments with preserved HTML formatting.
+
+**Returns:** HTML string with entities
+
+**Usage:**
+```python
+html_args = get_args_html(event)
+await event.reply(html_args, parse_mode='html')
+```
+
+### Advanced Argument Parser
+
+`ArgumentParser(text, prefix='.')`
+---
+Advanced command argument parser supporting flags, named arguments, and positional arguments.
+
+**Features:**
+- Long flags: `--flag value` or `--flag=value`
+- Short flags: `-f value` or `-fvx` (multiple)
+- Boolean flags: `--verbose` (sets to True)
+- Type detection: automatic int, float, bool parsing
+- List support: comma-separated values
+
+**Usage:**
+```python
+from utils import ArgumentParser
+
+@kernel.register.command('deploy')
+async def deploy_handler(event):
+    parser = ArgumentParser(event.text, kernel.custom_prefix)
     
-    try:
-        async with aiofiles.open(filepath, 'r', encoding='utf-8') as f:
-            content = await f.read()
-            # Process content
-            await event.edit(f"📄 {len(content)} characters")
-    except Exception as e:
-        await kernel.handle_error(e, source="read_large_file", event=event)
+    # Get positional arguments
+    service = parser.get(0, 'default')
+    
+    # Get named arguments
+    environment = parser.get_kwarg('env', 'production')
+    timeout = parser.get_kwarg('timeout', 60)
+    
+    # Check flags
+    if parser.get_flag('verbose'):
+        await event.edit("Verbose mode enabled")
+    
+    # Join remaining arguments
+    message = parser.join_args(start=1)
 ```
+
+**Class Methods:**
+
+`parser.get(index, default=None)` - Get positional argument by index
+
+`parser.get_kwarg(key, default=None)` - Get named argument value
+
+`parser.get_flag(flag)` - Check if flag exists (returns bool)
+
+`parser.has(key)` - Check if argument exists
+
+`parser.join_args(start=0, end=None)` - Join positional arguments into string
+
+**Properties:**
+
+`parser.command` - Extracted command name
+
+`parser.args` - List of positional arguments
+
+`parser.kwargs` - Dictionary of named arguments
+
+`parser.flags` - Set of flag names
+
+`parser.raw_args` - Original argument string
+
+**Helper Functions:**
+
+`parse_arguments(text, prefix='.')` - Create ArgumentParser instance
+
+`extract_command(text, prefix='.')` - Extract command and args from text
+
+`split_args(args_string)` - Split argument string respecting quotes
+
+`parse_kwargs(args_string)` - Parse argument string into key-value dictionary
+
+**Validator Class:**
+
+```python
+from utils import ArgumentValidator
+
+validator = ArgumentValidator()
+
+# Validate required arguments
+if not validator.validate_required(parser, 'name', 'email'):
+    await event.edit("Missing required arguments")
+    return
+
+# Validate argument count
+if not validator.validate_count(parser, min_count=1, max_count=3):
+    await event.edit("Invalid argument count")
+    return
+
+# Validate types
+if not validator.validate_types(parser, str, int, float):
+    await event.edit("Invalid argument types")
+    return
+
+# Validate named argument type
+if not validator.validate_kwarg_type(parser, 'port', int):
+    await event.edit("Port must be a number")
+    return
+```
+
+### Message Sending
+
+`answer(event, text, **kwargs)`
+---
+Universal method to reply to message, edit inline message, or send file.
+
+**Parameters:**
+- `event` (Message or Event): Original event
+- `text` (str): Text to send
+- `reply_markup` (optional): Inline keyboard
+- `file` (optional): File to attach
+- `as_html` (bool): Force HTML parsing
+- `as_emoji` (bool): Force emoji parsing
+- `caption` (str): Caption for file
+- `**kwargs`: Additional arguments for send/edit method
+
+**Usage:**
+```python
+from utils import answer, answer_file
+# Simple reply
+await answer(event, "Response text")
+
+# With HTML formatting
+await answer(event, "<b>Bold</b> text", as_html=True)
+
+# With file
+await answer(event, "Check this file", file="document.pdf")
+
+# With inline keyboard
+from telethon import Button
+buttons = [[Button.inline("Click", b"callback_data")]]
+await answer(event, "Choose option", buttons=buttons) 
+```
+
+`answer_file(event, file, caption=None, **kwargs)`
+---
+Send file in reply to message.
+
+**Parameters:**
+- `event`: Original event
+- `file`: File path, URL, bytes, or InputDocument
+- `caption` (str, optional): File caption
+- `as_html` (bool): Treat caption as HTML
+- `as_emoji` (bool): Treat caption as emoji text
+- `**kwargs`: Additional arguments for send_file
+
+**Usage:**
+```python
+await answer_file(event, "photo.jpg", caption="<b>Photo</b>", as_html=True)
+```
+
+### HTML Parsing
+
+`parse_html(html_text)`
+---
+Parse HTML markup to Telegram text and entities.
+
+**Parameters:**
+- `html_text` (str): HTML string
+
+**Returns:** Tuple of (text, entities)
+
+**Supported Tags:**
+- `<b>`, `<strong>` - Bold
+- `<i>`, `<em>` - Italic
+- `<u>` - Underline
+- `<s>`, `<del>`, `<strike>` - Strikethrough
+- `<code>` - Monospace
+- `<pre>` - Preformatted block
+- `<pre language="python">` - Syntax highlighting
+- `<a href="url">` - Text URL
+- `<tg-spoiler>`, `<spoiler>` - Spoiler
+- `<blockquote>` - Quote
+- `<blockquote expandable>` - Expandable quote
+- `<tg-emoji emoji-id="123">` - Custom emoji
+
+**Usage:**
+```python
+from utils import parse_html
+
+html = '<b>Bold</b> and <i>italic</i> text'
+text, entities = parse_html(html)
+await event.client.send_message(chat_id, text, formatting_entities=entities)
+```
+
+`telegram_to_html(text, entities)`
+---
+Convert Telegram text and entities back to HTML markup.
+
+**Parameters:**
+- `text` (str): Message text
+- `entities` (list): Telegram entities
+
+**Returns:** HTML string
+
+**Usage:**
+```python
+from utils import telegram_to_html
+
+message = await event.get_reply_message()
+html = telegram_to_html(message.text, message.entities)
+await event.edit(f"Formatted: {html}")
+```
+
+### Raw HTML Extraction
+
+`message_to_html(message, detailed=False)`
+---
+Extract full HTML markup from Telegram message.
+
+**Parameters:**
+- `message`: Telegram message object
+- `detailed` (bool): Include metadata in output
+
+**Returns:** HTML string
+
+**Usage:**
+```python
+from utils import message_to_html
+
+msg = await event.get_reply_message()
+html = message_to_html(msg, detailed=True)
+with open('message.html', 'w') as f:
+    f.write(html)
+```
+
+`event_to_html(event, detailed=False)`
+---
+Convert event to HTML representation.
+
+**Usage:**
+```python
+from utils import event_to_html
+
+html = event_to_html(event)
+await event.edit(html, parse_mode='html')
+```
+
+`extract_raw_html(message, escape=False)`
+---
+Extract raw HTML from message.
+
+**Parameters:**
+- `message`: Message object
+- `escape` (bool): Escape HTML special characters
+
+**Returns:** HTML string
+
+`debug_entities(message)`
+---
+Debug message entities structure.
+
+**Returns:** List of entity info dictionaries
+
+**Usage:**
+```python
+from utils import debug_entities
+
+entities_info = debug_entities(message)
+for ent in entities_info:
+    print(f"{ent['type']}: {ent['text']} (offset={ent['offset']}, length={ent['length']})")
+```
+
+### Message Helpers with HTML
+
+`edit_with_html(kernel, event, html_text, truncate=True, **kwargs)`
+---
+Edit message with HTML markup.
+
+**Parameters:**
+- `kernel`: Kernel instance
+- `event`: Event object
+- `html_text` (str): HTML text
+- `truncate` (bool): Truncate to Telegram limits (default: True)
+- `**kwargs`: Additional arguments for event.edit
+
+**Usage:**
+```python
+from utils import edit_with_html
+
+html = '<b>Updated</b> content with <i>formatting</i>'
+await edit_with_html(kernel, event, html)
+```
+
+`reply_with_html(kernel, event, html_text, truncate=True, **kwargs)`
+---
+Reply to message with HTML markup.
+
+**Usage:**
+```python
+from utils import reply_with_html
+
+html = '<code>Code block</code> with <a href="https://example.com">link</a>'
+await reply_with_html(kernel, event, html)
+```
+
+`send_with_html(kernel, client, chat_id, html_text, truncate=True, **kwargs)`
+---
+Send message with HTML markup.
+
+**Usage:**
+```python
+from utils import send_with_html
+
+html = '<b>Notification:</b> System updated'
+await send_with_html(kernel, kernel.client, chat_id, html)
+```
+
+`send_file_with_html(kernel, client, chat_id, html_text, file, truncate=True, **kwargs)`
+---
+Send file with HTML caption.
+
+**Parameters:**
+- `html_text` (str): HTML caption (max 1024 characters for files)
+- `file`: File to send
+
+**Usage:**
+```python
+from utils import send_file_with_html
+
+caption = '<b>Document:</b> <i>Important file</i>'
+await send_file_with_html(kernel, kernel.client, chat_id, caption, 'file.pdf')
+```
+
+### Text Formatting
+
+`escape_html(text)`
+---
+Escape HTML special characters (&, <, >).
+
+**Usage:**
+```python
+from utils import escape_html
+
+user_input = '<script>alert("xss")</script>'
+safe_text = escape_html(user_input)
+await event.edit(safe_text)
+```
+
+`escape_quotes(text)`
+---
+Escape double quotes for HTML attributes.
+
+**Usage:**
+```python
+from utils import escape_quotes
+
+attr_value = escape_quotes(user_input)
+html = f'<a href="{attr_value}">Link</a>'
+```
+
+### Chat Information
+
+`get_chat_id(event)`
+---
+Return chat ID without -100 prefix for channels.
+
+**Returns:** int
+
+**Usage:**
+```python
+from utils import get_chat_id
+
+chat_id = get_chat_id(event)
+```
+
+`get_sender_info(event)`
+---
+Return formatted string with sender information.
+
+**Returns:** String like "John Doe (@johndoe) [123456]"
+
+**Usage:**
+```python
+from utils import get_sender_info
+
+sender = await get_sender_info(event)
+await event.edit(f"Message from: {sender}")
+```
+
+`get_thread_id(event)`
+---
+Return thread (topic) ID if message is in forum.
+
+**Returns:** int or None
+
+**Usage:**
+```python
+from utils import get_thread_id
+
+thread_id = await get_thread_id(event)
+if thread_id:
+    await event.client.send_message(
+        chat_id,
+        "Topic reply",
+        reply_to=thread_id
+    )
+```
+
+### Entity Manipulation
+
+`relocate_entities(entities, offset, text=None)`
+---
+Shift message entities by offset and clamp to text length.
+
+**Parameters:**
+- `entities` (list): List of MessageEntity objects
+- `offset` (int): Character offset to shift (can be negative)
+- `text` (str, optional): Text to clamp entities to
+
+**Returns:** List of adjusted entities
+
+**Usage:**
+```python
+from utils import relocate_entities
+
+# Extract substring with entities
+full_text = "Command: Hello world"
+command_end = 9
+substring = full_text[command_end:]
+adjusted_entities = relocate_entities(
+    event.message.entities,
+    -command_end,
+    substring
+)
+```
+
+### Kernel Control
+
+`restart_kernel(kernel, chat_id=None, message_id=None)`
+---
+Restart userbot process with optional post-restart notification.
+
+**Parameters:**
+- `kernel`: Kernel instance
+- `chat_id` (int, optional): Chat ID for notification
+- `message_id` (int, optional): Message ID to edit after restart
+
+**Usage:**
+```python
+from utils import restart_kernel
+
+@kernel.register.command('restart')
+async def restart_handler(event):
+    msg = await event.edit("Restarting...")
+    await restart_kernel(kernel, event.chat_id, msg.id)
+```
+
+### Platform Detection
+
+```python
+from utils import (
+    get_platform,
+    is_termux,
+    is_wsl,
+    is_docker,
+    is_mobile,
+    is_desktop
+)
+
+# Get platform name
+platform = get_platform()  # Returns: 'linux', 'windows', 'darwin', etc.
+
+# Check specific environments
+if is_termux():
+    await event.edit("Running on Termux")
+elif is_docker():
+    await event.edit("Running in Docker")
+elif is_wsl():
+    await event.edit("Running on WSL")
+```
+
+---
 
 ## Best Practices
 
-* 1. Resource Management
+### Module Organization
 
 ```python
-# Use context managers
-async def process_data():
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
-            data = await response.json()
+# requires: aiohttp, pillow
+# author: Developer Name
+# version: 1.0.0
+# description: Example module with best practices
+
+import asyncio
+from telethon import Button
+
+def register(kernel):
+    # Configuration
+    CONFIG_KEY = 'example_module'
     
-    # Clean up resources
-    kernel.cache.set('processed_data', data)
-```
-
-* 2. Database Optimization
-
-```python
-# Batch operations
-async def batch_update(users):
-    for user in users:
-        await kernel.db_set('users', user['id'], json.dumps(user))
+    # Initialize module config
+    if CONFIG_KEY not in kernel.config:
+        kernel.config[CONFIG_KEY] = {
+            'enabled': True,
+            'timeout': 30
+        }
     
-    # Use transactions for multiple updates
-    await kernel.db_query("BEGIN TRANSACTION")
-    # Multiple queries
-    await kernel.db_query("COMMIT")
-```
-
-* 3. Caching Strategies
-
-```python
-# Cache with invalidation
-async def get_cached_data(key, ttl=300):
-    data = kernel.cache.get(key)
-    if data:
-        return data
-    
-    data = await fetch_fresh_data(key)
-    if data:
-        kernel.cache.set(key, data, ttl=ttl)
-    
-    return data
-```
-
-* 4. Error Recovery
-
-```python
-async def resilient_operation():
-    for attempt in range(3):
+    # Command handlers
+    @kernel.register.command('example', alias='ex')
+    async def example_handler(event):
         try:
-            return await perform_operation()
+            # Get configuration
+            config = kernel.config[CONFIG_KEY]
+            if not config['enabled']:
+                await event.edit("Module disabled")
+                return
+            
+            # Process command
+            result = await process_command(event, config)
+            await event.edit(result)
+            
         except Exception as e:
-            if attempt == 2:
-                raise
-            await asyncio.sleep(1 * attempt)
+            await kernel.handle_error(e, source="example_handler", event=event)
+            await event.edit("Command failed")
+    
+    async def process_command(event, config):
+        # Implementation
+        return "Success"
 ```
+
+### Error Handling Pattern
+
+```python
+@kernel.register.command('safe')
+async def safe_handler(event):
+    try:
+        # Main logic
+        result = await risky_operation()
+        await event.edit(f"Result: {result}")
+        
+    except ValueError as e:
+        # Specific error handling
+        await kernel.logger.warning(f"Invalid value: {e}")
+        await event.edit("Invalid input")
+        
+    except ConnectionError as e:
+        # Network error handling
+        await kernel.logger.error(f"Connection failed: {e}")
+        await event.edit("Network error")
+        
+    except Exception as e:
+        # Generic error handling
+        await kernel.handle_error(e, source="safe_handler", event=event)
+        await event.edit("Unexpected error occurred")
+```
+
+### Resource Management
+
+```python
+def register(kernel):
+    # Store resources in module-level variables
+    module_cache = {}
+    
+    @kernel.register.command('resource')
+    async def resource_handler(event):
+        # Use module cache
+        if 'data' not in module_cache:
+            module_cache['data'] = await load_data()
+        
+        data = module_cache['data']
+        await event.edit(f"Cached data: {data}")
+    
+    # Cleanup on module reload (if needed)
+    async def cleanup():
+        module_cache.clear()
+```
+
+### Asynchronous Operations
+
+```python
+@kernel.register.command('parallel')
+async def parallel_handler(event):
+    try:
+        # Execute operations in parallel
+        results = await asyncio.gather(
+            operation1(),
+            operation2(),
+            operation3(),
+            return_exceptions=True
+        )
+        
+        # Process results
+        success_count = sum(1 for r in results if not isinstance(r, Exception))
+        await event.edit(f"Completed: {success_count}/3")
+        
+    except Exception as e:
+        await kernel.handle_error(e, source="parallel_handler", event=event)
+```
+
+### Database Operations
+
+```python
+@kernel.register.command('dbsave')
+async def dbsave_handler(event):
+    try:
+        # Get arguments
+        args = get_args(event)
+        if len(args) < 2:
+            await event.edit("Usage: .dbsave <key> <value>")
+            return
+        
+        key, value = args[0], ' '.join(args[1:])
+        
+        # Save to database
+        await kernel.db.execute(
+            "INSERT OR REPLACE INTO storage (key, value) VALUES (?, ?)",
+            (key, value)
+        )
+        await kernel.db.commit()
+        
+        await event.edit(f"Saved: {key} = {value}")
+        
+    except Exception as e:
+        await kernel.handle_error(e, source="dbsave_handler", event=event)
+```
+
+---
 
 ## Example Module
 
-```python
-# requires: aiohttp, aiofiles
-# author: Developer
-# version: 2.0.0
-# description: Advanced module example
+Complete example demonstrating various features:
 
-import asyncio
+```python
+# requires: aiohttp
+# author: MCUB Developer
+# version: 1.0.0
+# description: Complete example module with all features
+
 import aiohttp
-import json
-from telethon import events, Button
+from utils import get_args, answer, parse_html, ArgumentParser
 
 def register(kernel):
-    client = kernel.client
-    
     # Module configuration
-    module_config = await kernel.get_module_config(__name__, {
-        'enabled': True,
-        'api_key': '',
-        'cache_ttl': 300
-    })
+    MODULE_NAME = 'example'
+    
+    # Initialize config
+    if MODULE_NAME not in kernel.config:
+        kernel.config[MODULE_NAME] = {
+            'api_url': 'https://api.example.com',
+            'timeout': 30,
+            'cache_enabled': True
+        }
     
     
-    # Middleware: Rate limiter
-    async def rate_limit_middleware(event, next_handler):
-        user_id = event.sender_id
-        key = f"rl_{user_id}"
-        
-        last_time = await kernel.db_get('ratelimit', key)
-        current_time = time.time()
-        
-        if last_time and current_time - float(last_time) < 1:
-            await event.edit("⏳ Please wait 1 second between commands")
-            return None
-        
-        await kernel.db_set('ratelimit', key, str(current_time))
-        return await next_handler(event)
-    
-    kernel.add_middleware(rate_limit_middleware)
-    
-    # Scheduled task: Daily summary
-    async def daily_summary():
-        if not module_config['enabled']:
-            return
-        
-        count = await kernel.db_get('stats', 'command_count') or 0
-        await kernel.send_log_message(f"📊 Daily stats: {count} commands")
-        await kernel.db_set('stats', 'command_count', '0')
-    
-    await kernel.scheduler.add_daily_task(daily_summary, 23, 59)
-    
-    # Command: Weather with caching
-    @kernel.register.command('weather')
-    # Get weather for city
-    async def weather_handler(event):
-        if not module_config['enabled']:
-            await event.edit("❌ Module disabled")
-            return
-        
-        args = event.text.split(maxsplit=1)
-        if len(args) < 2:
-            await event.edit("Usage: .weather <city>")
-            return
-        
-        city = args[1]
-        cache_key = f"weather_{city}"
-        
-        # Check cache
-        cached = kernel.cache.get(cache_key)
-        if cached:
-            await event.edit(f"🌤️ {city}: {cached} (cached)")
-            return
-        
-        # Fetch fresh data
+    @kernel.register.command('hello', alias='hi')
+    # Simple command
+    async def hello_handler(event):
         try:
-            weather = await fetch_weather(city)
-            kernel.cache.set(cache_key, weather, ttl=module_config['cache_ttl'])
-            
-            # Update stats
-            count = int(await kernel.db_get('stats', 'command_count') or 0)
-            await kernel.db_set('stats', 'command_count', str(count + 1))
-            
-            await event.edit(f"🌤️ {city}: {weather}")
+            args = get_args(event)
+            name = args[0] if args else 'World'
+            await answer(event, f"Hello, {name}!")
         except Exception as e:
-            await kernel.handle_error(e, source="weather_handler", event=event)
-            await event.edit(
-            "❌ Error fetching weather\n"
-            f"Full Logs:\n<pre>{e}</pre>",
-            parse_mode='html'
-            )
+            await kernel.handle_error(e, source=f"{MODULE_NAME}:hello", event=event)
     
+    
+    @kernel.register.command('fetch')
+    # Command with API call
+    async def fetch_handler(event):
+        try:
+            config = kernel.config[MODULE_NAME]
+            
+            # Show loading message
+            await event.edit("Fetching data...")
+            
+            # Make API request
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    config['api_url'],
+                    timeout=config['timeout']
+                ) as response:
+                    data = await response.json()
+            
+            # Format response with HTML
+            html = f'<b>Result:</b>\n<code>{data}</code>'
+            await answer(event, html, as_html=True)
+            
+        except aiohttp.ClientError as e:
+            await kernel.logger.error(f"API request failed: {e}")
+            await event.edit("Failed to fetch data")
+        except Exception as e:
+            await kernel.handle_error(e, source=f"{MODULE_NAME}:fetch", event=event)
+    
+    
+    @kernel.register.command('save')
+    # Command with database
+    async def save_handler(event):
+        try:
+            args = get_args(event)
+            if len(args) < 2:
+                await event.edit("Usage: .save <key> <value>")
+                return
+            
+            key, value = args[0], ' '.join(args[1:])
+            
+            await kernel.db.execute(
+                f"INSERT OR REPLACE INTO {MODULE_NAME}_data (key, value) VALUES (?, ?)",
+                (key, value)
+            )
+            await kernel.db.commit()
+            
+            await event.edit(f"Saved: {key}")
+            
+        except Exception as e:
+            await kernel.handle_error(e, source=f"{MODULE_NAME}:save", event=event)
+    
+    
+    @kernel.register.command('deploy')
+    # Command with advanced argument parsing
+    async def deploy_handler(event):
+        try:
+            parser = ArgumentParser(event.text, kernel.custom_prefix)
+            
+            # Get positional arguments
+            service = parser.get(0)
+            if not service:
+                await event.edit("Usage: .deploy <service> [--env=production] [--verbose]")
+                return
+            
+            # Get named arguments
+            environment = parser.get_kwarg('env', 'production')
+            timeout = parser.get_kwarg('timeout', 60)
+            
+            # Check flags
+            verbose = parser.get_flag('verbose')
+            
+            # Execute deployment
+            await event.edit(f"Deploying {service} to {environment}...")
+            
+            # Simulate deployment
+            import asyncio
+            await asyncio.sleep(2)
+            
+            message = f"Deployed {service} to {environment}"
+            if verbose:
+                message += f"\nTimeout: {timeout}s"
+            
+            await event.edit(message)
+            
+        except Exception as e:
+            await kernel.handle_error(e, source=f"{MODULE_NAME}:deploy", event=event)
+    
+    
+    async def example_inline_handler(event):
+    # Inline handler
+        try:
+            query = event.text.lower()
+            
+            results = []
+            builder = event.builder.article(
+                title="Example Result",
+                text=f"You searched for: {query}",
+                description="Click to send"
+            )
+            results.append(builder)
+            
+            await event.answer(results)
+            
+        except Exception as e:
+            await kernel.logger.error(f"Inline handler error: {e}")
+    
+    # Callback handler
+    async def example_callback_handler(event):
+        try:
+            data = event.data.decode('utf-8')
+            
+            if data == 'example_button1':
+                await event.edit("Button 1 clicked")
+            elif data == 'example_button2':
+                await event.edit("Button 2 clicked")
+            else:
+                await event.answer("Unknown button")
+                
+        except Exception as e:
+            await kernel.logger.error(f"Callback handler error: {e}")
+    
+    # Register inline and callback handlers
+    kernel.register_inline_handler('example', example_inline_handler)
+    kernel.register_callback_handler('example_', example_callback_handler)
 ```
-> [!NOTE]
-> All new APIs (_Database, Cache, Scheduler, Middleware_),
-> require **MCUB kernel** version `1.0.1.9` or later.
-> Check your kernel version with `.py print(f"version kernel: {kernel.VERSION}")` command. (or `info` commad)
+
+---
 
 ## Premium Emoji Guide
 
-**Basic Syntax**
+### Using Custom Emojis
+
+MCUB supports Telegram premium custom emojis through the emoji parser.
+
+**Basic Usage:**
 
 ```python
-CUSTOM_EMOJI = {
-    'check': '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji>',
-    'error': '<tg-emoji emoji-id="5370843963559254781">😖</tg-emoji>',
-}
+from utils import emoji_parser
 
-await event.edit(
-    f"{CUSTOM_EMOJI['check']} <b>Success!</b>",
-    parse_mode='html'
-)
+# Send message with custom emoji
+text = emoji_parser.add_emoji("Hello", emoji_id=5368324170671202286)
+await event.reply(text)
 ```
 
-With Message Helpers
+**Multiple Emojis:**
 
 ```python
-await kernel.edit_with_html(
-    event,
-    f"{CUSTOM_EMOJI['check']} <b>Operation completed</b>"
-)
+# Add multiple custom emojis
+text = "Start"
+text = emoji_parser.add_emoji(text, emoji_id=5368324170671202286)
+text += " Middle "
+text = emoji_parser.add_emoji(text, emoji_id=5370869711888194012)
+text += " End"
+
+await event.reply(text)
 ```
 
-**Finding Emoji IDs**
+**Parse Emoji Tags:**
 
 ```python
-async for message in client.iter_messages('me', limit=10):
-    for entity in message.entities:
-        if isinstance(entity, MessageEntityCustomEmoji):
-            print(f"ID: {entity.document_id}")
+# Check if text contains emoji tags
+if emoji_parser.is_emoji_tag(text):
+    parsed_text, entities = emoji_parser.parse_to_entities(text)
+    await event.client.send_message(chat_id, parsed_text, entities=entities)
 ```
 
-## **Inline Query Automation Methods and Inline form**
+**Finding Emoji IDs:**
 
-> In MCUB, the bot specified in config.json can operate in two modes:
-> 1. Regular bot mode: using the bot_client to send messages as the bot, for example, to send a message to the admin user.
-> 2. Inline mode: using the inline_form method to create inline forms with buttons and other elements, or using the inline_query_and_click method to call an inline query from any bot (including third-party bots).
-
-
-`inline_form()`
+1. Use [@ShowJsonBot](https://t.me/ShowJsonBot) to forward messages with custom emojis
+2. Look for `custom_emoji_id` in the JSON response
+3. Use the numeric ID in your code
+or:
+1. write .py print(r_text) in response to premium emoji
 ---
 
-> Creating and submitting an inline form in one method.
+## Inline Query Automation Methods and Inline Form
 
-__Args:__
-*    chat_id (int): The ID of the chat to send
-*    title (str): The title of the form
-*    fields (list/dict, optional): Form fields
-*    buttons (list, optional): Buttons in the format `{"text": "1", "type": "callback", "data": "main"}`
-*    auto_send (bool): Automatically submit the form
-*    **kwargs: Additional parameters
+### `inline_form()`
+---
 
-**Returns:**
-    __tuple:__ (`success`, `message`) or query string
-    
-**Example:**
-```
-buttons = [
-    {"text": "1", "type": "callback", "data": "menu_page_1"},
-    {"text": "2", "type": "callback", "data": "menu_page_2"}
-]
-success, message = await kernel.inline_form(
+Send inline message with formatted fields and buttons.
+
+**Parameters:**
+- `chat_id` (int): Target chat ID
+- `title` (str): Form title
+- `fields` (dict, optional): Key-value pairs to display
+- `buttons` (list, optional): Button configuration list
+- `edit_message_id` (int, optional): Message ID to edit instead of sending new
+
+**Button Configuration:**
+Each button is a dict with:
+- `text` (str): Button label
+- `type` (str): 'callback' or 'url'
+- `data` (str): Callback data (for type='callback')
+- `url` (str): URL (for type='url')
+
+**Returns:** Tuple of (bool, Message or None)
+
+**Usage:**
+
+```python
+# Basic form
+success, msg = await kernel.inline_form(
     event.chat_id,
-    "menu",
-    buttons=buttons
+    "User Profile"
 )
-if success:
-    await event.delete()
-```
-### __Inline practices__
-**Menu_buttons**
-```
-from telethon import events, Button
 
-def register(kernel):
-    client = kernel.client # client
-    bot = kernel.bot_client # inline bot
-    @kernel.register_command('menu_button') # register command: {kernel.custom_prefix}menu_button. '' <- yes. "" <- not usage
-    async def menu_cmd(event):
-        buttons = [
-            {"text": "1", "type": "callback", "data": "menu_page_1"},
-            {"text": "2", "type": "callback", "data": "menu_page_2"}
-            # text: text buttons inline, type: format buttons, data: callback data
-        ]
-        success, message = await kernel.inline_form(
-            event.chat_id, # chat
-            "menu", # text
-            buttons=buttons # buttons
-        )
-        if success:
-            await event.delete()
-            # edit inline msg for 'message'
-            # await bot.edit_message(message.peer_id, message.id, "test")
-
-
-    async def menu_callback_handler(event):
-        data = event.data # data buttons callback
-
-        if data == b'menu_page_1':
-            buttons = [
-                [
-                    Button.inline("edit test", b"menu_edit_1")
-                ],
-                [
-                    Button.inline("<-", b"menu_main")
-                ]
-            ]
-            await event.edit(
-                "menu 1",
-                buttons=buttons
-            )
-        elif data == b'menu_page_2':
-            buttons = [
-                [
-                    Button.inline("edit test", b"menu_edit_1")
-                ],
-                [
-                    Button.inline("<-", b"menu_main")
-                ]
-            ]
-            await event.edit(
-                "menu 2",
-                buttons=buttons
-            )
-        elif data == b'menu_edit_1':
-            buttons = [
-                [
-                    Button.inline("<-", b"menu_main")
-                ]
-            ]
-            await event.edit(
-                "hello word",
-                buttons=buttons
-                )
-        elif data == b'menu_edit_2':
-            buttons = [
-                [
-                    Button.inline("<-", b"menu_main")
-                ]
-            ]
-            await event.edit(
-                "Привет мир",
-                buttons=buttons
-                )
-
-        else:
-            buttons = [
-            [
-                Button.inline("1", b"menu_page_1")
-            ],
-            [
-                Button.inline("2", b"menu_page_2")
-            ]
-            ]
-            await event.edit(
-                "menu",
-                buttons=buttons
-            )
-    # register callback
-    kernel.register_callback_handler("menu_", menu_callback_handler)
-
-```
-**fields**
-```
+# Form with fields
 fields = {
-    "name": "user",
-    "status": "MCUB user",
-    "coin": "100 MCUB coin"
+    "name": "John Doe",
+    "status": "Active",
+    "balance": "100 coins"
 }
 
 success, msg = await kernel.inline_form(
     event.chat_id,
-    "👤 profile user",
-    fields=fields,
-    buttons=[
-        {"text": "Play", "type": "callback", "data": "casino_play_callback"},
-        {"text": "History", "type": "callback", "data": f"casino_{fields[name]}_history"}
-    ]
+    "User Profile",
+    fields=fields
 )
 
-```
-__output:__
-```
-👤 profile user
-name: user
-status: MCUB user
-coin: 100 MCUB coin
-[
+# Form with buttons
 buttons = [
-    [
-    play
-    ],
-    [
-    History
-    ]
+    {"text": "Edit", "type": "callback", "data": "profile_edit"},
+    {"text": "Delete", "type": "callback", "data": "profile_delete"},
+    {"text": "Website", "type": "url", "url": "https://example.com"}
 ]
-]
-```
-> [!NOTE]
-> kernel version 1.0.9.5
 
-`inline_query_and_click()`
+success, msg = await kernel.inline_form(
+    event.chat_id,
+    "User Profile",
+    fields=fields,
+    buttons=buttons
+)
+
+# Edit existing message
+success, msg = await kernel.inline_form(
+    event.chat_id,
+    "Updated Profile",
+    fields=fields,
+    edit_message_id=msg.id
+)
+```
+
+**Complete Example:**
+
+```python
+@kernel.register.command('profile')
+async def profile_handler(event):
+    try:
+        # Create profile form
+        fields = {
+            "name": "user",
+            "status": "MCUB user",
+            "coin": "100 MCUB coin"
+        }
+        
+        buttons = [
+            {"text": "Play", "type": "callback", "data": "casino_play"},
+            {"text": "History", "type": "callback", "data": "casino_history"}
+        ]
+        
+        success, message = await kernel.inline_form(
+            event.chat_id,
+            "User Profile",
+            fields=fields,
+            buttons=buttons
+        )
+        
+        if success:
+            await event.delete()
+        else:
+            await event.edit("Failed to create profile")
+            
+    except Exception as e:
+        await kernel.handle_error(e, source="profile_handler", event=event)
+
+# Callback handler for buttons
+async def casino_callback_handler(event):
+    data = event.data.decode('utf-8')
+    
+    if data == 'casino_play':
+        await event.edit("Starting game...")
+    elif data == 'casino_history':
+        await event.edit("Loading history...")
+
+kernel.register_callback_handler('casino_', casino_callback_handler)
+```
+
+**Inline Menu Example:**
+
+```python
+@kernel.register.command('menu')
+async def menu_handler(event):
+    try:
+        buttons = [
+            {"text": "Page 1", "type": "callback", "data": "menu_page_1"},
+            {"text": "Page 2", "type": "callback", "data": "menu_page_2"}
+        ]
+        
+        success, message = await kernel.inline_form(
+            event.chat_id,
+            "Main Menu",
+            buttons=buttons
+        )
+        if success:
+            await event.delete()
+
+    except Exception as e:
+        await kernel.handle_error(e, source="menu_handler", event=event)
+
+
+async def menu_callback_handler(event):
+    data = event.data.decode('utf-8')
+    
+    if data == 'menu_page_1':
+        buttons = [
+            {"text": "Edit Test", "type": "callback", "data": "menu_edit_1"},
+            {"text": "<-", "type": "callback", "data": "menu_main"}
+        ]
+        await kernel.inline_form(
+            event.chat_id,
+            "Page 1",
+            buttons=buttons,
+            edit_message_id=event.message_id
+        )
+        
+    elif data == 'menu_page_2':
+        buttons = [
+            {"text": "Edit Test", "type": "callback", "data": "menu_edit_2"},
+            {"text": "<-", "type": "callback", "data": "menu_main"}
+        ]
+        await kernel.inline_form(
+            event.chat_id,
+            "Page 2",
+            buttons=buttons,
+            edit_message_id=event.message_id
+        )
+        
+    elif data == 'menu_edit_1':
+        buttons = [
+            {"text": "<-", "type": "callback", "data": "menu_main"}
+        ]
+        await kernel.inline_form(
+            event.chat_id,
+            "Hello World",
+            buttons=buttons,
+            edit_message_id=event.message_id
+        )
+        
+    elif data == 'menu_main':
+        buttons = [
+            {"text": "Page 1", "type": "callback", "data": "menu_page_1"},
+            {"text": "Page 2", "type": "callback", "data": "menu_page_2"}
+        ]
+        await kernel.inline_form(
+            event.chat_id,
+            "Main Menu",
+            buttons=buttons,
+            edit_message_id=event.message_id
+        )
+
+kernel.register_callback_handler("menu_", menu_callback_handler)
+```
+
+**Field Output Format:**
+
+```
+Title
+field_name: field_value
+another_field: another_value
+```
+
+> [!NOTE]
+> Available in kernel version 1.0.9.5 and later.
+
+---
+
+### `inline_query_and_click()`
 ---
 
 Performs an inline query through the specified bot and automatically clicks on the selected result. This method handles the complete workflow from query to message sending with configurable parameters.
+
+**Parameters:**
+- `chat_id` (int): Target chat ID
+- `query` (str): Inline query text
+- `bot_username` (str, optional): Bot username (uses config if not specified)
+- `result_index` (int): Result index to click (default: 0)
+- `timeout` (int): Operation timeout in seconds (default: 10)
+
+**Returns:** Tuple of (bool, Message or None)
+
 > [!NOTE]
-> kernel version `1.0.9.4`
+> Available in kernel version 1.0.9.4 and later.
 
 **Usage Examples:**
 
@@ -1375,38 +1770,108 @@ success, message = await kernel.inline_query_and_click(
     result_index=2  # Click third result
 )
 
+# With timeout
+success, message = await kernel.inline_query_and_click(
+    chat_id=event.chat_id,
+    query="search term",
+    timeout=15
+)
 ```
 
-`manual_inline_example()`
+**Complete Example:**
+
+```python
+@kernel.register.command('gif')
+async def gif_handler(event):
+    try:
+        args = get_args(event)
+        if not args:
+            await event.edit("Usage: .gif <search query>")
+            return
+        
+        query = ' '.join(args)
+        await event.edit(f"Searching for: {query}...")
+        
+        success, message = await kernel.inline_query_and_click(
+            event.chat_id,
+            f"gif {query}",
+            bot_username="gif"
+        )
+        
+        if success:
+            await event.delete()
+        else:
+            await event.edit("Failed to find GIF")
+            
+    except Exception as e:
+        await kernel.handle_error(e, source="gif_handler", event=event)
+```
+
+---
+
+### `manual_inline_example()`
 ---
 
 Provides manual control over inline query execution, returning raw results for custom processing. Useful when you need to implement custom logic for result selection or processing.
 
-`send_inline_from_config()`
+**Usage:**
+
+```python
+# Get inline results manually
+results = await kernel.client.inline_query(
+    bot_username,
+    query
+)
+
+# Process results
+for i, result in enumerate(results):
+    print(f"Result {i}: {result.title}")
+
+# Click specific result
+if results:
+    message = await results[0].click(
+        chat_id,
+        reply_to=reply_to_id
+    )
+```
+
 ---
 
-Simplified wrapper that uses the bot **username** configured in __config.json__. For quick usage when you don't need to specify a bot username.
+### `send_inline_from_config()`
+---
+
+Simplified wrapper that uses the bot username configured in `config.json`. For quick usage when you don't need to specify a bot username.
+
+**Usage:**
+
+```python
+success, message = await kernel.send_inline_from_config(
+    event.chat_id,
+    "search query"
+)
+```
 
 ---
 
-# Callback Permission Management 
+## Callback Permission Management
 
 MCUB includes a built-in callback permission manager to control user access to inline button interactions.
 
 > [!TIP]
-> By default, everyone does not have the right to press inline buttons (except ADMIN_ID)
+> By default, only users with ADMIN_ID have the right to press inline buttons.
 
-## `CallbackPermissionManager` Class
+### `CallbackPermissionManager` Class
 
 Manages temporary permissions for callback query patterns.
 
-### Initialization
+**Initialization:**
 
 ```python
+from kernel import CallbackPermissionManager
 permission_manager = CallbackPermissionManager()
 ```
 
-### Methods
+**Methods:**
 
 `allow(user_id, pattern, duration_seconds=60)`
 ---
@@ -1433,7 +1898,7 @@ Revoke permission(s) for a user.
 ---
 Remove expired permissions (automatically called internally).
 
-## Usage Example
+**Usage Example:**
 
 ```python
 def register(kernel):
@@ -1452,7 +1917,7 @@ def register(kernel):
         user_id = event.sender_id
         
         if not perm_mgr.is_allowed(user_id, event.data):
-            await event.answer("⏱️ Session expired!", alert=True)
+            await event.answer("Session expired!", alert=True)
             return
         
         # Process callback
@@ -1466,7 +1931,7 @@ def register(kernel):
 
 ---
 
-# Enhanced Registration API v1.0.2
+## Enhanced Registration API v1.0.2
 
 MCUB introduces a new `Register` class with decorator-based registration methods for cleaner module syntax.
 
@@ -1474,24 +1939,24 @@ MCUB introduces a new `Register` class with decorator-based registration methods
 
 `@kernel.Register.method`
 ---
-You can make your register using the @kernel.Register.method decorator-based
+You can make your register using the @kernel.Register.method decorator-based.
 
 **Usage:**
 ```python
-import kernel # without this, method will not work
+import kernel  # without this, method will not work
 from telethon import events
 
-@kernel.Register.method
-def custom_register(kernel): # or class
+@kernel.register.method
+def custom_register(kernel):  # or class
     
     @kernel.register.command('version', alias='v')
-    async def version_mcub(event)
+    async def version_mcub(event):
         await event.edit(f"Kernel version {kernel.VERSION}")
 ```
 
 ### Event Registration
 
-`@kernel.Register.event(event_type, **kwargs)`
+`@kernel.register.event(event_type, **kwargs)`
 ---
 Register event handlers with cleaner syntax.
 
@@ -1499,18 +1964,18 @@ Register event handlers with cleaner syntax.
 
 **Examples:**
 ```python
-@kernel.Register.event('newmessage', pattern='hello')
+@kernel.register.event('newmessage', pattern='hello')
 async def greeting_handler(event):
     await event.reply("Hi!")
 
-@kernel.Register.event('callbackquery', pattern=b'menu_')
+@kernel.register.event('callbackquery', pattern=b'menu_')
 async def menu_handler(event):
     await event.answer("Menu clicked")
 ```
 
 ### Command Registration
 
-`@kernel.Register.command(pattern, **kwargs)`
+`@kernel.register.command(pattern, **kwargs)`
 ---
 Alternative to `kernel.register_command()` with alias support.
 
@@ -1520,7 +1985,7 @@ Alternative to `kernel.register_command()` with alias support.
 
 **Example:**
 ```python
-@kernel.Register.command('test', alias=['t', 'check'])
+@kernel.register.command('test', alias=['t', 'check'])
 async def test_handler(event):
     await event.edit("Test passed")
     
@@ -1529,18 +1994,18 @@ async def test_handler(event):
 
 ### Bot Command Registration
 
-`@kernel.Register.bot_command(pattern, **kwargs)`
+`@kernel.register.bot_command(pattern, **kwargs)`
 ---
 Register bot commands (requires bot client).
 
 **Example:**
 ```python
-@kernel.Register.bot_command('start')
+@kernel.register.bot_command('start')
 async def start_handler(event):
     await event.respond("Bot started!")
 
 # Also works with arguments
-@kernel.Register.bot_command('help topic')
+@kernel.register.bot_command('help topic')
 async def help_handler(event):
     await event.respond("Help topic details")
 ```
@@ -1548,9 +2013,8 @@ async def help_handler(event):
 ### Complete Module Example
 
 ```python
-@kernel.Register.method
+@kernel.register.method
 def test(kernel):
-    
     
     @kernel.register.event('newmessage', pattern=f'{kernel.custom_prefix}ping')
     async def ping_handler(event):
@@ -1563,6 +2027,5 @@ def test(kernel):
 ```
 
 > [!NOTE]
-> Available in MCUB kernel version 1.0.2 and later.  
-> `Register.command` supports the same alias system as `kernel.register_command()`.
-
+> Available in MCUB kernel version 1.0.2 and later.
+> `register.command` supports the same alias system as `kernel.register_command()`.

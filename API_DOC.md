@@ -1593,13 +1593,6 @@ success, msg = await kernel.inline_form(
     buttons=buttons
 )
 
-# Edit existing message
-success, msg = await kernel.inline_form(
-    event.chat_id,
-    "Updated Profile",
-    fields=fields,
-    edit_message_id=msg.id
-)
 ```
 
 **Complete Example:**
@@ -1650,77 +1643,103 @@ kernel.register_callback_handler('casino_', casino_callback_handler)
 **Inline Menu Example:**
 
 ```python
-@kernel.register.command('menu')
-async def menu_handler(event):
-    try:
+# requires:
+# author: @Hairpin00
+# version: 1.0.2
+# description: menu inline test
+from telethon import events, Button
+
+def register(kernel):
+    client = kernel.client # client
+    bot = kernel.bot_client # inline bot
+    @kernel.register.command('menu_button')
+    # menu inline
+    async def menu_cmd(event):
+        # register command: {kernel.custom_prefix}menu_button. '' <- yes. "" <- no usage
         buttons = [
-            {"text": "Page 1", "type": "callback", "data": "menu_page_1"},
-            {"text": "Page 2", "type": "callback", "data": "menu_page_2"}
+            {"text": "1", "type": "callback", "data": "menu_page_1"},
+            {"text": "2", "type": "callback", "data": "menu_page_2"}
         ]
-        
-        success, message = await kernel.inline_form(
+        success = await kernel.inline_form(
             event.chat_id,
-            "Main Menu",
+            "menu <tg-emoji emoji-id=\"5404728536810398694\">🧊</tg-emoji>",
             buttons=buttons
         )
         if success:
             await event.delete()
 
-    except Exception as e:
-        await kernel.handle_error(e, source="menu_handler", event=event)
 
+    async def menu_callback_handler(event):
+        data = event.data # data buttons callback
 
-async def menu_callback_handler(event):
-    data = event.data.decode('utf-8')
-    
-    if data == 'menu_page_1':
-        buttons = [
-            {"text": "Edit Test", "type": "callback", "data": "menu_edit_1"},
-            {"text": "<-", "type": "callback", "data": "menu_main"}
-        ]
-        await kernel.inline_form(
-            event.chat_id,
-            "Page 1",
-            buttons=buttons,
-            edit_message_id=event.message_id
-        )
-        
-    elif data == 'menu_page_2':
-        buttons = [
-            {"text": "Edit Test", "type": "callback", "data": "menu_edit_2"},
-            {"text": "<-", "type": "callback", "data": "menu_main"}
-        ]
-        await kernel.inline_form(
-            event.chat_id,
-            "Page 2",
-            buttons=buttons,
-            edit_message_id=event.message_id
-        )
-        
-    elif data == 'menu_edit_1':
-        buttons = [
-            {"text": "<-", "type": "callback", "data": "menu_main"}
-        ]
-        await kernel.inline_form(
-            event.chat_id,
-            "Hello World",
-            buttons=buttons,
-            edit_message_id=event.message_id
-        )
-        
-    elif data == 'menu_main':
-        buttons = [
-            {"text": "Page 1", "type": "callback", "data": "menu_page_1"},
-            {"text": "Page 2", "type": "callback", "data": "menu_page_2"}
-        ]
-        await kernel.inline_form(
-            event.chat_id,
-            "Main Menu",
-            buttons=buttons,
-            edit_message_id=event.message_id
-        )
+        if data == b'menu_page_1':
+            buttons = [
+                [
+                    Button.inline("edit test", b"menu_edit_1")
+                ],
+                [
+                    Button.inline("<-", b"menu_main")
+                ]
+            ]
+            await event.edit(
+                "menu 1 page <tg-emoji emoji-id=\"5404728536810398694\">🧊</tg-emoji>",
+                buttons=buttons,
+                parse_mode='html'
+            )
+        elif data == b'menu_page_2':
+            buttons = [
+                [
+                    Button.inline("edit test", b"menu_edit_2")
+                ],
+                [
+                    Button.inline("<-", b"menu_main")
+                ]
+            ]
+            await event.edit(
+                "menu 2 page <tg-emoji emoji-id=\"5404728536810398694\">🧊</tg-emoji>",
+                buttons=buttons,
+                parse_mode='html'
+            )
+        elif data == b'menu_edit_1':
+            buttons = [
+                [
+                    Button.inline("<-", b"menu_main")
+                ]
+            ]
+            await event.edit(
+                "hello word <tg-emoji emoji-id=\"5404728536810398694\">🧊</tg-emoji>",
+                buttons=buttons,
+                parse_mode='html'
+                )
+        elif data == b'menu_edit_2':
+            buttons = [
+                [
+                    Button.inline("<-", b"menu_main")
+                ]
+            ]
+            await event.edit(
+                "Привет мир <tg-emoji emoji-id=\"5404728536810398694\">🧊</tg-emoji>",
+                buttons=buttons,
+                parse_mode='html'
+                )
 
-kernel.register_callback_handler("menu_", menu_callback_handler)
+        else:
+            buttons = [
+            [
+                Button.inline("1", b"menu_page_1")
+            ],
+            [
+                Button.inline("2", b"menu_page_2")
+            ]
+            ]
+            await event.edit(
+                "menu <tg-emoji emoji-id=\"5404728536810398694\">🧊</tg-emoji>",
+                buttons=buttons,
+                parse_mode='html'
+            )
+    # register callback
+    kernel.register_callback_handler("menu_", menu_callback_handler)
+
 ```
 
 **Field Output Format:**

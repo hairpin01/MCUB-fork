@@ -1021,6 +1021,7 @@ class Kernel:
         self.scheduler = None
         self.bot_command_handlers = {}
         self.bot_command_owners = {}
+        self.error_load_modules = 0
 
     async def init_scheduler(self):
         """Инициализация планировщика задач"""
@@ -1736,8 +1737,8 @@ class Kernel:
                 try:
                     source = inspect.getsource(module.register)
                     if (
-                        "@kernel.Register.method" in source
-                        or "@Register.method" in source
+                        "@kernel.register.method" in source
+                        or "@register.method" in source
                     ):
                         return "method"
                 except Exception:
@@ -2786,10 +2787,12 @@ class Kernel:
                     self.logger.error(
                         f"{Colors.RED}=X Ошибка загрузки системного модуля {module_name}: {e}{Colors.RESET}"
                     )
+                    self.error_load_modules += 1
                 except Exception as e:
                     self.logger.error(
                         f"{Colors.RED}=X Ошибка загрузки модуля {file_name}: {e}{Colors.RESET}"
                     )
+                    self.error_load_modules += 1
                 finally:
                     self.clear_loading_module()
 
@@ -2853,6 +2856,7 @@ class Kernel:
                     self.logger.error(
                         f"{self.Colors.RED}{error_msg}{self.Colors.RESET}"
                     )
+                    self.error_load_modules += 1
                     try:
                         await self.handle_error(
                             e, source=f"load_module_conflict:{file_name}"
@@ -2865,6 +2869,7 @@ class Kernel:
                     self.logger.error(
                         f"{self.Colors.RED}{error_msg}{self.Colors.RESET}"
                     )
+                    self.error_load_modules += 1
                     try:
                         await self.handle_error(e, source=f"load_module:{file_name}")
                     except Exception:
@@ -3219,8 +3224,7 @@ class Kernel:
                         e, source="bot_command_handler", event=event
                     )
 
-        print(
-            f"""
+        start_logo = f"""
  _    _  ____ _   _ ____
 | \\  / |/ ___| | | | __ )
 | |\\/| | |   | | | |  _ \\
@@ -3229,9 +3233,12 @@ class Kernel:
 Kernel is load.
 
 • Version: {self.VERSION}
-• Prefix: {self.custom_prefix}
-              """
-        )
+• Prefix: {self.custom_prefix}\n"""
+        e_l_m = self.error_load_modules
+        if e_l_m:
+            start_logo += f'• Error load modules: {e_l_m}\n'
+
+        print(start_logo)
         self.logger.debug("start MCUB")
         if os.path.exists(self.RESTART_FILE):
             try:
@@ -3287,11 +3294,15 @@ Kernel is load.
                     premium_emoji_package = (
                         '<tg-emoji emoji-id="5399898266265475100">📦</tg-emoji>'
                     )
+                    premium_emoji_error = (
+                        '<tg-emoji emoji-id="5208923808169222461">🥀</tg-emoji>'
+                    )
 
                     total_time = round((time.time() - restart_time) * 1000, 2)
 
                     restart_strings = {
                         'ru': {
+                            'reboot_error': 'Твой <b>{mcub_emoji}</b> <b>загрузился c ошибками</b> :(',
                             'reboot_success': 'Перезагрузка <b>успешна!</b>',
                             'modules_loading': 'но модули ещё загружаются...',
                             'fully_loaded': 'Твой <b>{mcub_emoji}</b> полностью загрузился!',
@@ -3299,6 +3310,7 @@ Kernel is load.
                             'no_connection': '=X Не удалось отправить сообщение о перезагрузке: нет соединения'
                         },
                         'en': {
+                            'reboot_error': 'Your <b>{mcub_emoji}</b> <b>loaded with errors</b> :(',
                             'reboot_success': 'Reboot <b>successful!</b>',
                             'modules_loading': 'but modules are still loading...',
                             'fully_loaded': 'Your <b>{mcub_emoji}</b> is fully loaded!',
@@ -3332,12 +3344,19 @@ Kernel is load.
                             send_params = {}
                             if thread_id:
                                 send_params["reply_to"] = thread_id
-
-                            await sms.edit(
-                                f"{premium_emoji_package} {get_restart_string('fully_loaded', mcub_emoji=mcub_emoji)}\n"
-                                f"<blockquote><b>KBL:</b> <code>{total_time} ms</code>. <b>MLFB:</b> <code>{mlfb} ms</code>.</blockquote>",
-                                parse_mode="html",
-                            )
+                            load_error = self.error_load_modules
+                            if not load_error:
+                                await sms.edit(
+                                    f"{premium_emoji_package} {get_restart_string('fully_loaded', mcub_emoji=mcub_emoji)}\n"
+                                    f"<blockquote><b>Kernel load:</b> <code>{total_time} ms</code>. <b>Modules load:</b> <code>{mlfb} ms</code>.</blockquote>",
+                                    parse_mode="html",
+                                )
+                            else:
+                                await sms.edit(
+                                    f"{premium_emoji_error} {get_restart_string('reboot_error', mcub_emoji=mcub_emoji)}\n"
+                                    f"<blockquote><b>Kernel load:</b> <code>{total_time} ms</code>. <b>Modules error load:</b> <code>{load_error}</code></blockquote>",
+                                    parse_mode="html"
+                                )
                         except Exception as e:
                             self.logger.error(
                                 f"{get_restart_string('restart_failed', error=e)}{Colors.RESET}"

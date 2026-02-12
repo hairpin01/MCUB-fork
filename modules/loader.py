@@ -991,7 +991,7 @@ def register(kernel):
         if send_mode:
             action = t('downloading_module', download=CUSTOM_EMOJI['download'])
         else:
-            action = t('updating', reload=CUSTOM_EMOJI['reload']) if is_update else t('installing', test=CUSTOM_EMOJI['test'])
+            action = t('updating', reload=CUSTOM_EMOJI['reload']) if is_update else t('installing', test=CUSTOM_EMOJI['reload'])
 
         msg = await event.edit(
             t('starting_install', action=action, module_name=module_name), parse_mode="html"
@@ -1093,23 +1093,22 @@ def register(kernel):
                     msg,
                     t('sending_module', upload=CUSTOM_EMOJI['upload'], module_name=module_name),
                 )
-                await event.delete()
+                # await event.delete()
 
-                await client.send_file(
-                    event.chat_id,
-                    file_path,
-                    caption=t('file_sent_caption',
-                            file=CUSTOM_EMOJI['file'],
-                            module_name=module_name,
-                            idea=CUSTOM_EMOJI['idea'],
-                            description=metadata["description"],
-                            crystal=CUSTOM_EMOJI['crystal'],
-                            version=metadata["version"],
-                            angel=CUSTOM_EMOJI['angel'],
-                            author=metadata["author"],
-                            folder=CUSTOM_EMOJI['folder'],
-                            size=os.path.getsize(file_path)),
-                    parse_mode="html",
+                await event.edit(
+                    t('file_sent_caption',
+                    file=CUSTOM_EMOJI['file'],
+                    module_name=module_name,
+                    idea=CUSTOM_EMOJI['idea'],
+                    description=metadata["description"],
+                    crystal=CUSTOM_EMOJI['crystal'],
+                    version=metadata["version"],
+                    angel=CUSTOM_EMOJI['angel'],
+                    author=metadata["author"],
+                    folder=CUSTOM_EMOJI['folder'],
+                    size=os.path.getsize(file_path)),
+                    file=file_path,
+                    parse_mode="html"
                 )
 
                 add_log(t('log_file_sent'))
@@ -1335,15 +1334,15 @@ def register(kernel):
         await edit_with_emoji(
             event, t('uploading_module', upload=CUSTOM_EMOJI['upload'], module_name=module_name)
         )
-        await send_with_emoji(
-            event.chat_id,
+        await event.edit(
             t('file_upload_caption',
               file=CUSTOM_EMOJI['file'],
               module_name=module_name,
               prefix=kernel.custom_prefix),
+            parse_mode='html',
             file=file_path,
         )
-        await event.delete()
+        # await event.delete()
 
     @kernel.register.command("reload")
     async def reload_module_handler(event):

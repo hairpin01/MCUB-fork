@@ -54,7 +54,7 @@ try:
     )
     import inspect
     from utils.restart import restart_kernel
-
+    from telethon.tl import types as tl_types
 except ImportError as e:
     print("Установите зависимости: pip install -r requirements.txt\n", str(e))
     sys.exit(1)
@@ -409,46 +409,27 @@ class Register:
 
     def method(self, func: Optional[Callable] = None) -> Callable:
         """
-        Decorator to register a method in the module's register object.
-
-        This decorator makes the function accessible via the module's `register`
-        attribute, enabling cross-module method calls.
-
-        Args:
-            func: The function to register (provided automatically by decorator)
-
-        Returns:
-            The original function, registered to the module
-
-        Example:
-            >>> @kernel.register.method
-            >>> async def helper_function():
-            >>>     return "help"
-            >>>
-            >>> # Can be accessed in other modules as:
-            >>> # module.register.helper_function()
+        Decorator to register a method on the module's `register` object.
+        The method will be called during module loading with the kernel as argument.
+        The function name can be anything (e.g., `setup`, `init`, etc.).
         """
         def decorator(f: Callable) -> Callable:
-            """Inner decorator that performs the actual registration."""
-            # Get the calling module using the caller's frame
             caller_frame = inspect.stack()[1][0]
             module = inspect.getmodule(caller_frame)
 
             if module:
-                # Create or get the register object on the module
+                # Create module.register if it doesn't exist
                 if not hasattr(module, "register"):
-                    # Create a simple object to hold registered methods
                     module.register = type("RegisterObject", (), {})()
 
-                # Register the method on the module's register object
+                # Store the function under its own name
                 setattr(module.register, f.__name__, f)
 
-                # Also store in internal dictionary
+                # Keep internal registry for debugging
                 self._methods[f.__name__] = f
 
             return f
 
-        # Handle both @register.method and @register.method() syntax
         if func is None:
             return decorator
         return decorator(func)
@@ -1853,34 +1834,29 @@ class Kernel:
             self.logger.info(message)
 
     async def detected_module_type(self, module):
-        import inspect
-
+        """
+        Determine the module type based on its registration pattern.
+        Returns:
+            'method' if module has a register attribute with callable methods,
+            'new' if module has a callable register(kernel),
+            'old' if module has a callable register(client),
+            'none' otherwise.
+        """
         if hasattr(module, "register"):
-            if hasattr(self.register, "method"):
-                try:
-                    source = inspect.getsource(module.register)
-                    if (
-                        "@kernel.register.method" in source
-                        or "@register.method" in source
-                    ):
+            if hasattr(module.register, "__dict__"):
+                for name, attr in module.register.__dict__.items():
+                    if callable(attr) and not name.startswith("__"):
                         return "method"
-                except Exception:
-                    pass
 
-            # Старый стиль
             if callable(module.register):
                 sig = inspect.signature(module.register)
                 params = list(sig.parameters.keys())
-
                 if len(params) == 1:
                     param_name = params[0]
                     if param_name == "kernel":
                         return "new"
                     elif param_name == "client":
                         return "old"
-
-                return "unknown"
-
         return "none"
 
 
@@ -2148,23 +2124,21 @@ class Kernel:
             return False, str(e)
 
     async def _register_module(self, module, module_type, module_name):
-        """
-        Register module based on its detected type, handling both sync and async register functions.
-        """
         try:
             if module_type == "method":
-                # Method-style registration
-                if hasattr(module, 'register') and hasattr(module.register, 'method'):
-                    if inspect.iscoroutinefunction(module.register.method):
-                        await module.register.method(self)
-                    else:
-                        module.register.method(self)
+                # Execute all callable methods on module.register
+                if hasattr(module, "register") and hasattr(module.register, "__dict__"):
+                    for name, attr in module.register.__dict__.items():
+                        if callable(attr) and not name.startswith("__"):
+                            if inspect.iscoroutinefunction(attr):
+                                await attr(self)
+                            else:
+                                attr(self)
                 else:
                     return False
 
             elif module_type == "new":
-                # New-style registration (register function called with kernel)
-                if hasattr(module, 'register') and callable(module.register):
+                if hasattr(module, "register") and callable(module.register):
                     if inspect.iscoroutinefunction(module.register):
                         await module.register(self)
                     else:
@@ -2173,8 +2147,7 @@ class Kernel:
                     return False
 
             elif module_type == "old":
-                # Old-style registration (register function called with client)
-                if hasattr(module, 'register') and callable(module.register):
+                if hasattr(module, "register") and callable(module.register):
                     if inspect.iscoroutinefunction(module.register):
                         await module.register(self.client)
                     else:
@@ -2183,24 +2156,19 @@ class Kernel:
                     return False
 
             else:
-                # Unknown module type - try to detect and run
-                self.logger.warning(f"Module {module_name} has unknown type: {module_type}!")
-                if hasattr(module, 'register') and callable(module.register):
-                    # Try new style first
+                # Fallback – try to detect and run
+                if hasattr(module, "register") and callable(module.register):
                     try:
                         if inspect.iscoroutinefunction(module.register):
                             await module.register(self)
                         else:
                             module.register(self)
-                        return True
                     except Exception:
-                        # Try old style if new style failed
                         try:
                             if inspect.iscoroutinefunction(module.register):
                                 await module.register(self.client)
                             else:
                                 module.register(self.client)
-                            return True
                         except Exception:
                             return False
                 else:
@@ -2210,13 +2178,9 @@ class Kernel:
 
         except CommandConflictError:
             raise
-
         except Exception as e:
-            self.logger.error(
-                f"Module registration failed for {module_name}: {e}!"
-            )
+            self.logger.error(f"Module registration failed for {module_name}: {e}")
             raise e
-
 
 
     async def install_from_url(self, url, module_name=None, auto_dependencies=True):
@@ -2980,6 +2944,34 @@ class Kernel:
             text = getattr(source, "message", str(source))
             return html.escape(text).replace("\n", "<br/>")
 
+    def _prepare_buttons(self, raw_buttons):
+        """
+        Преобразует упрощённое описание кнопок в список словарей.
+        Поддерживает форматы:
+            - список словарей: [{"text": "...", "type": "...", "data": "..."}, ...]
+            - список кортежей/списков: [("текст", "тип", "данные", "подсказка"), ...]
+        """
+        buttons_list = []
+        for button in raw_buttons:
+            if isinstance(button, dict):
+                buttons_list.append(button)
+            elif isinstance(button, (list, tuple)):
+                if len(button) >= 2:
+                    btn_data = {"text": str(button[0])}
+                    btn_type = str(button[1]).lower() if len(button) > 1 else "callback"
+                    btn_data["type"] = btn_type
+                    if len(button) >= 3:
+                        if btn_type == "callback":
+                            btn_data["data"] = str(button[2])
+                        elif btn_type == "url":
+                            btn_data["url"] = str(button[2])
+                        elif btn_type == "switch":
+                            btn_data["query"] = str(button[2])
+                            if len(button) >= 4:
+                                btn_data["hint"] = str(button[3])
+                    buttons_list.append(btn_data)
+        return buttons_list
+
     async def inline_form(self, chat_id, title, fields=None, buttons=None, auto_send=True, ttl=200, **kwargs):
         """
         Создание и отправка инлайн-формы
@@ -2988,11 +2980,10 @@ class Kernel:
             chat_id (int): ID чата для отправки
             title (str): Заголовок формы
             fields (list/dict, optional): Поля формы (будут преобразованы в текст)
-            buttons (list, optional): Кнопки в формате словарей:
-                - {"text": "Текст", "type": "callback", "data": "callback_data"}
-                - {"text": "Текст", "type": "url", "url": "https://ссылка"}
-                - {"text": "Текст", "type": "switch", "query": "запрос", "hint": "подсказка"}
-                или упрощённый список: ["текст", "тип", "данные", "подсказка"]
+            buttons (optional): Кнопки. Могут быть переданы в двух форматах:
+                - Упрощённый: список словарей или кортежей (как раньше)
+                - Готовые кнопки Telethon: список списков объектов-кнопок
+                (например, [[Button.inline('Текст', b'data')], [Button.url('URL', 'https://...')]])
             auto_send (bool): Автоматически отправить форму
             ttl (int): Время жизни формы в кэше (секунды)
             **kwargs: Дополнительные параметры для inline_query_and_click
@@ -3000,30 +2991,12 @@ class Kernel:
         Returns:
             tuple: (success, message) если auto_send=True
             str: ID формы если auto_send=False
-
-        Example:
-            # Автоматическая отправка
-            await kernel.inline_form(
-                chat_id=123456789,
-                title="Настройки",
-                buttons=[
-                    {"text": "Сохранить", "type": "callback", "data": "save_123"}
-                ]
-            )
-
-            # Получить только ID формы
-            form_id = await kernel.inline_form(
-                chat_id=123456789,
-                title="Профиль",
-                buttons=[["Редактировать", "callback", "edit"]],
-                auto_send=False
-            )
         """
         try:
             from core_inline.handlers import InlineHandlers
 
+            # Формируем текст из title и fields
             query_parts = [title]
-
             if fields:
                 if isinstance(fields, dict):
                     for field, value in fields.items():
@@ -3031,33 +3004,30 @@ class Kernel:
                 elif isinstance(fields, list):
                     for i, field in enumerate(fields, 1):
                         query_parts.append(f"Поле {i}: {field}")
-
             text = "\n".join(query_parts)
 
-            buttons_list = []
-            if buttons:
-                for button in buttons:
-                    if isinstance(button, dict):
-                        buttons_list.append(button)
-                    elif isinstance(button, (list, tuple)):
-                        if len(button) >= 2:
-                            btn_data = {"text": str(button[0])}
-                            btn_type = str(button[1]).lower() if len(button) > 1 else "callback"
-                            btn_data["type"] = btn_type
+            # Определяем все возможные классы кнопок Telethon
+            BUTTON_TYPES = tuple(
+                getattr(tl_types, name) for name in dir(tl_types)
+                if name.startswith('KeyboardButton')
+            )
 
-                            if len(button) >= 3:
-                                if btn_type == "callback":
-                                    btn_data["data"] = str(button[2])
-                                elif btn_type == "url":
-                                    btn_data["url"] = str(button[2])
-                                elif btn_type == "switch":
-                                    btn_data["query"] = str(button[2])
-                                    if len(button) >= 4:
-                                        btn_data["hint"] = str(button[3])
-                            buttons_list.append(btn_data)
+            # Обрабатываем кнопки
+            buttons_to_use = None
+            if buttons is not None:
+                # Проверяем, не являются ли кнопки уже готовыми объектами Telethon
+                if (isinstance(buttons, list) and len(buttons) > 0 and
+                    all(isinstance(row, list) for row in buttons) and
+                    buttons[0] and len(buttons[0]) > 0 and
+                    isinstance(buttons[0][0], BUTTON_TYPES)):
+                    # Это уже готовая структура кнопок — оставляем как есть
+                    buttons_to_use = buttons
+                else:
+                    # Преобразуем упрощённый формат в список словарей
+                    buttons_to_use = self._prepare_buttons(buttons)
 
             handlers = InlineHandlers(self, self.bot_client)
-            form_id = handlers.create_inline_form(text, buttons_list, ttl)
+            form_id = handlers.create_inline_form(text, buttons_to_use, ttl)
 
             if auto_send:
                 success, message = await self.inline_query_and_click(
@@ -3076,7 +3046,6 @@ class Kernel:
                 return False, None
             else:
                 return None
-
     async def process_command(self, event, depth=0):
             if depth > 5:
                 self.logger.error(f"Recursion limit reached for aliases: {event.text}")

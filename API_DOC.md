@@ -1611,8 +1611,8 @@ success, msg = await kernel.inline_form(
 #### Form with simplified buttons
 ```python
 buttons = [
-    [{"text": "Edit", "type": "callback", "data": "profile_edit"}],
-    [{"text": "Website", "type": "url", "url": "https://example.com"}]
+    {"text": "Edit", "type": "callback", "data": "profile_edit"},
+    {"text": "Website", "type": "url", "url": "https://example.com"}
 ]
 success, msg = await kernel.inline_form(
     event.chat_id,
@@ -1663,8 +1663,8 @@ async def profile_handler(event):
         "coin": "100 MCUB coin"
     }
     buttons = [
-        [{"text": "Play", "type": "callback", "data": "casino_play"}],
-        [{"text": "History", "type": "callback", "data": "casino_history"}]
+        {"text": "Play", "type": "callback", "data": "casino_play"},
+        {"text": "History", "type": "callback", "data": "casino_history"}
     ]
     success, msg = await kernel.inline_form(
         event.chat_id,

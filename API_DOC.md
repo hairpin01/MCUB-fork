@@ -1537,208 +1537,155 @@ or:
 ## Inline Query Automation Methods and Inline Form
 
 ### `inline_form()`
+
+Sends an inline message with formatted fields and buttons. Supports two ways of specifying buttons: a simplified dictionary format or ready-made Telethon button objects.
+
 ---
 
-Send inline message with formatted fields and buttons.
-
 **Parameters:**
-- `chat_id` (int): Target chat ID
-- `title` (str): Form title
-- `fields` (dict, optional): Key-value pairs to display
-- `buttons` (list, optional): Button configuration list
+- `chat_id` (int): Target chat ID.
+- `title` (str): Form title.
+- `fields` (dict | list, optional): Data to display. If a dict, shows `key: value` pairs; if a list, shows numbered items.
+- `buttons` (list, optional): Button configuration. See **Button Configuration** below.
+- `auto_send` (bool, default=True): If `True`, sends the form immediately and returns `(bool, Message)`. If `False`, returns the `form_id` string for later use.
+- `ttl` (int, default=200): Time-to-live for the form in the cache (seconds).
+- `**kwargs`: Additional arguments passed to `inline_query_and_click` (e.g., `reply_to`, `silent`).
 
-**Button Configuration:**
-Each button is a dict with:
-- `text` (str): Button label
-- `type` (str): 'callback' or 'url'
-- `data` (str): Callback data (for type='callback')
-- `url` (str): URL (for type='url')
+---
 
-**Returns:** Tuple of (bool, Message or None)
+**Button Configuration**
 
-**Usage:**
+You can provide buttons in two formats:
 
+1. **Simplified format** – a list of rows, each row is a list of button descriptions (dictionaries or tuples).  
+   Each button description can be:
+   - **Dictionary**:  
+     ```python
+     {"text": "Label", "type": "callback", "data": "callback_data"}
+     {"text": "Label", "type": "url", "url": "https://..."}
+     {"text": "Label", "type": "switch", "query": "inline query", "hint": True}
+     ```
+   - **Tuple/list** (shorter):  
+     ```python
+     ("Label", "callback", "data")
+     ("Label", "url", "https://...")
+     ("Label", "switch", "query", hint)   # hint is optional
+     ```
+
+2. **Ready‑made Telethon buttons** – a list of lists containing actual `Button` objects from Telethon:  
+   ```python
+   [
+       [Button.inline("Edit", b"edit_data")],
+       [Button.url("Site", "https://...")],
+       [Button.switch_inline("Search", query="search", same_peer=True)]
+   ]
+   ```
+
+**Returns:**
+- If `auto_send=True`: `(bool, Message or None)` – success flag and the sent message (or `None` on failure).
+- If `auto_send=False`: `str` – the form ID that can be used later in an inline query.
+
+---
+
+**Usage Examples**
+
+#### Basic form (no fields, no buttons)
 ```python
-# Basic form
-success, msg = await kernel.inline_form(
-    event.chat_id,
-    "User Profile"
-)
+success, msg = await kernel.inline_form(event.chat_id, "User Profile")
+```
 
-# Form with fields
+#### Form with fields
+```python
 fields = {
-    "name": "John Doe",
-    "status": "Active",
-    "balance": "100 coins"
+    "Name": "John Doe",
+    "Status": "Active",
+    "Balance": "100 coins"
 }
-
 success, msg = await kernel.inline_form(
     event.chat_id,
     "User Profile",
     fields=fields
 )
+```
 
-# Form with buttons
+#### Form with simplified buttons
+```python
 buttons = [
-    {"text": "Edit", "type": "callback", "data": "profile_edit"},
-    {"text": "Delete", "type": "callback", "data": "profile_delete"},
-    {"text": "Website", "type": "url", "url": "https://example.com"}
+    [{"text": "Edit", "type": "callback", "data": "profile_edit"}],
+    [{"text": "Website", "type": "url", "url": "https://example.com"}]
 ]
-
 success, msg = await kernel.inline_form(
     event.chat_id,
     "User Profile",
     fields=fields,
     buttons=buttons
 )
-
 ```
 
-**Complete Example:**
+#### Form with ready‑made Telethon buttons
+```python
+from telethon import Button
+
+buttons = [
+    [Button.inline("Edit", b"profile_edit")],
+    [Button.url("Website", "https://example.com")],
+    [Button.switch_inline("Search", query="search", same_peer=True)]
+]
+success, msg = await kernel.inline_form(
+    event.chat_id,
+    "User Profile",
+    fields=fields,
+    buttons=buttons
+)
+```
+
+#### Get form ID only (for later use)
+```python
+form_id = await kernel.inline_form(
+    event.chat_id,
+    "My Form",
+    auto_send=False
+)
+# later, send it manually:
+await kernel.inline_query_and_click(event.chat_id, query=form_id)
+```
+
+---
+
+**Complete Example with Callback Handling**
 
 ```python
 @kernel.register.command('profile')
 async def profile_handler(event):
-    try:
-        # Create profile form
-        fields = {
-            "name": "user",
-            "status": "MCUB user",
-            "coin": "100 MCUB coin"
-        }
-        
-        buttons = [
-            {"text": "Play", "type": "callback", "data": "casino_play"},
-            {"text": "History", "type": "callback", "data": "casino_history"}
-        ]
-        
-        success, message = await kernel.inline_form(
-            event.chat_id,
-            "User Profile",
-            fields=fields,
-            buttons=buttons
-        )
-        
-        if success:
-            await event.delete()
-        else:
-            await event.edit("Failed to create profile")
-            
-    except Exception as e:
-        await kernel.handle_error(e, source="profile_handler", event=event)
+    fields = {
+        "name": "user",
+        "status": "MCUB user",
+        "coin": "100 MCUB coin"
+    }
+    buttons = [
+        [{"text": "Play", "type": "callback", "data": "casino_play"}],
+        [{"text": "History", "type": "callback", "data": "casino_history"}]
+    ]
+    success, msg = await kernel.inline_form(
+        event.chat_id,
+        "User Profile",
+        fields=fields,
+        buttons=buttons
+    )
+    if success:
+        await event.delete()
+    else:
+        await event.edit("Failed to create profile")
 
-# Callback handler for buttons
+# Callback handler
 async def casino_callback_handler(event):
     data = event.data.decode('utf-8')
-    
     if data == 'casino_play':
         await event.edit("Starting game...")
     elif data == 'casino_history':
         await event.edit("Loading history...")
 
 kernel.register_callback_handler('casino_', casino_callback_handler)
-```
-
-**Inline Menu Example:**
-
-```python
-# requires:
-# author: @Hairpin00
-# version: 1.0.2
-# description: menu inline test
-from telethon import events, Button
-
-def register(kernel):
-    client = kernel.client # client
-    bot = kernel.bot_client # inline bot
-    @kernel.register.command('menu_button')
-    # menu inline
-    async def menu_cmd(event):
-        # register command: {kernel.custom_prefix}menu_button. '' <- yes. "" <- no usage
-        buttons = [
-            {"text": "1", "type": "callback", "data": "menu_page_1"},
-            {"text": "2", "type": "callback", "data": "menu_page_2"}
-        ]
-        success = await kernel.inline_form(
-            event.chat_id,
-            "menu <tg-emoji emoji-id=\"5404728536810398694\">🧊</tg-emoji>",
-            buttons=buttons
-        )
-        if success:
-            await event.delete()
-
-
-    async def menu_callback_handler(event):
-        data = event.data # data buttons callback
-
-        if data == b'menu_page_1':
-            buttons = [
-                [
-                    Button.inline("edit test", b"menu_edit_1")
-                ],
-                [
-                    Button.inline("<-", b"menu_main")
-                ]
-            ]
-            await event.edit(
-                "menu 1 page <tg-emoji emoji-id=\"5404728536810398694\">🧊</tg-emoji>",
-                buttons=buttons,
-                parse_mode='html'
-            )
-        elif data == b'menu_page_2':
-            buttons = [
-                [
-                    Button.inline("edit test", b"menu_edit_2")
-                ],
-                [
-                    Button.inline("<-", b"menu_main")
-                ]
-            ]
-            await event.edit(
-                "menu 2 page <tg-emoji emoji-id=\"5404728536810398694\">🧊</tg-emoji>",
-                buttons=buttons,
-                parse_mode='html'
-            )
-        elif data == b'menu_edit_1':
-            buttons = [
-                [
-                    Button.inline("<-", b"menu_main")
-                ]
-            ]
-            await event.edit(
-                "hello word <tg-emoji emoji-id=\"5404728536810398694\">🧊</tg-emoji>",
-                buttons=buttons,
-                parse_mode='html'
-                )
-        elif data == b'menu_edit_2':
-            buttons = [
-                [
-                    Button.inline("<-", b"menu_main")
-                ]
-            ]
-            await event.edit(
-                "Привет мир <tg-emoji emoji-id=\"5404728536810398694\">🧊</tg-emoji>",
-                buttons=buttons,
-                parse_mode='html'
-                )
-
-        else:
-            buttons = [
-            [
-                Button.inline("1", b"menu_page_1")
-            ],
-            [
-                Button.inline("2", b"menu_page_2")
-            ]
-            ]
-            await event.edit(
-                "menu <tg-emoji emoji-id=\"5404728536810398694\">🧊</tg-emoji>",
-                buttons=buttons,
-                parse_mode='html'
-            )
-    # register callback
-    kernel.register_callback_handler("menu_", menu_callback_handler)
-
 ```
 
 **Field Output Format:**
@@ -1955,22 +1902,24 @@ MCUB introduces a new `Register` class with decorator-based registration methods
 
 ### Method Registration
 
-`@kernel.Register.method`
+`@kernel.register.method`
 ---
-You can make your register using the @kernel.Register.method decorator-based.
+Register any function as a module setup method. The function will be called during module loading with the kernel as its only argument. You can use any function name.
 
 **Usage:**
 ```python
-import kernel  # without this, method will not work
 from telethon import events
 
 @kernel.register.method
-def custom_register(kernel):  # or class
-    
+async def setup_commands(kernel):   # function name is arbitrary
     @kernel.register.command('version', alias='v')
     async def version_mcub(event):
         await event.edit(f"Kernel version {kernel.VERSION}")
-```
+
+@kernel.register.method
+async def init_stuff(kernel):
+    # Another setup method – both will be executed
+    kernel.logger.info("Additional initialisation")
 
 ### Event Registration
 

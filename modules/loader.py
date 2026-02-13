@@ -1342,9 +1342,9 @@ def register(kernel):
             parse_mode='html',
             file=file_path,
         )
-        # await event.delete()
 
     @kernel.register.command("reload")
+    # <modules> reload modules
     async def reload_module_handler(event):
         args = event.text.split()
         if len(args) < 2:

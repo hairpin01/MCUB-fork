@@ -927,7 +927,7 @@ class CallbackPermissionManager:
 
 class Kernel:
     def __init__(self):
-        self.VERSION = "1.0.2.1"
+        self.VERSION = "1.0.2.2"
         self.DB_VERSION = 2
         self.start_time = time.time()
         self.loaded_modules = {}
@@ -1022,6 +1022,8 @@ class Kernel:
         self.bot_command_handlers = {}
         self.bot_command_owners = {}
         self.error_load_modules = 0
+        self.inline_handlers_owners = {}
+        self._latest_kernel_version_cache = None
 
     async def init_scheduler(self):
         """Инициализация планировщика задач"""
@@ -1290,6 +1292,113 @@ class Kernel:
             json.dump(self.config, f, ensure_ascii=False, indent=2)
             self.logger.debug("save config")
 
+    @staticmethod
+    def _parse_version(version_str: str) -> tuple:
+        """
+        Parse version string like '1.0.2.1' into tuple of integers.
+        Non‑numeric parts are treated as 0.
+        """
+        parts = []
+        for part in version_str.split('.'):
+            try:
+                parts.append(int(part))
+            except ValueError:
+                parts.append(0)
+        return tuple(parts)
+
+    @staticmethod
+    def _compare_versions(v1: str, v2: str) -> int:
+        """
+        Compare two version strings.
+        Returns:
+            -1 if v1 < v2
+             0 if v1 == v2
+             1 if v1 > v2
+        """
+        v1_tuple = Kernel._parse_version(v1)
+        v2_tuple = Kernel._parse_version(v2)
+        if v1_tuple < v2_tuple:
+            return -1
+        if v1_tuple > v2_tuple:
+            return 1
+        return 0
+
+    async def get_latest_kernel_version(self) -> str:
+        """Fetch the latest kernel version from the update repository (cached for 1 hour)."""
+        if self._latest_kernel_version_cache:
+            cache_time, version = self._latest_kernel_version_cache
+            if time.time() - cache_time < 3600:
+                return version
+
+        url = self.UPDATE_REPO + "version.txt"
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=5) as resp:
+                    if resp.status == 200:
+                        version = (await resp.text()).strip()
+                        self._latest_kernel_version_cache = (time.time(), version)
+                        return version
+        except Exception as e:
+            self.logger.error(f"Error fetching latest kernel version: {e}")
+
+        # Fallback to current version
+        return self.VERSION
+
+    async def _check_kernel_version_compatibility(self, code: str) -> Tuple[bool, str]:
+        """
+        Examine module source for '# scop: kernel ...' directives and verify
+        that the current kernel version satisfies all requirements.
+        Returns (True, "") if compatible, (False, error_message) otherwise.
+        """
+        lines = code.split('\n')
+        directives = []
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith('# scop: kernel'):
+                rest = stripped[len('# scop: kernel'):].strip()
+                if rest:
+                    directives.append(rest)
+
+        if not directives:
+            return True, ""
+
+        current_version = self.VERSION
+        latest_version = None  # lazy load
+
+        for directive in directives:
+            parts = directive.split()
+            if not parts:
+                continue
+
+            # min <version>
+            if parts[0] == 'min':
+                if len(parts) >= 2 and parts[1].startswith('v'):
+                    required = parts[1][1:]
+                    if self._compare_versions(current_version, required) < 0:
+                        return False, f"Module requires kernel version ≥ {required}, current is {current_version}"
+            # max <version>
+            elif parts[0] == 'max':
+                if len(parts) >= 2 and parts[1].startswith('v'):
+                    required = parts[1][1:]
+                    if self._compare_versions(current_version, required) > 0:
+                        return False, f"Module requires kernel version ≤ {required}, current is {current_version}"
+            # v<version>  or  v[__lastest__]
+            else:
+                if not parts[0].startswith('v'):
+                    continue
+                spec = parts[0][1:]  # strip 'v'
+                if spec == '[__lastest__]':
+                    if latest_version is None:
+                        latest_version = await self.get_latest_kernel_version()
+                    if self._compare_versions(current_version, latest_version) != 0:
+                        return False, f"Module requires the latest kernel version ({latest_version}), but current is {current_version}"
+                else:
+                    if self._compare_versions(current_version, spec) != 0:
+                        return False, f"Module requires kernel version exactly {spec}, but current is {current_version}"
+
+        return True, ""
+
+
     def set_loading_module(self, module_name, module_type):
         """Устанавливает текущий загружаемый модуль"""
         self.current_loading_module = module_name
@@ -1313,6 +1422,7 @@ class Kernel:
             del self.command_handlers[cmd]
             del self.command_owners[cmd]
             self.logger.debug(f"del command:{cmd}")
+        self.unregister_module_inline_handlers(module_name)
 
     async def add_repository(self, url):
         """Добавляет новый репозиторий"""
@@ -1674,13 +1784,26 @@ class Kernel:
             bot_username=self.config.get("inline_bot_username"),
             buttons=buttons,
         )
+    def unregister_module_inline_handlers(self, module_name):
+        to_remove = []
+        for pattern, owner in self.inline_handlers_owners.items():
+            if owner == module_name:
+                to_remove.append(pattern)
+
+        for pattern in to_remove:
+            del self.inline_handlers[pattern]
+            del self.inline_handlers_owners[pattern]
+            self.logger.debug(f"del inline handler: {pattern}")
 
     def register_inline_handler(self, pattern, handler):
-        """Регистрация обработчика инлайн-запросов"""
         try:
             if not hasattr(self, "inline_handlers"):
                 self.inline_handlers = {}
+            if not hasattr(self, "inline_handlers_owners"):
+                self.inline_handlers_owners = {}
             self.inline_handlers[pattern] = handler
+            if self.current_loading_module:
+                self.inline_handlers_owners[pattern] = self.current_loading_module
         except Exception as e:
             self.logger.error(f"=X Error register inline commands: {e}")
 
@@ -1798,6 +1921,10 @@ class Kernel:
             # Read the module source code
             with open(file_path, "r", encoding="utf-8") as f:
                 code = f.read()
+
+            compatible, version_msg = await self._check_kernel_version_compatibility(code)
+            if not compatible:
+                return False, f"Kernel version mismatch: {version_msg}"
 
             # Check for incompatible module patterns (Heroku/hikka)
             incompatible_patterns = [
@@ -2135,6 +2262,9 @@ class Kernel:
                         )
                     code = await resp.text()
 
+            compatible, version_msg = await self._check_kernel_version_compatibility(code)
+            if not compatible:
+                return False, f"Kernel version mismatch: {version_msg}"
             import tempfile
 
             with tempfile.NamedTemporaryFile(
@@ -2243,7 +2373,6 @@ class Kernel:
 
     async def get_module_metadata(self, code):
         import re
-        """Извлекает метаданные из кода модуля"""
         metadata = {
             "author": "неизвестен",
             "version": "X.X.X",
@@ -2251,7 +2380,7 @@ class Kernel:
             "commands": {},
         }
 
-        # Базовые метаданные
+
         patterns = {
             "author": r"#\s*author\s*:\s*(.+)",
             "version": r"#\s*version\s*:\s*(.+)",
@@ -2264,129 +2393,89 @@ class Kernel:
                 metadata[key] = match.group(1).strip()
 
 
-
-        command_patterns = []
-
-        # 1. Комментарий перед декоратором
-        command_patterns.append(
-            (r'#\s*(.+?)\s*\n\s*@(?:kernel\.register\.command|register\.command|kernel\.register_command|kernel\.register\.bot_command|register\.bot_command)\s*\(\s*[\'"]([^\'"]+)[\'"]',
-            lambda m: (m.group(2).strip(), m.group(1).strip()))
-        )
-
-        # 2. Комментарий в той же строке что и декоратор
-        command_patterns.append(
-            (r'@(?:kernel\.register\.command|register\.command|kernel\.register_command)\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)\s*#\s*(.+?)\s*\n',
-            lambda m: (m.group(1).strip(), m.group(2).strip()))
-        )
-
-        # 3. Комментарий после декоратора
-        command_patterns.append(
-            (r'@(?:kernel\.register\.command|register\.command|kernel\.register_command)\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)\s*\n\s*#\s*(.+?)\s*\n\s*async def',
-            lambda m: (m.group(1).strip(), m.group(2).strip()))
-        )
-
-        # 4.
-        command_patterns.append(
-            (r'@(?:kernel\.register\.bot_command|register\.bot_command)\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)\s*#\s*(.+?)\s*\n',
-            lambda m: (m.group(1).strip(), m.group(2).strip()))
-        )
-
-        command_patterns.append(
-            (r'#\s*(.+?)\s*\n\s*@(?:kernel\.register\.bot_command|register\.bot_command)\s*\(\s*[\'"]([^\'"]+)[\'"]',
-            lambda m: (m.group(2).strip(), m.group(1).strip()))
-        )
-
-        # 5. Старый стиль: @client.on
-        command_patterns.append(
-            (r'@client\.on\s*\(\s*events\.NewMessage\s*\([^)]*pattern\s*=\s*r[\'"](\\.[^\'"]+)[\'"][^)]*\)\s*\)\s*#\s*(.+?)\s*\n',
-            lambda m: (m.group(1).lstrip('\\'), m.group(2).strip()))
-        )
-
-        # 6. Самый старый стиль: @kernel.register_command
-        command_patterns.append(
-            (r'#\s*(.+?)\s*\n\s*@kernel\.register_command\s*\(\s*[\'"]([^\'"]+)[\'"]',
-            lambda m: (m.group(2).strip(), m.group(1).strip()))
-        )
-
-        # 7. Вариант без декоратора (прямой вызов)
-        command_patterns.append(
-            (r'kernel\.register_command\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)\s*#\s*(.+?)\s*\n',
-            lambda m: (m.group(1).strip(), m.group(2).strip()))
-        )
-
-        import re
-
         decorator_pattern = r'(@(?:kernel\.register\.command|register\.command|kernel\.register_command|kernel\.register\.bot_command|register\.bot_command|client\.on)\s*\([^)]+\))\s*\n'
-
-        # ищем прямые вызовы
         direct_call_pattern = r'(kernel\.register_command\s*\([^)]+\))\s*\n'
 
-        # Объединяем все позиции
         positions = []
-
         for match in re.finditer(decorator_pattern, code, re.MULTILINE):
             positions.append((match.start(), match.group(1)))
-
         for match in re.finditer(direct_call_pattern, code, re.MULTILINE):
             positions.append((match.start(), match.group(1)))
-
-
         positions.sort(key=lambda x: x[0])
 
-        # Для каждого декоратора ищем описание
+
+        def collect_comment_before(pos):
+            before_text = code[:pos]
+            lines = before_text.splitlines(keepends=True)
+            if before_text and not before_text.endswith('\n'):
+                lines = lines[:-1]
+
+            comment_lines = []
+            for line in reversed(lines):
+                stripped = line.strip()
+                if stripped.startswith('#'):
+                    comment_lines.insert(0, stripped.lstrip('#').strip())
+                elif stripped:
+                    break
+            return ' '.join(comment_lines) if comment_lines else None
+
+        def collect_comment_after(pos, decorator_end=None):
+            if decorator_end is None:
+                end_match = re.search(r'\)', code[pos:])
+                if end_match:
+                    decorator_end = pos + end_match.end()
+                else:
+                    decorator_end = pos
+
+            start = decorator_end
+            while start < len(code) and code[start].isspace():
+                start += 1
+
+            same_line_match = re.match(r'#\s*(.+)', code[start:].split('\n')[0])
+            if same_line_match:
+                return same_line_match.group(1).strip()
+
+            remaining = code[start:]
+            lines = remaining.split('\n')
+            comment_lines = []
+            for line in lines:
+                stripped = line.strip()
+                if stripped.startswith('#'):
+                    comment_lines.append(stripped.lstrip('#').strip())
+                elif stripped:
+                    break
+                else:
+                    break
+            return ' '.join(comment_lines) if comment_lines else None
+
         for i, (pos, decorator) in enumerate(positions):
-            # Определяем конец поиска
-            end_pos = positions[i + 1][0] if i + 1 < len(positions) else len(code)
-
-            # Блок кода для этого декоратора
-            block = code[pos:end_pos]
-
-            # Извлекаем имя команды из декоратора
             cmd_name = None
             cmd_match = re.search(r'[\'"]([^\'"]+)[\'"]', decorator)
             if cmd_match:
                 cmd_name = cmd_match.group(1)
-                # Убираем префикс если есть
                 if cmd_name.startswith('\\'):
                     cmd_name = cmd_name[1:]
                 if cmd_name.startswith('.'):
                     cmd_name = cmd_name[1:]
 
-            # Ищем описание в этом блоке
+            if not cmd_name:
+                continue
+
             description = None
 
-            # Ищем комментарий
-            look_behind = code[max(0, pos-500):pos]
-            lines = look_behind.split('\n')
-            comment_lines = []
+            comment_before = collect_comment_before(pos)
+            if comment_before:
+                description = comment_before
+            else:
 
-            for line in reversed(lines):
-                line_stripped = line.strip()
-                if line_stripped.startswith('#'):
-                    comment_lines.insert(0, line_stripped.lstrip('#').strip())
-                elif line_stripped:
-                    break
+                comment_after = collect_comment_after(pos)
+                if comment_after:
+                    description = comment_after
 
-            if comment_lines:
-                description = ' '.join(comment_lines)
-
-
-            if not description:
-                same_line_match = re.search(r'\)\s*#\s*(.+?)(?:\n|$)', decorator + block[:100])
-                if same_line_match:
-                    description = same_line_match.group(1).strip()
-
-
-            if not description:
-                next_line_match = re.search(r'\n\s*#\s*(.+?)\s*\n', block[:200])
-                if next_line_match:
-                    description = next_line_match.group(1).strip()
-
-            if cmd_name and description:
+            if description:
                 metadata["commands"][cmd_name] = description
-            elif cmd_name:
+            else:
                 metadata["commands"][cmd_name] = "🫨 Command has no description"
-
 
         if not metadata["commands"]:
             simple_patterns = [
@@ -2398,7 +2487,6 @@ class Kernel:
                 r'@register\.bot_command\s*\(\s*[\'"]([^\'"]+)[\'"]',
                 r'@client\.on\s*\([^)]*pattern\s*=\s*r[\'"](\\.[^\'"]+)[\'"]',
             ]
-
             for pattern in simple_patterns:
                 matches = re.findall(pattern, code, re.IGNORECASE)
                 for match in matches:
@@ -2406,13 +2494,10 @@ class Kernel:
                         cmd = match[0]
                     else:
                         cmd = match
-
-
                     if cmd.startswith('\\'):
                         cmd = cmd[1:]
                     if cmd.startswith('.'):
                         cmd = cmd[1:]
-
                     if cmd not in metadata["commands"]:
                         metadata["commands"][cmd] = "🫨 Command has no description"
 

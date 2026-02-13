@@ -1697,7 +1697,7 @@ another_field: another_value
 ```
 
 > [!NOTE]
-> Available in kernel version 1.0.9.5 and later.
+> Available in kernel version 1.0.2.2.5 and later.
 
 ---
 

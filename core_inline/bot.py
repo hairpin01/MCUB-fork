@@ -209,8 +209,7 @@ delete_mcub_bot - удалить из чата бота
                 if hasattr(self.kernel, 'bot_client') and self.kernel.bot_client and self.kernel.bot_client.is_connected():
                     await self.kernel.bot_client.disconnect()
 
-
-                os.execl(sys.executable, sys.executable, *sys.argv)
+                kernel.restart()
 
             else:
                 self.kernel.logger.error("Не удалось получить данные бота из ответов BotFather")

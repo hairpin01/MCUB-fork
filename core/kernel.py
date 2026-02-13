@@ -908,7 +908,7 @@ class CallbackPermissionManager:
 
 class Kernel:
     def __init__(self):
-        self.VERSION = "1.0.2.2"
+        self.VERSION = "1.0.2.2.5"
         self.DB_VERSION = 2
         self.start_time = time.time()
         self.loaded_modules = {}

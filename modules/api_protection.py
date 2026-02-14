@@ -1,29 +1,36 @@
 # author: @Hairpin00
-# version: 1.0.4
-# description: API protection
+# version: 1.2.0
+# description: Advanced API protection with method ignore list
+
 import asyncio
 import time
 import json
-import threading
-from collections import defaultdict
-from datetime import datetime, timedelta
+from collections import deque, defaultdict
 from telethon import events
-from telethon.errors import FloodWaitError
+from telethon.tl import TLRequest
+
+DEFAULT_CONFIG = {
+    'time_sample': 15,
+    'threshold': 100,
+    'local_floodwait': 30,
+    'dangerous_methods': ['joinChannel', 'importChatInvite', 'sendReaction'],
+    'ignore_methods': ['GetMessagesRequest'],
+    'enable_protection': True,
+}
 
 
 def register(kernel):
     client = kernel.client
-
     language = kernel.config.get('language', 'en')
 
     strings = {
         'ru': {
             'api_protection_enabled': '✅ API защита включена',
             'api_protection_disabled': '❌ API защита выключена',
-            'api_protection_usage': 'Использование:',
+            'api_protection_usage': 'Использование: .api_protection [on/off] [параметр значение]',
             'are_you_sure': 'Вы уверены?',
-            'yes': 'Yes',
-            'no': 'No',
+            'yes': 'Да',
+            'no': 'Нет',
             'api_protection_on': 'api защита включена',
             'api_protection_off': 'api защита выключена',
             'too_many_requests': 'Слишком много запросов',
@@ -32,13 +39,27 @@ def register(kernel):
             'request_limit_exceeded': 'Превышен лимит запросов ({limit_type})',
             'insufficient_permissions': '❌ Недостаточно прав',
             'limits_reset': '✅ Лимиты сброшены',
-            'processing': '⌛ Processing...',
-            'error_processing': '❌ Error processing',
+            'processing': '⌛ Обработка...',
+            'error_processing': '❌ Ошибка обработки',
+            'api_stats': '📊 **Статистика API**\nЗа последние {interval}с:\n• Всего запросов: **{total_all}**\n• Учитываемых: **{total_relevant}**\nТоп методов (все):\n{methods}',
+            'api_stats_empty': '📊 Нет запросов за последние {interval}с',
+            'api_reset_done': '✅ Статистика и блокировка сброшены',
+            'api_suspend': '<tg-emoji emoji-id="5372892693024218813">🥶</tg-emoji> Защита приостановлена на {seconds}с',
+            'api_param_set': '✅ Параметр `{param}` установлен в `{value}`',
+            'api_param_error': '❌ Неверный параметр или значение',
+            'api_overload_notify': '⚠️ **Превышение лимита API!**\nУчитываемых запросов за {interval}с: **{total}** (порог {threshold})\nТриггер: {trigger}\nТоп методов (все):\n{methods}',
+            'api_ignore_usage': 'Использование: .api_ignore [list|add|remove|clear] [method]',
+            'api_ignore_list': '📋 Игнорируемые методы:\n{methods}',
+            'api_ignore_list_empty': '📋 Список игнорируемых методов пуст',
+            'api_ignore_added': '✅ Метод `{method}` добавлен в игнорируемые',
+            'api_ignore_removed': '✅ Метод `{method}` удалён из игнорируемых',
+            'api_ignore_cleared': '✅ Список игнорируемых методов очищен',
+            'api_ignore_not_found': '❌ Метод `{method}` не найден в списке',
         },
         'en': {
             'api_protection_enabled': '✅ API protection enabled',
             'api_protection_disabled': '❌ API protection disabled',
-            'api_protection_usage': 'Usage:',
+            'api_protection_usage': 'Usage: .api_protection [on/off] [parameter value]',
             'are_you_sure': 'Are you sure?',
             'yes': 'Yes',
             'no': 'No',
@@ -52,15 +73,215 @@ def register(kernel):
             'limits_reset': '✅ Limits reset',
             'processing': '⌛ Processing...',
             'error_processing': '❌ Error processing',
+            'api_stats': '📊 **API Statistics**\nLast {interval}s:\n• Total requests: **{total_all}**\n• Relevant: **{total_relevant}**\nTop methods (all):\n{methods}',
+            'api_stats_empty': '📊 No requests in last {interval}s',
+            'api_reset_done': '✅ Stats and block reset',
+            'api_suspend': '<tg-emoji emoji-id="5372892693024218813">🥶</tg-emoji> Protection suspended for {seconds}s',
+            'api_param_set': '✅ Parameter `{param}` set to `{value}`',
+            'api_param_error': '❌ Invalid parameter or value',
+            'api_overload_notify': '⚠️ **API overload detected!**\nRelevant requests in last {interval}s: **{total}** (threshold {threshold})\nTrigger method: {trigger}\nTop methods (all):\n{methods}',
+            'api_ignore_usage': 'Usage: .api_ignore [list|add|remove|clear] [method]',
+            'api_ignore_list': '📋 Ignored methods:\n{methods}',
+            'api_ignore_list_empty': '📋 Ignored methods list is empty',
+            'api_ignore_added': '✅ Method `{method}` added to ignore list',
+            'api_ignore_removed': '✅ Method `{method}` removed from ignore list',
+            'api_ignore_cleared': '✅ Ignored methods list cleared',
+            'api_ignore_not_found': '❌ Method `{method}` not found in ignore list',
         }
     }
 
-    lang_strings = strings.get(language, strings['en'])
+    lang = strings.get(language, strings['en'])
+
+    raw_config = kernel.config.get('api_protection', DEFAULT_CONFIG.copy())
+    if isinstance(raw_config, bool):
+        api_config = DEFAULT_CONFIG.copy()
+        api_config['enable_protection'] = raw_config
+        kernel.logger.info("Converted old api_protection config (bool) to new dict format")
+    else:
+        api_config = raw_config
+        for k, v in DEFAULT_CONFIG.items():
+            if k not in api_config:
+                api_config[k] = v
+
+    kernel.config['api_protection'] = api_config
+
+    protection_enabled = api_config['enable_protection']
+    blocked_until = 0.0
+    original_call = None
+    request_log = deque(maxlen=10000)
+
+    async def api_call_interceptor(sender, request: TLRequest, ordered: bool = False, flood_sleep_threshold: int = None):
+        nonlocal blocked_until
+        if not protection_enabled:
+            return await original_call(sender, request, ordered, flood_sleep_threshold)
+
+        now = time.time()
+        method = request.__class__.__name__
+
+        if now < blocked_until:
+            wait = blocked_until - now
+            if wait > 0:
+                await asyncio.sleep(wait)
+
+        request_log.append((method, now))
+
+        interval = api_config['time_sample']
+        cutoff = now - interval
+        ignore_set = set(api_config['ignore_methods'])
+        total_relevant = sum(1 for m, ts in request_log if ts > cutoff and m not in ignore_set)
+
+        threshold = api_config['threshold']
+        if total_relevant > threshold and now >= blocked_until:
+            blocked_until = now + api_config['local_floodwait']
+            kernel.logger.warning(f"API protection triggered: {total_relevant} relevant requests in {interval}s, blocking for {api_config['local_floodwait']}s")
+            asyncio.create_task(notify_overload(kernel, lang, method, total_relevant, interval, threshold))
+
+        return await original_call(sender, request, ordered, flood_sleep_threshold)
+
+    def install_interceptor():
+        nonlocal original_call
+        if hasattr(client, '_original_call'):
+            kernel.logger.debug("API interceptor already installed")
+            return
+        original_call = client._call
+        client._call = api_call_interceptor
+        client._original_call = original_call
+
+    def uninstall_interceptor():
+        nonlocal original_call
+        if hasattr(client, '_original_call'):
+            client._call = client._original_call
+            delattr(client, '_original_call')
+            kernel.logger.info("API call interceptor uninstalled")
+
+    install_interceptor()
+
+    async def notify_overload(kernel, lang, trigger_method, total_relevant, interval, threshold):
+        if not kernel.log_chat_id:
+            return
+        now = time.time()
+        cutoff = now - interval
+        method_counts = defaultdict(int)
+        for m, ts in request_log:
+            if ts > cutoff:
+                method_counts[m] += 1
+
+        top_methods = sorted(method_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+        methods_str = '\n'.join(f'  `{m}`: {c}' for m, c in top_methods)
+
+        text = lang['api_overload_notify'].format(
+            interval=interval,
+            total=total_relevant,
+            threshold=threshold,
+            trigger=trigger_method,
+            methods=methods_str
+        )
+        try:
+            await kernel.bot_client.send_message(kernel.log_chat_id, text)
+        except Exception:
+            try:
+                await kernel.client.send_message(kernel.log_chat_id, text)
+            except Exception:
+                await kernel.client.send_message('me', text)
+
+    @kernel.register.command('api_protection')
+    async def api_protection_handler(event):
+        nonlocal protection_enabled
+        args = event.text.split()
+        if len(args) == 1:
+            buttons = [
+                {"text": lang['yes'], "type": "callback", "data": "api_protection_yes"},
+                {"text": lang['no'], "type": "callback", "data": "api_protection_no"}
+            ]
+            await kernel.inline_form(
+                event.chat_id,
+                lang['are_you_sure'],
+                buttons=buttons
+            )
+            await event.delete()
+            return
+
+        subcmd = args[1].lower()
+        if subcmd in ('on', 'enable', 'true'):
+            protection_enabled = True
+            api_config['enable_protection'] = True
+            await event.edit(lang['api_protection_enabled'])
+        elif subcmd in ('off', 'disable', 'false'):
+            protection_enabled = False
+            api_config['enable_protection'] = False
+            await event.edit(lang['api_protection_disabled'])
+        elif len(args) >= 3:
+            param = args[1]
+            value = ' '.join(args[2:])
+            if param in api_config:
+                try:
+                    if isinstance(api_config[param], list):
+                        try:
+                            new_val = json.loads(value)
+                            if isinstance(new_val, list):
+                                api_config[param] = new_val
+                            else:
+                                raise ValueError
+                        except:
+                            await event.edit(lang['api_param_error'])
+                            return
+                    elif isinstance(api_config[param], (int, float)):
+                        api_config[param] = type(api_config[param])(value)
+                    elif isinstance(api_config[param], bool):
+                        api_config[param] = value.lower() in ('true', 'yes', '1')
+                    else:
+                        api_config[param] = value
+                    await event.edit(lang['api_param_set'].format(param=param, value=api_config[param]))
+                except Exception:
+                    await event.edit(lang['api_param_error'])
+            else:
+                await event.edit(lang['api_param_error'])
+        else:
+            await event.edit(lang['api_protection_usage'])
+
+        kernel.config['api_protection'] = api_config
+        with open(kernel.CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(kernel.config, f, ensure_ascii=False, indent=2)
+
+
+    @kernel.register.command('api_reset')
+    async def api_reset_handler(event):
+        nonlocal blocked_until
+        request_log.clear()
+        blocked_until = 0.0
+        await event.edit(lang['api_reset_done'])
+
+    @kernel.register.command('api_suspend')
+    async def api_suspend_handler(event):
+        nonlocal blocked_until
+        args = event.text.split()
+        if len(args) != 2 or not args[1].isdigit():
+            await event.edit(lang['api_protection_usage'])
+            return
+
+        seconds = int(args[1])
+        await event.edit(lang['api_suspend'].format(seconds=seconds), parse_mode='html')
+        blocked_until = time.time() + seconds
+
+    async def api_protection_callback_handler(event):
+        nonlocal protection_enabled
+        data = event.data
+        if data == b'api_protection_yes':
+            protection_enabled = True
+            api_config['enable_protection'] = True
+            await event.edit(f'<tg-emoji emoji-id="5368585403467048206">🪬</tg-emoji> {lang["api_protection_on"]}', parse_mode='html')
+        else:
+            protection_enabled = False
+            api_config['enable_protection'] = False
+            await event.edit(f'<tg-emoji emoji-id="5368585403467048206">🪬</tg-emoji> {lang["api_protection_off"]}', parse_mode='html')
+
+        kernel.config['api_protection'] = api_config
+        with open(kernel.CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(kernel.config, f, ensure_ascii=False, indent=2)
+
+    kernel.register_callback_handler(b"api_protection_", api_protection_callback_handler)
 
     request_timestamps = defaultdict(list)
-    blocked_until = 0
-    protection_enabled = kernel.config.get("api_protection", True)
-
     DANGEROUS_COMMANDS = {"update", "stop", "um", "rollback", "t", "py"}
     RATE_LIMITS = {
         "default": {"requests": 15, "seconds": 30},
@@ -106,7 +327,7 @@ def register(kernel):
         blocked_until = time.time() + seconds
 
         await event.edit(
-            f"❄️ <b>{reason}</b>\n<blockquote>{lang_strings['bot_stopped'].format(seconds=seconds)}</blockquote>",
+            f"❄️ <b>{reason}</b>\n<blockquote>{lang['bot_stopped'].format(seconds=seconds)}</blockquote>",
             parse_mode="html",
         )
 
@@ -117,84 +338,5 @@ def register(kernel):
 
         blocked_until = 0
         await kernel.client.connect()
-        await event.edit(lang_strings['bot_unlocked'].format(seconds=seconds))
+        await event.edit(lang['bot_unlocked'].format(seconds=seconds))
 
-    @kernel.register.command('api_protection')
-    async def api_protection_handler(event):
-        nonlocal protection_enabled
-        args = event.text.split()
-
-        if len(args) > 1:
-            if args[1] in ["on", "enable", "true"]:
-                kernel.config["api_protection"] = True
-                protection_enabled = True
-                await event.edit(lang_strings['api_protection_enabled'])
-            elif args[1] in ["off", "disable", "false"]:
-                kernel.config["api_protection"] = False
-                protection_enabled = False
-                await event.edit(lang_strings['api_protection_disabled'])
-            else:
-                await event.edit(
-                    f"❌ {lang_strings['api_protection_usage']} {kernel.custom_prefix}api_protection [on/off]"
-                )
-                return
-        else:
-            buttons = [{"text": lang_strings['yes'], "type": "callback", "data": "api_protection_yes"},
-                       {"text": lang_strings['no'], "type": "callback", "data": "api_protection_no"}]
-
-            success = await kernel.inline_form(
-                event.chat_id,
-                lang_strings['are_you_sure'],
-                buttons=buttons
-                )
-            if success:
-                await event.delete()
-
-        with open(kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
-            json.dump(kernel.config, f, ensure_ascii=False, indent=2)
-
-    @client.on(events.NewMessage(outgoing=True))
-    async def rate_limit_handler(event):
-        if not protection_enabled:
-            return
-
-        text = event.text
-        user_id = event.sender_id
-
-        if not text.startswith(kernel.custom_prefix):
-            limit_type = "message"
-        else:
-            cmd = text[len(kernel.custom_prefix) :].split()[0]
-            limit_type = "dangerous" if cmd in DANGEROUS_COMMANDS else "default"
-
-        if not check_rate_limit(user_id, limit_type):
-            await enforce_cooldown(event, 30, lang_strings['request_limit_exceeded'].format(limit_type=limit_type))
-            raise StopAsyncIteration
-
-    @kernel.register.command('reset_limits')
-    async def reset_limits_handler(event):
-        if event.sender_id not in kernel.config.get("admins", []):
-            await event.edit(lang_strings['insufficient_permissions'])
-            return
-
-        request_timestamps.clear()
-        nonlocal blocked_until
-        blocked_until = 0
-
-        await event.edit(lang_strings['limits_reset'])
-
-    async def api_protection_callback_handler(event):
-        nonlocal protection_enabled
-        data = event.data
-        if data == b'api_protection_yes':
-            kernel.config["api_protection"] = True
-            protection_enabled = True
-            await event.edit(f'<tg-emoji emoji-id="5368585403467048206">🪬</tg-emoji> {lang_strings["api_protection_on"]}', parse_mode='html')
-        else:
-            kernel.config["api_protection"] = False
-            protection_enabled = False
-            await event.edit(f'<tg-emoji emoji-id="5368585403467048206">🪬</tg-emoji> {lang_strings["api_protection_off"]}', parse_mode='html')
-
-        with open(kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
-            json.dump(kernel.config, f, ensure_ascii=False, indent=2)
-    kernel.register_callback_handler(b"api_protection_", api_protection_callback_handler)

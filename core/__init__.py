@@ -10,7 +10,8 @@ from .scheduler import TaskScheduler
 from .register import Register
 from .permissions import CallbackPermissionManager
 from .kernel import Kernel
-
+from .database import DatabaseManager
+from .version import VersionManager
 
 __all__ = [
     "Kernel",
@@ -21,4 +22,5 @@ __all__ = [
     "TaskScheduler",
     "CommandConflictError",
     "DatabaseManager",
+    "VersionManager",
 ]

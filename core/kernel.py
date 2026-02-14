@@ -4,13 +4,13 @@
 # Лицензия? какая лицензия ещё
 
 # Import from refactored modules
-from .colors import Colors
-from .exceptions import CommandConflictError
-from .cache import TTLCache
-from .scheduler import TaskScheduler
-from .register import Register
-from .permissions import CallbackPermissionManager
-from .database import DatabaseManager
+from .lib.colors import Colors
+from .lib.exceptions import CommandConflictError
+from .lib.cache import TTLCache
+from .lib.scheduler import TaskScheduler
+from .lib.register import Register
+from .lib.permissions import CallbackPermissionManager
+from .lib.database import DatabaseManager
 from .version import VersionManager, VERSION
 # HTML parser utils
 try:
@@ -167,6 +167,63 @@ class Kernel:
         self.bot_command_owners = {}
         self.error_load_modules = 0
         self.inline_handlers_owners = {}
+        self.inline_message_manager = None  # Будет инициализирован после загрузки config модуля
+
+
+    async def get_module_config(self, module_name, default=None):
+        """Получение конфигурации модуля из БД"""
+        try:
+            config_json = await self.db_get("module_configs", module_name)
+            if config_json:
+                return json.loads(config_json)
+            return default if default is not None else {}
+        except Exception as e:
+            self.logger.error(f"Ошибка получения конфига модуля {module_name}: {e}")
+            return default if default is not None else {}
+
+    async def save_module_config(self, module_name, config_data):
+        """Сохранение конфигурации модуля в БД"""
+        try:
+            config_json = json.dumps(config_data, ensure_ascii=False, indent=2)
+            await self.db_set("module_configs", module_name, config_json)
+            return True
+        except Exception as e:
+            self.logger.error(f"Ошибка сохранения конфига модуля {module_name}: {e}")
+            return False
+
+    async def delete_module_config(self, module_name):
+        """Удаление конфигурации модуля из БД"""
+        try:
+            await self.db_delete("module_configs", module_name)
+            return True
+        except Exception as e:
+            self.logger.error(f"Ошибка удаления конфига модуля {module_name}: {e}")
+            return False
+
+    async def get_module_config_key(self, module_name, key, default=None):
+        """Получение конкретного ключа из конфигурации модуля"""
+        config = await self.get_module_config(module_name, {})
+        return config.get(key, default)
+
+    async def set_module_config_key(self, module_name, key, value):
+        """Установка конкретного ключа в конфигурации модуля"""
+        config = await self.get_module_config(module_name, {})
+        config[key] = value
+        return await self.save_module_config(module_name, config)
+
+    async def delete_module_config_key(self, module_name, key):
+        """Удаление конкретного ключа из конфигурации модуля"""
+        config = await self.get_module_config(module_name, {})
+        if key in config:
+            del config[key]
+            return await self.save_module_config(module_name, config)
+        return False
+
+    async def update_module_config(self, module_name, updates):
+        """Обновление нескольких ключей конфигурации модуля"""
+        config = await self.get_module_config(module_name, {})
+        config.update(updates)
+        return await self.save_module_config(module_name, config)
 
     async def init_scheduler(self):
         """Инициализация планировщика задач"""

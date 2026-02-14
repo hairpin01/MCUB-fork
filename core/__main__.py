@@ -2,11 +2,12 @@
 # version: 1.0.1
 # description: Entry point for running MCUB as a module
 
-import asyncio
 import sys
-
-from .kernel import Kernel
-
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from core.kernel import Kernel
+# from .kernel import Kernel
+import asyncio
 
 async def main():
     """Main entry point for MCUB kernel."""

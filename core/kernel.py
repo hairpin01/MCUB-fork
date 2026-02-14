@@ -26,7 +26,6 @@ try:
 except ImportError as e:
     print(f"=X HTML парсер не загружен: {e}")
     HTML_PARSER_AVAILABLE = False
-
 try:
     import time
     import sys

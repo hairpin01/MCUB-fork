@@ -1,6 +1,6 @@
 # author: @Hairpin00
 # version: 1.2.0
-# description: Advanced API protection with method ignore list
+# description: Advanced API protection
 
 import asyncio
 import time
@@ -185,6 +185,7 @@ def register(kernel):
                 await kernel.client.send_message('me', text)
 
     @kernel.register.command('api_protection')
+    # включить/выключить api защиту
     async def api_protection_handler(event):
         nonlocal protection_enabled
         args = event.text.split()
@@ -245,6 +246,7 @@ def register(kernel):
 
 
     @kernel.register.command('api_reset')
+    # сбросить api защиту
     async def api_reset_handler(event):
         nonlocal blocked_until
         request_log.clear()
@@ -252,6 +254,7 @@ def register(kernel):
         await event.edit(lang['api_reset_done'])
 
     @kernel.register.command('api_suspend')
+    # [секунды] - отключить защиту
     async def api_suspend_handler(event):
         nonlocal blocked_until
         args = event.text.split()

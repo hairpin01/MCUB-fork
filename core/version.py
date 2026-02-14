@@ -8,6 +8,10 @@ import subprocess
 import os
 from typing import Tuple, Optional
 
+# version kenrel MCUB
+__version__ = "1.0.2.3"
+VERSION = __version__
+
 class VersionManager:
 
     def __init__(self, kernel):

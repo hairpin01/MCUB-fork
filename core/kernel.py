@@ -1,5 +1,4 @@
 # author: @Hairpin00
-# version: 1.0.2.2.5
 # description: kernel core - main Kernel class
 # Спасибо @Mitrichq за основу юзербота
 # Лицензия? какая лицензия ещё
@@ -12,7 +11,7 @@ from .scheduler import TaskScheduler
 from .register import Register
 from .permissions import CallbackPermissionManager
 from .database import DatabaseManager
-from .version import VersionManager
+from .version import VersionManager, VERSION
 # HTML parser utils
 try:
     from utils.html_parser import parse_html
@@ -70,7 +69,7 @@ except ImportError as e:
 
 class Kernel:
     def __init__(self):
-        self.VERSION = "1.0.2.3"
+        self.VERSION = VERSION
         self.DB_VERSION = 2
         self.start_time = time.time()
         self.loaded_modules = {}
@@ -1345,8 +1344,11 @@ class Kernel:
 
     def format_with_html(self, text, entities):
         """Форматирует текст с сущностями в HTML"""
+        if not text:
+            return ""
+
         if not HTML_PARSER_AVAILABLE:
-            return html.escape(text)
+            return html.escape(text, quote=False)
 
         from utils.html_parser import telegram_to_html
 
@@ -1576,16 +1578,20 @@ class Kernel:
         self.cache.set(error_signature, True, ttl=60)
 
         error_id = f"err_{uuid.uuid4().hex[:8]}"
-        error_text = str(error)
+        error_text = str(error) if error else "Unknown error"
         error_traceback = "".join(
             traceback.format_exception(type(error), error, error.__traceback__)
         )
 
         self.cache.set(f"tb_{error_id}", error_traceback)
 
+        # Safe escape with None check
+        source_escaped = html.escape(source, quote=False) if source else "unknown"
+        error_escaped = html.escape(error_text[:300], quote=False) if error_text else "unknown"
+
         formatted_error = (
-            f"💠 <b>Source:</b> <code>{html.escape(source)}</code>\n"
-            f"🔮 <b>Error:</b> <blockquote>👉 <code>{html.escape(error_text[:300])}</code></blockquote>"
+            f"💠 <b>Source:</b> <code>{source_escaped}</code>\n"
+            f"🔮 <b>Error:</b> <blockquote>👉 <code>{error_escaped}</code></blockquote>"
         )
 
         if event:
@@ -1596,10 +1602,13 @@ class Kernel:
                     if event.sender_id
                     else "unknown"
                 )
+                event_text = event.text if event.text else "not text"
+                event_text_escaped = html.escape(event_text[:200], quote=False)
+
                 formatted_error += (
                     f"\n💬 <b>Message info:</b>\n"
                     f"<blockquote>🪬 <b>User:</b> {user_info}\n"
-                    f"⌨️ <b>Text:</b> <code>{html.escape(event.text[:200] if event.text else 'not text')}</code>\n"
+                    f"⌨️ <b>Text:</b> <code>{event_text_escaped}</code>\n"
                     f"📬 <b>Chat:</b> {chat_title}</blockquote>"
                 )
             except Exception:
@@ -1944,22 +1953,36 @@ class Kernel:
                     self.clear_loading_module()
 
     def raw_text(self, source: any) -> str:
+        """
+        Convert a message or text to raw HTML format.
+
+        Args:
+            source: Message object or string
+
+        Returns:
+            HTML-formatted string (never None)
+        """
         try:
+
+            if source is None:
+                return ""
 
             if not hasattr(self, "html_converter") or self.html_converter is None:
                 from utils.raw_html import RawHTMLConverter
-
-                self.html_converter = RawHTMLConverter(keep_newlines=True)
+                # Note: keep_newlines parameter removed in v1.3.1
+                self.html_converter = RawHTMLConverter()
 
             if isinstance(source, str):
-                return html.escape(source).replace("\n", "<br/>")
-            self.logger.debug(f"raw_text:{self.html_converter.convert_message(source)}")
-            return self.html_converter.convert_message(source)
+                return html.escape(source, quote=False) if source else ""
 
-        except Exception:
-            # Резервный вариант, если что-то пошло не так
-            text = getattr(source, "message", str(source))
-            return html.escape(text).replace("\n", "<br/>")
+            result = self.html_converter.convert_message(source)
+            self.logger.debug(f"raw_text: {result}")
+            return result if result is not None else ""
+
+        except Exception as e:
+            self.logger.error(f"raw_text error: {e}")
+            return ""
+
 
     def _prepare_buttons(self, raw_buttons):
         """
@@ -2012,7 +2035,6 @@ class Kernel:
         try:
             from core_inline.handlers import InlineHandlers
 
-            # Формируем текст из title и fields
             query_parts = [title]
             if fields:
                 if isinstance(fields, dict):
@@ -2023,24 +2045,20 @@ class Kernel:
                         query_parts.append(f"Поле {i}: {field}")
             text = "\n".join(query_parts)
 
-            # Определяем все возможные классы кнопок Telethon
             BUTTON_TYPES = tuple(
                 getattr(tl_types, name) for name in dir(tl_types)
                 if name.startswith('KeyboardButton')
             )
 
-            # Обрабатываем кнопки
             buttons_to_use = None
             if buttons is not None:
-                # Проверяем, не являются ли кнопки уже готовыми объектами Telethon
+
                 if (isinstance(buttons, list) and len(buttons) > 0 and
                     all(isinstance(row, list) for row in buttons) and
                     buttons[0] and len(buttons[0]) > 0 and
                     isinstance(buttons[0][0], BUTTON_TYPES)):
-                    # Это уже готовая структура кнопок — оставляем как есть
                     buttons_to_use = buttons
                 else:
-                    # Преобразуем упрощённый формат в список словарей
                     buttons_to_use = self._prepare_buttons(buttons)
 
             handlers = InlineHandlers(self, self.bot_client)
@@ -2067,7 +2085,12 @@ class Kernel:
             if depth > 5:
                 self.logger.error(f"Recursion limit reached for aliases: {event.text}")
                 return False
+
             text = event.text
+
+            # Handle None or empty text
+            if not text:
+                return False
 
             if not text.startswith(self.custom_prefix):
                 return False
@@ -2105,6 +2128,10 @@ class Kernel:
     async def process_bot_command(self, event):
         """Обработка команд бота"""
         text = event.text
+
+        # Handle None or empty text
+        if not text:
+            return False
 
         if not text.startswith("/"):
             return False

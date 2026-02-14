@@ -1,4 +1,6 @@
-# core/version.py
+# author: @Hairpin00
+# version: 1.0.1
+# description: Version
 import time
 import aiohttp
 import asyncio

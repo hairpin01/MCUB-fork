@@ -20,4 +20,5 @@ __all__ = [
     "TTLCache",
     "TaskScheduler",
     "CommandConflictError",
+    "DatabaseManager",
 ]

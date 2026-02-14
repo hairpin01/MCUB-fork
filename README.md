@@ -22,7 +22,7 @@
 ## Установка
 
 ```bash
-git clone https://github.com/hairpin01/MCUB-fork.git && cd MCUB-fork ; pip install -r requirements.txt ; python3 MCUB.py
+git clone https://github.com/hairpin01/MCUB-fork.git && cd MCUB-fork ; pip install -r requirements.txt ; python3 -m core
 ```
 __более подробно тут__ https://telegra.ph/MCUB-fork-install-02-05
 

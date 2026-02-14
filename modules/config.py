@@ -1177,7 +1177,6 @@ def register(kernel):
 
 
                 kernel.cache.set(cache_key, None, ttl=1)
-                await client.delete_messages(event.chat_id, [event.message_id])
 
                 try:
                     if hasattr(event, 'query') and hasattr(event.query, 'inline_message_id'):

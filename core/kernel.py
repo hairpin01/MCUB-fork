@@ -11,7 +11,8 @@ from .cache import TTLCache
 from .scheduler import TaskScheduler
 from .register import Register
 from .permissions import CallbackPermissionManager
-
+from .database import DatabaseManager
+from .version import VersionManager
 # HTML parser utils
 try:
     from utils.html_parser import parse_html
@@ -86,7 +87,7 @@ class Kernel:
         self.shutdown_flag = False
         self.power_save_mode = False
         self.Colors = Colors
-        self.db_conn = None
+        # self.db_manager = None
         self.cache = TTLCache(max_size=500, ttl=600)
         self.MODULES_DIR = "modules"
         self.MODULES_LOADED_DIR = "modules_loaded"
@@ -159,13 +160,14 @@ class Kernel:
         self.setup_directories()
         self.load_or_create_config()
         self.logger = self.setup_logging()
+        self.version_manager = VersionManager(self)
+        self.db_manager = DatabaseManager(self)
         self.middleware_chain = []
         self.scheduler = None
         self.bot_command_handlers = {}
         self.bot_command_owners = {}
         self.error_load_modules = 0
         self.inline_handlers_owners = {}
-        self._latest_kernel_version_cache = None
 
     async def init_scheduler(self):
         """Инициализация планировщика задач"""
@@ -329,71 +331,26 @@ class Kernel:
         await self.db_set("kernel", config_key, json.dumps(config))
 
     async def init_db(self):
-        """Инициализация базы данных."""
-
-        try:
-            self.db_conn = await aiosqlite.connect("userbot.db")
-            await self.create_tables()
-            self.logger.info("=> База данных инициализирована")
-            return True
-        except Exception as e:
-            self.logger.error(f"=X Ошибка инициализации БД: {e}")
-            return False
+        return await self.db_manager.init_db()
 
     async def create_tables(self):
-        """Создание таблиц в БД."""
-        await self.db_conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS module_data (
-                module TEXT,
-                key TEXT,
-                value TEXT,
-                PRIMARY KEY (module, key)
-            )
-        """
-        )
-        await self.db_conn.commit()
+        await self.db_manager._create_tables()
 
     async def db_set(self, module, key, value):
-        """Store key-value pair for module."""
-        if not self.db_conn:
-            raise Exception("База данных не инициализирована")
-
-        await self.db_conn.execute(
-            "INSERT OR REPLACE INTO module_data VALUES (?, ?, ?)",
-            (module, key, str(value)),
-        )
-        await self.db_conn.commit()
+        await self.db_manager.db_set(module, key, value)
 
     async def db_get(self, module, key):
-        """Retrieve value for module."""
-        if not self.db_conn:
-            raise Exception("База данных не инициализирована")
-
-        cursor = await self.db_conn.execute(
-            "SELECT value FROM module_data WHERE module = ? AND key = ?", (module, key)
-        )
-        row = await cursor.fetchone()
-        return row[0] if row else None
+        return await self.db_manager.db_get(module, key)
 
     async def db_delete(self, module, key):
-        """Delete key from module storage."""
-        if not self.db_conn:
-            raise Exception("База данных не инициализирована")
-
-        await self.db_conn.execute(
-            "DELETE FROM module_data WHERE module = ? AND key = ?", (module, key)
-        )
-        await self.db_conn.commit()
+        await self.db_manager.db_delete(module, key)
 
     async def db_query(self, query, parameters):
-        """Execute custom SQL query."""
-        if not self.db_conn:
-            raise Exception("База данных не инициализирована")
+        return await self.db_manager.db_query(query, parameters)
 
-        cursor = await self.db_conn.execute(query, parameters)
-        rows = await cursor.fetchall()
-        return rows
+    @property
+    def db_conn(self):
+        return self.db_manager.conn if self.db_manager else None
 
     def setup_logging(self):
 
@@ -434,112 +391,11 @@ class Kernel:
             json.dump(self.config, f, ensure_ascii=False, indent=2)
             self.logger.debug("save config")
 
-    @staticmethod
-    def _parse_version(version_str: str) -> tuple:
-        """
-        Parse version string like '1.0.2.1' into tuple of integers.
-        Non‑numeric parts are treated as 0.
-        """
-        parts = []
-        for part in version_str.split('.'):
-            try:
-                parts.append(int(part))
-            except ValueError:
-                parts.append(0)
-        return tuple(parts)
-
-    @staticmethod
-    def _compare_versions(v1: str, v2: str) -> int:
-        """
-        Compare two version strings.
-        Returns:
-            -1 if v1 < v2
-             0 if v1 == v2
-             1 if v1 > v2
-        """
-        v1_tuple = Kernel._parse_version(v1)
-        v2_tuple = Kernel._parse_version(v2)
-        if v1_tuple < v2_tuple:
-            return -1
-        if v1_tuple > v2_tuple:
-            return 1
-        return 0
-
     async def get_latest_kernel_version(self) -> str:
-        """Fetch the latest kernel version from the update repository (cached for 1 hour)."""
-        if self._latest_kernel_version_cache:
-            cache_time, version = self._latest_kernel_version_cache
-            if time.time() - cache_time < 3600:
-                return version
-
-        url = self.UPDATE_REPO + "version.txt"
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=5) as resp:
-                    if resp.status == 200:
-                        version = (await resp.text()).strip()
-                        self._latest_kernel_version_cache = (time.time(), version)
-                        return version
-        except Exception as e:
-            self.logger.error(f"Error fetching latest kernel version: {e}")
-
-        # Fallback to current version
-        return self.VERSION
+        return await self.version_manager.get_latest_kernel_version()
 
     async def _check_kernel_version_compatibility(self, code: str) -> Tuple[bool, str]:
-        """
-        Examine module source for '# scop: kernel ...' directives and verify
-        that the current kernel version satisfies all requirements.
-        Returns (True, "") if compatible, (False, error_message) otherwise.
-        """
-        lines = code.split('\n')
-        directives = []
-        for line in lines:
-            stripped = line.strip()
-            if stripped.startswith('# scop: kernel'):
-                rest = stripped[len('# scop: kernel'):].strip()
-                if rest:
-                    directives.append(rest)
-
-        if not directives:
-            return True, ""
-
-        current_version = self.VERSION
-        latest_version = None  # lazy load
-
-        for directive in directives:
-            parts = directive.split()
-            if not parts:
-                continue
-
-            # min <version>
-            if parts[0] == 'min':
-                if len(parts) >= 2 and parts[1].startswith('v'):
-                    required = parts[1][1:]
-                    if self._compare_versions(current_version, required) < 0:
-                        return False, f"Module requires kernel version ≥ {required}, current is {current_version}"
-            # max <version>
-            elif parts[0] == 'max':
-                if len(parts) >= 2 and parts[1].startswith('v'):
-                    required = parts[1][1:]
-                    if self._compare_versions(current_version, required) > 0:
-                        return False, f"Module requires kernel version ≤ {required}, current is {current_version}"
-            # v<version>  or  v[__lastest__]
-            else:
-                if not parts[0].startswith('v'):
-                    continue
-                spec = parts[0][1:]  # strip 'v'
-                if spec == '[__lastest__]':
-                    if latest_version is None:
-                        latest_version = await self.get_latest_kernel_version()
-                    if self._compare_versions(current_version, latest_version) != 0:
-                        return False, f"Module requires the latest kernel version ({latest_version}), but current is {current_version}"
-                else:
-                    if self._compare_versions(current_version, spec) != 0:
-                        return False, f"Module requires kernel version exactly {spec}, but current is {current_version}"
-
-        return True, ""
-
+        return await self.version_manager.check_module_compatibility(code)
 
     def set_loading_module(self, module_name, module_type):
         """Устанавливает текущий загружаемый модуль"""

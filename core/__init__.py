@@ -3,15 +3,15 @@
 # description: Core package initialization
 
 # Import all classes from their new locations
-from .colors import Colors
-from .exceptions import CommandConflictError
-from .cache import TTLCache
-from .scheduler import TaskScheduler
-from .register import Register
-from .permissions import CallbackPermissionManager
-from .kernel import Kernel
-from .database import DatabaseManager
+from .lib.colors import Colors
+from .lib.exceptions import CommandConflictError
+from .lib.cache import TTLCache
+from .lib.scheduler import TaskScheduler
+from .lib.register import Register
+from .lib.permissions import CallbackPermissionManager
+from .lib.database import DatabaseManager
 from .version import VersionManager
+from .kernel import Kernel
 
 __all__ = [
     "Kernel",

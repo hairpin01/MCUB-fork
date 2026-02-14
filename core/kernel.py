@@ -69,7 +69,7 @@ except ImportError as e:
 
 class Kernel:
     def __init__(self):
-        self.VERSION = "1.0.2.2.5"
+        self.VERSION = "1.0.2.3"
         self.DB_VERSION = 2
         self.start_time = time.time()
         self.loaded_modules = {}

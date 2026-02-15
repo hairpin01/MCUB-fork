@@ -2077,10 +2077,11 @@ class Kernel:
             chat_id (int): ID чата для отправки
             title (str): Заголовок формы
             fields (list/dict, optional): Поля формы (будут преобразованы в текст)
-            buttons (optional): Кнопки. Могут быть переданы в двух форматах:
-                - Упрощённый: список словарей или кортежей (как раньше)
-                - Готовые кнопки Telethon: список списков объектов-кнопок
-                (например, [[Button.inline('Текст', b'data')], [Button.url('URL', 'https://...')]])
+            buttons (optional): Кнопки. Могут быть переданы в любом формате, поддерживаемом create_inline_form:
+                - список словарей (каждая кнопка в отдельном ряду)
+                - список списков словарей (ряды кнопок)
+                - список списков объектов Button
+                - JSON строка
             auto_send (bool): Автоматически отправить форму
             ttl (int): Время жизни формы в кэше (секунды)
             **kwargs: Дополнительные параметры для inline_query_and_click
@@ -2102,24 +2103,8 @@ class Kernel:
                         query_parts.append(f"Поле {i}: {field}")
             text = "\n".join(query_parts)
 
-            BUTTON_TYPES = tuple(
-                getattr(tl_types, name) for name in dir(tl_types)
-                if name.startswith('KeyboardButton')
-            )
-
-            buttons_to_use = None
-            if buttons is not None:
-
-                if (isinstance(buttons, list) and len(buttons) > 0 and
-                    all(isinstance(row, list) for row in buttons) and
-                    buttons[0] and len(buttons[0]) > 0 and
-                    isinstance(buttons[0][0], BUTTON_TYPES)):
-                    buttons_to_use = buttons
-                else:
-                    buttons_to_use = self._prepare_buttons(buttons)
-
             handlers = InlineHandlers(self, self.bot_client)
-            form_id = handlers.create_inline_form(text, buttons_to_use, ttl)
+            form_id = handlers.create_inline_form(text, buttons, ttl)
 
             if auto_send:
                 success, message = await self.inline_query_and_click(
@@ -2138,6 +2123,7 @@ class Kernel:
                 return False, None
             else:
                 return None
+
     async def process_command(self, event, depth=0):
             if depth > 5:
                 self.logger.error(f"Recursion limit reached for aliases: {event.text}")

@@ -2,6 +2,7 @@ import aiohttp
 import json
 import html
 import time
+import traceback
 from telethon import events, Button
 from telethon.tl.types import InputWebDocument
 
@@ -166,134 +167,157 @@ class InlineHandlers:
 
         @self.bot_client.on(events.InlineQuery)
         async def inline_query_handler(event):
-            query = event.text or ""
+            try:
+                query = event.text or ""
 
-            if not self.check_admin(event):
-                await event.answer([event.builder.article(
-                    "Нет доступа",
-                    text=f"{self.EMOJI_BLOCK} У вас нет доступа к inline MCUB bot\n"
-                         f"<blockquote>{self.EMOJI_SHIELD} ID: {event.sender_id}</blockquote>",
-                    parse_mode="html"
-                )])
-                return
-
-            if query.startswith("form_"):
-                form_data = self.get_inline_form(query)
-                if form_data:
-                    builder = event.builder.article(
-                        "Inline Form",
-                        text=form_data["text"],
-                        buttons=form_data.get("buttons"),
-                        parse_mode="html"
-                    )
-                    await event.answer([builder])
-                else:
+                if not self.check_admin(event):
                     await event.answer([event.builder.article(
-                        "Форма не найдена",
-                        text=f"{self.EMOJI_BLOCK} <b>Форма не найдена или истекла</b>\n"
-                             f"<i>ID: <code>{html.escape(query)}</code></i>",
+                        "Нет доступа",
+                        text=f"{self.EMOJI_BLOCK} У вас нет доступа к inline MCUB bot\n"
+                            f"<blockquote>{self.EMOJI_SHIELD} ID: {event.sender_id}</blockquote>",
                         parse_mode="html"
                     )])
-                return
-
-            for pattern, handler in self.kernel.inline_handlers.items():
-                if query.startswith(pattern):
-                    await handler(event)
                     return
 
-            if not query.strip():
-                results = []
-                modules_count = len(self.kernel.loaded_modules) + len(self.kernel.system_modules)
-                inline_cmd_count = len(self.kernel.inline_handlers)
-
-                info_text = (
-                    f"{self.EMOJI_CRYSTAL} <b>MCUB Bot</b>\n"
-                    f"<blockquote>{self.EMOJI_SHIELD} Version: {self.kernel.VERSION}</blockquote>\n"
-                    f"<blockquote>{self.EMOJI_TOT} Modules: {modules_count}</blockquote>\n"
-                )
-
-                thumb = InputWebDocument(
-                    url='https://kappa.lol/KSKoOu',
-                    size=0,
-                    mime_type='image/jpeg'
-                )
-
-                info_article = event.builder.article(
-                    "MCUB Info",
-                    text=info_text,
-                    description="Info userbot",
-                    parse_mode="html",
-                    thumb=thumb
-                )
-                results.append(info_article)
+                if query.startswith("form_"):
+                    form_data = self.get_inline_form(query)
+                    if form_data:
+                        builder = event.builder.article(
+                            "Inline Form",
+                            text=form_data["text"],
+                            buttons=form_data.get("buttons"),
+                            parse_mode="html"
+                        )
+                        await event.answer([builder])
+                    else:
+                        await event.answer([event.builder.article(
+                            "Форма не найдена",
+                            text=f"{self.EMOJI_BLOCK} <b>Форма не найдена или истекла</b>\n"
+                                f"<i>ID: <code>{html.escape(query)}</code></i>",
+                            parse_mode="html"
+                        )])
+                    return
 
                 for pattern, handler in self.kernel.inline_handlers.items():
-                    if len(results) >= 50:
-                        break
-                    handler_name = getattr(handler, '__name__', 'Обработчик')
-                    docstring = handler.__doc__ or "команда"
-                    cmd_text = f"{self.EMOJI_TELESCOPE} <b>Команда:</b> <code>{html.escape(pattern)}</code>\n\n"
-                    thumb_cmd = InputWebDocument(
-                        url='https://kappa.lol/EKhGKM',
+                    if query.startswith(pattern):
+                        await handler(event)
+                        return
+
+                if not query.strip():
+                    results = []
+                    modules_count = len(self.kernel.loaded_modules) + len(self.kernel.system_modules)
+                    inline_cmd_count = len(self.kernel.inline_handlers)
+
+                    info_text = (
+                        f"{self.EMOJI_CRYSTAL} <b>MCUB Bot</b>\n"
+                        f"<blockquote>{self.EMOJI_SHIELD} Version: {self.kernel.VERSION}</blockquote>\n"
+                        f"<blockquote>{self.EMOJI_TOT} Modules: {modules_count}</blockquote>\n"
+                    )
+
+                    thumb = InputWebDocument(
+                        url='https://kappa.lol/KSKoOu',
                         size=0,
                         mime_type='image/jpeg'
                     )
-                    cmd_article = event.builder.article(
-                        f"Команда: {pattern[:20]}",
-                        text=cmd_text,
+
+                    info_article = event.builder.article(
+                        "MCUB Info",
+                        text=info_text,
+                        description="Info userbot",
                         parse_mode="html",
-                        thumb=thumb_cmd,
-                        description=html.escape(docstring.strip()),
-                        buttons=[
-                            [Button.switch_inline(f"🏄‍♀️ Выполнить: {pattern}",
-                                                 query=pattern, same_peer=True)]
-                        ]
+                        thumb=thumb
                     )
-                    results.append(cmd_article)
+                    results.append(info_article)
 
-                if len(results) == 1:
-                    no_cmds_text = (
-                        f"{self.EMOJI_CRYSTAL} <b>MCUB Bot</b>\n\n"
-                        f"{self.EMOJI_BLOCK} <i>Нет зарегистрированных inline-команд</i>\n\n"
-                    )
-                    no_cmds_article = event.builder.article(
-                        "Нет команд",
-                        text=no_cmds_text,
-                        parse_mode="html"
-                    )
-                    results.append(no_cmds_article)
+                    for pattern, handler in self.kernel.inline_handlers.items():
+                        if len(results) >= 50:
+                            break
+                        handler_name = getattr(handler, '__name__', 'Обработчик')
+                        docstring = handler.__doc__ or "команда"
+                        cmd_text = f"{self.EMOJI_TELESCOPE} <b>Команда:</b> <code>{html.escape(pattern)}</code>\n\n"
+                        thumb_cmd = InputWebDocument(
+                            url='https://kappa.lol/EKhGKM',
+                            size=0,
+                            mime_type='image/jpeg'
+                        )
+                        cmd_article = event.builder.article(
+                            f"Команда: {pattern[:20]}",
+                            text=cmd_text,
+                            parse_mode="html",
+                            thumb=thumb_cmd,
+                            description=html.escape(docstring.strip()),
+                            buttons=[
+                                [Button.switch_inline(f"🏄‍♀️ Выполнить: {pattern}",
+                                                    query=pattern, same_peer=True)]
+                            ]
+                        )
+                        results.append(cmd_article)
 
-                await event.answer(results)
-                return
+                    if len(results) == 1:
+                        no_cmds_text = (
+                            f"{self.EMOJI_CRYSTAL} <b>MCUB Bot</b>\n\n"
+                            f"{self.EMOJI_BLOCK} <i>Нет зарегистрированных inline-команд</i>\n\n"
+                        )
+                        no_cmds_article = event.builder.article(
+                            "Нет команд",
+                            text=no_cmds_text,
+                            parse_mode="html"
+                        )
+                        results.append(no_cmds_article)
 
-            #  text | {keyboards}
-            elif "|" in query:
-                try:
-                    parts = query.split("|", 1)
-                    text = parts[0].strip().strip("\"'")
-                    if len(parts) > 1:
-                        json_str = parts[1].strip()
-                        buttons = self._parse_json_buttons(json_str)
-                    else:
-                        buttons = []
+                    await event.answer(results)
+                    return
 
-                    builder = event.builder.article(
-                        "Message",
-                        text=text,
-                        buttons=buttons if buttons else None,
-                        parse_mode="html",
-                    )
-                except Exception as e:
-                    self.kernel.logger.debug(f"Ошибка обработки JSON формы: {e}")
-                    text = query.split("|")[0].strip().strip("\"'")
-                    builder = event.builder.article(
-                        "Message", text=text, parse_mode="html"
-                    )
-            else:
-                text = query
-                builder = event.builder.article("Message", text=text, parse_mode="html")
+                #  text | {keyboards}
+                elif "|" in query:
+                    try:
+                        parts = query.split("|", 1)
+                        text = parts[0].strip().strip("\"'")
+                        if len(parts) > 1:
+                            json_str = parts[1].strip()
+                            buttons = self._parse_json_buttons(json_str)
+                        else:
+                            buttons = []
 
-            await event.answer([builder] if builder else [])
+                        builder = event.builder.article(
+                            "Message",
+                            text=text,
+                            buttons=buttons if buttons else None,
+                            parse_mode="html",
+                        )
+                    except Exception as e:
+                        self.kernel.logger.debug(f"Ошибка обработки JSON формы: {e}")
+                        text = query.split("|")[0].strip().strip("\"'")
+                        builder = event.builder.article(
+                            "Message", text=text, parse_mode="html"
+                        )
+                else:
+                    text = query
+                    builder = event.builder.article("Message", text=text, parse_mode="html")
+
+                await event.answer([builder] if builder else [])
+
+            except Exception as e:
+                error_traceback = "".join(
+                    traceback.format_exception(type(e), e, e.__traceback__)
+                )
+
+                thumb = InputWebDocument(
+                    url='https://kappa.lol/qNFKBT',
+                    size=0,
+                    mime_type='image/jpeg',
+                    attributes=[]
+                )
+
+                error = event.builder.article(
+                    f"Error",
+                    text=f'🃏 Inline query error: <pre>{error_traceback}</pre>',
+                    description=f"E: {str(e)[:50]}",
+                    parse_mode="html",
+                    thumb=thumb,
+
+                )
+                await event.answer([error])
 
         @self.bot_client.on(events.CallbackQuery)
         async def callback_query_handler(event):

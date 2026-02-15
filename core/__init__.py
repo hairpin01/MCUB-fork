@@ -9,9 +9,9 @@ from .lib.cache import TTLCache
 from .lib.scheduler import TaskScheduler
 from .lib.register import Register
 from .lib.permissions import CallbackPermissionManager
+from .kernel import Kernel
 from .lib.database import DatabaseManager
 from .version import VersionManager
-from .kernel import Kernel
 
 __all__ = [
     "Kernel",

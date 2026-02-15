@@ -2,9 +2,10 @@ import asyncio
 import aiohttp
 import json
 import re
-import getpass
 import sys
 import os
+import tempfile
+import time
 from telethon import TelegramClient, Button, events
 
 class InlineBot:
@@ -23,288 +24,188 @@ class InlineBot:
         else:
             await self.start_bot()
 
+    async def stop_bot(self):
+        if self.bot_client and self.bot_client.is_connected():
+            await self.bot_client.disconnect()
+            self.kernel.logger.info("Инлайн-бот остановлен")
+
     async def create_bot(self):
+        """Диалог создания нового бота или ручного ввода токена."""
         self.kernel.logger.info("Настройка инлайн-бота")
+        await self.kernel.db_set("kernel", "HELLO_BOT", "False")
 
         choice = input(
-            f"{self.kernel.Colors.YELLOW}1. Автоматически создать бота\n2. Ввести токен вручную\nВыберите (1/2): {self.kernel.Colors.RESET}"
+            f"{self.kernel.Colors.YELLOW}1. Автоматически создать бота\n"
+            f"2. Ввести токен вручную\n"
+            f"Выберите (1/2): {self.kernel.Colors.RESET}"
         ).strip()
-        await self.kernel.db_set("kernel", "HELLO_BOT", "False")
+
         if choice == "1":
-            await self.auto_create_bot()
+            await self._auto_create_bot()
         elif choice == "2":
-            await self.manual_setup()
+            await self._manual_setup()
         else:
             self.kernel.logger.error("Неверный выбор при создании бота")
-            return
 
-    async def auto_create_bot(self):
+    async def _auto_create_bot(self):
         try:
             botfather = await self.kernel.client.get_entity("BotFather")
 
-            while True:
-                username = input(
-                    f"{self.kernel.Colors.YELLOW}Желаемый username для бота (без @): {self.kernel.Colors.RESET}"
-                ).strip()
-
-                if not username:
-                    self.kernel.logger.error("Пустой username при создании бота")
-                    print(f"{self.kernel.Colors.RED}=X Username не может быть пустым{self.kernel.Colors.RESET}")
-                    continue
-
-                if not username.endswith(('bot', '_bot', 'Bot', '_Bot')):
-                    username += '_bot'
-                    self.kernel.logger.info(f"Автоматически добавлен суффикс _bot: {username}")
-                    print(f"{self.kernel.Colors.YELLOW}=? Username автоматически изменен на: {username}{self.kernel.Colors.RESET}")
-
-                if not re.match(r'^[a-zA-Z0-9_]{5,32}$', username):
-                    self.kernel.logger.error(f"Некорректный формат username: {username}")
-                    continue
-                break
-
-
-            async def wait_for_botfather_response(max_wait=30):
-                start_time = asyncio.get_event_loop().time()
-                while asyncio.get_event_loop().time() - start_time < max_wait:
-                    messages = await self.kernel.client.get_messages(botfather, limit=3)
-                    for msg in messages:
-                        if hasattr(msg, "text") and msg.text:
-                            yield msg
-                    await asyncio.sleep(2)
+            bot_name = "🪄 MCUB bot"
+            username = await self._ask_bot_username()
 
             await self.kernel.client.send_message(botfather, "/newbot")
-
-            await asyncio.sleep(2)
-
-            await self.kernel.client.send_message(botfather, "🪄 MCUB bot")
-
-            await asyncio.sleep(2)
-
+            await asyncio.sleep(1)
+            await self.kernel.client.send_message(botfather, bot_name)
+            await asyncio.sleep(1)
             await self.kernel.client.send_message(botfather, username)
 
+            token, actual_username = await self._wait_for_bot_token(botfather, username)
+            if not token or not actual_username:
+                self.kernel.logger.error("Не удалось получить токен от BotFather")
+                return
 
-            token = None
-            bot_username = None
+            self.token = token
+            self.username = actual_username
 
-            async for msg in wait_for_botfather_response(15):
-                text = msg.text
+            await self._configure_bot_via_botfather(botfather)
 
+            await self._save_config_and_restart()
 
-                token_match = re.search(r"(\d+:[A-Za-z0-9_-]+)", text)
-                if token_match and "token" in text.lower():
-                    token = token_match.group(1)
-                    self.kernel.logger.debug(f"Найден токен в сообщении BotFather")
-
-                username_match_tme = re.search(r"t\.me/([A-Za-z0-9_]+)", text)
-                if username_match_tme:
-                    bot_username = username_match_tme.group(1)
-                    self.kernel.logger.debug(f"Найден username в t.me ссылке: {bot_username}")
-
-                username_match_at = re.search(r"@([A-Za-z0-9_]+)", text)
-                if username_match_at and not bot_username:
-                    bot_username = username_match_at.group(1)
-                    self.kernel.logger.debug(f"Найден username в @упоминании: {bot_username}")
-
-
-                if "error" in text.lower() or "invalid" in text.lower():
-                    self.kernel.logger.error(f"BotFather вернул ошибку: {text[:100]}")
-                    return
-            if not bot_username:
-                bot_username = username
-                self.kernel.logger.info(f"Используем исходный username: {bot_username}")
-
-            if token and bot_username:
-                self.token = token
-                self.username = bot_username
-                self.kernel.logger.info(f"Получен токен для бота @{bot_username}")
-
-                await self.kernel.client.send_message(botfather, "/setdescription")
-                await asyncio.sleep(1)
-                await self.kernel.client.send_message(botfather, f"@{self.username}")
-                await asyncio.sleep(1)
-                await self.kernel.client.send_message(
-                    botfather,
-                    "🌠 I'm a bot from MCUB for inline actions. source code https://github.com/hairpin01/MCUB-fork",
-                )
-                self.kernel.logger.debug("Установлено описание бота")
-                await asyncio.sleep(2)
-
-
-                await self.kernel.client.send_message(botfather, "/setuserpic")
-                await asyncio.sleep(1)
-                await self.kernel.client.send_message(botfather, f"@{self.username}")
-                await asyncio.sleep(1)
-
-                try:
-                    import tempfile
-
-                    async with aiohttp.ClientSession() as session:
-                        async with session.get("https://x0.at/4WcE.jpg") as resp:
-                            if resp.status == 200:
-                                avatar_data = await resp.read()
-                                with tempfile.NamedTemporaryFile(
-                                    suffix=".jpg", delete=False
-                                ) as f:
-                                    f.write(avatar_data)
-                                    temp_file = f.name
-
-                                await self.kernel.client.send_file(botfather, temp_file)
-                                self.kernel.logger.debug("Отправлен аватар бота")
-                                await asyncio.sleep(2)
-
-                                import os
-                                os.unlink(temp_file)
-                except Exception as e:
-                    self.kernel.logger.warning(f"Не удалось установить аватар: {e}")
-
-                await self.kernel.client.send_message(botfather, "/setinline")
-                await asyncio.sleep(1)
-                await self.kernel.client.send_message(botfather, f"@{self.username}")
-                await asyncio.sleep(1)
-                try:
-                    user = getpass.getuser()
-                except:
-                    user = "user"
-                placeholder = f"{user}@MCUB~$ "
-
-                await self.kernel.client.send_message(botfather, placeholder)
-                self.kernel.logger.debug(f"Установлен инлайн-плейсхолдер: {placeholder}")
-                await asyncio.sleep(2)
-
-
-                await self.kernel.client.send_message(botfather, "/setinlinefeedback")
-                await asyncio.sleep(1)
-                await self.kernel.client.send_message(botfather, f"@{self.username}")
-                await asyncio.sleep(1)
-                await self.kernel.client.send_message(botfather, "Enabled")
-                await asyncio.sleep(2)
-
-
-                await self.kernel.client.send_message(botfather, "/setcommands")
-                await asyncio.sleep(1)
-                await self.kernel.client.send_message(botfather, f"@{self.username}")
-                await asyncio.sleep(1)
-                commands_text = """start - старт
-profile - профиль
-ping - пинг
-delete_mcub_bot - удалить из чата бота
-"""
-                await self.kernel.client.send_message(botfather, commands_text)
-                self.kernel.logger.debug("Установлены команды бота")
-                await asyncio.sleep(2)
-
-                # Сохранение конфигурации
-                self.kernel.config["inline_bot_token"] = self.token
-                self.kernel.config["inline_bot_username"] = self.username
-
-                with open(self.kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
-                    json.dump(self.kernel.config, f, ensure_ascii=False, indent=2)
-
-                self.kernel.logger.info(f"Конфигурация бота сохранена: @{self.username}")
-                self.kernel.logger.info("Restart...")
-
-                if self.kernel.client and self.kernel.client.is_connected():
-                    await self.kernel.client.disconnect()
-
-                if hasattr(self.kernel, 'bot_client') and self.kernel.bot_client and self.kernel.bot_client.is_connected():
-                    await self.kernel.bot_client.disconnect()
-
-                kernel.restart()
-
-            else:
-                self.kernel.logger.error("Не удалось получить данные бота из ответов BotFather")
-
+        except aiohttp.ClientError as e:
+            self.kernel.logger.error(f"Сетевая ошибка при создании бота: {e}")
+        except asyncio.TimeoutError:
+            self.kernel.logger.error("Таймаут при ожидании ответа от BotFather")
         except Exception as e:
-            self.kernel.logger.error(f"Ошибка создания бота: {str(e)}", exc_info=True)
+            self.kernel.logger.error(f"Неожиданная ошибка: {e}", exc_info=True)
 
-    async def manual_setup(self):
+    async def _manual_setup(self):
         self.kernel.logger.info("Ручная настройка бота")
 
         while True:
             token = input(
                 f"{self.kernel.Colors.YELLOW}Введите токен бота: {self.kernel.Colors.RESET}"
             ).strip()
-
             if not token:
-                self.kernel.logger.error("Пустой токен при ручной настройке")
+                self.kernel.logger.error("Токен не может быть пустым")
                 continue
 
             username = input(
                 f"{self.kernel.Colors.YELLOW}Введите username бота (без @): {self.kernel.Colors.RESET}"
             ).strip()
-
             if not username:
-                self.kernel.logger.error("Пустой username при ручной настройке")
+                self.kernel.logger.error("Username не может быть пустым")
                 continue
 
-            if not username.endswith(('bot', '_bot', 'Bot', '_Bot')):
-                self.kernel.logger.warning(f"Username не содержит суффикс bot: {username}")
+            if await self._verify_bot_token(token, username):
+                break
+
+        self.token = token
+        self.username = username
+
+        self.kernel.config["inline_bot_token"] = token
+        self.kernel.config["inline_bot_username"] = username
+        with open(self.kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(self.kernel.config, f, ensure_ascii=False, indent=2)
+
+        setup_choice = input(
+            f"{self.kernel.Colors.YELLOW}Настроить бота через BotFather? (y/n): {self.kernel.Colors.RESET}"
+        ).strip().lower()
+        if setup_choice == 'y':
+            try:
+                botfather = await self.kernel.client.get_entity("BotFather")
+                await self._configure_bot_via_botfather(botfather)
+            except Exception as e:
+                self.kernel.logger.error(f"Ошибка при настройке через BotFather: {e}")
+
+        await self.start_bot()
+
+    async def _ask_bot_username(self) -> str:
+        while True:
+            username = input(
+                f"{self.kernel.Colors.YELLOW}Желаемый username для бота (без @): {self.kernel.Colors.RESET}"
+            ).strip()
+
+            if not username:
+                self.kernel.logger.error("Username не может быть пустым")
+                print(f"{self.kernel.Colors.RED}=X Username не может быть пустым{self.kernel.Colors.RESET}")
+                continue
 
             if not re.match(r'^[a-zA-Z0-9_]{5,32}$', username):
                 self.kernel.logger.error(f"Некорректный формат username: {username}")
+                print(f"{self.kernel.Colors.RED}=X Username должен быть 5-32 символа, только латиница, цифры и _ {self.kernel.Colors.RESET}")
                 continue
 
-            break
+            if not username.lower().endswith('bot'):
+                print(f"{self.kernel.Colors.YELLOW}=? Username бота должен оканчиваться на 'bot'. Текущий: {username}{self.kernel.Colors.RESET}")
+                confirm = input(f"{self.kernel.Colors.YELLOW}Продолжить с этим username? (y/n): {self.kernel.Colors.RESET}").strip().lower()
+                if confirm != 'y':
+                    continue
+            return username
 
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"https://api.telegram.org/bot{token}/getMe"
-                ) as resp:
-                    data = await resp.json()
+    async def _wait_for_bot_token(self, botfather, expected_username, timeout=30):
+        start = time.monotonic()
+        last_msg_id = 0
+        token = None
+        actual_username = None
 
-                    if data.get("ok"):
-                        bot_info = data.get("result", {})
-                        actual_username = bot_info.get("username", "")
+        while time.monotonic() - start < timeout:
+            messages = await self.kernel.client.get_messages(botfather, limit=5)
+            new_messages = [msg for msg in messages if msg.id > last_msg_id]
+            for msg in new_messages:
+                last_msg_id = max(last_msg_id, msg.id)
+                text = msg.text or ""
 
-                        if actual_username.lower() != username.lower():
-                            self.kernel.logger.warning(f"Введенный username ({username}) не совпадает с фактическим ({actual_username})")
-                            username = actual_username
+                token_match = re.search(r"(\d+:[A-Za-z0-9_-]+)", text)
+                if token_match and "token" in text.lower():
+                    token = token_match.group(1)
+                    self.kernel.logger.debug("Найден токен")
 
-                        self.token = token
-                        self.username = username
+                username_match = re.search(r"t\.me/([A-Za-z0-9_]+)", text)
+                if username_match:
+                    actual_username = username_match.group(1)
+                elif not actual_username:
+                    username_match_at = re.search(r"@([A-Za-z0-9_]+)", text)
+                    if username_match_at:
+                        actual_username = username_match_at.group(1)
 
-                        self.kernel.config["inline_bot_token"] = token
-                        self.kernel.config["inline_bot_username"] = username
+                if "error" in text.lower() or "invalid" in text.lower():
+                    self.kernel.logger.error(f"BotFather вернул ошибку: {text[:200]}")
+                    return None, None
 
-                        with open(self.kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
-                            json.dump(
-                                self.kernel.config, f, ensure_ascii=False, indent=2
-                            )
+                if token and actual_username:
+                    return token, actual_username
 
-                        self.kernel.logger.info(f"Бот проверен и сохранен: @{username}")
-
-                        setup_choice = (
-                            input(
-                                f"{self.kernel.Colors.YELLOW}Настроить бота через BotFather? (y/n): {self.kernel.Colors.RESET}"
-                            )
-                            .strip()
-                            .lower()
-                        )
-                        if setup_choice == 'y':
-                            await self.configure_bot_manually()
-
-                        await self.start_bot()
-                    else:
-                        error_desc = data.get("description", "Неизвестная ошибка")
-                        self.kernel.logger.error(f"Неверный токен бота: {error_desc}")
-
-        except Exception as e:
-            self.kernel.logger.error(f"Ошибка проверки токена: {str(e)}", exc_info=True)
-
-    async def configure_bot_manually(self):
-        try:
-            self.kernel.logger.info("Настройка бота через BotFather")
-            botfather = await self.kernel.client.get_entity("BotFather")
-
-            await self.kernel.client.send_message(botfather, "/setname")
-            await asyncio.sleep(1)
-            await self.kernel.client.send_message(botfather, f"@{self.username}")
-            await asyncio.sleep(1)
-            await self.kernel.client.send_message(botfather, "🪄 MCUB bot")
-            self.kernel.logger.debug("Установлено имя бота")
             await asyncio.sleep(2)
 
+        self.kernel.logger.error("Таймаут ожидания ответа от BotFather")
+        return None, None
+
+    async def _verify_bot_token(self, token, expected_username) -> bool:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"https://api.telegram.org/bot{token}/getMe") as resp:
+                    data = await resp.json()
+                    if data.get("ok"):
+                        bot_info = data["result"]
+                        actual_username = bot_info["username"]
+                        if actual_username.lower() != expected_username.lower():
+                            self.kernel.logger.warning(
+                                f"Введённый username ({expected_username}) не совпадает с фактическим ({actual_username})"
+                            )
+                            expected_username = actual_username
+                        self.kernel.logger.info(f"Токен валиден, бот @{actual_username}")
+                        return True
+                    else:
+                        error_desc = data.get("description", "Неизвестная ошибка")
+                        self.kernel.logger.error(f"Неверный токен: {error_desc}")
+                        return False
+        except (aiohttp.ClientError, asyncio.TimeoutError, json.JSONDecodeError) as e:
+            self.kernel.logger.error(f"Ошибка при проверке токена: {e}")
+            return False
+
+    async def _configure_bot_via_botfather(self, botfather):
+        try:
             await self.kernel.client.send_message(botfather, "/setdescription")
             await asyncio.sleep(1)
             await self.kernel.client.send_message(botfather, f"@{self.username}")
@@ -313,45 +214,84 @@ delete_mcub_bot - удалить из чата бота
                 botfather,
                 "🌠 I'm a bot from MCUB for inline actions. source code https://github.com/hairpin01/MCUB-fork",
             )
-            self.kernel.logger.debug("Установлено описание бота")
+            self.kernel.logger.debug("Описание установлено")
             await asyncio.sleep(2)
 
             await self.kernel.client.send_message(botfather, "/setuserpic")
             await asyncio.sleep(1)
             await self.kernel.client.send_message(botfather, f"@{self.username}")
             await asyncio.sleep(1)
+            await self._send_avatar(botfather)
+            await asyncio.sleep(2)
 
+            await self.kernel.client.send_message(botfather, "/setinline")
+            await asyncio.sleep(1)
+            await self.kernel.client.send_message(botfather, f"@{self.username}")
+            await asyncio.sleep(1)
+            placeholder = "mcub@MCUB~$ "
+            await self.kernel.client.send_message(botfather, placeholder)
+            self.kernel.logger.debug(f"Инлайн-плейсхолдер установлен: {placeholder}")
+            await asyncio.sleep(2)
+
+            # Включение инлайн-фидбека
+            await self.kernel.client.send_message(botfather, "/setinlinefeedback")
+            await asyncio.sleep(1)
+            await self.kernel.client.send_message(botfather, f"@{self.username}")
+            await asyncio.sleep(1)
+            await self.kernel.client.send_message(botfather, "Enabled")
+            await asyncio.sleep(2)
+
+            await self.kernel.client.send_message(botfather, "/setcommands")
+            await asyncio.sleep(1)
+            await self.kernel.client.send_message(botfather, f"@{self.username}")
+            await asyncio.sleep(1)
+            commands_text = """start - старт
+profile - профиль
+ping - пинг
+delete_mcub_bot - удалить из чата бота
+"""
+            await self.kernel.client.send_message(botfather, commands_text)
+            self.kernel.logger.debug("Команды установлены")
+            await asyncio.sleep(2)
+
+        except Exception as e:
+            self.kernel.logger.error(f"Ошибка при настройке бота: {e}", exc_info=True)
+
+    async def _send_avatar(self, botfather):
+        """Скачивает и отправляет аватар для бота."""
+        try:
             async with aiohttp.ClientSession() as session:
                 async with session.get("https://x0.at/4WcE.jpg") as resp:
                     if resp.status == 200:
                         avatar_data = await resp.read()
-                        with open("bot_avatar_manual.jpg", "wb") as f:
+                        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as f:
                             f.write(avatar_data)
-                        await self.kernel.client.send_file(
-                            botfather, "bot_avatar_manual.jpg"
-                        )
-                        self.kernel.logger.debug("Установлен аватар бота")
-                        import os
-                        os.remove("bot_avatar_manual.jpg")
-            await asyncio.sleep(2)
-
-            await self.kernel.client.send_message(botfather, "/setinlineplaceholder")
-            await asyncio.sleep(1)
-            await self.kernel.client.send_message(botfather, f"@{self.username}")
-            await asyncio.sleep(1)
-            try:
-                user = getpass.getuser()
-            except:
-                user = "user"
-            placeholder = f"{user}@MCUB~$ "
-            await self.kernel.client.send_message(botfather, placeholder)
-            self.kernel.logger.debug(f"Установлен инлайн-плейсхолдер: {placeholder}")
-            await asyncio.sleep(2)
-
-            self.kernel.logger.info("Бот настроен через BotFather")
-
+                            temp_path = f.name
+                        try:
+                            await self.kernel.client.send_file(botfather, temp_path)
+                            self.kernel.logger.debug("Аватар отправлен")
+                        finally:
+                            os.unlink(temp_path)
         except Exception as e:
-            self.kernel.logger.error(f"Ошибка настройки бота: {str(e)}", exc_info=True)
+            self.kernel.logger.warning(f"Не удалось установить аватар: {e}")
+
+    async def _save_config_and_restart(self):
+        self.kernel.config["inline_bot_token"] = self.token
+        self.kernel.config["inline_bot_username"] = self.username
+
+        with open(self.kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(self.kernel.config, f, ensure_ascii=False, indent=2)
+
+        self.kernel.logger.info(f"Конфигурация бота сохранена: @{self.username}")
+        self.kernel.logger.info("Перезапуск...")
+
+        if self.kernel.client and self.kernel.client.is_connected():
+            await self.kernel.client.disconnect()
+
+        if hasattr(self.kernel, 'bot_client') and self.kernel.bot_client and self.kernel.bot_client.is_connected():
+            await self.kernel.bot_client.disconnect()
+
+        self.kernel.restart()
 
     async def start_bot(self):
         if not self.token:
@@ -360,7 +300,6 @@ delete_mcub_bot - удалить из чата бота
 
         try:
             self.kernel.logger.info("Запуск инлайн-бота...")
-
             self.bot_client = TelegramClient(
                 "inline_bot_session",
                 self.kernel.API_ID,
@@ -368,60 +307,31 @@ delete_mcub_bot - удалить из чата бота
                 timeout=30,
             )
 
-            try:
-                if not self.bot_client.is_connected():
-                    await self.bot_client.connect()
-
-                if not await self.bot_client.is_user_authorized():
-                    await self.bot_client.start(bot_token=self.token)
-
-                self.username = (await self.bot_client.get_me()).username
-
-                await self.register_module_commands()
-
-                self.kernel.logger.info(f"=> бот запущен @{self.username}")
-
-            except Exception as e:
-                self.kernel.logger.error(f"Ошибка при запуске бота: {e}")
-
-
-
+            await self.bot_client.connect()
             if not await self.bot_client.is_user_authorized():
-                self.kernel.logger.error("Бот не авторизован")
-                return
+                await self.bot_client.start(bot_token=self.token)
 
-            bot_me = await self.bot_client.get_me()
-            self.username = bot_me.username
+            me = await self.bot_client.get_me()
+            self.username = me.username
             self.kernel.config["inline_bot_username"] = self.username
-
-
             with open(self.kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(self.kernel.config, f, ensure_ascii=False, indent=2)
 
-
             from .handlers import InlineHandlers
-
             handlers = InlineHandlers(self.kernel, self.bot_client)
             await handlers.register_handlers()
 
-
-            await self.register_module_commands()
+            await self._register_module_commands()
 
             self.kernel.logger.info(f"Инлайн-бот запущен @{self.username}")
-
-
-            # hello_bot = await self.kernel.db_get("kernel", "HELLO_BOT")
-            # if hello_bot == "True":
-            #     self.kernel.logger.debug("Отправка команды /init боту")
-            #     await self.kernel.client.send_message(self.username, "/init")
-
             asyncio.create_task(self.bot_client.run_until_disconnected())
 
+        except aiohttp.ClientError as e:
+            self.kernel.logger.error(f"Сетевая ошибка при запуске бота: {e}")
         except Exception as e:
-            self.kernel.logger.error(f"Ошибка запуска инлайн-бота: {str(e)}", exc_info=True)
+            self.kernel.logger.error(f"Ошибка запуска инлайн-бота: {e}", exc_info=True)
 
-
-    async def register_module_commands(self):
+    async def _register_module_commands(self):
         if not self.bot_client:
             self.kernel.logger.warning("bot_client не инициализирован")
             return
@@ -445,13 +355,5 @@ delete_mcub_bot - удалить из чата бота
                 registered_count += 1
 
             self.kernel.logger.info(f"Всего зарегистрировано команд бота: {registered_count}")
-
-
         except Exception as e:
             self.kernel.logger.error(f"Ошибка регистрации команд модулей: {e}", exc_info=True)
-
-
-    async def stop_bot(self):
-        if self.bot_client and self.bot_client.is_connected():
-            await self.bot_client.disconnect()
-            self.kernel.logger.info("Инлайн-бот остановлен")

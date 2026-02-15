@@ -291,7 +291,7 @@ delete_mcub_bot - удалить из чата бота
         if hasattr(self.kernel, 'bot_client') and self.kernel.bot_client and self.kernel.bot_client.is_connected():
             await self.kernel.bot_client.disconnect()
 
-        self.kernel.restart()
+        await self.kernel.restart()
 
     async def start_bot(self):
         if not self.token:

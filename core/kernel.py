@@ -12,6 +12,20 @@ from .lib.register import Register
 from .lib.permissions import CallbackPermissionManager
 from .lib.database import DatabaseManager
 from .version import VersionManager, VERSION
+from .lib.module_config import (
+    ModuleConfig,
+    ConfigValue,
+    Validator,
+    Boolean,
+    Integer,
+    Float,
+    String,
+    Choice,
+    MultiChoice,
+    Secret,
+    ValidationError,
+)
+
 # HTML parser utils
 try:
     from utils.html_parser import parse_html
@@ -167,7 +181,7 @@ class Kernel:
         self.bot_command_owners = {}
         self.error_load_modules = 0
         self.inline_handlers_owners = {}
-        self.inline_message_manager = None  # Будет инициализирован после загрузки config модуля
+        self.inline_message_manager = None
 
 
     async def get_module_config(self, module_name, default=None):
@@ -374,17 +388,6 @@ class Kernel:
             if result is False:
                 return False
         return await handler(event)
-
-    async def get_module_config(self, module_name, default=None):
-        config_key = f"module_config_{module_name}"
-        config_json = await self.db_get("kernel", config_key)
-        if config_json:
-            return json.loads(config_json)
-        return default or {}
-
-    async def save_module_config(self, module_name, config):
-        config_key = f"module_config_{module_name}"
-        await self.db_set("kernel", config_key, json.dumps(config))
 
     async def init_db(self):
         return await self.db_manager.init_db()
@@ -1756,35 +1759,48 @@ class Kernel:
             return False
 
     def first_time_setup(self):
-        print(f"\n{Colors.CYAN}⚙️  Первоначальная настройка юзербота{Colors.RESET}\n")
+        print(
+        '''
+███╗   ███╗ ██████╗██╗   ██╗██████╗       ███████╗ ██████╗ ██████╗ ██╗  ██╗
+████╗ ████║██╔════╝██║   ██║██╔══██╗      ██╔════╝██╔═══██╗██╔══██╗██║ ██╔╝
+██╔████╔██║██║     ██║   ██║██████╔╝█████╗█████╗  ██║   ██║██████╔╝█████╔╝
+██║╚██╔╝██║██║     ██║   ██║██╔══██╗╚════╝██╔══╝  ██║   ██║██╔══██╗██╔═██╗
+██║ ╚═╝ ██║╚██████╗╚██████╔╝██████╔╝      ██║     ╚██████╔╝██║  ██║██║  ██╗
+╚═╝     ╚═╝ ╚═════╝ ╚═════╝ ╚═════╝       ╚═╝      ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝
+1. Go to https://my.telegram.org and login
+2. Click on API development tools
+3. Create a new application, by entering the required details
+4. Copy your API ID and API hash
+        '''
+        )
 
         while True:
             try:
                 api_id_input = input(
-                    f"{Colors.YELLOW}📝 Введите API ID: {Colors.RESET}"
+                    f"API ID: "
                 ).strip()
                 if not api_id_input.isdigit():
-                    print(f"{Colors.RED}❌ API ID должен быть числом{Colors.RESET}")
+                    print(f"API ID must be a number\n")
                     continue
 
                 api_hash_input = input(
-                    f"{Colors.YELLOW}📝 Введите API HASH: {Colors.RESET}"
+                    f"API HASH: "
                 ).strip()
                 if not api_hash_input:
-                    print(f"{Colors.RED}❌ API HASH не может быть пустым{Colors.RESET}")
+                    print(f"API HASH cannot be empty\n")
                     continue
 
                 phone_input = input(
-                    f"{Colors.YELLOW}📝 Введите номер телефона (формат: +1234567890): {Colors.RESET}"
+                    f"Phone number (type: +1234567890): \n"
                 ).strip()
                 if not phone_input.startswith("+"):
-                    print(f"{Colors.RED}❌ Номер должен начинаться с +{Colors.RESET}")
+                    print(f"The number must start with + (+1234567890)\n")
                     continue
 
                 try:
                     api_id = int(api_id_input)
                 except ValueError:
-                    print(f"{Colors.RED}❌ API ID должен быть числом{Colors.RESET}")
+                    print(f"API ID must be a number\n")
                     continue
 
                 self.config = {
@@ -1809,11 +1825,11 @@ class Kernel:
                     json.dump(self.config, f, ensure_ascii=False, indent=2)
 
                 self.setup_config()
-                print(f"{Colors.GREEN}✅ Конфиг сохранен{Colors.RESET}")
+                print(f"Save config")
                 return True
 
             except KeyboardInterrupt:
-                print(f"\n{Colors.RED}❌ Настройка прервана{Colors.RESET}")
+                print(f"\nSetting interrupted\n")
                 sys.exit(1)
 
     def cprint(self, text, color=""):
@@ -1909,7 +1925,18 @@ class Kernel:
                     self.set_loading_module(module_name, "system")
                     spec.loader.exec_module(module)
 
-                    module.register(self)
+                    if hasattr(module, "register"):
+                        if inspect.iscoroutinefunction(module.register):
+                            await module.register(self)
+                        else:
+                            module.register(self)
+                    else:
+                        self.logger.error(
+                            f'failed load modules: {module_name}'
+                            )
+                        self.error_load_modules += 1
+                        continue
+
                     self.system_modules[module_name] = module
                     self.logger.info(
                         f"{Colors.GREEN}=> Загружен системный модуль: {module_name}{Colors.RESET}"
@@ -1960,7 +1987,10 @@ class Kernel:
                         spec.loader.exec_module(module)
 
                         if hasattr(module, "register"):
-                            module.register(self)
+                            if inspect.iscoroutinefunction(module.register):
+                                await module.register(self)
+                            else:
+                                module.register(self)
                             self.loaded_modules[module_name] = module
                             self.logger.info(
                                 f"{self.Colors.BLUE}=> Модуль загружен {module_name}{self.Colors.RESET}"
@@ -1976,7 +2006,10 @@ class Kernel:
                         spec.loader.exec_module(module)
 
                         if hasattr(module, "register"):
-                            module.register(self.client)
+                            if inspect.iscoroutinefunction(module.register):
+                                await module.register(self)
+                            else:
+                                module.register(self)
 
                             self.loaded_modules[module_name] = module
                             self.logger.warning(
@@ -2125,48 +2158,48 @@ class Kernel:
                 return None
 
     async def process_command(self, event, depth=0):
-            if depth > 5:
-                self.logger.error(f"Recursion limit reached for aliases: {event.text}")
-                return False
+        if depth > 5:
+            self.logger.error(f"Recursion limit reached for aliases: {event.text}")
+            return False
 
-            text = event.text
+        text = event.text
 
-            # Handle None or empty text
-            if not text:
-                return False
+        # Handle None or empty text
+        if not text:
+            return False
 
-            if not text.startswith(self.custom_prefix):
-                return False
+        if not text.startswith(self.custom_prefix):
+            return False
 
-            cmd = (
-                text[len(self.custom_prefix) :].split()[0]
-                if " " in text
-                else text[len(self.custom_prefix) :]
-            )
-            if cmd in self.aliases:
-                alias_content = self.aliases[cmd]
+        cmd = (
+            text[len(self.custom_prefix) :].split()[0]
+            if " " in text
+            else text[len(self.custom_prefix) :]
+        )
+        if cmd in self.aliases:
+            alias_content = self.aliases[cmd]
 
-                if alias_content in self.command_handlers:
-                    await self.command_handlers[alias_content](event)
-                    return True
-
-                else:
-                    args = text[len(self.custom_prefix) + len(cmd):]
-
-                    new_text = self.custom_prefix + alias_content + args
-                    event.text = new_text
-                    if hasattr(event, 'message'):
-                        event.message.message = new_text
-                        event.message.text = new_text
-
-                    self.logger.debug(f"Alias processed: {cmd} -> {new_text[:50]}...")
-                    return await self.process_command(event, depth + 1)
-
-            if cmd in self.command_handlers:
-                await self.command_handlers[cmd](event)
+            if alias_content in self.command_handlers:
+                await self.command_handlers[alias_content](event)
                 return True
 
-            return False
+            else:
+                args = text[len(self.custom_prefix) + len(cmd):]
+
+                new_text = self.custom_prefix + alias_content + args
+                event.text = new_text
+                if hasattr(event, 'message'):
+                    event.message.message = new_text
+                    event.message.text = new_text
+
+                self.logger.debug(f"Alias processed: {cmd} -> {new_text[:50]}...")
+                return await self.process_command(event, depth + 1)
+
+        if cmd in self.command_handlers:
+            await self.command_handlers[cmd](event)
+            return True
+
+        return False
 
     async def process_bot_command(self, event):
         """Обработка команд бота"""

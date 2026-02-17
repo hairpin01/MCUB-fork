@@ -1,4 +1,4 @@
-# `MCUB` Module API Documentation `1.0.2.3.5`
+# `MCUB` Module API Documentation `1.0.2.9`
 
 __Table of Contents__
 
@@ -22,6 +22,9 @@ __Table of Contents__
 > 18. [Inline Query Automation Methods](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#inline-query-automation-methods-and-inline-form)
 > 19. [Callback Permission Management](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#callback-permission-management)
 > 20. [Enhanced Registration API v1.0.2](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#enhanced-registration-api-v102)
+> 21. [Watchers](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#watchers)
+> 22. [InfiniteLoop](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#infiniteloop)
+> 23. [Lifecycle Callbacks](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#lifecycle-callbacks)
 
 # Introduction
 
@@ -713,7 +716,7 @@ for task in kernel.scheduler.get_tasks():
 ```
 
 > [!TIP]
-> Always cancel interval/daily tasks in `@kernel.register.uninstall()` to avoid orphaned tasks after module reload.
+> Always cancel interval/daily tasks in `@kernel.register.uninstall()` to avoid orphaned tasks after module reload. For new modules, consider `@kernel.register.loop()` instead — it starts and stops automatically with the module lifecycle.
 
 ---
 
@@ -774,11 +777,19 @@ def register(kernel):
 
 ## Event Handlers
 
+> [!TIP]
+> Prefer `@kernel.register.event(...)` over `@kernel.client.on(...)` in modules. The register version tracks the handler per-module and removes it automatically on unload. See [Enhanced Registration API](#enhanced-registration-api-v102) for full reference.
+
 ### Message Events
 
 ```python
-from telethon import events
+# Preferred — auto-removed on module unload
+@kernel.register.event('newmessage', pattern=r'keyword')
+async def keyword_handler(event):
+    await event.reply("Keyword detected")
 
+# Raw Telethon — use only outside of modules
+from telethon import events
 @kernel.client.on(events.NewMessage(pattern='keyword'))
 async def keyword_handler(event):
     await event.reply("Keyword detected")
@@ -787,7 +798,6 @@ async def keyword_handler(event):
 ### Callback Query Events
 
 ```python
-
 async def button_handler(event):
     data = event.data.decode('utf-8')
     await event.answer(f"Button {data} clicked")
@@ -797,7 +807,6 @@ kernel.register_callback_handler('button_', button_handler)
 ### Inline Query Events
 
 ```python
-
 async def search_handler(event):
     results = []
     builder = event.builder.article(
@@ -1756,9 +1765,7 @@ if emoji_parser.is_emoji_tag(text):
 1. Use [@ShowJsonBot](https://t.me/ShowJsonBot) to forward messages with custom emojis
 2. Look for `custom_emoji_id` in the JSON response
 3. Use the numeric ID in your code
-
 or:
-
 1. write .py print(r_text) in response to premium emoji
 ---
 
@@ -2126,144 +2133,334 @@ def register(kernel):
 
 ## Enhanced Registration API v1.0.2
 
-MCUB introduces a new `Register` class with decorator-based registration methods for cleaner module syntax.
-
-### On-Load Callback
-
-`@kernel.register.on_load()`
----
-Register a callback that is automatically called by the kernel right after the module has been fully loaded and all its commands/handlers are already registered. Triggered on both initial startup and every `reload`.
-
-Use this for initialisation that depends on the kernel being ready: connecting external services, warming up a cache, registering background tasks, etc.
-
-The callback receives the `kernel` instance as its only argument. Both regular and `async` functions are supported. Supports both syntaxes (with and without parentheses).
-
-**Examples:**
-
-```python
-@kernel.register.on_load()
-async def on_load(kernel):
-    kernel.logger.info("MyModule loaded, running setup...")
-    await some_client.connect()
-```
-
-```python
-# Start a background task on load, cancel it on unload
-task_id = None
-
-def register(kernel):
-    global task_id
-
-    async def heartbeat():
-        await kernel.client.send_message('me', 'alive')
-
-    @kernel.register.on_load()
-    async def on_load(k):
-        global task_id
-        task_id = await k.scheduler.add_interval_task(heartbeat, 3600)
-
-    @kernel.register.uninstall()
-    async def on_unload(k):
-        if task_id:
-            k.scheduler.cancel_task(task_id)
-```
-
-> [!TIP]
-> Available in kernel version `1.0.2.3.5` and later.
+MCUB introduces a `Register` class with decorator-based registration. All handlers registered through it are tracked per-module and removed automatically on unload — no zombie handlers after `um` or `reload`.
 
 ### Method Registration
 
 `@kernel.register.method`
 ---
-Register any function as a module setup method. The function will be called during module loading with the kernel as its only argument. You can use any function name.
+Register any function as a module setup method. Called during loading with the kernel as argument. Any function name is accepted.
 
 **Usage:**
 ```python
-from telethon import events
-
 @kernel.register.method
-async def setup_commands(kernel):   # function name is arbitrary
-    @kernel.register.command('version', alias='v')
-    async def version_mcub(event):
-        await event.edit(f"Kernel version {kernel.VERSION}")
+async def setup(kernel):
+    kernel.logger.info("module initialised")
+```
 
-@kernel.register.method
-async def init_stuff(kernel):
-    # Another setup method – both will be executed
-    kernel.logger.info("Additional initialisation")
+### Command Registration
+
+`@kernel.register.command(pattern, alias=None, more=None)`
+---
+Register a userbot command. Prefix and regex anchors are stripped automatically.
+
+**Parameters:**
+- `pattern` (str): Command name
+- `alias` (str or list): Alternative trigger names
+- `more` (any): Arbitrary metadata stored in `kernel.command_metadata`
+
+**Example:**
+```python
+@kernel.register.command('ping', alias=['p'])
+async def ping(event):
+    await event.edit("Pong!")
+
+# All work: .ping  .p
+```
+
+### Bot Command Registration
+
+`@kernel.register.bot_command(pattern)`
+---
+Register a Telegram native `/command` (requires bot client).
+
+**Example:**
+```python
+@kernel.register.bot_command('start')
+async def start(event):
+    await event.respond("Hello!")
+```
 
 ### Event Registration
 
 `@kernel.register.event(event_type, **kwargs)`
 ---
-Register event handlers with cleaner syntax.
+Register a Telethon event handler. Unlike raw `client.add_event_handler`, handlers are stored in `module.register.__event_handlers__` and removed automatically when the module is unloaded.
 
-**Event types:** `'newmessage'`, `'messageedited'`, `'messagedeleted'`, `'userupdate'`, `'chatupload'`, `'inlinequery'`, `'callbackquery'`, `'raw'`
+**Event types:**
+
+| Argument | Telethon class |
+|---|---|
+| `newmessage` / `message` | `events.NewMessage` |
+| `messageedited` / `edited` | `events.MessageEdited` |
+| `messagedeleted` / `deleted` | `events.MessageDeleted` |
+| `userupdate` / `user` | `events.UserUpdate` |
+| `inlinequery` / `inline` | `events.InlineQuery` |
+| `callbackquery` / `callback` | `events.CallbackQuery` |
+| `raw` / `custom` | `events.Raw` |
 
 **Examples:**
 ```python
-@kernel.register.event('newmessage', pattern='hello')
-async def greeting_handler(event):
+@kernel.register.event('newmessage', pattern=r'hello')
+async def hello(event):
     await event.reply("Hi!")
 
 @kernel.register.event('callbackquery', pattern=b'menu_')
-async def menu_handler(event):
+async def menu_cb(event):
     await event.answer("Menu clicked")
 ```
 
-### Command Registration
+> [!WARNING]
+> Do **not** mix `@kernel.register.event` with raw `@kernel.client.on(...)` in the same module. The raw form bypasses the tracker and will leak a handler after unload.
 
-`@kernel.register.command(pattern, **kwargs)`
 ---
-Alternative to `kernel.register_command()` with alias support.
+
+## Watchers
+
+`@kernel.register.watcher(**tags)`
+---
+Register a passive message watcher. Fires on every new message (incoming and outgoing) and is cleaned up automatically on module unload.
+
+Filters are declared as keyword arguments — no `if` branches needed inside the handler.
+
+**Both syntaxes are valid:**
+```python
+@kernel.register.watcher            # no filters
+@kernel.register.watcher()         # no filters
+@kernel.register.watcher(only_pm=True, no_media=True)   # with filters
+```
+
+**Available tags:**
+
+| Tag | Effect |
+|---|---|
+| `out=True` | Only outgoing messages |
+| `incoming=True` | Only incoming messages |
+| `only_pm=True` | Private chats only |
+| `no_pm=True` | Exclude private chats |
+| `only_groups=True` | Groups/supergroups only |
+| `no_groups=True` | Exclude groups |
+| `only_channels=True` | Channels only |
+| `no_channels=True` | Exclude channels |
+| `only_media=True` | Messages with any media |
+| `no_media=True` | Text-only messages |
+| `only_photos=True` | Photos only |
+| `only_videos=True` | Videos only |
+| `only_audios=True` | Audio files only |
+| `only_docs=True` | Documents only |
+| `only_stickers=True` | Stickers only |
+| `no_photos/videos/audios/docs/stickers=True` | Exclude that media type |
+| `only_forwards=True` | Forwarded messages only |
+| `no_forwards=True` | Exclude forwards |
+| `only_reply=True` | Replies only |
+| `no_reply=True` | Exclude replies |
+| `regex="pattern"` | Text matches regex |
+| `startswith="text"` | Text starts with value |
+| `endswith="text"` | Text ends with value |
+| `contains="text"` | Text contains value |
+| `from_id=<int>` | From specific user ID |
+| `chat_id=<int>` | In specific chat ID |
+
+**Examples:**
+
+```python
+def register(kernel):
+
+    # Fire on every message (no filter)
+    @kernel.register.watcher
+    async def log_all(event):
+        kernel.logger.debug(f"msg: {event.text[:50]}")
+
+    # Only my outgoing messages in PM, no media
+    @kernel.register.watcher(out=True, only_pm=True, no_media=True)
+    async def pm_watcher(event):
+        kernel.logger.info(f"sent in PM: {event.text}")
+
+    # React to any message containing a word
+    @kernel.register.watcher(contains="купи слона")
+    async def elephant(event):
+        await event.reply("А у нас есть слоны!")
+
+    # Regex filter
+    @kernel.register.watcher(regex=r"^\d{4,}$")
+    async def numbers(event):
+        await event.reply("That's a long number.")
+```
+
+> [!TIP]
+> Watcher errors are caught and logged automatically — a crash in one watcher never affects others.
+
+---
+
+## InfiniteLoop
+
+`@kernel.register.loop(interval, autostart=True, wait_before=False)`
+---
+Declare a managed background loop. The kernel starts it after the module loads and stops it on unload — no `on_load` / `uninstall` boilerplate.
+
+The decorated function receives `kernel` as its only argument. The decorator returns an `InfiniteLoop` object that can be used for manual control.
 
 **Parameters:**
-- `alias` (str/list): Command aliases
-- `more` (str): Additional options
+- `interval` (int): Seconds between iterations
+- `autostart` (bool): Start automatically after load (default: `True`)
+- `wait_before` (bool): Sleep *before* the first iteration instead of after (default: `False`)
 
-**Example:**
-```python
-@kernel.register.command('test', alias=['t', 'check'])
-async def test_handler(event):
-    await event.edit("Test passed")
-    
-# All work: .test, .t, .check
-```
+**`InfiniteLoop` attributes and methods:**
 
-### Bot Command Registration
+| | |
+|---|---|
+| `loop.status` | `True` while running |
+| `loop.start()` | Start the loop (no-op if already running) |
+| `loop.stop()` | Stop the loop gracefully |
 
-`@kernel.register.bot_command(pattern, **kwargs)`
----
-Register bot commands (requires bot client).
-
-**Example:**
-```python
-@kernel.register.bot_command('start')
-async def start_handler(event):
-    await event.respond("Bot started!")
-
-# Also works with arguments
-@kernel.register.bot_command('help topic')
-async def help_handler(event):
-    await event.respond("Help topic details")
-```
-
-### Complete Module Example
+**Examples:**
 
 ```python
-@kernel.register.method
-def test(kernel):
-    
-    @kernel.register.event('newmessage', pattern=f'{kernel.custom_prefix}ping')
-    async def ping_handler(event):
-        await event.reply("Pong!")
-    
-    @kernel.register.bot_command('status')
+def register(kernel):
+
+    # Simple autostarting loop — no cleanup needed
+    @kernel.register.loop(interval=300)
+    async def heartbeat(kernel):
+        await kernel.client.send_message('me', '💓 alive')
+
+
+    # Manual control via commands
+    @kernel.register.loop(interval=60, autostart=False)
+    async def checker(kernel):
+        data = await kernel.db_get('mymod', 'watch_target')
+        if data:
+            kernel.logger.info(f"checking: {data}")
+
+    @kernel.register.command('startcheck')
+    async def start_cmd(event):
+        checker.start()
+        await event.edit("Checker started")
+
+    @kernel.register.command('stopcheck')
+    async def stop_cmd(event):
+        checker.stop()
+        await event.edit("Checker stopped")
+
+    @kernel.register.command('checkstatus')
     async def status_cmd(event):
-        if kernel.is_bot_available():
-            await event.respond("Bot is running")
+        await event.edit(f"Running: {checker.status}")
 ```
 
 > [!NOTE]
-> Available in MCUB kernel version 1.0.2 and later.
+> Loops are stopped before `@register.uninstall()` is called, so you can safely read `loop.status` in the uninstall callback.
+
+> [!TIP]
+> Use `wait_before=True` for loops that should delay their first run (e.g. wait for external service to be ready).
+
+---
+
+## Lifecycle Callbacks
+
+All lifecycle callbacks receive `kernel` as their only argument. Both `async` and regular functions are accepted. All support both `@decorator` and `@decorator()` syntax.
+
+### `@kernel.register.on_load()`
+
+Called after the module is fully registered — on initial startup and on every `reload`. Use for post-registration initialisation: cache warm-up, external connections, etc.
+
+```python
+@kernel.register.on_load()
+async def setup(kernel):
+    kernel.logger.info("MyModule ready")
+    await some_service.connect()
+```
+
+### `@kernel.register.on_install()`
+
+Called **only the first time** the module is installed (via `dlm` / `loadera`). Not called on `reload`. The kernel stores a persistent flag in the DB so subsequent loads skip it automatically.
+
+Use for welcome messages, first-run migrations, one-time setup.
+
+```python
+@kernel.register.on_install()
+async def first_time(kernel):
+    await kernel.client.send_message('me', '✅ MyModule installed!')
+    await kernel.save_module_config('mymod', {'enabled': True})
+```
+
+### `@kernel.register.uninstall()`
+
+Called when the module is unloaded — via `um`, `reload`, or any loader operation. Use to close external connections, cancel non-loop tasks, free resources.
+
+The kernel calls this **after** stopping all `@register.loop` loops and removing all `@register.event` / `@register.watcher` handlers, so cleanup order is guaranteed.
+
+```python
+@kernel.register.uninstall()
+async def cleanup(kernel):
+    await some_client.disconnect()
+    kernel.logger.info("MyModule unloaded cleanly")
+```
+
+**Cleanup order on unload:**
+1. All `@register.loop` loops stopped
+2. All `@register.watcher` Telethon handlers removed
+3. All `@register.event` Telethon handlers removed
+4. `@register.uninstall()` callback called
+5. Command entries removed from kernel
+
+---
+
+### Complete lifecycle example
+
+```python
+# author: @hairpin01
+# version: 1.0.0
+# description: Demonstrates full lifecycle API
+
+import aiohttp
+
+session = None
+
+def register(kernel):
+    global session
+
+    # background loop 
+    @kernel.register.loop(interval=600)
+    async def refresh(kernel):
+        """Refresh data every 10 minutes."""
+        async with session.get("https://api.example.com/data") as r:
+            kernel.logger.info(f"refreshed: {r.status}")
+
+    # passive watcher
+    @kernel.register.watcher(only_pm=True, contains="status")
+    async def status_watcher(event):
+        await event.reply(f"Loop running: {refresh.status}")
+
+    # commands 
+    @kernel.register.command('pause')
+    async def pause(event):
+        refresh.stop()
+        await event.edit("Loop paused")
+
+    @kernel.register.command('resume')
+    async def resume(event):
+        refresh.start()
+        await event.edit("Loop resumed")
+
+    # lifecycle 
+    @kernel.register.on_install()
+    async def first_run(k):
+        await k.client.send_message('me', '✅ example module installed')
+        await k.save_module_config('example', {'interval': 600})
+
+    @kernel.register.on_load()
+    async def on_load(k):
+        global session
+        session = aiohttp.ClientSession()
+        k.logger.info("HTTP session opened")
+
+    @kernel.register.uninstall()
+    async def on_unload(k):
+        global session
+        if session:
+            await session.close()
+        k.logger.info("HTTP session closed")
+```
+
+> [!NOTE]
+> Available in MCUB kernel version `1.0.2.9` and later.
 > `register.command` supports the same alias system as `kernel.register_command()`.

@@ -11,7 +11,7 @@ import shutil
 
 
 # version kenrel MCUB
-__version__ = "1.0.2.3"
+__version__ = "1.0.2.3.5"
 VERSION = __version__
 
 class VersionManager:

@@ -253,6 +253,47 @@ class Register:
 
         return decorator
 
+    def on_load(self, func: Optional[Callable] = None) -> Callable:
+        """
+        Decorator to register an on-load callback on the module.
+
+        The decorated function is automatically called by the kernel right after
+        the module has been fully registered — on both initial startup and every
+        subsequent `reload`. Use it for one-time initialisation that must run
+        after all commands/handlers are already registered (e.g. fetching data,
+        warming up a cache, starting a background task).
+
+        The callback receives the kernel instance as its only argument and can
+        be either a regular or an async function.
+
+        Example:
+            >>> @kernel.register.on_load()
+            >>> async def on_load(kernel):
+            >>>     kernel.logger.info("MyModule ready")
+            >>>     await some_client.connect()
+
+            >>> # Also works without parentheses:
+            >>> @kernel.register.on_load
+            >>> async def on_load(kernel):
+            >>>     ...
+        """
+        def decorator(f: Callable) -> Callable:
+            caller_frame = inspect.stack()[1][0]
+            module = inspect.getmodule(caller_frame)
+
+            if module:
+                if not hasattr(module, "register"):
+                    module.register = type("RegisterObject", (), {})()
+
+                # Store under a fixed attribute so the kernel can always find it
+                module.register.__on_load__ = f
+
+            return f
+
+        if func is None:
+            return decorator
+        return decorator(func)
+
     def uninstall(self, func: Optional[Callable] = None) -> Callable:
         """
         Decorator to register an uninstall callback on the module.

@@ -470,6 +470,30 @@ class Kernel:
 
     def unregister_module_commands(self, module_name):
         """Удаляет все команды модуля"""
+        module = (
+            self.loaded_modules.get(module_name)
+            or self.system_modules.get(module_name)
+        )
+        if module is not None:
+            register_obj = getattr(module, "register", None)
+            uninstall_cb = getattr(register_obj, "__uninstall__", None)
+            if uninstall_cb is not None:
+                try:
+                    result = uninstall_cb(self)
+                    if asyncio.iscoroutine(result):
+                        try:
+                            loop = asyncio.get_event_loop()
+                            if loop.is_running():
+                                asyncio.ensure_future(result)
+                            else:
+                                loop.run_until_complete(result)
+                        except RuntimeError:
+                            asyncio.run(result)
+                except Exception as e:
+                    self.logger.error(
+                        f"Ошибка в uninstall-колбэке модуля {module_name}: {e}"
+                    )
+
         to_remove = []
         for cmd, owner in self.command_owners.items():
             if owner == module_name:

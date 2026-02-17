@@ -253,6 +253,49 @@ class Register:
 
         return decorator
 
+    def uninstall(self, func: Optional[Callable] = None) -> Callable:
+        """
+        Decorator to register an uninstall callback on the module.
+
+        The decorated function will be automatically called by the kernel
+        when the module is being unloaded/unregistered (via `um`, `reload`,
+        or any other loader operation that calls `unregister_module_commands`).
+
+        Use this to clean up resources, cancel tasks, close connections, etc.
+
+        The callback receives the kernel instance as its only argument and
+        can be either a regular or an async function.
+
+        Example:
+            >>> @kernel.register.uninstall()
+            >>> async def on_unload(kernel):
+            >>>     await some_client.close()
+            >>>     kernel.logger.info("MyModule cleaned up")
+
+            >>> # Also works without parentheses:
+            >>> @kernel.register.uninstall
+            >>> async def on_unload(kernel):
+            >>>     ...
+        """
+        def decorator(f: Callable) -> Callable:
+            caller_frame = inspect.stack()[1][0]
+            module = inspect.getmodule(caller_frame)
+
+            if module:
+                # Create module.register object if it doesn't exist yet
+                if not hasattr(module, "register"):
+                    module.register = type("RegisterObject", (), {})()
+
+                # Store the uninstall callback under a fixed attribute name
+                # so the kernel can always find it regardless of function name
+                module.register.__uninstall__ = f
+
+            return f
+
+        if func is None:
+            return decorator
+        return decorator(func)
+
     def get_registered_methods(self) -> Dict[str, Callable]:
         """
         Get all methods registered through the @method decorator.

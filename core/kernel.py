@@ -469,19 +469,58 @@ class Kernel:
         self.logger.debug("clear loading module")
 
     def unregister_module_commands(self, module_name):
-        """Удаляет все команды модуля и вызывает uninstall-колбэк если он задан."""
-        # --- вызов @kernel.register.uninstall() колбэка ---
+        """
+        Unregister all handlers belonging to *module_name*:
+          - stops InfiniteLoops
+          - removes Telethon event handlers (@register.event / @register.watcher)
+          - calls @register.uninstall() callback
+          - removes command entries
+        """
         module = (
             self.loaded_modules.get(module_name)
             or self.system_modules.get(module_name)
         )
+
         if module is not None:
             register_obj = getattr(module, "register", None)
+
+            for il in getattr(register_obj, "__loops__", []):
+                try:
+                    il.stop()
+                    self.logger.debug(
+                        f"Stopped loop '{il.func.__name__}' of module {module_name}"
+                    )
+                except Exception as e:
+                    self.logger.error(
+                        f"Error stopping loop in {module_name}: {e}"
+                    )
+
+            for wrapper, event_obj in getattr(register_obj, "__watchers__", []):
+                try:
+                    self.client.remove_event_handler(wrapper, event_obj)
+                    self.logger.debug(
+                        f"Removed watcher '{wrapper.__name__}' of module {module_name}"
+                    )
+                except Exception as e:
+                    self.logger.error(
+                        f"Error removing watcher in {module_name}: {e}"
+                    )
+
+            for handler, event_obj in getattr(register_obj, "__event_handlers__", []):
+                try:
+                    self.client.remove_event_handler(handler, event_obj)
+                    self.logger.debug(
+                        f"Removed event handler '{getattr(handler, '__name__', handler)}'"
+                        f" of module {module_name}"
+                    )
+                except Exception as e:
+                    self.logger.error(
+                        f"Error removing event handler in {module_name}: {e}"
+                    )
             uninstall_cb = getattr(register_obj, "__uninstall__", None)
             if uninstall_cb is not None:
                 try:
                     result = uninstall_cb(self)
-                    # поддержка async-колбэков
                     if asyncio.iscoroutine(result):
                         try:
                             loop = asyncio.get_event_loop()
@@ -493,20 +532,73 @@ class Kernel:
                             asyncio.run(result)
                 except Exception as e:
                     self.logger.error(
-                        f"Ошибка в uninstall-колбэке модуля {module_name}: {e}"
+                        f"Error in uninstall callback of module {module_name}: {e}"
                     )
-        # ---------------------------------------------------
 
-        to_remove = []
-        for cmd, owner in self.command_owners.items():
-            if owner == module_name:
-                to_remove.append(cmd)
-
+        to_remove = [
+            cmd for cmd, owner in self.command_owners.items()
+            if owner == module_name
+        ]
         for cmd in to_remove:
             del self.command_handlers[cmd]
             del self.command_owners[cmd]
-            self.logger.debug(f"del command:{cmd}")
+            self.logger.debug(f"del command: {cmd}")
+
         self.unregister_module_inline_handlers(module_name)
+
+    async def _run_module_post_load(
+        self, module: Any, module_name: str, is_install: bool = False
+    ) -> None:
+        """
+        Run all post-load hooks for *module* after it has been registered:
+          1. Inject kernel into InfiniteLoops and autostart them.
+          2. Call @register.on_load() callback.
+          3. Call @register.on_install() callback (only on first install).
+        """
+        register_obj = getattr(module, "register", None)
+
+        for il in getattr(register_obj, "__loops__", []):
+            il._kernel = self
+            if il.autostart:
+                try:
+                    il.start()
+                    self.logger.debug(
+                        f"Autostarted loop '{il.func.__name__}' "
+                        f"of module {module_name}"
+                    )
+                except Exception as e:
+                    self.logger.error(
+                        f"Error autostarting loop in {module_name}: {e}"
+                    )
+
+        on_load_cb = getattr(register_obj, "__on_load__", None)
+        if on_load_cb is not None:
+            try:
+                result = on_load_cb(self)
+                if asyncio.iscoroutine(result):
+                    await result
+            except Exception as e:
+                self.logger.error(
+                    f"Error in on_load callback of module {module_name}: {e}"
+                )
+
+        on_install_cb = getattr(register_obj, "__on_install__", None)
+        if on_install_cb is not None and is_install:
+            flag_key = f"__installed__{module_name}"
+            already_ran = await self.db_get("mcub_module_flags", flag_key)
+            if not already_ran:
+                try:
+                    result = on_install_cb(self)
+                    if asyncio.iscoroutine(result):
+                        await result
+                    await self.db_set("mcub_module_flags", flag_key, "1")
+                    self.logger.debug(
+                        f"on_install callback ran for module {module_name}"
+                    )
+                except Exception as e:
+                    self.logger.error(
+                        f"Error in on_install callback of module {module_name}: {e}"
+                    )
 
     async def add_repository(self, url):
         """Добавляет новый репозиторий"""
@@ -1083,18 +1175,8 @@ class Kernel:
                 self.loaded_modules[module_name] = module
                 self.logger.info(f"User module loaded: {module_name}")
 
-            # Call @kernel.register.on_load() callback if present
-            register_obj = getattr(module, "register", None)
-            on_load_cb = getattr(register_obj, "__on_load__", None)
-            if on_load_cb is not None:
-                try:
-                    result = on_load_cb(self)
-                    if asyncio.iscoroutine(result):
-                        await result
-                except Exception as e:
-                    self.logger.error(
-                        f"Ошибка в on_load-колбэке модуля {module_name}: {e}"
-                    )
+            # Run post-load hooks: loops autostart, on_load, on_install
+            await self._run_module_post_load(module, module_name, is_install=True)
 
             # Initialize module if it has an init function
             if hasattr(module, 'init') and callable(module.init):
@@ -1685,7 +1767,6 @@ class Kernel:
 
         self.cache.set(f"tb_{error_id}", error_traceback)
 
-        # Safe escape with None check
         source_escaped = html.escape(source, quote=False) if source else "unknown"
         error_escaped = html.escape(error_text[:300], quote=False) if error_text else "unknown"
 
@@ -1982,17 +2063,7 @@ class Kernel:
                         f"{Colors.GREEN}=> Загружен системный модуль: {module_name}{Colors.RESET}"
                     )
 
-                    _reg = getattr(module, "register", None)
-                    _on_load = getattr(_reg, "__on_load__", None)
-                    if _on_load is not None:
-                        try:
-                            result = _on_load(self)
-                            if asyncio.iscoroutine(result):
-                                await result
-                        except Exception as _e:
-                            self.logger.error(
-                                f"Ошибка в on_load-колбэке модуля {module_name}: {_e}"
-                            )
+                    await self._run_module_post_load(module, module_name, is_install=False)
 
                 except CommandConflictError as e:
                     self.logger.error(
@@ -2047,17 +2118,8 @@ class Kernel:
                             self.logger.info(
                                 f"{self.Colors.BLUE}=> Модуль загружен {module_name}{self.Colors.RESET}"
                             )
-                            _reg = getattr(module, "register", None)
-                            _on_load = getattr(_reg, "__on_load__", None)
-                            if _on_load is not None:
-                                try:
-                                    result = _on_load(self)
-                                    if asyncio.iscoroutine(result):
-                                        await result
-                                except Exception as _e:
-                                    self.logger.error(
-                                        f"Ошибка в on_load-колбэке модуля {module_name}: {_e}"
-                                    )
+
+                            await self._run_module_post_load(module, module_name, is_install=False)
                     else:
                         spec = importlib.util.spec_from_file_location(
                             module_name, file_path
@@ -2079,18 +2141,7 @@ class Kernel:
                                 f"{self.Colors.GREEN}=> Загружен пользовательский модуль (старый стиль): {module_name}{self.Colors.RESET}"
                             )
 
-                            # Call @kernel.register.on_load() callback if present
-                            _reg = getattr(module, "register", None)
-                            _on_load = getattr(_reg, "__on_load__", None)
-                            if _on_load is not None:
-                                try:
-                                    result = _on_load(self)
-                                    if asyncio.iscoroutine(result):
-                                        await result
-                                except Exception as _e:
-                                    self.logger.error(
-                                        f"Ошибка в on_load-колбэке модуля {module_name}: {_e}"
-                                    )
+                            await self._run_module_post_load(module, module_name, is_install=False)
 
                 except CommandConflictError as e:
                     error_msg = f"Конфликт команд при загрузке модуля {file_name}: {e}"

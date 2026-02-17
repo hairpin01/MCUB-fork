@@ -469,7 +469,8 @@ class Kernel:
         self.logger.debug("clear loading module")
 
     def unregister_module_commands(self, module_name):
-        """Удаляет все команды модуля"""
+        """Удаляет все команды модуля и вызывает uninstall-колбэк если он задан."""
+        # --- вызов @kernel.register.uninstall() колбэка ---
         module = (
             self.loaded_modules.get(module_name)
             or self.system_modules.get(module_name)
@@ -480,6 +481,7 @@ class Kernel:
             if uninstall_cb is not None:
                 try:
                     result = uninstall_cb(self)
+                    # поддержка async-колбэков
                     if asyncio.iscoroutine(result):
                         try:
                             loop = asyncio.get_event_loop()
@@ -493,6 +495,7 @@ class Kernel:
                     self.logger.error(
                         f"Ошибка в uninstall-колбэке модуля {module_name}: {e}"
                     )
+        # ---------------------------------------------------
 
         to_remove = []
         for cmd, owner in self.command_owners.items():
@@ -1079,6 +1082,19 @@ class Kernel:
             else:
                 self.loaded_modules[module_name] = module
                 self.logger.info(f"User module loaded: {module_name}")
+
+            # Call @kernel.register.on_load() callback if present
+            register_obj = getattr(module, "register", None)
+            on_load_cb = getattr(register_obj, "__on_load__", None)
+            if on_load_cb is not None:
+                try:
+                    result = on_load_cb(self)
+                    if asyncio.iscoroutine(result):
+                        await result
+                except Exception as e:
+                    self.logger.error(
+                        f"Ошибка в on_load-колбэке модуля {module_name}: {e}"
+                    )
 
             # Initialize module if it has an init function
             if hasattr(module, 'init') and callable(module.init):
@@ -1966,6 +1982,18 @@ class Kernel:
                         f"{Colors.GREEN}=> Загружен системный модуль: {module_name}{Colors.RESET}"
                     )
 
+                    _reg = getattr(module, "register", None)
+                    _on_load = getattr(_reg, "__on_load__", None)
+                    if _on_load is not None:
+                        try:
+                            result = _on_load(self)
+                            if asyncio.iscoroutine(result):
+                                await result
+                        except Exception as _e:
+                            self.logger.error(
+                                f"Ошибка в on_load-колбэке модуля {module_name}: {_e}"
+                            )
+
                 except CommandConflictError as e:
                     self.logger.error(
                         f"{Colors.RED}=X Ошибка загрузки системного модуля {module_name}: {e}{Colors.RESET}"
@@ -2019,6 +2047,17 @@ class Kernel:
                             self.logger.info(
                                 f"{self.Colors.BLUE}=> Модуль загружен {module_name}{self.Colors.RESET}"
                             )
+                            _reg = getattr(module, "register", None)
+                            _on_load = getattr(_reg, "__on_load__", None)
+                            if _on_load is not None:
+                                try:
+                                    result = _on_load(self)
+                                    if asyncio.iscoroutine(result):
+                                        await result
+                                except Exception as _e:
+                                    self.logger.error(
+                                        f"Ошибка в on_load-колбэке модуля {module_name}: {_e}"
+                                    )
                     else:
                         spec = importlib.util.spec_from_file_location(
                             module_name, file_path
@@ -2039,6 +2078,19 @@ class Kernel:
                             self.logger.warning(
                                 f"{self.Colors.GREEN}=> Загружен пользовательский модуль (старый стиль): {module_name}{self.Colors.RESET}"
                             )
+
+                            # Call @kernel.register.on_load() callback if present
+                            _reg = getattr(module, "register", None)
+                            _on_load = getattr(_reg, "__on_load__", None)
+                            if _on_load is not None:
+                                try:
+                                    result = _on_load(self)
+                                    if asyncio.iscoroutine(result):
+                                        await result
+                                except Exception as _e:
+                                    self.logger.error(
+                                        f"Ошибка в on_load-колбэке модуля {module_name}: {_e}"
+                                    )
 
                 except CommandConflictError as e:
                     error_msg = f"Конфликт команд при загрузке модуля {file_name}: {e}"

@@ -6,18 +6,22 @@ __Table of Contents__
 > 2. [Module Structure](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#module-structure)
 > 3. [Kernel API Reference](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#kernel-api-reference)
 > 4. [Database API](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#database-api)
-> 5. [Cache API](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#cache-api)
-> 6. [Task Scheduler API](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#task-scheduler-api)
-> 7. [Middleware API](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#middleware-api)
-> 8. [Command Registration](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#command-registration)
-> 9. [Event Handlers](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#event-handlers)
-> 10. [Configuration Management](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#configuration-management)
-> 11. [Error Handling](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#error-handling)
-> 12. [Utils Package API](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#utils-package-api)
-> 13. [Best Practices](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#best-practices)
-> 14. [Example Module](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#example-module)
-> 15. [Premium Emoji Guide](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#premium-emoji-guide)
-> 16. [Inline Query Automation Methods](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#inline-query-automation-methods-and-inline-form)
+> 5. [Key-Value Database API](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#key-value-database-api)
+> 6. [Module Config API](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#module-config-api)
+> 7. [Cache API](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#cache-api)
+> 8. [Task Scheduler API](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#task-scheduler-api)
+> 9. [Middleware API](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#middleware-api)
+> 10. [Command Registration](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#command-registration)
+> 11. [Event Handlers](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#event-handlers)
+> 12. [Configuration Management](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#configuration-management)
+> 13. [Error Handling](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#error-handling)
+> 14. [Utils Package API](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#utils-package-api)
+> 15. [Best Practices](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#best-practices)
+> 16. [Example Module](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#example-module)
+> 17. [Premium Emoji Guide](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#premium-emoji-guide)
+> 18. [Inline Query Automation Methods](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#inline-query-automation-methods-and-inline-form)
+> 19. [Callback Permission Management](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#callback-permission-management)
+> 20. [Enhanced Registration API v1.0.2](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#enhanced-registration-api-v102)
 
 # Introduction
 
@@ -32,6 +36,7 @@ __Table of Contents__
 # author: Author Name
 # version: 1.0.0
 # description: Module description here
+# scop: kernel (min|max|None) v(version|[__lastest__])
 
 def register(kernel):
     # Module code here
@@ -188,9 +193,48 @@ def register(kernel):
 
 `kernel.VERSION` - Kernel version string
 
-`kernel.start_time` - Kernel start timestamp
+**Usage:**
+```python
+await event.edit(f"Running MCUB kernel v{kernel.VERSION}")
+```
+
+`kernel.start_time` - Kernel start timestamp (Unix float from `time.time()`)
+
+**Usage:**
+```python
+import time
+uptime_seconds = int(time.time() - kernel.start_time)
+hours, rem = divmod(uptime_seconds, 3600)
+minutes, seconds = divmod(rem, 60)
+await event.edit(f"Uptime: {hours}h {minutes}m {seconds}s")
+```
 
 `kernel.log_chat_id` - log chat id
+
+`kernel.loaded_modules`
+---
+Dictionary of all currently loaded user modules. Keys are module names (str), values are the module objects.
+
+**Usage:**
+```python
+# Check if a specific module is loaded
+if 'notes' in kernel.loaded_modules:
+    await event.edit("notes module is active")
+
+# List all loaded user modules
+names = list(kernel.loaded_modules.keys())
+await event.edit("Loaded: " + ", ".join(names))
+```
+
+`kernel.system_modules`
+---
+Dictionary of all loaded system modules (same structure as `loaded_modules`). System modules are loaded from the `modules/` directory and cannot be unloaded via `um`.
+
+**Usage:**
+```python
+all_modules = {**kernel.system_modules, **kernel.loaded_modules}
+await event.edit(f"Total modules: {len(all_modules)}")
+```
 
 ---
 
@@ -394,6 +438,145 @@ await kernel.db.commit()
 
 ---
 
+## Key-Value Database API
+
+A simpler high-level API built on top of the raw SQL database. Stores arbitrary values under a `(module, key)` pair — no table management required.
+
+`kernel.db_set(module, key, value)`
+---
+Store a string value.
+
+**Parameters:**
+- `module` (str): Namespace — typically your module name
+- `key` (str): Key
+- `value` (str): Value to store
+
+**Usage:**
+```python
+await kernel.db_set('mymodule', 'last_run', '2024-01-01')
+```
+
+`kernel.db_get(module, key)`
+---
+Retrieve a stored value.
+
+**Returns:** str or None
+
+**Usage:**
+```python
+value = await kernel.db_get('mymodule', 'last_run')
+```
+
+`kernel.db_delete(module, key)`
+---
+Delete a stored value.
+
+**Usage:**
+```python
+await kernel.db_delete('mymodule', 'last_run')
+```
+
+---
+
+## Module Config API
+
+A structured per-module configuration system backed by the database. Stores and retrieves JSON-serialisable config objects automatically.
+
+`kernel.get_module_config(module_name, default=None)`
+---
+Retrieve the full config dict for a module.
+
+**Returns:** dict (empty dict if nothing stored and no default given)
+
+**Usage:**
+```python
+config = await kernel.get_module_config('mymodule')
+timeout = config.get('timeout', 30)
+```
+
+`kernel.save_module_config(module_name, config_data)`
+---
+Save the full config dict for a module.
+
+**Returns:** bool
+
+**Usage:**
+```python
+await kernel.save_module_config('mymodule', {'timeout': 60, 'enabled': True})
+```
+
+`kernel.get_module_config_key(module_name, key, default=None)`
+---
+Retrieve a single key from the module config.
+
+**Usage:**
+```python
+timeout = await kernel.get_module_config_key('mymodule', 'timeout', 30)
+```
+
+`kernel.set_module_config_key(module_name, key, value)`
+---
+Set a single key in the module config without overwriting other keys.
+
+**Usage:**
+```python
+await kernel.set_module_config_key('mymodule', 'timeout', 120)
+```
+
+`kernel.delete_module_config_key(module_name, key)`
+---
+Remove a single key from the module config.
+
+**Usage:**
+```python
+await kernel.delete_module_config_key('mymodule', 'old_setting')
+```
+
+`kernel.update_module_config(module_name, updates)`
+---
+Merge a dict of updates into the module config (shallow merge).
+
+**Usage:**
+```python
+await kernel.update_module_config('mymodule', {'timeout': 90, 'retries': 3})
+```
+
+`kernel.delete_module_config(module_name)`
+---
+Delete the entire config for a module.
+
+**Usage:**
+```python
+await kernel.delete_module_config('mymodule')
+```
+
+**Full example:**
+```python
+MODULE = 'myplugin'
+
+def register(kernel):
+
+    @kernel.register.on_load()
+    async def setup(k):
+        # Set defaults on first load
+        cfg = await k.get_module_config(MODULE)
+        if not cfg:
+            await k.save_module_config(MODULE, {'enabled': True, 'limit': 10})
+
+    @kernel.register.command('cfg')
+    async def cfg_handler(event):
+        args = event.text.split()
+        if len(args) == 3:
+            _, key, value = args
+            await kernel.set_module_config_key(MODULE, key, value)
+            await event.edit(f"Set {key} = {value}")
+        else:
+            cfg = await kernel.get_module_config(MODULE)
+            await event.edit(str(cfg))
+```
+
+---
+
 ## Cache API
 
 `kernel.cache.set(key, value, ttl=None)`
@@ -443,37 +626,65 @@ kernel.cache.clear()
 
 ## Task Scheduler API
 
-`kernel.scheduler.schedule_task(func, delay=0, interval=0, name=None)`
+`kernel.scheduler.add_interval_task(func, interval_seconds, task_id=None)`
 ---
-Schedule task execution.
+Schedule a task to run repeatedly at a fixed interval.
 
 **Parameters:**
-- `func` (callable): Function to execute
-- `delay` (int): Initial delay in seconds
-- `interval` (int): Repeat interval (0 = run once)
-- `name` (str, optional): Task identifier
+- `func` (callable): Async function to execute
+- `interval_seconds` (int): Interval between executions in seconds
+- `task_id` (str, optional): Custom task identifier (auto-generated if omitted)
 
-**Returns:** Task ID
+**Returns:** `task_id` (str)
+
+**Usage:**
+```python
+async def check_updates():
+    await kernel.client.send_message('me', 'ping')
+
+task_id = await kernel.scheduler.add_interval_task(check_updates, 300)
+```
+
+`kernel.scheduler.add_daily_task(func, hour, minute, task_id=None)`
+---
+Schedule a task to run once every day at a specific time.
+
+**Parameters:**
+- `func` (callable): Async function to execute
+- `hour` (int): Hour (0–23)
+- `minute` (int): Minute (0–59)
+- `task_id` (str, optional): Custom task identifier
+
+**Returns:** `task_id` (str)
+
+**Usage:**
+```python
+async def daily_report():
+    await kernel.client.send_message('me', 'Daily report')
+
+task_id = await kernel.scheduler.add_daily_task(daily_report, hour=9, minute=0)
+```
+
+`kernel.scheduler.add_task(func, delay_seconds, task_id=None)`
+---
+Schedule a one-shot task to run once after a delay.
+
+**Parameters:**
+- `func` (callable): Async function to execute
+- `delay_seconds` (int): Delay before execution in seconds
+- `task_id` (str, optional): Custom task identifier
+
+**Returns:** `task_id` (str)
 
 **Usage:**
 ```python
 # Run once after 60 seconds
-task_id = kernel.scheduler.schedule_task(
-    cleanup_function,
-    delay=60
-)
-
-# Run every 300 seconds
-task_id = kernel.scheduler.schedule_task(
-    periodic_check,
-    interval=300,
-    name="health_check"
-)
+task_id = await kernel.scheduler.add_task(cleanup_function, delay_seconds=60)
 ```
 
 `kernel.scheduler.cancel_task(task_id)`
 ---
-Cancel scheduled task.
+Cancel a scheduled task by its ID.
 
 **Usage:**
 ```python
@@ -482,12 +693,27 @@ kernel.scheduler.cancel_task(task_id)
 
 `kernel.scheduler.cancel_all_tasks()`
 ---
-Cancel all scheduled tasks.
+Cancel all currently scheduled tasks.
 
 **Usage:**
 ```python
 kernel.scheduler.cancel_all_tasks()
 ```
+
+`kernel.scheduler.get_tasks()`
+---
+Get a list of all registered tasks with their status.
+
+**Returns:** List of dicts with keys `id`, `type`, `status`
+
+**Usage:**
+```python
+for task in kernel.scheduler.get_tasks():
+    print(f"{task['id']} [{task['type']}]: {task['status']}")
+```
+
+> [!TIP]
+> Always cancel interval/daily tasks in `@kernel.register.uninstall()` to avoid orphaned tasks after module reload.
 
 ---
 
@@ -1530,7 +1756,9 @@ if emoji_parser.is_emoji_tag(text):
 1. Use [@ShowJsonBot](https://t.me/ShowJsonBot) to forward messages with custom emojis
 2. Look for `custom_emoji_id` in the JSON response
 3. Use the numeric ID in your code
+
 or:
+
 1. write .py print(r_text) in response to premium emoji
 ---
 
@@ -1899,6 +2127,49 @@ def register(kernel):
 ## Enhanced Registration API v1.0.2
 
 MCUB introduces a new `Register` class with decorator-based registration methods for cleaner module syntax.
+
+### On-Load Callback
+
+`@kernel.register.on_load()`
+---
+Register a callback that is automatically called by the kernel right after the module has been fully loaded and all its commands/handlers are already registered. Triggered on both initial startup and every `reload`.
+
+Use this for initialisation that depends on the kernel being ready: connecting external services, warming up a cache, registering background tasks, etc.
+
+The callback receives the `kernel` instance as its only argument. Both regular and `async` functions are supported. Supports both syntaxes (with and without parentheses).
+
+**Examples:**
+
+```python
+@kernel.register.on_load()
+async def on_load(kernel):
+    kernel.logger.info("MyModule loaded, running setup...")
+    await some_client.connect()
+```
+
+```python
+# Start a background task on load, cancel it on unload
+task_id = None
+
+def register(kernel):
+    global task_id
+
+    async def heartbeat():
+        await kernel.client.send_message('me', 'alive')
+
+    @kernel.register.on_load()
+    async def on_load(k):
+        global task_id
+        task_id = await k.scheduler.add_interval_task(heartbeat, 3600)
+
+    @kernel.register.uninstall()
+    async def on_unload(k):
+        if task_id:
+            k.scheduler.cancel_task(task_id)
+```
+
+> [!TIP]
+> Available in kernel version `1.0.2.3.5` and later.
 
 ### Method Registration
 

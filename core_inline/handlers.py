@@ -217,7 +217,8 @@ class InlineHandlers:
                     thumb = InputWebDocument(
                         url='https://kappa.lol/KSKoOu',
                         size=0,
-                        mime_type='image/jpeg'
+                        mime_type='image/jpeg',
+                        attributes=[]
                     )
 
                     info_article = event.builder.article(
@@ -238,7 +239,8 @@ class InlineHandlers:
                         thumb_cmd = InputWebDocument(
                             url='https://kappa.lol/EKhGKM',
                             size=0,
-                            mime_type='image/jpeg'
+                            mime_type='image/jpeg',
+                            attributes=[]
                         )
                         cmd_article = event.builder.article(
                             f"Команда: {pattern[:20]}",

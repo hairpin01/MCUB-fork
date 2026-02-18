@@ -148,12 +148,6 @@ def register(kernel):
         client._call = api_call_interceptor
         client._original_call = original_call
 
-        if hasattr(kernel, 'bot_client') and kernel.bot_client is not None:
-            if not hasattr(kernel.bot_client, '_original_call'):
-                kernel.bot_client._original_call = kernel.bot_client._call
-                kernel.bot_client._call = api_call_interceptor
-            else:
-                kernel.logger.debug("API interceptor already installed on bot_client")
 
     # install_interceptor(kernel)
 
@@ -164,10 +158,6 @@ def register(kernel):
             client._call = client._original_call
             delattr(client, '_original_call')
             kernel.logger.info("API call interceptor uninstalled")
-        if hasattr(kernel, 'bot_client') and kernel.bot_client is not None:
-            if hasattr(kernel.bot_client, '_original_call'):
-                kernel.bot_client._call = kernel.bot_client._original_call
-                delattr(kernel.bot_client, '_original_call')
 
     async def notify_overload(kernel, lang, trigger_method, total_relevant, interval, threshold):
         if not kernel.log_chat_id:
@@ -297,7 +287,7 @@ def register(kernel):
         await event.edit(lang['api_reset_done'])
 
     @kernel.register.command('api_suspend')
-    # [секунды] - отключить защиту
+    # [секунды] - отключить защиту на N-ное ко-во сек
     async def api_suspend_handler(event):
         nonlocal blocked_until
         args = event.text.split()

@@ -475,9 +475,10 @@ class Register:
             >>> async def setup(kernel):
             >>>     await some_service.connect()
         """
+        frame = inspect.stack()[1][0]
+        module = inspect.getmodule(frame)
+
         def decorator(f: Callable) -> Callable:
-            frame = inspect.stack()[1][0]
-            module = inspect.getmodule(frame)
             if module:
                 reg = self._get_or_create_register(module)
                 reg.__on_load__ = f
@@ -502,9 +503,10 @@ class Register:
             >>> async def first_time(kernel):
             >>>     await kernel.client.send_message("me", "Module installed!")
         """
+        frame = inspect.stack()[1][0]
+        module = inspect.getmodule(frame)
+
         def decorator(f: Callable) -> Callable:
-            frame = inspect.stack()[1][0]
-            module = inspect.getmodule(frame)
             if module:
                 reg = self._get_or_create_register(module)
                 reg.__on_install__ = f
@@ -527,9 +529,10 @@ class Register:
             >>> async def on_unload(kernel):
             >>>     await some_client.close()
         """
+        frame = inspect.stack()[1][0]
+        module = inspect.getmodule(frame)
+
         def decorator(f: Callable) -> Callable:
-            frame = inspect.stack()[1][0]
-            module = inspect.getmodule(frame)
             if module:
                 reg = self._get_or_create_register(module)
                 reg.__uninstall__ = f

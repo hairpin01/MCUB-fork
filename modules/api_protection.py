@@ -138,7 +138,8 @@ def register(kernel):
 
         return await original_call(sender, request, ordered, flood_sleep_threshold)
 
-    def install_interceptor():
+    @kernel.register.on_load()
+    async def install_interceptor(kernel):
         nonlocal original_call
         if hasattr(client, '_original_call'):
             kernel.logger.debug("API interceptor already installed")
@@ -147,18 +148,31 @@ def register(kernel):
         client._call = api_call_interceptor
         client._original_call = original_call
 
-    def uninstall_interceptor():
+        if hasattr(kernel, 'bot_client') and kernel.bot_client is not None:
+            if not hasattr(kernel.bot_client, '_original_call'):
+                kernel.bot_client._original_call = kernel.bot_client._call
+                kernel.bot_client._call = api_call_interceptor
+            else:
+                kernel.logger.debug("API interceptor already installed on bot_client")
+
+    # install_interceptor(kernel)
+
+    @kernel.register.uninstall()
+    async def uninstall_interceptor(kernel):
         nonlocal original_call
         if hasattr(client, '_original_call'):
             client._call = client._original_call
             delattr(client, '_original_call')
             kernel.logger.info("API call interceptor uninstalled")
-
-    install_interceptor()
+        if hasattr(kernel, 'bot_client') and kernel.bot_client is not None:
+            if hasattr(kernel.bot_client, '_original_call'):
+                kernel.bot_client._call = kernel.bot_client._original_call
+                delattr(kernel.bot_client, '_original_call')
 
     async def notify_overload(kernel, lang, trigger_method, total_relevant, interval, threshold):
         if not kernel.log_chat_id:
             return
+
         now = time.time()
         cutoff = now - interval
         method_counts = defaultdict(int)
@@ -176,11 +190,40 @@ def register(kernel):
             trigger=trigger_method,
             methods=methods_str
         )
+
+        import io, csv
+        filtered_log = [(ts, m) for m, ts in request_log if ts > cutoff]
+        filtered_log.sort(key=lambda x: x[0])
+
+        str_buf = io.StringIO()
+        writer = csv.writer(str_buf, delimiter=',')
+        writer.writerow(['timestamp', 'method'])
+        for ts, m in filtered_log:
+            writer.writerow([int(ts), m])
+
+        # Convert to BytesIO for sending
+        file_name = f'api_requests_{int(now)}.csv'
+        buf = io.BytesIO(str_buf.getvalue().encode('utf-8'))
+        buf.name = file_name
+        buf.seek(0)
+
         try:
-            await kernel.bot_client.send_message(kernel.log_chat_id, text)
+            await kernel.bot_client.send_file(
+                kernel.log_chat_id,
+                buf,
+                caption=text,
+                file_name=file_name,
+                force_document=True
+            )
         except Exception:
             try:
-                await kernel.client.send_message(kernel.log_chat_id, text)
+                await kernel.client.send_file(
+                    kernel.log_chat_id,
+                    buf,
+                    caption=text,
+                    file_name=file_name,
+                    force_document=True
+                )
             except Exception:
                 await kernel.client.send_message('me', text)
 
@@ -342,4 +385,3 @@ def register(kernel):
         blocked_until = 0
         await kernel.client.connect()
         await event.edit(lang['bot_unlocked'].format(seconds=seconds))
-

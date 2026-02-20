@@ -495,9 +495,12 @@ class Kernel:
                         f"Error stopping loop in {module_name}: {e}"
                     )
 
-            for wrapper, event_obj in getattr(register_obj, "__watchers__", []):
+            for entry in getattr(register_obj, "__watchers__", []):
+                # support both old (wrapper, event_obj) and new (wrapper, event_obj, tg_client)
+                wrapper, event_obj = entry[0], entry[1]
+                tg_client = entry[2] if len(entry) > 2 else self.client
                 try:
-                    self.client.remove_event_handler(wrapper, event_obj)
+                    tg_client.remove_event_handler(wrapper, event_obj)
                     self.logger.debug(
                         f"Removed watcher '{wrapper.__name__}' of module {module_name}"
                     )
@@ -506,9 +509,12 @@ class Kernel:
                         f"Error removing watcher in {module_name}: {e}"
                     )
 
-            for handler, event_obj in getattr(register_obj, "__event_handlers__", []):
+            for entry in getattr(register_obj, "__event_handlers__", []):
+                # support both old (handler, event_obj) and new (handler, event_obj, tg_client)
+                handler, event_obj = entry[0], entry[1]
+                tg_client = entry[2] if len(entry) > 2 else self.client
                 try:
-                    self.client.remove_event_handler(handler, event_obj)
+                    tg_client.remove_event_handler(handler, event_obj)
                     self.logger.debug(
                         f"Removed event handler '{getattr(handler, '__name__', handler)}'"
                         f" of module {module_name}"
@@ -2503,8 +2509,8 @@ class Kernel:
 
                 try:
                     await event.edit(
-                        f"{premium_emoji_telescope} <b>Ошибка, смотри логи</b>\n"
-                        f"{premium_emoji_karandash} <i>Full Log command:</i>\n"
+                        f"{premium_emoji_telescope} <b>Call <code>{event.text}</code> fail!</b>\n\n"
+                        f"{premium_emoji_karandash} <b><i>Full Log command:</i></b>\n"
                         f"<pre>{error_log}</pre>",
                         parse_mode="html",
                     )

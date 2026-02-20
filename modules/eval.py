@@ -62,6 +62,7 @@ def register(kernel):
             "me": me,
             "start_time": start_time,
             "kernel": kernel,
+            "k": kernel,
             "client": client,
             "bot": bot,
             "event": event,

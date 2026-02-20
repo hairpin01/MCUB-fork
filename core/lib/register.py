@@ -201,7 +201,7 @@ class Register:
             return decorator
         return decorator(func)
 
-    def event(self, event_type: str, *args: Any, **kwargs: Any) -> Callable:
+    def event(self, event_type: str, *args: Any, bot_client: bool = False, **kwargs: Any) -> Callable:
         """
         Register a Telegram event handler tracked by the kernel.
 
@@ -214,12 +214,17 @@ class Register:
                         | ``userupdate`` | ``inlinequery`` | ``callbackquery``
                         | ``raw`` (and short aliases like ``message``,
                         ``edited``, ``callback`` …).
+            bot_client: If True, register on bot_client instead of client.
             *args / **kwargs: Forwarded to the Telethon event constructor.
 
         Example:
             >>> @kernel.register.event("newmessage", pattern=r"hello")
             >>> async def hello(event):
             >>>     await event.reply("Hi!")
+
+            >>> @kernel.register.event("newmessage", bot_client=True, pattern=r"/start")
+            >>> async def start(event):
+            >>>     await event.reply("Hello from bot!")
         """
         EVENT_TYPE_MAP: Dict[str, Any] = {
             "newmessage":     events.NewMessage,
@@ -238,6 +243,9 @@ class Register:
             "custom":         events.Raw,
         }
 
+        frame = inspect.stack()[1][0]
+        module = inspect.getmodule(frame)
+
         def decorator(handler: Callable) -> Callable:
             key = event_type.lower()
             if key not in EVENT_TYPE_MAP:
@@ -246,17 +254,21 @@ class Register:
                     f"Valid: {', '.join(EVENT_TYPE_MAP)}"
                 )
             event_obj = EVENT_TYPE_MAP[key](*args, **kwargs)
-            self.kernel.client.add_event_handler(handler, event_obj)
 
-            # track (handler, event_obj) for clean removal
-            frame = inspect.stack()[1][0]
-            module = inspect.getmodule(frame)
+            if bot_client and hasattr(self.kernel, 'bot_client') and self.kernel.bot_client is not None:
+                tg_client = self.kernel.bot_client
+            else:
+                tg_client = self.kernel.client
+
+            tg_client.add_event_handler(handler, event_obj)
+
+            # track (handler, event_obj, tg_client) for clean removal
             if module:
                 reg = self._get_or_create_register(module)
-                tracked: List[Tuple[Callable, Any]] = self._ensure_list(
+                tracked: List[Tuple[Callable, Any, Any]] = self._ensure_list(
                     reg, "__event_handlers__"
                 )
-                tracked.append((handler, event_obj))
+                tracked.append((handler, event_obj, tg_client))
 
             return handler
 
@@ -339,13 +351,16 @@ class Register:
         return decorator
 
 
-    def watcher(self, func: Optional[Callable] = None, **tags: Any) -> Callable:
+    def watcher(self, func: Optional[Callable] = None, bot_client: bool = False, **tags: Any) -> Callable:
         """
         Register a passive message watcher.
 
         Watchers are called for every new message (in/out) and cleaned up
         automatically on module unload. Filter events declaratively with
         tag kwargs — no ``if`` boilerplate inside the handler.
+
+        Args:
+            bot_client: If True, register on bot_client instead of client.
 
         Available tags:
             out, incoming
@@ -369,11 +384,18 @@ class Register:
             >>> async def pm_watcher(event):
             >>>     await event.reply("Got it!")
 
+            >>> # Register on bot_client:
+            >>> @kernel.register.watcher(bot_client=True, incoming=True)
+            >>> async def bot_watcher(event):
+            >>>     ...
+
             >>> # No filters — fires on every message:
             >>> @kernel.register.watcher
             >>> async def all_messages(event):
             >>>     ...
         """
+        _use_bot_client = bot_client
+
         def decorator(f: Callable) -> Callable:
             _tags = dict(tags)
 
@@ -391,16 +413,22 @@ class Register:
             _wrapper.__watcher_original__ = f
 
             event_obj = events.NewMessage()
-            self.kernel.client.add_event_handler(_wrapper, event_obj)
+
+            if _use_bot_client and hasattr(self.kernel, 'bot_client') and self.kernel.bot_client is not None:
+                tg_client = self.kernel.bot_client
+            else:
+                tg_client = self.kernel.client
+
+            tg_client.add_event_handler(_wrapper, event_obj)
 
             frame = inspect.stack()[1][0]
             module = inspect.getmodule(frame)
             if module:
                 reg = self._get_or_create_register(module)
-                wlist: List[Tuple[Callable, Any]] = self._ensure_list(
+                wlist: List[Tuple[Callable, Any, Any]] = self._ensure_list(
                     reg, "__watchers__"
                 )
-                wlist.append((_wrapper, event_obj))
+                wlist.append((_wrapper, event_obj, tg_client))
 
             return f
 
@@ -475,10 +503,9 @@ class Register:
             >>> async def setup(kernel):
             >>>     await some_service.connect()
         """
-        frame = inspect.stack()[1][0]
-        module = inspect.getmodule(frame)
-
         def decorator(f: Callable) -> Callable:
+            frame = inspect.stack()[1][0]
+            module = inspect.getmodule(frame)
             if module:
                 reg = self._get_or_create_register(module)
                 reg.__on_load__ = f
@@ -503,10 +530,9 @@ class Register:
             >>> async def first_time(kernel):
             >>>     await kernel.client.send_message("me", "Module installed!")
         """
-        frame = inspect.stack()[1][0]
-        module = inspect.getmodule(frame)
-
         def decorator(f: Callable) -> Callable:
+            frame = inspect.stack()[1][0]
+            module = inspect.getmodule(frame)
             if module:
                 reg = self._get_or_create_register(module)
                 reg.__on_install__ = f
@@ -529,10 +555,9 @@ class Register:
             >>> async def on_unload(kernel):
             >>>     await some_client.close()
         """
-        frame = inspect.stack()[1][0]
-        module = inspect.getmodule(frame)
-
         def decorator(f: Callable) -> Callable:
+            frame = inspect.stack()[1][0]
+            module = inspect.getmodule(frame)
             if module:
                 reg = self._get_or_create_register(module)
                 reg.__uninstall__ = f

@@ -125,9 +125,7 @@ class Kernel:
         self.log_bot_enabled = False
 
         self.current_loading_module = None
-        self.current_loading_module_type = None
-
-        # self.load_repositories()
+        self.current_loading_module_type = Non
         self.repositories = []
         self.default_repo = self.MODULES_REPO
 

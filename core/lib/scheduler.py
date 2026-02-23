@@ -118,8 +118,10 @@ class TaskScheduler:
 
         async def wrapper() -> None:
             """Wrapper function that handles the daily scheduling and error catching."""
+
             while self.running:
                 try:
+                    calc = fsdf / 'ufshdu'
                     # Calculate time until next execution
                     now = datetime.now()
                     target_time = now.replace(
@@ -142,9 +144,6 @@ class TaskScheduler:
 
                     # Execute the scheduled function
                     await func()
-
-                    # After execution, wait for the next day
-                    # This prevents multiple executions if the function takes time
                     await asyncio.sleep(1)  # Small delay before recalculating
 
                 except asyncio.CancelledError:
@@ -154,9 +153,7 @@ class TaskScheduler:
                     # Log the error but keep the task running
                     error_msg = f"Daily task error in {func.__name__}: {e}\n"
                     error_msg += traceback.format_exc()
-                    self.kernel.log_error(error_msg)
-
-                    # Wait a bit before retrying to avoid error loops
+                    self.kernel.handle_error(error_msg, source='scheduler:wrapper')
                     await asyncio.sleep(60)
 
         task_name = f"daily_{func.__name__}_{hour:02d}:{minute:02d}"
@@ -175,6 +172,90 @@ class TaskScheduler:
     def get_task_count(self) -> int:
         """Return the number of currently scheduled tasks."""
         return len(self.tasks)
+
+    async def add_task(self,
+                      func: Callable[[], Any],
+                      delay_seconds: float,
+                      task_id: str = None) -> str:
+        """
+        Schedule a one-shot function to run after a delay.
+
+        Args:
+            func: Async function to execute once
+            delay_seconds: Delay in seconds before execution
+            task_id: Optional identifier; auto-generated if not provided
+
+        Returns:
+            The task_id string
+        """
+        if task_id is None:
+            task_id = f"once_{func.__name__}_{id(func)}"
+
+        async def wrapper() -> None:
+            try:
+                await asyncio.sleep(delay_seconds)
+                if self.running:
+                    await func()
+            except asyncio.CancelledError:
+                pass
+            except Exception as e:
+                error_msg = f"One-shot task error in {func.__name__}: {e}\n"
+                error_msg += traceback.format_exc()
+                self.kernel.log_error(error_msg)
+            finally:
+                self._task_registry.pop(task_id, None)
+
+        task = asyncio.create_task(wrapper(), name=f"once_{func.__name__}")
+        self.tasks.append(task)
+        if not hasattr(self, "_task_registry"):
+            self._task_registry: dict = {}
+        self._task_registry[task_id] = task
+        return task_id
+
+    def cancel_task(self, task_id: str) -> bool:
+        """
+        Cancel a task by its ID (for tasks registered with add_task).
+
+        Args:
+            task_id: The ID returned by add_task
+
+        Returns:
+            True if found and cancelled, False otherwise
+        """
+        if not hasattr(self, "_task_registry"):
+            return False
+        task = self._task_registry.pop(task_id, None)
+        if task is None:
+            return False
+        if not task.done():
+            task.cancel()
+        if task in self.tasks:
+            self.tasks.remove(task)
+        return True
+
+    def cancel_all_tasks(self) -> None:
+        """Cancel all tasks and stop the scheduler (alias for stop without await)."""
+        self.running = False
+        for task in list(self.tasks):
+            if not task.done():
+                task.cancel()
+        if hasattr(self, "_task_registry"):
+            self._task_registry.clear()
+
+    def get_tasks(self) -> List[dict]:
+        """
+        Return a status summary of all scheduled tasks.
+
+        Returns:
+            List of dicts with 'name' and 'status' keys
+        """
+        return [
+            {
+                "name": task.get_name(),
+                "status": "stopped" if task.done() else "running",
+            }
+            for task in self.tasks
+        ]
 
     async def remove_task(self, task: asyncio.Task) -> bool:
         """

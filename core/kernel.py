@@ -77,6 +77,7 @@ try:
     import inspect
     from utils.restart import restart_kernel
     from telethon.tl import types as tl_types
+    import uuid
 except ImportError as e:
     print("Установите зависимости: pip install -r requirements.txt\n", str(e))
     sys.exit(1)
@@ -129,6 +130,11 @@ class Kernel:
         self.repositories = []
         self.default_repo = self.MODULES_REPO
 
+        # Setup logging BEFORE anything that may call self.logger
+        self.setup_directories()
+        self.load_or_create_config()
+        self.logger = self.setup_logging()
+
         self.HTML_PARSER_AVAILABLE = HTML_PARSER_AVAILABLE
         try:
             from utils.emoji_parser import emoji_parser
@@ -168,9 +174,6 @@ class Kernel:
             self.send_file_with_html = None
             self.logger.warning("=X HTML парсер не загружен")
 
-        self.setup_directories()
-        self.load_or_create_config()
-        self.logger = self.setup_logging()
         self.version_manager = VersionManager(self)
         self.db_manager = DatabaseManager(self)
         self.middleware_chain = []
@@ -239,142 +242,8 @@ class Kernel:
 
     async def init_scheduler(self):
         """Инициализация планировщика задач"""
-
-        class SimpleScheduler:
-            def __init__(self, kernel):
-                self.kernel = kernel
-                self.tasks = []
-                self.running = True
-                self.task_counter = 0
-                self.task_registry = {}  # Реестр задач для управления
-
-            async def add_interval_task(self, func, interval_seconds, task_id=None):
-                """Добавление задачи с интервалом"""
-                if not self.running:
-                    return None
-
-                if task_id is None:
-                    task_id = f"task_{self.task_counter}"
-                    self.task_counter += 1
-
-                async def wrapper():
-                    while self.running and task_id in self.task_registry:
-                        await asyncio.sleep(interval_seconds)
-                        if not self.running or task_id not in self.task_registry:
-                            break
-                        try:
-                            await func()
-                        except Exception as e:
-                            self.kernel.log_error(f"Task {task_id} error: {e}")
-
-                task = asyncio.create_task(wrapper())
-                self.tasks.append(task)
-                self.task_registry[task_id] = {
-                    "task": task,
-                    "func": func,
-                    "interval": interval_seconds,
-                    "type": "interval",
-                }
-                return task_id
-
-            async def add_daily_task(self, func, hour, minute, task_id=None):
-                """Добавление ежедневной задачи"""
-                if not self.running:
-                    return None
-
-                if task_id is None:
-                    task_id = f"daily_{self.task_counter}"
-                    self.task_counter += 1
-
-                async def wrapper():
-                    while self.running and task_id in self.task_registry:
-                        now = datetime.now()
-                        target = now.replace(hour=hour, minute=minute, second=0)
-                        if now > target:
-                            target += timedelta(days=1)
-
-                        delay = (target - now).total_seconds()
-                        if delay > 0:
-                            await asyncio.sleep(delay)
-
-                        if not self.running or task_id not in self.task_registry:
-                            break
-                        try:
-                            await func()
-                        except Exception as e:
-                            self.kernel.log_error(f"Task {task_id} error: {e}")
-
-                task = asyncio.create_task(wrapper())
-                self.tasks.append(task)
-                self.task_registry[task_id] = {
-                    "task": task,
-                    "func": func,
-                    "hour": hour,
-                    "minute": minute,
-                    "type": "daily",
-                }
-                return task_id
-
-            async def add_task(self, func, delay_seconds, task_id=None):
-                """Добавление одноразовой задачи"""
-                if not self.running:
-                    return None
-
-                if task_id is None:
-                    task_id = f"once_{self.task_counter}"
-                    self.task_counter += 1
-
-                async def wrapper():
-                    await asyncio.sleep(delay_seconds)
-                    if not self.running or task_id not in self.task_registry:
-                        return
-                    try:
-                        await func()
-                    except Exception as e:
-                        self.kernel.log_error(f"Task {task_id} error: {e}")
-                    finally:
-                        self.cancel_task(task_id)
-
-                task = asyncio.create_task(wrapper())
-                self.tasks.append(task)
-                self.task_registry[task_id] = {
-                    "task": task,
-                    "func": func,
-                    "delay": delay_seconds,
-                    "type": "once",
-                }
-                return task_id
-
-            def cancel_task(self, task_id):
-                """Отмена задачи по ID"""
-                if task_id in self.task_registry:
-                    task_info = self.task_registry[task_id]
-                    task_info["task"].cancel()
-                    # Удаляем из списков
-                    if task_info["task"] in self.tasks:
-                        self.tasks.remove(task_info["task"])
-                    del self.task_registry[task_id]
-                    return True
-                return False
-
-            def cancel_all_tasks(self):
-                """Отмена всех задач"""
-                self.running = False
-                for task_id in list(self.task_registry.keys()):
-                    self.cancel_task(task_id)
-
-            def get_tasks(self):
-                """Получение списка всех задач"""
-                return [
-                    {
-                        "id": task_id,
-                        "type": info["type"],
-                        "status": "running" if info["task"].done() else "stopped",
-                    }
-                    for task_id, info in self.task_registry.items()
-                ]
-
-        self.scheduler = SimpleScheduler(self)
+        self.scheduler = TaskScheduler(self)
+        await self.scheduler.start()
         self.logger.info("=> Планировщик инициализирован")
 
     def add_middleware(self, middleware_func):
@@ -428,6 +297,7 @@ class Kernel:
         self.logger.debug(message)
 
     def log_error(self, message):
+        """Синхронное логирование ошибок (только в файл)"""
         self.logger.error(message)
 
     def load_repositories(self):
@@ -897,45 +767,6 @@ class Kernel:
             await self.handle_error(e, source="inline_query_and_click")
             return False, None
 
-    async def manual_inline_example(self, chat_id, query, bot_username=None):
-        """
-        Manual method for inline query execution with more control.
-
-        This method allows full manual control over inline query execution,
-        including custom result selection and manual sending.
-
-        Args:
-            chat_id (int): Target chat ID
-            query (str): Inline query text
-            bot_username (str, optional): Specific bot username to use
-
-        Returns:
-            list: List of inline query results or empty list on error
-        """
-        try:
-            if not bot_username:
-                bot_username = self.config.get("inline_bot_username")
-                if not bot_username:
-                    self.cprint(
-                        f"{self.Colors.RED}No bot username specified{self.Colors.RESET}"
-                    )
-                    return []
-
-            # Get all results
-            results = await self.client.inline_query(bot_username, query)
-
-            if not results:
-                return []
-
-            # Return raw results for manual processing
-            return results
-
-        except Exception as e:
-            self.cprint(
-                f"{self.Colors.RED}Manual inline query failed: {e}{self.Colors.RESET}"
-            )
-            return []
-
     async def restart(self, chat_id=None, message_id=None):
         """
         Перезагружает процесс юзербота.
@@ -1020,8 +851,8 @@ class Kernel:
             await self.send_log_message(f"🌐 {message}")
             self.logger.info(message)
 
-    async def log_error(self, message):
-        """Логирование ошибок"""
+    async def log_error_async(self, message):
+        """Асинхронное логирование ошибок (в лог-чат + файл)"""
         if hasattr(self, "send_log_message"):
             await self.send_log_message(f"🔴 {message}")
             self.logger.info(message)
@@ -1264,6 +1095,50 @@ class Kernel:
 
         return False, f"Import error: {error_msg}"
 
+    _IMPORT_TO_PIP = {
+        "PIL": "Pillow",
+        "cv2": "opencv-python",
+        "sklearn": "scikit-learn",
+        "bs4": "beautifulsoup4",
+        "yaml": "PyYAML",
+        "dotenv": "python-dotenv",
+        "google.generativeai": "google-generativeai",
+        "speech_recognition": "SpeechRecognition",
+        "dateutil": "python-dateutil",
+        "Crypto": "pycryptodome",
+        "usb": "pyusb",
+        "gi": "PyGObject",
+        "wx": "wxPython",
+        "Image": "Pillow",
+        "pkg_resources": "setuptools",
+    }
+    _NON_INSTALLABLE = {
+        # Стандартная библиотека Python
+        "os", "sys", "re", "io", "math", "time", "json", "uuid", "html",
+        "http", "urllib", "email", "logging", "hashlib", "hmac", "base64",
+        "struct", "socket", "ssl", "threading", "multiprocessing", "subprocess",
+        "asyncio", "inspect", "traceback", "importlib", "pathlib", "shutil",
+        "tempfile", "glob", "fnmatch", "collections", "itertools", "functools",
+        "operator", "copy", "pprint", "textwrap", "string", "enum", "typing",
+        "dataclasses", "abc", "contextlib", "warnings", "weakref", "gc",
+        "random", "statistics", "decimal", "fractions", "datetime", "calendar",
+        "zlib", "gzip", "bz2", "lzma", "zipfile", "tarfile", "csv", "sqlite3",
+        "xml", "html", "urllib", "http", "ftplib", "imaplib", "smtplib",
+        "unittest", "doctest", "pdb", "profile", "timeit", "signal",
+        "platform", "sysconfig", "site", "builtins", "tokenize", "ast",
+        "dis", "code", "codeop", "compileall", "py_compile",
+    }
+
+    def _resolve_pip_name(self, import_name: str) -> str:
+        """Переводит имя модуля при импорте в реальное имя pip-пакета."""
+        return self._IMPORT_TO_PIP.get(import_name, import_name)
+
+    def _is_in_virtualenv(self) -> bool:
+        """Проверяет, запущен ли Python внутри виртуального окружения."""
+        return (
+            hasattr(sys, 'real_prefix') or
+            (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix)
+        )
 
     async def _install_dependency(self, package_name: str) -> Tuple[bool, str]:
         """
@@ -1276,53 +1151,46 @@ class Kernel:
             Tuple of (success: bool, message: str)
         """
         try:
-            self.logger.info(f"Installing dependency: {package_name}")
+            # Resolve real pip package name (e.g. PIL -> Pillow)
+            pip_name = self._resolve_pip_name(package_name)
 
-            # Use sys.executable to ensure we use the correct Python/pip
+            self.logger.info(f"Устанавливаю пакет: {pip_name}")
+
             pip_command = [
-                sys.executable,
-                "-m",
-                "pip",
-                "install",
-                "--quiet",  # Reduce output noise
-                package_name
+                sys.executable, "-m", "pip", "install", "--quiet", pip_name
             ]
 
-            # Add --user flag if running in system Python without sudo
-            if not hasattr(os, 'geteuid') or os.geteuid() != 0:  # Not root
+            in_venv = self._is_in_virtualenv()
+            is_root = hasattr(os, 'geteuid') and os.geteuid() == 0
+            if not in_venv and not is_root:
                 pip_command.append("--user")
 
-            # Run pip install
             process = await asyncio.create_subprocess_exec(
                 *pip_command,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
-
             stdout, stderr = await process.communicate()
 
             if process.returncode == 0:
-                self.logger.info(f"Successfully installed {package_name}")
-                return True, f"Installed {package_name}"
+                self.logger.info(f"Пакет установлен: {pip_name}")
+                return True, f"Installed {pip_name}"
             else:
                 error_msg = stderr.decode().strip()
-                self.logger.error(f"Failed to install {package_name}: {error_msg}")
+                self.logger.error(f"Failed to install {pip_name}: {error_msg}")
 
-                # Try without --user flag if that was the issue
-                if "--user" in pip_command and "Permission denied" in error_msg:
-                    self.logger.info("Retrying without --user flag")
+                if "--user" in pip_command:
                     pip_command.remove("--user")
-                    # Retry in synchronous mode (simplified)
                     try:
                         subprocess.check_call(pip_command)
-                        return True, f"Installed {package_name}"
+                        return True, f"Installed {pip_name}"
                     except subprocess.CalledProcessError as e:
                         return False, f"Installation failed: {e}"
 
                 return False, error_msg
 
         except Exception as e:
-            self.logger.error(f"Error during dependency installation: {e}")
+            self.logger.error(f"Ошибка установки зависимости: {e}")
             return False, str(e)
 
     async def _register_module(self, module, module_type, module_name):
@@ -1397,9 +1265,6 @@ class Kernel:
         Returns:
             tuple: (success, message)
         """
-        import os
-        import aiohttp
-
         try:
 
             if not module_name:
@@ -1414,17 +1279,16 @@ class Kernel:
 
             if module_name in self.system_modules:
                 return False, f"Модуль: {module_name}, системный"
-                self.logger.debug(f"install_from_url:modules is system {module_name}")
 
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as resp:
                     if resp.status != 200:
+                        self.logger.warning(
+                            f"Не удалось скачать модуль (статус: {resp.status})"
+                        )
                         return (
                             False,
                             f"Не удалось скачать модуль (статус: {resp.status})",
-                        )
-                        self.logger.warning(
-                            f"Не удалось скачать модуль (статус: {resp.status}"
                         )
                     code = await resp.text()
 
@@ -1443,8 +1307,6 @@ class Kernel:
 
                 dependencies = []
                 if auto_dependencies and "requires" in code:
-                    import re
-
                     reqs = re.findall(r"# requires: (.+)", code)
                     if reqs:
                         dependencies = [req.strip() for req in reqs[0].split(",")]
@@ -1493,9 +1355,6 @@ class Kernel:
                     return False, f"Ошибка загрузки модуля: {message}"
 
             finally:
-
-                import os
-
                 if os.path.exists(temp_path):
                     os.remove(temp_path)
 
@@ -1541,7 +1400,7 @@ class Kernel:
         return telegram_to_html(text, entities)
 
     async def get_module_metadata(self, code):
-        import re
+
         metadata = {
             "author": "неизвестен",
             "version": "X.X.X",
@@ -1701,12 +1560,7 @@ class Kernel:
 
     async def send_log_message(self, text, file=None):
         if not self.log_chat_id:
-            print(f"[DEBUG] log_chat_id не установлен: {self.log_chat_id}")
             return False
-
-        print(f"[DEBUG] Пытаюсь отправить в лог-чат: {self.log_chat_id}")
-        print(f"[DEBUG] Текст: {text[:100]}...")
-        print(f"[DEBUG] bot_client существует: {hasattr(self, 'bot_client')}")
 
         try:
             if (
@@ -1714,31 +1568,21 @@ class Kernel:
                 and self.bot_client
                 and await self.bot_client.is_user_authorized()
             ):
-                print("[DEBUG] Использую bot_client для отправки")
                 client_to_use = self.bot_client
             else:
-                print("[DEBUG] Использую основной client для отправки")
                 client_to_use = self.client
 
             if file:
-                print(
-                    f"[DEBUG] Отправляю файл: {file.name if hasattr(file, 'name') else 'unknown'}"
-                )
                 await client_to_use.send_file(
                     self.log_chat_id, file, caption=text, parse_mode="html"
                 )
             else:
-                print("[DEBUG] Отправляю текстовое сообщение")
                 await client_to_use.send_message(
                     self.log_chat_id, text, parse_mode="html"
                 )
-            print("[DEBUG] Сообщение отправлено успешно")
             return True
         except Exception as e:
-            print(f"[DEBUG] Ошибка отправки: {e}")
-            import traceback
-
-            traceback.print_exc()
+            self.logger.error(f"Ошибка отправки лог-сообщения: {e}")
             return False
 
     async def send_error_log(self, error_text, source_file, message_info=""):
@@ -1756,7 +1600,7 @@ class Kernel:
             self.logger.error(f"Error sending error log: {error_text}")
 
     async def handle_error(self, error, source="unknown", event=None):
-        import uuid
+
 
         error_signature = f"error:{source}:{type(error).__name__}:{str(error)}"
         if self.cache.get(error_signature):
@@ -1827,8 +1671,6 @@ class Kernel:
     def save_error_to_file(self, error_text):
         """save to logs/kernel.log"""
         try:
-            from pathlib import Path
-
             log_dir = Path("logs")
             log_dir.mkdir(exist_ok=True)
 
@@ -1965,8 +1807,7 @@ class Kernel:
 
     async def init_client(self):
         import sys
-        from utils.platform import get_platform_name
-        from utils.platform import PlatformDetector
+        from utils.platform import get_platform_name, PlatformDetector
 
         platform = PlatformDetector()
 
@@ -2029,6 +1870,120 @@ class Kernel:
             traceback.print_exc()
             return False
 
+    async def _pre_install_module_requirements(self, code: str, module_name: str) -> None:
+        """
+        Предустановка зависимостей из комментария вида:
+            # requires: requests, aiohttp, Pillow>=9.0
+        """
+        reqs = re.findall(r"^\s*#\s*requires?:\s*(.+)$", code, re.MULTILINE | re.IGNORECASE)
+        if not reqs:
+            return
+
+        dependencies = []
+        for req_line in reqs:
+            for dep in req_line.split(","):
+                dep = dep.strip()
+                if not dep:
+                    continue
+                pkg_bare = re.split(r"[>=<!]", dep)[0].strip()
+                if not re.match(r'^[A-Za-z0-9_\-\.]+$', pkg_bare):
+                    continue
+                dependencies.append(dep)
+
+        if not dependencies:
+            return
+
+        self.logger.info(f"[{module_name}] Предустановка зависимостей: {dependencies}")
+        for dep in dependencies:
+            pkg_bare = re.split(r"[>=<!]", dep)[0].strip()
+            import_name = pkg_bare.replace("-", "_")
+            try:
+                __import__(import_name)
+                self.logger.debug(f"[{module_name}] Уже установлено: {dep}")
+            except ImportError:
+                self.logger.info(f"[{module_name}] Устанавливаю: {dep}")
+                success, msg = await self._install_dependency(pkg_bare)
+                if not success:
+                    self.logger.warning(f"[{module_name}] Не удалось установить {dep}: {msg}")
+
+    async def _exec_module_with_auto_deps(
+        self,
+        spec,
+        module,
+        file_path: str,
+        module_name: str,
+        code: str,
+        _retry_count: int = 0,
+        _already_tried: set = None
+    ):
+        """
+        Выполняет модуль, автоматически устанавливая недостающие зависимости.
+        При ImportError/ModuleNotFoundError устанавливает пакет и повторяет — до 10 раз.
+        """
+        MAX_RETRIES = 10
+        if _already_tried is None:
+            _already_tried = set()
+
+        try:
+            spec.loader.exec_module(module)
+            return module
+        except (ImportError, ModuleNotFoundError) as e:
+            if _retry_count >= MAX_RETRIES:
+                raise
+
+            error_msg = str(e)
+            patterns = [
+                r"No module named '([^']+)'",
+                r"cannot import name '[^']+' from '([^']+)'",
+                r"cannot import name '([^']+)'",
+            ]
+            missing_import = None
+            for pattern in patterns:
+                m = re.search(pattern, error_msg)
+                if m:
+                    missing_import = m.group(1).split(".")[0]
+                    break
+
+            has_mapping = missing_import in self._IMPORT_TO_PIP
+            if not missing_import or (missing_import in sys.builtin_module_names) or (missing_import in self._NON_INSTALLABLE and not has_mapping):
+                raise
+
+            pip_name = self._resolve_pip_name(missing_import)
+            if pip_name in _already_tried:
+                raise
+
+            _already_tried.add(pip_name)
+
+            self.logger.info(
+                f"[{module_name}] Устанавливаю зависимость: '{pip_name}' (попытка {_retry_count + 1}/{MAX_RETRIES})"
+            )
+            install_success, install_msg = await self._install_dependency(missing_import)
+
+            if not install_success:
+                self.logger.error(f"[{module_name}] Не удалось установить '{pip_name}': {install_msg}")
+                raise
+
+            self.logger.info(f"[{module_name}] Установлено '{pip_name}', перезагружаю...")
+
+            if module_name in sys.modules:
+                del sys.modules[module_name]
+
+            new_spec = importlib.util.spec_from_file_location(module_name, file_path)
+            if new_spec is None:
+                raise ImportError(f"Не удалось создать spec для {module_name}")
+
+            new_module = importlib.util.module_from_spec(new_spec)
+            new_module.kernel = self
+            new_module.client = self.client
+            new_module.custom_prefix = self.custom_prefix
+            new_module.__file__ = file_path
+            new_module.__name__ = module_name
+            sys.modules[module_name] = new_module
+
+            return await self._exec_module_with_auto_deps(
+                new_spec, new_module, file_path, module_name, code, _retry_count + 1, _already_tried
+            )
+
     async def load_system_modules(self):
         for file_name in os.listdir(self.MODULES_DIR):
             if file_name.endswith(".py"):
@@ -2036,9 +1991,12 @@ class Kernel:
                     module_name = file_name[:-3]
                     file_path = os.path.join(self.MODULES_DIR, file_name)
 
-                    spec = importlib.util.spec_from_file_location(
-                        module_name, file_path
-                    )
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        code = f.read()
+
+                    await self._pre_install_module_requirements(code, module_name)
+
+                    spec = importlib.util.spec_from_file_location(module_name, file_path)
                     module = importlib.util.module_from_spec(spec)
 
                     module.kernel = self
@@ -2048,7 +2006,9 @@ class Kernel:
                     sys.modules[module_name] = module
 
                     self.set_loading_module(module_name, "system")
-                    spec.loader.exec_module(module)
+                    module = await self._exec_module_with_auto_deps(
+                        spec, module, file_path, module_name, code
+                    )
 
                     if hasattr(module, "register"):
                         if inspect.iscoroutinefunction(module.register):
@@ -2056,9 +2016,7 @@ class Kernel:
                         else:
                             module.register(self)
                     else:
-                        self.logger.error(
-                            f'failed load modules: {module_name}'
-                            )
+                        self.logger.error(f'failed load modules: {module_name}')
                         self.error_load_modules += 1
                         continue
 
@@ -2098,10 +2056,10 @@ class Kernel:
                     with open(file_path, "r", encoding="utf-8") as f:
                         content = f.read()
 
+                    await self._pre_install_module_requirements(content, module_name)
+
                     if "def register(kernel):" in content:
-                        spec = importlib.util.spec_from_file_location(
-                            module_name, file_path
-                        )
+                        spec = importlib.util.spec_from_file_location(module_name, file_path)
                         module = importlib.util.module_from_spec(spec)
 
                         module.kernel = self
@@ -2111,7 +2069,9 @@ class Kernel:
                         sys.modules[module_name] = module
 
                         self.set_loading_module(module_name, "user")
-                        spec.loader.exec_module(module)
+                        module = await self._exec_module_with_auto_deps(
+                            spec, module, file_path, module_name, content
+                        )
 
                         if hasattr(module, "register"):
                             if inspect.iscoroutinefunction(module.register):
@@ -2122,17 +2082,16 @@ class Kernel:
                             self.logger.info(
                                 f"{self.Colors.BLUE}=> Модуль загружен {module_name}{self.Colors.RESET}"
                             )
-
                             await self._run_module_post_load(module, module_name, is_install=False)
                     else:
-                        spec = importlib.util.spec_from_file_location(
-                            module_name, file_path
-                        )
+                        spec = importlib.util.spec_from_file_location(module_name, file_path)
                         module = importlib.util.module_from_spec(spec)
 
                         sys.modules[module_name] = module
                         self.set_loading_module(module_name, "user")
-                        spec.loader.exec_module(module)
+                        module = await self._exec_module_with_auto_deps(
+                            spec, module, file_path, module_name, content
+                        )
 
                         if hasattr(module, "register"):
                             if inspect.iscoroutinefunction(module.register):
@@ -2142,29 +2101,22 @@ class Kernel:
 
                             self.loaded_modules[module_name] = module
                             self.logger.warning(
-                                f"{self.Colors.GREEN}=> Загружен пользовательский модуль (старый стиль): {module_name}{self.Colors.RESET}"
+                                f"{self.Colors.GREEN}=> Модуль загружен (старый стиль): {module_name}{self.Colors.RESET}"
                             )
-
                             await self._run_module_post_load(module, module_name, is_install=False)
 
                 except CommandConflictError as e:
                     error_msg = f"Конфликт команд при загрузке модуля {file_name}: {e}"
-                    self.logger.error(
-                        f"{self.Colors.RED}{error_msg}{self.Colors.RESET}"
-                    )
+                    self.logger.error(f"{self.Colors.RED}{error_msg}{self.Colors.RESET}")
                     self.error_load_modules += 1
                     try:
-                        await self.handle_error(
-                            e, source=f"load_module_conflict:{file_name}"
-                        )
+                        await self.handle_error(e, source=f"load_module_conflict:{file_name}")
                     except Exception:
                         pass
 
                 except Exception as e:
                     error_msg = f"Ошибка загрузки модуля {file_name}: {e}"
-                    self.logger.error(
-                        f"{self.Colors.RED}{error_msg}{self.Colors.RESET}"
-                    )
+                    self.logger.error(f"{self.Colors.RED}{error_msg}{self.Colors.RESET}")
                     self.error_load_modules += 1
                     try:
                         await self.handle_error(e, source=f"load_module:{file_name}")

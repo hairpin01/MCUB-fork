@@ -1272,7 +1272,7 @@ def register(kernel):
 
         module_name = args[1]
 
-        if module_name not in kernel.loaded_modules:
+        if module_name not in kernel.loaded_modules and module_name not in kernel.system_modules:
             await edit_with_emoji(
                 event,
                 t('module_not_found_um', warning=CUSTOM_EMOJI['warning'], module_name=module_name),

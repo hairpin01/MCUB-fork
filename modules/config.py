@@ -12,7 +12,7 @@ import time
 import asyncio
 from telethon import Button, events, types
 from telethon.tl.types import InputWebDocument, DocumentAttributeImageSize
-
+from core.lib.loader.module_config import ModuleConfig
 CUSTOM_EMOJI = {
     "📁": '<tg-emoji emoji-id="5433653135799228968">📁</tg-emoji>',
     "📝": '<tg-emoji emoji-id="5334882760735598374">📝</tg-emoji>',
@@ -879,8 +879,6 @@ def register(kernel):
                 await event.answer(t('no_config'), alert=True)
                 return
 
-            # Check if it's the new ModuleConfig format
-            from core.lib.module_config import ModuleConfig
             if isinstance(module_config, ModuleConfig):
                 items = list(module_config.items())
             else:
@@ -922,9 +920,6 @@ def register(kernel):
     async def show_module_key_view(event, module_name, key, page):
         try:
             module_config = await kernel.get_module_config(module_name, {})
-
-            # Check if it's the new ModuleConfig format
-            from core.lib.module_config import ModuleConfig
             is_new_format = isinstance(module_config, ModuleConfig)
 
             if is_new_format:
@@ -1096,7 +1091,7 @@ def register(kernel):
             module_config = await kernel.get_module_config(module_name, {})
 
             # Check if it's the new ModuleConfig format
-            from core.lib.module_config import ModuleConfig
+
             is_new_format = isinstance(module_config, ModuleConfig)
 
             if is_new_format:
@@ -2109,7 +2104,7 @@ def register(kernel):
                 module_config = await kernel.get_module_config(module_name, {})
 
                 # Check if it's the new ModuleConfig format
-                from core.lib.module_config import ModuleConfig
+
                 is_new_format = isinstance(module_config, ModuleConfig)
 
                 if is_new_format:
@@ -2456,9 +2451,6 @@ def register(kernel):
                 if module_mode:
                     try:
                         module_config = await kernel.get_module_config(module_name, {})
-
-                        # Check if it's the new ModuleConfig format
-                        from core.lib.module_config import ModuleConfig, ValidationError
                         is_new_format = isinstance(module_config, ModuleConfig)
 
                         if is_new_format:
@@ -2668,7 +2660,7 @@ def register(kernel):
                         module_config = await kernel.get_module_config(module_name, {})
 
                         # Check if it's the new ModuleConfig format
-                        from core.lib.module_config import ModuleConfig
+
                         is_new_format = isinstance(module_config, ModuleConfig)
 
                         if is_new_format:
@@ -2755,7 +2747,7 @@ def register(kernel):
                         module_config = await kernel.get_module_config(module_name, {})
 
                         # Check if it's the new ModuleConfig format
-                        from core.lib.module_config import ModuleConfig
+
                         is_new_format = isinstance(module_config, ModuleConfig)
 
                         if is_new_format:

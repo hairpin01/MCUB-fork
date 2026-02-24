@@ -133,7 +133,6 @@ def register(kernel):
                 cmd_data["start_time"] = start_time
                 self.running_commands[chat_id] = cmd_data
 
-                # Используем переданный message_id или создаем новое сообщение
                 if message_id:
                     cmd_data["message_id"] = message_id
                 else:
@@ -228,13 +227,7 @@ def register(kernel):
                     elapsed = time.time() - cmd_data["start_time"]
 
                     output = f"""{CUSTOM_EMOJI['💻']} <i>{lang_strings['system_command']}</i> <code>{html.escape(cmd_data['command'])}</code>
-
-<b>{lang_strings['stdout']}</b>
-<pre>{stdout_text}</pre>
-
-<b>{lang_strings['stderr']}</b>
-<pre>{stderr_text}</pre>
-
+<pre>{stdout_text}</pre> <pre>{stderr_text}</pre>
 <blockquote>{CUSTOM_EMOJI['🧮']} <b>{lang_strings['running_time']}</b> <mono>{elapsed:.2f} {lang_strings['seconds']}</mono></blockquote>"""
 
                     try:
@@ -268,13 +261,7 @@ def register(kernel):
 
             output = f"""{CUSTOM_EMOJI['💻']} <i>{lang_strings['system_command']}</i> <code>{html.escape(cmd_data['command'])}</code>
 {CUSTOM_EMOJI['📰']} <b>{lang_strings['exit_code']}</b> <mono>{cmd_data['return_code']}</mono>
-
-<b>{lang_strings['stdout']}</b>
-<pre>{stdout_text}</pre>
-
-<b>{lang_strings['stderr']}</b>
-<pre>{stderr_text}</pre>
-
+<pre>{stdout_text}</pre> <pre>{stderr_text}</pre>
 <blockquote>{CUSTOM_EMOJI['🧮']} <b>{lang_strings['completed_in']}</b> <mono>{elapsed:.2f} {lang_strings['seconds']}</mono></blockquote>"""
 
             try:
@@ -355,7 +342,7 @@ def register(kernel):
                     )
 
             except Exception as e:
-                error_msg = f"{CUSTOM_EMOJI['🗯']} <i>{lang_strings['stop_error']}</i> <code>{html.escape(str(e))}</code>"
+                error_msg = f"{CUSTOM_EMOJI['🗯']} <i>{lang_strings['stop_error']}</i> <pre>{html.escape(str(e))}</pre>"
                 if message_id:
                     await client.edit_message(chat_id, message_id, error_msg, parse_mode="html")
                 else:

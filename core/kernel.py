@@ -37,6 +37,7 @@ except Exception as e:
         f'E: {e}\n'
         f'>: {tb}'
           )
+
     sys.exit(104)
 try:
     from .lib.utils.colors import Colors

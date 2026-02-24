@@ -2388,7 +2388,7 @@ def register(kernel):
     async def fcfg_handler(event):
         await ensure_config_initialized()
         try:
-            # split() для разбора флагов и аргументов, но value_str получаем из raw текста
+
             args = event.text.split()
             if len(args) < 2:
                 await event.edit(

@@ -30,9 +30,9 @@ __более подробно тут__ https://telegra.ph/MCUB-fork-install-02-0
 
 1. Получите `API_ID` и `API_HASH` на https://my.telegram.org
 
-2. Запустите MCUB.py
+2. Запустите MCUB как пакет 
 ```shell
-python3 MCUB.py
+python3 -m core
 ```
 3. Заполните:
    - `api_id` - ваш API ID

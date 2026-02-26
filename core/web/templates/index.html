@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCUB Kernel Panel</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 MCUB Kernel Dashboard</h1>
+        <div class="info-grid">
+            <div class="card">
+                <h3>Version</h3>
+                <p>{{ version }}</p>
+            </div>
+            <div class="card">
+                <h3>Prefix</h3>
+                <p>{{ prefix }}</p>
+            </div>
+            <div class="card">
+                <h3>Modules loaded</h3>
+                <p>{{ modules_count }}</p>
+            </div>
+            <div class="card">
+                <h3>Uptime</h3>
+                <p>{{ uptime }}</p>
+            </div>
+            <div class="card">
+                <h3>Errors on load</h3>
+                <p>{{ error_load }}</p>
+            </div>
+        </div>
+        <div class="actions">
+            <a href="/status" target="_blank">JSON Status</a>
+            <a href="/example">Example Plugin</a>   <!-- Link from example plugin -->
+        </div>
+        <footer>MCUB Kernel – test web panel with plugin system</footer>
+    </div>
+</body>
+</html>

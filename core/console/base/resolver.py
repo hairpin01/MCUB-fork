@@ -6,6 +6,7 @@ system tools  → checked with `shutil.which()`; only warnings if missing
 
 Progress is reported via a callback: progress_cb(pct: float, msg: str)
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -24,7 +25,6 @@ class DependencyResolver:
 
     def _report(self, pct: float, msg: str) -> None:
         self._cb(pct, msg)
-
 
     async def resolve(
         self,
@@ -47,7 +47,7 @@ class DependencyResolver:
             else:
                 msg = f"  ⚠ System program '{prog}' not found in PATH"
                 self._report(pct, msg)
-                errors.append(msg)   # non-fatal
+                errors.append(msg)  # non-fatal
 
         pip_start = 0.22
         pip_range = 0.60
@@ -81,13 +81,15 @@ class DependencyResolver:
         global importlib
         mod_name = pkg_name.split("[")[0].replace("-", "_").lower()
         try:
-            importlib.import_module(mod_name) # <-- Line 83: Uses global importlib
+            importlib.import_module(mod_name)  # <-- Line 83: Uses global importlib
             return True
         except ImportError:
             pass
         # Try importlib.util for non-importable top-level packages
         try:
-            return importlib.util.find_spec(mod_name) is not None # <-- Tries to use local importlib
+            return (
+                importlib.util.find_spec(mod_name) is not None
+            )  # <-- Tries to use local importlib
         except (ModuleNotFoundError, ValueError):
             return False
 
@@ -95,7 +97,10 @@ class DependencyResolver:
     async def _pip_install(pkg: str) -> Tuple[bool, str]:
         """Run `pip install <pkg> --break-system-packages` asynchronously."""
         cmd = [
-            sys.executable, "-m", "pip", "install",
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
             pkg,
             "--break-system-packages",
             "--quiet",

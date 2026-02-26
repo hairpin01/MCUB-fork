@@ -59,6 +59,7 @@ try:
     from .lib.base.config import ConfigManager
     from .lib.base.client import ClientManager
     from .lib.loader.inline import InlineManager
+    from .console.shell import Shell
 except Exception as error_module:
     tb = traceback.format_exc()
     print(
@@ -169,7 +170,7 @@ class Kernel:
             self.emoji_parser = emoji_parser
         except ImportError:
             self.emoji_parser = None
-            print("=X Emoji parser not loaded")
+            self.logger.error("=X Emoji parser not loaded")
 
     def _init_html_parser(self) -> None:
         if self.HTML_PARSER_AVAILABLE:
@@ -179,9 +180,9 @@ class Kernel:
                 self.reply_with_html = lambda event, h, **kw: reply_with_html(self, event, h, **kw)
                 self.send_with_html = lambda cid, h, **kw: send_with_html(self, self.client, cid, h, **kw)
                 self.send_file_with_html = lambda cid, h, f, **kw: send_file_with_html(self, self.client, cid, h, f, **kw)
-                print("=> HTML parser loaded")
+                self.logger.info("=> HTML parser loaded")
             except Exception as e:
-                print(f"=X HTML parser init error: {e}")
+                self.logger.error(f"=X HTML parser init error: {e}")
                 self.HTML_PARSER_AVAILABLE = False
 
         if not self.HTML_PARSER_AVAILABLE:
@@ -692,6 +693,11 @@ class Kernel:
         if not await self.init_client():
             return
 
+        # self.shell = Shell(kernel=self)
+        # self.shell.attach_logging()
+        # self.shell.attach_stderr()
+        # asyncio.ensure_future(self.shell.run())
+
         try:
             await self.init_db()
         except ImportError:
@@ -705,11 +711,6 @@ class Kernel:
             from core_inline.bot import InlineBot
             self.inline_bot = InlineBot(self)
             await self.inline_bot.setup()
-
-        modules_start = time.time()
-        await self.load_system_modules()
-        await self.load_user_modules()
-        modules_end = time.time()
 
         @self.client.on(events.NewMessage(outgoing=True))
         async def message_handler(event):
@@ -730,6 +731,13 @@ class Kernel:
                     )
                 except Exception as edit_err:
                     self.logger.error(f"Could not edit error message: {edit_err}")
+
+        modules_start = time.time()
+        await self.load_system_modules()
+        await self.load_user_modules()
+        modules_end = time.time()
+
+
 
         if hasattr(self, "bot_client") and self.bot_client:
             @self.bot_client.on(events.NewMessage(pattern="/"))
@@ -752,11 +760,14 @@ class Kernel:
         if self.error_load_modules:
             logo += f"• Module load errors: {self.error_load_modules}\n"
         print(logo)
+        self.logger.info('Start MCUB!')
+        del logo
 
         if os.path.exists(self.RESTART_FILE):
             await self._handle_restart_notification(modules_start, modules_end)
 
         await self.client.run_until_disconnected()
+
 
     async def _handle_restart_notification(
         self, modules_start: float, modules_end: float

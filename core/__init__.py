@@ -41,6 +41,8 @@ from .lib.loader.module_config import (
 from .version import VersionManager
 from .kernel import Kernel
 
+from .console.shell import Shell
+
 __all__ = [
     "Kernel",
     "Colors",
@@ -62,4 +64,5 @@ __all__ = [
     "MultiChoice",
     "Secret",
     "ValidationError",
+    "Shell",
 ]

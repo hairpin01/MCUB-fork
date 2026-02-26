@@ -1,4 +1,4 @@
-# --------------------- kernel ----------------------
+# ---- meta data ------ kernel ----------------------
 # author: @Hairpin00
 # description: kernel core — main Kernel class
 # --- meta data end ---------------------------------
@@ -679,6 +679,15 @@ class Kernel:
             fallback = self.emoji_parser.remove_emoji_tags(text) if self.emoji_parser else text
             return await self.client.send_message(chat_id, fallback, **kwargs)
 
+    def run_panel(self):
+        try:
+            from core.web.app import start_web_panel
+            host = "127.0.0.1" #self.config.get("web_panel_host", "127.0.0.1")
+            port = 8080 #self.config.get("web_panel_port", 8080)
+            asyncio.create_task(start_web_panel(self, host, port))
+        except Exception as e:
+            self.logger.error(f"Failed to start web panel: {e}")
+
     async def run(self) -> None:
         """Entry point: setup, connect, load modules, and run until disconnected."""
         if not self.load_or_create_config():
@@ -692,6 +701,8 @@ class Kernel:
 
         if not await self.init_client():
             return
+        #if self.config.get("web_panel_enabled", False):
+        self.run_panel()
 
         # self.shell = Shell(kernel=self)
         # self.shell.attach_logging()

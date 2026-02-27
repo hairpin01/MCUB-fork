@@ -13,7 +13,12 @@
 [![GitHub license](https://img.shields.io/github/license/hairpin01/MCUB-fork)](https://github.com/hairpin01/MCUB-fork/blob/main/LICENSE)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
+
+
 # MCUB-fork
+<div align="levt">
+<img src="core/web/img/0.png" alt="MCUB-fork Logo" width="150"/>
+</div>
 
 [English](#english) | [Русский](#русский) | [Українська](#українська) | [Español](#español) | [Deutsch](#deutsch) | [中文](#中文)
 

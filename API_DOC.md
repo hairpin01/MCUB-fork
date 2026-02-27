@@ -463,7 +463,7 @@ await kernel.db_set('mymodule', 'last_run', '2024-01-01')
 ---
 Retrieve a stored value.
 
-**Returns:** str or None
+**Returns:** str | None (via await)
 
 **Usage:**
 ```python
@@ -477,6 +477,28 @@ Delete a stored value.
 **Usage:**
 ```python
 await kernel.db_delete('mymodule', 'last_run')
+```
+
+`kernel.db_query(query, parameters)`
+---
+Execute arbitrary SQL query.
+
+**Returns:** list of rows
+
+**Usage:**
+```python
+rows = await kernel.db_query("SELECT * FROM module_data WHERE module = ?", ('mymodule',))
+```
+
+`kernel.db_conn`
+---
+Get the raw sqlite3 connection object.
+
+**Returns:** aiosqlite.Connection or None
+
+**Usage:**
+```python
+conn = kernel.db_conn
 ```
 
 ---
@@ -2417,6 +2439,7 @@ session = None
 
 def register(kernel):
     global session
+    k = kernel
 
     # background loop 
     @kernel.register.loop(interval=600)

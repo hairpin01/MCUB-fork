@@ -22,6 +22,7 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_post("/api/setup/send_code",   api_send_code)
     app.router.add_post("/api/setup/verify_code", api_verify_code)
     app.router.add_get("/api/setup/state",        api_setup_state)
+    app.router.add_get("/setup/reset",             setup_reset)
     app.router.add_static("/static", path="core/web/static", name="static")
     # serve logo from core/web/img/
     import os
@@ -247,6 +248,47 @@ async def _finish_setup(request: web.Request, state: dict) -> web.Response:
 def _err(msg: str, status: int = 400) -> web.Response:
     print(f"[setup] → error: {msg!r}", flush=True)
     return web.json_response({"error": msg}, status=status)
+
+
+async def setup_reset(request: web.Request) -> web.Response:
+    """Reset the setup and clear config.json and session files."""
+    print("\n[setup] === /setup/reset called ===", flush=True)
+    
+    config_path = "config.json"
+    session_files = [
+        "user_session.session",
+        "user_session.session-journal",
+        "_mcub_setup_tmp.session",
+        "_mcub_setup_tmp.session-journal",
+    ]
+    
+    removed = []
+    errors = []
+    
+    if os.path.exists(config_path):
+        try:
+            os.remove(config_path)
+            removed.append(config_path)
+        except Exception as e:
+            errors.append(f"Failed to remove {config_path}: {e}")
+    
+    for sf in session_files:
+        if os.path.exists(sf):
+            try:
+                os.remove(sf)
+                removed.append(sf)
+            except Exception as e:
+                errors.append(f"Failed to remove {sf}: {e}")
+    
+    state: dict = request.app.get("setup_state") or {}
+    await _cleanup_state_client(state)
+    request.app["setup_state"] = {}
+    
+    print(f"[setup] Reset complete. Removed: {removed}", flush=True)
+    if errors:
+        print(f"[setup] Errors: {errors}", flush=True)
+    
+    raise web.HTTPFound(location="/")
 
 
 def _friendly_error(exc: Exception) -> str:

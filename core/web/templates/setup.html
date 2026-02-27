@@ -329,7 +329,9 @@ input::placeholder{color:var(--text-dim);opacity:.55;}
     <div class="sconn"></div>
     <div class="step" id="dot-3"><span class="snum">3</span><span class="slabel">2FA</span></div>
     <div class="sconn"></div>
-    <div class="step" id="dot-4"><span class="snum">4</span><span class="slabel">Done</span></div>
+    <div class="step" id="dot-4"><span class="snum">4</span><span class="slabel">Bot</span></div>
+    <div class="sconn"></div>
+    <div class="step" id="dot-5"><span class="snum">5</span><span class="slabel">Done</span></div>
   </div>
 
   <div class="wizard-card">
@@ -379,10 +381,27 @@ input::placeholder{color:var(--text-dim);opacity:.55;}
       </div>
     </div>
 
-    <!-- Step 4 -->
+    <!-- Step 4: Bot -->
     <div class="wstep hidden" id="s4">
+      <h2>Inline Bot (Optional)</h2>
+      <p class="hint">
+        Create a bot via @BotFather for inline buttons support.<br>
+        Or skip this step and create bot later in settings.
+      </p>
+      <label>Bot Token (leave empty to skip)
+        <input id="f_bot_token" type="text" placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz">
+      </label>
+      <button class="btn-primary" id="btn4verify" onclick="verifyBotInSetup()" style="margin-bottom:8px;">Verify Token</button>
+      <div class="btn-row">
+        <button class="btn-ghost" onclick="skipBot()">Skip →</button>
+        <button class="btn-primary" id="btn4" onclick="finishWithBot()" disabled>Continue →</button>
+      </div>
+    </div>
+
+    <!-- Step 5 -->
+    <div class="wstep hidden" id="s5">
       <div class="done-icon">✅</div>
-      <h2>Setup Complete!</h2>
+      <h2>MCUB is installed!</h2>
       <p class="hint">Kernel is starting — redirecting to dashboard…</p>
       <div class="spinner"></div>
       <p class="hint small" id="poll-status">Waiting for kernel…</p>
@@ -517,7 +536,7 @@ async function step2() {
     const r = await post('/api/setup/verify_code', { code });
     if (r.requires_2fa) { show(3); return; }
     if (!r.ok) { toast(r.error || 'Unknown error'); return; }
-    show(4); pollKernel();
+    show(4); // Go to bot step
   } catch(e) { toast('Network error: ' + e.message); }
   finally { btnLoading('btn2', false); }
 }
@@ -529,7 +548,7 @@ async function step3() {
   try {
     const r = await post('/api/setup/verify_code', { password });
     if (!r.ok) { toast(r.error || 'Unknown error'); return; }
-    show(4); pollKernel();
+    show(4); // Go to bot step
   } catch(e) { toast('Network error: ' + e.message); }
   finally { btnLoading('btn3', false); }
 }
@@ -558,6 +577,45 @@ document.getElementById('toasts').addEventListener('click', (e) => {
     if (toastEl) dismiss(toastEl);
   }
 });
+
+// Bot setup in wizard
+async function verifyBotInSetup() {
+  const token = document.getElementById('f_bot_token').value.trim();
+  if (!token) { 
+    // Skip verification if empty
+    document.getElementById('btn4').disabled = false;
+    return; 
+  }
+  btnLoading('btn4verify', true);
+  try {
+    const r = await post('/api/bot/verify_token', { token });
+    if (!r.ok || !r.valid) { toast(r.error || 'Invalid token'); return; }
+    toast('Token valid! Bot: @' + r.username, 'ok');
+    document.getElementById('btn4').disabled = false;
+  } catch(e) { toast('Error: ' + e.message); }
+  finally { btnLoading('btn4verify', false); }
+}
+
+async function skipBot() {
+  // Trigger kernel start
+  await post('/api/setup/complete', {});
+  show(5); pollKernel();
+}
+
+async function finishWithBot() {
+  const token = document.getElementById('f_bot_token').value.trim();
+  btnLoading('btn4', true);
+  try {
+    if (token) {
+      const r = await post('/api/bot/save_token', { token });
+      if (!r.ok) { toast(r.error || 'Error saving token'); return; }
+    }
+    // Trigger kernel start
+    await post('/api/setup/complete', {});
+    show(5); pollKernel();
+  } catch(e) { toast('Error: ' + e.message); }
+  finally { btnLoading('btn4', false); }
+}
 
 // Bot page
 async function loadBotStatus() {

@@ -22,6 +22,12 @@ def _parse_args():
         help="Disable the web panel (env: MCUB_NO_WEB=1). Panel is ON by default.",
     )
     p.add_argument(
+        "--proxy-web",
+        dest="proxy_web",
+        default=os.environ.get("MCUB_PROXY_WEB", ""),
+        help="Enable web proxy at specified path (e.g., /web or /). Use env: MCUB_PROXY_WEB=/web",
+    )
+    p.add_argument(
         "--port",
         type=int,
         default=int(os.environ.get("MCUB_PORT", 8080)),

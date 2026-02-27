@@ -155,6 +155,7 @@ class Kernel:
 
         # Setup dirs & config early (logger depends on them)
         self.setup_directories()
+        self.check_dependencies()
         self._cfg = ConfigManager(self)
         self.load_or_create_config()
         self.logger = setup_logging()
@@ -220,6 +221,94 @@ class Kernel:
         ):
             if not os.path.exists(d):
                 os.makedirs(d)
+
+    def check_dependencies(self) -> None:
+        """Check and install missing dependencies."""
+        import importlib.util
+        import subprocess
+        import itertools
+        import threading
+        import time
+
+        _REQUIREMENTS = [
+            ("telethon", "telethon"),
+            ("aiohttp", "aiohttp"),
+            ("aiohttp-jinja2", "aiohttp_jinja2"),
+            ("jinja2", "jinja2"),
+            ("psutil", "psutil"),
+            ("aiosqlite", "aiosqlite"),
+            ("PySocks", "socks"),
+        ]
+
+        def _can_import(mod: str) -> bool:
+            return importlib.util.find_spec(mod) is not None
+
+        missing = [(pip, mod) for pip, mod in _REQUIREMENTS if not _can_import(mod)]
+        if not missing:
+            return
+
+        for _, mod in missing:
+            print(f"No module named '{mod}'")
+
+        print()
+
+        _stop = threading.Event()
+
+        def _spin():
+            frames = ["◜", "◝", "◞", "◟"]
+            label = "Attempting dependencies installation... Just wait"
+            for f in itertools.cycle(frames):
+                if _stop.is_set():
+                    break
+                sys.stdout.write(f"\r{f}  {label}  {f}")
+                sys.stdout.flush()
+                time.sleep(0.12)
+            sys.stdout.write("\r" + " " * 70 + "\r")
+            sys.stdout.flush()
+
+        t = threading.Thread(target=_spin, daemon=True)
+        t.start()
+
+        failed = []
+        for pip_name, _ in missing:
+            ok = False
+            last_err = ""
+            strategies = [
+                [sys.executable, "-m", "pip", "install", pip_name, "--break-system-packages"],
+                [sys.executable, "-m", "pip", "install", pip_name],
+                [sys.executable, "-m", "pip", "install", pip_name, "--user"],
+                ["pip3", "install", pip_name, "--break-system-packages"],
+                ["pip3", "install", pip_name],
+                ["pip", "install", pip_name],
+            ]
+            for cmd in strategies:
+                res = subprocess.run(cmd, capture_output=True, text=True)
+                if res.returncode == 0:
+                    ok = True
+                    break
+                last_err = (res.stderr or res.stdout or "").strip()
+
+            if not ok:
+                _stop.set()
+                t.join(timeout=1)
+                print(f"\n✗  pip failed for '{pip_name}':")
+                if last_err:
+                    print("   " + last_err.replace("\n", "\n   "))
+                _stop.clear()
+                thread2 = threading.Thread(target=_spin, daemon=True)
+                thread2.start()
+                t = thread2
+                failed.append(pip_name)
+
+        _stop.set()
+        t.join(timeout=1)
+
+        if failed:
+            print(f"✗  Failed to install: {', '.join(failed)}")
+            print("   Run manually:  pip install " + " ".join(failed))
+            sys.exit(1)
+
+        print("✓  Dependencies installed\n")
 
     def cprint(self, text: str, color: str = "") -> None:
         """Print *text* wrapped in *color* and reset."""

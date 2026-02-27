@@ -6,6 +6,9 @@ import traceback
 from telethon import events, Button
 from telethon.tl.types import InputWebDocument
 
+from .lib import InlineManager
+
+
 class InlineHandlers:
     EMOJI_TELESCOPE = '<tg-emoji emoji-id="5429283852684124412">🔭</tg-emoji>'
     EMOJI_BLOCK = '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji>'
@@ -16,10 +19,11 @@ class InlineHandlers:
     def __init__(self, kernel, bot_client):
         self.kernel = kernel
         self.bot_client = bot_client
-        if not hasattr(self.kernel, "session") or self.kernel.session.closed:
+        if not hasattr(self.kernel, "session") or self.kernel.session is None or self.kernel.session.is_closed():
             self.kernel.session = aiohttp.ClientSession()
 
         self._form_counter = 0
+        self._inline_manager = InlineManager(kernel)
 
     def create_inline_form(self, text, buttons=None, ttl=3600):
         """
@@ -153,11 +157,10 @@ class InlineHandlers:
             self.kernel.logger.debug(f"Ошибка парсинга JSON кнопок: {e}")
             return []
 
-    def check_admin(self, event):
+    async def check_admin(self, event):
         try:
-            if not hasattr(self.kernel, "ADMIN_ID") or self.kernel.ADMIN_ID is None:
-                return False
-            return int(event.sender_id) == int(self.kernel.ADMIN_ID)
+            user_id = int(event.sender_id)
+            return await self._inline_manager.is_allowed(user_id)
         except (ValueError, TypeError) as e:
             self.kernel.logger.error(f"Ошибка в check_admin: {e}")
             return False
@@ -170,7 +173,7 @@ class InlineHandlers:
             try:
                 query = event.text or ""
 
-                if not self.check_admin(event):
+                if not await self.check_admin(event):
                     await event.answer([event.builder.article(
                         "Нет доступа",
                         text=f"{self.EMOJI_BLOCK} У вас нет доступа к inline MCUB bot\n"
@@ -234,7 +237,7 @@ class InlineHandlers:
                         if len(results) >= 50:
                             break
                         handler_name = getattr(handler, '__name__', 'Обработчик')
-                        docstring = handler.__doc__ or "команда"
+                        docstring = getattr(handler, '__doc__', None) or "команда"
                         cmd_text = f"{self.EMOJI_TELESCOPE} <b>Команда:</b> <code>{html.escape(pattern)}</code>\n\n"
                         thumb_cmd = InputWebDocument(
                             url='https://kappa.lol/EKhGKM',
@@ -327,7 +330,7 @@ class InlineHandlers:
                 return
             data_str = event.data.decode("utf-8") if isinstance(event.data, bytes) else str(event.data)
 
-            if not self.check_admin(event) and not self.kernel.callback_permissions.is_allowed(event.sender_id, data_str):
+            if not await self.check_admin(event) and (not hasattr(self.kernel, 'callback_permissions') or not self.kernel.callback_permissions.is_allowed(event.sender_id, data_str)):
                 return await event.answer("Нет доступа", alert=True)
 
             if data_str.startswith("show_tb"):

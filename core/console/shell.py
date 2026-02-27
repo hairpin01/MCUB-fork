@@ -752,6 +752,12 @@ class Shell:
         self._original_stdout = None
         self._original_stderr = None
 
+    def restart(self) -> None:
+        """Restart the shell."""
+        import asyncio
+        self.running = False
+        asyncio.ensure_future(self.run())
+
 
     def attach_logging(self, logger: Optional[logging.Logger] = None) -> None:
         if self._log_handler is not None:

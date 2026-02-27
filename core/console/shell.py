@@ -588,6 +588,23 @@ class _LineEditor:
                     del self._buf[:self._cur]
                     self._cur = 0
 
+                elif ch == "\x16":                   # Ctrl+V - paste
+                    # Read all available data (paste from clipboard)
+                    try:
+                        import select
+                        while True:
+                            r, _, _ = select.select([fd], [], [], 0.01)
+                            if not r:
+                                break
+                            data = os.read(fd, 4096)
+                            if not data:
+                                break
+                            text = data.decode('utf-8', errors='replace')
+                            self._buf[self._cur:self._cur] = list(text)
+                            self._cur += len(text)
+                    except Exception:
+                        pass
+
                 elif ch == "\x17":                   # Ctrl+W
                     self._delete_word_left()
 

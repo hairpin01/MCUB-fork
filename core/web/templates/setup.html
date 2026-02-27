@@ -393,8 +393,51 @@ input::placeholder{color:var(--text-dim);opacity:.55;}
   <div class="reset-bar">
     Already configured? <a href="/setup/reset" class="reset-link">Reset & reconfigure →</a>
   </div>
+  <div class="reset-bar" style="margin-top:8px;">
+    <a href="/bot" class="reset-link">Bot Settings →</a>
+  </div>
 
   <footer class="setup-footer">MCUB Kernel – setup wizard</footer>
+</div>
+
+<!-- Bot Settings Page -->
+<div class="page hidden" id="botPage">
+
+  <div class="logo-row">
+    <img src="/static/img/0.png" alt="MCUB" class="logo-img">
+  </div>
+  <p class="subtitle">Inline Bot Settings</p>
+
+  <div class="wizard-card">
+    <div id="botStatus">
+      <div class="spinner"></div>
+      <p class="hint">Loading...</p>
+    </div>
+
+    <div id="botForm" class="hidden">
+      <h2>Bot Token</h2>
+      <p class="hint">
+        Create a bot via @BotFather in Telegram, then enter the token below.
+      </p>
+      <label>Bot Token
+        <input id="f_bot_token" type="text" placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz">
+      </label>
+      <button class="btn-primary" id="btnBotVerify" onclick="verifyBotToken()">Verify Token</button>
+      <div class="btn-row">
+        <button class="btn-ghost" onclick="location.href='/'">← Back</button>
+        <button class="btn-primary" id="btnBotSave" onclick="saveBotToken()" disabled>Save Token</button>
+      </div>
+    </div>
+
+    <div id="botActions" class="hidden">
+      <h2>Bot Active</h2>
+      <p class="hint" id="botUsernameDisplay"></p>
+      <div class="btn-row">
+        <button class="btn-ghost" onclick="location.href='/'">← Back</button>
+        <button class="btn-primary" id="btnBotStart" onclick="startBot()">Start Bot</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -515,6 +558,77 @@ document.getElementById('toasts').addEventListener('click', (e) => {
     if (toastEl) dismiss(toastEl);
   }
 });
+
+// Bot page
+async function loadBotStatus() {
+  try {
+    const r = await fetch('/api/bot/status');
+    const data = await r.json();
+    
+    document.getElementById('botStatus').classList.add('hidden');
+    
+    if (data.running) {
+      document.getElementById('botActions').classList.remove('hidden');
+      document.getElementById('botUsernameDisplay').textContent = 'Running as @' + data.username;
+      document.getElementById('btnBotStart').textContent = 'Running ✓';
+      document.getElementById('btnBotStart').disabled = true;
+    } else if (data.has_token) {
+      document.getElementById('botActions').classList.remove('hidden');
+      document.getElementById('botUsernameDisplay').textContent = 'Token saved. Click Start to activate.';
+      document.getElementById('btnBotStart').disabled = false;
+    } else {
+      document.getElementById('botForm').classList.remove('hidden');
+    }
+  } catch(e) {
+    document.getElementById('botStatus').innerHTML = '<p class="hint">Error loading status</p>';
+  }
+}
+
+async function verifyBotToken() {
+  const token = document.getElementById('f_bot_token').value.trim();
+  if (!token) { toast('Token is required'); return; }
+  
+  btnLoading('btnBotVerify', true);
+  try {
+    const r = await post('/api/bot/verify_token', { token });
+    if (!r.ok) { toast(r.error || 'Invalid token'); return; }
+    if (r.valid) {
+      toast('Token valid! Bot: @' + r.username, 'ok');
+      document.getElementById('btnBotSave').disabled = false;
+    }
+  } catch(e) { toast('Error: ' + e.message); }
+  finally { btnLoading('btnBotVerify', false); }
+}
+
+async function saveBotToken() {
+  const token = document.getElementById('f_bot_token').value.trim();
+  btnLoading('btnBotSave', true);
+  try {
+    const r = await post('/api/bot/save_token', { token });
+    if (!r.ok) { toast(r.error || 'Error saving'); return; }
+    toast('Token saved! Restart kernel to apply.', 'ok');
+    setTimeout(() => location.reload(), 1500);
+  } catch(e) { toast('Error: ' + e.message); }
+  finally { btnLoading('btnBotSave', false); }
+}
+
+async function startBot() {
+  btnLoading('btnBotStart', true);
+  try {
+    const r = await post('/api/bot/start', {});
+    if (!r.ok) { toast(r.error || 'Error starting bot'); return; }
+    toast('Bot started!', 'ok');
+    setTimeout(() => location.reload(), 1500);
+  } catch(e) { toast('Error: ' + e.message); }
+  finally { btnLoading('btnBotStart', false); }
+}
+
+// Check if bot page
+if (location.pathname === '/bot') {
+  document.querySelector('.page').classList.add('hidden');
+  document.getElementById('botPage').classList.remove('hidden');
+  loadBotStatus();
+}
 
 function rand(a,b){return Math.random()*(b-a)+a;}
 document.querySelectorAll('.wish').forEach(el => {

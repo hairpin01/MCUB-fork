@@ -23,6 +23,12 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_post("/api/setup/verify_code", api_verify_code)
     app.router.add_get("/api/setup/state",        api_setup_state)
     app.router.add_get("/setup/reset",             setup_reset)
+    # Bot management
+    app.router.add_get("/bot",                    bot_page)
+    app.router.add_post("/api/bot/verify_token",  api_bot_verify_token)
+    app.router.add_post("/api/bot/save_token",    api_bot_save_token)
+    app.router.add_post("/api/bot/start",         api_bot_start)
+    app.router.add_get("/api/bot/status",         api_bot_status)
     app.router.add_static("/static", path="core/web/static", name="static")
     # serve logo from core/web/img/
     import os
@@ -335,6 +341,109 @@ def _rename_session(src: str, dst: str) -> None:
                 os.remove(d)
             os.rename(s, d)
             print(f"[setup] renamed {s} → {d}", flush=True)
+
+
+async def bot_page(request: web.Request) -> web.Response:
+    kernel = request.app.get("kernel")
+    if kernel is None:
+        return aiohttp_jinja2.render_template("setup.html", request, {})
+    return aiohttp_jinja2.render_template("setup.html", request, {"bot_page": True})
+
+
+async def api_bot_status(request: web.Request) -> web.Response:
+    kernel = request.app.get("kernel")
+    if kernel is None:
+        return web.json_response({"error": "Kernel not ready"}, status=503)
+    
+    bot_token = kernel.config.get("inline_bot_token")
+    bot_username = kernel.config.get("inline_bot_username")
+    bot_running = False
+    
+    if hasattr(kernel, 'bot_client') and kernel.bot_client:
+        try:
+            bot_running = kernel.bot_client.is_connected()
+        except Exception:
+            pass
+    
+    return web.json_response({
+        "has_token": bool(bot_token),
+        "username": bot_username,
+        "running": bot_running,
+    })
+
+
+async def api_bot_verify_token(request: web.Request) -> web.Response:
+    try:
+        data = await request.json()
+    except Exception:
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+    
+    token = data.get("token", "").strip()
+    if not token:
+        return web.json_response({"error": "Token is required"}, status=400)
+    
+    try:
+        import aiohttp
+    except ImportError:
+        return web.json_response({"error": "aiohttp not installed"}, status=500)
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"https://api.telegram.org/bot{token}/getMe") as resp:
+                result = await resp.json()
+                if result.get("ok"):
+                    bot_info = result["result"]
+                    return web.json_response({
+                        "valid": True,
+                        "username": bot_info.get("username"),
+                        "name": bot_info.get("first_name"),
+                    })
+                else:
+                    return web.json_response({
+                        "valid": False,
+                        "error": result.get("description", "Invalid token"),
+                    })
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
+async def api_bot_save_token(request: web.Request) -> web.Response:
+    kernel = request.app.get("kernel")
+    if kernel is None:
+        return web.json_response({"error": "Kernel not ready"}, status=503)
+    
+    try:
+        data = await request.json()
+    except Exception:
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+    
+    token = data.get("token", "").strip()
+    if not token:
+        return web.json_response({"error": "Token is required"}, status=400)
+    
+    kernel.config["inline_bot_token"] = token
+    with open(kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump(kernel.config, f, ensure_ascii=False, indent=2)
+    
+    return web.json_response({"success": True, "message": "Token saved. Restart kernel to apply."})
+
+
+async def api_bot_start(request: web.Request) -> web.Response:
+    kernel = request.app.get("kernel")
+    if kernel is None:
+        return web.json_response({"error": "Kernel not ready"}, status=503)
+    
+    token = kernel.config.get("inline_bot_token")
+    if not token:
+        return web.json_response({"error": "No bot token configured"}, status=400)
+    
+    try:
+        from core_inline.bot import InlineBot
+        inline_bot = InlineBot(kernel)
+        await inline_bot.start_bot()
+        return web.json_response({"success": True, "message": "Bot started"})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
 
 
 def _is_configured(kernel) -> bool:

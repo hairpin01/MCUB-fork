@@ -197,7 +197,7 @@ def register(kernel):
     @private_only
     async def init_handler(event):
         try:
-            if int(event.sender_id) != int(kernel.ADMIN_ID):
+            if not hasattr(kernel, "ADMIN_ID") or kernel.ADMIN_ID is None or int(event.sender_id) != int(kernel.ADMIN_ID):
                 return
 
             hello_bot = await kernel.db_get("kernel", "HELLO_BOT")

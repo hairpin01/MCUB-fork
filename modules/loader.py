@@ -672,7 +672,7 @@ def register(kernel):
 
             mcub = await mcub_handler()
             add_log(t('log_checking_compatibility'))
-            if "from .. import" in code or "import loader" in code:
+            if re.search(r'^from \.\. import', code, re.MULTILINE) or re.search(r'^import loader\b', code, re.MULTILINE):
                 add_log(t('log_incompatible'))
                 await edit_with_emoji(
                     msg, t('modules_not_mcub', mcub=mcub, warning=CUSTOM_EMOJI['warning'])

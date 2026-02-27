@@ -1,4 +1,4 @@
-# `MCUB` Module API Documentation `1.0.2.9`
+# `MCUB` Module API Documentation `1.0.3.9`
 
 __Table of Contents__
 
@@ -2487,3 +2487,126 @@ def register(kernel):
 > [!NOTE]
 > Available in MCUB kernel version `1.0.2.9` and later.
 > `register.command` supports the same alias system as `kernel.register_command()`.
+
+---
+
+## New Registration Methods v1.0.3
+
+### Query Registered Handlers
+
+`kernel.register.get_commands()`
+---
+Get all registered userbot commands.
+
+**Returns:** Dict mapping command names to handler functions.
+
+**Usage:**
+```python
+commands = kernel.register.get_commands()
+for cmd, handler in commands.items():
+    await event.edit(f"Command: {cmd}")
+```
+
+---
+
+`kernel.register.get_bot_commands()`
+---
+Get all registered Telegram bot commands.
+
+**Returns:** Dict mapping command names to `(pattern, handler)` tuples.
+
+**Usage:**
+```python
+bot_cmds = kernel.register.get_bot_commands()
+for cmd, (pattern, handler) in bot_cmds.items():
+    await event.edit(f"Bot command: /{cmd}")
+```
+
+---
+
+`kernel.register.get_watchers()`
+---
+Get all registered watchers from all modules.
+
+**Returns:** List of `(wrapper_func, event_obj, client)` tuples.
+
+**Usage:**
+```python
+watchers = kernel.register.get_watchers()
+await event.edit(f"Active watchers: {len(watchers)}")
+```
+
+---
+
+`kernel.register.get_events()`
+---
+Get all registered event handlers from all modules.
+
+**Returns:** List of `(handler, event_obj, client)` tuples.
+
+**Usage:**
+```python
+events = kernel.register.get_events()
+await event.edit(f"Active event handlers: {len(events)}")
+```
+
+---
+
+`kernel.register.get_loops()`
+---
+Get all registered InfiniteLoop objects from all modules.
+
+**Returns:** List of InfiniteLoop instances.
+
+**Usage:**
+```python
+loops = kernel.register.get_loops()
+for loop in loops:
+    await event.edit(f"Loop: {loop.func.__name__}, running: {loop.status}")
+```
+
+---
+
+### Unregister Handlers
+
+`kernel.register.unregister_command(cmd)`
+---
+Unregister a userbot command by name.
+
+**Parameters:**
+- `cmd` (str): Command name to unregister.
+
+**Returns:** `bool` - True if removed, False if not found.
+
+**Usage:**
+```python
+if kernel.register.unregister_command("ping"):
+    await event.edit("Command 'ping' removed")
+else:
+    await event.edit("Command not found")
+```
+
+---
+
+`kernel.register.unregister_bot_command(cmd)`
+---
+Unregister a Telegram bot command by name.
+
+**Parameters:**
+- `cmd` (str): Command name to unregister (without `/`).
+
+**Returns:** `bool` - True if removed, False if not found.
+
+**Usage:**
+```python
+if kernel.register.unregister_bot_command("start"):
+    await event.edit("Bot command '/start' removed")
+```
+
+---
+
+### Bug Fixes in v1.0.3
+
+- **`@register.command`**: Fixed regex escaping for custom prefix characters
+- **`@register.command`** and **`@register.bot_command`**: Added duplicate command detection with clear error messages
+- **`@register.method`**: Methods are now tracked per-module for proper cleanup on unload

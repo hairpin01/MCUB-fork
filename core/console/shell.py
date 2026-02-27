@@ -584,8 +584,8 @@ class _LineEditor:
                 elif ch == "\x0b":                   # Ctrl+K
                     self._buf = self._buf[: self._cur]
 
-                elif ch == "\x15":                   # Ctrl+U
-                    self._buf = self._buf[self._cur :]
+                elif ch == "\x15":                   # Ctrl+U - delete to start of line
+                    del self._buf[:self._cur]
                     self._cur = 0
 
                 elif ch == "\x17":                   # Ctrl+W

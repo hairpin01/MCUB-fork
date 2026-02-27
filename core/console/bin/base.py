@@ -78,11 +78,12 @@ async def run(shell, args: list) -> None:
     try:
         from ..base.manager import PackageManager
     except ImportError:
-        import importlib.util, pathlib
-        here  = pathlib.Path(__file__).resolve().parent.parent / "base" / "manager.py"
-        spec  = importlib.util.spec_from_file_location("base.manager", here)
-        mod   = importlib.util.module_from_spec(spec)
-        mod.__package__ = "base"
+        import importlib.util
+        import pathlib
+        
+        manager_path = pathlib.Path(__file__).resolve().parent.parent / "base" / "manager.py"
+        spec = importlib.util.spec_from_file_location("console.base.manager", manager_path)
+        mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         PackageManager = mod.PackageManager
 

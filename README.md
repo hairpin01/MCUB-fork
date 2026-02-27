@@ -713,10 +713,10 @@ python3 -m core
    - `api_hash` - dein API Hash
    - `phone` - deine Telefonnummer (+79991234567)
 
-> [!TIPP]
+> [!TIP]
 > Manchmal musst du eine virtuelle Umgebung erstellen (`python -m venv .venv ; source .venv/bin/activate`)
 
-> [!WICHTIG]
+> [!IMPORTANT]
 > Die `config.json` Datei enthält vertrauliche Daten
 
 ### CLI-Flags
@@ -755,11 +755,11 @@ MCUB_NO_WEB=1 MCUB_PORT=9000 python3 -m core
 - `.man` - Modulliste __(und ihre Befehle)__
 - `.um [name]` - Modul entfernen
 
-> [!TIPP]
+> [!TIP]
 > __Sicherheit:__ Installiere KEINE __verdächtigen__ Module. Für Sicherheit gibt es API-Schutz (aktivieren mit: `.api_protection`).
 > Führe keinen verdächtigen Code mit `.py` (Python) oder `.t` (Terminal) aus
 
-> [!HINWEIS]
+> [!NOTE]
 > Um die HTML-Quelle einer Nachricht zu erhalten - antworte einfach mit `.py print(r_text)`
 
 ### Module

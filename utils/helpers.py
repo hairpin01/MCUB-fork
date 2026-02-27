@@ -1,10 +1,12 @@
 # author: @Hairpin00
-# version: 1.0.0
+# version: 1.0.2
 # description: helper utilities for modules (arguments, replies, files, formatting)
 
 import shlex
 import html as html_escape
-from typing import List, Optional, Union, Any
+import datetime
+import time as time_module
+from typing import List, Optional, Union, Any, Dict
 
 from telethon import events, Button
 from telethon.tl.custom import Message
@@ -304,3 +306,243 @@ def _looks_like_html(text: str) -> bool:
     return '<' in text and '>' in text and any(
         tag in text for tag in ('<b>', '<i>', '<a', '<code', '<pre')
     )
+
+
+def format_time(seconds: Union[int, float], detailed: bool = False) -> str:
+    """
+    Format seconds into a human-readable time string.
+
+    Args:
+        seconds: Number of seconds.
+        detailed: If True, show weeks and days separately.
+
+    Returns:
+        Formatted string like "1h 30m" or "1 week 2 days 3 hours"
+    """
+    if detailed:
+        weeks, seconds = divmod(int(seconds), 604800)
+        days, seconds = divmod(seconds, 86400)
+        hours, seconds = divmod(seconds, 3600)
+        minutes, seconds = divmod(seconds, 60)
+        
+        parts = []
+        if weeks: parts.append(f"{weeks}w")
+        if days: parts.append(f"{days}d")
+        if hours: parts.append(f"{hours}h")
+        if minutes: parts.append(f"{minutes}m")
+        if seconds or not parts: parts.append(f"{seconds}s")
+        return " ".join(parts)
+    
+    if seconds < 60:
+        return f"{int(seconds)}s"
+    elif seconds < 3600:
+        minutes = int(seconds // 60)
+        secs = int(seconds % 60)
+        return f"{minutes}m {secs}s" if secs else f"{minutes}m"
+    else:
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        return f"{hours}h {minutes}m" if minutes else f"{hours}h"
+
+
+def format_date(timestamp: Union[int, float, datetime.datetime], fmt: str = "%Y-%m-%d %H:%M") -> str:
+    """
+    Format a timestamp or datetime object to a string.
+
+    Args:
+        timestamp: Unix timestamp (int/float) or datetime object.
+        fmt: strftime format string.
+
+    Returns:
+        Formatted date string.
+    """
+    if isinstance(timestamp, datetime.datetime):
+        dt = timestamp
+    else:
+        dt = datetime.datetime.fromtimestamp(timestamp)
+    return dt.strftime(fmt)
+
+
+def format_relative_time(timestamp: Union[int, float]) -> str:
+    """
+    Format a timestamp as relative time (e.g., "5 minutes ago").
+
+    Args:
+        timestamp: Unix timestamp.
+
+    Returns:
+        Relative time string.
+    """
+    now = time_module.time()
+    diff = now - timestamp
+
+    if diff < 60:
+        return "just now"
+    elif diff < 3600:
+        minutes = int(diff // 60)
+        return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+    elif diff < 86400:
+        hours = int(diff // 3600)
+        return f"{hours} hour{'s' if hours != 1 else ''} ago"
+    elif diff < 604800:
+        days = int(diff // 86400)
+        return f"{days} day{'s' if days != 1 else ''} ago"
+    elif diff < 2592000:
+        weeks = int(diff // 604800)
+        return f"{weeks} week{'s' if weeks != 1 else ''} ago"
+    else:
+        return format_date(timestamp)
+
+
+async def get_admins(event_or_client, chat_id: Optional[int] = None) -> List[Dict[str, Any]]:
+    """
+    Get list of admins in a chat.
+
+    Args:
+        event_or_client: Event object or client instance.
+        chat_id: Chat ID (uses event.chat_id if not provided).
+
+    Returns:
+        List of dicts with admin info (id, name, is_creator, etc.)
+    """
+    client = getattr(event_or_client, 'client', event_or_client)
+    if chat_id is None:
+        chat_id = getattr(event_or_client, 'chat_id', None)
+    
+    if not chat_id:
+        return []
+
+    try:
+        participants = await client.get_participants(chat_id, filter=lambda x: x.admin_rights is not None or x.creator)
+        return [
+            {
+                "id": p.id,
+                "name": f"{p.first_name or ''} {p.last_name or ''}".strip(),
+                "username": p.username,
+                "is_creator": getattr(p, 'creator', False),
+                "is_admin": p.admin_rights is not None,
+            }
+            for p in participants
+        ]
+    except Exception:
+        return []
+
+
+async def resolve_peer(client, identifier: Union[str, int]) -> Optional[int]:
+    """
+    Resolve a username, phone, or peer ID to a user ID.
+
+    Args:
+        client: Telethon client instance.
+        identifier: Username (with or without @), phone, or numeric ID.
+
+    Returns:
+        User ID (int) or None if not found.
+    """
+    try:
+        if isinstance(identifier, int):
+            return identifier
+        
+        identifier = identifier.strip()
+        
+        if identifier.isdigit():
+            return int(identifier)
+        
+        if identifier.startswith('@'):
+            identifier = identifier[1:]
+        
+        entity = await client.get_entity(identifier)
+        return entity.id
+    except Exception:
+        return None
+
+
+def make_button(text: str, data: Optional[str] = None, url: Optional[str] = None, 
+                switch: Optional[str] = None, same_peer: bool = False) -> Button:
+    """
+    Create a button with less boilerplate.
+
+    Args:
+        text: Button label.
+        data: Callback data (for inline buttons).
+        url: URL for URL buttons.
+        switch: Inline query to switch to.
+        same_peer: Use same peer for inline query.
+
+    Returns:
+        Telethon Button object.
+    """
+    if data:
+        return Button.inline(text, data.encode() if isinstance(data, str) else data)
+    elif url:
+        return Button.url(text, url)
+    elif switch:
+        return Button.switch_inline(text, query=switch, same_peer=same_peer)
+    else:
+        return Button.text(text)
+
+
+def make_buttons(buttons: Union[List[Dict[str, Any]], List[List[Dict[str, Any]]]], cols: Optional[int] = None) -> List[List[Button]]:
+    """
+    Create buttons from a list of dicts.
+
+    Supports two formats:
+    1. Flat list with cols (auto-split into rows):
+       [{"text": "A", "data": "a"}, {"text": "B", "data": "b"}]
+    2. Pre-grouped rows:
+       [[{"text": "A", "data": "a"}], [{"text": "B", "data": "b"}]]
+
+    Args:
+        buttons: List of button dicts OR list of rows.
+                 Each button: {"text": "Label", "data": "..."} or
+                             {"text": "Label", "url": "..."} or
+                             {"text": "Label", "switch": "query"}
+        cols: Buttons per row (only for flat list, default 2).
+
+    Returns:
+        List of lists of Button objects.
+
+    Example:
+        >>> # Flat list (auto rows)
+        >>> make_buttons([{"text": "A", "data": "a"}, {"text": "B", "data": "b"}])
+        [[Button, Button]]
+
+        >>> # Pre-grouped
+        >>> make_buttons([[{"text": "A", "data": "a"}], [{"text": "B", "data": "b"}]])
+        [[Button], [Button]]
+    """
+    if not buttons:
+        return []
+    
+    first = buttons[0]
+    if isinstance(first, list):
+        result = []
+        for row in buttons:
+            button_row = []
+            for btn in row:
+                button_row.append(make_button(
+                    text=btn.get("text", ""),
+                    data=btn.get("data"),
+                    url=btn.get("url"),
+                    switch=btn.get("switch"),
+                    same_peer=btn.get("same_peer", False)
+                ))
+            result.append(button_row)
+        return result
+    
+    if cols is None:
+        cols = 2
+    
+    result = []
+    for i in range(0, len(buttons), cols):
+        row = []
+        for btn in buttons[i:i+cols]:
+            row.append(make_button(
+                text=btn.get("text", ""),
+                data=btn.get("data"),
+                url=btn.get("url"),
+                switch=btn.get("switch"),
+                same_peer=btn.get("same_peer", False)
+            ))
+        result.append(row)
+    return result

@@ -29,6 +29,7 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_post("/api/bot/save_token",    api_bot_save_token)
     app.router.add_post("/api/bot/start",         api_bot_start)
     app.router.add_get("/api/bot/status",         api_bot_status)
+    app.router.add_post("/api/setup/complete",    api_setup_complete)
     app.router.add_static("/static", path="core/web/static", name="static")
     # serve logo from core/web/img/
     import os
@@ -207,9 +208,10 @@ async def api_verify_code(request: web.Request) -> web.Response:
         print(f"[setup] sign_in error:\n{tb}", flush=True)
         return _err(_friendly_error(exc))
 
-    return await _finish_setup(request, state)
+    # Don't start kernel yet - wait for bot step
+    return await _finish_setup(request, state, start_kernel=False)
 
-async def _finish_setup(request: web.Request, state: dict) -> web.Response:
+async def _finish_setup(request: web.Request, state: dict, start_kernel: bool = True) -> web.Response:
     print("[setup] ✓ Auth OK — writing config.json…", flush=True)
 
     config = {
@@ -223,11 +225,11 @@ async def _finish_setup(request: web.Request, state: dict) -> web.Response:
         "healthcheck_interval": 30,
         "developer_chat_id":    None,
         "language":             "ru",
-        "theme":                "default",
-        "proxy":                None,
-        "inline_bot_token":     None,
-        "inline_bot_username":  None,
-        "db_version":           2,
+        "theme":               "default",
+        "proxy":               None,
+        "inline_bot_token":    None,
+        "inline_bot_username": None,
+        "db_version":          2,
     }
 
     with open("config.json", "w", encoding="utf-8") as f:
@@ -241,14 +243,17 @@ async def _finish_setup(request: web.Request, state: dict) -> web.Response:
     state["awaiting_code"] = False
     state["awaiting_2fa"]  = False
 
-    ev: asyncio.Event | None = request.app.get("setup_event")
-    if ev is not None:
-        ev.set()
-        print("[setup] setup_event fired", flush=True)
+    # Only start kernel if explicitly requested
+    if start_kernel:
+        ev: asyncio.Event | None = request.app.get("setup_event")
+        if ev is not None:
+            ev.set()
+            print("[setup] setup_event fired", flush=True)
 
     return web.json_response({
         "success": True,
         "message": "Setup complete! Kernel is starting…",
+        "start_kernel": start_kernel,
     })
 
 def _err(msg: str, status: int = 400) -> web.Response:
@@ -408,10 +413,6 @@ async def api_bot_verify_token(request: web.Request) -> web.Response:
 
 
 async def api_bot_save_token(request: web.Request) -> web.Response:
-    kernel = request.app.get("kernel")
-    if kernel is None:
-        return web.json_response({"error": "Kernel not ready"}, status=503)
-    
     try:
         data = await request.json()
     except Exception:
@@ -421,11 +422,30 @@ async def api_bot_save_token(request: web.Request) -> web.Response:
     if not token:
         return web.json_response({"error": "Token is required"}, status=400)
     
-    kernel.config["inline_bot_token"] = token
-    with open(kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
-        json.dump(kernel.config, f, ensure_ascii=False, indent=2)
+    kernel = request.app.get("kernel")
     
-    return web.json_response({"success": True, "message": "Token saved. Restart kernel to apply."})
+    # If kernel is not started yet, save to config.json directly
+    if kernel is None:
+        config_path = "config.json"
+        if os.path.exists(config_path):
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+        else:
+            config = {}
+        config["inline_bot_token"] = token
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+    return web.json_response({"success": True, "message": "Token saved to config."})
+    
+
+async def api_setup_complete(request: web.Request) -> web.Response:
+    """Fire setup_event to start the kernel after bot step."""
+    ev: asyncio.Event | None = request.app.get("setup_event")
+    if ev is not None:
+        ev.set()
+        print("[setup] setup_event fired (from bot step)", flush=True)
+        return web.json_response({"success": True, "message": "Kernel starting..."})
+    return web.json_response({"error": "No setup event pending"}, status=400)
 
 
 async def api_bot_start(request: web.Request) -> web.Response:

@@ -1409,6 +1409,150 @@ async def restart_handler(event):
     await restart_kernel(kernel, event.chat_id, msg.id)
 ```
 
+---
+
+### Time & Date Formatting
+
+`format_time(seconds, detailed=False)`
+---
+Format seconds into human-readable time string.
+
+**Parameters:**
+- `seconds` (int/float): Number of seconds
+- `detailed` (bool): Show weeks/days separately
+
+**Returns:** str like "1h 30m" or "1w 2d 3h"
+
+**Usage:**
+```python
+from utils import format_time
+
+uptime = 3665
+await event.edit(format_time(uptime))  # "1h 1m"
+await event.edit(format_time(uptime, detailed=True))  # "1h 1m 5s"
+```
+
+---
+
+`format_date(timestamp, fmt="%Y-%m-%d %H:%M")`
+---
+Format Unix timestamp to date string.
+
+**Parameters:**
+- `timestamp` (int/float/datetime): Unix timestamp or datetime object
+- `fmt` (str): strftime format string
+
+**Usage:**
+```python
+from utils import format_date
+
+ts = 1704067200
+await event.edit(format_date(ts))  # "2024-01-01 00:00"
+await event.edit(format_date(ts, "%d.%m.%Y"))  # "01.01.2024"
+```
+
+---
+
+`format_relative_time(timestamp)`
+---
+Format timestamp as relative time ("5 minutes ago").
+
+**Usage:**
+```python
+from utils import format_relative_time
+
+msg_time = message.date.timestamp()
+await event.edit(format_relative_time(msg_time))  # "2 hours ago"
+```
+
+---
+
+### Chat Utilities
+
+`get_admins(event_or_client, chat_id=None)`
+---
+Get list of admins in a chat.
+
+**Returns:** List of dicts with keys: `id`, `name`, `username`, `is_creator`, `is_admin`
+
+**Usage:**
+```python
+from utils import get_admins
+
+admins = await get_admins(event)
+for admin in admins:
+    if admin['is_creator']:
+        await event.edit(f"Owner: {admin['name']}")
+```
+
+---
+
+`resolve_peer(client, identifier)`
+---
+Resolve username, phone, or link to user ID.
+
+**Parameters:**
+- `identifier` (str/int): Username (with/without @), phone, or numeric ID
+
+**Returns:** int or None
+
+**Usage:**
+```python
+from utils import resolve_peer
+
+user_id = await resolve_peer(kernel.client, "@username")
+user_id = await resolve_peer(kernel.client, "+79991234567")
+user_id = await resolve_peer(kernel.client, 123456789)
+```
+
+---
+
+### Button Helpers
+
+`make_button(text, data=None, url=None, switch=None, same_peer=False)`
+---
+Create a single Telethon Button with less boilerplate.
+
+**Usage:**
+```python
+from utils import make_button
+
+# Callback button
+btn1 = make_button("Click me", data="click")
+
+# URL button
+btn2 = make_button("Open", url="https://example.com")
+
+# Switch inline
+btn3 = make_button("Search", switch="query", same_peer=True)
+```
+
+---
+
+`make_buttons(buttons, cols=2)`
+---
+Create multiple buttons from a flat list.
+
+**Parameters:**
+- `buttons`: List of button dicts with keys: `text`, `data`/`url`/`switch`
+- `cols`: Buttons per row (default 2)
+
+**Usage:**
+```python
+from utils import make_buttons
+
+buttons = [
+    {"text": "Edit", "data": "edit_1"},
+    {"text": "Delete", "data": "delete_1"},
+    {"text": "Link", "url": "https://example.com"},
+    {"text": "Search", "switch": "query"},
+]
+rows = make_buttons(buttons, cols=2)
+# Result: [[btn1, btn2], [btn3, btn4]]
+
+await event.edit("Choose:", buttons=rows)
+```
+
 ### Platform Detection
 
 ```python

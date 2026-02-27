@@ -28,6 +28,13 @@ from .helpers import (
     get_sender_info,
     get_thread_id,
     relocate_entities,
+    format_time,
+    format_date,
+    format_relative_time,
+    get_admins,
+    resolve_peer,
+    make_button,
+    make_buttons,
 )
 
 from . import platform
@@ -136,6 +143,13 @@ __all__.extend([
     'get_sender_info',
     'get_thread_id',
     'relocate_entities',
+    'format_time',
+    'format_date',
+    'format_relative_time',
+    'get_admins',
+    'resolve_peer',
+    'make_button',
+    'make_buttons',
 ])
 
 __all__.append('RAW_HTML_AVAILABLE')

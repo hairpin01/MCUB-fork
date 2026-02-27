@@ -177,6 +177,40 @@ class ArgumentParser:
     def __contains__(self, item: str) -> bool:
         return item in self.flags or item in self.kwargs
 
+    def get_all(self) -> List[Any]:
+        """Get all positional arguments as a list."""
+        return self.args.copy()
+
+    def slice(self, start: int = 0, end: Optional[int] = None) -> List[Any]:
+        """Get a slice of positional arguments."""
+        return self.args[start:end]
+
+    def require(self, *names: str) -> Tuple[bool, str]:
+        """
+        Validate that required arguments are present.
+        
+        Args:
+            *names: Required argument names (positional indices or kwarg keys).
+        
+        Returns:
+            (is_valid, missing_name)
+        """
+        for name in names:
+            if isinstance(name, int):
+                if name >= len(self.args):
+                    return False, f"arg[{name}]"
+            else:
+                if name not in self.kwargs:
+                    return False, name
+        return True, ""
+
+    def remaining(self, start: int = 0) -> str:
+        """Get remaining raw args as string from position."""
+        tokens = self.raw_args.split()
+        if start >= len(tokens):
+            return ""
+        return " ".join(tokens[start:])
+
 def parse_arguments(text: str, prefix: str = '.') -> ArgumentParser:
     """Create argument parser from message text"""
     return ArgumentParser(text, prefix)

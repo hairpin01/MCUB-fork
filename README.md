@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="img/start_userbot.png" alt="Bot Preview" width="600"/>
+<img src="core/web/img/0.png" alt="MCUB-fork Logo" width="1000"/>
 
 </div>
 

@@ -35,23 +35,34 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple
-#
-# base_dir = Path(__file__).resolve().parent.parent
-# if str(base_dir) not in sys.path:
-#     sys.path.insert(0, str(base_dir))
 
 import aiohttp
 
-from .config_parser import PackageConfig
-from .display       import (
-    GREEN, RED, YELLOW, CYAN, GREY, MAGENTA, RESET, BOLD, DIM,
-    SYM_OK, SYM_ERR, SYM_WARN, SYM_INFO, SYM_DL, SYM_INST,
-    SYM_DEL, SYM_UPD, SYM_PKG, SYM_ARROW,
-    ok, err, warn, info, step, h1, h2, kv, sep,
-    pkg_badge, progress_bar, format_pkg_info, format_installed_list,
-)
-from .lockfile      import LockFile
-from .resolver      import DependencyResolver
+# Handle both normal import and fallback for shell bin
+try:
+    from .config_parser import PackageConfig
+    from .display       import (
+        GREEN, RED, YELLOW, CYAN, GREY, MAGENTA, RESET, BOLD, DIM,
+        SYM_OK, SYM_ERR, SYM_WARN, SYM_INFO, SYM_DL, SYM_INST,
+        SYM_DEL, SYM_UPD, SYM_PKG, SYM_ARROW,
+        ok, err, warn, info, step, h1, h2, kv, sep,
+        pkg_badge, progress_bar, format_pkg_info, format_installed_list,
+    )
+    from .lockfile      import LockFile
+    from .resolver      import DependencyResolver
+except ImportError:
+    base_dir = Path(__file__).resolve().parent
+    sys.path.insert(0, str(base_dir))
+    from config_parser import PackageConfig
+    from display       import (
+        GREEN, RED, YELLOW, CYAN, GREY, MAGENTA, RESET, BOLD, DIM,
+        SYM_OK, SYM_ERR, SYM_WARN, SYM_INFO, SYM_DL, SYM_INST,
+        SYM_DEL, SYM_UPD, SYM_PKG, SYM_ARROW,
+        ok, err, warn, info, step, h1, h2, kv, sep,
+        pkg_badge, progress_bar, format_pkg_info, format_installed_list,
+    )
+    from lockfile      import LockFile
+    from resolver      import DependencyResolver
 
 
 BASE_REPO_URL     = (

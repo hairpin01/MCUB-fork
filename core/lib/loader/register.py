@@ -1,5 +1,5 @@
 # author: @Hairpin00
-# version: 1.0.2
+# version: 1.0.3
 # description: Registration system for Telegram bot handlers
 
 import asyncio
@@ -163,6 +163,7 @@ class Register:
     def __init__(self, kernel: Any) -> None:
         self.kernel = kernel
         self._methods: Dict[str, Callable] = {}
+        self._method_modules: Dict[str, Any] = {}
 
     @staticmethod
     def _get_or_create_register(module: Any) -> Any:
@@ -195,6 +196,7 @@ class Register:
                 reg = self._get_or_create_register(module)
                 setattr(reg, f.__name__, f)
                 self._methods[f.__name__] = f
+                self._method_modules[f.__name__] = module
             return f
 
         if func is None:
@@ -290,7 +292,9 @@ class Register:
             >>>     await event.edit("Pong!")
         """
         def decorator(func: Callable) -> Callable:
-            cmd = pattern.lstrip("^\\" + self.kernel.custom_prefix)
+            import re
+            escaped_prefix = re.escape(self.kernel.custom_prefix)
+            cmd = pattern.lstrip("^\\" + escaped_prefix)
             if cmd.endswith("$"):
                 cmd = cmd[:-1]
 
@@ -300,15 +304,25 @@ class Register:
                     "Commands must be registered from within a module."
                 )
 
+            if cmd in self.kernel.command_handlers:
+                raise ValueError(
+                    f"Command '{cmd}' already registered by "
+                    f"'{self.kernel.command_owners.get(cmd)}'"
+                )
+
             self.kernel.command_handlers[cmd] = func
             self.kernel.command_owners[cmd] = self.kernel.current_loading_module
 
             alias = kwargs.get("alias")
             if alias:
                 if isinstance(alias, str):
+                    if alias in self.kernel.command_handlers:
+                        raise ValueError(f"Alias '{alias}' already registered")
                     self.kernel.aliases[alias] = cmd
                 elif isinstance(alias, list):
                     for a in alias:
+                        if a in self.kernel.command_handlers:
+                            raise ValueError(f"Alias '{a}' already registered")
                         self.kernel.aliases[a] = cmd
 
             more = kwargs.get("more")
@@ -342,6 +356,12 @@ class Register:
             if self.kernel.current_loading_module is None:
                 raise ValueError(
                     "No current module set for bot command registration."
+                )
+
+            if cmd in self.kernel.bot_command_handlers:
+                raise ValueError(
+                    f"Bot command '/{cmd}' already registered by "
+                    f"'{self.kernel.bot_command_owners.get(cmd)}'"
                 )
 
             self.kernel.bot_command_handlers[cmd] = (pattern, func)
@@ -570,3 +590,100 @@ class Register:
     def get_registered_methods(self) -> Dict[str, Callable]:
         """Return a copy of all functions registered via @method."""
         return self._methods.copy()
+
+    def get_commands(self) -> Dict[str, Callable]:
+        """
+        Get all registered userbot commands.
+
+        Returns:
+            Dict mapping command names to handler functions.
+        """
+        return self.kernel.command_handlers.copy()
+
+    def get_bot_commands(self) -> Dict[str, Tuple[str, Callable]]:
+        """
+        Get all registered Telegram bot commands.
+
+        Returns:
+            Dict mapping command names to (pattern, handler) tuples.
+        """
+        return self.kernel.bot_command_handlers.copy()
+
+    def get_watchers(self) -> List[Tuple[Callable, Any, Any]]:
+        """
+        Get all registered watchers from all modules.
+
+        Returns:
+            List of (wrapper_func, event_obj, client) tuples.
+        """
+        watchers = []
+        for module_name, module in {**self.kernel.loaded_modules, **self.kernel.system_modules}.items():
+            reg = getattr(module, "register", None)
+            if reg and hasattr(reg, "__watchers__"):
+                watchers.extend(reg.__watchers__)
+        return watchers
+
+    def get_events(self) -> List[Tuple[Callable, Any, Any]]:
+        """
+        Get all registered event handlers from all modules.
+
+        Returns:
+            List of (handler, event_obj, client) tuples.
+        """
+        events = []
+        for module_name, module in {**self.kernel.loaded_modules, **self.kernel.system_modules}.items():
+            reg = getattr(module, "register", None)
+            if reg and hasattr(reg, "__event_handlers__"):
+                events.extend(reg.__event_handlers__)
+        return events
+
+    def get_loops(self) -> List[InfiniteLoop]:
+        """
+        Get all registered InfiniteLoop objects from all modules.
+
+        Returns:
+            List of InfiniteLoop instances.
+        """
+        loops = []
+        for module_name, module in {**self.kernel.loaded_modules, **self.kernel.system_modules}.items():
+            reg = getattr(module, "register", None)
+            if reg and hasattr(reg, "__loops__"):
+                loops.extend(reg.__loops__)
+        return loops
+
+    def unregister_command(self, cmd: str) -> bool:
+        """
+        Unregister a userbot command by name.
+
+        Args:
+            cmd: Command name to unregister.
+
+        Returns:
+            True if command was removed, False if not found.
+        """
+        if cmd in self.kernel.command_handlers:
+            del self.kernel.command_handlers[cmd]
+            self.kernel.command_owners.pop(cmd, None)
+            self.kernel.command_metadata.pop(cmd, None)
+            
+            for alias, target in list(self.kernel.aliases.items()):
+                if target == cmd:
+                    del self.kernel.aliases[alias]
+            return True
+        return False
+
+    def unregister_bot_command(self, cmd: str) -> bool:
+        """
+        Unregister a Telegram bot command by name.
+
+        Args:
+            cmd: Command name to unregister (without /).
+
+        Returns:
+            True if command was removed, False if not found.
+        """
+        if cmd in self.kernel.bot_command_handlers:
+            del self.kernel.bot_command_handlers[cmd]
+            self.kernel.bot_command_owners.pop(cmd, None)
+            return True
+        return False

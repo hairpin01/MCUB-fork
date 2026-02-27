@@ -37,7 +37,7 @@ def create_app(kernel=None, setup_event=None) -> web.Application:
 
 async def start_web_panel(kernel, host: str | None = None, port: int | None = None):
     """Start the web panel as a background coroutine."""
-    host = host or os.environ.get("MCUB_HOST", "127.0.0.1")
+    host = host or os.environ.get("MCUB_HOST", "0.0.0.0")
     port = int(port or os.environ.get("MCUB_PORT", 8080))
 
     app    = create_app(kernel)

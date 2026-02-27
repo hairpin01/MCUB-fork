@@ -15,48 +15,48 @@ from telethon import events, Button
 def register(kernel):
     client = kernel.client
 
-    language = kernel.config.get('language', 'en')
+    language = kernel.config.get("language", "en")
 
     strings = {
-        'ru': {
-            'restarting': 'Твой <b>{mcub}</b> перезагружается...',
-            'restart_log': 'Перезагрузка...',
-            'already_updated': '✅ <b>Уже последняя версия {version}</b>',
-            'git_pull_success': '📝 <b>Git pull успешен!</b>\n\n<code>{output}</code>',
-            'update_success': '⚗️ <b>Обновление успешно!</b> {emoji}\nПерезагрузка через 2 секунды...',
-            'trying_another_method': '🔧 <b>Пробую другой метод обновления...</b>',
-            'updating_to_version': '📥 <b>Обновляю до {version}...</b> {emoji}',
-            'update_success_with_backup': '⚗️ <b>Обновление успешно!</b> {emoji}\n\n📦 Бэкап создан\nПерезагрузка...',
-            'cant_check_version': '❌ <b>Не удалось проверить версию</b>',
-            'cant_get_update': '❌ <b>Не удалось получить обновление</b>',
-            'error': '❌ <b>Ошибка:</b> <code>{error}</code>',
-            'stopping': '🧲 <b>Твой <i>{mcub}</i> останавливается...</b> {emoji}',
-            'backup_not_found': '❌ <b>Бэкап не найден</b>',
-            'rolling_back': '🔙 <b>Откатываю к предыдущей версии...</b> <i>{emoji}</i>',
-            'rollback_success': '⚗️ <b>Откат завершен!</b> {emoji}\n\nПерезагрузка...',
-            'rollback_error': '❌ <b>Ошибка отката:</b> <code>{error}</code>',
+        "ru": {
+            "restarting": "Твой <b>{mcub}</b> перезагружается...",
+            "restart_log": "Перезагрузка...",
+            "already_updated": "✅ <b>Уже последняя версия {version}</b>",
+            "git_pull_success": "📝 <b>Git pull успешен!</b>\n\n<code>{output}</code>",
+            "update_success": "⚗️ <b>Обновление успешно!</b> {emoji}\nПерезагрузка через 2 секунды...",
+            "trying_another_method": "🔧 <b>Пробую другой метод обновления...</b>",
+            "updating_to_version": "📥 <b>Обновляю до {version}...</b> {emoji}",
+            "update_success_with_backup": "⚗️ <b>Обновление успешно!</b> {emoji}\n\n📦 Бэкап создан\nПерезагрузка...",
+            "cant_check_version": "❌ <b>Не удалось проверить версию</b>",
+            "cant_get_update": "❌ <b>Не удалось получить обновление</b>",
+            "error": "❌ <b>Ошибка:</b> <code>{error}</code>",
+            "stopping": "🧲 <b>Твой <i>{mcub}</i> останавливается...</b> {emoji}",
+            "backup_not_found": "❌ <b>Бэкап не найден</b>",
+            "rolling_back": "🔙 <b>Откатываю к предыдущей версии...</b> <i>{emoji}</i>",
+            "rollback_success": "⚗️ <b>Откат завершен!</b> {emoji}\n\nПерезагрузка...",
+            "rollback_error": "❌ <b>Ошибка отката:</b> <code>{error}</code>",
         },
-        'en': {
-            'restarting': 'Your <b>{mcub}</b> is restarting...',
-            'restart_log': 'Restarting...',
-            'already_updated': '✅ <b>Already latest version {version}</b>',
-            'git_pull_success': '📝 <b>Git pull successful!</b>\n\n<code>{output}</code>',
-            'update_success': '⚗️ <b>Update successful!</b> {emoji}\nRestarting in 2 seconds...',
-            'trying_another_method': '🔧 <b>Trying another update method...</b>',
-            'updating_to_version': '📥 <b>Updating to {version}...</b> {emoji}',
-            'update_success_with_backup': '⚗️ <b>Update successful!</b> {emoji}\n\n📦 Backup created\nRestarting...',
-            'cant_check_version': '❌ <b>Could not check version</b>',
-            'cant_get_update': '❌ <b>Could not get update</b>',
-            'error': '❌ <b>Error:</b> <code>{error}</code>',
-            'stopping': '🧲 <b>Your <i>{mcub}</i> is stopping...</b> {emoji}',
-            'backup_not_found': '❌ <b>Backup not found</b>',
-            'rolling_back': '🔙 <b>Rolling back to previous version...</b> <i>{emoji}</i>',
-            'rollback_success': '⚗️ <b>Rollback completed!</b> {emoji}\n\nRestarting...',
-            'rollback_error': '❌ <b>Rollback error:</b> <code>{error}</code>',
-        }
+        "en": {
+            "restarting": "Your <b>{mcub}</b> is restarting...",
+            "restart_log": "Restarting...",
+            "already_updated": "✅ <b>Already latest version {version}</b>",
+            "git_pull_success": "📝 <b>Git pull successful!</b>\n\n<code>{output}</code>",
+            "update_success": "⚗️ <b>Update successful!</b> {emoji}\nRestarting in 2 seconds...",
+            "trying_another_method": "🔧 <b>Trying another update method...</b>",
+            "updating_to_version": "📥 <b>Updating to {version}...</b> {emoji}",
+            "update_success_with_backup": "⚗️ <b>Update successful!</b> {emoji}\n\n📦 Backup created\nRestarting...",
+            "cant_check_version": "❌ <b>Could not check version</b>",
+            "cant_get_update": "❌ <b>Could not get update</b>",
+            "error": "❌ <b>Error:</b> <code>{error}</code>",
+            "stopping": "🧲 <b>Your <i>{mcub}</i> is stopping...</b> {emoji}",
+            "backup_not_found": "❌ <b>Backup not found</b>",
+            "rolling_back": "🔙 <b>Rolling back to previous version...</b> <i>{emoji}</i>",
+            "rollback_success": "⚗️ <b>Rollback completed!</b> {emoji}\n\nRestarting...",
+            "rollback_error": "❌ <b>Rollback error:</b> <code>{error}</code>",
+        },
     }
 
-    lang_strings = strings.get(language, strings['en'])
+    lang_strings = strings.get(language, strings["en"])
 
     emojis = [
         "ಠ_ಠ",
@@ -129,14 +129,18 @@ def register(kernel):
                 if result.returncode == 0:
                     if "Already up to date" in result.stdout:
                         await msg.edit(
-                            lang_strings["already_updated"].format(version=kernel.VERSION),
+                            lang_strings["already_updated"].format(
+                                version=kernel.VERSION
+                            ),
                             parse_mode="html",
                         )
                         kernel.logger.info("Already up to date")
                         return
 
                     await msg.edit(
-                        lang_strings["git_pull_success"].format(output=result.stdout[:200]),
+                        lang_strings["git_pull_success"].format(
+                            output=result.stdout[:200]
+                        ),
                         parse_mode="html",
                     )
                     kernel.logger.info("successfully git pull")
@@ -147,7 +151,7 @@ def register(kernel):
                         lang_strings["update_success"].format(emoji=emoji),
                         parse_mode="html",
                     )
-                    kernel.logger.info('Restarting...')
+                    kernel.logger.info("Restarting...")
                     await asyncio.sleep(2)
                     os.execl(sys.executable, sys.executable, *sys.argv)
                     return
@@ -172,30 +176,37 @@ def register(kernel):
                             if new_version and new_version.group(1) != kernel.VERSION:
                                 emoji = random.choice(emojis)
                                 await msg.edit(
-                                    lang_strings["updating_to_version"].format(version=new_version.group(1), emoji=emoji),
+                                    lang_strings["updating_to_version"].format(
+                                        version=new_version.group(1), emoji=emoji
+                                    ),
                                     parse_mode="html",
                                 )
 
-                                with open(__file__, "r", encoding="utf-8") as f:
+                                kernel_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "kernel.py")
+                                with open(kernel_file, "r", encoding="utf-8") as f:
                                     current_code = f.read()
                                 with open(
                                     kernel.BACKUP_FILE, "w", encoding="utf-8"
                                 ) as f:
                                     f.write(current_code)
 
-                                with open(__file__, "w", encoding="utf-8") as f:
+                                with open(kernel_file, "w", encoding="utf-8") as f:
                                     f.write(new_code)
 
                                 emoji = random.choice(emojis)
                                 await msg.edit(
-                                    lang_strings["update_success_with_backup"].format(emoji=emoji),
+                                    lang_strings["update_success_with_backup"].format(
+                                        emoji=emoji
+                                    ),
                                     parse_mode="html",
                                 )
                                 await asyncio.sleep(2)
                                 os.execl(sys.executable, sys.executable, *sys.argv)
                             else:
                                 await msg.edit(
-                                    lang_strings["already_updated"].format(version=kernel.VERSION),
+                                    lang_strings["already_updated"].format(
+                                        version=kernel.VERSION
+                                    ),
                                     parse_mode="html",
                                 )
                         else:

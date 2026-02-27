@@ -30,6 +30,7 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_post("/api/bot/start",         api_bot_start)
     app.router.add_get("/api/bot/status",         api_bot_status)
     app.router.add_post("/api/setup/complete",    api_setup_complete)
+    app.router.add_post("/api/bot/auto_create",   api_bot_auto_create)
     app.router.add_static("/static", path="core/web/static", name="static")
     # serve logo from core/web/img/
     import os
@@ -169,7 +170,8 @@ async def api_verify_code(request: web.Request) -> web.Response:
             return _err("Incorrect 2FA password")
         except Exception as exc:
             return _err(_friendly_error(exc))
-        return await _finish_setup(request, state)
+        # Don't start kernel yet - wait for bot step
+        return await _finish_setup(request, state, start_kernel=False)
 
     if not code:
         return _err("Code is required")
@@ -437,6 +439,79 @@ async def api_bot_save_token(request: web.Request) -> web.Response:
             json.dump(config, f, ensure_ascii=False, indent=2)
     return web.json_response({"success": True, "message": "Token saved to config."})
     
+
+async def api_bot_auto_create(request: web.Request) -> web.Response:
+    """Create bot automatically via BotFather."""
+    import aiohttp
+    
+    state: dict = request.app.get("setup_state") or {}
+    client = state.get("client")
+    
+    if client is None:
+        # Try to use kernel's client
+        kernel = request.app.get("kernel")
+        if kernel is None:
+            return web.json_response({"error": "No client available"}, status=400)
+        client = kernel.client
+    
+    try:
+        botfather = await client.get_entity("BotFather")
+        
+        # Generate random bot username
+        import random
+        import string
+        suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+        bot_username = f"mcub_{suffix}_bot"
+        
+        # Send /newbot command
+        await client.send_message(botfather, "/newbot")
+        await asyncio.sleep(1)
+        await client.send_message(botfather, "🪄 MCUB Inline Bot")
+        await asyncio.sleep(1)
+        await client.send_message(botfather, bot_username)
+        await asyncio.sleep(3)
+        
+        # Wait for token
+        messages = await client.get_messages(botfather, limit=3)
+        token = None
+        for msg in messages:
+            if msg.text:
+                import re
+                match = re.search(r"(\d+:[A-Za-z0-9_-]+)", msg.text)
+                if match:
+                    token = match.group(1)
+                    break
+        
+        if not token:
+            return web.json_response({
+                "error": "Could not get token from BotFather. Please create bot manually.",
+                "manual": True
+            }, status=400)
+        
+        # Save token to config
+        config_path = "config.json"
+        if os.path.exists(config_path):
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+        else:
+            config = {}
+        
+        config["inline_bot_token"] = token
+        config["inline_bot_username"] = bot_username
+        
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+        
+        return web.json_response({
+            "success": True,
+            "token": token,
+            "username": bot_username,
+            "message": f"Bot @{bot_username} created! Token saved."
+        })
+        
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
 
 async def api_setup_complete(request: web.Request) -> web.Response:
     """Fire setup_event to start the kernel after bot step."""

@@ -392,6 +392,7 @@ input::placeholder{color:var(--text-dim);opacity:.55;}
         <input id="f_bot_token" type="text" placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz">
       </label>
       <button class="btn-primary" id="btn4verify" onclick="verifyBotInSetup()" style="margin-bottom:8px;">Verify Token</button>
+      <button class="btn-ghost" id="btn4auto" onclick="autoCreateBot()" style="margin-bottom:8px;width:100%;">Auto Create Bot</button>
       <div class="btn-row">
         <button class="btn-ghost" onclick="skipBot()">Skip →</button>
         <button class="btn-primary" id="btn4" onclick="finishWithBot()" disabled>Continue →</button>
@@ -400,7 +401,7 @@ input::placeholder{color:var(--text-dim);opacity:.55;}
 
     <!-- Step 5 -->
     <div class="wstep hidden" id="s5">
-      <div class="done-icon">✅</div>
+      <div class="done-icon"><img src="/static/img/success.png" alt="Success" style="width:60px;height:60px;"></div>
       <h2>MCUB is installed!</h2>
       <p class="hint">Kernel is starting — redirecting to dashboard…</p>
       <div class="spinner"></div>
@@ -594,6 +595,25 @@ async function verifyBotInSetup() {
     document.getElementById('btn4').disabled = false;
   } catch(e) { toast('Error: ' + e.message); }
   finally { btnLoading('btn4verify', false); }
+}
+
+async function autoCreateBot() {
+  btnLoading('btn4auto', true);
+  try {
+    const r = await post('/api/bot/auto_create', {});
+    if (!r.ok) { 
+      if (r.manual) {
+        toast('Auto create failed. Enter token manually or skip.', 'err');
+      } else {
+        toast(r.error || 'Error creating bot'); 
+      }
+      return; 
+    }
+    document.getElementById('f_bot_token').value = r.token;
+    toast('Bot @' + r.username + ' created! Continue.', 'ok');
+    document.getElementById('btn4').disabled = false;
+  } catch(e) { toast('Error: ' + e.message); }
+  finally { btnLoading('btn4auto', false); }
 }
 
 async function skipBot() {

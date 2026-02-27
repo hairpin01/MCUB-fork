@@ -22,6 +22,7 @@ from collections import OrderedDict, defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union, Pattern
+
 try:
     import uuid
     import io
@@ -33,10 +34,7 @@ try:
     from telethon.tl import types as tl_types
 except Exception as e:
     tb = traceback.format_exc()
-    print(
-        f'E: {e}\n'
-        f'>: {tb}'
-          )
+    print(f"E: {e}\n" f">: {tb}")
 
     sys.exit(104)
 try:
@@ -46,8 +44,17 @@ try:
     from .lib.time.scheduler import TaskScheduler
     from .lib.loader.register import Register
     from .lib.loader.module_config import (
-        ModuleConfig, ConfigValue, Validator, Boolean, Integer,
-        Float, String, Choice, MultiChoice, Secret, ValidationError,
+        ModuleConfig,
+        ConfigValue,
+        Validator,
+        Boolean,
+        Integer,
+        Float,
+        String,
+        Choice,
+        MultiChoice,
+        Secret,
+        ValidationError,
     )
     from .lib.base.permissions import CallbackPermissionManager
     from .lib.base.database import DatabaseManager
@@ -62,18 +69,18 @@ try:
     from .console.shell import Shell
 except Exception as error_module:
     tb = traceback.format_exc()
-    print(
-        '⚠️, Error loaded lib modules!\n'
-        f'🔎, {error_module}!\n'
-        f'🗓, {tb}'
-        )
+    print("⚠️, Error loaded lib modules!\n" f"🔎, {error_module}!\n" f"🗓, {tb}")
     sys.exit(105)
 
 try:
     from utils.html_parser import parse_html
     from utils.message_helpers import (
-        edit_with_html, reply_with_html, send_with_html, send_file_with_html,
+        edit_with_html,
+        reply_with_html,
+        send_with_html,
+        send_file_with_html,
     )
+
     HTML_PARSER_AVAILABLE = True
 except ImportError as e:
     print(f"=X HTML parser not loaded: {e}")
@@ -135,7 +142,9 @@ class Kernel:
         self.BACKUP_FILE = "kernel.py.backup"
         self.ERROR_FILE = "crash.tmp"
         self.RESTART_FILE = "restart.tmp"
-        self.MODULES_REPO = "https://raw.githubusercontent.com/hairpin01/repo-MCUB-fork/main/"
+        self.MODULES_REPO = (
+            "https://raw.githubusercontent.com/hairpin01/repo-MCUB-fork/main/"
+        )
         self.UPDATE_REPO = "https://raw.githubusercontent.com/hairpin01/MCUB-fork/main/"
         self.default_repo = self.MODULES_REPO
 
@@ -167,6 +176,7 @@ class Kernel:
         # Emoji parser
         try:
             from utils.emoji_parser import emoji_parser
+
             self.emoji_parser = emoji_parser
         except ImportError:
             self.emoji_parser = None
@@ -176,10 +186,18 @@ class Kernel:
         if self.HTML_PARSER_AVAILABLE:
             try:
                 self.parse_html = parse_html
-                self.edit_with_html = lambda event, h, **kw: edit_with_html(self, event, h, **kw)
-                self.reply_with_html = lambda event, h, **kw: reply_with_html(self, event, h, **kw)
-                self.send_with_html = lambda cid, h, **kw: send_with_html(self, self.client, cid, h, **kw)
-                self.send_file_with_html = lambda cid, h, f, **kw: send_file_with_html(self, self.client, cid, h, f, **kw)
+                self.edit_with_html = lambda event, h, **kw: edit_with_html(
+                    self, event, h, **kw
+                )
+                self.reply_with_html = lambda event, h, **kw: reply_with_html(
+                    self, event, h, **kw
+                )
+                self.send_with_html = lambda cid, h, **kw: send_with_html(
+                    self, self.client, cid, h, **kw
+                )
+                self.send_file_with_html = lambda cid, h, f, **kw: send_file_with_html(
+                    self, self.client, cid, h, f, **kw
+                )
                 self.logger.info("=> HTML parser loaded")
             except Exception as e:
                 self.logger.error(f"=X HTML parser init error: {e}")
@@ -194,7 +212,12 @@ class Kernel:
 
     def setup_directories(self) -> None:
         """Create required directories if they don't exist."""
-        for d in (self.MODULES_DIR, self.MODULES_LOADED_DIR, self.IMG_DIR, self.LOGS_DIR):
+        for d in (
+            self.MODULES_DIR,
+            self.MODULES_LOADED_DIR,
+            self.IMG_DIR,
+            self.LOGS_DIR,
+        ):
             if not os.path.exists(d):
                 os.makedirs(d)
 
@@ -269,11 +292,15 @@ class Kernel:
         """Send a message to the configured log chat."""
         return await self._log.send_log_message(text, file)
 
-    async def send_error_log(self, error_text: str, source_file: str, message_info: str = "") -> None:
+    async def send_error_log(
+        self, error_text: str, source_file: str, message_info: str = ""
+    ) -> None:
         """Format and send an error to the log chat."""
         await self._log.send_error_log(error_text, source_file, message_info)
 
-    async def handle_error(self, error: Exception, source: str = "unknown", event=None) -> None:
+    async def handle_error(
+        self, error: Exception, source: str = "unknown", event=None
+    ) -> None:
         """Log an error to file and send a report to the log chat."""
         await self._log.handle_error(error, source, event)
 
@@ -317,7 +344,9 @@ class Kernel:
         """Fetch the list of modules from a repository."""
         return await self._repo.get_modules_list(repo_url)
 
-    async def download_module_from_repo(self, repo_url: str, module_name: str) -> str | None:
+    async def download_module_from_repo(
+        self, repo_url: str, module_name: str
+    ) -> str | None:
         """Download module source from a repository."""
         return await self._repo.download_module(repo_url, module_name)
 
@@ -336,11 +365,17 @@ class Kernel:
         """Detect the registration pattern of a module."""
         return await self._loader.detect_module_type(module)
 
-    async def load_module_from_file(self, file_path: str, module_name: str, is_system: bool = False) -> tuple:
+    async def load_module_from_file(
+        self, file_path: str, module_name: str, is_system: bool = False
+    ) -> tuple:
         """Load a module from a .py file and register it."""
-        return await self._loader.load_module_from_file(file_path, module_name, is_system)
+        return await self._loader.load_module_from_file(
+            file_path, module_name, is_system
+        )
 
-    async def install_from_url(self, url: str, module_name: str | None = None, auto_dependencies: bool = True) -> tuple:
+    async def install_from_url(
+        self, url: str, module_name: str | None = None, auto_dependencies: bool = True
+    ) -> tuple:
         """Download and install a module from a URL."""
         return await self._loader.install_from_url(url, module_name, auto_dependencies)
 
@@ -356,7 +391,9 @@ class Kernel:
         """Stop loops/handlers and unregister all commands for a module."""
         self._loader.unregister_module_commands(module_name)
 
-    async def _run_module_post_load(self, module, module_name: str, is_install: bool = False) -> None:
+    async def _run_module_post_load(
+        self, module, module_name: str, is_install: bool = False
+    ) -> None:
         """Run post-load hooks: autostart loops, on_load, on_install."""
         await self._loader.run_post_load(module, module_name, is_install)
 
@@ -457,9 +494,20 @@ class Kernel:
         """Send an inline result using the bot from config."""
         return await self._inline.send_inline_from_config(chat_id, query, buttons)
 
-    async def inline_form(self, chat_id, title, fields=None, buttons=None, auto_send=True, ttl=200, **kwargs):
+    async def inline_form(
+        self,
+        chat_id,
+        title,
+        fields=None,
+        buttons=None,
+        auto_send=True,
+        ttl=200,
+        **kwargs,
+    ):
         """Create and optionally send an inline form."""
-        return await self._inline.inline_form(chat_id, title, fields, buttons, auto_send, ttl, **kwargs)
+        return await self._inline.inline_form(
+            chat_id, title, fields, buttons, auto_send, ttl, **kwargs
+        )
 
     async def init_client(self) -> bool:
         """Initialize and authorize the main Telegram client."""
@@ -534,14 +582,18 @@ class Kernel:
         if not text or not text.startswith(self.custom_prefix):
             return False
 
-        cmd = text[len(self.custom_prefix):].split()[0] if " " in text else text[len(self.custom_prefix):]
+        cmd = (
+            text[len(self.custom_prefix) :].split()[0]
+            if " " in text
+            else text[len(self.custom_prefix) :]
+        )
 
         if cmd in self.aliases:
             alias = self.aliases[cmd]
             if alias in self.command_handlers:
                 await self.command_handlers[alias](event)
                 return True
-            args = text[len(self.custom_prefix) + len(cmd):]
+            args = text[len(self.custom_prefix) + len(cmd) :]
             new_text = self.custom_prefix + alias + args
             event.text = new_text
             if hasattr(event, "message"):
@@ -575,7 +627,6 @@ class Kernel:
             return True
 
         return False
-
 
     async def get_user_info(self, user_id: int) -> str:
         """Return a formatted string with the user's name and username.
@@ -626,6 +677,7 @@ class Kernel:
                 return ""
             if not hasattr(self, "html_converter") or self.html_converter is None:
                 from utils.raw_html import RawHTMLConverter
+
                 self.html_converter = RawHTMLConverter()
             if isinstance(source, str):
                 return html.escape(source, quote=False) if source else ""
@@ -650,6 +702,7 @@ class Kernel:
         if not HTML_PARSER_AVAILABLE:
             return html.escape(text, quote=False)
         from utils.html_parser import telegram_to_html
+
         return telegram_to_html(text, entities)
 
     async def send_with_emoji(self, chat_id: int, text: str, **kwargs):
@@ -676,24 +729,63 @@ class Kernel:
                 **{k: v for k, v in kwargs.items() if k != "entities"},
             )
         except Exception as e:
-            fallback = self.emoji_parser.remove_emoji_tags(text) if self.emoji_parser else text
+            fallback = (
+                self.emoji_parser.remove_emoji_tags(text) if self.emoji_parser else text
+            )
             return await self.client.send_message(chat_id, fallback, **kwargs)
 
-    def run_panel(self):
+    def run_panel(self) -> None:
+        """Start the aiohttp web panel as a background asyncio task.
+
+        Host and port are resolved from (highest priority first):
+          1. kernel.web_host / kernel.web_port  (set by __main__.py CLI args)
+          2. MCUB_HOST / MCUB_PORT environment variables
+          3. config.json  →  web_panel_host / web_panel_port
+          4. Hard-coded defaults: 127.0.0.1 / 8080
+        """
+        import os
+
         try:
             from core.web.app import start_web_panel
-            host = "127.0.0.1" #self.config.get("web_panel_host", "127.0.0.1")
-            port = 8080 #self.config.get("web_panel_port", 8080)
+        except Exception as e:
+            self.logger.error(f"Failed to import web panel: {e}")
+            return
+
+        host = (
+            getattr(self, "web_host", None)
+            or os.environ.get("MCUB_HOST")
+            or self.config.get("web_panel_host", "127.0.0.1")
+        )
+        port = int(
+            getattr(self, "web_port", None)
+            or os.environ.get("MCUB_PORT", 0)
+            or self.config.get("web_panel_port", 8080)
+        )
+
+        try:
             asyncio.create_task(start_web_panel(self, host, port))
         except Exception as e:
             self.logger.error(f"Failed to start web panel: {e}")
 
     async def run(self) -> None:
-        """Entry point: setup, connect, load modules, and run until disconnected."""
+        """setup, connect, load modules, and run until disconnected."""
+        import os
+
+        web_enabled = getattr(self, "web_enabled", False) or (
+            os.environ.get("MCUB_WEB", "0") == "1"
+        )
+
         if not self.load_or_create_config():
-            if not self.first_time_setup():
-                self.logger.error("Setup failed")
-                return
+            if web_enabled:
+                # Setup wizard already ran in __main__.py (standalone mode).
+                # Re-load the freshly written config.json.
+                if not self.load_or_create_config():
+                    self.logger.error("Config still missing after web setup")
+                    return
+            else:
+                if not self.first_time_setup():
+                    self.logger.error("Setup failed")
+                    return
 
         self.load_repositories()
         logging.basicConfig(level=logging.INFO)
@@ -701,14 +793,15 @@ class Kernel:
 
         if not await self.init_client():
             return
-        #if self.config.get("web_panel_enabled", False):
-        self.run_panel()
+
+        # Start the web panel only when explicitly requested
+        if web_enabled or self.config.get("web_panel_enabled", False):
+            self.run_panel()
 
         # self.shell = Shell(kernel=self)
         # self.shell.attach_logging()
         # self.shell.attach_stderr()
         # asyncio.ensure_future(self.shell.run())
-
         try:
             await self.init_db()
         except ImportError:
@@ -720,6 +813,7 @@ class Kernel:
 
         if not self.config.get("inline_bot_token"):
             from core_inline.bot import InlineBot
+
             self.inline_bot = InlineBot(self)
             await self.inline_bot.setup()
 
@@ -748,15 +842,16 @@ class Kernel:
         await self.load_user_modules()
         modules_end = time.time()
 
-
-
         if hasattr(self, "bot_client") and self.bot_client:
+
             @self.bot_client.on(events.NewMessage(pattern="/"))
             async def bot_command_handler(event):
                 try:
                     await self.process_bot_command(event)
                 except Exception as e:
-                    await self.handle_error(e, source="bot_command_handler", event=event)
+                    await self.handle_error(
+                        e, source="bot_command_handler", event=event
+                    )
 
         logo = (
             f"\n _    _  ____ _   _ ____\n"
@@ -771,14 +866,13 @@ class Kernel:
         if self.error_load_modules:
             logo += f"• Module load errors: {self.error_load_modules}\n"
         print(logo)
-        self.logger.info('Start MCUB!')
+        self.logger.info("Start MCUB!")
         del logo
 
         if os.path.exists(self.RESTART_FILE):
             await self._handle_restart_notification(modules_start, modules_end)
 
         await self.client.run_until_disconnected()
-
 
     async def _handle_restart_notification(
         self, modules_start: float, modules_end: float
@@ -811,40 +905,55 @@ class Kernel:
                 else "MCUB"
             )
 
-            emoji = random.choice([
-                "ಠ_ಠ", "( ཀ ʖ̯ ཀ)", "(◕‿◕✿)", "(つ･･)つ", "༼つ◕_◕༽つ",
-                "(•_•)", "☜(ﾟヮﾟ☜)", "(☞ﾟヮﾟ)☞", "ʕ•ᴥ•ʔ", "(づ￣ ³￣)づ",
-            ])
+            emoji = random.choice(
+                [
+                    "ಠ_ಠ",
+                    "( ཀ ʖ̯ ཀ)",
+                    "(◕‿◕✿)",
+                    "(つ･･)つ",
+                    "༼つ◕_◕༽つ",
+                    "(•_•)",
+                    "☜(ﾟヮﾟ☜)",
+                    "(☞ﾟヮﾟ)☞",
+                    "ʕ•ᴥ•ʔ",
+                    "(づ￣ ³￣)づ",
+                ]
+            )
 
             em_alembic = '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>'
             em_package = '<tg-emoji emoji-id="5399898266265475100">📦</tg-emoji>'
-            em_error   = '<tg-emoji emoji-id="5208923808169222461">🥀</tg-emoji>'
+            em_error = '<tg-emoji emoji-id="5208923808169222461">🥀</tg-emoji>'
 
             total_ms = round((time.time() - restart_time) * 1000, 2)
-            mod_ms   = round((modules_end - modules_start) * 1000, 2)
+            mod_ms = round((modules_end - modules_start) * 1000, 2)
 
             lang = self.config.get("language", "ru")
-            strings = {
-                "ru": {
-                    "success": "Перезагрузка <b>успешна!</b>",
-                    "loading": "но модули ещё загружаются...",
-                    "loaded": f"Твой <b>{mcub}</b> полностью загрузился!",
-                    "errors": f"Твой <b>{mcub}</b> <b>загрузился c ошибками</b> :(",
-                },
-                "en": {
-                    "success": "Reboot <b>successful!</b>",
-                    "loading": "but modules are still loading...",
-                    "loaded": f"Your <b>{mcub}</b> is fully loaded!",
-                    "errors": f"Your <b>{mcub}</b> <b>loaded with errors</b> :(",
-                },
-            }.get(lang, {}).get
+            strings = (
+                {
+                    "ru": {
+                        "success": "Перезагрузка <b>успешна!</b>",
+                        "loading": "но модули ещё загружаются...",
+                        "loaded": f"Твой <b>{mcub}</b> полностью загрузился!",
+                        "errors": f"Твой <b>{mcub}</b> <b>загрузился c ошибками</b> :(",
+                    },
+                    "en": {
+                        "success": "Reboot <b>successful!</b>",
+                        "loading": "but modules are still loading...",
+                        "loaded": f"Your <b>{mcub}</b> is fully loaded!",
+                        "errors": f"Your <b>{mcub}</b> <b>loaded with errors</b> :(",
+                    },
+                }
+                .get(lang, {})
+                .get
+            )
 
             if not self.client.is_connected():
                 return
 
             try:
                 sms = await self.client.edit_message(
-                    chat_id, msg_id,
+                    chat_id,
+                    msg_id,
                     f"{em_alembic} {strings('success')} {emoji}\n"
                     f"<i>{strings('loading')}</i> <b>KLB:</b> <code>{total_ms} ms</code>",
                     parse_mode="html",

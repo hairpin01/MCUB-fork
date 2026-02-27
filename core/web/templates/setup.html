@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCUB – Setup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hubballi&family=JetBrains+Mono:wght@300;400;600&display=swap">
+<style>
+:root {
+  --accent:      #7c3aed;
+  --accent-glow: #5b21b6;
+  --accent-soft: rgba(124,58,237,.18);
+
+  /* dark (default) */
+  --bg:       #0d0d12;
+  --bg2:      #13131a;
+  --card:     rgba(20,18,30,.72);
+  --border:   rgba(124,58,237,.22);
+  --text:     #e8e6f0;
+  --text-dim: #6b6880;
+  --input-bg: rgba(10,8,18,.7);
+  --glow-col: #4c1d95;
+  --err-bg:   rgba(127,29,29,.35);
+  --err-border:rgba(239,68,68,.4);
+  --err-text: #fca5a5;
+}
+[data-theme="light"] {
+  --bg:       #f0eefa;
+  --bg2:      #e8e2f7;
+  --card:     rgba(255,255,255,.85);
+  --border:   rgba(124,58,237,.3);
+  --text:     #1e1a2e;
+  --text-dim: #8b80a8;
+  --input-bg: rgba(255,255,255,.9);
+  --glow-col: #c4b5fd;
+  --err-bg:   rgba(254,226,226,.8);
+  --err-border:rgba(239,68,68,.5);
+  --err-text: #b91c1c;
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+
+html,body{
+  width:100%;height:100%;
+  background:var(--bg);
+  color:var(--text);
+  font-family:Hubballi,sans-serif;
+  transition:background .4s,color .4s;
+}
+
+.blob{
+  position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(ellipse 60% 50% at 50% 60%, var(--glow-col) 0%, transparent 70%);
+  opacity:.55;
+  transition:background .5s;
+}
+
+.lights{
+  position:fixed;inset:0;z-index:1;pointer-events:none;overflow:hidden;
+  animation:fi .8s ease forwards .5s;opacity:0;
+}
+.light{
+  position:absolute;width:3px;background:#fff;
+  top:100vh;left:0;right:0;bottom:0;margin:auto;
+  filter:blur(4px);
+}
+.x1{filter:blur(3px);animation:floatUp 4s infinite linear;}
+.x2{filter:blur(3px);animation:floatUp 7s infinite linear;transform:scale(1.6);left:15%;}
+.x3{filter:blur(3px);animation:floatUp 2.5s infinite linear;transform:scale(.5);left:-15%;}
+.x4{filter:blur(5px);animation:floatUp 4.5s infinite linear;transform:scale(1.2);left:-34%;}
+.x5{filter:blur(6px);animation:floatUp 8s infinite linear;transform:scale(2.2);left:-57%;}
+.x6{filter:blur(4px);animation:floatUp 3s infinite linear;transform:scale(.8);left:-81%;}
+.x7{filter:blur(3px);animation:floatUp 5.3s infinite linear;transform:scale(3.2);left:37%;}
+.x8{filter:blur(6px);animation:floatUp 4.7s infinite linear;transform:scale(1.7);left:62%;}
+.x9{filter:blur(3px);animation:floatUp 4.1s infinite linear;transform:scale(.9);left:85%;}
+
+@keyframes floatUp{
+  0%{top:100vh;opacity:0;}25%{opacity:1;}50%{top:0;opacity:.8;}75%{opacity:1;}100%{top:-100vh;opacity:0;}
+}
+@keyframes fi{to{opacity:1;}}
+
+@keyframes slideOut {
+  to {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+}
+#sky{position:fixed;inset:0;overflow:hidden;z-index:1;pointer-events:none;}
+#shootingstars{
+  position:fixed;overflow:hidden;
+  width:150vh;height:100vw;
+  transform:translateX(calc(50vw - 50%)) translateY(calc(50vh - 50%)) rotate(120deg);
+}
+.wish{
+  height:2px;width:100px;top:300px;
+  position:absolute;opacity:0;
+  background:linear-gradient(-45deg,#fff,rgba(0,0,255,0));
+  filter:drop-shadow(0 0 6px #fff);
+}
+.theme-toggle{
+  position:fixed;top:18px;right:18px;z-index:999;
+  width:38px;height:38px;
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:50%;
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.1rem;
+  backdrop-filter:blur(8px);
+  transition:border-color .2s,box-shadow .2s,background .3s;
+  user-select:none;
+}
+.theme-toggle:hover{
+  border-color:var(--accent);
+  box-shadow:0 0 14px -4px var(--accent);
+}
+
+#toasts{
+  position:fixed;top:18px;left:18px;z-index:9999;
+  display:flex;flex-direction:column;gap:8px;
+  max-width:340px;
+}
+.toast{
+  display:flex;align-items:flex-start;gap:10px;
+  padding:11px 14px;
+  background:var(--err-bg);
+  border:1px solid var(--err-border);
+  border-radius:7px;
+  backdrop-filter:blur(10px);
+  font-family:'JetBrains Mono',monospace;
+  font-size:.76rem;
+  color:var(--err-text);
+  line-height:1.45;
+  animation:slideIn .25s ease;
+  cursor:pointer;
+}
+.toast.ok{
+  background:rgba(5,46,22,.4);
+  border-color:rgba(34,197,94,.4);
+  color:#86efac;
+}
+.toast-icon{flex-shrink:0;margin-top:1px;}
+.toast-close{margin-left:auto;flex-shrink:0;opacity:.5;padding-left:6px;}
+@keyframes slideIn{from{opacity:0;transform:translateX(-18px);}to{opacity:1;transform:none;}}
+@keyframes slideOut{to{opacity:0;transform:translateX(-18px);}}
+
+.page{
+  min-height:100vh;
+  display:flex;flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  padding:30px 16px 40px;
+  position:relative;z-index:2;
+}
+
+.logo-row{
+  display:flex;align-items:center;gap:14px;
+  margin-bottom:6px;
+}
+.logo-img{
+    height:2rem;
+    width:auto;
+    object-fit:contain;
+}
+.logo-text{
+  font-family:'JetBrains Mono',monospace;
+  font-size:2rem;font-weight:600;
+  letter-spacing:.18em;
+  color:var(--accent);
+  text-shadow:0 0 24px var(--accent);
+}
+.subtitle{
+  font-size:.88rem;color:var(--text-dim);
+  text-align:center;margin-bottom:18px;
+}
+
+.steps-bar{
+  display:flex;align-items:center;
+  justify-content:center;
+  margin-bottom:18px;
+}
+.step{display:flex;flex-direction:column;align-items:center;gap:3px;opacity:.35;transition:opacity .25s;}
+.step.active,.step.done{opacity:1;}
+.snum{
+  width:28px;height:28px;border-radius:50%;
+  border:1px solid var(--text-dim);color:var(--text-dim);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'JetBrains Mono',monospace;font-weight:600;font-size:.78em;
+  transition:background .25s,border-color .25s,color .25s;
+}
+.step.active .snum{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 0 12px var(--accent);}
+.step.done   .snum{background:#16a34a;border-color:#16a34a;color:#fff;}
+.slabel{font-size:.65em;color:var(--text-dim);white-space:nowrap;}
+.step.active .slabel,.step.done .slabel{color:var(--text);}
+.sconn{flex:1;height:1px;background:var(--border);min-width:28px;margin-bottom:14px;}
+
+.wizard-card{
+  width:100%;max-width:460px;
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:28px 30px;
+  backdrop-filter:blur(12px);
+  box-shadow:0 8px 48px -12px rgba(124,58,237,.25);
+  transition:background .3s,border-color .3s;
+}
+.wstep h2{font-size:1.25rem;color:var(--text);margin-bottom:5px;}
+.hint{font-size:.83rem;color:var(--text-dim);line-height:1.55;margin-bottom:18px;}
+.hint a{color:var(--accent);text-decoration:none;}
+.hint.small{font-size:.76rem;}
+
+label{
+  display:flex;flex-direction:column;gap:5px;
+  margin-bottom:13px;
+  font-family:'JetBrains Mono',monospace;
+  font-size:.75rem;color:var(--text-dim);letter-spacing:.04em;
+}
+input[type=text],input[type=tel],input[type=password]{
+  width:100%;padding:9px 12px;
+  background:var(--input-bg);
+  border:1px solid var(--border);
+  border-radius:5px;
+  color:var(--text);
+  font-family:'JetBrains Mono',monospace;font-size:.9rem;
+  outline:none;
+  transition:border-color .2s,box-shadow .2s,background .3s;
+}
+input:focus{
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-soft);
+}
+input::placeholder{color:var(--text-dim);opacity:.55;}
+
+.btn-primary{
+  width:100%;padding:10px;
+  background:transparent;
+  color:var(--accent);
+  border:1px solid var(--accent);
+  border-radius:6px;
+  font-family:'JetBrains Mono',monospace;font-size:.88rem;
+  cursor:pointer;
+  transition:background .2s,color .2s,box-shadow .2s;
+  margin-top:4px;
+}
+.btn-primary:hover:not(:disabled){
+  background:var(--accent);color:#fff;
+  box-shadow:0 0 20px -6px var(--accent);
+}
+.btn-primary:disabled{opacity:.35;cursor:not-allowed;}
+
+.btn-ghost{
+  padding:10px 16px;
+  background:transparent;color:var(--text-dim);
+  border:1px solid var(--border);border-radius:6px;
+  font-family:'JetBrains Mono',monospace;font-size:.85rem;
+  cursor:pointer;transition:border-color .2s,color .2s;
+}
+.btn-ghost:hover{border-color:var(--text-dim);color:var(--text);}
+
+.btn-row{display:flex;gap:8px;margin-top:4px;}
+.btn-row .btn-primary{flex:1;}
+
+.done-icon{font-size:2.8rem;text-align:center;margin-bottom:6px;}
+.spinner{
+  width:30px;height:30px;
+  border:2px solid var(--border);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .7s linear infinite;margin:14px auto;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+.reset-bar{
+  font-family:'JetBrains Mono',monospace;
+  font-size:.68rem;color:var(--text-dim);
+  text-align:center;margin-bottom:12px;
+}
+.reset-link{color:var(--text-dim);text-decoration:none;transition:color .2s;}
+.reset-link:hover{color:var(--accent);}
+
+.setup-footer{
+  margin-top:18px;
+  font-size:.72rem;color:var(--text-dim);
+  font-family:Hubballi;
+}
+
+.hidden{display:none!important;}
+
+@media(max-width:520px){
+  .wizard-card{padding:20px 16px;}
+  .slabel{display:none;}
+  .sconn{min-width:16px;}
+}
+</style>
+</head>
+<body>
+
+<!-- bg -->
+<div class="blob"></div>
+<div class="lights">
+  <div class="light x1"></div><div class="light x2"></div><div class="light x3"></div>
+  <div class="light x4"></div><div class="light x5"></div><div class="light x6"></div>
+  <div class="light x7"></div><div class="light x8"></div><div class="light x9"></div>
+</div>
+<div id="sky"><div id="shootingstars">
+  <div class="wish"></div><div class="wish"></div><div class="wish"></div>
+  <div class="wish"></div><div class="wish"></div><div class="wish"></div>
+  <div class="wish"></div><div class="wish"></div><div class="wish"></div>
+  <div class="wish"></div>
+</div></div>
+
+<!-- theme toggle -->
+<button class="theme-toggle" id="themeToggle" title="Toggle theme">🌙</button>
+
+<!-- toast container -->
+<div id="toasts"></div>
+
+<!-- main -->
+<div class="page">
+
+  <div class="logo-row">
+    <img src="/static/img/0.png" alt="MCUB" class="logo-img">
+  </div>
+  <p class="subtitle">First-time setup</p>
+
+  <div class="steps-bar">
+    <div class="step active" id="dot-1"><span class="snum">1</span><span class="slabel">Credentials</span></div>
+    <div class="sconn"></div>
+    <div class="step" id="dot-2"><span class="snum">2</span><span class="slabel">Code</span></div>
+    <div class="sconn"></div>
+    <div class="step" id="dot-3"><span class="snum">3</span><span class="slabel">2FA</span></div>
+    <div class="sconn"></div>
+    <div class="step" id="dot-4"><span class="snum">4</span><span class="slabel">Done</span></div>
+  </div>
+
+  <div class="wizard-card">
+
+    <!-- Step 1 -->
+    <div class="wstep" id="s1">
+      <h2>API Credentials</h2>
+      <p class="hint">
+        Open <a href="https://my.telegram.org" target="_blank">my.telegram.org</a>
+        → API development tools → create app → paste values below.
+      </p>
+      <label>API ID
+        <input id="f_api_id" type="text" inputmode="numeric" placeholder="12345678" autocomplete="off">
+      </label>
+      <label>API Hash
+        <input id="f_api_hash" type="text" placeholder="0123456789abcdef…" autocomplete="off">
+      </label>
+      <label>Phone number
+        <input id="f_phone" type="tel" placeholder="+1234567890" autocomplete="tel">
+      </label>
+      <button class="btn-primary" id="btn1" onclick="step1()">Send code →</button>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="wstep hidden" id="s2">
+      <h2>Telegram Code</h2>
+      <p class="hint">A code was sent to your Telegram account. Enter it below.</p>
+      <label>Code
+        <input id="f_code" type="text" inputmode="numeric" placeholder="12345" autocomplete="one-time-code" maxlength="10">
+      </label>
+      <div class="btn-row">
+        <button class="btn-ghost" onclick="show(1)">← Back</button>
+        <button class="btn-primary" id="btn2" onclick="step2()">Verify →</button>
+      </div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="wstep hidden" id="s3">
+      <h2>Two-Factor Auth</h2>
+      <p class="hint">Your account has 2FA enabled. Enter your cloud password.</p>
+      <label>Cloud password
+        <input id="f_pass" type="password" placeholder="••••••••" autocomplete="current-password">
+      </label>
+      <div class="btn-row">
+        <button class="btn-ghost" onclick="show(2)">← Back</button>
+        <button class="btn-primary" id="btn3" onclick="step3()">Confirm →</button>
+      </div>
+    </div>
+
+    <!-- Step 4 -->
+    <div class="wstep hidden" id="s4">
+      <div class="done-icon">✅</div>
+      <h2>Setup Complete!</h2>
+      <p class="hint">Kernel is starting — redirecting to dashboard…</p>
+      <div class="spinner"></div>
+      <p class="hint small" id="poll-status">Waiting for kernel…</p>
+    </div>
+
+  </div>
+
+  <div class="reset-bar">
+    Already configured? <a href="/setup/reset" class="reset-link">Reset & reconfigure →</a>
+  </div>
+
+  <footer class="setup-footer">MCUB Kernel – setup wizard</footer>
+</div>
+
+<script>
+
+const toggleBtn = document.getElementById('themeToggle');
+let dark = localStorage.getItem('mcub_theme') !== 'light';
+
+function applyTheme() {
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  toggleBtn.textContent = dark ? '🌙' : '☀️';
+  localStorage.setItem('mcub_theme', dark ? 'dark' : 'light');
+}
+applyTheme();
+toggleBtn.onclick = () => { dark = !dark; applyTheme(); };
+
+function dismiss(el) {
+  el.style.animation = 'slideOut .25s ease forwards';
+  setTimeout(() => el.remove(), 250);
+}
+
+function toast(msg, type = 'err') {
+  const MAX_TOASTS = 5;
+  const wrap = document.getElementById('toasts');
+  const el = document.createElement('div');
+  el.className = 'toast' + (type === 'ok' ? ' ok' : '');
+  el.innerHTML = `<span class="toast-icon">${type === 'ok' ? '✓' : '⚠'}</span><span>${msg}</span><span class="toast-close">✕</span>`;
+  wrap.prepend(el);
+
+  while (wrap.children.length > MAX_TOASTS) {
+    wrap.lastElementChild.remove();
+  }
+
+  setTimeout(() => dismiss(el), 6000);
+}
+
+function show(n) {
+  document.querySelectorAll('.wstep').forEach((el, i) => el.classList.toggle('hidden', i + 1 !== n));
+  document.querySelectorAll('.step').forEach((el, i) => {
+    el.classList.toggle('active', i + 1 === n);
+    el.classList.toggle('done',   i + 1 <  n);
+  });
+  const inp = document.querySelector(`#s${n} input`);
+  if (inp) setTimeout(() => inp.focus(), 80);
+}
+
+function btnLoading(id, on) {
+  const b = document.getElementById(id);
+  if (!b) return;
+  if (on) { b._label = b.textContent; b.textContent = '⏳ Please wait…'; b.disabled = true; }
+  else    { b.textContent = b._label || b.textContent; b.disabled = false; }
+}
+
+async function post(url, body) {
+  const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  return { ok: r.ok, status: r.status, ...(await r.json()) };
+}
+
+async function step1() {
+  const api_id   = document.getElementById('f_api_id').value.trim();
+  const api_hash = document.getElementById('f_api_hash').value.trim();
+  const phone    = document.getElementById('f_phone').value.trim();
+  if (!api_id || !api_hash || !phone) { toast('All fields are required.'); return; }
+  btnLoading('btn1', true);
+  try {
+    const r = await post('/api/setup/send_code', { api_id, api_hash, phone });
+    if (!r.ok) { toast(r.error || 'Unknown error'); return; }
+    show(2);
+  } catch(e) { toast('Network error: ' + e.message); }
+  finally { btnLoading('btn1', false); }
+}
+
+async function step2() {
+  const code = document.getElementById('f_code').value.trim();
+  if (!code) { toast('Please enter the code.'); return; }
+  btnLoading('btn2', true);
+  try {
+    const r = await post('/api/setup/verify_code', { code });
+    if (r.requires_2fa) { show(3); return; }
+    if (!r.ok) { toast(r.error || 'Unknown error'); return; }
+    show(4); pollKernel();
+  } catch(e) { toast('Network error: ' + e.message); }
+  finally { btnLoading('btn2', false); }
+}
+
+async function step3() {
+  const password = document.getElementById('f_pass').value;
+  if (!password) { toast('Please enter your password.'); return; }
+  btnLoading('btn3', true);
+  try {
+    const r = await post('/api/setup/verify_code', { password });
+    if (!r.ok) { toast(r.error || 'Unknown error'); return; }
+    show(4); pollKernel();
+  } catch(e) { toast('Network error: ' + e.message); }
+  finally { btnLoading('btn3', false); }
+}
+
+function pollKernel() {
+  const st = document.getElementById('poll-status');
+  let n = 0;
+  const t = setInterval(async () => {
+    n++;
+    try {
+      const r = await fetch('/status');
+      if (r.ok) { clearInterval(t); st.textContent='✅ Kernel ready! Redirecting…'; setTimeout(()=>location.href='/',1200); return; }
+    } catch(_) {}
+    st.textContent = `Waiting for kernel… (${n})`;
+  }, 2000);
+}
+
+document.getElementById('f_phone').addEventListener('keydown',    e => e.key==='Enter' && step1());
+document.getElementById('f_code').addEventListener('keydown',     e => e.key==='Enter' && step2());
+document.getElementById('f_pass').addEventListener('keydown',     e => e.key==='Enter' && step3());
+document.getElementById('f_api_hash').addEventListener('keydown', e => e.key==='Enter' && document.getElementById('f_phone').focus());
+document.getElementById('toasts').addEventListener('click', (e) => {
+  const closeBtn = e.target.closest('.toast-close');
+  if (closeBtn) {
+    const toastEl = closeBtn.closest('.toast');
+    if (toastEl) dismiss(toastEl);
+  }
+});
+
+function rand(a,b){return Math.random()*(b-a)+a;}
+document.querySelectorAll('.wish').forEach(el => {
+  function shoot() {
+    el.style.top = rand(10,80)+'px';
+    el.style.left = rand(10,100)+'%';
+    el.style.width = rand(40,200)+'px';
+    el.style.opacity = 0;
+    el.style.animation = 'none';
+    el.offsetWidth;
+    el.style.animation = `shoot ${rand(1,3)}s ease-in-out forwards`;
+    el.addEventListener('animationend', () => setTimeout(shoot, rand(500,5000)), {once:true});
+  }
+  setTimeout(shoot, rand(0,5000));
+});
+</script>
+
+<style>
+@keyframes shoot{0%{opacity:0;transform:translateX(0);}10%{opacity:1;}80%{opacity:.6;}100%{opacity:0;transform:translateX(-800px);}}
+</style>
+</body>
+</html>

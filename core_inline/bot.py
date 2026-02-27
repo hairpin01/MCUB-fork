@@ -339,13 +339,13 @@ delete_mcub_bot - удалить из чата бота
         try:
             registered_count = 0
             for cmd, (pattern, handler) in self.kernel.bot_command_handlers.items():
-                async def command_wrapper(event, handler=handler, cmd=cmd):
+                async def command_wrapper(event, handler=handler, pattern=pattern):
                     try:
-                        self.kernel.logger.debug(f"Выполнение бот-команды: {cmd}")
+                        self.kernel.logger.debug(f"Выполнение бот-команды: {pattern}")
                         await handler(event)
                     except Exception as e:
                         await self.kernel.handle_error(
-                            e, source=f"bot_command:{cmd}", event=event
+                            e, source=f"bot_command:{pattern}", event=event
                         )
 
                 self.bot_client.add_event_handler(

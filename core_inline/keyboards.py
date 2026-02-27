@@ -41,11 +41,21 @@ class InlineKeyboards:
             await event.edit("❌ Нечего отменять")
 
     async def handle_catalog_page(self, event):
+        try:
+            data_str = event.data.decode("utf-8")
+        except Exception:
+            await event.answer("⚠️ Ошибка данных", alert=True)
+            return
 
-        page = int(event.data.decode().split("_")[1])
+        try:
+            page = int(data_str.split("_")[1])
+        except (IndexError, ValueError):
+            await event.answer("⚠️ Неверный формат данных", alert=True)
+            return
+
         await event.answer()
 
-        if not self.kernel.catalog_cache:
+        if not hasattr(self.kernel, "catalog_cache") or not self.kernel.catalog_cache:
             await event.edit("❌ Каталог не загружен")
             return
 

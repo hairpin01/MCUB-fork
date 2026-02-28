@@ -875,8 +875,7 @@ class Kernel:
             )
             return await self.client.send_message(chat_id, fallback, **kwargs)
 
-
-    async def run_panel(self) -> None:
+   async def run_panel(self) -> None:
         """Start web panel. If config.json is missing, run setup wizard first."""
         host = (
             getattr(self, "web_host", None)
@@ -908,6 +907,7 @@ class Kernel:
             except Exception as e:
                 self.logger.error(f"Setup wizard failed: {e}")
                 return
+
 
         try:
             from core.web.app import start_web_panel

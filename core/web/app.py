@@ -6,6 +6,7 @@ from aiohttp import web
 
 from .routes import setup_routes
 from .plugin_manager import PluginManager
+from .auth import AuthMiddleware
 
 
 def create_app(kernel=None, setup_event=None) -> web.Application:
@@ -31,6 +32,9 @@ def create_app(kernel=None, setup_event=None) -> web.Application:
     if kernel is not None:
         plugin_manager.load_plugins()
     app["plugin_manager"] = plugin_manager
+
+    auth_middleware = AuthMiddleware(app)
+    app["auth_middleware"] = auth_middleware
 
     return app
 

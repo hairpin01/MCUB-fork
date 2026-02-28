@@ -6,6 +6,7 @@ import asyncio
 import json
 import logging
 import os
+import secrets
 import time
 import traceback
 
@@ -31,6 +32,10 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_get("/api/bot/status",         api_bot_status)
     app.router.add_post("/api/setup/complete",    api_setup_complete)
     app.router.add_post("/api/bot/auto_create",   api_bot_auto_create)
+    # Auth management
+    app.router.add_get("/api/auth/status",         api_auth_status)
+    app.router.add_post("/api/auth/generate_token", api_auth_generate_token)
+    # Static files
     app.router.add_static("/static", path="core/web/static", name="static")
     # serve logo from core/web/img/
     import os
@@ -43,6 +48,17 @@ async def index(request: web.Request) -> web.Response:
 
 
 async def status(request: web.Request) -> web.Response:
+    auth_middleware = request.app.get("auth_middleware")
+    
+    if auth_middleware and auth_middleware.auth_enabled:
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return web.json_response({"error": "Unauthorized"}, status=401)
+        token = auth_header[7:]
+        from .auth import hash_token
+        if hash_token(token) != auth_middleware.token_hash:
+            return web.json_response({"error": "Unauthorized"}, status=401)
+    
     kernel = request.app.get("kernel")
     if kernel is None or not _is_configured(kernel):
         return web.json_response({"error": "Kernel not available"}, status=503)
@@ -553,3 +569,58 @@ def _fmt_uptime(start_ts) -> str:
     h, rem = divmod(int(time.time() - start_ts), 3600)
     m, s   = divmod(rem, 60)
     return f"{h:02}:{m:02}:{s:02}"
+
+
+async def api_auth_status(request: web.Request) -> web.Response:
+    """Check if authentication is enabled."""
+    auth_middleware = request.app.get("auth_middleware")
+    if auth_middleware is None:
+        return web.json_response({
+            "enabled": False,
+            "message": "Auth not configured"
+        })
+    return web.json_response({
+        "enabled": auth_middleware.auth_enabled
+    })
+
+
+async def api_auth_generate_token(request: web.Request) -> web.Response:
+    """Generate a new auth token (requires existing auth or setup mode)."""
+    auth_middleware = request.app.get("auth_middleware")
+    
+    is_setup = not _is_configured(request.app.get("kernel"))
+    has_valid_auth = False
+    
+    if auth_middleware:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+            from .auth import hash_token
+            provided_hash = hash_token(token)
+            has_valid_auth = provided_hash == auth_middleware.token_hash
+    
+    if not is_setup and not has_valid_auth:
+        return web.json_response({"error": "Unauthorized"}, status=401)
+    
+    new_token = secrets.token_urlsafe(32)
+    
+    config_path = "config.json"
+    config = {}
+    if os.path.exists(config_path):
+        with open(config_path, "r") as f:
+            config = json.load(f)
+    
+    config["web_panel_token"] = new_token
+    
+    with open(config_path, "w") as f:
+        json.dump(config, f, indent=2)
+    
+    if auth_middleware:
+        auth_middleware.token_hash = hash_token(new_token)
+        auth_middleware.auth_enabled = True
+    
+    return web.json_response({
+        "success": True,
+        "token": new_token,
+        "message": "New token generated and saved to config.json"
+    })

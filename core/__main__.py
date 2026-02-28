@@ -101,44 +101,6 @@ def _parse_args():
     return p.parse_args()
 
 
-async def _run_setup_wizard(host: str, port: int) -> None:
-    import asyncio
-    from aiohttp import web
-    from core.web.app import create_app
-
-    done = asyncio.Event()
-    app  = create_app(kernel=None, setup_event=done)
-
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, host, port)
-    await site.start()
-
-    print(f"  🌐  Setup wizard  →  http://{host}:{port}/", flush=True)
-    try:
-        await done.wait()
-    finally:
-        await runner.cleanup()
-
-    print("\nStarting kernel…\n", flush=True)
-
-
-def _patch_kernel(kernel, *, web_enabled: bool, host: str, port: int) -> None:
-    import asyncio as _asyncio
-
-    def _run_panel_patched():
-        if not web_enabled:
-            kernel.logger.debug("Web panel disabled (--no-web)")
-            return
-        try:
-            from core.web.app import start_web_panel
-            _asyncio.create_task(start_web_panel(kernel, host, port))
-            kernel.logger.info(f"Web panel → http://{host}:{port}")
-        except Exception as exc:
-            kernel.logger.error(f"Web panel start failed: {exc}")
-
-    kernel.run_panel = _run_panel_patched
-
 
 async def _main() -> None:
     import asyncio
@@ -188,15 +150,14 @@ async def _main() -> None:
 
     print(f"=> Kernel Load: kernel.{selected_core}()", flush=True)
 
-    if web_enabled and not os.path.exists("config.json"):
-        await _run_setup_wizard(args.host, args.port)
-
     from importlib import import_module
     Kernel = import_module(f"core.kernel.{selected_core}").Kernel
 
     kernel = Kernel()
-    kernel.CORE_NAME = selected_core
-    _patch_kernel(kernel, web_enabled=web_enabled, host=args.host, port=args.port)
+    kernel.CORE_NAME   = selected_core
+    kernel.web_enabled = web_enabled
+    kernel.web_host    = args.host
+    kernel.web_port    = args.port
     await kernel.run()
 
 

@@ -611,13 +611,20 @@ class ModuleLoader:
         url: str,
         module_name: str | None = None,
         auto_dependencies: bool = True,
+        expected_hash: str | None = None,
+        verify_signature: bool = False,
     ) -> Tuple[bool, str]:
         """Download a module from *url* and load it.
+
+        SECURITY WARNING: Loading code from remote URLs without verification
+        can lead to RCE (Remote Code Execution) attacks.
 
         Args:
             url: Direct URL to the .py file.
             module_name: Override the module name (default: derived from URL).
             auto_dependencies: Parse and install ``# requires:`` packages.
+            expected_hash: SHA256 hash to verify module code (optional, recommended).
+            verify_signature: If True, require signature verification (not implemented).
 
         Returns:
             (success, message)
@@ -625,9 +632,27 @@ class ModuleLoader:
         import os
         import tempfile
         import aiohttp
+        import hashlib
+        from urllib.parse import urlparse
         k = self.k
 
+        TRUSTED_DOMAINS = [
+            "raw.githubusercontent.com",
+            "github.com",
+            "raw.githubusercontentusercontent.com",
+        ]
+
         try:
+            parsed = urlparse(url)
+            domain = parsed.netloc.lower()
+            
+            if not any(trusted in domain for trusted in TRUSTED_DOMAINS):
+                k.logger.warning(
+                    f"⚠️ SECURITY: Installing from untrusted domain: {domain}\n"
+                    f"   URL: {url}\n"
+                    f"   Trusted domains: {', '.join(TRUSTED_DOMAINS)}"
+                )
+
             if not module_name:
                 module_name = (
                     os.path.basename(url)[:-3]
@@ -644,32 +669,48 @@ class ModuleLoader:
                         return False, f"Download failed (HTTP {resp.status})"
                     code = await resp.text()
 
-            ok, msg = await k.version_manager.check_module_compatibility(code)
-            if not ok:
-                return False, f"Kernel version mismatch: {msg}"
+                ok, msg = await k.version_manager.check_module_compatibility(code)
+                if not ok:
+                    return False, f"Kernel version mismatch: {msg}"
 
-            with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".py", delete=False, encoding="utf-8"
-            ) as f:
-                f.write(code)
-                tmp = f.name
+                if expected_hash:
+                    actual_hash = hashlib.sha256(code.encode('utf-8')).hexdigest()
+                    if actual_hash != expected_hash:
+                        k.logger.error(
+                            f"⚠️ SECURITY: Hash mismatch for module '{module_name}'!\n"
+                            f"   Expected: {expected_hash}\n"
+                            f"   Actual:   {actual_hash}"
+                        )
+                        return False, "Security error: code hash verification failed"
 
-            try:
-                if auto_dependencies:
-                    await self.pre_install_requirements(code, module_name)
+                if verify_signature:
+                    k.logger.warning(
+                        "⚠️ SECURITY: Signature verification not implemented. "
+                        "Module will be loaded without signature check."
+                    )
 
-                success, message = await self.load_module_from_file(tmp, module_name, False)
-                if success:
-                    target = os.path.join(k.MODULES_LOADED_DIR, f"{module_name}.py")
-                    os.makedirs(os.path.dirname(target), exist_ok=True)
-                    with open(target, "w", encoding="utf-8") as f:
-                        f.write(code)
-                    return True, f"Module '{module_name}' installed from URL"
+                with tempfile.NamedTemporaryFile(
+                    mode="w", suffix=".py", delete=False, encoding="utf-8"
+                ) as f:
+                    f.write(code)
+                    tmp = f.name
 
-                return False, f"Load error: {message}"
-            finally:
-                if os.path.exists(tmp):
-                    os.remove(tmp)
+                try:
+                    if auto_dependencies:
+                        await self.pre_install_requirements(code, module_name)
+
+                    success, message = await self.load_module_from_file(tmp, module_name, False)
+                    if success:
+                        target = os.path.join(k.MODULES_LOADED_DIR, f"{module_name}.py")
+                        os.makedirs(os.path.dirname(target), exist_ok=True)
+                        with open(target, "w", encoding="utf-8") as f:
+                            f.write(code)
+                        return True, f"Module '{module_name}' installed from URL"
+
+                    return False, f"Load error: {message}"
+                finally:
+                    if os.path.exists(tmp):
+                        os.remove(tmp)
 
         except Exception as e:
             return False, f"Install from URL failed: {e}"

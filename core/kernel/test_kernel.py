@@ -171,6 +171,8 @@ class TestKernel:
         - Интегрироваться с pytest
     """
     
+    Kernel = None  # Alias for compatibility
+    
     def __init__(self, module_path: Optional[str] = None):
         self.client = MockTelegramClient()
         self.kernel = None

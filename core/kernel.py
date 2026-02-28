@@ -1037,17 +1037,6 @@ class Kernel:
             restart_time = float(data[2])
             thread_id = int(data[3]) if len(data) >= 4 and data[3] else None
 
-            lang = self.config.get("language", "ru")
-            loading_text = "загружается..." if lang == "ru" else "loading..."
-            em_alembic = '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>'
-
-            await self.client.edit_message(
-                chat_id,
-                msg_id,
-                f"{em_alembic} {loading_text}",
-                parse_mode="html",
-            )
-
             os.remove(self.RESTART_FILE)
 
             me = await self.client.get_me()
@@ -1106,9 +1095,11 @@ class Kernel:
                 sms = await self.client.edit_message(
                     chat_id,
                     msg_id,
-                    f"{em_alembic} {loading_text} <b>KLB:</b> <code>{total_ms} ms</code>",
+                    f"{em_alembic} {strings('success')} {emoji}\n"
+                    f"<i>{strings('loading')}</i> <b>KLB:</b> <code>{total_ms} ms</code>",
                     parse_mode="html",
                 )
+                await asyncio.sleep(1)
 
                 if not self.error_load_modules:
                     await sms.edit(

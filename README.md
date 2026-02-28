@@ -124,6 +124,9 @@ python3 -m core
 | `--proxy-web` | Enable web proxy at specified path (e.g., `/web` or `/`) | - | `MCUB_PROXY_WEB=/web` |
 | `--port` | Web panel port | `8080` | `MCUB_PORT=8080` |
 | `--host` | Web panel host | `127.0.0.1` | `MCUB_HOST=127.0.0.1` |
+| `--core` | Kernel core to use for this launch (e.g., `standard`, `zen`) | - | - |
+| `--set-default-core` | Save a core as the default for future launches, then exit | - | - |
+| `--clear-default-core` | Remove the saved default core, then exit | - | - |
 
 #### Examples
 ```bash
@@ -141,6 +144,35 @@ python3 -m core --host 0.0.0.0
 
 # Using environment variables
 MCUB_NO_WEB=1 MCUB_PORT=9000 python3 -m core
+
+# Run with the zen kernel core
+python3 -m core --core zen
+
+# Set zen as the default core for future launches
+python3 -m core --set-default-core zen
+
+# Clear the saved default core
+python3 -m core --clear-default-core
+```
+
+### Zen Kernel
+
+> [!TIP]
+> The **zen** kernel core is a more stable alternative to `standard`. It receives updates less frequently, which means fewer regressions and a smoother experience for everyday use.
+
+To enable the zen kernel, rename the bundled file:
+```bash
+mv core/kernel/zen.py.off core/kernel/zen.py
+```
+
+Then launch with:
+```bash
+# One-time launch
+python3 -m core --core zen
+
+# Or set as default so you never have to specify it again
+python3 -m core --set-default-core zen
+python3 -m core
 ```
 
 ### Commands
@@ -276,6 +308,9 @@ python3 -m core
 | `--proxy-web` | Включить прокси веба по указанному пути (например, `/web` или `/`) | - | `MCUB_PROXY_WEB=/web` |
 | `--port` | Порт веб-панели | `8080` | `MCUB_PORT=8080` |
 | `--host` | Хост веб-панели | `127.0.0.1` | `MCUB_HOST=127.0.0.1` |
+| `--core` | Ядро для этого запуска (например, `standard`, `zen`) | - | - |
+| `--set-default-core` | Сохранить ядро как дефолтное для будущих запусков и выйти | - | - |
+| `--clear-default-core` | Удалить сохранённое дефолтное ядро и выйти | - | - |
 
 #### Примеры
 ```bash
@@ -293,6 +328,35 @@ python3 -m core --host 0.0.0.0
 
 # Использование переменных окружения
 MCUB_NO_WEB=1 MCUB_PORT=9000 python3 -m core
+
+# Запуск с zen ядром
+python3 -m core --core zen
+
+# Сохранить zen как дефолтное ядро
+python3 -m core --set-default-core zen
+
+# Сбросить дефолтное ядро
+python3 -m core --clear-default-core
+```
+
+### Zen Ядро
+
+> [!TIP]
+> **zen** — более стабильная альтернатива ядру `standard`. Обновляется реже, что означает меньше регрессий и плавнее работу в повседневном использовании.
+
+Чтобы включить zen ядро, переименуйте файл:
+```bash
+mv core/kernel/zen.py.off core/kernel/zen.py
+```
+
+Затем запустите:
+```bash
+# Разовый запуск
+python3 -m core --core zen
+
+# Или сохранить как дефолтное, чтобы больше не указывать вручную
+python3 -m core --set-default-core zen
+python3 -m core
 ```
 
 ### Команды
@@ -428,6 +492,9 @@ python3 -m core
 | `--proxy-web` | Увімкнути проксі вебу за вказаним шляхом (наприклад, `/web` або `/`) | - | `MCUB_PROXY_WEB=/web` |
 | `--port` | Порт веб-панелі | `8080` | `MCUB_PORT=8080` |
 | `--host` | Хост веб-панелі | `127.0.0.1` | `MCUB_HOST=127.0.0.1` |
+| `--core` | Ядро для цього запуску (наприклад, `standard`, `zen`) | - | - |
+| `--set-default-core` | Зберегти ядро як типове для майбутніх запусків і вийти | - | - |
+| `--clear-default-core` | Видалити збережене типове ядро і вийти | - | - |
 
 #### Приклади
 ```bash
@@ -445,6 +512,35 @@ python3 -m core --host 0.0.0.0
 
 # Використання змінних середовища
 MCUB_NO_WEB=1 MCUB_PORT=9000 python3 -m core
+
+# Запуск із zen ядром
+python3 -m core --core zen
+
+# Зберегти zen як типове ядро
+python3 -m core --set-default-core zen
+
+# Скинути типове ядро
+python3 -m core --clear-default-core
+```
+
+### Zen Ядро
+
+> [!TIP]
+> **zen** — стабільніша альтернатива ядру `standard`. Оновлюється рідше, що означає менше регресій і плавнішу роботу щодня.
+
+Щоб увімкнути zen ядро, перейменуйте файл:
+```bash
+mv core/kernel/zen.py.off core/kernel/zen.py
+```
+
+Потім запустіть:
+```bash
+# Одноразовий запуск
+python3 -m core --core zen
+
+# Або збережіть як типове, щоб більше не вказувати вручну
+python3 -m core --set-default-core zen
+python3 -m core
 ```
 
 ### Команди
@@ -580,6 +676,9 @@ python3 -m core
 | `--proxy-web` | Activar proxy web en la ruta especificada (ej. `/web` o `/`) | - | `MCUB_PROXY_WEB=/web` |
 | `--port` | Puerto del panel web | `8080` | `MCUB_PORT=8080` |
 | `--host` | Host del panel web | `127.0.0.1` | `MCUB_HOST=127.0.0.1` |
+| `--core` | Núcleo del kernel para este lanzamiento (ej. `standard`, `zen`) | - | - |
+| `--set-default-core` | Guardar un núcleo como predeterminado para futuros lanzamientos y salir | - | - |
+| `--clear-default-core` | Eliminar el núcleo predeterminado guardado y salir | - | - |
 
 #### Ejemplos
 ```bash
@@ -597,6 +696,35 @@ python3 -m core --host 0.0.0.0
 
 # Usando variables de entorno
 MCUB_NO_WEB=1 MCUB_PORT=9000 python3 -m core
+
+# Ejecutar con el núcleo zen
+python3 -m core --core zen
+
+# Establecer zen como núcleo predeterminado
+python3 -m core --set-default-core zen
+
+# Limpiar el núcleo predeterminado
+python3 -m core --clear-default-core
+```
+
+### Núcleo Zen
+
+> [!TIP]
+> El núcleo **zen** es una alternativa más estable a `standard`. Se actualiza con menos frecuencia, lo que significa menos regresiones y una experiencia más fluida.
+
+Para activar el núcleo zen, renombra el archivo:
+```bash
+mv core/kernel/zen.py.off core/kernel/zen.py
+```
+
+Luego ejecuta:
+```bash
+# Lanzamiento único
+python3 -m core --core zen
+
+# O establecer como predeterminado para no tener que especificarlo más
+python3 -m core --set-default-core zen
+python3 -m core
 ```
 
 ### Comandos
@@ -732,6 +860,9 @@ python3 -m core
 | `--proxy-web` | Webproxy unter dem angegebenen Pfad aktivieren (z.B. `/web` oder `/`) | - | `MCUB_PROXY_WEB=/web` |
 | `--port` | Webpanel-Port | `8080` | `MCUB_PORT=8080` |
 | `--host` | Webpanel-Host | `127.0.0.1` | `MCUB_HOST=127.0.0.1` |
+| `--core` | Kernel-Core für diesen Start (z.B. `standard`, `zen`) | - | - |
+| `--set-default-core` | Core als Standard für zukünftige Starts speichern und beenden | - | - |
+| `--clear-default-core` | Gespeicherten Standard-Core entfernen und beenden | - | - |
 
 #### Beispiele
 ```bash
@@ -749,6 +880,35 @@ python3 -m core --host 0.0.0.0
 
 # Umgebungsvariablen verwenden
 MCUB_NO_WEB=1 MCUB_PORT=9000 python3 -m core
+
+# Mit dem zen-Kernel-Core starten
+python3 -m core --core zen
+
+# Zen als Standard-Core festlegen
+python3 -m core --set-default-core zen
+
+# Standard-Core zurücksetzen
+python3 -m core --clear-default-core
+```
+
+### Zen-Kernel
+
+> [!TIP]
+> Der **zen**-Kernel ist eine stabilere Alternative zu `standard`. Er wird seltener aktualisiert, was weniger Regressionen und eine reibungslosere Nutzung bedeutet.
+
+Um den zen-Kernel zu aktivieren, die Datei umbenennen:
+```bash
+mv core/kernel/zen.py.off core/kernel/zen.py
+```
+
+Dann starten:
+```bash
+# Einmaliger Start
+python3 -m core --core zen
+
+# Oder als Standard festlegen, damit man ihn nicht mehr angeben muss
+python3 -m core --set-default-core zen
+python3 -m core
 ```
 
 ### Befehle
@@ -884,6 +1044,9 @@ python3 -m core
 | `--proxy-web` | 在指定路径启用网页代理（例如 `/web` 或 `/`） | - | `MCUB_PROXY_WEB=/web` |
 | `--port` | 网页面板端口 | `8080` | `MCUB_PORT=8080` |
 | `--host` | 网页面板主机 | `127.0.0.1` | `MCUB_HOST=127.0.0.1` |
+| `--core` | 本次启动使用的内核（例如 `standard`、`zen`） | - | - |
+| `--set-default-core` | 将内核保存为未来启动的默认值后退出 | - | - |
+| `--clear-default-core` | 删除已保存的默认内核后退出 | - | - |
 
 #### 示例
 ```bash
@@ -901,6 +1064,35 @@ python3 -m core --host 0.0.0.0
 
 # 使用环境变量
 MCUB_NO_WEB=1 MCUB_PORT=9000 python3 -m core
+
+# 使用 zen 内核运行
+python3 -m core --core zen
+
+# 将 zen 设置为默认内核
+python3 -m core --set-default-core zen
+
+# 清除默认内核
+python3 -m core --clear-default-core
+```
+
+### Zen 内核
+
+> [!TIP]
+> **zen** 内核是 `standard` 的更稳定替代方案。它更新频率更低，意味着更少的回归问题和更流畅的日常使用体验。
+
+启用 zen 内核，请重命名文件：
+```bash
+mv core/kernel/zen.py.off core/kernel/zen.py
+```
+
+然后启动：
+```bash
+# 单次启动
+python3 -m core --core zen
+
+# 或设为默认，以后无需再次指定
+python3 -m core --set-default-core zen
+python3 -m core
 ```
 
 ### 命令

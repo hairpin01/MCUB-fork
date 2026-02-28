@@ -7,9 +7,11 @@ import subprocess
 import asyncio
 import json
 import html
+import aiohttp
 from datetime import datetime
 from telethon import TelegramClient, events, Button
 from telethon.tl.functions.messages import CreateChatRequest, ExportChatInviteRequest, AddChatUserRequest
+from telethon.tl.functions.channels import EditPhotoRequest
 from telethon.tl.types import InputUserSelf
 from telethon.tl.types import PeerChat
 
@@ -151,6 +153,18 @@ def register(kernel):
             kernel.config["log_chat_id"] = kernel.log_chat_id
 
             kernel.logger.debug(f"Chat created. ID: {kernel.log_chat_id}")
+
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get("https://x0.at/QHok.jpg") as resp:
+                        if resp.status == 200:
+                            photo_data = await resp.read()
+                            input_file = await kernel.client.upload_file(photo_data)
+                            await kernel.client(EditPhotoRequest(channel=chat_id, photo=input_file))
+            except Exception as e:
+                kernel.logger.warning(
+                    f"{kernel.Colors.YELLOW}⚠️ Не удалось установить аватарку: {e}{kernel.Colors.RESET}"
+                )
 
             try:
                 invite = await kernel.client(

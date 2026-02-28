@@ -2,6 +2,7 @@
 # version: 1.2.0
 # description: Bot command handlers with localization
 
+import asyncio
 from telethon import events, Button
 
 
@@ -16,33 +17,27 @@ def register(kernel):
             "developers": "Developers:",
             "fork": "fork:",
             "original": "Original:",
-            "github_repo": "🔭 Репозиторий",
-            "original_mcub": "🚂 Оригинальный MCUBFB",
-            "support": "🤖 Поддержка",
+            "github_repo": "Репозиторий",
+            "original_mcub": "Оригинальный MCUBFB",
+            "support": "Поддержка",
             "profile": "Profile:",
             "name": "Name:",
             "prefix": "Prefix:",
             "kernel_version": "Kernel version:",
-            "profile_error": "❌ Не удалось получить информацию о профиле.",
-            "goodbye": "👋 Прощайте!",
+            "profile_error": "Не удалось получить информацию о профиле.",
+            "goodbye": "Прощайте!",
             "bot_removed": "Бот удален из чата",
-            "delete_error": "❌ Не удалось удалить бота из чата.",
+            "delete_error": "Не удалось удалить бота из чата.",
             "hello_installed": "Привет, MCUB установлен!",
-            "hello_installed_en": "Hello, MCUB installed!",
             "mini_guide": "Мини гайд:",
-            "main_commands": "Main commands:",
             "prefix_cmd": "Префикс:",
-            "prefix_cmd_en": "Prefix:",
             "logs": "Логи:",
             "info": "Инфо:",
             "ping": "Пинг:",
             "module_management": "Управление модулями:",
-            "module_management_en": "Module management:",
             "load": "Загрузить:",
-            "load_en": "Load:",
             "remove": "Удалить:",
             "list_modules": "Список:",
-            "list_modules_en": "List repo modules:",
             "choose_language": "Choose a language / Выберите язык",
             "setup_completed": "Настройка завершена!",
             "callback_error": "Ошибка Callback:",
@@ -50,43 +45,43 @@ def register(kernel):
             "start_init_error": "Ошибка start_init:",
             "start_error": "Ошибка /start:",
             "init_error": "Ошибка /init:",
-            "remove_en": "Remove:",
-            "remove_ru": "Удалить:",
+            "backup_setup": "Auto-backup setup / Настройка авто-бэкапа",
+            "backup_enable": "Enable auto-backup? / Включить авто-бэкап?",
+            "backup_interval": "Select interval: / Выберите интервал:",
+            "backup_created": "MCUB-backup group created! / Группа MCUB-backup создана!",
+            "backup_skip": "Skip / Пропустить",
+            "backup_yes": "Yes / Да",
+            "backup_no": "No / Нет",
+            "backup_enabled": "Auto-backup enabled / Авто-бэкап включен",
+            "backup_disabled": "Auto-backup disabled / Авто-бэкап выключен",
         },
         "en": {
             "hello": "Hello! I am a bot from MCUB-fork",
             "developers": "Developers:",
             "fork": "fork:",
             "original": "Original:",
-            "github_repo": "🔭 Repository",
-            "original_mcub": "🚂 Original MCUBFB",
-            "support": "🤖 Support",
+            "github_repo": "Repository",
+            "original_mcub": "Original MCUBFB",
+            "support": "Support",
             "profile": "Profile:",
             "name": "Name:",
             "prefix": "Prefix:",
             "kernel_version": "Kernel version:",
-            "profile_error": "❌ Failed to get profile information.",
-            "goodbye": "👋 Goodbye!",
+            "profile_error": "Failed to get profile information.",
+            "goodbye": "Goodbye!",
             "bot_removed": "Bot removed from chat",
-            "delete_error": "❌ Failed to remove bot from chat.",
+            "delete_error": "Failed to remove bot from chat.",
             "hello_installed": "Hello, MCUB installed!",
-            "hello_installed_en": "Hello, MCUB installed!",
             "mini_guide": "Mini guide:",
             "main_commands": "Main commands:",
             "prefix_cmd": "Prefix:",
-            "prefix_cmd_en": "Prefix:",
             "logs": "Logs:",
             "info": "Info:",
             "ping": "Ping:",
             "module_management": "Module management:",
-            "module_management_en": "Module management:",
             "load": "Load:",
-            "load_en": "Load:",
             "remove": "Remove:",
-            "remove_en": "Remove:",
-            "remove_ru": "Удалить:",
-            "list_modules": "List:",
-            "list_modules_en": "List repo modules:",
+            "list_modules": "List repo modules:",
             "choose_language": "Choose a language / Выберите язык",
             "setup_completed": "Setup completed!",
             "callback_error": "Callback error:",
@@ -94,6 +89,15 @@ def register(kernel):
             "start_init_error": "Error start_init:",
             "start_error": "Error /start:",
             "init_error": "Error /init:",
+            "backup_setup": "Auto-backup setup / Настройка авто-бэкапа",
+            "backup_enable": "Enable auto-backup? / Включить авто-бэкап?",
+            "backup_interval": "Select interval: / Выберите интервал:",
+            "backup_created": "MCUB-backup group created! / Группа MCUB-backup создана!",
+            "backup_skip": "Skip / Пропустить",
+            "backup_yes": "Yes / Да",
+            "backup_no": "No / Нет",
+            "backup_enabled": "Auto-backup enabled / Авто-бэкап включен",
+            "backup_disabled": "Auto-backup disabled / Авто-бэкап выключен",
         },
     }
 
@@ -208,8 +212,8 @@ def register(kernel):
                 message=lang_strings["choose_language"],
                 buttons=[
                     [
-                        Button.inline("RU 🇷🇺", b"start_lang_ru"),
-                        Button.inline("EN 🇺🇸", b"start_lang_en"),
+                        Button.inline("RU", b"start_lang_ru"),
+                        Button.inline("EN", b"start_lang_en"),
                     ]
                 ],
             )
@@ -260,50 +264,161 @@ def register(kernel):
             kernel.config["language"] = lang
             kernel.save_config()
 
+            strings_current = strings.get(lang, strings["en"])
+
             if lang == "ru":
                 text = (
-                    f"<b>{lang_strings['hello_installed']}</b>\n\n"
-                    f"<b>{lang_strings['mini_guide']}</b>\n"
-                    f"<blockquote>👉 {lang_strings['prefix_cmd']} <code>.prefix {'{новый префикс'}</code>\n"
-                    f"👉 {lang_strings['logs']} <code>.logs</code>\n"
-                    f"👉 {lang_strings['info']} <code>.info</code>\n"
-                    f"👉 {lang_strings['ping']} <code>.ping</code></blockquote>\n\n"
-                    f"<b>{lang_strings['module_management']}</b>\n"
-                    f"<blockquote>👉 {lang_strings['load']} <code>.iload</code>\n"
-                    f"👉 {lang_strings['remove_ru']} <code>.um [название]</code>\n"
-                    f"👉 {lang_strings['list_modules']} <code>.man</code></blockquote>\n\n"
+                    f"<b>{strings_current['hello_installed']}</b>\n\n"
+                    f"<b>{strings_current['mini_guide']}</b>\n"
+                    f"<blockquote>{strings_current['prefix_cmd']} <code>.prefix {{новый префикс}}</code>\n"
+                    f"{strings_current['logs']} <code>.logs</code>\n"
+                    f"{strings_current['info']} <code>.info</code>\n"
+                    f"{strings_current['ping']} <code>.ping</code></blockquote>\n\n"
+                    f"<b>{strings_current['module_management']}</b>\n"
+                    f"<blockquote>{strings_current['load']} <code>.iload</code>\n"
+                    f"{strings_current['remove']} <code>.um [название]</code>\n"
+                    f"{strings_current['list_modules']} <code>.man</code></blockquote>\n\n"
                 )
             else:
                 text = (
-                    f"<b>{lang_strings['hello_installed_en']}</b>\n\n"
-                    f"<b>{lang_strings['main_commands']}</b>\n"
-                    f"<blockquote>👉 {lang_strings['prefix_cmd_en']} <code>.prefix {'{you prefix'}</code>\n"
-                    f"👉 {lang_strings['logs']} <code>.logs</code>\n"
-                    f"👉 {lang_strings['info']} <code>.info</code>\n"
-                    f"👉 {lang_strings['ping']} <code>.ping</code></blockquote>\n\n"
-                    f"<b>{lang_strings['module_management_en']}</b>\n"
-                    f"<blockquote>👉 {lang_strings['load_en']} <code>.iload</code>\n"
-                    f"👉 {lang_strings['remove_en']} <code>.um [name]</code>\n"
-                    f"👉 {lang_strings['list_modules_en']} <code>.man</code></blockquote>\n\n"
+                    f"<b>{strings_current['hello_installed']}</b>\n\n"
+                    f"<b>{strings_current['main_commands']}</b>\n"
+                    f"<blockquote>{strings_current['prefix_cmd']} <code>.prefix {{your prefix}}</code>\n"
+                    f"{strings_current['logs']} <code>.logs</code>\n"
+                    f"{strings_current['info']} <code>.info</code>\n"
+                    f"{strings_current['ping']} <code>.ping</code></blockquote>\n\n"
+                    f"<b>{strings_current['module_management']}</b>\n"
+                    f"<blockquote>{strings_current['load']} <code>.iload</code>\n"
+                    f"{strings_current['remove']} <code>.um [name]</code>\n"
+                    f"{strings_current['list_modules']} <code>.man</code></blockquote>\n\n"
                 )
 
-            msg_id = await kernel.db_get("kernel", f"lang_select_{event.sender_id}")
-            if msg_id:
-                try:
-                    await event.edit(
-                        text,
-                        parse_mode="html",
-                        buttons=[
-                            Button.url(
-                                lang_strings["github_repo"],
-                                "https://github.com/hairpin01/MCUB-fork",
-                            )
-                        ],
+            await event.edit(
+                text,
+                parse_mode="html",
+                buttons=[
+                    Button.url(
+                        strings_current["github_repo"],
+                        "https://github.com/hairpin01/MCUB-fork",
                     )
-                except Exception:
-                    await event.respond(text, parse_mode="html")
+                ],
+            )
 
-            await event.answer(lang_strings["setup_completed"])
+            await event.answer(strings_current["setup_completed"], alert=True)
+
+            await asyncio.sleep(1)
+
+            backup_buttons = [
+                [
+                    Button.inline("Yes / Да", b"backup_setup_yes"),
+                    Button.inline("No / Нет", b"backup_setup_no"),
+                ]
+            ]
+
+            await bot_client.send_message(
+                event.sender_id,
+                f"<b>{strings_current['backup_setup']}</b>\n\n{strings_current['backup_enable']}",
+                parse_mode="html",
+                buttons=backup_buttons,
+            )
+
+        except Exception as e:
+            kernel.logger.error(f"{lang_strings['callback_error']}: {e}")
+
+    @bot_client.on(events.CallbackQuery(pattern=r"backup_setup_(yes|no)"))
+    async def backup_enable_handler(event):
+        try:
+            enable = event.pattern_match.group(1).decode() == "yes" if isinstance(event.pattern_match.group(1), bytes) else event.pattern_match.group(1) == "yes"
+            
+            strings_current = strings.get(kernel.config.get("language", "en"), strings["en"])
+
+            if enable:
+                interval_buttons = [
+                    [
+                        Button.inline("2h", b"backup_interval:2"),
+                        Button.inline("4h", b"backup_interval:4"),
+                        Button.inline("6h", b"backup_interval:6"),
+                    ],
+                    [
+                        Button.inline("12h", b"backup_interval:12"),
+                        Button.inline("24h", b"backup_interval:24"),
+                    ],
+                    [
+                        Button.inline(strings_current["backup_skip"], b"backup_interval_skip"),
+                    ]
+                ]
+
+                await event.edit(
+                    f"<b>{strings_current['backup_setup']}</b>\n\n{strings_current['backup_interval']}",
+                    parse_mode="html",
+                    buttons=interval_buttons,
+                )
+            else:
+                await event.edit(
+                    f"<b>{strings_current['backup_setup']}</b>\n\n{strings_current['backup_disabled']}",
+                    parse_mode="html",
+                )
+                await event.answer(strings_current["backup_disabled"], alert=True)
+
+        except Exception as e:
+            kernel.logger.error(f"{lang_strings['callback_error']}: {e}")
+
+    @bot_client.on(events.CallbackQuery(pattern=r"backup_interval:(\d+)"))
+    async def backup_interval_handler(event):
+        try:
+            interval = int(event.pattern_match.group(1).decode() if isinstance(event.pattern_match.group(1), bytes) else event.pattern_match.group(1))
+            
+            strings_current = strings.get(kernel.config.get("language", "en"), strings["en"])
+
+            import importlib.util
+            spec = importlib.util.find_spec("modules.userbot-backup")
+            if spec:
+                userbot_backup = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(userbot_backup)
+                BackupModule = userbot_backup.BackupModule
+                backup_module = BackupModule()
+                backup_module.kernel = kernel
+                backup_module.client = kernel.client
+                backup_module.config = {
+                    "backup_chat_id": None,
+                    "backup_interval_hours": interval,
+                    "last_backup_time": None,
+                    "backup_count": 0,
+                    "enable_auto_backup": True,
+                }
+
+                await kernel.save_module_config("modules.userbot-backup", backup_module.config)
+
+                chat = await backup_module.ensure_backup_chat()
+                
+                if chat:
+                    await event.edit(
+                        f"<b>{strings_current['backup_setup']}</b>\n\n{strings_current['backup_created']}\n\nInterval: {interval}h",
+                        parse_mode="html",
+                    )
+                else:
+                    await event.edit(
+                        f"<b>{strings_current['backup_setup']}</b>\n\n{strings_current['backup_enabled']} ({interval}h)",
+                        parse_mode="html",
+                    )
+                
+                await event.answer(f"{strings_current['backup_enabled']} ({interval}h)", alert=True)
+            else:
+                await event.edit("Backup module not found")
+
+        except Exception as e:
+            kernel.logger.error(f"{lang_strings['callback_error']}: {e}")
+
+    @bot_client.on(events.CallbackQuery(pattern=r"backup_interval_skip"))
+    async def backup_skip_handler(event):
+        try:
+            strings_current = strings.get(kernel.config.get("language", "en"), strings["en"])
+            
+            await event.edit(
+                f"<b>{strings_current['backup_setup']}</b>\n\n{strings_current['backup_disabled']}",
+                parse_mode="html",
+            )
+            await event.answer(strings_current["backup_disabled"], alert=True)
 
         except Exception as e:
             kernel.logger.error(f"{lang_strings['callback_error']}: {e}")

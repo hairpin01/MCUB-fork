@@ -18,7 +18,6 @@ import html
 import traceback
 import inspect
 import importlib.util
-import regex
 from collections import OrderedDict, defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path

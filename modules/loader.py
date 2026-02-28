@@ -832,7 +832,7 @@ def register(kernel):
                 os.remove(file_path)
 
     @kernel.register.command('dlm')
-    # <args> <URL/модуль> - args = -s отправить файлом, -list список модулей
+    # <args> <URL/модуль> -s отправить файлом, -list список модулей
     async def download_module_handler(event):
         args = event.text.split()
 
@@ -1485,3 +1485,4 @@ def register(kernel):
             await edit_with_emoji(event, f'{CUSTOM_EMOJI["success"]} <b>{message}</b>')
         else:
             await edit_with_emoji(event, f'{CUSTOM_EMOJI["warning"]} <b>{message}</b>')
+

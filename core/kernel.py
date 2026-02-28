@@ -18,6 +18,7 @@ import html
 import traceback
 import inspect
 import importlib.util
+import regex
 from collections import OrderedDict, defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -94,6 +95,53 @@ except ImportError:
 
 class Kernel:
     """MCUB kernel — orchestrates clients, modules, commands and scheduler."""
+
+    MAX_PATTERN_LENGTH = 256
+    PATTERN_TIMEOUT = 0.1
+
+    @staticmethod
+    def _validate_regex_pattern(pattern: str) -> tuple[bool, str]:
+        """Validate regex pattern for ReDoS protection."""
+        if len(pattern) > Kernel.MAX_PATTERN_LENGTH:
+            return False, f"Pattern too long (max {Kernel.MAX_PATTERN_LENGTH})"
+        
+        dangerous_patterns = [
+            r"\(\.\*\)\+",
+            r"\(\.\+\)\+",
+            r"\(\.\*\)\*",
+            r"\(\.\+\)\*",
+            r"\(\.\{\d+,\}\)\+",
+            r".*.*.*",
+            r"\(\?\=\.\*\)",
+        ]
+        
+        for danger in dangerous_patterns:
+            if re.search(danger, pattern):
+                return False, "Potentially dangerous regex pattern detected"
+        
+        try:
+            test_pattern = re.compile(pattern)
+            test_string = "x" * 1000
+            import signal
+            
+            def timeout_handler(signum, frame):
+                raise TimeoutError()
+            
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(1)
+            
+            try:
+                test_pattern.match(test_string)
+            finally:
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, old_handler)
+                
+        except TimeoutError:
+            return False, "Pattern too complex (timeout)"
+        except re.error as e:
+            return False, f"Invalid regex: {e}"
+        
+        return True, "OK"
 
     def __init__(self) -> None:
         self.VERSION = VERSION
@@ -502,6 +550,11 @@ class Kernel:
             func: Handler function; if None, returns a decorator.
         """
         cmd = pattern.lstrip("^\\" + self.custom_prefix).rstrip("$")
+        
+        if cmd != pattern:
+            valid, error = self._validate_regex_pattern(cmd)
+            if not valid:
+                raise ValueError(f"Invalid command pattern: {error}")
 
         if self.current_loading_module is None:
             raise ValueError("No loading module context set")

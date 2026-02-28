@@ -1,5 +1,8 @@
 import json
+import ipaddress
+import socket
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 import aiohttp
 
@@ -10,12 +13,58 @@ if TYPE_CHECKING:
 class RepositoryManager:
     """Manages module repository URLs: loading, saving, querying."""
 
+    ALLOWED_PROTOCOLS = {"https"}
+    BLOCKED_HOSTS = {
+        "localhost",
+        "localhost.localdomain",
+        "0.0.0.0",
+        "127.0.0.1",
+        "::1",
+    }
+
     def __init__(self, kernel: "Kernel") -> None:
         self.k = kernel
+
+    def _validate_url(self, url: str) -> tuple[bool, str]:
+        """Validate URL for SSRF protection."""
+        try:
+            parsed = urlparse(url)
+            
+            if parsed.scheme not in self.ALLOWED_PROTOCOLS:
+                return False, f"Only {', '.join(self.ALLOWED_PROTOCOLS)} protocols allowed"
+            
+            host = parsed.hostname
+            if not host:
+                return False, "Invalid URL: no hostname"
+            
+            host_lower = host.lower()
+            if host_lower in self.BLOCKED_HOSTS:
+                return False, "Internal hosts not allowed"
+            
+            try:
+                ip = ipaddress.ip_address(host)
+                if ip.is_private or ip.is_loopback or ip.is_reserved:
+                    return False, "Private/reserved IP addresses not allowed"
+            except ValueError:
+                pass
+            
+            return True, "OK"
+        except Exception as e:
+            return False, f"URL validation error: {e}"
 
     def load(self) -> None:
         """Load repository list from config into kernel.repositories."""
         self.k.repositories = self.k.config.get("repositories", [])
+        
+        validated_repos = []
+        for repo in self.k.repositories:
+            valid, _ = self._validate_url(repo)
+            if valid:
+                validated_repos.append(repo)
+            else:
+                self.k.logger.warning(f"Repository blocked by SSRF protection: {repo}")
+        
+        self.k.repositories = validated_repos
         self.k.logger.debug(f"Loaded repositories: {self.k.repositories}")
 
     async def save(self) -> None:
@@ -32,6 +81,10 @@ class RepositoryManager:
         Returns:
             (success, message)
         """
+        valid, error_msg = self._validate_url(url)
+        if not valid:
+            return False, f"URL blocked: {error_msg}"
+        
         k = self.k
         if url in k.repositories or url == k.default_repo:
             return False, "Repository already exists"

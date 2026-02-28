@@ -1,6 +1,7 @@
 # author: @Hairpin00
 # version: 1.0.1
 # description: logs send bot
+import io
 import os
 import time
 import subprocess
@@ -159,7 +160,21 @@ def register(kernel):
                     async with session.get("https://x0.at/QHok.jpg") as resp:
                         if resp.status == 200:
                             photo_data = await resp.read()
-                            input_file = await kernel.client.upload_file(photo_data)
+
+                            content_type = resp.headers.get("Content-Type", "image/jpeg")
+                            ext_map = {
+                                "image/jpeg": "photo.jpg",
+                                "image/jpg":  "photo.jpg",
+                                "image/png":  "photo.png",
+                                "image/webp": "photo.jpg",
+                                "image/gif":  "photo.gif",
+                            }
+                            filename = ext_map.get(content_type.split(";")[0].strip(), "photo.jpg")
+
+                            buf = io.BytesIO(photo_data)
+                            buf.name = filename
+
+                            input_file = await kernel.client.upload_file(buf)
                             await kernel.client(EditPhotoRequest(channel=chat_id, photo=input_file))
             except Exception as e:
                 kernel.logger.warning(
@@ -390,5 +405,3 @@ def register(kernel):
         await send_startup_message()
 
     asyncio.create_task(initialize())
-
-

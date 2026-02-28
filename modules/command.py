@@ -7,13 +7,7 @@ from telethon import events, Button
 
 
 def register(kernel):
-    bot_client = getattr(kernel, "bot_client", None)
-
-    if bot_client is None:
-        kernel.logger.error(
-            "command.py: bot_client is None — inline bot token missing or bot not started yet"
-        )
-        return
+    bot_client = kernel.bot_client
 
     language = kernel.config.get("language", "en")
 

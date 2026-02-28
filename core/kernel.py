@@ -978,6 +978,7 @@ class Kernel:
                 except Exception as edit_err:
                     self.logger.error(f"Could not edit error message: {edit_err}")
 
+        restart_time = None
         if os.path.exists(self.RESTART_FILE):
             try:
                 with open(self.RESTART_FILE, "r") as f:
@@ -985,15 +986,33 @@ class Kernel:
                 if len(data) >= 2:
                     restart_chat_id = int(data[0])
                     restart_msg_id = int(data[1])
+                    if len(data) >= 3:
+                        restart_time = float(data[2])
                     
                     em_alembic = '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>'
                     lang = self.config.get("language", "ru")
-                    loading_text = "загружается..." if lang == "ru" else "loading..."
+                    strings = (
+                        {
+                            "ru": {
+                                "success": "Перезагрузка <b>успешна!</b>",
+                                "loading": "но модули ещё загружаются...",
+                            },
+                            "en": {
+                                "success": "Reboot <b>successful!</b>",
+                                "loading": "but modules are still loading...",
+                            },
+                        }
+                        .get(lang, {})
+                        .get
+                    )
+                    emoji = "(*.*)"
+                    total_ms = round((time.time() - restart_time) * 1000, 2) if restart_time else 0
                     
                     await self.client.edit_message(
                         restart_chat_id,
                         restart_msg_id,
-                        f"{em_alembic} {loading_text}",
+                        f"{em_alembic} {strings('success')} {emoji}\n"
+                        f"<i>{strings('loading')}</i> <b>KLB:</b> <code>{total_ms} ms</code>",
                         parse_mode="html",
                     )
             except Exception:

@@ -109,12 +109,7 @@ async def run(shell, args: list) -> None:
             _usage_err(out, "uninstall", "base uninstall <package>")
             return
         pkg = args[1]
-        # Confirm prompt via shell input (best-effort)
-        confirmed = await _confirm(shell, f"Remove package '{pkg}'? [y/N] ")
-        if confirmed:
-            await pm.uninstall(pkg, output=out)
-        else:
-            out(f"\n  {_GR}Cancelled.{_R}\n")
+        await pm.uninstall(pkg, output=out)
 
     elif op in ("search", "s", "find"):
         if len(args) < 2:
@@ -157,9 +152,11 @@ async def _confirm(shell, prompt: str) -> bool:
         # Use shell's line editor if available
         if hasattr(shell, "_history"):
             from ..shell import _LineEditor
+            # Plain prompt without ANSI codes
+            plain_prompt = f"  {prompt}"
             editor = _LineEditor(
-                f"\033[93m  {prompt}\033[0m",
-                len(prompt) + 2,
+                plain_prompt,
+                len(plain_prompt),
                 [],
             )
             ans = await loop.run_in_executor(None, editor.read)
@@ -167,5 +164,5 @@ async def _confirm(shell, prompt: str) -> bool:
     except Exception:
         pass
     # Fallback: just return True (non-interactive)
-    shell.output(f"\033[90m  (auto-confirmed)\033[0m")
+    shell.output(f"\033[90m  (auto-confirmed)\033[0m\n")
     return True

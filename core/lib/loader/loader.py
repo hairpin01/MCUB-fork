@@ -293,9 +293,9 @@ class ModuleLoader:
                     return "method"
 
         if callable(module.register):
-            params = list(inspect.signature(module.register).parameters)
+            params = list(inspect.signature(module.register).parameters.values())
             if len(params) == 1:
-                return "new" if params[0] == "kernel" else "old"
+                return "new" if params[0].name == "kernel" else "old"
 
         return "none"
 
@@ -661,6 +661,7 @@ class ModuleLoader:
                 success, message = await self.load_module_from_file(tmp, module_name, False)
                 if success:
                     target = os.path.join(k.MODULES_LOADED_DIR, f"{module_name}.py")
+                    os.makedirs(os.path.dirname(target), exist_ok=True)
                     with open(target, "w", encoding="utf-8") as f:
                         f.write(code)
                     return True, f"Module '{module_name}' installed from URL"
@@ -707,18 +708,18 @@ class ModuleLoader:
                 except Exception as e:
                     k.logger.error(f"Error removing event handler in {module_name}: {e}")
 
-            uninstall = getattr(reg, "__uninstall__", None)
-            if uninstall is not None:
-                try:
-                    result = uninstall(k)
-                    if asyncio.iscoroutine(result):
-                        loop = asyncio.get_event_loop()
-                        if loop.is_running():
-                            asyncio.ensure_future(result)
-                        else:
-                            loop.run_until_complete(result)
-                except Exception as e:
-                    k.logger.error(f"Error in uninstall callback of {module_name}: {e}")
+        uninstall = getattr(reg, "__uninstall__", None)
+        if uninstall is not None:
+            try:
+                result = uninstall(k)
+                if asyncio.iscoroutine(result):
+                    try:
+                        loop = asyncio.get_running_loop()
+                        asyncio.ensure_future(result)
+                    except RuntimeError:
+                        asyncio.run(result)
+            except Exception as e:
+                k.logger.error(f"Error in uninstall callback of {module_name}: {e}")
 
         to_remove = [cmd for cmd, owner in k.command_owners.items() if owner == module_name]
         for cmd in to_remove:
@@ -830,9 +831,9 @@ class ModuleLoader:
         k = self.k
 
         if module_name in k.system_modules:
-            file_path = f"modules/{module_name}.py"
+            file_path = os.path.join(k.MODULES_DIR, f"{module_name}.py")
         elif module_name in k.loaded_modules:
-            file_path = f"modules_loaded/{module_name}.py"
+            file_path = os.path.join(k.MODULES_LOADED_DIR, f"{module_name}.py")
         else:
             return "🫨 No description"
 

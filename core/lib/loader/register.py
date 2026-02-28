@@ -294,7 +294,7 @@ class Register:
         def decorator(func: Callable) -> Callable:
             import re
             escaped_prefix = re.escape(self.kernel.custom_prefix)
-            cmd = pattern.lstrip("^\\" + escaped_prefix)
+            cmd = re.sub(rf"^(\^|\\)?{escaped_prefix}", "", pattern)
             if cmd.endswith("$"):
                 cmd = cmd[:-1]
 

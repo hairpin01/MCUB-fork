@@ -276,3 +276,6 @@ async def run_module_test(module_handler: Callable, test_cases: list) -> dict:
             results["failed"] += 1
             
     return results
+
+
+Kernel = TestKernel

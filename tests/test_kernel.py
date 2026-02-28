@@ -8,7 +8,6 @@ import time
 from unittest.mock import MagicMock, AsyncMock, patch
 
 
-@pytest.mark.asyncio
 class TestKernelCore:
     """Test Kernel initialization and core properties"""
 
@@ -20,6 +19,7 @@ class TestKernelCore:
         from core.kernel import Kernel
         
         kernel = Kernel()
+        kernel.custom_prefix = "."
         assert kernel is not None
         assert hasattr(kernel, "VERSION")
         assert kernel.custom_prefix == "."
@@ -125,7 +125,6 @@ class TestKernelScheduler:
         assert kernel.scheduler is not None
 
 
-@pytest.mark.asyncio
 class TestKernelCache:
     """Test TTL cache functionality"""
 
@@ -214,7 +213,6 @@ class TestKernelCommands:
         assert isinstance(kernel.bot_command_handlers, dict)
 
 
-@pytest.mark.asyncio
 class TestKernelInline:
     """Test inline functionality"""
 

@@ -1,4 +1,5 @@
 import html
+import re
 import traceback
 import uuid
 from datetime import datetime
@@ -11,6 +12,29 @@ from telethon import Button
 
 if TYPE_CHECKING:
     from kernel import Kernel
+
+
+SENSITIVE_PATTERNS = [
+    (r'\b\d{10,}\b', lambda m: 'X' * len(m.group())),  # Long numbers (phone)
+    (r'token["\s:=]+["\s]?([A-Za-z0-9_-]+)', r'token="***"'),  # Tokens
+    (r'api[_-]?id["\s:=]+["\s]?(\d+)', r'api_id=***'),  # API ID
+    (r'api[_-]?hash["\s:=]+["\s]?([A-Za-z0-9_-]+)', r'api_hash=***'),  # API Hash
+    (r'password["\s:=]+["\s]?([^\s"]+)', r'password=***'),
+    (r'session["\s:=]+["\s]?([A-Za-z0-9_-]+)', r'session=***'),
+    (r'Authorization:\s*\S+', 'Authorization: ***'),
+]
+
+
+def mask_sensitive_data(text: str) -> str:
+    """Mask sensitive data in text."""
+    if not text:
+        return text
+    
+    masked = text
+    for pattern, replacement in SENSITIVE_PATTERNS:
+        masked = re.sub(pattern, replacement, masked, flags=re.IGNORECASE)
+    
+    return masked
 
 
 def setup_logging() -> Logger:
@@ -139,7 +163,7 @@ class KernelLogger:
                 pass
 
         try:
-            self.save_error_to_file(f"Error in {source}:\n{tb}")
+            self.save_error_to_file(f"Error in {source}:\n{mask_sensitive_data(tb)}")
             print(f"=X {tb}")
 
             client = (
@@ -149,13 +173,13 @@ class KernelLogger:
             )
             await client.send_message(
                 k.log_chat_id,
-                body,
+                mask_sensitive_data(body),
                 buttons=[Button.inline("🔍 Traceback", data=f"show_tb:{error_id}")],
                 parse_mode="html",
             )
         except Exception as e:
             k.logger.error(f"Could not send error log: {e}")
-            k.logger.error(f"Original error: {tb}")
+            k.logger.error(f"Original error: {mask_sensitive_data(tb)}")
 
     def save_error_to_file(self, error_text: str) -> None:
         """Append *error_text* to logs/kernel.log with a timestamp header.

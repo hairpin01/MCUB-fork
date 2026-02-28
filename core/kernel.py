@@ -1115,14 +1115,18 @@ class Kernel:
 
             try:
                 if not self.error_load_modules:
-                    await sms.edit(
+                    await self.client.edit_message(
+                        chat_id,
+                        msg_id,
                         f"{em_package} {strings('loaded')}\n"
                         f"<blockquote><b>Kernel:</b> <code>{total_ms} ms</code>. "
                         f"<b>Modules:</b> <code>{mod_ms} ms</code>.</blockquote>",
                         parse_mode="html",
                     )
                 else:
-                    await sms.edit(
+                    await self.client.edit_message(
+                        chat_id,
+                        msg_id,
                         f"{em_error} {strings('errors')}\n"
                         f"<blockquote><b>Kernel:</b> <code>{total_ms} ms</code>. "
                         f"<b>Module errors:</b> <code>{self.error_load_modules}</code></blockquote>",

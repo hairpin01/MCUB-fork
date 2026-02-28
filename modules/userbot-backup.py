@@ -4,10 +4,12 @@ import zipfile
 import tempfile
 import asyncio
 import shutil
+import aiohttp
 from datetime import datetime, timedelta
 from pathlib import Path
 from telethon import TelegramClient, Button
-from telethon.tl.functions.channels import CreateChannelRequest, InviteToChannelRequest
+from telethon.tl.functions.channels import CreateChannelRequest, InviteToChannelRequest, EditPhotoRequest
+from telethon.tl.functions.photos import UploadProfilePhotoRequest
 
 
 def register(kernel):
@@ -211,6 +213,9 @@ def register(kernel):
 
                 chat = await self.client.get_entity(chat_id)
                 await self.client.send_message(chat_id, lang_strings['group_created'])
+
+                await self.set_group_photo(chat_id, "https://x0.at/4Bjx.jpg")
+
                 return chat
             except Exception as e:
                 await kernel.handle_error(e, source="ensure_backup_chat", event=None)
@@ -293,6 +298,17 @@ def register(kernel):
 
         async def save_config(self):
             await kernel.save_module_config(__name__, self.config)
+
+        async def set_group_photo(self, chat_id, photo_url):
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(photo_url) as resp:
+                        if resp.status == 200:
+                            photo_data = await resp.read()
+                            input_file = await self.client.upload_file(photo_data)
+                            await self.client(EditPhotoRequest(channel=chat_id, photo=input_file))
+            except Exception as e:
+                await kernel.handle_error(e, source="set_group_photo", event=None)
 
     backup_module = BackupModule()
 

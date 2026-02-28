@@ -19,7 +19,7 @@ class InlineHandlers:
     def __init__(self, kernel, bot_client):
         self.kernel = kernel
         self.bot_client = bot_client
-        if not hasattr(self.kernel, "session") or self.kernel.session is None or self.kernel.session.is_closed():
+        if not hasattr(self.kernel, "session") or self.kernel.session is None or self.kernel.session.closed:
             self.kernel.session = aiohttp.ClientSession()
 
         self._form_counter = 0

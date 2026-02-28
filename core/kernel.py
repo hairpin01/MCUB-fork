@@ -978,6 +978,27 @@ class Kernel:
                 except Exception as edit_err:
                     self.logger.error(f"Could not edit error message: {edit_err}")
 
+        if os.path.exists(self.RESTART_FILE):
+            try:
+                with open(self.RESTART_FILE, "r") as f:
+                    data = f.read().split(",")
+                if len(data) >= 2:
+                    restart_chat_id = int(data[0])
+                    restart_msg_id = int(data[1])
+                    
+                    em_alembic = '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>'
+                    lang = self.config.get("language", "ru")
+                    loading_text = "загружается..." if lang == "ru" else "loading..."
+                    
+                    await self.client.edit_message(
+                        restart_chat_id,
+                        restart_msg_id,
+                        f"{em_alembic} {loading_text}",
+                        parse_mode="html",
+                    )
+            except Exception:
+                pass
+
         modules_start = time.time()
         await self.load_system_modules()
         await self.load_user_modules()

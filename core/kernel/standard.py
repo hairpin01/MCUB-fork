@@ -321,7 +321,14 @@ class Kernel:
             ok = False
             last_err = ""
             strategies = [
-                [sys.executable, "-m", "pip", "install", pip_name, "--break-system-packages"],
+                [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    pip_name,
+                    "--break-system-packages",
+                ],
                 [sys.executable, "-m", "pip", "install", pip_name],
                 [sys.executable, "-m", "pip", "install", pip_name, "--user"],
                 ["pip3", "install", pip_name, "--break-system-packages"],
@@ -892,8 +899,9 @@ class Kernel:
             try:
                 from aiohttp import web
                 from core.web.app import create_app
+
                 done = asyncio.Event()
-                app  = create_app(kernel=None, setup_event=done)
+                app = create_app(kernel=None, setup_event=done)
                 runner = web.AppRunner(app)
                 await runner.setup()
                 site = web.TCPSite(runner, host, port)
@@ -908,9 +916,9 @@ class Kernel:
                 self.logger.error(f"Setup wizard failed: {e}")
                 return
 
-
     try:
         from core.web.app import start_web_panel
+
         asyncio.create_task(start_web_panel(self, host, port))
     except Exception as e:
         self.logger.error(f"Failed to start web panel: {e}")
@@ -989,7 +997,9 @@ class Kernel:
                     if len(data) >= 3:
                         restart_time = float(data[2])
 
-                    em_alembic = '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>'
+                    em_alembic = (
+                        '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>'
+                    )
                     lang = self.config.get("language", "ru")
                     strings = (
                         {
@@ -1006,7 +1016,11 @@ class Kernel:
                         .get
                     )
                     emoji = "(*.*)"
-                    total_ms = round((time.time() - restart_time) * 1000, 2) if restart_time else 0
+                    total_ms = (
+                        round((time.time() - restart_time) * 1000, 2)
+                        if restart_time
+                        else 0
+                    )
 
                     await self.client.edit_message(
                         restart_chat_id,

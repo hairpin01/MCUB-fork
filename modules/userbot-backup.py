@@ -1,3 +1,4 @@
+import io
 import os
 import json
 import zipfile
@@ -305,7 +306,25 @@ def register(kernel):
                     async with session.get(photo_url) as resp:
                         if resp.status == 200:
                             photo_data = await resp.read()
-                            input_file = await self.client.upload_file(photo_data)
+
+                            # Determine extension from Content-Type header;
+                            # fall back to .jpg — Telegram requires a known image ext.
+                            content_type = resp.headers.get("Content-Type", "image/jpeg")
+                            ext_map = {
+                                "image/jpeg": "photo.jpg",
+                                "image/jpg":  "photo.jpg",
+                                "image/png":  "photo.png",
+                                "image/webp": "photo.jpg",   # TG accepts jpg for webp
+                                "image/gif":  "photo.gif",
+                            }
+                            filename = ext_map.get(content_type.split(";")[0].strip(), "photo.jpg")
+
+                            # Wrap in BytesIO with .name so Telethon sends correct extension
+                            import io as _io
+                            buf = _io.BytesIO(photo_data)
+                            buf.name = filename
+
+                            input_file = await self.client.upload_file(buf)
                             await self.client(EditPhotoRequest(channel=chat_id, photo=input_file))
             except Exception as e:
                 await kernel.handle_error(e, source="set_group_photo", event=None)

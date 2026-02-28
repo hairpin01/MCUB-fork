@@ -4,3 +4,5 @@ aiohttp
 pysocks
 aiosqlite
 socks
+jinja2
+aiohttp-jinja2

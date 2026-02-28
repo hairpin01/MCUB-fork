@@ -978,28 +978,6 @@ class Kernel:
                 except Exception as edit_err:
                     self.logger.error(f"Could not edit error message: {edit_err}")
 
-        restart_msg = None
-        if os.path.exists(self.RESTART_FILE):
-            try:
-                with open(self.RESTART_FILE, "r") as f:
-                    data = f.read().split(",")
-                if len(data) >= 2:
-                    restart_chat_id = int(data[0])
-                    restart_msg_id = int(data[1])
-                    
-                    em_alembic = '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>'
-                    lang = self.config.get("language", "ru")
-                    loading_text = "загружается..." if lang == "ru" else "loading..."
-                    
-                    restart_msg = await self.client.edit_message(
-                        restart_chat_id,
-                        restart_msg_id,
-                        f"{em_alembic} {loading_text}",
-                        parse_mode="html",
-                    )
-            except Exception:
-                pass
-
         modules_start = time.time()
         await self.load_system_modules()
         await self.load_user_modules()
@@ -1059,6 +1037,17 @@ class Kernel:
             restart_time = float(data[2])
             thread_id = int(data[3]) if len(data) >= 4 and data[3] else None
 
+            lang = self.config.get("language", "ru")
+            loading_text = "загружается..." if lang == "ru" else "loading..."
+            em_alembic = '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>'
+
+            await self.client.edit_message(
+                chat_id,
+                msg_id,
+                f"{em_alembic} {loading_text}",
+                parse_mode="html",
+            )
+
             os.remove(self.RESTART_FILE)
 
             me = await self.client.get_me()
@@ -1117,8 +1106,7 @@ class Kernel:
                 sms = await self.client.edit_message(
                     chat_id,
                     msg_id,
-                    f"{em_alembic} {strings('success')} {emoji}\n"
-                    f"<i>{strings('loading')}</i> <b>KLB:</b> <code>{total_ms} ms</code>",
+                    f"{em_alembic} {loading_text} <b>KLB:</b> <code>{total_ms} ms</code>",
                     parse_mode="html",
                 )
 

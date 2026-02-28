@@ -103,7 +103,7 @@ class Kernel:
         """Validate regex pattern for ReDoS protection."""
         if len(pattern) > Kernel.MAX_PATTERN_LENGTH:
             return False, f"Pattern too long (max {Kernel.MAX_PATTERN_LENGTH})"
-        
+
         dangerous_patterns = [
             r"\(\.\*\)\+",
             r"\(\.\+\)\+",
@@ -113,33 +113,33 @@ class Kernel:
             r".*.*.*",
             r"\(\?\=\.\*\)",
         ]
-        
+
         for danger in dangerous_patterns:
             if re.search(danger, pattern):
                 return False, "Potentially dangerous regex pattern detected"
-        
+
         try:
             test_pattern = re.compile(pattern)
             test_string = "x" * 1000
             import signal
-            
+
             def timeout_handler(signum, frame):
                 raise TimeoutError()
-            
+
             old_handler = signal.signal(signal.SIGALRM, timeout_handler)
             signal.alarm(1)
-            
+
             try:
                 test_pattern.match(test_string)
             finally:
                 signal.alarm(0)
                 signal.signal(signal.SIGALRM, old_handler)
-                
+
         except TimeoutError:
             return False, "Pattern too complex (timeout)"
         except re.error as e:
             return False, f"Invalid regex: {e}"
-        
+
         return True, "OK"
 
     def __init__(self) -> None:
@@ -549,7 +549,7 @@ class Kernel:
             func: Handler function; if None, returns a decorator.
         """
         cmd = pattern.lstrip("^\\" + self.custom_prefix).rstrip("$")
-        
+
         if cmd != pattern:
             valid, error = self._validate_regex_pattern(cmd)
             if not valid:
@@ -875,23 +875,9 @@ class Kernel:
             )
             return await self.client.send_message(chat_id, fallback, **kwargs)
 
-    def run_panel(self) -> None:
-        """Start the aiohttp web panel as a background asyncio task.
 
-        Host and port are resolved from (highest priority first):
-          1. kernel.web_host / kernel.web_port  (set by __main__.py CLI args)
-          2. MCUB_HOST / MCUB_PORT environment variables
-          3. config.json  →  web_panel_host / web_panel_port
-          4. Hard-coded defaults: 127.0.0.1 / 8080
-        """
-        import os
-
-        try:
-            from core.web.app import start_web_panel
-        except Exception as e:
-            self.logger.error(f"Failed to import web panel: {e}")
-            return
-
+    async def run_panel(self) -> None:
+        """Start web panel. If config.json is missing, run setup wizard first."""
         host = (
             getattr(self, "web_host", None)
             or os.environ.get("MCUB_HOST")
@@ -903,7 +889,28 @@ class Kernel:
             or self.config.get("web_panel_port", 8080)
         )
 
+        if not os.path.exists(self.CONFIG_FILE):
+            try:
+                from aiohttp import web
+                from core.web.app import create_app
+                done = asyncio.Event()
+                app  = create_app(kernel=None, setup_event=done)
+                runner = web.AppRunner(app)
+                await runner.setup()
+                site = web.TCPSite(runner, host, port)
+                await site.start()
+                print(f"  🌐  Setup wizard  →  http://{host}:{port}/", flush=True)
+                try:
+                    await done.wait()
+                finally:
+                    await runner.cleanup()
+                print("\nStarting kernel…\n", flush=True)
+            except Exception as e:
+                self.logger.error(f"Setup wizard failed: {e}")
+                return
+
         try:
+            from core.web.app import start_web_panel
             asyncio.create_task(start_web_panel(self, host, port))
         except Exception as e:
             self.logger.error(f"Failed to start web panel: {e}")
@@ -917,16 +924,9 @@ class Kernel:
         )
 
         if not self.load_or_create_config():
-            if web_enabled:
-                # Setup wizard already ran in __main__.py (standalone mode).
-                # Re-load the freshly written config.json.
-                if not self.load_or_create_config():
-                    self.logger.error("Config still missing after web setup")
-                    return
-            else:
-                if not self.first_time_setup():
-                    self.logger.error("Setup failed")
-                    return
+            if not self.first_time_setup():
+                self.logger.error("Setup failed")
+                return
 
         self.load_repositories()
         logging.basicConfig(level=logging.INFO)
@@ -937,7 +937,7 @@ class Kernel:
 
         # Start the web panel only when explicitly requested
         if web_enabled or self.config.get("web_panel_enabled", False):
-            self.run_panel()
+            await self.run_panel()
 
         # self.shell = Shell(kernel=self)
         # self.shell.attach_logging()
@@ -988,7 +988,7 @@ class Kernel:
                     restart_msg_id = int(data[1])
                     if len(data) >= 3:
                         restart_time = float(data[2])
-                    
+
                     em_alembic = '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>'
                     lang = self.config.get("language", "ru")
                     strings = (
@@ -1007,7 +1007,7 @@ class Kernel:
                     )
                     emoji = "(*.*)"
                     total_ms = round((time.time() - restart_time) * 1000, 2) if restart_time else 0
-                    
+
                     await self.client.edit_message(
                         restart_chat_id,
                         restart_msg_id,

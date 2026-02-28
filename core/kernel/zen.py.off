@@ -653,13 +653,9 @@ class Kernel:
 
 
 
-    def run_panel(self) -> None:
-        try:
-            from core.web.app import start_web_panel
-        except ImportError as e:
-            self.logger.error(f"web panel import failed: {e}")
-            return
 
+    async def run_panel(self) -> None:
+        """Start web panel. If config.json is missing, run setup wizard first."""
         host = (
             getattr(self, "web_host", None)
             or os.environ.get("MCUB_HOST")
@@ -670,18 +666,39 @@ class Kernel:
             or os.environ.get("MCUB_PORT", 0)
             or self.config.get("web_panel_port", 8080)
         )
-        asyncio.create_task(start_web_panel(self, host, port))
+
+        if not os.path.exists(self.CONFIG_FILE):
+            try:
+                from aiohttp import web
+                from core.web.app import create_app
+                done = asyncio.Event()
+                app  = create_app(kernel=None, setup_event=done)
+                runner = web.AppRunner(app)
+                await runner.setup()
+                site = web.TCPSite(runner, host, port)
+                await site.start()
+                print(f"  🌐  Setup wizard  →  http://{host}:{port}/", flush=True)
+                try:
+                    await done.wait()
+                finally:
+                    await runner.cleanup()
+                print("\nStarting kernel…\n", flush=True)
+            except Exception as e:
+                self.logger.error(f"Setup wizard failed: {e}")
+                return
+
+        try:
+            from core.web.app import start_web_panel
+            asyncio.create_task(start_web_panel(self, host, port))
+        except Exception as e:
+            self.logger.error(f"Failed to start web panel: {e}")
 
     async def run(self) -> None:
         """Boot sequence: config → scheduler → client → modules → event loop."""
         web_enabled = getattr(self, "web_enabled", False) or os.environ.get("MCUB_WEB") == "1"
 
         if not self.load_or_create_config():
-            if web_enabled:
-                if not self.load_or_create_config():
-                    self.logger.error("config missing after web setup")
-                    return
-            elif not self.first_time_setup():
+            if not self.first_time_setup():
                 self.logger.error("setup failed")
                 return
 
@@ -693,7 +710,7 @@ class Kernel:
             return
 
         if web_enabled or self.config.get("web_panel_enabled"):
-            self.run_panel()
+            await self.run_panel()
 
         try:
             await self.init_db()

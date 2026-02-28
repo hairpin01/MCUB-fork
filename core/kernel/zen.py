@@ -786,6 +786,7 @@ class Kernel:
             or self.config.get("web_panel_port", 8080)
         )
 
+        # If config.json doesn't exist, start the setup wizard
         if not os.path.exists(self.CONFIG_FILE):
             try:
                 from aiohttp import web
@@ -807,9 +808,9 @@ class Kernel:
                 self.logger.error(f"Setup wizard failed: {e}")
                 return
 
+        # Start the actual web panel in the background
         try:
             from core.web.app import start_web_panel
-
             asyncio.create_task(start_web_panel(self, host, port))
         except Exception as e:
             self.logger.error(f"Failed to start web panel: {e}")

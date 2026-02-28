@@ -71,7 +71,7 @@ class DatabaseManager:
             return False
         if len(value) > 64:
             return False
-        return bool(re.match(r'^[a-zA-Z0-9_]+$', value))
+        return bool(re.match(r'^[a-zA-Z0-9_-]+$', value))
 
     async def db_set(self, module: str, key: str, value: str):
         """Сохранить значение для модуля."""

@@ -36,7 +36,7 @@ CUSTOM_EMOJI = {
     "⛔️": '<tg-emoji emoji-id="4918014360267260850">⛔️</tg-emoji>',
     "❌": '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji>',
     "⚠️": '<tg-emoji emoji-id="5904692292324692386">⚠️</tg-emoji>',
-    "🧩": '<tg-emoji emoji-id="5431815341782736766">⚙️</tg-emoji>',
+    "🧩": '<tg-emoji emoji-id="5431815341782736766">🧩</tg-emoji>',
 }
 
 ZERO_WIDTH_CHAR = "\u2060"
@@ -298,7 +298,7 @@ def register(kernel):
             else:
                 info_text = f"""<b>{mcub_emoji}</b>
 <blockquote>{CUSTOM_EMOJI['🌩️']} <b>Version:</b> <code>{kernel.VERSION}</code>
-{CUSTOM_EMOJI['⚙️']} <b>Kernel:</b> <code>{core_name}</code>
+{CUSTOM_EMOJI['🧩']} <b>Kernel:</b> <code>{core_name}</code>
 {f"{CUSTOM_EMOJI['💔']} <b>Update needed</b>" if update_needed else f"{CUSTOM_EMOJI['🔮']} <b>No update needed</b>"}</blockquote>
 
 <blockquote>{CUSTOM_EMOJI['📡']} <b>Ping:</b> <code>{ping_time} ms</code>

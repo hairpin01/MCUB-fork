@@ -396,7 +396,6 @@ def register(kernel):
     kernel.log_error = log_error
     kernel.log_network = log_network
     kernel.log_module = log_module
-    kernel.bot_client = None
 
     async def initialize():
         await init_bot_client()

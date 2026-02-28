@@ -161,7 +161,7 @@ def register(kernel):
                                 e, source="check_bot_in_chat", event=None
                             )
                     else:
-                        kernel.log_warning(f"Bot not available for chat {chat.id}")
+                        await kernel.log_warning(f"Bot not available for chat {chat.id}")
 
                     return chat
                 except Exception:
@@ -314,12 +314,10 @@ def register(kernel):
                                 "image/jpeg": "photo.jpg",
                                 "image/jpg":  "photo.jpg",
                                 "image/png":  "photo.png",
-                                "image/webp": "photo.jpg",   # TG accepts jpg for webp
+                                "image/webp": "photo.jpg",
                                 "image/gif":  "photo.gif",
                             }
                             filename = ext_map.get(content_type.split(";")[0].strip(), "photo.jpg")
-
-                            # Wrap in BytesIO with .name so Telethon sends correct extension
                             import io as _io
                             buf = _io.BytesIO(photo_data)
                             buf.name = filename

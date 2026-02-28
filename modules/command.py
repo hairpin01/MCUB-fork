@@ -7,7 +7,13 @@ from telethon import events, Button
 
 
 def register(kernel):
-    bot_client = kernel.bot_client
+    bot_client = getattr(kernel, "bot_client", None)
+
+    if bot_client is None:
+        kernel.logger.error(
+            "command.py: bot_client is None — inline bot token missing or bot not started yet"
+        )
+        return
 
     language = kernel.config.get("language", "en")
 
@@ -329,7 +335,7 @@ def register(kernel):
     async def backup_enable_handler(event):
         try:
             enable = event.pattern_match.group(1).decode() == "yes" if isinstance(event.pattern_match.group(1), bytes) else event.pattern_match.group(1) == "yes"
-            
+
             strings_current = strings.get(kernel.config.get("language", "en"), strings["en"])
 
             if enable:
@@ -367,7 +373,7 @@ def register(kernel):
     async def backup_interval_handler(event):
         try:
             interval = int(event.pattern_match.group(1).decode() if isinstance(event.pattern_match.group(1), bytes) else event.pattern_match.group(1))
-            
+
             strings_current = strings.get(kernel.config.get("language", "en"), strings["en"])
 
             import importlib.util
@@ -390,7 +396,7 @@ def register(kernel):
                 await kernel.save_module_config("modules.userbot-backup", backup_module.config)
 
                 chat = await backup_module.ensure_backup_chat()
-                
+
                 if chat:
                     await event.edit(
                         f"<b>{strings_current['backup_setup']}</b>\n\n{strings_current['backup_created']}\n\nInterval: {interval}h",
@@ -401,7 +407,7 @@ def register(kernel):
                         f"<b>{strings_current['backup_setup']}</b>\n\n{strings_current['backup_enabled']} ({interval}h)",
                         parse_mode="html",
                     )
-                
+
                 await event.answer(f"{strings_current['backup_enabled']} ({interval}h)", alert=True)
             else:
                 await event.edit("Backup module not found")
@@ -413,7 +419,7 @@ def register(kernel):
     async def backup_skip_handler(event):
         try:
             strings_current = strings.get(kernel.config.get("language", "en"), strings["en"])
-            
+
             await event.edit(
                 f"<b>{strings_current['backup_setup']}</b>\n\n{strings_current['backup_disabled']}",
                 parse_mode="html",

@@ -25,6 +25,7 @@ __Table of Contents__
 > 21. [Watchers](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#watchers)
 > 22. [InfiniteLoop](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#infiniteloop)
 > 23. [Lifecycle Callbacks](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#lifecycle-callbacks)
+> 24. [Custom Core MCUB](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#custom-core-mcub)
 
 # Introduction
 
@@ -2754,3 +2755,179 @@ if kernel.register.unregister_bot_command("start"):
 - **`@register.command`**: Fixed regex escaping for custom prefix characters
 - **`@register.command`** and **`@register.bot_command`**: Added duplicate command detection with clear error messages
 - **`@register.method`**: Methods are now tracked per-module for proper cleanup on unload
+
+---
+
+## Custom Core MCUB
+
+MCUB supports multiple interchangeable kernel cores. Each core is a `.py` file placed in `core/kernel/` that exposes a single `Kernel` class. The launcher (`__main__.py`) discovers cores automatically and loads the selected one at startup.
+
+### How the Loader Works
+
+`__main__.py` scans `core/kernel/` for `.py` files (excluding `_`-prefixed ones), then does:
+
+```python
+from importlib import import_module
+Kernel = import_module(f"core.kernel.{selected_core}").Kernel
+kernel = Kernel()
+await kernel.run()
+```
+
+Your custom core just needs to satisfy this contract:
+- file lives at `core/kernel/<your_core_name>.py`
+- the file exports a class named `Kernel`
+- the class has an `async def run(self)` method
+
+### Minimal Custom Core
+
+The simplest possible core — inherits everything from `standard` and only overrides what you need:
+
+```python
+# core/kernel/mycore.py
+# author: @you
+# description: My custom MCUB kernel core
+
+from .standard import Kernel as _StandardKernel
+
+
+class Kernel(_StandardKernel):
+    """Custom core — based on standard, with tweaks."""
+
+    async def run(self):
+        # Custom pre-start logic here
+        self.logger.info("mycore: starting up")
+        await super().run()
+```
+
+Activate it:
+```bash
+python3 -m core --core mycore
+# or set as default
+python3 -m core --set-default-core mycore
+```
+
+### Overriding Kernel Behaviour
+
+Common extension points when subclassing `standard.Kernel`:
+
+| Method | When to override |
+|--------|-----------------|
+| `__init__` | Add new state, change default paths/repos |
+| `run` | Change startup sequence, add pre/post hooks |
+| `load_system_modules` | Load extra built-in modules or skip certain ones |
+| `process_command` | Intercept or transform commands before dispatch |
+| `handle_error` | Custom error reporting (e.g. send to external service) |
+
+**Example — custom error handler:**
+
+```python
+class Kernel(_StandardKernel):
+
+    async def handle_error(self, e, source="unknown", event=None):
+        # Call the original handler first
+        await super().handle_error(e, source=source, event=event)
+        # Then push to your own monitoring
+        await my_monitoring.send(f"[{source}] {e}")
+```
+
+**Example — extra startup step:**
+
+```python
+class Kernel(_StandardKernel):
+
+    async def run(self):
+        # Run before anything else
+        await self._preload_external_config()
+        await super().run()
+
+    async def _preload_external_config(self):
+        import aiohttp
+        async with aiohttp.ClientSession() as s:
+            async with s.get("https://example.com/config.json") as r:
+                data = await r.json()
+        self.config.update(data)
+        self.logger.info("External config loaded")
+```
+
+### Full Custom Core (from scratch)
+
+If you need full control and don't want to inherit from `standard`, implement the interface manually. The only hard requirement is `async def run(self)`:
+
+```python
+# core/kernel/mycore.py
+# author: @you
+# description: Fully custom lightweight core
+
+import asyncio
+import logging
+from telethon import TelegramClient, events
+
+logger = logging.getLogger("mycore")
+
+
+class Kernel:
+    """Minimal custom kernel — no standard inheritance."""
+
+    CORE_NAME = "mycore"  # set by __main__.py, but good to declare
+
+    def __init__(self):
+        import json
+        with open("config.json") as f:
+            self.config = json.load(f)
+
+        self.client = TelegramClient(
+            "session",
+            self.config["api_id"],
+            self.config["api_hash"],
+        )
+        self.command_handlers = {}
+        self.start_time = __import__("time").time()
+        self.logger = logger
+        self.custom_prefix = self.config.get("command_prefix", ".")
+
+    def register_command(self, pattern, func):
+        self.command_handlers[pattern] = func
+
+    async def run(self):
+        await self.client.start(phone=self.config["phone"])
+        logger.info(f"mycore started. Prefix: {self.custom_prefix!r}")
+
+        @self.client.on(events.NewMessage(outgoing=True))
+        async def _dispatch(event):
+            for pat, handler in self.command_handlers.items():
+                if event.text and event.text.startswith(self.custom_prefix + pat):
+                    await handler(event)
+                    break
+
+        await self.client.run_until_disconnected()
+```
+
+> [!NOTE]
+> A from-scratch core won't have the `Register`, `ModuleLoader`, `DatabaseManager`, or other subsystems from `standard`. Modules that rely on `kernel.db_get`, `kernel.register.loop`, etc. will fail to load against it. Use a from-scratch core only if you're building a radically different runtime.
+
+### Distributing a Core
+
+To ship your core as a drop-in file (like the built-in `zen` core):
+
+1. Place the file as `core/kernel/mycore.py` (active) or `core/kernel/mycore.py.off` (disabled by default).
+2. Users activate it with:
+   ```bash
+   mv core/kernel/mycore.py.off core/kernel/mycore.py
+   python3 -m core --set-default-core mycore
+   ```
+3. Document any extra `pip` dependencies in your file header using the standard convention:
+   ```python
+   # requires: aiohttp, some-lib
+   ```
+
+### Core Naming Conventions
+
+| Name | Intended meaning |
+|------|-----------------|
+| `standard` | Default, frequently updated |
+| `zen` | Stable branch, updated less often |
+| `micro` / `lite` | Stripped-down, low-resource variant |
+| `dev` / `nightly` | Experimental, may be unstable |
+
+> [!TIP]
+> Prefix your core file with your username to avoid conflicts: `core/kernel/hairpin_custom.py`.

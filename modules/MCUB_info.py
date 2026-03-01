@@ -322,61 +322,26 @@ def register(kernel):
                     text, entities = await client._parse_message_text(info_text, "html")
                     text, entities = add_link_preview(text, entities, banner_url)
 
-                    await msg.delete()
-
-                    chat = await event.get_chat()
-                    reply_to = None
-                    if hasattr(chat, "forum") and chat.forum and event.message.reply_to:
-                        reply_to = (
-                            event.message.reply_to.reply_to_top_id
-                            or event.message.reply_to.reply_to_msg_id
-                        )
-
                     try:
-                        if reply_to:
-                            await client.send_message(
-                                entity=await event.get_input_chat(),
-                                message=text,
-                                formatting_entities=entities,
-                                link_preview=True,
-                                invert_media=invert_media,
-                                reply_to=reply_to,
-                            )
-                        else:
-                            await client.send_message(
-                                entity=await event.get_input_chat(),
-                                message=text,
-                                formatting_entities=entities,
-                                link_preview=True,
-                                invert_media=invert_media,
-                            )
+                        await msg.edit(
+                            text,
+                            formatting_entities=entities,
+                            link_preview=True,
+                            invert_media=invert_media,
+                        )
                         return
-                    except TypeError as e:
-                        if "invert_media" in str(e):
-                            if reply_to:
-                                await client(
-                                    functions.messages.SendMessageRequest(
-                                        peer=await event.get_input_chat(),
-                                        message=text,
-                                        entities=entities,
-                                        invert_media=invert_media,
-                                        no_webpage=False,
-                                        reply_to_msg_id=reply_to,
-                                    )
-                                )
-                            else:
-                                await client(
-                                    functions.messages.SendMessageRequest(
-                                        peer=await event.get_input_chat(),
-                                        message=text,
-                                        entities=entities,
-                                        invert_media=invert_media,
-                                        no_webpage=False,
-                                    )
-                                )
-                            return
-                        else:
-                            raise
+                    except TypeError:
+                        await client(
+                            functions.messages.EditMessageRequest(
+                                peer=await event.get_input_chat(),
+                                id=msg.id,
+                                message=text,
+                                entities=entities,
+                                invert_media=invert_media,
+                                no_webpage=False,
+                            )
+                        )
+                        return
 
                 except Exception as e:
                     await kernel.handle_error(
@@ -411,34 +376,15 @@ def register(kernel):
                     has_banner = True
 
             if has_banner and banner_url:
-                await msg.delete()
                 try:
-                    chat = await event.get_chat()
-                    reply_to = None
-                    if hasattr(chat, "forum") and chat.forum and event.message.reply_to:
-                        reply_to = (
-                            event.message.reply_to.reply_to_top_id
-                            or event.message.reply_to.reply_to_msg_id
-                        )
-
-                    if reply_to:
-                        await event.respond(
-                            info_text,
-                            file=banner_url,
-                            parse_mode="html",
-                            reply_to=reply_to,
-                        )
-                    else:
-                        await event.respond(
-                            info_text, file=banner_url, parse_mode="html"
-                        )
+                    await msg.edit(
+                        info_text,
+                        file=banner_url,
+                        parse_mode="html",
+                        invert_media=invert_media,
+                    )
                 except Exception as e:
-                    if reply_to:
-                        await event.respond(
-                            info_text, parse_mode="html", reply_to=reply_to
-                        )
-                    else:
-                        await event.respond(info_text, parse_mode="html")
+                    await msg.edit(info_text, parse_mode="html")
                     await kernel.handle_error(
                         e, source="info_cmd:send_banner", event=event
                     )

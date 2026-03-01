@@ -933,7 +933,14 @@ class Kernel:
         )
 
         if not self.load_or_create_config():
-            if not self.first_time_setup():
+            if web_enabled:
+                # Запускаем веб-визард до init_client
+                await self.run_panel()
+                # После визарда конфиг должен появиться
+                if not self.load_or_create_config():
+                    self.logger.error("Web setup failed, no config after wizard")
+                    return
+            elif not self.first_time_setup():
                 self.logger.error("Setup failed")
                 return
 
@@ -943,10 +950,6 @@ class Kernel:
 
         if not await self.init_client():
             return
-
-        # Start the web panel only when explicitly requested
-        if web_enabled or self.config.get("web_panel_enabled", False):
-            await self.run_panel()
 
         # self.shell = Shell(kernel=self)
         # self.shell.attach_logging()

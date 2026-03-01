@@ -278,7 +278,7 @@ class Kernel:
         import time
 
         _REQUIREMENTS = [
-            ("telethon-mcub", "telethon"),
+            ("telethon", "telethon"),
             ("aiohttp", "aiohttp"),
             ("aiohttp-jinja2", "aiohttp_jinja2"),
             ("jinja2", "jinja2"),
@@ -895,8 +895,16 @@ class Kernel:
             or self.config.get("web_panel_port", 8080)
         )
 
-        # If config.json doesn't exist, start the setup wizard
-        if not os.path.exists(self.CONFIG_FILE):
+        # Check if we need setup wizard
+        # Need setup if: no config OR config exists but no session
+        needs_setup = not os.path.exists(self.CONFIG_FILE)
+        if not needs_setup:
+            # Check if session exists
+            session_exists = os.path.exists("user_session.session")
+            needs_setup = not session_exists
+
+        # If config.json doesn't exist or session is missing, start the setup wizard
+        if needs_setup:
             try:
                 from aiohttp import web
                 from core.web.app import create_app
@@ -928,19 +936,20 @@ class Kernel:
         """setup, connect, load modules, and run until disconnected."""
         import os
 
-        web_enabled = getattr(self, "web_enabled", False) or (
-            os.environ.get("MCUB_WEB", "0") == "1"
-        )
+        no_web = not getattr(self, "web_enabled", True)  # True если --no-web
+
+        if not no_web:
+            web_via_env    = os.environ.get("MCUB_WEB", "0") == "1"
+            web_via_config = self.config.get("web_panel_enabled", False)
+            no_session     = not os.path.exists("user_session.session")
+            no_config      = not os.path.exists(self.CONFIG_FILE)
+
+            # запускаем панель если: явно включено ИЛИ нет сессии ИЛИ нет конфига
+            if web_via_env or web_via_config or no_session or no_config:
+                await self.run_panel()
 
         if not self.load_or_create_config():
-            if web_enabled:
-                # Запускаем веб-визард до init_client
-                await self.run_panel()
-                # После визарда конфиг должен появиться
-                if not self.load_or_create_config():
-                    self.logger.error("Web setup failed, no config after wizard")
-                    return
-            elif not self.first_time_setup():
+            if not self.first_time_setup():
                 self.logger.error("Setup failed")
                 return
 
@@ -950,6 +959,9 @@ class Kernel:
 
         if not await self.init_client():
             return
+
+        # Start the web panel only when explicitly requested
+
 
         # self.shell = Shell(kernel=self)
         # self.shell.attach_logging()
@@ -963,6 +975,12 @@ class Kernel:
             self.cprint(f"{Colors.RED}=X DB init error: {e}{Colors.RESET}")
 
         await self.setup_inline_bot()
+
+        if not self.config.get("inline_bot_token"):
+            from core_inline.bot import InlineBot
+
+            self.inline_bot = InlineBot(self)
+            await self.inline_bot.setup()
 
         @self.client.on(events.NewMessage(outgoing=True))
         async def message_handler(event):

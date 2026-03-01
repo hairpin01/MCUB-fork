@@ -173,6 +173,7 @@ def register(kernel):
                             text,
                             formatting_entities=entities,
                             link_preview=True,
+                            invert_media=invert_media
                         )
                         return
                     except TypeError:
@@ -205,33 +206,15 @@ def register(kernel):
 
                 if os.path.exists(banner_url):
                     try:
-                        if reply_to:
-                            await msg.edit(
-                                response,
-                                file=banner_url,
-                                parse_mode="html",
-                                reply_to=reply_to,
-                            )
-
-                        else:
-                            await msg.edit(response, file=banner_url, parse_mode="html")
+                        await msg.edit(response, file=banner_url, parse_mode="html")
                         banner_sent = True
                     except Exception as e:
                         pass
                 else:
                     try:
-                        if reply_to:
-                            await event.respond(
-                                response,
-                                file=banner_url,
-                                parse_mode="html",
-                                reply_to=reply_to,
-                            )
-                        else:
-                            await event.respond(
-                                response, file=banner_url, parse_mode="html"
-                            )
-                        await msg.delete()
+                        await msg.edit(
+                            response, file=banner_url, parse_mode="html"
+                        )
                         banner_sent = True
                     except Exception as e:
                         pass
@@ -242,25 +225,11 @@ def register(kernel):
                             response, "html"
                         )
                         text, entities = add_link_preview(text, entities, banner_url)
-                        if reply_to:
-                            await event.respond(
-                                text,
-                                formatting_entities=entities,
-                                parse_mode=None,
-                                reply_to=reply_to,
-                            )
-                        else:
-                            await event.respond(
-                                text, formatting_entities=entities, parse_mode=None
-                            )
-                        await msg.delete()
+                        await msg.edit(
+                            text, formatting_entities=entities, parse_mode=None
+                        )
                     except Exception as e:
-                        if reply_to:
-                            await event.respond(
-                                response, parse_mode="html", reply_to=reply_to
-                            )
-                        else:
-                            await event.respond(response, parse_mode="html")
+                        await msg.edit(response, parse_mode="html")
             else:
                 await msg.edit(response, parse_mode="html")
 

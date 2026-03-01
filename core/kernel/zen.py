@@ -244,6 +244,22 @@ class Kernel:
         self._cfg = ConfigManager(self)
         self.logger = setup_logging()
 
+        # --- ensure logs are visible in terminal (not only in file) ---
+        if not any(
+            isinstance(h, logging.StreamHandler) and h.stream in (sys.stdout, sys.stderr)
+            for h in self.logger.handlers
+        ):
+            _console_handler = logging.StreamHandler(sys.stdout)
+            _console_handler.setLevel(logging.DEBUG)
+            _console_handler.setFormatter(
+                logging.Formatter(
+                    "%(asctime)s [%(levelname)s] %(message)s",
+                    datefmt="%H:%M:%S",
+                )
+            )
+            self.logger.addHandler(_console_handler)
+        # --------------------------------------------------------------
+
         self._loader = ModuleLoader(self)
         self._repo = RepositoryManager(self)
         self._log = KernelLogger(self)
@@ -306,7 +322,7 @@ class Kernel:
         import threading
 
         _REQUIREMENTS = [
-            ("telethon", "telethon_mcub"),
+            ("telethon_mcub", "telethon_mcub"),
             ("aiohttp", "aiohttp"),
             ("aiohttp-jinja2", "aiohttp_jinja2"),
             ("jinja2", "jinja2"),

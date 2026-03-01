@@ -17,6 +17,25 @@ log = logging.getLogger("mcub.web.setup")
 
 _SETUP_SESSION = "_mcub_setup_tmp"
 
+
+def _import_telethon():
+    """Import telethon (supports both telethon and telethon_mcub)."""
+    try:
+        from telethon import TelegramClient
+        from telethon.errors import FloodWaitError
+        return TelegramClient, FloodWaitError, "telethon"
+    except ImportError:
+        pass
+    
+    try:
+        from telethon_mcub import TelegramClient
+        from telethon_mcub.errors import FloodWaitError
+        return TelegramClient, FloodWaitError, "telethon_mcub"
+    except ImportError:
+        pass
+    
+    return None, None, None
+
 def setup_routes(app: web.Application) -> None:
     app.router.add_get("/",                       index)
     app.router.add_get("/status",                 status)
@@ -109,10 +128,9 @@ async def api_send_code(request: web.Request) -> web.Response:
     _remove_session_files(_SETUP_SESSION)
 
     try:
-        from telethon import TelegramClient
-        from telethon.errors import FloodWaitError
-    except ImportError:
-        return _err("telethon is not installed — run: pip install telethon")
+        TelegramClient, FloodWaitError, telethon_pkg = _import_telethon()
+        if TelegramClient is None:
+            return _err("telethon is not installed — run: pip install telethon_mcub")
 
     print("[setup] Creating TelegramClient…", flush=True)
     client = TelegramClient(
@@ -167,13 +185,30 @@ async def api_verify_code(request: web.Request) -> web.Response:
     password = str(data.get("password", "")).strip()
     print(f"[setup] code={code!r}  has_password={bool(password)}", flush=True)
 
-    from telethon.errors import (
-        PhoneCodeInvalidError,
-        PhoneCodeExpiredError,
-        SessionPasswordNeededError,
-        PasswordHashInvalidError,
-        FloodWaitError,
-    )
+    try:
+        TelegramClient, FloodWaitError, telethon_pkg = _import_telethon()
+        if TelegramClient is None:
+            return _err("telethon is not installed — run: pip install telethon_mcub")
+    except Exception:
+        return _err("telethon is not installed — run: pip install telethon_mcub")
+
+    # Try importing errors from telethon or telethon_mcub
+    try:
+        from telethon.errors import (
+            PhoneCodeInvalidError,
+            PhoneCodeExpiredError,
+            SessionPasswordNeededError,
+            PasswordHashInvalidError,
+            FloodWaitError,
+        )
+    except ImportError:
+        from telethon_mcub.errors import (
+            PhoneCodeInvalidError,
+            PhoneCodeExpiredError,
+            SessionPasswordNeededError,
+            PasswordHashInvalidError,
+            FloodWaitError,
+        )
 
     # ── 2FA-only second call ──
     if state.get("awaiting_2fa") and not code:

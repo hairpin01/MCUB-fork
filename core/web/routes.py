@@ -130,10 +130,9 @@ async def api_send_code(request: web.Request) -> web.Response:
     await _cleanup_state_client(state)
     _remove_session_files(_SETUP_SESSION)
 
-    try:
-        TelegramClient, FloodWaitError, telethon_pkg, types = _import_telethon()
-        if TelegramClient is None:
-            return _err("telethon is not installed — run: pip install telethon_mcub")
+    TelegramClient, FloodWaitError, telethon_pkg, types = _import_telethon()
+    if TelegramClient is None:
+        return _err("telethon is not installed — run: pip install telethon_mcub")
 
     print("[setup] Creating TelegramClient…", flush=True)
     client = TelegramClient(

@@ -278,7 +278,7 @@ class Kernel:
         import time
 
         _REQUIREMENTS = [
-            ("telethon", "telethon_mcub"),
+            ("telethon_mcub", "telethon_mcub"),
             ("aiohttp", "aiohttp"),
             ("aiohttp-jinja2", "aiohttp_jinja2"),
             ("jinja2", "jinja2"),

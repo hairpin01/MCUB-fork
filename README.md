@@ -306,6 +306,12 @@ python3 -m core
 > [!IMPORTANT]
 > Файл `config.json` содержит конфиденциальные данные
 
+### Telethon-MCUB
+
+MCUB-fork использует форк Telethon - [Telethon-MCUB](https://github.com/hairpin01/Telethon-MCUB).
+
+Установить/обновить: `pip install telethon_mcub`
+
 ### Аргументы командной строки
 
 | Аргумент | Описание | По умолчанию | Переменная окружения |
@@ -489,6 +495,12 @@ python3 -m core
 
 > [!IMPORTANT]
 > Файл `config.json` містить конфіденційні дані
+
+### Telethon-MCUB
+
+MCUB-fork використовує форк Telethon - [Telethon-MCUB](https://github.com/hairpin01/Telethon-MCUB).
+
+Встановити/оновити: `pip install telethon_mcub`
 
 ### Параметри командного рядка
 
@@ -674,6 +686,12 @@ python3 -m core
 > [!IMPORTANT]
 > El archivo `config.json` contiene datos confidenciales
 
+### Telethon-MCUB
+
+MCUB-fork usa un fork de Telethon - [Telethon-MCUB](https://github.com/hairpin01/Telethon-MCUB).
+
+Instalar/actualizar: `pip install telethon_mcub`
+
 ### Banderas CLI
 
 | Bandera | Descripción | Por defecto | Variable de entorno |
@@ -858,6 +876,12 @@ python3 -m core
 > [!IMPORTANT]
 > Die `config.json` Datei enthält vertrauliche Daten
 
+### Telethon-MCUB
+
+MCUB-fork verwendet einen Fork von Telethon - [Telethon-MCUB](https://github.com/hairpin01/Telethon-MCUB).
+
+Installieren/Aktualisieren: `pip install telethon_mcub`
+
 ### CLI-Flags
 
 | Flag | Beschreibung | Standard | Umgebungsvariable |
@@ -1041,6 +1065,12 @@ python3 -m core
 
 > [!重要]
 > `config.json` 文件包含敏感数据
+
+### Telethon-MCUB
+
+MCUB-fork 使用 Telethon 的分支版本 - [Telethon-MCUB](https://github.com/hairpin01/Telethon-MCUB)。
+
+安装/更新: `pip install telethon_mcub`
 
 ### CLI 参数
 

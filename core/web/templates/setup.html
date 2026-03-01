@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MCUB – Setup</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
+<!-- QR Code library-->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hubballi&family=JetBrains+Mono:wght@300;400;600&display=swap">
 <style>
 :root {
@@ -12,7 +13,6 @@
   --accent-glow: #5b21b6;
   --accent-soft: rgba(124,58,237,.18);
 
-  /* dark (default) */
   --bg:       #0d0d12;
   --bg2:      #13131a;
   --card:     rgba(20,18,30,.72);
@@ -233,33 +233,40 @@ input:focus{
 input::placeholder{color:var(--text-dim);opacity:.55;}
 
 .btn-primary{
-  width:100%;padding:10px;
+  width:100%;padding:10px 16px;
   background:transparent;
   color:var(--accent);
   border:1px solid var(--accent);
   border-radius:6px;
   font-family:'JetBrains Mono',monospace;font-size:.88rem;
   cursor:pointer;
-  transition:background .2s,color .2s,box-shadow .2s;
-  margin-top:4px;
+  transition:background .2s,color .2s,box-shadow .2s,transform .1s;
+  margin-top:0;
+  white-space:nowrap;
 }
 .btn-primary:hover:not(:disabled){
   background:var(--accent);color:#fff;
   box-shadow:0 0 20px -6px var(--accent);
 }
+.btn-primary:active:not(:disabled){ transform:scale(.97); }
 .btn-primary:disabled{opacity:.35;cursor:not-allowed;}
 
 .btn-ghost{
-  padding:10px 16px;
+  width:100%;padding:10px 16px;
   background:transparent;color:var(--text-dim);
   border:1px solid var(--border);border-radius:6px;
-  font-family:'JetBrains Mono',monospace;font-size:.85rem;
-  cursor:pointer;transition:border-color .2s,color .2s;
+  font-family:'JetBrains Mono',monospace;font-size:.88rem;
+  cursor:pointer;transition:border-color .2s,color .2s,transform .1s;
+  white-space:nowrap;
 }
-.btn-ghost:hover{border-color:var(--text-dim);color:var(--text);}
+.btn-ghost:hover{ border-color:var(--text-dim);color:var(--text); }
+.btn-ghost:active{ transform:scale(.97); }
 
-.btn-row{display:flex;gap:8px;margin-top:4px;}
-.btn-row .btn-primary{flex:1;}
+.btn-row{ display:flex; gap:8px; margin-top:8px; }
+.btn-row > button { flex:1; margin:0; }
+
+.wstep > .btn-primary,
+.wstep > .btn-ghost { margin-bottom:8px; }
 
 .done-icon{font-size:2.8rem;text-align:center;margin-bottom:6px;}
 .spinner{
@@ -285,6 +292,106 @@ input::placeholder{color:var(--text-dim);opacity:.55;}
 
 .hidden{display:none!important;}
 
+.page { animation: pageFadeUp .55s cubic-bezier(.22,1,.36,1) both; }
+@keyframes pageFadeUp {
+  from { opacity:0; transform:translateY(22px); }
+  to   { opacity:1; transform:none; }
+}
+
+.wizard-card { animation: cardPop .5s cubic-bezier(.22,1,.36,1) .1s both; }
+@keyframes cardPop {
+  from { opacity:0; transform:scale(.96) translateY(12px); }
+  to   { opacity:1; transform:none; }
+}
+
+.wstep { animation: stepIn .32s cubic-bezier(.22,1,.36,1) both; }
+@keyframes stepIn {
+  from { opacity:0; transform:translateX(18px); }
+  to   { opacity:1; transform:none; }
+}
+.wstep.slide-back { animation: stepInBack .32s cubic-bezier(.22,1,.36,1) both; }
+@keyframes stepInBack {
+  from { opacity:0; transform:translateX(-18px); }
+  to   { opacity:1; transform:none; }
+}
+
+.logo-img {
+  animation: logoPulse 3s ease-in-out infinite;
+  filter: drop-shadow(0 0 0px var(--accent));
+}
+@keyframes logoPulse {
+  0%,100% { filter: drop-shadow(0 0 4px var(--accent)) drop-shadow(0 0 0px var(--accent-glow)); }
+  50%      { filter: drop-shadow(0 0 14px var(--accent)) drop-shadow(0 0 8px var(--accent-glow)); }
+}
+
+.step.active .snum { animation: dotBounce .35s cubic-bezier(.34,1.56,.64,1); }
+@keyframes dotBounce {
+  from { transform: scale(.6); }
+  to   { transform: scale(1); }
+}
+
+.sconn { position:relative; overflow:hidden; }
+.sconn::after {
+  content:''; position:absolute; inset:0;
+  background:var(--accent);
+  transform:scaleX(0); transform-origin:left;
+  transition:transform .4s ease;
+}
+.sconn.filled::after { transform:scaleX(1); }
+
+.blob { animation: blobDrift 8s ease-in-out infinite alternate; }
+@keyframes blobDrift {
+  from { background-position: 40% 55%; transform: scale(1); }
+  to   { background-position: 60% 65%; transform: scale(1.06); }
+}
+
+@keyframes inputShake {
+  0%,100% { transform:none; }
+  20%     { transform:translateX(-6px); }
+  40%     { transform:translateX(6px); }
+  60%     { transform:translateX(-4px); }
+  80%     { transform:translateX(4px); }
+}
+input.shake { animation: inputShake .4s ease; border-color: rgba(239,68,68,.8) !important; }
+
+.done-icon img { animation: successBounce .6s cubic-bezier(.34,1.56,.64,1) .1s both; }
+@keyframes successBounce {
+  from { transform:scale(0) rotate(-20deg); opacity:0; }
+  to   { transform:scale(1) rotate(0); opacity:1; }
+}
+
+#resetModal { transition: opacity .2s; }
+#resetModal > div { animation: modalPop .25s cubic-bezier(.22,1,.36,1); }
+@keyframes modalPop {
+  from { transform:scale(.92); opacity:0; }
+  to   { transform:none; opacity:1; }
+}
+
+#qr-image { animation: qrFadeIn .4s ease .1s both; }
+@keyframes qrFadeIn {
+  from { opacity:0; transform:scale(.9); }
+  to   { opacity:1; transform:none; }
+}
+
+#qr-image.refreshed { animation: qrFadeIn .3s ease both; }
+
+.btn-primary, .btn-ghost {
+  position: relative; overflow: hidden;
+}
+.ripple {
+  position:absolute; border-radius:50%;
+  background:rgba(255,255,255,.25);
+  transform:scale(0);
+  animation:rippleAnim .5s linear;
+  pointer-events:none;
+}
+@keyframes rippleAnim {
+  to { transform:scale(4); opacity:0; }
+}
+
+
+#reauthPage .wizard-card { animation: cardPop .5s cubic-bezier(.22,1,.36,1) .15s both; }
+
 @media(max-width:520px){
   .wizard-card{padding:20px 16px;}
   .slabel{display:none;}
@@ -308,14 +415,11 @@ input::placeholder{color:var(--text-dim);opacity:.55;}
   <div class="wish"></div>
 </div></div>
 
-<!-- theme toggle -->
 <button class="theme-toggle" id="themeToggle" title="Toggle theme">🌙</button>
 
-<!-- toast container -->
 <div id="toasts"></div>
 
-<!-- main -->
-<div class="page">
+<div class="page" id="setupPage">
 
   <div class="logo-row">
     <img src="/static/img/0.png" alt="MCUB" class="logo-img">
@@ -324,6 +428,8 @@ input::placeholder{color:var(--text-dim);opacity:.55;}
 
   <div class="steps-bar">
     <div class="step active" id="dot-1"><span class="snum">1</span><span class="slabel">Credentials</span></div>
+    <div class="sconn"></div>
+    <div class="step" id="dot-1qr"><span class="snum">QR</span><span class="slabel">Scan</span></div>
     <div class="sconn"></div>
     <div class="step" id="dot-2"><span class="snum">2</span><span class="slabel">Code</span></div>
     <div class="sconn"></div>
@@ -352,7 +458,24 @@ input::placeholder{color:var(--text-dim);opacity:.55;}
       <label>Phone number
         <input id="f_phone" type="tel" placeholder="+1234567890" autocomplete="tel">
       </label>
-      <button class="btn-primary" id="btn1" onclick="step1()">Send code →</button>
+      <div class="btn-row">
+        <button class="btn-primary" id="btn1" onclick="step1()">Send code</button>
+        <button class="btn-ghost" id="btn1_qr" onclick="step1QR()">QR Code</button>
+      </div>
+    </div>
+
+    <!-- Step 1.5: QR Code -->
+    <div class="wstep hidden" id="s1qr">
+      <h2>Scan QR Code</h2>
+      <p class="hint">Scan this QR code with your Telegram app to log in.</p>
+      <div id="qr-container" style="text-align:center;margin:20px 0;">
+        <div id="qr-image" style="display:inline-block;padding:12px;background:#fff;border-radius:8px;"></div>
+      </div>
+      <p class="hint small" id="qr-status">Waiting for scan...</p>
+      <div class="btn-row">
+        <button class="btn-ghost" onclick="show(1)">Back</button>
+        <button class="btn-primary" id="btn_qr_poll" onclick="pollQR()">Check Again</button>
+      </div>
     </div>
 
     <!-- Step 2 -->
@@ -362,7 +485,6 @@ input::placeholder{color:var(--text-dim);opacity:.55;}
       <label>Code
         <input id="f_code" type="text" inputmode="numeric" placeholder="12345" autocomplete="one-time-code" maxlength="10">
       </label>
-      <button class="btn-ghost" id="btn_resend_sms" onclick="resendSms()" style="margin: 8px 0;">📱 Resend via SMS</button>
       <div class="btn-row">
         <button class="btn-ghost" onclick="show(1)">← Back</button>
         <button class="btn-primary" id="btn2" onclick="step2()">Verify →</button>
@@ -392,8 +514,8 @@ input::placeholder{color:var(--text-dim);opacity:.55;}
       <label>Bot Token (leave empty to skip)
         <input id="f_bot_token" type="text" placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz">
       </label>
-      <button class="btn-primary" id="btn4verify" onclick="verifyBotInSetup()" style="margin-bottom:8px;">Verify Token</button>
-      <button class="btn-ghost" id="btn4auto" onclick="autoCreateBot()" style="margin-bottom:8px;width:100%;">Auto Create Bot</button>
+      <button class="btn-primary" id="btn4verify" onclick="verifyBotInSetup()">Verify Token</button>
+      <button class="btn-ghost" id="btn4auto" onclick="autoCreateBot()">Auto Create Bot</button>
       <div class="btn-row">
         <button class="btn-ghost" onclick="skipBot()">Skip →</button>
         <button class="btn-primary" id="btn4" onclick="finishWithBot()" disabled>Continue →</button>
@@ -412,12 +534,45 @@ input::placeholder{color:var(--text-dim);opacity:.55;}
   </div>
 
   <div class="reset-bar">
-    Already configured? <a href="/setup/reset" class="reset-link">Reset & reconfigure →</a>
+    Already configured? <a href="#" class="reset-link" onclick="showResetChoice();return false;">Reset & reconfigure</a>
   </div>
   <div class="reset-bar" style="margin-top:8px;">
-    <a href="/bot" class="reset-link">Bot Settings →</a>
+    <a href="/bot" class="reset-link">Bot Settings</a>
   </div>
 
+  <div id="resetModal" class="hidden" style="position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.7);">
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:360px;width:90%;">
+      <h3 style="margin-bottom:12px;">Choose Login Method</h3>
+      <p class="hint" style="margin-bottom:18px;">How would you like to log in to your Telegram account?</p>
+      <button class="btn-primary" onclick="resetAndChoose('qr')">Login via QR Code</button>
+      <div class="btn-row" style="margin-top:8px;">
+        <button class="btn-ghost" onclick="resetAndChoose('code')">Send Code</button>
+        <button class="btn-ghost" onclick="document.getElementById('resetModal').classList.add('hidden')">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="setup-footer">MCUB Kernel – setup wizard</footer>
+</div>
+
+<div class="page hidden" id="reauthPage">
+  <div class="logo-row">
+    <img src="/static/img/0.png" alt="MCUB" class="logo-img">
+  </div>
+  <p class="subtitle">Session Expired</p>
+
+  <div class="wizard-card">
+    <h2>Re-authenticate</h2>
+    <p class="hint">Your session has expired. Please log in again to continue.</p>
+    <div class="btn-row" style="margin-top:20px;">
+      <button class="btn-primary" onclick="showReauthQR()">QR Code</button>
+      <button class="btn-ghost" onclick="showReauthCode()">Send Code</button>
+    </div>
+  </div>
+
+  <div class="reset-bar">
+    <a href="/setup/reset" class="reset-link">Reset & start fresh</a>
+  </div>
   <footer class="setup-footer">MCUB Kernel – setup wizard</footer>
 </div>
 
@@ -479,7 +634,24 @@ function dismiss(el) {
   setTimeout(() => el.remove(), 250);
 }
 
+function shakeInput(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('shake');
+  void el.offsetWidth;
+  el.classList.add('shake');
+  el.addEventListener('animationend', () => el.classList.remove('shake'), {once:true});
+}
+
 function toast(msg, type = 'err') {
+  if (type === 'err') {
+    const active = document.activeElement;
+    if (active && active.tagName === 'INPUT') {
+      active.classList.remove('shake'); void active.offsetWidth;
+      active.classList.add('shake');
+      active.addEventListener('animationend', () => active.classList.remove('shake'), {once:true});
+    }
+  }
   const MAX_TOASTS = 5;
   const wrap = document.getElementById('toasts');
   const el = document.createElement('div');
@@ -494,12 +666,40 @@ function toast(msg, type = 'err') {
   setTimeout(() => dismiss(el), 6000);
 }
 
+let _currentStep = 1;
+
 function show(n) {
-  document.querySelectorAll('.wstep').forEach((el, i) => el.classList.toggle('hidden', i + 1 !== n));
-  document.querySelectorAll('.step').forEach((el, i) => {
-    el.classList.toggle('active', i + 1 === n);
-    el.classList.toggle('done',   i + 1 <  n);
-  });
+  const wstepMap = {'1':1, '1qr':2, '2':3, '3':4, '4':5, '5':6};
+  const stepMap  = {'1':1, '1qr':2, '2':3, '3':4, '4':5, '5':6};
+
+  const wstepIdx = wstepMap[String(n)];
+  const stepIdx  = stepMap[String(n)];
+  const goingBack = wstepIdx < _currentStep;
+  if (wstepIdx !== undefined) _currentStep = wstepIdx;
+
+  if (wstepIdx !== undefined) {
+    document.querySelectorAll('.wstep').forEach((el, i) => {
+      const visible = i + 1 === wstepIdx;
+      el.classList.toggle('hidden', !visible);
+      if (visible) {
+        el.classList.remove('slide-back');
+        void el.offsetWidth;
+        if (goingBack) el.classList.add('slide-back');
+        else el.classList.remove('slide-back');
+      }
+    });
+  }
+
+  if (stepIdx !== undefined) {
+    document.querySelectorAll('.step').forEach((el, i) => {
+      el.classList.toggle('active', i + 1 === stepIdx);
+      el.classList.toggle('done',   i + 1 < stepIdx);
+    });
+    document.querySelectorAll('.sconn').forEach((el, i) => {
+      el.classList.toggle('filled', i < stepIdx - 1);
+    });
+  }
+
   const inp = document.querySelector(`#s${n} input`);
   if (inp) setTimeout(() => inp.focus(), 80);
 }
@@ -538,7 +738,7 @@ async function step2() {
     const r = await post('/api/setup/verify_code', { code });
     if (r.requires_2fa) { show(3); return; }
     if (!r.ok) { toast(r.error || 'Unknown error'); return; }
-    show(4); // Go to bot step
+    show(4);
   } catch(e) { toast('Network error: ' + e.message); }
   finally { btnLoading('btn2', false); }
 }
@@ -550,19 +750,95 @@ async function step3() {
   try {
     const r = await post('/api/setup/verify_code', { password });
     if (!r.ok) { toast(r.error || 'Unknown error'); return; }
-    show(4); // Go to bot step
+    show(4);
   } catch(e) { toast('Network error: ' + e.message); }
   finally { btnLoading('btn3', false); }
 }
 
-async function resendSms() {
-  btnLoading('btn_resend_sms', true);
+async function step1QR() {
+  const api_id   = document.getElementById('f_api_id').value.trim();
+  const api_hash = document.getElementById('f_api_hash').value.trim();
+  if (!api_id || !api_hash) { toast('API ID and Hash are required.'); return; }
+  btnLoading('btn1_qr', true);
   try {
-    const r = await post('/api/setup/resend_code', { force_sms: true });
-    if (!r.ok) { toast(r.error || 'Failed to resend code'); return; }
-    toast('Code sent via SMS!', 'ok');
+    const r = await post('/api/setup/qr_login', { api_id, api_hash });
+    if (!r.ok) { toast(r.error || 'Unknown error'); return; }
+
+    const qrContainer = document.getElementById('qr-image');
+    qrContainer.innerHTML = '';
+    new QRCode(qrContainer, {
+      text: r.qr_url,
+      width: 220, height: 220,
+      colorDark: '#000', colorLight: '#fff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+    document.getElementById('qr-status').textContent = 'Scan with your Telegram app...';
+    show('1qr');
+
+    pollQRLoop();
   } catch(e) { toast('Network error: ' + e.message); }
-  finally { btnLoading('btn_resend_sms', false); }
+  finally { btnLoading('btn1_qr', false); }
+}
+
+let qrPollInterval = null;
+
+function pollQRLoop() {
+  if (qrPollInterval) clearInterval(qrPollInterval);
+  qrPollInterval = setInterval(async () => {
+    try {
+      const r = await post('/api/setup/qr_poll', {});
+      if (r.requires_2fa) {
+        clearInterval(qrPollInterval);
+        show(3);
+        return;
+      }
+      if (r.qr_expired && r.qr_url) {
+        const qrContainer = document.getElementById('qr-image');
+        qrContainer.innerHTML = '';
+        new QRCode(qrContainer, {
+          text: r.qr_url,
+          width: 220, height: 220,
+          colorDark: '#000', colorLight: '#fff',
+          correctLevel: QRCode.CorrectLevel.M
+        });
+        document.getElementById('qr-status').textContent = 'New QR code generated - scan again!';
+        toast('QR code expired, new one generated', 'ok');
+        animateQR();
+        return;
+      }
+      if (r.ok && !r.waiting) {
+        clearInterval(qrPollInterval);
+        show(4);
+        return;
+      }
+      if (r.error) {
+        clearInterval(qrPollInterval);
+        toast(r.error);
+        show(1);
+        return;
+      }
+    } catch(e) {}
+  }, 3000);
+}
+
+async function pollQR() {
+  document.getElementById('qr-status').textContent = 'Checking...';
+  try {
+    const r = await post('/api/setup/qr_poll', {});
+    if (r.requires_2fa) {
+      clearInterval(qrPollInterval);
+      show(3);
+      return;
+    }
+    if (r.ok && !r.waiting) {
+      clearInterval(qrPollInterval);
+      show(4);
+      return;
+    }
+    document.getElementById('qr-status').textContent = 'Waiting for scan...';
+  } catch(e) {
+    document.getElementById('qr-status').textContent = 'Error: ' + e.message;
+  }
 }
 
 function pollKernel() {
@@ -578,6 +854,24 @@ function pollKernel() {
   }, 2000);
 }
 
+function showResetChoice() {
+  document.getElementById('resetModal').classList.remove('hidden');
+}
+
+async function resetAndChoose(method) {
+  document.getElementById('resetModal').classList.add('hidden');
+  try {
+    await fetch('/setup/reset', {method:'GET'});
+  } catch(e) {}
+
+  if (method === 'qr') {
+    show(1);
+    toast('Enter API credentials and click QR Code button', 'ok');
+  } else {
+    location.reload();
+  }
+}
+
 document.getElementById('f_phone').addEventListener('keydown',    e => e.key==='Enter' && step1());
 document.getElementById('f_code').addEventListener('keydown',     e => e.key==='Enter' && step2());
 document.getElementById('f_pass').addEventListener('keydown',     e => e.key==='Enter' && step3());
@@ -590,13 +884,12 @@ document.getElementById('toasts').addEventListener('click', (e) => {
   }
 });
 
-// Bot setup in wizard
 async function verifyBotInSetup() {
   const token = document.getElementById('f_bot_token').value.trim();
-  if (!token) { 
-    // Skip verification if empty
+  if (!token) {
+
     document.getElementById('btn4').disabled = false;
-    return; 
+    return;
   }
   btnLoading('btn4verify', true);
   try {
@@ -612,13 +905,13 @@ async function autoCreateBot() {
   btnLoading('btn4auto', true);
   try {
     const r = await post('/api/bot/auto_create', {});
-    if (!r.ok) { 
+    if (!r.ok) {
       if (r.manual) {
         toast('Auto create failed. Enter token manually or skip.', 'err');
       } else {
-        toast(r.error || 'Error creating bot'); 
+        toast(r.error || 'Error creating bot');
       }
-      return; 
+      return;
     }
     document.getElementById('f_bot_token').value = r.token;
     toast('Bot @' + r.username + ' created! Continue.', 'ok');
@@ -628,7 +921,6 @@ async function autoCreateBot() {
 }
 
 async function skipBot() {
-  // Trigger kernel start
   await post('/api/setup/complete', {});
   show(5); pollKernel();
 }
@@ -641,21 +933,20 @@ async function finishWithBot() {
       const r = await post('/api/bot/save_token', { token });
       if (!r.ok) { toast(r.error || 'Error saving token'); return; }
     }
-    // Trigger kernel start
+
     await post('/api/setup/complete', {});
     show(5); pollKernel();
   } catch(e) { toast('Error: ' + e.message); }
   finally { btnLoading('btn4', false); }
 }
 
-// Bot page
 async function loadBotStatus() {
   try {
     const r = await fetch('/api/bot/status');
     const data = await r.json();
-    
+
     document.getElementById('botStatus').classList.add('hidden');
-    
+
     if (data.running) {
       document.getElementById('botActions').classList.remove('hidden');
       document.getElementById('botUsernameDisplay').textContent = 'Running as @' + data.username;
@@ -676,7 +967,7 @@ async function loadBotStatus() {
 async function verifyBotToken() {
   const token = document.getElementById('f_bot_token').value.trim();
   if (!token) { toast('Token is required'); return; }
-  
+
   btnLoading('btnBotVerify', true);
   try {
     const r = await post('/api/bot/verify_token', { token });
@@ -712,11 +1003,83 @@ async function startBot() {
   finally { btnLoading('btnBotStart', false); }
 }
 
-// Check if bot page
 if (location.pathname === '/bot') {
-  document.querySelector('.page').classList.add('hidden');
+  document.getElementById('setupPage').classList.add('hidden');
   document.getElementById('botPage').classList.remove('hidden');
   loadBotStatus();
+}
+
+{% if show_reauth %}
+document.getElementById('setupPage').classList.add('hidden');
+document.getElementById('reauthPage').classList.remove('hidden');
+{% else %}
+
+async function checkReauth() {
+  try {
+    const r = await fetch('/api/setup/state');
+    const state = await r.json();
+    if (state.needs_reauth) {
+      document.getElementById('setupPage').classList.add('hidden');
+      document.getElementById('reauthPage').classList.remove('hidden');
+    }
+  } catch(e) {}
+}
+checkReauth();
+{% endif %}
+
+async function _prefillFromConfig() {
+  try {
+    const r = await fetch('/api/setup/prefill');
+    const d = await r.json();
+    if (d.ok) {
+      document.getElementById('f_api_id').value   = d.api_id   || '';
+      document.getElementById('f_api_hash').value = d.api_hash || '';
+      document.getElementById('f_phone').value    = d.phone    || '';
+    }
+    return d;
+  } catch(e) { return {}; }
+}
+
+async function showReauthQR() {
+  document.getElementById('reauthPage').classList.add('hidden');
+  document.getElementById('setupPage').classList.remove('hidden');
+  const d = await _prefillFromConfig();
+  if (d.ok && d.api_id && d.api_hash) {
+    await step1QR();
+  } else {
+    show(1);
+    toast('Fill in API credentials to continue', 'err');
+  }
+}
+
+async function showReauthCode() {
+  document.getElementById('reauthPage').classList.add('hidden');
+  document.getElementById('setupPage').classList.remove('hidden');
+  const d = await _prefillFromConfig();
+  if (d.ok && d.api_id && d.api_hash && d.phone) {
+    await step1();
+  } else {
+    show(1);
+    toast('Fill in API credentials to continue', 'err');
+  }
+}
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.btn-primary, .btn-ghost');
+  if (!btn) return;
+  const r = document.createElement('span');
+  r.className = 'ripple';
+  const rect = btn.getBoundingClientRect();
+  const size = Math.max(rect.width, rect.height);
+  r.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX-rect.left-size/2}px;top:${e.clientY-rect.top-size/2}px`;
+  btn.appendChild(r);
+  r.addEventListener('animationend', () => r.remove());
+});
+
+function animateQR() {
+  const el = document.getElementById('qr-image');
+  el.classList.remove('refreshed'); void el.offsetWidth;
+  el.classList.add('refreshed');
 }
 
 function rand(a,b){return Math.random()*(b-a)+a;}

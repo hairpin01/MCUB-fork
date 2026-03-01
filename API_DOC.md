@@ -388,72 +388,56 @@ kernel.cprint("Warning message", kernel.Colors.YELLOW)
 
 ## Database API
 
-`kernel.db.execute(query, params=None)`
+> [!NOTE]
+> Direct SQL access is restricted for security. Use the Key-Value Database API below for data storage, or use `kernel.db_query()` for read-only queries (SELECT, PRAGMA, EXPLAIN).
+
+`kernel.init_db()`
 ---
-Execute SQL query.
+Initialize the database connection.
+
+**Returns:** bool - True if successful
+
+**Usage:**
+```python
+await kernel.init_db()
+```
+
+`kernel.create_tables()`
+---
+Create required database tables.
+
+**Usage:**
+```python
+await kernel.create_tables()
+```
+
+`kernel.db_query(query, parameters)`
+---
+Execute read-only SQL query.
 
 **Parameters:**
-- `query` (str): SQL query string
-- `params` (tuple, optional): Query parameters
+- `query` (str): SQL query string (only SELECT, PRAGMA, EXPLAIN allowed)
+- `parameters` (tuple): Query parameters
 
-**Returns:** Cursor object
+**Returns:** list of rows
+
+**Raises:** PermissionError if query contains forbidden operations (INSERT, UPDATE, DELETE, etc.)
 
 **Usage:**
 ```python
-await kernel.db.execute(
-    "INSERT INTO users (id, name) VALUES (?, ?)",
-    (user_id, name)
+rows = await kernel.db_query(
+    "SELECT * FROM module_data WHERE module = ?",
+    ('mymodule',)
 )
 ```
-
-`kernel.db.fetchone(query, params=None)`
----
-Fetch single row from database.
-
-**Returns:** dict or None
-
-**Usage:**
-```python
-user = await kernel.db.fetchone(
-    "SELECT * FROM users WHERE id = ?",
-    (user_id,)
-)
-```
-
-`kernel.db.fetchall(query, params=None)`
----
-Fetch all rows matching query.
-
-**Returns:** list of dict
-
-**Usage:**
-```python
-users = await kernel.db.fetchall("SELECT * FROM users")
-```
-
-`kernel.db.commit()`
----
-Commit pending transactions.
-
-**Usage:**
-```python
-await kernel.db.execute("UPDATE users SET active = 1")
-await kernel.db.commit()
-```
-
----
-
-## Key-Value Database API
-
-A simpler high-level API built on top of the raw SQL database. Stores arbitrary values under a `(module, key)` pair — no table management required.
 
 `kernel.db_set(module, key, value)`
 ---
-Store a string value.
+Store a string value in module namespace.
 
 **Parameters:**
-- `module` (str): Namespace — typically your module name
-- `key` (str): Key
+- `module` (str): Namespace — typically your module name (alphanumeric, underscore, hyphen only)
+- `key` (str): Key (alphanumeric, underscore, hyphen only)
 - `value` (str): Value to store
 
 **Usage:**
@@ -465,7 +449,7 @@ await kernel.db_set('mymodule', 'last_run', '2024-01-01')
 ---
 Retrieve a stored value.
 
-**Returns:** str | None (via await)
+**Returns:** str | None
 
 **Usage:**
 ```python
@@ -479,17 +463,6 @@ Delete a stored value.
 **Usage:**
 ```python
 await kernel.db_delete('mymodule', 'last_run')
-```
-
-`kernel.db_query(query, parameters)`
----
-Execute arbitrary SQL query.
-
-**Returns:** list of rows
-
-**Usage:**
-```python
-rows = await kernel.db_query("SELECT * FROM module_data WHERE module = ?", ('mymodule',))
 ```
 
 `kernel.db_conn`

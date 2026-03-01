@@ -306,7 +306,7 @@ class Kernel:
         import threading
 
         _REQUIREMENTS = [
-            ("telethon", "telethon"),
+            ("telethon", "telethon_mcub"),
             ("aiohttp", "aiohttp"),
             ("aiohttp-jinja2", "aiohttp_jinja2"),
             ("jinja2", "jinja2"),

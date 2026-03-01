@@ -278,7 +278,7 @@ class Kernel:
         import time
 
         _REQUIREMENTS = [
-            ("telethon_mcub", "telethon_mcub"),
+            ("telethon-mcub", "telethon"),
             ("aiohttp", "aiohttp"),
             ("aiohttp-jinja2", "aiohttp_jinja2"),
             ("jinja2", "jinja2"),
@@ -963,12 +963,6 @@ class Kernel:
             self.cprint(f"{Colors.RED}=X DB init error: {e}{Colors.RESET}")
 
         await self.setup_inline_bot()
-
-        if self.config.get("inline_bot_token"):
-            from core_inline.bot import InlineBot
-
-            self.inline_bot = InlineBot(self)
-            await self.inline_bot.setup()
 
         @self.client.on(events.NewMessage(outgoing=True))
         async def message_handler(event):

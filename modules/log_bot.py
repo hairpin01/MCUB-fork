@@ -306,8 +306,8 @@ def register(kernel):
                     await bot_client.send_message(
                         kernel.log_chat_id, message, parse_mode="html"
                     )
-                kernel.cprint(
-                    f"{kernel.Colors.GREEN}✅ Стартовое сообщение через бота{kernel.Colors.RESET}"
+                kernel.logger.info(
+                    "Стартовое сообщение через бота"
                 )
             else:
                 if image_path:
@@ -321,8 +321,8 @@ def register(kernel):
                     await client.send_message(
                         kernel.log_chat_id, message, parse_mode="html"
                     )
-                kernel.cprint(
-                    f"{kernel.Colors.YELLOW}⚠️ Стартовое сообщение через юзербота{kernel.Colors.RESET}"
+                kernel.logger.warning(
+                    "Стартовое сообщение через юзербота"
                 )
         except Exception as e:
             kernel.cprint(

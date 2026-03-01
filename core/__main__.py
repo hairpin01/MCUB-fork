@@ -158,6 +158,7 @@ async def _main() -> None:
     kernel.web_enabled = web_enabled
     kernel.web_host    = args.host
     kernel.web_port    = args.port
+    kernel.proxy_web = args.proxy_web
     await kernel.run()
 
 
@@ -169,9 +170,8 @@ if __name__ == "__main__":
         asyncio.run(_main())
     except KeyboardInterrupt:
         print("\n-> exit kernel…", flush=True)
-
+        sys.exit(0)
     except Exception as exc:
         print(f'\nFatal: "{exc}" [X]', flush=True)
         traceback.print_exc()
-    finally:
-        sys.exit(0)
+        sys.exit(1)

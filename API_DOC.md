@@ -26,6 +26,7 @@ __Table of Contents__
 > 22. [InfiniteLoop](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#infiniteloop)
 > 23. [Lifecycle Callbacks](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#lifecycle-callbacks)
 > 24. [Custom Core MCUB](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#custom-core-mcub)
+> 25. [Telethon-MCUB Fork Methods](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#telethon-mcub-fork-methods)
 
 # Introduction
 
@@ -2931,3 +2932,90 @@ To ship your core as a drop-in file (like the built-in `zen` core):
 
 > [!TIP]
 > Prefix your core file with your username to avoid conflicts: `core/kernel/hairpin_custom.py`.
+
+---
+
+# Telethon-MCUB Fork Methods
+
+MCUB-fork uses [Telethon-MCUB](https://github.com/hairpin01/Telethon-MCUB) - a custom fork of Telethon with additional userbot features.
+
+## Installation
+
+```bash
+pip install telethon_mcub
+```
+
+## New Client Methods
+
+### Reactions
+
+```python
+# Send reaction to message
+await client.send_reaction(chat, message, "🔥")
+# Multiple reactions
+await client.send_reaction(chat, message, ["👍", "❤️"])
+# Big reaction
+await client.send_reaction(chat, message, "🎉", big=True)
+
+# Get list of users who reacted
+result = await client.get_message_reactions_list(chat, message)
+print(result.users)  # List of users
+print(result.reactions)  # List of reactions
+
+# Set default reaction
+await client.set_default_reaction("👍")
+
+# Set available reactions for chat/channel
+await client.set_chat_available_reactions(chat, ["👍", "❤️", "😂", "😢"])
+```
+
+### Message Methods
+
+```python
+# Reply to message with quote (alias for reply())
+await event.answer("Hello!")
+
+# message.reply() also works as before
+await event.reply("Hello!")
+```
+
+### Photo
+
+```python
+# Send photo as private message
+await client.send_photo_as_private(user, "photo.jpg", caption="Hello!")
+```
+
+## Events
+
+### JoinRequest
+
+```python
+from telethon import events
+
+@client.on(events.JoinRequest)
+async def handler(event):
+    # Get user info
+    user = await event.get_user()
+    print(f"Join request from: {user.first_name}")
+    
+    # Approve or reject
+    await event.approve()
+    # Or reject:
+    # await event.reject()
+    
+    # Approve/reject all
+    # await event.approve_all()
+    # await event.reject_all()
+```
+
+### Other Events
+
+All standard Telethon events work as before:
+- `events.NewMessage`
+- `events.MessageEdited`
+- `events.MessageDeleted`
+- `events.CallbackQuery`
+- `events.InlineQuery`
+- `events.ChatAction`
+- etc.

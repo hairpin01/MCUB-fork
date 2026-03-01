@@ -23,24 +23,27 @@ def _import_telethon():
     try:
         from telethon import TelegramClient
         from telethon.errors import FloodWaitError
-        return TelegramClient, FloodWaitError, "telethon"
+        from telethon.tl import types
+        return TelegramClient, FloodWaitError, "telethon", types
     except ImportError:
         pass
     
     try:
         from telethon_mcub import TelegramClient
         from telethon_mcub.errors import FloodWaitError
-        return TelegramClient, FloodWaitError, "telethon_mcub"
+        from telethon_mcub.tl import types
+        return TelegramClient, FloodWaitError, "telethon_mcub", types
     except ImportError:
         pass
     
-    return None, None, None
+    return None, None, None, None
 
 def setup_routes(app: web.Application) -> None:
     app.router.add_get("/",                       index)
     app.router.add_get("/status",                 status)
     app.router.add_post("/api/setup/send_code",   api_send_code)
     app.router.add_post("/api/setup/verify_code", api_verify_code)
+    app.router.add_post("/api/setup/resend_code", api_resend_code)
     app.router.add_get("/api/setup/state",        api_setup_state)
     app.router.add_get("/setup/reset",             setup_reset)
     # Bot management
@@ -128,7 +131,7 @@ async def api_send_code(request: web.Request) -> web.Response:
     _remove_session_files(_SETUP_SESSION)
 
     try:
-        TelegramClient, FloodWaitError, telethon_pkg = _import_telethon()
+        TelegramClient, FloodWaitError, telethon_pkg, types = _import_telethon()
         if TelegramClient is None:
             return _err("telethon is not installed — run: pip install telethon_mcub")
 
@@ -142,8 +145,15 @@ async def api_send_code(request: web.Request) -> web.Response:
         print("[setup] Connecting to Telegram…", flush=True)
         await client.connect()
         print(f"[setup] Connected={client.is_connected()}. Requesting code…", flush=True)
-        result = await client.send_code_request(phone)
-        print(f"[setup] ✓ Code sent. hash={result.phone_code_hash!r}", flush=True)
+        
+        # Use force_sms=True to ensure SMS is sent
+        code_settings = types.CodeSettings(
+            allow_flashcall=False,
+            current_number=False,
+            allow_missed_call=False,
+        )
+        result = await client.send_code_request(phone, force_sms=True, code_settings=code_settings)
+        print(f"[setup] ✓ Code sent. hash={result.phone_code_hash!r} type={type(result.type).__name__}", flush=True)
 
     except FloodWaitError as exc:
         return _err(f"Too many attempts. Wait {exc.seconds} seconds.")
@@ -263,6 +273,56 @@ async def api_verify_code(request: web.Request) -> web.Response:
 
     # Don't start kernel yet - wait for bot step
     return await _finish_setup(request, state, start_kernel=False)
+
+
+async def api_resend_code(request: web.Request) -> web.Response:
+    """Resend verification code via SMS."""
+    print("\n[setup] === /api/setup/resend_code called ===", flush=True)
+
+    state: dict = request.app.get("setup_state") or {}
+    client = state.get("client")
+    if client is None:
+        return _err("No active session — please go back to step 1")
+
+    try:
+        data = await request.json()
+    except Exception:
+        return _err("Invalid JSON body")
+
+    force_sms = data.get("force_sms", True)
+    phone = state.get("phone")
+
+    if not phone:
+        return _err("No phone number found")
+
+    try:
+        TelegramClient, FloodWaitError, telethon_pkg, types = _import_telethon()
+        if TelegramClient is None:
+            return _err("telethon is not installed")
+    except Exception:
+        return _err("telethon is not installed")
+
+    try:
+        code_settings = types.CodeSettings(
+            allow_flashcall=False,
+            current_number=False,
+            allow_missed_call=False,
+        )
+        result = await client.send_code_request(phone, force_sms=force_sms, code_settings=code_settings)
+        print(f"[setup] ✓ Code resent. hash={result.phone_code_hash!r} type={type(result.type).__name__}", flush=True)
+
+        state["phone_code_hash"] = result.phone_code_hash
+
+    except FloodWaitError as exc:
+        return _err(f"Too many attempts. Wait {exc.seconds} seconds.")
+
+    except Exception as exc:
+        tb = traceback.format_exc()
+        print(f"[setup] RESEND CODE FAILED:\n{tb}", flush=True)
+        return _err(_friendly_error(exc))
+
+    return web.json_response({"success": True, "message": "Code sent via SMS"})
+
 
 async def _finish_setup(request: web.Request, state: dict, start_kernel: bool = True) -> web.Response:
     print("[setup] ✓ Auth OK — writing config.json…", flush=True)

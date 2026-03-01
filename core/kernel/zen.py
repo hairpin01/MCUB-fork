@@ -816,8 +816,15 @@ class Kernel:
         )
 
         if not self.load_or_create_config():
-            if not self.first_time_setup():
-                self.logger.error("setup failed")
+            if web_enabled:
+                # Запускаем веб-визард до init_client
+                await self.run_panel()
+                # После визарда конфиг должен появиться
+                if not self.load_or_create_config():
+                    self.logger.error("Web setup failed, no config after wizard")
+                    return
+            elif not self.first_time_setup():
+                self.logger.error("Setup failed")
                 return
 
         self.load_repositories()
@@ -825,9 +832,6 @@ class Kernel:
 
         if not await self.init_client():
             return
-
-        if web_enabled or self.config.get("web_panel_enabled"):
-            await self.run_panel()
 
         try:
             await self.init_db()

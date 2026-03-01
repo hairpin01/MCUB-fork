@@ -90,11 +90,7 @@ class ClientManager:
         )
 
         try:
-            await asyncio.wait_for(
-                k.bot_client.start(bot_token=token),
-                timeout=15.0
-            )
-            bot_me = await k.bot_client.get_me()
+            await k.bot_client.start(bot_token=token)
             bot_me = await k.bot_client.get_me()
             k.config["inline_bot_username"] = bot_me.username
 
@@ -112,10 +108,6 @@ class ClientManager:
 
             k.logger.info(f"Inline bot started: @{bot_me.username}")
             return True
-
-        except asyncio.TimeoutError:
-            k.logger.error("Inline bot start timeout — check token or network")
-            return False
 
         except Exception as e:
             k.logger.error(f"Inline bot handler registration failed: {e}")

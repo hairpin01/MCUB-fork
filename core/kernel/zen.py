@@ -97,17 +97,14 @@ MAX_ALIAS_DEPTH = 5
 MAX_PATTERN_LEN = 256
 PATTERN_TIMEOUT_S = 1
 
-_DANGEROUS_PATTERNS = tuple(
-    re.compile(p)
-    for p in (
-        r"\(\.\*\)\+",
-        r"\(\.\+\)\+",
-        r"\(\.\*\)\*",
-        r"\(\.\+\)\*",
-        r"\(\.\{\d+,\}\)\+",
-        r".*.*.*",
-        r"\(\?\=\.\*\)",
-    )
+_DANGEROUS_PATTERNS = (
+    r"\(\.\*\)\+",
+    r"\(\.\+\)\+",
+    r"\(\.\*\)\*",
+    r"\(\.\+\)\*",
+    r"\(\.\{\d+,\}\)\+",
+    r".*.*.*",
+    r"\(\?\=\.\*\)",
 )
 
 _RESTART_EMOJIS = [
@@ -153,7 +150,7 @@ def _validate_regex(pattern: str) -> tuple[bool, str]:
         return False, f"pattern too long (max {MAX_PATTERN_LEN})"
 
     for danger in _DANGEROUS_PATTERNS:
-        if danger.search(pattern):
+        if re.search(danger, pattern):
             return False, "potentially dangerous regex pattern"
 
     def _alarm(signum, frame):
@@ -242,21 +239,9 @@ class Kernel:
         self.check_dependencies()
 
         self._cfg = ConfigManager(self)
+        self.load_or_create_config()
         self.logger = setup_logging()
 
-        if not any(
-            isinstance(h, logging.StreamHandler) and h.stream in (sys.stdout, sys.stderr)
-            for h in self.logger.handlers
-        ):
-            _console_handler = logging.StreamHandler(sys.stdout)
-            _console_handler.setLevel(logging.DEBUG)
-            _console_handler.setFormatter(
-                logging.Formatter(
-                    "%(asctime)s [%(levelname)s] %(message)s",
-                    datefmt="%H:%M:%S",
-                )
-            )
-            self.logger.addHandler(_console_handler)
         self._loader = ModuleLoader(self)
         self._repo = RepositoryManager(self)
         self._log = KernelLogger(self)
@@ -272,11 +257,8 @@ class Kernel:
 
     def _init_html_parser(self) -> None:
         if not self.HTML_PARSER_AVAILABLE:
-            for attr in (
-                "parse_html", "edit_with_html", "reply_with_html",
-                "send_with_html", "send_file_with_html",
-            ):
-                setattr(self, attr, None)
+            self.parse_html = self.edit_with_html = self.reply_with_html = None
+            self.send_with_html = self.send_file_with_html = None
             return
         try:
             self.parse_html = parse_html
@@ -319,7 +301,7 @@ class Kernel:
         import threading
 
         _REQUIREMENTS = [
-            ("telethon-mcub", "telethon"),
+            ("telethon", "telethon"),
             ("aiohttp", "aiohttp"),
             ("aiohttp-jinja2", "aiohttp_jinja2"),
             ("jinja2", "jinja2"),
@@ -574,7 +556,7 @@ class Kernel:
         return _register(func) if func else _register
 
     def unregister_module_bot_commands(self, module_name: str) -> None:
-        for cmd in [c for c, o in list(self.bot_command_owners.items()) if o == module_name]:
+        for cmd in [c for c, o in self.bot_command_owners.items() if o == module_name]:
             self.bot_command_handlers.pop(cmd, None)
             self.bot_command_owners.pop(cmd, None)
 
@@ -684,16 +666,23 @@ class Kernel:
         if not text or not text.startswith(self.custom_prefix):
             return False
 
-        cmd = text[len(self.custom_prefix):].split()[0]
+        cmd = (
+            text[len(self.custom_prefix) :].split()[0]
+            if " " in text
+            else text[len(self.custom_prefix) :]
+        )
 
         if cmd in self.aliases:
             alias = self.aliases[cmd]
-            args = text[len(self.custom_prefix) + len(cmd):]
+            args = text[len(self.custom_prefix) + len(cmd) :]
             new_text = self.custom_prefix + alias + args
             event.text = new_text
             if hasattr(event, "message"):
                 event.message.message = new_text
                 event.message.text = new_text
+            if alias in self.command_handlers:
+                await self.command_handlers[alias](event)
+                return True
             return await self.process_command(event, depth + 1)
 
         if cmd in self.command_handlers:
@@ -774,8 +763,12 @@ class Kernel:
         try:
             parsed, entities = self.emoji_parser.parse_to_entities(text)
             peer = await self.client.get_input_entity(chat_id)
-            kw = {k: v for k, v in kwargs.items() if k != "entities"}
-            return await self.client.send_message(peer, parsed, entities=entities, **kw)
+            return await self.client.send_message(
+                peer,
+                parsed,
+                entities=entities,
+                **{k: v for k, v in kwargs.items() if k != "entities"},
+            )
         except Exception:
             fallback = self.emoji_parser.remove_emoji_tags(text)
             return await self.client.send_message(chat_id, fallback, **kwargs)
@@ -793,8 +786,12 @@ class Kernel:
             or self.config.get("web_panel_port", 8080)
         )
 
-        # If config.json doesn't exist, start the setup wizard
-        if not os.path.exists(self.CONFIG_FILE):
+        needs_setup = not os.path.exists(self.CONFIG_FILE)
+        if not needs_setup:
+            session_exists = os.path.exists("user_session.session")
+            needs_setup = not session_exists
+
+        if needs_setup:
             try:
                 from aiohttp import web
                 from core.web.app import create_app
@@ -824,27 +821,31 @@ class Kernel:
 
     async def run(self) -> None:
         """Boot sequence: config → scheduler → client → modules → event loop."""
-        web_enabled = (
-            getattr(self, "web_enabled", False) or os.environ.get("MCUB_WEB") == "1"
-        )
+        no_web = not getattr(self, "web_enabled", True)  # True если --no-web
+
+        if not no_web:
+            web_via_env    = os.environ.get("MCUB_WEB", "0") == "1"
+            web_via_config = self.config.get("web_panel_enabled", False)
+            no_session     = not os.path.exists("user_session.session")
+            no_config      = not os.path.exists(self.CONFIG_FILE)
+
+            # запускаем панель если: явно включено ИЛИ нет сессии ИЛИ нет конфига
+            if web_via_env or web_via_config or no_session or no_config:
+                await self.run_panel()
 
         if not self.load_or_create_config():
-            if web_enabled:
-                # Запускаем веб-визард до init_client
-                await self.run_panel()
-                # После визарда конфиг должен появиться
-                if not self.load_or_create_config():
-                    self.logger.error("Web setup failed, no config after wizard")
-                    return
-            elif not self.first_time_setup():
-                self.logger.error("Setup failed")
+            if not self.first_time_setup():
+                self.logger.error("setup failed")
                 return
 
         self.load_repositories()
+        logging.basicConfig(level=logging.INFO)
         await self.init_scheduler()
 
         if not await self.init_client():
             return
+
+
 
         try:
             await self.init_db()
@@ -854,6 +855,12 @@ class Kernel:
             self.cprint(f"{Colors.RED}db init error: {e}{Colors.RESET}")
 
         await self.setup_inline_bot()
+
+        if not self.config.get("inline_bot_token"):
+            from core_inline.bot import InlineBot
+
+            self.inline_bot = InlineBot(self)
+            await self.inline_bot.setup()
 
         @self.client.on(events.NewMessage(outgoing=True))
         async def _on_message(event):
@@ -902,21 +909,14 @@ class Kernel:
         await self._handle_restart_notification(modules_start, modules_end)
         await self.client.run_until_disconnected()
 
-    def _read_restart_file(self) -> "list | None":
-        """Read and parse restart.tmp. Returns list of fields or None if missing/invalid."""
-        if not os.path.exists(self.RESTART_FILE):
-            return None
-        try:
-            return Path(self.RESTART_FILE).read_text().split(",")
-        except (IOError, OSError):
-            return None
-
     async def _notify_early_restart(self) -> None:
         """Send a 'still loading' notice immediately after connect."""
-        data = self._read_restart_file()
-        if not data or len(data) < 2:
+        if not os.path.exists(self.RESTART_FILE):
             return
         try:
+            data = Path(self.RESTART_FILE).read_text().split(",")
+            if len(data) < 2:
+                return
             chat_id, msg_id = int(data[0]), int(data[1])
             restart_time = float(data[2]) if len(data) >= 3 else None
             lang = self.config.get("language", "ru")
@@ -938,10 +938,10 @@ class Kernel:
         self, modules_start: float, modules_end: float
     ) -> None:
         """Edit the restart message with final timing after modules are loaded."""
-        data = self._read_restart_file()
-        if not data:
+        if not os.path.exists(self.RESTART_FILE):
             return
         try:
+            data = Path(self.RESTART_FILE).read_text().split(",")
             if len(data) < 3:
                 os.remove(self.RESTART_FILE)
                 return

@@ -964,7 +964,7 @@ class Kernel:
 
         await self.setup_inline_bot()
 
-        if not self.config.get("inline_bot_token"):
+        if self.config.get("inline_bot_token"):
             from core_inline.bot import InlineBot
 
             self.inline_bot = InlineBot(self)

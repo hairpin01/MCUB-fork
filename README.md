@@ -118,16 +118,7 @@ python3 -m core
 
 ### Telethon-MCUB
 
-MCUB-fork uses a custom fork of Telethon - [Telethon-MCUB](https://github.com/hairpin01/Telethon-MCUB), which includes additional features for userbots:
-
-- `client.send_reaction()` - Send reactions to messages
-- `client.get_message_reactions_list()` - Get list of users who reacted
-- `client.set_default_reaction()` - Set default reaction
-- `client.set_chat_available_reactions()` - Set available reactions for chat
-- `client.send_photo_as_private()` - Send photo as private message
-- `message.answer()` - Reply to message with quote
-- `events.JoinRequest()` - Join request events with approve/reject methods
-- HTML parser fixes for blockquote tags
+MCUB-fork uses a custom fork of Telethon - [Telethon-MCUB](https://github.com/hairpin01/Telethon-MCUB).
 
 Install/upgrade: `pip install telethon_mcub`
 

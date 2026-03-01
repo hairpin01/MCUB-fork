@@ -362,6 +362,7 @@ input::placeholder{color:var(--text-dim);opacity:.55;}
       <label>Code
         <input id="f_code" type="text" inputmode="numeric" placeholder="12345" autocomplete="one-time-code" maxlength="10">
       </label>
+      <button class="btn-ghost" id="btn_resend_sms" onclick="resendSms()" style="margin: 8px 0;">📱 Resend via SMS</button>
       <div class="btn-row">
         <button class="btn-ghost" onclick="show(1)">← Back</button>
         <button class="btn-primary" id="btn2" onclick="step2()">Verify →</button>
@@ -552,6 +553,16 @@ async function step3() {
     show(4); // Go to bot step
   } catch(e) { toast('Network error: ' + e.message); }
   finally { btnLoading('btn3', false); }
+}
+
+async function resendSms() {
+  btnLoading('btn_resend_sms', true);
+  try {
+    const r = await post('/api/setup/resend_code', { force_sms: true });
+    if (!r.ok) { toast(r.error || 'Failed to resend code'); return; }
+    toast('Code sent via SMS!', 'ok');
+  } catch(e) { toast('Network error: ' + e.message); }
+  finally { btnLoading('btn_resend_sms', false); }
 }
 
 function pollKernel() {

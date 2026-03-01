@@ -14,7 +14,6 @@ if TYPE_CHECKING:
 
 
 _IMPORT_TO_PIP: dict[str, str] = {
-    "telethon": "telethon_mcub",
     "PIL": "Pillow",
     "cv2": "opencv-python",
     "sklearn": "scikit-learn",
@@ -646,7 +645,7 @@ class ModuleLoader:
         try:
             parsed = urlparse(url)
             domain = parsed.netloc.lower()
-
+            
             if not any(trusted in domain for trusted in TRUSTED_DOMAINS):
                 k.logger.warning(
                     f"⚠️ SECURITY: Installing from untrusted domain: {domain}\n"

@@ -46,7 +46,8 @@ def setup_routes(app: web.Application) -> None:
         app.router.add_static("/static/img", path="core/web/img", name="img")
 
 async def index(request: web.Request) -> web.Response:
-    """Show setup wizard, or re-auth if config exists but session is missing."""
+    """Show setup wizard, or re-auth if config exists but session is missing,
+    or redirect to dashboard if MCUB is already configured."""
     import os
     import json
 
@@ -66,6 +67,10 @@ async def index(request: web.Request) -> web.Response:
                 config_valid = True
         except:
             pass
+
+    # If config and session exist - MCUB is already configured
+    if has_config and config_valid and has_session:
+        return aiohttp_jinja2.render_template("setup.html", request, {"already_configured": True})
 
     # If config exists with valid credentials but no session - show re-auth page
     if has_config and config_valid and not has_session:

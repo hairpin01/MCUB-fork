@@ -19,13 +19,14 @@ __Table of Contents__
 > 15. [Best Practices](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#best-practices)
 > 16. [Example Module](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#example-module)
 > 17. [Premium Emoji Guide](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#premium-emoji-guide)
-> 18. [Inline Query Automation Methods](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#inline-query-automation-methods-and-inline-form)
-> 19. [Callback Permission Management](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#callback-permission-management)
-> 20. [Enhanced Registration API v1.0.2](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#enhanced-registration-api-v102)
-> 21. [Watchers](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#watchers)
-> 22. [InfiniteLoop](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#infiniteloop)
-> 23. [Lifecycle Callbacks](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#lifecycle-callbacks)
-> 24. [Custom Core MCUB](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#custom-core-mcub)
+> 18. [Telethon-MCUB Additional Methods](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#telethon-mcub-additional-methods)
+> 19. [Inline Query Automation Methods](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#inline-query-automation-methods-and-inline-form)
+> 20. [Callback Permission Management](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#callback-permission-management)
+> 21. [Enhanced Registration API v1.0.2](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#enhanced-registration-api-v102)
+> 22. [Watchers](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#watchers)
+> 23. [InfiniteLoop](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#infiniteloop)
+> 24. [Lifecycle Callbacks](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#lifecycle-callbacks)
+> 25. [Custom Core MCUB](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#custom-core-mcub)
 
 # Introduction
 
@@ -1944,6 +1945,52 @@ This format works directly in messages and is automatically parsed by telethon-m
 3. Use the numeric ID in your code
 or:
 1. write .py print(r_text) in response to premium emoji
+---
+
+## Telethon-MCUB Additional Methods
+
+### Payments (`telethon/client/payments.py`)
+
+- `get_saved_gifts()` - Get saved star gifts
+- `upgrade_gift()` - Upgrade star gift
+- `_get_input_stargift()` - Helper for parsing gift IDs
+
+### Messages (`telethon/client/messages.py`)
+
+- `translate()` - Translate message to specified language
+
+### Uploads (`telethon/client/uploads.py`)
+
+- `upload_files()` - Batch file upload with parallel support
+
+### Reactions (`telethon/client/reactions.py`)
+
+- `send_reaction(entity, message, reaction="👍", big=False, add_to_recent=True)` - Send reaction to message
+- `get_message_reactions_list(entity, message, reaction=None, limit=100)` - Get list of users who reacted
+- `set_default_reaction(reaction="👍")` - Set default reaction for new messages
+- `set_chat_available_reactions(entity, reactions, reactions_limit=None, paid_enabled=None)` - Set available reactions for chat/channel
+- `send_photo_as_private(entity, photo, caption=None, **kwargs)` - Send photo as private message
+
+### Events (`telethon/events/joinrequest.py`)
+
+- `events.JoinRequest` - New event for chat join requests
+  - `event.get_user()` - Get user who requested to join
+  - `event.get_users()` - Get all users who requested to join
+  - `event.approve()` - Approve join request
+  - `event.reject()` - Reject join request
+  - `event.approve_all()` - Approve all pending requests
+  - `event.reject_all()` - Reject all pending requests
+
+### HTML Parser (`telethon/extensions/html.py`)
+
+- Added support for `<tg-spoiler>` tag
+- Added support for `<emoji document_id="...">` tag
+- Added support for `<tg-emoji>` tag
+- Blockquote improvements:
+  - `<blockquote>` - regular quote
+  - `<blockquote expandable>` - expandable quote (expanded by default)
+  - `<blockquote expandable="false">` - collapsed quote
+
 ---
 
 ## Inline Query Automation Methods and Inline Form

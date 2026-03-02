@@ -36,7 +36,8 @@ CUSTOM_EMOJI = {
     "⛔️": '<tg-emoji emoji-id="4918014360267260850">⛔️</tg-emoji>',
     "❌": '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji>',
     "⚠️": '<tg-emoji emoji-id="5904692292324692386">⚠️</tg-emoji>',
-    "🧩": '<tg-emoji emoji-id="5431815341782736766">🧩</tg-emoji>',
+    "🧩": '<tg-emoji emoji-id="5332534105114445343">🧩</tg-emoji>
+',
 }
 
 ZERO_WIDTH_CHAR = "\u2060"

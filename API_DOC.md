@@ -26,7 +26,6 @@ __Table of Contents__
 > 22. [InfiniteLoop](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#infiniteloop)
 > 23. [Lifecycle Callbacks](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#lifecycle-callbacks)
 > 24. [Custom Core MCUB](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#custom-core-mcub)
-> 25. [Telethon-MCUB Fork Methods](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#telethon-mcub-fork-methods)
 
 # Introduction
 
@@ -388,56 +387,72 @@ kernel.cprint("Warning message", kernel.Colors.YELLOW)
 
 ## Database API
 
-> [!NOTE]
-> Direct SQL access is restricted for security. Use the Key-Value Database API below for data storage, or use `kernel.db_query()` for read-only queries (SELECT, PRAGMA, EXPLAIN).
-
-`kernel.init_db()`
+`kernel.db.execute(query, params=None)`
 ---
-Initialize the database connection.
-
-**Returns:** bool - True if successful
-
-**Usage:**
-```python
-await kernel.init_db()
-```
-
-`kernel.create_tables()`
----
-Create required database tables.
-
-**Usage:**
-```python
-await kernel.create_tables()
-```
-
-`kernel.db_query(query, parameters)`
----
-Execute read-only SQL query.
+Execute SQL query.
 
 **Parameters:**
-- `query` (str): SQL query string (only SELECT, PRAGMA, EXPLAIN allowed)
-- `parameters` (tuple): Query parameters
+- `query` (str): SQL query string
+- `params` (tuple, optional): Query parameters
 
-**Returns:** list of rows
-
-**Raises:** PermissionError if query contains forbidden operations (INSERT, UPDATE, DELETE, etc.)
+**Returns:** Cursor object
 
 **Usage:**
 ```python
-rows = await kernel.db_query(
-    "SELECT * FROM module_data WHERE module = ?",
-    ('mymodule',)
+await kernel.db.execute(
+    "INSERT INTO users (id, name) VALUES (?, ?)",
+    (user_id, name)
 )
 ```
 
+`kernel.db.fetchone(query, params=None)`
+---
+Fetch single row from database.
+
+**Returns:** dict or None
+
+**Usage:**
+```python
+user = await kernel.db.fetchone(
+    "SELECT * FROM users WHERE id = ?",
+    (user_id,)
+)
+```
+
+`kernel.db.fetchall(query, params=None)`
+---
+Fetch all rows matching query.
+
+**Returns:** list of dict
+
+**Usage:**
+```python
+users = await kernel.db.fetchall("SELECT * FROM users")
+```
+
+`kernel.db.commit()`
+---
+Commit pending transactions.
+
+**Usage:**
+```python
+await kernel.db.execute("UPDATE users SET active = 1")
+await kernel.db.commit()
+```
+
+---
+
+## Key-Value Database API
+
+A simpler high-level API built on top of the raw SQL database. Stores arbitrary values under a `(module, key)` pair — no table management required.
+
 `kernel.db_set(module, key, value)`
 ---
-Store a string value in module namespace.
+Store a string value.
 
 **Parameters:**
-- `module` (str): Namespace — typically your module name (alphanumeric, underscore, hyphen only)
-- `key` (str): Key (alphanumeric, underscore, hyphen only)
+- `module` (str): Namespace — typically your module name
+- `key` (str): Key
 - `value` (str): Value to store
 
 **Usage:**
@@ -449,7 +464,7 @@ await kernel.db_set('mymodule', 'last_run', '2024-01-01')
 ---
 Retrieve a stored value.
 
-**Returns:** str | None
+**Returns:** str | None (via await)
 
 **Usage:**
 ```python
@@ -463,6 +478,17 @@ Delete a stored value.
 **Usage:**
 ```python
 await kernel.db_delete('mymodule', 'last_run')
+```
+
+`kernel.db_query(query, parameters)`
+---
+Execute arbitrary SQL query.
+
+**Returns:** list of rows
+
+**Usage:**
+```python
+rows = await kernel.db_query("SELECT * FROM module_data WHERE module = ?", ('mymodule',))
 ```
 
 `kernel.db_conn`
@@ -1901,6 +1927,16 @@ if emoji_parser.is_emoji_tag(text):
     await event.client.send_message(chat_id, parsed_text, entities=entities)
 ```
 
+**Alternative Format (telethon-mcub only):**
+
+MCUB also supports a simplified emoji format when using **telethon-mcub**:
+
+```html
+<emoji document_id=5253884036924844372>📌</emoji>
+```
+
+This format works directly in messages and is automatically parsed by telethon-mcub. The `document_id` is the custom emoji ID from Telegram.
+
 **Finding Emoji IDs:**
 
 1. Use [@ShowJsonBot](https://t.me/ShowJsonBot) to forward messages with custom emojis
@@ -2905,90 +2941,3 @@ To ship your core as a drop-in file (like the built-in `zen` core):
 
 > [!TIP]
 > Prefix your core file with your username to avoid conflicts: `core/kernel/hairpin_custom.py`.
-
----
-
-# Telethon-MCUB Fork Methods
-
-MCUB-fork uses [Telethon-MCUB](https://github.com/hairpin01/Telethon-MCUB) - a custom fork of Telethon with additional userbot features.
-
-## Installation
-
-```bash
-pip install telethon_mcub
-```
-
-## New Client Methods
-
-### Reactions
-
-```python
-# Send reaction to message
-await client.send_reaction(chat, message, "🔥")
-# Multiple reactions
-await client.send_reaction(chat, message, ["👍", "❤️"])
-# Big reaction
-await client.send_reaction(chat, message, "🎉", big=True)
-
-# Get list of users who reacted
-result = await client.get_message_reactions_list(chat, message)
-print(result.users)  # List of users
-print(result.reactions)  # List of reactions
-
-# Set default reaction
-await client.set_default_reaction("👍")
-
-# Set available reactions for chat/channel
-await client.set_chat_available_reactions(chat, ["👍", "❤️", "😂", "😢"])
-```
-
-### Message Methods
-
-```python
-# Reply to message with quote (alias for reply())
-await event.answer("Hello!")
-
-# message.reply() also works as before
-await event.reply("Hello!")
-```
-
-### Photo
-
-```python
-# Send photo as private message
-await client.send_photo_as_private(user, "photo.jpg", caption="Hello!")
-```
-
-## Events
-
-### JoinRequest
-
-```python
-from telethon import events
-
-@client.on(events.JoinRequest)
-async def handler(event):
-    # Get user info
-    user = await event.get_user()
-    print(f"Join request from: {user.first_name}")
-    
-    # Approve or reject
-    await event.approve()
-    # Or reject:
-    # await event.reject()
-    
-    # Approve/reject all
-    # await event.approve_all()
-    # await event.reject_all()
-```
-
-### Other Events
-
-All standard Telethon events work as before:
-- `events.NewMessage`
-- `events.MessageEdited`
-- `events.MessageDeleted`
-- `events.CallbackQuery`
-- `events.InlineQuery`
-- `events.ChatAction`
-- etc.

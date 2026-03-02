@@ -9,3 +9,6 @@ class CommandConflictError(Exception):
         super().__init__(message)
         self.conflict_type = conflict_type
         self.command = command
+
+class McubTelethonError(Exception):
+        pass

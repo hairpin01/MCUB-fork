@@ -32,11 +32,21 @@ try:
     import logging
     from telethon import TelegramClient, events, Button
     from telethon.tl import types as tl_types
+    from core.lib.utils.exceptions import McubTelethonError
+    #from telethon import _check_mcub_installation
 except Exception as e:
     tb = traceback.format_exc()
     print(f"E: {e}\n" f">: {tb}")
 
     sys.exit(104)
+try:
+    from telethon import _check_mcub_installation
+    _check_mcub_installation()
+except Exception as e:
+    #tb = traceback.format_exc()
+    raise McubTelethonError(f"YOU is not install telethon-mcub, please run: 'pip install telethon-mcub' and 'pip uninstall telethon -y'! (or update telethon-mcub)")
+    sys.exit(106)
+
 try:
     from ..lib.utils.colors import Colors
     from ..lib.utils.exceptions import CommandConflictError
@@ -307,7 +317,7 @@ class Kernel:
             for f in itertools.cycle(frames):
                 if _stop.is_set():
                     break
-                sys.stdout.write(f"\r{f}  {label}  {f}")
+                sys.stdout.write(f"\r{f}  {label}")
                 sys.stdout.flush()
                 time.sleep(0.12)
             sys.stdout.write("\r" + " " * 70 + "\r")

@@ -36,10 +36,19 @@ try:
     import aiohttp
     import psutil
     import socks
+    from core.lib.utils.exceptions import McubTelethonError
     from telethon import TelegramClient, events, Button
     from telethon.tl import types as tl_types
 except ImportError as e:
     sys.exit(f"[kernel] missing dependency: {e}\nRun: pip install -r requirements.txt")
+
+try:
+    from telethon import _check_mcub_installation
+    _check_mcub_installation()
+except Exception as e:
+    #tb = traceback.format_exc()
+    raise McubTelethonError(f"YOU is not install telethon-mcub, please run: 'pip install telethon-mcub' and 'pip uninstall telethon -y'! (or update telethon-mcub)")
+    sys.exit(106)
 
 try:
     from ..lib.utils.colors import Colors

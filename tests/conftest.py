@@ -11,6 +11,10 @@ from unittest.mock import Mock, AsyncMock, patch, MagicMock
 # Add parent directory to Python path (so core can be imported as a package)
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Register custom pytest marks
+def pytest_configure(config):
+    config.addinivalue_line("markers", "integration: mark test as integration test")
+
 
 @pytest.fixture
 def mock_client():

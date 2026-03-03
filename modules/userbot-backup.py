@@ -454,7 +454,7 @@ def register(kernel):
                 await backup_module.schedule_backups()
                 await event.edit(lang_strings['auto_disabled'])
             else:
-                await event.edit(f"❌ {lang_strings['api_protection_usage']} .backupsettings auto on/off")
+                await event.edit(lang_strings['unknown_command'])
 
         elif cmd == "chat" and len(args) > 2:
             try:

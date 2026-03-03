@@ -7,10 +7,14 @@ import aiohttp
 import getpass
 import socket
 import subprocess
+import re
+
+from utils.platform import get_platform, is_wsl, is_termux
 from telethon.tl.types import MessageEntityTextUrl, InputMediaWebPage
 from telethon import functions, types
 from pathlib import Path
 from typing import Set
+from copy import copy
 
 CUSTOM_EMOJI = {
     "load": '<tg-emoji emoji-id="5469913852462242978">🏓</tg-emoji>',
@@ -51,7 +55,7 @@ def add_link_preview(text, entities, link):
 
     if entities:
         for entity in entities:
-            new_entity = entity
+            new_entity = copy(entity)
             if hasattr(entity, "offset"):
                 new_entity.offset += 1
             new_entities.append(new_entity)
@@ -99,15 +103,14 @@ def register(kernel):
     kernel.config.setdefault("info_custom_text", None)
 
     def format_uptime(seconds):
-        hours = int(seconds) // 3600
-        minutes = (int(seconds) % 3600) // 60
-        secs = int(seconds) % 60
+        seconds = int(seconds)
+        hours, remainder = divmod(seconds, 3600)
+        minutes, secs = divmod(remainder, 60)
         if hours > 0:
             return f"{hours}h {minutes}m {secs}s"
         elif minutes > 0:
             return f"{minutes}m {secs}s"
-        else:
-            return f"{secs}s"
+        return f"{secs}s"
 
     async def check_update():
         try:
@@ -118,17 +121,13 @@ def register(kernel):
                 ) as resp:
                     if resp.status == 200:
                         content = await resp.text()
-                        import re
-
                         match = re.search(r"VERSION = '([^']+)'", content)
                         if match:
                             remote_version = match.group(1)
                             if remote_version != kernel.VERSION:
                                 return True
             return False
-        except asyncio.TimeoutError:
-            return False
-        except Exception:
+        except (asyncio.TimeoutError, Exception):
             return False
 
     def get_system_info():
@@ -139,17 +138,14 @@ def register(kernel):
             cpu_usage = f"{psutil.cpu_percent(interval=0.1)}%"
             ram = psutil.virtual_memory()
             ram_usage = f"{ram.percent}%"
-        except PermissionError:
-            try:
-                proc_stat_path = "/proc/stat"
-                proc_meminfo_path = "/proc/meminfo"
+        except (PermissionError, Exception):
+            proc_stat_path = "/proc/stat"
+            proc_meminfo_path = "/proc/meminfo"
 
-                if os.path.exists(proc_stat_path) and os.access(
-                    proc_stat_path, os.R_OK
-                ):
+            try:
+                if os.path.exists(proc_stat_path) and os.access(proc_stat_path, os.R_OK):
                     with open(proc_stat_path, "r") as f:
-                        lines = f.readlines()
-                        for line in lines:
+                        for line in f:
                             if line.startswith("cpu "):
                                 parts = line.split()
                                 total = sum(int(x) for x in parts[1:])
@@ -160,9 +156,7 @@ def register(kernel):
                                     cpu_usage = f"{cpu_percent:.1f}%"
                                 break
 
-                if os.path.exists(proc_meminfo_path) and os.access(
-                    proc_meminfo_path, os.R_OK
-                ):
+                if os.path.exists(proc_meminfo_path) and os.access(proc_meminfo_path, os.R_OK):
                     meminfo = {}
                     with open(proc_meminfo_path, "r") as f:
                         for line in f:
@@ -170,24 +164,16 @@ def register(kernel):
                                 key, value = line.split(":", 1)
                                 meminfo[key.strip()] = value.strip()
 
-                    if "MemTotal" in meminfo and "MemAvailable" in meminfo:
+                    if "MemTotal" in meminfo:
                         total = int(meminfo["MemTotal"].split()[0])
-                        available = int(meminfo["MemAvailable"].split()[0])
+                        available = meminfo.get("MemAvailable", meminfo.get("MemFree", "0"))
+                        available = int(available.split()[0])
                         used = total - available
-                        if total > 0:
-                            ram_percent = (used / total) * 100
-                            ram_usage = f"{ram_percent:.1f}%"
-                    elif "MemTotal" in meminfo and "MemFree" in meminfo:
-                        total = int(meminfo["MemTotal"].split()[0])
-                        free = int(meminfo["MemFree"].split()[0])
-                        used = total - free
                         if total > 0:
                             ram_percent = (used / total) * 100
                             ram_usage = f"{ram_percent:.1f}%"
             except Exception:
                 pass
-        except Exception:
-            pass
 
         return cpu_usage, ram_usage
 
@@ -230,40 +216,36 @@ def register(kernel):
                     distro_emoji = emoji
                     break
 
+            current_platform = get_platform()
             platform_type = f"VDS {CUSTOM_EMOJI['vds']}"
-            if "microsoft" in platform.uname().release.lower():
+            if is_wsl():
                 platform_type = f"WSL {CUSTOM_EMOJI['wsl']}"
-            elif "termux" in os.environ.get("PREFIX", ""):
+            elif is_termux():
                 platform_type = f"Termux {CUSTOM_EMOJI['termux']}"
 
             cpu_usage, ram_usage = get_system_info()
             update_needed = await check_update()
 
-            system_user = "Unknown"
-            hostname = "Unknown"
             try:
                 system_user = getpass.getuser()
                 hostname = socket.gethostname()
-            except:
-                pass
+            except Exception:
+                system_user = hostname = "Unknown"
 
             update_emoji = CUSTOM_EMOJI["💔"] if update_needed else CUSTOM_EMOJI["🔮"]
             update_text = "Update needed" if update_needed else "No update needed"
 
             me = await client.get_me()
             user_ids = me.id
-            if user_ids == 6020965582:
-                user = '<tg-emoji emoji-id="5469888215802482605">Ⓜ️</tg-emoji>'
-            elif user_ids == 2037125547:
-                user = '<tg-emoji emoji-id="5467932472379480411">Ⓜ️</tg-emoji>'
-            elif user_ids == 779572293:
-                user = '<tg-emoji emoji-id="5470163024989952512">Ⓜ️</tg-emoji>'
-            elif user_ids == 8405520863:
-                user = '<tg-emoji emoji-id="5470170528297817805">Ⓜ️</tg-emoji>'
-            elif user_ids == 855890735:
-                user = '<tg-emoji emoji-id="5470063433288290290">Ⓜ️</tg-emoji>'
-            else:
-                user = '<tg-emoji emoji-id="5470015630302287916">🕳</tg-emoji>'
+            
+            user_emojis = {
+                6020965582: '5469888215802482605',
+                2037125547: '5467932472379480411',
+                779572293: '5470163024989952512',
+                8405520863: '5470170528297817805',
+                855890735: '5470063433288290290',
+            }
+            user = f'<tg-emoji emoji-id="{user_emojis.get(user_ids, "5470015630302287916")}">{"Ⓜ️" if user_ids in user_emojis else "🕳"}</tg-emoji>'
 
             mcub_emoji = (
                 f'{user}<tg-emoji emoji-id="5469945764069280010">🔮</tg-emoji><tg-emoji emoji-id="5469943045354984820">🔮</tg-emoji><tg-emoji emoji-id="5469879466954098867">🔮</tg-emoji>'

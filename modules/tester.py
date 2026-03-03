@@ -255,6 +255,7 @@ def register(kernel):
                 t("logs_sending", printer=CUSTOM_EMOJI["🖨"]), parse_mode="html"
             )
 
+            send_params = {}
             chat = await event.get_chat()
             reply_to = None
             if hasattr(chat, "forum") and chat.forum and event.message.reply_to:
@@ -312,12 +313,15 @@ def register(kernel):
                 parse_mode="html",
             )
 
-            if client.is_connected():
-                await client.disconnect()
+            was_connected = client.is_connected()
+            if was_connected:
+                client.disconnect()
+                await asyncio.sleep(0.5)
 
             await asyncio.sleep(seconds)
 
-            await client.connect()
+            if was_connected:
+                await client.connect()
             await event.edit(
                 t("freezing_done", check=CUSTOM_EMOJI["☑️"], seconds=seconds),
                 parse_mode="html",

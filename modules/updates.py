@@ -10,7 +10,7 @@ import random
 import aiohttp
 import subprocess
 
-ALLOWED_RESTART_ARGS = {"--no-web", "--port", "--host", "--core"}
+ALLOWED_RESTART_ARGS = {"--no-web", "--proxy-web", "--port", "--host", "--core"}
 
 
 def _safe_restart():

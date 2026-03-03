@@ -11,21 +11,27 @@ import aiohttp
 import subprocess
 
 ALLOWED_RESTART_ARGS = {"--no-web", "--proxy-web", "--port", "--host", "--core"}
+ARGS_WITH_VALUES = {"--proxy-web", "--port", "--host", "--core"}
 
 
 def _safe_restart():
     safe_args = []
+    args = sys.argv[1:]
+
+    if sys.argv[0].endswith("__main__.py"):
+        safe_args = ["-m", "core"]
+
     skip_next = False
-    for i, arg in enumerate(sys.argv[1:]):
+    for arg in args:
         if skip_next:
             skip_next = False
             continue
-        key = arg.split("=")[0] if "=" in arg else arg
+        key = arg.split("=")[0]
         if key in ALLOWED_RESTART_ARGS:
             safe_args.append(arg)
-            if arg.split("=")[0] not in ("--port", "--host") and "=" not in arg:
+            if key in ARGS_WITH_VALUES and "=" not in arg:
                 skip_next = True
-    os.execl(sys.executable, sys.executable, *safe_args)
+    os.execv(sys.executable, [sys.executable] + safe_args)
 
 
 def register(kernel):

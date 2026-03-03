@@ -14,40 +14,29 @@ Flat is better than nested. Readability counts.
 
 import html
 import importlib.util
-import inspect
-import io
-import json
 import logging
 import os
-import random
 import re
 import signal
 import sys
 import time
 import traceback
-import uuid
 import asyncio
-from collections import OrderedDict, defaultdict
-from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, Tuple
 
 try:
-    import aiohttp
-    import psutil
-    import socks
     from core.lib.utils.exceptions import McubTelethonError
-    from telethon import TelegramClient, events, Button
-    from telethon.tl import types as tl_types
+    from telethon import events
 except ImportError as e:
     sys.exit(f"[kernel] missing dependency: {e}\nRun: pip install -r requirements.txt")
 
 try:
     from telethon import _check_mcub_installation
     _check_mcub_installation()
-except Exception as e:
-    #tb = traceback.format_exc()
-    raise McubTelethonError(f"YOU is not install telethon-mcub, please run: 'pip install telethon-mcub' and 'pip uninstall telethon -y'! (or update telethon-mcub)")
+except Exception:
+    # tb = traceback.format_exc()
+    raise McubTelethonError("YOU is not install telethon-mcub, please run: 'pip install telethon-mcub' and 'pip uninstall telethon -y'! (or update telethon-mcub)")
     sys.exit(106)
 
 try:
@@ -56,19 +45,6 @@ try:
     from ..lib.time.cache import TTLCache
     from ..lib.time.scheduler import TaskScheduler
     from ..lib.loader.register import Register
-    from ..lib.loader.module_config import (
-        ModuleConfig,
-        ConfigValue,
-        Validator,
-        Boolean,
-        Integer,
-        Float,
-        String,
-        Choice,
-        MultiChoice,
-        Secret,
-        ValidationError,
-    )
     from ..lib.base.permissions import CallbackPermissionManager
     from ..lib.base.database import DatabaseManager
     from ..version import VersionManager, VERSION
@@ -78,7 +54,6 @@ try:
     from ..lib.base.config import ConfigManager
     from ..lib.base.client import ClientManager
     from ..lib.loader.inline import InlineManager
-    from ..console.shell import Shell
 except ImportError as e:
     sys.exit(
         f"[kernel] failed to import internal modules: {e}\n{traceback.format_exc()}"
@@ -833,10 +808,10 @@ class Kernel:
         no_web = not getattr(self, "web_enabled", True)  # True если --no-web
 
         if not no_web:
-            web_via_env    = os.environ.get("MCUB_WEB", "0") == "1"
+            web_via_env = os.environ.get("MCUB_WEB", "0") == "1"
             web_via_config = self.config.get("web_panel_enabled", False)
-            no_session     = not os.path.exists("user_session.session")
-            no_config      = not os.path.exists(self.CONFIG_FILE)
+            no_session = not os.path.exists("user_session.session")
+            no_config = not os.path.exists(self.CONFIG_FILE)
 
             # запускаем панель если: явно включено ИЛИ нет сессии ИЛИ нет конфига
             if web_via_env or web_via_config or no_session or no_config:
@@ -853,8 +828,6 @@ class Kernel:
 
         if not await self.init_client():
             return
-
-
 
         try:
             await self.init_db()
@@ -958,7 +931,6 @@ class Kernel:
             chat_id = int(data[0])
             msg_id = int(data[1])
             restart_time = float(data[2])
-            thread_id = int(data[3]) if len(data) >= 4 and data[3] else None
 
             os.remove(self.RESTART_FILE)
 

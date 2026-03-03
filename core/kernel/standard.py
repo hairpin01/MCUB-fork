@@ -11,40 +11,29 @@ import time
 import sys
 import os
 import re
-import json
-import random
 import asyncio
 import html
 import traceback
-import inspect
 import importlib.util
-from collections import OrderedDict, defaultdict
-from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union, Pattern
+
+from typing import Callable, Tuple
 
 try:
-    import uuid
-    import io
-    import aiohttp
-    import psutil
-    import socks
     import logging
-    from telethon import TelegramClient, events, Button
-    from telethon.tl import types as tl_types
+    from telethon import events
     from core.lib.utils.exceptions import McubTelethonError
-    #from telethon import _check_mcub_installation
+    # from telethon import _check_mcub_installation
 except Exception as e:
     tb = traceback.format_exc()
-    print(f"E: {e}\n" f">: {tb}")
+    print(f"E: {e}\n>: {tb}")
 
     sys.exit(104)
 try:
     from telethon import _check_mcub_installation
     _check_mcub_installation()
-except Exception as e:
-    #tb = traceback.format_exc()
-    raise McubTelethonError(f"YOU is not install telethon-mcub, please run: 'pip install telethon-mcub' and 'pip uninstall telethon -y'! (or update telethon-mcub)")
+except Exception:
+    # tb = traceback.format_exc()
+    raise McubTelethonError("YOU is not install telethon-mcub, please run: 'pip install telethon-mcub' and 'pip uninstall telethon -y'! (or update telethon-mcub)")
     sys.exit(106)
 
 try:
@@ -53,19 +42,6 @@ try:
     from ..lib.time.cache import TTLCache
     from ..lib.time.scheduler import TaskScheduler
     from ..lib.loader.register import Register
-    from ..lib.loader.module_config import (
-        ModuleConfig,
-        ConfigValue,
-        Validator,
-        Boolean,
-        Integer,
-        Float,
-        String,
-        Choice,
-        MultiChoice,
-        Secret,
-        ValidationError,
-    )
     from ..lib.base.permissions import CallbackPermissionManager
     from ..lib.base.database import DatabaseManager
     from ..version import VersionManager, VERSION
@@ -76,7 +52,6 @@ try:
     from ..lib.base.config import ConfigManager
     from ..lib.base.client import ClientManager
     from ..lib.loader.inline import InlineManager
-    from ..console.shell import Shell
 except Exception as error_module:
     tb = traceback.format_exc()
     print("⚠️, Error loaded lib modules!\n" f"🔎, {error_module}!\n" f"🗓, {tb}")
@@ -281,7 +256,6 @@ class Kernel:
 
     def check_dependencies(self) -> None:
         """Check and install missing dependencies."""
-        import importlib.util
         import subprocess
         import itertools
         import threading
@@ -886,7 +860,7 @@ class Kernel:
                 entities=entities,
                 **{k: v for k, v in kwargs.items() if k != "entities"},
             )
-        except Exception as e:
+        except Exception:
             fallback = (
                 self.emoji_parser.remove_emoji_tags(text) if self.emoji_parser else text
             )
@@ -949,10 +923,10 @@ class Kernel:
         no_web = not getattr(self, "web_enabled", True)  # True если --no-web
 
         if not no_web:
-            web_via_env    = os.environ.get("MCUB_WEB", "0") == "1"
+            web_via_env = os.environ.get("MCUB_WEB", "0") == "1"
             web_via_config = self.config.get("web_panel_enabled", False)
-            no_session     = not os.path.exists("user_session.session")
-            no_config      = not os.path.exists(self.CONFIG_FILE)
+            no_session = not os.path.exists("user_session.session")
+            no_config = not os.path.exists(self.CONFIG_FILE)
 
             # запускаем панель если: явно включено ИЛИ нет сессии ИЛИ нет конфига
             if web_via_env or web_via_config or no_session or no_config:
@@ -969,9 +943,6 @@ class Kernel:
 
         if not await self.init_client():
             return
-
-        # Start the web panel only when explicitly requested
-
 
         # self.shell = Shell(kernel=self)
         # self.shell.attach_logging()
@@ -1115,7 +1086,6 @@ class Kernel:
             chat_id = int(data[0])
             msg_id = int(data[1])
             restart_time = float(data[2])
-            thread_id = int(data[3]) if len(data) >= 4 and data[3] else None
 
             os.remove(self.RESTART_FILE)
 
@@ -1126,22 +1096,6 @@ class Kernel:
                 else "MCUB"
             )
 
-            emoji = random.choice(
-                [
-                    "ಠ_ಠ",
-                    "( ཀ ʖ̯ ཀ)",
-                    "(◕‿◕✿)",
-                    "(つ･･)つ",
-                    "༼つ◕_◕༽つ",
-                    "(•_•)",
-                    "☜(ﾟヮﾟ☜)",
-                    "(☞ﾟヮﾟ)☞",
-                    "ʕ•ᴥ•ʔ",
-                    "(づ￣ ³￣)づ",
-                ]
-            )
-
-            em_alembic = '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>'
             em_package = '<tg-emoji emoji-id="5399898266265475100">📦</tg-emoji>'
             em_error = '<tg-emoji emoji-id="5208923808169222461">🥀</tg-emoji>'
 

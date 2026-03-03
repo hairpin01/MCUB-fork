@@ -10,11 +10,21 @@ import random
 import aiohttp
 import subprocess
 
-ALLOWED_RESTART_ARGS = {"--no-web", "--proxy-web", "--port", "--host", "--core"}
+ALLOWED_RESTART_ARGS = {"--no-web", "--port", "--host", "--core"}
 
 
 def _safe_restart():
-    safe_args = [arg for arg in sys.argv[1:] if arg.split("=")[0] in ALLOWED_RESTART_ARGS]
+    safe_args = []
+    skip_next = False
+    for i, arg in enumerate(sys.argv[1:]):
+        if skip_next:
+            skip_next = False
+            continue
+        key = arg.split("=")[0] if "=" in arg else arg
+        if key in ALLOWED_RESTART_ARGS:
+            safe_args.append(arg)
+            if arg.split("=")[0] not in ("--port", "--host") and "=" not in arg:
+                skip_next = True
     os.execl(sys.executable, sys.executable, *safe_args)
 
 

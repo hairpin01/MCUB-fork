@@ -48,7 +48,7 @@ class ArgumentParser:
         """Parse argument string"""
         try:
             tokens = shlex.split(args_string)
-        except:
+        except ValueError:
             tokens = self._simple_split(args_string)
 
         i = 0

@@ -324,9 +324,11 @@ def is_docker():
     """Checks if running in Docker"""
     return get_platform() == "docker"
 
-def is_mobile():
-    """Checks if platform is mobile"""
+def is_mobile_termux():
+    """Checks if platform is mobile (Termux)"""
     return detector.is_mobile()
+
+is_mobile = is_mobile_termux
 
 def is_desktop():
     """Checks if platform is desktop"""

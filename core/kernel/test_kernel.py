@@ -231,6 +231,10 @@ class TestKernel:
         self.last_event = None
         self.response_history = []
 
+    async def run(self) -> None:
+        """Запуск тестового ядра (заглушка для совместимости)"""
+        pass
+
 
 def create_test_kernel() -> TestKernel:
     """Создание экземпляра TestKernel"""

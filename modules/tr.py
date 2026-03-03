@@ -84,7 +84,7 @@ def register(kernel):
                 except (URLError, HTTPError) as e:
                     raise Exception(f"{lang_strings['network_error']} {str(e)}")
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             data = await loop.run_in_executor(None, sync_request)
 
             if data and len(data) > 0 and data[0]:

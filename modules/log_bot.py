@@ -149,7 +149,6 @@ def register(kernel):
                 )
                 return False
 
-            kernel.log_chat_id = int(f"-{chat_id}")
             kernel.log_chat_id = chat_id
             kernel.config["log_chat_id"] = kernel.log_chat_id
 
@@ -306,8 +305,8 @@ def register(kernel):
                     await bot_client.send_message(
                         kernel.log_chat_id, message, parse_mode="html"
                     )
-                kernel.logger.info(
-                    "Стартовое сообщение через бота"
+                kernel.cprint(
+                    f"{kernel.Colors.GREEN}✅ Стартовое сообщение через бота{kernel.Colors.RESET}"
                 )
             else:
                 if image_path:
@@ -321,8 +320,8 @@ def register(kernel):
                     await client.send_message(
                         kernel.log_chat_id, message, parse_mode="html"
                     )
-                kernel.logger.warning(
-                    "Стартовое сообщение через юзербота"
+                kernel.cprint(
+                    f"{kernel.Colors.YELLOW}⚠️ Стартовое сообщение через юзербота{kernel.Colors.RESET}"
                 )
         except Exception as e:
             kernel.cprint(

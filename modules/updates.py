@@ -9,7 +9,13 @@ import time
 import random
 import aiohttp
 import subprocess
-from telethon import events, Button
+
+ALLOWED_RESTART_ARGS = {"--no-web", "--proxy-web", "--port", "--host", "--core"}
+
+
+def _safe_restart():
+    safe_args = [arg for arg in sys.argv[1:] if arg.split("=")[0] in ALLOWED_RESTART_ARGS]
+    os.execl(sys.executable, sys.executable, *safe_args)
 
 
 def register(kernel):
@@ -88,8 +94,6 @@ def register(kernel):
 
     @kernel.register.command("restart")
     async def restart_handler(event):
-        emoji = random.choice(emojis)
-
         thread_id = None
         if event.reply_to:
 
@@ -109,7 +113,7 @@ def register(kernel):
             else:
                 f.write(f"{event.chat_id},{msg.id},{time.time()}")
 
-        os.execl(sys.executable, sys.executable, *sys.argv)
+        _safe_restart()
 
     @kernel.register.command("update")
     async def update_handler(event):
@@ -153,10 +157,10 @@ def register(kernel):
                     )
                     kernel.logger.info("Restarting...")
                     await asyncio.sleep(2)
-                    os.execl(sys.executable, sys.executable, *sys.argv)
+                    _safe_restart()
                     return
 
-            except Exception as git_error:
+            except Exception:
                 pass
 
             await msg.edit(
@@ -201,7 +205,7 @@ def register(kernel):
                                     parse_mode="html",
                                 )
                                 await asyncio.sleep(2)
-                                os.execl(sys.executable, sys.executable, *sys.argv)
+                                _safe_restart()
                             else:
                                 await msg.edit(
                                     lang_strings["already_updated"].format(
@@ -261,7 +265,7 @@ def register(kernel):
                 parse_mode="html",
             )
             await asyncio.sleep(2)
-            os.execl(sys.executable, sys.executable, *sys.argv)
+            _safe_restart()
         except Exception as e:
             await msg.edit(
                 lang_strings["rollback_error"].format(error=str(e)),

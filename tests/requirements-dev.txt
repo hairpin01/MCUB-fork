@@ -8,6 +8,7 @@ pytest-mock>=3.10.0
 black>=22.0.0
 flake8>=5.0.0
 mypy>=0.990
+pre-commit>=3.0.0
 
 # Optional for specific tests
 aiohttp>=3.8.0

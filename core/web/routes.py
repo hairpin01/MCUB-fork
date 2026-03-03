@@ -17,6 +17,16 @@ log = logging.getLogger("mcub.web.setup")
 
 _SETUP_SESSION = "_mcub_setup_tmp"
 
+
+def _redact(value: object, visible: int = 2) -> str:
+    """Return a masked representation for sensitive values in logs."""
+    text = str(value or "")
+    if not text:
+        return "<empty>"
+    if len(text) <= visible * 2:
+        return "*" * len(text)
+    return f"{text[:visible]}***{text[-visible:]}"
+
 def setup_routes(app: web.Application) -> None:
     app.router.add_get("/",                       index)
     app.router.add_get("/status",                 status)
@@ -132,19 +142,19 @@ async def api_setup_state(request: web.Request) -> web.Response:
     })
 
 async def api_send_code(request: web.Request) -> web.Response:
-    print("\n[setup] === /api/setup/send_code called ===", flush=True)
+    log.info("[setup] /api/setup/send_code called")
 
     try:
         data = await request.json()
     except Exception as exc:
-        print(f"[setup] bad JSON — {exc}", flush=True)
+        log.warning("[setup] bad JSON in send_code: %s", exc)
         return _err("Invalid JSON body")
 
     api_id_raw = str(data.get("api_id",   "")).strip()
     api_hash   = str(data.get("api_hash", "")).strip()
     phone      = str(data.get("phone",    "")).strip()
 
-    print(f"[setup] api_id={api_id_raw!r}  phone={phone!r}", flush=True)
+    log.info("[setup] send_code request api_id=%s phone=%s", _redact(api_id_raw), _redact(phone))
 
     if not api_id_raw.isdigit():
         return _err("API ID must be a number")
@@ -165,25 +175,25 @@ async def api_send_code(request: web.Request) -> web.Response:
     except ImportError:
         return _err("telethon is not installed — run: pip install telethon")
 
-    print("[setup] Creating TelegramClient…", flush=True)
+    log.debug("[setup] Creating TelegramClient for send_code")
     client = TelegramClient(
         _SETUP_SESSION, api_id, api_hash,
         connection_retries=5, retry_delay=2, timeout=30,
     )
 
     try:
-        print("[setup] Connecting to Telegram…", flush=True)
+        log.debug("[setup] Connecting to Telegram in send_code")
         await client.connect()
-        print(f"[setup] Connected={client.is_connected()}. Requesting code…", flush=True)
+        log.debug("[setup] Connected=%s; requesting code", client.is_connected())
         result = await client.send_code_request(phone)
-        print(f"[setup] ✓ Code sent. hash={result.phone_code_hash!r}", flush=True)
+        log.info("[setup] Code sent successfully")
 
     except FloodWaitError as exc:
         return _err(f"Too many attempts. Wait {exc.seconds} seconds.")
 
     except Exception as exc:
         tb = traceback.format_exc()
-        print(f"[setup] SEND CODE FAILED:\n{tb}", flush=True)
+        log.error("[setup] SEND CODE FAILED:\n%s", tb)
         await _disconnect(client)
         return _err(_friendly_error(exc))
 
@@ -204,18 +214,18 @@ async def api_send_code(request: web.Request) -> web.Response:
 
 async def api_qr_login(request: web.Request) -> web.Response:
     """Initiate QR login procedure."""
-    print("\n[setup] === /api/setup/qr_login called ===", flush=True)
+    log.info("[setup] /api/setup/qr_login called")
 
     try:
         data = await request.json()
     except Exception as exc:
-        print(f"[setup] bad JSON — {exc}", flush=True)
+        log.warning("[setup] bad JSON in qr_login: %s", exc)
         return _err("Invalid JSON body")
 
     api_id_raw = str(data.get("api_id",   "")).strip()
     api_hash   = str(data.get("api_hash", "")).strip()
 
-    print(f"[setup] QR login: api_id={api_id_raw!r}", flush=True)
+    log.info("[setup] QR login request api_id=%s", _redact(api_id_raw))
 
     if not api_id_raw.isdigit():
         return _err("API ID must be a number")
@@ -234,14 +244,14 @@ async def api_qr_login(request: web.Request) -> web.Response:
     except ImportError:
         return _err("telethon is not installed — run: pip install telethon")
 
-    print("[setup] Creating TelegramClient for QR login…", flush=True)
+    log.debug("[setup] Creating TelegramClient for QR login")
     client = TelegramClient(
         _SETUP_SESSION, api_id, api_hash,
         connection_retries=5, retry_delay=2, timeout=30,
     )
 
     try:
-        print("[setup] Connecting to Telegram for QR…", flush=True)
+        log.debug("[setup] Connecting to Telegram for QR")
         await client.connect()
 
         # Request login token
@@ -251,16 +261,16 @@ async def api_qr_login(request: web.Request) -> web.Response:
             except_ids=[]
         ))
 
-        print(f"[setup] QR token result type: {type(result).__name__}", flush=True)
+        log.debug("[setup] QR token result type: %s", type(result).__name__)
 
         # Generate QR URL from token
         import base64
         qr_url = 'tg://login?token=' + base64.urlsafe_b64encode(result.token).decode('utf-8').rstrip('=')
-        print(f"[setup] QR url: {qr_url[:50]}...", flush=True)
+        log.debug("[setup] QR URL generated")
 
     except Exception as exc:
         tb = traceback.format_exc()
-        print(f"[setup] QR LOGIN FAILED:\n{tb}", flush=True)
+        log.error("[setup] QR LOGIN FAILED:\n%s", tb)
         await _disconnect(client)
         return _err(_friendly_error(exc))
 
@@ -286,7 +296,7 @@ async def api_qr_login(request: web.Request) -> web.Response:
 
 async def api_qr_poll(request: web.Request) -> web.Response:
     """Poll for QR login completion - manually check token status."""
-    print("\n[setup] === /api/setup/qr_poll called ===", flush=True)
+    log.debug("[setup] /api/setup/qr_poll called")
 
     state: dict = request.app.get("setup_state") or {}
     client = state.get("client")
@@ -299,12 +309,12 @@ async def api_qr_poll(request: web.Request) -> web.Response:
         from telethon import functions, types
 
         if not client.is_connected():
-            print("[setup] Reconnecting client for QR poll...", flush=True)
+            log.debug("[setup] Reconnecting client for QR poll")
             await client.connect()
 
         # Manually check token status by calling ExportLoginTokenRequest again
         # If QR was scanned, this will return LoginTokenSuccess
-        print("[setup] Checking token status...", flush=True)
+        log.debug("[setup] Checking token status")
 
         try:
             result = await client(functions.auth.ExportLoginTokenRequest(
@@ -312,15 +322,15 @@ async def api_qr_poll(request: web.Request) -> web.Response:
                 api_hash=state["api_hash"],
                 except_ids=[]
             ))
-            print(f"[setup] Token check result: {type(result).__name__}", flush=True)
+            log.debug("[setup] Token check result: %s", type(result).__name__)
         except Exception as token_err:
             err_str = str(token_err).lower()
             if "password" in err_str or "2fa" in err_str or "two-steps" in err_str:
-                print("[setup] 2FA required for QR login", flush=True)
+                log.info("[setup] 2FA required for QR login")
                 state["awaiting_2fa"] = True
                 return web.json_response({"requires_2fa": True})
             if "expired" in err_str or "invalid" in err_str:
-                print("[setup] Token expired, creating new one...", flush=True)
+                log.info("[setup] QR token expired, generating new token")
                 result = await client(functions.auth.ExportLoginTokenRequest(
                     api_id=state["api_id"],
                     api_hash=state["api_hash"],
@@ -340,7 +350,7 @@ async def api_qr_poll(request: web.Request) -> web.Response:
 
         # Check result type
         if isinstance(result, types.auth.LoginTokenSuccess):
-            print("[setup] QR login success!", flush=True)
+            log.info("[setup] QR login success")
             user = result.authorization.user
             phone = getattr(user, 'phone', None) or getattr(user, 'username', None) or "+unknown"
             state["phone"] = phone
@@ -348,7 +358,7 @@ async def api_qr_poll(request: web.Request) -> web.Response:
             return await _finish_setup(request, state, start_kernel=False)
 
         elif isinstance(result, types.auth.LoginTokenMigrateTo):
-            print(f"[setup] Token migrated to DC {result.dc_id}", flush=True)
+            log.info("[setup] Token migrated to DC %s", result.dc_id)
             await client._switch_dc(result.dc_id)
             result = await client(functions.auth.ImportLoginTokenRequest(result.token))
             if isinstance(result, types.auth.LoginTokenSuccess):
@@ -359,16 +369,16 @@ async def api_qr_poll(request: web.Request) -> web.Response:
                 return await _finish_setup(request, state, start_kernel=False)
 
         # Still waiting for scan
-        print("[setup] Still waiting for QR scan...", flush=True)
+        log.debug("[setup] Still waiting for QR scan")
         return web.json_response({"success": True, "waiting": True, "message": "Waiting for QR scan…"})
 
     except Exception as exc:
         tb = traceback.format_exc()
-        print(f"[setup] QR POLL ERROR:\n{tb}", flush=True)
+        log.error("[setup] QR POLL ERROR:\n%s", tb)
         return _err(_friendly_error(exc))
 
 async def api_verify_code(request: web.Request) -> web.Response:
-    print("\n[setup] === /api/setup/verify_code called ===", flush=True)
+    log.info("[setup] /api/setup/verify_code called")
 
     state: dict = request.app.get("setup_state") or {}
     client = state.get("client")
@@ -382,7 +392,7 @@ async def api_verify_code(request: web.Request) -> web.Response:
 
     code     = str(data.get("code",     "")).strip()
     password = str(data.get("password", "")).strip()
-    print(f"[setup] code={code!r}  has_password={bool(password)}", flush=True)
+    log.info("[setup] verify_code has_code=%s has_password=%s", bool(code), bool(password))
 
     from telethon.errors import (
         PhoneCodeInvalidError,
@@ -396,7 +406,7 @@ async def api_verify_code(request: web.Request) -> web.Response:
     if state.get("awaiting_2fa") and not code:
         if not password:
             return _err("Password is required")
-        print("[setup] Signing in with 2FA password…", flush=True)
+        log.debug("[setup] Signing in with 2FA password")
         try:
             await client.sign_in(password=password)
         except PasswordHashInvalidError:
@@ -424,13 +434,13 @@ async def api_verify_code(request: web.Request) -> web.Response:
 
     phone           = state["phone"]
     phone_code_hash = state["phone_code_hash"]
-    print(f"[setup] sign_in phone={phone!r}", flush=True)
+    log.info("[setup] sign_in phone=%s", _redact(phone))
 
     try:
         await client.sign_in(phone, code, phone_code_hash=phone_code_hash)
 
     except SessionPasswordNeededError:
-        print("[setup] 2FA required by account", flush=True)
+        log.info("[setup] 2FA required by account")
         if password:
             try:
                 await client.sign_in(password=password)
@@ -453,14 +463,14 @@ async def api_verify_code(request: web.Request) -> web.Response:
 
     except Exception as exc:
         tb = traceback.format_exc()
-        print(f"[setup] sign_in error:\n{tb}", flush=True)
+        log.error("[setup] sign_in error:\n%s", tb)
         return _err(_friendly_error(exc))
 
     # Don't start kernel yet - wait for bot step
     return await _finish_setup(request, state, start_kernel=False)
 
 async def _finish_setup(request: web.Request, state: dict, start_kernel: bool = True) -> web.Response:
-    print("[setup] ✓ Auth OK — writing config.json…", flush=True)
+    log.info("[setup] Auth OK; writing config.json")
 
     config = {
         "api_id":               state["api_id"],
@@ -482,7 +492,7 @@ async def _finish_setup(request: web.Request, state: dict, start_kernel: bool = 
 
     with open("config.json", "w", encoding="utf-8") as f:
         json.dump(config, f, ensure_ascii=False, indent=2)
-    print("[setup] config.json written", flush=True)
+    log.info("[setup] config.json written")
 
     await _disconnect(state.get("client"))
     _rename_session(_SETUP_SESSION, "user_session")
@@ -496,7 +506,7 @@ async def _finish_setup(request: web.Request, state: dict, start_kernel: bool = 
         ev: asyncio.Event | None = request.app.get("setup_event")
         if ev is not None:
             ev.set()
-            print("[setup] setup_event fired", flush=True)
+            log.debug("[setup] setup_event fired")
 
     return web.json_response({
         "success": True,
@@ -505,13 +515,13 @@ async def _finish_setup(request: web.Request, state: dict, start_kernel: bool = 
     })
 
 def _err(msg: str, status: int = 400) -> web.Response:
-    print(f"[setup] → error: {msg!r}", flush=True)
+    log.warning("[setup] error: %s", msg)
     return web.json_response({"error": msg}, status=status)
 
 
 async def setup_reset(request: web.Request) -> web.Response:
     """Reset the setup and clear config.json and session files."""
-    print("\n[setup] === /setup/reset called ===", flush=True)
+    log.info("[setup] /setup/reset called")
 
     config_path = "config.json"
     session_files = [
@@ -543,9 +553,9 @@ async def setup_reset(request: web.Request) -> web.Response:
     await _cleanup_state_client(state)
     request.app["setup_state"] = {}
 
-    print(f"[setup] Reset complete. Removed: {removed}", flush=True)
+    log.info("[setup] Reset complete. Removed: %s", removed)
     if errors:
-        print(f"[setup] Errors: {errors}", flush=True)
+        log.warning("[setup] Reset errors: %s", errors)
 
     raise web.HTTPFound(location="/")
 
@@ -581,9 +591,9 @@ def _remove_session_files(name: str) -> None:
         if os.path.exists(p):
             try:
                 os.remove(p)
-                print(f"[setup] removed {p}", flush=True)
+                log.debug("[setup] removed %s", p)
             except Exception as e:
-                print(f"[setup] WARNING: cannot remove {p}: {e}", flush=True)
+                log.warning("[setup] cannot remove %s: %s", p, e)
 
 
 def _rename_session(src: str, dst: str) -> None:
@@ -593,7 +603,7 @@ def _rename_session(src: str, dst: str) -> None:
             if os.path.exists(d):
                 os.remove(d)
             os.rename(s, d)
-            print(f"[setup] renamed {s} → {d}", flush=True)
+            log.info("[setup] renamed %s -> %s", s, d)
 
 
 async def bot_page(request: web.Request) -> web.Response:

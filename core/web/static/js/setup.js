@@ -30,7 +30,7 @@ const TRANSLATIONS = {
     btn_verify:           'Verify →',
     s3_title:             'Two-Factor Auth',
     s3_hint:              'Your account has 2FA enabled. Enter your cloud password.',
-    label_cloud_password: 'Cloud password',
+    label_cloud_password: 'Cloud password', // pragma: allowlist secret
     btn_confirm:          'Confirm →',
     s4_title:             'Inline Bot (Optional)',
     s4_hint:              'Create a bot via @BotFather for inline buttons support.<br>Or skip this step and create bot later in settings.',
@@ -66,7 +66,7 @@ const TRANSLATIONS = {
     err_fields_required:  'All fields are required.',
     err_api_required:     'API ID and Hash are required.',
     err_enter_code:       'Please enter the code.',
-    err_enter_password:   'Please enter your password.',
+    err_enter_password:   'Please enter your password.', // pragma: allowlist secret
     err_token_required:   'Token is required',
     err_invalid_token:    'Invalid token',
     err_saving:           'Error saving',

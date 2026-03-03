@@ -232,8 +232,10 @@ class TestKernel:
         self.response_history = []
 
     async def run(self) -> None:
-        """Запуск тестового ядра (заглушка для совместимости)"""
-        pass
+        """Запуск тестового ядра - инициализация если не готово"""
+        if self.kernel is None:
+            await self.setup()
+        print("=> TestKernel ready")
 
 
 def create_test_kernel() -> TestKernel:

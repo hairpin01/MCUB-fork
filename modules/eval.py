@@ -97,9 +97,9 @@ def register(kernel):
         )
 
         response = f"""{CUSTOM_EMOJI['🧿']} <b>{lang_strings['code']}</b>
-<blockquote><code>{code_display}</code></blockquote>
+<blockquote expandable><code>{code_display}</code></blockquote>
 {CUSTOM_EMOJI['🧬']} <b>{lang_strings['result']}</b>
-<blockquote><code>{complete_display}</code></blockquote>
+<blockquote expandable><code>{complete_display}</code></blockquote>
 <blockquote>{CUSTOM_EMOJI['💠']} <i>{lang_strings['executed_in']}</i> <code>{elapsed}{lang_strings['ms']}</code></blockquote>"""
         try:
             await event.edit(response, parse_mode="html")

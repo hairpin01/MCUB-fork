@@ -156,7 +156,7 @@ async def generate_detailed_page(search_term, kernel, strings):
         msg = f'{CUSTOM_EMOJI["dna"]} <b>{strings["module"]}</b> <code>{name}</code>:\n'
         msg += f'{CUSTOM_EMOJI["alembic"]} <b>{strings["description"]}:</b> <i>{metadata.get("description", strings["no_description"])}</i>\n'
         msg += f'{CUSTOM_EMOJI["snowflake"]} <b>{strings["version"]}:</b> <code>{metadata.get("version", "1.0.0")}</code>\n'
-        msg += "<blockquote expandable>"
+        msg += '<blockquote expandable>'
         if commands:
             for cmd in commands:
                 cmd_desc = metadata.get("commands", {}).get(
@@ -221,7 +221,7 @@ def get_paginated_data(kernel, page, strings):
 
     if page == 0:
         msg = f'{CUSTOM_EMOJI["crystal"]} <b>{strings["system_modules"]}:</b> <code>{len(sys_modules)}</code>\n\n'
-        msg += "<blockquote expandable>"
+        msg += '<blockquote expandable>'
         for name in sys_modules:
             commands, aliases_info = get_module_commands(name, kernel)
             if commands:
@@ -255,7 +255,7 @@ def get_paginated_data(kernel, page, strings):
         current_chunk = usr_modules[start_idx:end_idx]
 
         msg = f'{CUSTOM_EMOJI["crystal"]} <b>{strings["user_modules_page"].format(page=page, count=len(usr_modules))}:</b>\n'
-        msg += "<blockquote expandable>"
+        msg += '<blockquote expandable>'
         for name in current_chunk:
             commands, aliases_info = get_module_commands(name, kernel)
             if commands:
@@ -405,11 +405,11 @@ def register(kernel):
             }
 
         msg = f'<blockquote>{CUSTOM_EMOJI["dna"]} <b>{strings["module"]}</b> <code>{name}</code></blockquote>\n'
-        msg += f'<blockquote>{CUSTOM_EMOJI["alembic"]} <b>{strings["description"]}:</b> <i>{metadata.get("description", strings["no_description"])}</i>\n</blockquote>'
+        msg += f'<blockquote expandable>{CUSTOM_EMOJI["alembic"]} <b>{strings["description"]}:</b> <i>{metadata.get("description", strings["no_description"])}</i>\n</blockquote>'
 
         if commands:
             msg += f'\n<b>Command:</b>\n'
-            msg += '<blockquote>'
+            msg += '<blockquote expandable>'
             for cmd in commands[:5]:  # Показываем только первые 5 команд
                 cmd_desc = metadata.get("commands", {}).get(
                     cmd, f'{CUSTOM_EMOJI["confused"]} {strings["no_description"]}'

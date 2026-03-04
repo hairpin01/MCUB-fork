@@ -105,7 +105,7 @@ def register(kernel):
             'log_loading_module': '=- Loading module {module_name}...',
             'log_module_loaded': '=> Module loaded successfully',
             'log_commands_found': '=> Commands found: {count}',
-            'module_loaded': '{success} <b>Module {module_name} loaded!</b> {emoji}\n<blockquote>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote>{commands_list}</blockquote>',
+            'module_loaded': '{success} <b>Module {module_name} loaded!</b> {emoji}\n<blockquote expandable>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote expandable>{commands_list}</blockquote>',
             'no_cmd_desc': '{no_cmd} Command has no description',
             'command_line': '{crystal} <code>{prefix}{cmd}</code> – <b>{desc}</b>',
             'aliases_text': ' (Aliases: {alias_text})',
@@ -119,8 +119,8 @@ def register(kernel):
             'log_traceback': 'Traceback:\n{traceback}',
             'dlm_usage': '{warning} <b>Usage:</b> <code>{prefix}dlm [-send/-s/-list] module_name or URL</code>',
             'dlm_list_loading': '{loading} <b>Getting module list...</b>',
-            'dlm_list_title': '{folder} <b>Module list from repositories:</b>\n<blockquote>{list}</blockquote>',
-            'dlm_list_errors': '\n\n{warning} <b>Errors:</b>\n<blockquote>{errors}</blockquote>',
+            'dlm_list_title': '{folder} <b>Module list from repositories:</b>\n<blockquote expandable>{list}</blockquote>',
+            'dlm_list_errors': '\n\n{warning} <b>Errors:</b>\n<blockquote expandable>{errors}</blockquote>',
             'dlm_list_failed': '{warning} <b>Failed to get module list</b>',
             'dlm_searching': '{loading} <b>Searching for module {module_name}...</b>',
             'module_info': '{file} <b>Module:</b> <code>{module_name}</code>\n{idea} <b>Description:</b> <i>{description}</i>\n{crystal} <b>Version:</b> <code>{version}</code>\n{angel} <b>Author:</b> <i>{author}</i>\n{folder} <b>Size:</b> <code>{size} bytes</code>\n{cloud} <b>Repository:</b> <code>{repo}</code>',
@@ -145,7 +145,7 @@ def register(kernel):
             'module_not_found_repos': '{warning} <b>Module {module_name} not found in repositories</b>',
             'log_saving_for_send': 'Saving file for sending',
             'sending_module': '{upload} <b>Sending module {module_name}...</b>',
-            'file_sent_caption': '<blockquote>{file} <b>Module:</b> <code>{module_name}.py</code>\n{idea} <b>description:</b> <i>{description}</i>\n{crystal} <b>version:</b> <code>{version}</code>\n{angel} <b>author:</b> <i>{author}</i>\n{folder} <b>Size:</b> <code>{size} bytes</code></blockquote>',
+            'file_sent_caption': '<blockquote expandable>{file} <b>Module:</b> <code>{module_name}.py</code>\n{idea} <b>description:</b> <i>{description}</i>\n{crystal} <b>version:</b> <code>{version}</code>\n{angel} <b>author:</b> <i>{author}</i>\n{folder} <b>Size:</b> <code>{size} bytes</code></blockquote>',
             'log_file_sent': '=> File sent, deleting temp file',
             'log_install_mode': '=- Installation mode, continuing...',
             'log_saving_file': '=- Saving module file: {file_path}',
@@ -164,7 +164,7 @@ def register(kernel):
             'file_upload_caption': '{file} <b>Module:</b> {module_name}.py\n\n<blockquote><code>{prefix}im</code> to install</blockquote>',
             'reload_usage': '{warning} <b>Usage:</b> <code>{prefix}reload module_name</code>',
             'reloading': '{reload} <b>Reloading <code>{module_name}</code>...</b>',
-            'reload_success': '{success} <b>Module {module_name} reloaded!</b> {emoji}\n\n<blockquote>{cmd_text}</blockquote>',
+            'reload_success': '{success} <b>Module {module_name} reloaded!</b> {emoji}\n\n<blockquote expandable>{cmd_text}</blockquote>',
             'no_commands': 'No commands',
             'reload_error': '{warning} <b>Error, check logs</b>',
             'no_modules': '{folder} <b>No modules loaded</b>',
@@ -212,7 +212,7 @@ def register(kernel):
             'log_loading_module': '=- Загружаю модуль {module_name}...',
             'log_module_loaded': '=> Модуль успешно загружен',
             'log_commands_found': '=> Найдено команд: {count}',
-            'module_loaded': '{success} <b>Модуль {module_name} загружен!</b> {emoji}\n<blockquote>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote>{commands_list}</blockquote>',
+            'module_loaded': '{success} <b>Модуль {module_name} загружен!</b> {emoji}\n<blockquote expandable>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote expandable>{commands_list}</blockquote>',
             'no_cmd_desc': '{no_cmd} У команды нету описания',
             'command_line': '{crystal} <code>{prefix}{cmd}</code> – <b>{desc}</b>',
             'aliases_text': ' (Aliases: {alias_text})',
@@ -226,8 +226,8 @@ def register(kernel):
             'log_traceback': 'Трейсбэк:\n{traceback}',
             'dlm_usage': '{warning} <b>Использование:</b> <code>{prefix}dlm [-send/-s/-list] название_модуля или ссылка</code>',
             'dlm_list_loading': '{loading} <b>Получаю список модулей...</b>',
-            'dlm_list_title': '{folder} <b>Список модулей из репозиториев:</b>\n<blockquote>{list}</blockquote>',
-            'dlm_list_errors': '\n\n{warning} <b>Ошибки:</b>\n<blockquote>{errors}</blockquote>',
+            'dlm_list_title': '{folder} <b>Список модулей из репозиториев:</b>\n<blockquote expandable>{list}</blockquote>',
+            'dlm_list_errors': '\n\n{warning} <b>Ошибки:</b>\n<blockquote expandable>{errors}</blockquote>',
             'dlm_list_failed': '{warning} <b>Не удалось получить список модулей</b>',
             'dlm_searching': '{loading} <b>Ищу модуль {module_name}...</b>',
             'module_info': '{file} <b>Модуль:</b> <code>{module_name}</code>\n{idea} <b>Описание:</b> <i>{description}</i>\n{crystal} <b>Версия:</b> <code>{version}</code>\n{angel} <b>Автор:</b> <i>{author}</i>\n{folder} <b>Размер:</b> <code>{size} байт</code>\n{cloud} <b>Репозиторий:</b> <code>{repo}</code>',
@@ -252,7 +252,7 @@ def register(kernel):
             'module_not_found_repos': '{warning} <b>Модуль {module_name} не найден в репозиториях</b>',
             'log_saving_for_send': 'Сохраняю файл для отправки',
             'sending_module': '{upload} <b>Отправляю модуль {module_name}...</b>',
-            'file_sent_caption': '<blockquote>{file} <b>Модуль:</b> <code>{module_name}.py</code>\n{idea} <b>описание:</b> <i>{description}</i>\n{crystal} <b>версия:</b> <code>{version}</code>\n{angel} <b>автор:</b> <i>{author}</i>\n{folder} <b>Размер:</b> <code>{size} байт</code></blockquote>',
+            'file_sent_caption': '<blockquote expandable>{file} <b>Модуль:</b> <code>{module_name}.py</code>\n{idea} <b>описание:</b> <i>{description}</i>\n{crystal} <b>версия:</b> <code>{version}</code>\n{angel} <b>автор:</b> <i>{author}</i>\n{folder} <b>Размер:</b> <code>{size} байт</code></blockquote>',
             'log_file_sent': '=> Файл отправлен, удаляю временный файл',
             'log_install_mode': '=- Режим установки, продолжаю...',
             'log_saving_file': '=- Сохраняю файл модуля: {file_path}',
@@ -271,7 +271,7 @@ def register(kernel):
             'file_upload_caption': '{file} <b>Модуль:</b> {module_name}.py\n\n<blockquote><code>{prefix}im</code> для установки</blockquote>',
             'reload_usage': '{warning} <b>Использование:</b> <code>{prefix}reload название_модуля</code>',
             'reloading': '{reload} <b>Перезагрузка <code>{module_name}</code>...</b>',
-            'reload_success': '{success} <b>Модуль {module_name} перезагружен!</b> {emoji}\n\n<blockquote>{cmd_text}</blockquote>',
+            'reload_success': '{success} <b>Модуль {module_name} перезагружен!</b> {emoji}\n\n<blockquote expandable>{cmd_text}</blockquote>',
             'no_commands': 'Нет команд',
             'reload_error': '{warning} <b>Ошибка, смотри логи</b>',
             'no_modules': '{folder} <b>Модули не загружены</b>',
@@ -891,7 +891,7 @@ def register(kernel):
                 else:
                     final_msg = t('dlm_list_failed', warning=CUSTOM_EMOJI['warning'])
                     if errors:
-                        final_msg += f'\n<blockquote>{"<br>".join(errors)}</blockquote>'
+                        final_msg += f'\n<blockquote expandable>{"<br>".join(errors)}</blockquote>'
 
                 await edit_with_emoji(event, final_msg)
                 return
@@ -1485,4 +1485,3 @@ def register(kernel):
             await edit_with_emoji(event, f'{CUSTOM_EMOJI["success"]} <b>{message}</b>')
         else:
             await edit_with_emoji(event, f'{CUSTOM_EMOJI["warning"]} <b>{message}</b>')
-

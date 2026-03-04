@@ -42,15 +42,15 @@ def register(kernel):
             'api_enabled': '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> включена',
             'api_disabled': '❌ отключена',
             'mcubinfo_html': '''🎭 <b>Что такое юзербот?</b>
-<blockquote>Это программа, которая работает через ваш личный аккаунт Telegram, используя клиентский API. В отличие от обычных ботов (<code>Bot API</code>зербот имеет доступ ко всем функциям обычного пользователя — может отправлять сообщения, управлять группами, автоматизировать действия и многое другое.</blockquote>
+<blockquote expandable>Это программа, которая работает через ваш личный аккаунт Telegram, используя клиентский API. В отличие от обычных ботов (<code>Bot API</code>зербот имеет доступ ко всем функциям обычного пользователя — может отправлять сообщения, управлять группами, автоматизировать действия и многое другое.</blockquote>
 
-<b>Преимущества:</b> <blockquote><b>Полная автоматизация</b> — можно настроить автоответы, мониторинг чатов, управление каналами и группами
+<b>Преимущества:</b> <blockquote expandable><b>Полная автоматизация</b> — можно настроить автоответы, мониторинг чатов, управление каналами и группами
 <b>Неограниченные возможности</b> — доступ ко всем функциям Telegram, включая те, что недоступны обычным ботам
 <b>Гибкость и кастомизация</b> — можно писать собственный код под любые задачи
 •<b>Прямое подключение</b> — работа напрямую с серверами Telegram без лишних промежуточных слоёв.</blockquote>
 
 🚂 <b>Главные риски и недостатки:</b>
-<blockquote><b>Блокировка аккаунта</b> — Telegram может заблокировать аккаунт за подозрительную активность (спам, массовые действия)
+<blockquote expandable><b>Блокировка аккаунта</b> — Telegram может заблокировать аккаунт за подозрительную активность (спам, массовые действия)
 • <b>Отсутствие официальной поддержки</b> — User API не документирован официально, могут быть нестабильности
 <b>Ответственность на пользователе</b> — за действия бота, нарушающие правила Telegram, отвечает владелец аккаунта
 <b>Риск для основного аккаунта</b> — рекомендуется использовать отдельный аккаунт для юзербота</blockquote>''',
@@ -82,15 +82,15 @@ def register(kernel):
             'api_enabled': '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> enabled',
             'api_disabled': '❌ disabled',
             'mcubinfo_html': '''🎭 <b>What is a userbot?</b>
-<blockquote>This is a program that works through your personal Telegram account using the client API. Unlike regular bots (<code>Bot API</code>), a userbot has access to all the functions of a regular user - can send messages, manage groups, automate actions and much more.</blockquote>
+<blockquote expandable>This is a program that works through your personal Telegram account using the client API. Unlike regular bots (<code>Bot API</code>), a userbot has access to all the functions of a regular user - can send messages, manage groups, automate actions and much more.</blockquote>
 
-<b>Advantages:</b> <blockquote><b>Full automation</b> - can set up auto-replies, chat monitoring, channel and group management
+<b>Advantages:</b> <blockquote expandable><b>Full automation</b> - can set up auto-replies, chat monitoring, channel and group management
 <b>Unlimited capabilities</b> - access to all Telegram features, including those unavailable to regular bots
 <b>Flexibility and customization</b> - can write custom code for any tasks
 •<b>Direct connection</b> - work directly with Telegram servers without unnecessary intermediate layers.</blockquote>
 
 🚂 <b>Main risks and disadvantages:</b>
-<blockquote><b>Account blocking</b> - Telegram may block an account for suspicious activity (spam, mass actions)
+<blockquote expandable><b>Account blocking</b> - Telegram may block an account for suspicious activity (spam, mass actions)
 • <b>Lack of official support</b> - User API is not officially documented, may be unstable
 <b>User responsibility</b> - the account owner is responsible for bot actions that violate Telegram rules
 <b>Risk to main account</b> - recommended to use a separate account for userbot</blockquote>''',

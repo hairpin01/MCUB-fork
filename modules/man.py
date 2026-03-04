@@ -4,6 +4,7 @@
 # description: Module manager
 from telethon import events, Button
 import re
+from html import escape
 import math
 from telethon.tl.types import InputWebDocument, DocumentAttributeImageSize
 
@@ -18,6 +19,9 @@ CUSTOM_EMOJI = {
     "map": '<tg-emoji emoji-id="5472064286752775254">🗺️</tg-emoji>',
     "tot": '<tg-emoji emoji-id="5085121109574025951">🫧</tg-emoji>',
 }
+
+ZERO_WIDTH_CHAR = "\u2060"
+
 
 def get_module_commands(module_name, kernel):
     commands = []
@@ -354,6 +358,23 @@ def register(kernel):
 
     lang_strings = strings.get(language, strings['en'])
 
+    kernel.config.setdefault("man_quote_media", True)
+    kernel.config.setdefault("man_banner_url", "")
+    kernel.config.setdefault("man_invert_media", False)
+
+    def add_inline_banner_preview(message_html):
+        banner_url = kernel.config.get("man_banner_url")
+        quote_media = kernel.config.get("man_quote_media", False)
+
+        if not (
+            quote_media
+            and isinstance(banner_url, str)
+            and banner_url.startswith(("http://", "https://"))
+        ):
+            return message_html
+
+        return f'<a href="{escape(banner_url, quote=True)}">{ZERO_WIDTH_CHAR}</a>{message_html}'
+
     async def search_modules_for_inline(search_term, kernel, strings):
         """Поиск модулей для inline режима"""
         search_term = search_term.lower()
@@ -442,7 +463,7 @@ def register(kernel):
             article1 = event.builder.article(
                 title="Module Manager",
                 description="Browse all modules",
-                text=msg1,
+                text=add_inline_banner_preview(msg1),
                 buttons=buttons,
                 parse_mode="html",
                 thumb=thumb1
@@ -603,7 +624,16 @@ def register(kernel):
             try:
                 page = int(data.split("_")[-1])
                 msg, buttons = get_paginated_data(kernel, page, lang_strings)
-                await event.edit(msg, buttons=buttons, parse_mode="html")
+                invert_media = kernel.config.get("man_invert_media", False)
+                try:
+                    await event.edit(
+                        add_inline_banner_preview(msg),
+                        buttons=buttons,
+                        parse_mode="html",
+                        invert_media=invert_media,
+                    )
+                except TypeError:
+                    await event.edit(add_inline_banner_preview(msg), buttons=buttons, parse_mode="html")
             except Exception as e:
                 await event.answer(f"Error: {str(e)[:50]}", alert=True)
 
@@ -626,9 +656,36 @@ def register(kernel):
                 try:
                     results = await client.inline_query(bot_username, "man")
                     if results:
-                        await results[0].click(
+                        sent = await results[0].click(
                             event.chat_id, reply_to=event.reply_to_msg_id
                         )
+
+                        if kernel.config.get("man_invert_media", False):
+                            try:
+                                page_msg, page_buttons = get_paginated_data(kernel, 0, lang_strings)
+                                page_msg = add_inline_banner_preview(page_msg)
+                                sent_id = sent[0].id if isinstance(sent, list) and sent else getattr(sent, "id", None)
+
+                                if sent_id:
+                                    try:
+                                        await client.edit_message(
+                                            event.chat_id,
+                                            sent_id,
+                                            page_msg,
+                                            buttons=page_buttons,
+                                            parse_mode="html",
+                                            invert_media=True,
+                                        )
+                                    except TypeError:
+                                        await client.edit_message(
+                                            event.chat_id,
+                                            sent_id,
+                                            page_msg,
+                                            buttons=page_buttons,
+                                            parse_mode="html",
+                                        )
+                            except Exception:
+                                pass
                     else:
                         await client.send_message(event.chat_id, lang_strings["no_inline_results"])
                 except Exception as e:

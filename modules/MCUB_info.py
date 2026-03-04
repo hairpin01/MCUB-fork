@@ -101,6 +101,17 @@ def register(kernel):
     )
     kernel.config.setdefault("info_invert_media", False)
     kernel.config.setdefault("info_custom_text", None)
+    kernel.config.setdefault("info_start_emoji", CUSTOM_EMOJI["load"])
+
+    def resolve_info_start_emoji() -> str:
+        """Resolve configurable start emoji for .info with sensible fallbacks."""
+        raw = kernel.config.get("info_start_emoji", CUSTOM_EMOJI["load"])
+        if not isinstance(raw, str):
+            return CUSTOM_EMOJI["load"]
+        value = raw.strip()
+        if not value:
+            return CUSTOM_EMOJI["load"]
+        return CUSTOM_EMOJI.get(value, value)
 
     def format_uptime(seconds):
         seconds = int(seconds)
@@ -181,7 +192,7 @@ def register(kernel):
     async def info_cmd(event):
         try:
             start_time = time.time()
-            msg = await event.edit(f'{CUSTOM_EMOJI["load"]}', parse_mode="html")
+            msg = await event.edit(resolve_info_start_emoji(), parse_mode="html")
             ping_time = round((time.time() - start_time) * 1000, 2)
 
             core_name  = getattr(kernel, "CORE_NAME", "standard")
@@ -237,7 +248,7 @@ def register(kernel):
 
             me = await client.get_me()
             user_ids = me.id
-            
+
             user_emojis = {
                 6020965582: '5469888215802482605',
                 2037125547: '5467932472379480411',

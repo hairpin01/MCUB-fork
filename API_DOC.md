@@ -27,6 +27,7 @@ __Table of Contents__
 > 23. [InfiniteLoop](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#infiniteloop)
 > 24. [Lifecycle Callbacks](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#lifecycle-callbacks)
 > 25. [Custom Core MCUB](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#custom-core-mcub)
+> 26. [AntiScamModules](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#antiscammodules)
 
 # Introduction
 
@@ -1946,6 +1947,47 @@ or:
   - `<blockquote>` - regular quote
   - `<blockquote expandable>` - expandable quote (expanded by default)
   - `<blockquote expandable="false">` - collapsed quote
+
+---
+
+## AntiScamModules
+
+Telethon-MCUB blocks dangerous account-level requests before sending them to Telegram.
+
+Blocked requests include sensitive operations such as:
+- `account.DeleteAccountRequest`
+- `account.ResetPasswordRequest`
+- `auth.ResetAuthorizationsRequest`
+- `auth.LogOutRequest`
+
+The check is recursive and also works for wrapped `Invoke*` containers.
+
+**Example (blocked dangerous request):**
+
+```python
+from telethon import functions
+from telethon.client.protection import ScamModuleDetected
+
+try:
+    req = functions.InvokeWithoutUpdatesRequest(
+        query=functions.InvokeWithTakeoutRequest(
+            takeout_id=1,
+            query=functions.account.DeleteAccountRequest(reason="test"),
+        )
+    )
+    await kernel.client(req)
+except ScamModuleDetected as e:
+    print(e)
+    # Method 'DeleteAccountRequest' blocked!
+```
+
+**Example (system dialog masking):**
+
+```python
+r = await kernel.client.get_messages(777000, limit=1)
+print(r[0].message)       # YldWdmR3PT0=
+print(r[0].reply_markup)  # None
+```
 
 ---
 

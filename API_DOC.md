@@ -85,7 +85,7 @@ Structured logging instance.
 kernel.logger.debug("Debug message")
 kernel.logger.info("Info message")
 kernel.logger.warning("Warning message")
-kernel.logger.error("Error message") 
+kernel.logger.error("Error message")
 ```
 
 Logging Methods for __bot_client:__
@@ -142,7 +142,7 @@ or:
 
 Register a command handler.
 
-`kernel.register_inline_handler(pattern, function)` 
+`kernel.register_inline_handler(pattern, function)`
 ---
 Register inline query handler.
 
@@ -388,57 +388,40 @@ kernel.cprint("Warning message", kernel.Colors.YELLOW)
 
 ## Database API
 
-`kernel.db.execute(query, params=None)`
+> [!IMPORTANT]
+> There is no `kernel.db` object in current kernels. Use the methods below.
+
+`kernel.db_query(query, parameters)`
 ---
-Execute SQL query.
+Execute a read-only SQL query.
 
 **Parameters:**
-- `query` (str): SQL query string
-- `params` (tuple, optional): Query parameters
+- `query` (str): SQL query (`SELECT`, `PRAGMA`, or `EXPLAIN`)
+- `parameters` (tuple): Query parameters
 
-**Returns:** Cursor object
+**Returns:** list of rows
+
+**Security notes:**
+- Only `SELECT` / `PRAGMA` / `EXPLAIN` are allowed.
+- Write operations like `INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `CREATE`, etc. are blocked.
 
 **Usage:**
 ```python
-await kernel.db.execute(
-    "INSERT INTO users (id, name) VALUES (?, ?)",
-    (user_id, name)
+rows = await kernel.db_query(
+    "SELECT module, key, value FROM module_data WHERE module = ?",
+    ("mymodule",),
 )
 ```
 
-`kernel.db.fetchone(query, params=None)`
+`kernel.db_conn`
 ---
-Fetch single row from database.
+Get the raw database connection.
 
-**Returns:** dict or None
+**Returns:** `aiosqlite.Connection | None`
 
 **Usage:**
 ```python
-user = await kernel.db.fetchone(
-    "SELECT * FROM users WHERE id = ?",
-    (user_id,)
-)
-```
-
-`kernel.db.fetchall(query, params=None)`
----
-Fetch all rows matching query.
-
-**Returns:** list of dict
-
-**Usage:**
-```python
-users = await kernel.db.fetchall("SELECT * FROM users")
-```
-
-`kernel.db.commit()`
----
-Commit pending transactions.
-
-**Usage:**
-```python
-await kernel.db.execute("UPDATE users SET active = 1")
-await kernel.db.commit()
+conn = kernel.db_conn
 ```
 
 ---
@@ -449,12 +432,17 @@ A simpler high-level API built on top of the raw SQL database. Stores arbitrary 
 
 `kernel.db_set(module, key, value)`
 ---
-Store a string value.
+Store a value.
 
 **Parameters:**
 - `module` (str): Namespace — typically your module name
 - `key` (str): Key
-- `value` (str): Value to store
+- `value` (Any): Will be stored as string (`str(value)`)
+
+**Notes:**
+- `module` and `key` must match `^[a-zA-Z0-9_-]+$`
+- Max length for `module`/`key`: 64
+- Raises `ValueError` on invalid identifiers
 
 **Usage:**
 ```python
@@ -480,30 +468,6 @@ Delete a stored value.
 ```python
 await kernel.db_delete('mymodule', 'last_run')
 ```
-
-`kernel.db_query(query, parameters)`
----
-Execute arbitrary SQL query.
-
-**Returns:** list of rows
-
-**Usage:**
-```python
-rows = await kernel.db_query("SELECT * FROM module_data WHERE module = ?", ('mymodule',))
-```
-
-`kernel.db_conn`
----
-Get the raw sqlite3 connection object.
-
-**Returns:** aiosqlite.Connection or None
-
-**Usage:**
-```python
-conn = kernel.db_conn
-```
-
----
 
 ## Module Config API
 
@@ -791,7 +755,7 @@ def register(kernel):
     @kernel.register.command('cmd1')
     async def handler1(event):
         await event.edit("Command 1")
-    
+
     @kernel.register.command('cmd2')
     async def handler2(event):
         await event.edit("Command 2")
@@ -985,18 +949,18 @@ from utils import ArgumentParser
 @kernel.register.command('deploy')
 async def deploy_handler(event):
     parser = ArgumentParser(event.text, kernel.custom_prefix)
-    
+
     # Get positional arguments
     service = parser.get(0, 'default')
-    
+
     # Get named arguments
     environment = parser.get_kwarg('env', 'production')
     timeout = parser.get_kwarg('timeout', 60)
-    
+
     # Check flags
     if parser.get_flag('verbose'):
         await event.edit("Verbose mode enabled")
-    
+
     # Join remaining arguments
     message = parser.join_args(start=1)
 ```
@@ -1094,7 +1058,7 @@ await answer(event, "Check this file", file="document.pdf")
 # With inline keyboard
 from telethon import Button
 buttons = [[Button.inline("Click", b"callback_data")]]
-await answer(event, "Choose option", buttons=buttons) 
+await answer(event, "Choose option", buttons=buttons)
 ```
 
 `answer_file(event, file, caption=None, **kwargs)`
@@ -1597,14 +1561,14 @@ from telethon import Button
 def register(kernel):
     # Configuration
     CONFIG_KEY = 'example_module'
-    
+
     # Initialize module config
     if CONFIG_KEY not in kernel.config:
         kernel.config[CONFIG_KEY] = {
             'enabled': True,
             'timeout': 30
         }
-    
+
     # Command handlers
     @kernel.register.command('example', alias='ex')
     async def example_handler(event):
@@ -1614,15 +1578,15 @@ def register(kernel):
             if not config['enabled']:
                 await event.edit("Module disabled")
                 return
-            
+
             # Process command
             result = await process_command(event, config)
             await event.edit(result)
-            
+
         except Exception as e:
             await kernel.handle_error(e, source="example_handler", event=event)
             await event.edit("Command failed")
-    
+
     async def process_command(event, config):
         # Implementation
         return "Success"
@@ -1637,17 +1601,17 @@ async def safe_handler(event):
         # Main logic
         result = await risky_operation()
         await event.edit(f"Result: {result}")
-        
+
     except ValueError as e:
         # Specific error handling
         await kernel.logger.warning(f"Invalid value: {e}")
         await event.edit("Invalid input")
-        
+
     except ConnectionError as e:
         # Network error handling
         await kernel.logger.error(f"Connection failed: {e}")
         await event.edit("Network error")
-        
+
     except Exception as e:
         # Generic error handling
         await kernel.handle_error(e, source="safe_handler", event=event)
@@ -1660,16 +1624,16 @@ async def safe_handler(event):
 def register(kernel):
     # Store resources in module-level variables
     module_cache = {}
-    
+
     @kernel.register.command('resource')
     async def resource_handler(event):
         # Use module cache
         if 'data' not in module_cache:
             module_cache['data'] = await load_data()
-        
+
         data = module_cache['data']
         await event.edit(f"Cached data: {data}")
-    
+
     # Cleanup on module reload (if needed)
     async def cleanup():
         module_cache.clear()
@@ -1688,11 +1652,11 @@ async def parallel_handler(event):
             operation3(),
             return_exceptions=True
         )
-        
+
         # Process results
         success_count = sum(1 for r in results if not isinstance(r, Exception))
         await event.edit(f"Completed: {success_count}/3")
-        
+
     except Exception as e:
         await kernel.handle_error(e, source="parallel_handler", event=event)
 ```
@@ -1708,18 +1672,14 @@ async def dbsave_handler(event):
         if len(args) < 2:
             await event.edit("Usage: .dbsave <key> <value>")
             return
-        
+
         key, value = args[0], ' '.join(args[1:])
-        
-        # Save to database
-        await kernel.db.execute(
-            "INSERT OR REPLACE INTO storage (key, value) VALUES (?, ?)",
-            (key, value)
-        )
-        await kernel.db.commit()
-        
+
+        # Save to module key-value storage
+        await kernel.db_set('my_module', key, value)
+
         await event.edit(f"Saved: {key} = {value}")
-        
+
     except Exception as e:
         await kernel.handle_error(e, source="dbsave_handler", event=event)
 ```
@@ -1742,7 +1702,7 @@ from utils import get_args, answer, parse_html, ArgumentParser
 def register(kernel):
     # Module configuration
     MODULE_NAME = 'example'
-    
+
     # Initialize config
     if MODULE_NAME not in kernel.config:
         kernel.config[MODULE_NAME] = {
@@ -1750,8 +1710,8 @@ def register(kernel):
             'timeout': 30,
             'cache_enabled': True
         }
-    
-    
+
+
     @kernel.register.command('hello', alias='hi')
     # Simple command
     async def hello_handler(event):
@@ -1761,17 +1721,17 @@ def register(kernel):
             await answer(event, f"Hello, {name}!")
         except Exception as e:
             await kernel.handle_error(e, source=f"{MODULE_NAME}:hello", event=event)
-    
-    
+
+
     @kernel.register.command('fetch')
     # Command with API call
     async def fetch_handler(event):
         try:
             config = kernel.config[MODULE_NAME]
-            
+
             # Show loading message
             await event.edit("Fetching data...")
-            
+
             # Make API request
             async with aiohttp.ClientSession() as session:
                 async with session.get(
@@ -1779,18 +1739,18 @@ def register(kernel):
                     timeout=config['timeout']
                 ) as response:
                     data = await response.json()
-            
+
             # Format response with HTML
             html = f'<b>Result:</b>\n<code>{data}</code>'
             await answer(event, html, as_html=True)
-            
+
         except aiohttp.ClientError as e:
             await kernel.logger.error(f"API request failed: {e}")
             await event.edit("Failed to fetch data")
         except Exception as e:
             await kernel.handle_error(e, source=f"{MODULE_NAME}:fetch", event=event)
-    
-    
+
+
     @kernel.register.command('save')
     # Command with database
     async def save_handler(event):
@@ -1799,62 +1759,58 @@ def register(kernel):
             if len(args) < 2:
                 await event.edit("Usage: .save <key> <value>")
                 return
-            
+
             key, value = args[0], ' '.join(args[1:])
-            
-            await kernel.db.execute(
-                f"INSERT OR REPLACE INTO {MODULE_NAME}_data (key, value) VALUES (?, ?)",
-                (key, value)
-            )
-            await kernel.db.commit()
-            
+
+            await kernel.db_set(MODULE_NAME, key, value)
+
             await event.edit(f"Saved: {key}")
-            
+
         except Exception as e:
             await kernel.handle_error(e, source=f"{MODULE_NAME}:save", event=event)
-    
-    
+
+
     @kernel.register.command('deploy')
     # Command with advanced argument parsing
     async def deploy_handler(event):
         try:
             parser = ArgumentParser(event.text, kernel.custom_prefix)
-            
+
             # Get positional arguments
             service = parser.get(0)
             if not service:
                 await event.edit("Usage: .deploy <service> [--env=production] [--verbose]")
                 return
-            
+
             # Get named arguments
             environment = parser.get_kwarg('env', 'production')
             timeout = parser.get_kwarg('timeout', 60)
-            
+
             # Check flags
             verbose = parser.get_flag('verbose')
-            
+
             # Execute deployment
             await event.edit(f"Deploying {service} to {environment}...")
-            
+
             # Simulate deployment
             import asyncio
             await asyncio.sleep(2)
-            
+
             message = f"Deployed {service} to {environment}"
             if verbose:
                 message += f"\nTimeout: {timeout}s"
-            
+
             await event.edit(message)
-            
+
         except Exception as e:
             await kernel.handle_error(e, source=f"{MODULE_NAME}:deploy", event=event)
-    
-    
+
+
     async def example_inline_handler(event):
     # Inline handler
         try:
             query = event.text.lower()
-            
+
             results = []
             builder = event.builder.article(
                 title="Example Result",
@@ -1862,27 +1818,27 @@ def register(kernel):
                 description="Click to send"
             )
             results.append(builder)
-            
+
             await event.answer(results)
-            
+
         except Exception as e:
             await kernel.logger.error(f"Inline handler error: {e}")
-    
+
     # Callback handler
     async def example_callback_handler(event):
         try:
             data = event.data.decode('utf-8')
-            
+
             if data == 'example_button1':
                 await event.edit("Button 1 clicked")
             elif data == 'example_button2':
                 await event.edit("Button 2 clicked")
             else:
                 await event.answer("Unknown button")
-                
+
         except Exception as e:
             await kernel.logger.error(f"Callback handler error: {e}")
-    
+
     # Register inline and callback handlers
     kernel.register_inline_handler('example', example_inline_handler)
     kernel.register_callback_handler('example_', example_callback_handler)
@@ -2016,22 +1972,22 @@ Sends an inline message with formatted fields and buttons. Supports two ways of 
 
 You can provide buttons in two formats:
 
-1. **Simplified format** – a list of rows, each row is a list of button descriptions (dictionaries or tuples).  
+1. **Simplified format** – a list of rows, each row is a list of button descriptions (dictionaries or tuples).
    Each button description can be:
-   - **Dictionary**:  
+   - **Dictionary**:
      ```python
      {"text": "Label", "type": "callback", "data": "callback_data"}
      {"text": "Label", "type": "url", "url": "https://..."}
      {"text": "Label", "type": "switch", "query": "inline query", "hint": True}
      ```
-   - **Tuple/list** (shorter):  
+   - **Tuple/list** (shorter):
      ```python
      ("Label", "callback", "data")
      ("Label", "url", "https://...")
      ("Label", "switch", "query", hint)   # hint is optional
      ```
 
-2. **Ready‑made Telethon buttons** – a list of lists containing actual `Button` objects from Telethon:  
+2. **Ready‑made Telethon buttons** – a list of lists containing actual `Button` objects from Telethon:
    ```python
    [
        [Button.inline("Edit", b"edit_data")],
@@ -2212,21 +2168,21 @@ async def gif_handler(event):
         if not args:
             await event.edit("Usage: .gif <search query>")
             return
-        
+
         query = ' '.join(args)
         await event.edit(f"Searching for: {query}...")
-        
+
         success, message = await kernel.inline_query_and_click(
             event.chat_id,
             f"gif {query}",
             bot_username="gif"
         )
-        
+
         if success:
             await event.delete()
         else:
             await event.edit("Failed to find GIF")
-            
+
     except Exception as e:
         await kernel.handle_error(e, source="gif_handler", event=event)
 ```
@@ -2328,25 +2284,25 @@ Remove expired permissions (automatically called internally).
 def register(kernel):
     # Create permission manager
     perm_mgr = CallbackPermissionManager()
-    
+
     # Grant permission when user starts interaction
     @kernel.register.command('start_game')
     async def start_handler(event):
         user_id = event.sender_id
         perm_mgr.allow(user_id, 'game_', duration_seconds=300)
         await event.edit("Game started! You have 5 minutes.")
-    
+
     # Check permission in callback handler
     async def game_callback_handler(event):
         user_id = event.sender_id
-        
+
         if not perm_mgr.is_allowed(user_id, event.data):
             await event.answer("Session expired!", alert=True)
             return
-        
+
         # Process callback
         await event.edit("Game action processed!")
-    
+
     kernel.register_callback_handler('game_', game_callback_handler)
 ```
 
@@ -2643,7 +2599,7 @@ def register(kernel):
     global session
     k = kernel
 
-    # background loop 
+    # background loop
     @kernel.register.loop(interval=600)
     async def refresh(kernel):
         """Refresh data every 10 minutes."""
@@ -2655,7 +2611,7 @@ def register(kernel):
     async def status_watcher(event):
         await event.reply(f"Loop running: {refresh.status}")
 
-    # commands 
+    # commands
     @kernel.register.command('pause')
     async def pause(event):
         refresh.stop()
@@ -2666,7 +2622,7 @@ def register(kernel):
         refresh.start()
         await event.edit("Loop resumed")
 
-    # lifecycle 
+    # lifecycle
     @kernel.register.on_install()
     async def first_run(k):
         await k.client.send_message('me', '✅ example module installed')

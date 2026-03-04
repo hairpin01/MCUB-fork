@@ -104,6 +104,17 @@ def register(kernel):
     )
     kernel.config.setdefault("ping_invert_media", False)
     kernel.config.setdefault("ping_custom_text", None)
+    kernel.config.setdefault("ping_start_emoji", CUSTOM_EMOJI["✏️"])
+
+    def resolve_ping_start_emoji() -> str:
+        """Resolve configurable start emoji for .ping with sensible fallbacks."""
+        raw = kernel.config.get("ping_start_emoji", CUSTOM_EMOJI["✏️"])
+        if not isinstance(raw, str):
+            return CUSTOM_EMOJI["✏️"]
+        value = raw.strip()
+        if not value:
+            return CUSTOM_EMOJI["✏️"]
+        return CUSTOM_EMOJI.get(value, value)
 
     async def mcub_handler():
         me = await kernel.client.get_me()
@@ -118,7 +129,7 @@ def register(kernel):
     async def ping_handler(event):
         try:
             start_time = time.time()
-            msg = await event.edit(CUSTOM_EMOJI["✏️"], parse_mode="html")
+            msg = await event.edit(resolve_ping_start_emoji(), parse_mode="html")
             end_time = time.time()
             ping_time = round((end_time - start_time) * 1000, 2)
 
@@ -268,7 +279,8 @@ def register(kernel):
                 send_params["reply_to"] = reply_to
 
             await event.edit(
-                f'{CUSTOM_EMOJI["📝"]} {t('logs')} {await mcub_handler()}\n{CUSTOM_EMOJI['✏️']} {t('kernel_version')} {kernel.VERSION}',
+                f'{CUSTOM_EMOJI["📝"]} {t("logs")} {await mcub_handler()}\n'
+                f'{CUSTOM_EMOJI["✏️"]} {t("kernel_version")} {kernel.VERSION}',
                 file=kernel_log_path,
                 parse_mode="html",
             )

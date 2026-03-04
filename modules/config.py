@@ -12,7 +12,7 @@ import time
 import asyncio
 from telethon import Button, events, types
 from telethon.tl.types import InputWebDocument, DocumentAttributeImageSize
-from core.lib.loader.module_config import ModuleConfig
+from core.lib.loader.module_config import ModuleConfig, ValidationError
 CUSTOM_EMOJI = {
     "📁": '<tg-emoji emoji-id="5433653135799228968">📁</tg-emoji>',
     "📝": '<tg-emoji emoji-id="5334882760735598374">📝</tg-emoji>',
@@ -317,9 +317,9 @@ def register(kernel):
             'btn_dict_add': '🔑 Add to dict',
             'btn_dict_del': '🗑️ Remove dict key',
             'btn_dict_set': '✏️ Edit dict value',
-            'fcfg_inline_usage': 'Usage: fcfg list/dict add/del/set <key_id> [value]',
+            'fcfg_inline_usage': 'Usage: fcfg set <key_id> <value> | fcfg list/dict <add/del/set> <key_id> [value] | fcfg module <module> ...',
             'fcfg_inline_only_set': '❌ Only set action is supported in inline mode',
-            'fcfg_inline_no_module': '❌ Module config changes are not supported in inline mode',
+            'fcfg_inline_no_module': '❌ Invalid module/key combination',
             'fcfg_inline_success': '✅ Key {key} changed to {value}',
             'fcfg_inline_id_not_found': '❌ Key ID not found or expired',
             'fcfg_inline_protected': '❌ This key is protected',
@@ -396,9 +396,9 @@ def register(kernel):
             'btn_dict_add': '🔑 Добавить в словарь',
             'btn_dict_del': '🗑️ Удалить ключ словаря',
             'btn_dict_set': '✏️ Изменить значение словаря',
-            'fcfg_inline_usage': 'Используйте: fcfg list/dict add/del/set <id_ключа> [значение]',
+            'fcfg_inline_usage': 'Используйте: fcfg set <id_ключа> <значение> | fcfg list/dict <add/del/set> <id_ключа> [значение] | fcfg module <модуль> ...',
             'fcfg_inline_only_set': '❌ В инлайн режиме поддерживается только set',
-            'fcfg_inline_no_module': '❌ Изменение конфига модулей через инлайн режим не поддерживается',
+            'fcfg_inline_no_module': '❌ Неверная связка модуль/ключ',
             'fcfg_inline_success': '✅ Ключ {key} изменен на {value}',
             'fcfg_inline_id_not_found': '❌ ID ключа не найден или истек',
             'fcfg_inline_protected': '❌ Этот ключ защищен',
@@ -1130,15 +1130,18 @@ def register(kernel):
         except Exception as e:
             await event.answer(t('error', error=str(e)[:50]), alert=True)
 
-    async def generate_simple_set_article(event, key_id, key, value_str):
+    async def generate_simple_set_article(event, key_id, key, value_str, scope="kernel", module_name=None, expected_type=None):
         """Генерация статьи для обычного set"""
         try:
-            value = parse_value(value_str)
+            value = parse_value(value_str, expected_type)
             confirm_id = str(uuid.uuid4())[:8]
 
             cache_key = f"fcfg_confirm_{confirm_id}"
             kernel.cache.set(cache_key, {
                 "action": "set",
+                "scope": scope,
+                "module_name": module_name,
+                "cache_scope": "module_cfg_view" if scope == "module" else "cfg_view",
                 "key_id": key_id,
                 "key": key,
                 "value": value,
@@ -1146,10 +1149,11 @@ def register(kernel):
                 "value_str": value_str[:50]
             }, ttl=300)
 
+            scope_prefix = f"[{module_name}] " if scope == "module" and module_name else ""
             builder = event.builder.article(
                 id=confirm_id,
-                title=f"✅ Set: {key} = {value_str[:50]}",
-                description=f"✅ Set: {key} = {value_str[:50]}",
+                title=f"✅ Set: {scope_prefix}{key} = {value_str[:50]}",
+                description=f"✅ Set: {scope_prefix}{key} = {value_str[:50]}",
                 text=t('fcfg_confirm_text'),
                 parse_mode="html"
             )
@@ -1158,7 +1162,7 @@ def register(kernel):
         except Exception as e:
             await event.answer([], switch_pm=f"❌ Ошибка: {str(e)[:50]}", switch_pm_param="start")
 
-    async def generate_add_articles(event, data_type, key_id, key, current_value, value_str):
+    async def generate_add_articles(event, data_type, key_id, key, current_value, value_str, scope="kernel", module_name=None):
         """Генерация статей для операции добавления"""
         try:
             if data_type == 'list':
@@ -1169,6 +1173,9 @@ def register(kernel):
                 cache_key = f"fcfg_confirm_{confirm_id}"
                 kernel.cache.set(cache_key, {
                     "action": "list_add",
+                    "scope": scope,
+                    "module_name": module_name,
+                    "cache_scope": "module_cfg_view" if scope == "module" else "cfg_view",
                     "key_id": key_id,
                     "key": key,
                     "value": value,
@@ -1200,6 +1207,9 @@ def register(kernel):
                 cache_key = f"fcfg_confirm_{confirm_id}"
                 kernel.cache.set(cache_key, {
                     "action": "dict_add",
+                    "scope": scope,
+                    "module_name": module_name,
+                    "cache_scope": "module_cfg_view" if scope == "module" else "cfg_view",
                     "key_id": key_id,
                     "key": key,
                     "subkey": subkey,
@@ -1221,7 +1231,7 @@ def register(kernel):
         except Exception as e:
             await event.answer([], switch_pm=f"❌ Ошибка: {str(e)[:50]}", switch_pm_param="start")
 
-    async def generate_del_articles(event, data_type, key_id, key, current_value):
+    async def generate_del_articles(event, data_type, key_id, key, current_value, scope="kernel", module_name=None):
         """Генерация статей для операции удаления"""
         builders = []
 
@@ -1237,6 +1247,9 @@ def register(kernel):
 
                 kernel.cache.set(cache_key, {
                     "action": "list_del",
+                    "scope": scope,
+                    "module_name": module_name,
+                    "cache_scope": "module_cfg_view" if scope == "module" else "cfg_view",
                     "key_id": key_id,
                     "key": key,
                     "index": index,
@@ -1265,6 +1278,9 @@ def register(kernel):
 
                 kernel.cache.set(cache_key, {
                     "action": "dict_del",
+                    "scope": scope,
+                    "module_name": module_name,
+                    "cache_scope": "module_cfg_view" if scope == "module" else "cfg_view",
                     "key_id": key_id,
                     "key": key,
                     "subkey": subkey,
@@ -1287,7 +1303,7 @@ def register(kernel):
         else:
             await event.answer([], switch_pm=t('list_empty'), switch_pm_param="start")
 
-    async def generate_set_articles(event, data_type, key_id, key, current_value, value_str):
+    async def generate_set_articles(event, data_type, key_id, key, current_value, value_str, scope="kernel", module_name=None):
         """Генерация статей для операции изменения"""
         try:
             new_value = parse_value(value_str)
@@ -1305,6 +1321,9 @@ def register(kernel):
 
                     kernel.cache.set(cache_key, {
                         "action": "list_set",
+                        "scope": scope,
+                        "module_name": module_name,
+                        "cache_scope": "module_cfg_view" if scope == "module" else "cfg_view",
                         "key_id": key_id,
                         "key": key,
                         "index": index,
@@ -1336,6 +1355,9 @@ def register(kernel):
                     old_value = current_value[subkey]
                     kernel.cache.set(cache_key, {
                         "action": "dict_set",
+                        "scope": scope,
+                        "module_name": module_name,
+                        "cache_scope": "module_cfg_view" if scope == "module" else "cfg_view",
                         "key_id": key_id,
                         "key": key,
                         "subkey": subkey,
@@ -1380,21 +1402,79 @@ def register(kernel):
 
         action = confirm_data.get("action", "set")
         key = confirm_data["key"]
+        scope = confirm_data.get("scope", "kernel")
+        module_name = confirm_data.get("module_name")
+        key_id = confirm_data.get("key_id")
+        expected_scope = scope
+        expected_module_name = module_name
 
         try:
             success = False
             message = ""
 
+            module_cached = None
+            kernel_cached = None
+
+            # Hard routing by key_id cache mapping to avoid writing into wrong config.
+            if key_id:
+                module_cached = kernel.cache.get(f"module_cfg_view_{key_id}")
+                kernel_cached = kernel.cache.get(f"cfg_view_{key_id}")
+
+                if module_cached:
+                    cached_module_name, cached_key, _ = module_cached
+                    if cached_key != key:
+                        raise ValueError("Module key mapping mismatch")
+                    scope = "module"
+                    module_name = cached_module_name
+                elif kernel_cached:
+                    cached_key, _, cached_type = kernel_cached
+                    if cached_type != "kernel" or cached_key != key:
+                        raise ValueError("Kernel key mapping mismatch")
+                    scope = "kernel"
+                else:
+                    raise ValueError("Key mapping expired")
+
+                # Strictly prevent cross-scope writes after confirmation
+                if expected_scope == "module" and scope != "module":
+                    raise ValueError("Refusing to write kernel config for module-scoped confirm")
+                if expected_scope == "kernel" and scope != "kernel":
+                    raise ValueError("Refusing to write module config for kernel-scoped confirm")
+                if expected_scope == "module" and expected_module_name and module_name != expected_module_name:
+                    raise ValueError("Module mismatch in confirmation mapping")
+
+            is_module_scope = scope == "module"
+            target_config = kernel.config
+            is_new_format = False
+
+            if is_module_scope:
+                if not module_name:
+                    raise ValueError("Module name is not specified")
+                target_config = await kernel.get_module_config(module_name, {})
+                is_new_format = isinstance(target_config, ModuleConfig)
+
+            def has_key(cfg_key):
+                if is_module_scope and is_new_format:
+                    return cfg_key in target_config.keys()
+                return cfg_key in target_config
+
+            def get_value(cfg_key):
+                return target_config[cfg_key]
+
+            def set_value(cfg_key, cfg_value):
+                target_config[cfg_key] = cfg_value
+
             if action == "set":
                 value = confirm_data["value"]
-                kernel.config[key] = value
+                set_value(key, value)
                 success = True
                 message = t('fcfg_confirm_success', key=key, value=html.escape(str(value)))
 
             elif action == "list_add":
                 value = confirm_data["value"]
-                if key in kernel.config and isinstance(kernel.config[key], list):
-                    kernel.config[key].append(value)
+                if has_key(key) and isinstance(get_value(key), list):
+                    current_list = list(get_value(key))
+                    current_list.append(value)
+                    set_value(key, current_list)
                     success = True
                     message = t('list_add_confirm', value=html.escape(str(value)))
                 else:
@@ -1402,9 +1482,11 @@ def register(kernel):
 
             elif action == "list_del":
                 index = confirm_data["index"]
-                if key in kernel.config and isinstance(kernel.config[key], list):
-                    if 0 <= index < len(kernel.config[key]):
-                        removed = kernel.config[key].pop(index)
+                if has_key(key) and isinstance(get_value(key), list):
+                    current_list = list(get_value(key))
+                    if 0 <= index < len(current_list):
+                        removed = current_list.pop(index)
+                        set_value(key, current_list)
                         success = True
                         message = t('list_remove_confirm', index=index, value=html.escape(str(removed)))
                     else:
@@ -1415,10 +1497,12 @@ def register(kernel):
             elif action == "list_set":
                 index = confirm_data["index"]
                 value = confirm_data["value"]
-                if key in kernel.config and isinstance(kernel.config[key], list):
-                    if 0 <= index < len(kernel.config[key]):
-                        old_value = kernel.config[key][index]
-                        kernel.config[key][index] = value
+                if has_key(key) and isinstance(get_value(key), list):
+                    current_list = list(get_value(key))
+                    if 0 <= index < len(current_list):
+                        old_value = current_list[index]
+                        current_list[index] = value
+                        set_value(key, current_list)
                         success = True
                         message = t('list_set_confirm', index=index, old=html.escape(str(old_value)), new=html.escape(str(value)))
                     else:
@@ -1429,8 +1513,10 @@ def register(kernel):
             elif action == "dict_add":
                 subkey = confirm_data["subkey"]
                 value = confirm_data["value"]
-                if key in kernel.config and isinstance(kernel.config[key], dict):
-                    kernel.config[key][subkey] = value
+                if has_key(key) and isinstance(get_value(key), dict):
+                    current_dict = dict(get_value(key))
+                    current_dict[subkey] = value
+                    set_value(key, current_dict)
                     success = True
                     message = t('dict_add_confirm', key=subkey, value=html.escape(str(value)))
                 else:
@@ -1438,9 +1524,11 @@ def register(kernel):
 
             elif action == "dict_del":
                 subkey = confirm_data["subkey"]
-                if key in kernel.config and isinstance(kernel.config[key], dict):
-                    if subkey in kernel.config[key]:
-                        removed = kernel.config[key].pop(subkey)
+                if has_key(key) and isinstance(get_value(key), dict):
+                    current_dict = dict(get_value(key))
+                    if subkey in current_dict:
+                        current_dict.pop(subkey)
+                        set_value(key, current_dict)
                         success = True
                         message = t('dict_remove_confirm', key=subkey)
                     else:
@@ -1451,10 +1539,12 @@ def register(kernel):
             elif action == "dict_set":
                 subkey = confirm_data["subkey"]
                 value = confirm_data["value"]
-                if key in kernel.config and isinstance(kernel.config[key], dict):
-                    if subkey in kernel.config[key]:
-                        old_value = kernel.config[key][subkey]
-                        kernel.config[key][subkey] = value
+                if has_key(key) and isinstance(get_value(key), dict):
+                    current_dict = dict(get_value(key))
+                    if subkey in current_dict:
+                        old_value = current_dict[subkey]
+                        current_dict[subkey] = value
+                        set_value(key, current_dict)
                         success = True
                         message = t('dict_set_confirm', key=subkey, old=html.escape(str(old_value)), new=html.escape(str(value)))
                     else:
@@ -1462,11 +1552,16 @@ def register(kernel):
                 else:
                     message = f"❌ Ключ {key} не является словарем"
 
-
             if success:
-                await save_config()
-                kernel.logger.info(f"Config updated via inline fcfg: {key} = {confirm_data.get('value', 'N/A')}")
-
+                if is_module_scope:
+                    if is_new_format:
+                        await kernel.save_module_config(module_name, target_config.to_dict())
+                    else:
+                        await kernel.save_module_config(module_name, target_config)
+                    kernel.logger.info(f"Module config updated via inline fcfg: {module_name}.{key} = {confirm_data.get('value', 'N/A')}")
+                else:
+                    await save_config()
+                    kernel.logger.info(f"Config updated via inline fcfg: {key} = {confirm_data.get('value', 'N/A')}")
 
                 kernel.cache.set(cache_key, None, ttl=1)
 
@@ -1474,11 +1569,16 @@ def register(kernel):
                     if hasattr(event, 'query') and hasattr(event.query, 'inline_message_id'):
                         inline_msg_id = event.query.inline_message_id
 
-
-                        if is_key_hidden(key):
-                            new_text = t('value_inserted')
+                        if is_module_scope:
+                            if has_key(key):
+                                new_text = format_key_value(key, get_value(key), reveal=True)
+                            else:
+                                new_text = message
                         else:
-                            new_text = format_key_value(key, kernel.config[key], reveal=True)
+                            if is_key_hidden(key):
+                                new_text = t('value_inserted')
+                            else:
+                                new_text = format_key_value(key, kernel.config[key], reveal=True)
 
                         if kernel.is_bot_available():
                             await kernel.bot_client.edit_message(
@@ -1486,7 +1586,6 @@ def register(kernel):
                                 text=new_text,
                                 parse_mode="html"
                             )
-
 
                 except Exception as e:
                     kernel.logger.error(f"Failed to edit inline message: {e}")
@@ -1525,118 +1624,181 @@ def register(kernel):
                 pass
 
     async def fcfg_inline_handler(event):
-        """Обработчик inline-команды fcfg с поддержкой set, list и dict"""
+        """Обработчик inline-команды fcfg с поддержкой kernel и module config"""
         query = event.text.strip()
-        # split(None, N) чтобы value_str сохранял пробелы и переносы строк
-        parts = query.split(None, 3)
-        parts_lower = query.split()
+        parts = query.split()
 
         if len(parts) < 3:
             await event.answer([], switch_pm=t('fcfg_inline_usage'), switch_pm_param="start")
             return
 
-        action_type = parts[1].lower()  # может быть "set", "list", "dict"
+        module_mode = len(parts) >= 4 and parts[1].lower() == "module"
+        module_name = parts[2] if module_mode else None
+
+        if module_mode and len(parts) < 5:
+            await event.answer([], switch_pm=t('fcfg_inline_usage'), switch_pm_param="start")
+            return
+
+        action_type = parts[3].lower() if module_mode else parts[1].lower()
+
+        async def resolve_target(key_id):
+            if module_mode:
+                cached = kernel.cache.get(f"module_cfg_view_{key_id}")
+                if not cached:
+                    await event.answer([], switch_pm=t('fcfg_inline_id_not_found'), switch_pm_param="start")
+                    return None, None, None
+
+                cached_module_name, key, page = cached
+                if cached_module_name != module_name:
+                    await event.answer([], switch_pm=t('fcfg_inline_id_not_found'), switch_pm_param="start")
+                    return None, None, None
+
+                module_config = await kernel.get_module_config(module_name, {})
+                is_new_format = isinstance(module_config, ModuleConfig)
+
+                if is_new_format:
+                    if key not in module_config.keys():
+                        await event.answer([], switch_pm=t('not_found'), switch_pm_param="start")
+                        return None, None, None
+                    value = module_config[key]
+                else:
+                    if key not in module_config:
+                        await event.answer([], switch_pm=t('not_found'), switch_pm_param="start")
+                        return None, None, None
+                    value = module_config[key]
+
+                return key, value, type(value).__name__
+
+            cached = kernel.cache.get(f"cfg_view_{key_id}")
+            if not cached:
+                await event.answer([], switch_pm=t('fcfg_inline_id_not_found'), switch_pm_param="start")
+                return None, None, None
+
+            key, page, config_type = cached
+            if config_type != "kernel":
+                await event.answer([], switch_pm=t('fcfg_inline_no_module'), switch_pm_param="start")
+                return None, None, None
+
+            if key in SENSITIVE_KEYS:
+                await event.answer([], switch_pm=t('fcfg_inline_protected'), switch_pm_param="start")
+                return None, None, None
+
+            if key not in kernel.config:
+                await event.answer([], switch_pm=t('not_found'), switch_pm_param="start")
+                return None, None, None
+
+            value = kernel.config[key]
+            return key, value, type(value).__name__
+
+        scope = "module" if module_mode else "kernel"
 
         if action_type == "set":
-            if len(parts) < 4:
-                await event.answer([], switch_pm="❌ Укажите key_id и значение", switch_pm_param="start")
+            if module_mode:
+                parts_set = query.split(None, 5)
+                if len(parts_set) < 6:
+                    await event.answer([], switch_pm="❌ Укажите key_id и значение", switch_pm_param="start")
+                    return
+                key_id = parts_set[4]
+                value_str = strip_formatting(parts_set[5])
+            else:
+                parts_set = query.split(None, 3)
+                if len(parts_set) < 4:
+                    await event.answer([], switch_pm="❌ Укажите key_id и значение", switch_pm_param="start")
+                    return
+                key_id = parts_set[2]
+                value_str = strip_formatting(parts_set[3])
+
+            key, current_value, current_type = await resolve_target(key_id)
+            if key is None:
                 return
 
-            key_id = parts[2]
-            value_str = strip_formatting(parts[3])
-
-            # Получаем ключ из кеша по ID
-            cached = kernel.cache.get(f"cfg_view_{key_id}")
-            if not cached:
-                await event.answer([], switch_pm=t('fcfg_inline_id_not_found'), switch_pm_param="start")
-                return
-
-            key, page, config_type = cached
-            if config_type != "kernel":
-                await event.answer([], switch_pm=t('fcfg_inline_no_module'), switch_pm_param="start")
-                return
-
-            # Проверяем защищенные ключи
-            if key in SENSITIVE_KEYS:
-                await event.answer([], switch_pm=t('fcfg_inline_protected'), switch_pm_param="start")
-                return
-
-            if key not in kernel.config:
-                await event.answer([], switch_pm=t('not_found'), switch_pm_param="start")
-                return
-
-            # Генерируем статью для подтверждения
-            await generate_simple_set_article(event, key_id, key, value_str)
+            await generate_simple_set_article(
+                event,
+                key_id,
+                key,
+                value_str,
+                scope=scope,
+                module_name=module_name,
+                expected_type=current_type,
+            )
 
         elif action_type in ["list", "dict"]:
-            # Обработка list и dict как раньше
-            # Используем split(None, 4) для сохранения переносов строк в value_str
-            parts4 = query.split(None, 4)
-            if len(parts4) < 4:
-                await event.answer([], switch_pm=t('fcfg_inline_usage'), switch_pm_param="start")
+            data_type = action_type
+
+            if module_mode:
+                parts_op = query.split(None, 6)
+                if len(parts_op) < 6:
+                    await event.answer([], switch_pm=t('fcfg_inline_usage'), switch_pm_param="start")
+                    return
+                action = parts_op[4].lower()
+                key_id = parts_op[5]
+                value_str = strip_formatting(parts_op[6]) if len(parts_op) > 6 else None
+            else:
+                parts_op = query.split(None, 4)
+                if len(parts_op) < 4:
+                    await event.answer([], switch_pm=t('fcfg_inline_usage'), switch_pm_param="start")
+                    return
+                action = parts_op[2].lower()
+                key_id = parts_op[3]
+                value_str = strip_formatting(parts_op[4]) if len(parts_op) > 4 else None
+
+            key, current_value, current_type = await resolve_target(key_id)
+            if key is None:
                 return
 
-            data_type = action_type  # list или dict
-            action = parts4[2].lower()  # add/del/set
-            key_id = parts4[3]
-
-
-            cached = kernel.cache.get(f"cfg_view_{key_id}")
-            if not cached:
-                await event.answer([], switch_pm=t('fcfg_inline_id_not_found'), switch_pm_param="start")
-                return
-
-            key, page, config_type = cached
-            if config_type != "kernel":
-                await event.answer([], switch_pm=t('fcfg_inline_no_module'), switch_pm_param="start")
-                return
-
-            # Проверяем защищенные ключи
-            if key in SENSITIVE_KEYS:
-                await event.answer([], switch_pm=t('fcfg_inline_protected'), switch_pm_param="start")
-                return
-
-            if key not in kernel.config:
-                await event.answer([], switch_pm=t('not_found'), switch_pm_param="start")
-                return
-
-            current_value = kernel.config[key]
-            current_type = type(current_value).__name__
-
-            # Валидация типов
-            if data_type == 'list' and current_type != 'list':
+            if data_type == 'list' and not isinstance(current_value, list):
                 await event.answer([], switch_pm=f"❌ Ключ {key} не является списком", switch_pm_param="start")
                 return
-            elif data_type == 'dict' and current_type != 'dict':
+            if data_type == 'dict' and not isinstance(current_value, dict):
                 await event.answer([], switch_pm=f"❌ Ключ {key} не является словарем", switch_pm_param="start")
                 return
 
-            # Обработка разных операций
             if action == 'add':
-                if len(parts4) < 5:
+                if not value_str:
                     await event.answer([], switch_pm="❌ Укажите значение для добавления", switch_pm_param="start")
                     return
-
-                value_str = strip_formatting(parts4[4])
-                await generate_add_articles(event, data_type, key_id, key, current_value, value_str)
+                await generate_add_articles(
+                    event,
+                    data_type,
+                    key_id,
+                    key,
+                    current_value,
+                    value_str,
+                    scope=scope,
+                    module_name=module_name,
+                )
 
             elif action == 'del':
-                await generate_del_articles(event, data_type, key_id, key, current_value)
+                await generate_del_articles(
+                    event,
+                    data_type,
+                    key_id,
+                    key,
+                    current_value,
+                    scope=scope,
+                    module_name=module_name,
+                )
 
             elif action == 'set':
-                if len(parts4) < 5:
+                if not value_str:
                     await event.answer([], switch_pm="❌ Укажите новое значение", switch_pm_param="start")
                     return
-
-                value_str = strip_formatting(parts4[4])
-                await generate_set_articles(event, data_type, key_id, key, current_value, value_str)
+                await generate_set_articles(
+                    event,
+                    data_type,
+                    key_id,
+                    key,
+                    current_value,
+                    value_str,
+                    scope=scope,
+                    module_name=module_name,
+                )
 
             else:
                 await event.answer([], switch_pm=f"❌ Неизвестное действие: {action}", switch_pm_param="start")
 
         else:
             await event.answer([], switch_pm=f"❌ Неизвестный тип действия: {action_type}", switch_pm_param="start")
-
 
     async def config_callback_handler(event):
         data = event.data.decode()

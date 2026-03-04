@@ -1,13 +1,15 @@
 # author: @Hairpin00
-# version: 1.0.1
-# description: Менеджер для работы с SQLite базой данных юзербота.
+# version: 1.0.2
+# description: SQLite database manager for the userbot.
 import aiosqlite
-import json
+import os
 import re
+from typing import Any
 
 class DatabaseManager:
-    """Менеджер для работы с SQLite базой данных юзербота."""
+    """SQLite database manager for the userbot."""
 
+    DEFAULT_DB_FILE = "userbot.db"
     ALLOWED_OPERATIONS = {"SELECT", "PRAGMA", "EXPLAIN"}
     FORBIDDEN_PATTERNS = [
         r"\bDROP\b",
@@ -26,8 +28,33 @@ class DatabaseManager:
         self.conn = None
         self.logger = kernel.logger
 
+    def _resolve_db_file(self) -> str:
+        """Resolve database path from kernel settings with a safe fallback."""
+        def _normalize_path(value) -> str | None:
+            if isinstance(value, str):
+                value = value.strip()
+                return value or None
+            if isinstance(value, os.PathLike):
+                path = os.fspath(value).strip()
+                return path or None
+            return None
+
+        kernel_db_file = getattr(self.kernel, "__dict__", {}).get("DB_FILE")
+        normalized_kernel_file = _normalize_path(kernel_db_file)
+        if normalized_kernel_file:
+            return normalized_kernel_file
+
+        config = getattr(self.kernel, "__dict__", {}).get("config")
+        if isinstance(config, dict):
+            config_db_file = config.get("db_file") or config.get("database_file")
+            normalized_config_file = _normalize_path(config_db_file)
+            if normalized_config_file:
+                return normalized_config_file
+
+        return self.DEFAULT_DB_FILE
+
     def _validate_query(self, query: str) -> bool:
-        """Валидация SQL запроса на безопасность."""
+        """Validate SQL query against security policy."""
         query_upper = query.upper().strip()
 
         for pattern in self.FORBIDDEN_PATTERNS:
@@ -43,18 +70,19 @@ class DatabaseManager:
         return False
 
     async def init_db(self):
-        """Инициализация базы данных"""
+        """Initialize the database connection."""
         try:
-            self.conn = await aiosqlite.connect("userbot.db")
+            db_file = self._resolve_db_file()
+            self.conn = await aiosqlite.connect(db_file)
             await self._create_tables()
-            self.logger.info("=> База данных инициализирована")
+            self.logger.info(f"=> Database initialized: {db_file}")
             return True
         except Exception as e:
-            self.logger.error(f"=X Ошибка инициализации БД: {e}")
+            self.logger.error(f"=X Database initialization error: {e}")
             return False
 
     async def _create_tables(self):
-        """Создание необходимых таблиц"""
+        """Create required tables."""
         await self.conn.execute("""
             CREATE TABLE IF NOT EXISTS module_data (
                 module TEXT,
@@ -66,17 +94,17 @@ class DatabaseManager:
         await self.conn.commit()
 
     def _validate_identifier(self, value: str) -> bool:
-        """Валидация идентификатора (имя модуля, ключ)."""
+        """Validate identifier (module name or key)."""
         if not value:
             return False
         if len(value) > 64:
             return False
         return bool(re.match(r'^[a-zA-Z0-9_-]+$', value))
 
-    async def db_set(self, module: str, key: str, value: str):
-        """Сохранить значение для модуля."""
+    async def db_set(self, module: str, key: str, value: Any):
+        """Save value for a module key."""
         if not self.conn:
-            raise Exception("База данных не инициализирована")
+            raise RuntimeError("Database is not initialized")
 
         if not self._validate_identifier(module) or not self._validate_identifier(key):
             raise ValueError("Invalid module or key name. Use only alphanumeric and underscore.")
@@ -88,9 +116,9 @@ class DatabaseManager:
         await self.conn.commit()
 
     async def db_get(self, module: str, key: str) -> str | None:
-        """Получить значение для модуля."""
+        """Get value for a module key."""
         if not self.conn:
-            raise Exception("База данных не инициализирована")
+            raise RuntimeError("Database is not initialized")
 
         if not self._validate_identifier(module) or not self._validate_identifier(key):
             raise ValueError("Invalid module or key name. Use only alphanumeric and underscore.")
@@ -103,9 +131,9 @@ class DatabaseManager:
         return row[0] if row else None
 
     async def db_delete(self, module: str, key: str):
-        """Удалить ключ из хранилища модуля."""
+        """Delete key from module storage."""
         if not self.conn:
-            raise Exception("База данных не инициализирована")
+            raise RuntimeError("Database is not initialized")
 
         if not self._validate_identifier(module) or not self._validate_identifier(key):
             raise ValueError("Invalid module or key name. Use only alphanumeric and underscore.")
@@ -116,10 +144,13 @@ class DatabaseManager:
         )
         await self.conn.commit()
 
-    async def db_query(self, query: str, parameters: tuple):
-        """Выполнить произвольный SQL‑запрос (только SELECT/PRAGMA/EXPLAIN)."""
+    async def db_query(self, query: str, parameters: tuple = ()):
+        """Execute custom SQL query (SELECT/PRAGMA/EXPLAIN only)."""
         if not self.conn:
-            raise Exception("База данных не инициализирована")
+            raise RuntimeError("Database is not initialized")
+
+        if parameters is None:
+            parameters = ()
 
         if not self._validate_query(query):
             raise PermissionError("Query blocked by security policy. Only SELECT, PRAGMA, and EXPLAIN are allowed.")

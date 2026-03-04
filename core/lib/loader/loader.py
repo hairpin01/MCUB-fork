@@ -644,9 +644,14 @@ class ModuleLoader:
 
         try:
             parsed = urlparse(url)
+            host = (parsed.hostname or "").lower()
             domain = parsed.netloc.lower()
-            
-            if not any(trusted in domain for trusted in TRUSTED_DOMAINS):
+            is_trusted = any(
+                host == trusted or host.endswith(f".{trusted}")
+                for trusted in TRUSTED_DOMAINS
+            )
+
+            if not is_trusted:
                 k.logger.warning(
                     f"⚠️ SECURITY: Installing from untrusted domain: {domain}\n"
                     f"   URL: {url}\n"

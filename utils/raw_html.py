@@ -4,7 +4,7 @@
 # Fixed: Line breaks now preserved as \n, improved entity handling
 
 import html
-from typing import Optional, Tuple, List, Dict, Any
+from typing import Tuple, List, Dict, Any
 from telethon.tl.types import (
     MessageEntityBold, MessageEntityItalic, MessageEntityCode,
     MessageEntityPre, MessageEntityTextUrl, MessageEntityUnderline,
@@ -82,42 +82,69 @@ class RawHTMLConverter:
         # issues with leading spaces after newlines
         return escaped
 
-    def _entity_to_html(self, entity: Any, entity_text: str) -> Tuple[str, Dict[str, str], bool]:
+    def _build_html_tag(self, tag_name: str, attributes: Dict[str, Any]) -> str:
         """
-        Converts a Telegram entity into HTML tag parameters.
+        Build an opening HTML tag with safely escaped attributes.
+
+        Args:
+            tag_name: Name of the HTML tag
+            attributes: Tag attributes; value None means boolean attribute
+
+        Returns:
+            Opening HTML tag string
+        """
+        if not attributes:
+            return f"<{tag_name}>"
+
+        attrs = []
+        for key, value in attributes.items():
+            if value is None:
+                attrs.append(str(key))
+            else:
+                escaped_value = html.escape(str(value), quote=True)
+                attrs.append(f'{key}="{escaped_value}"')
+
+        return f"<{tag_name} {' '.join(attrs)}>"
+
+    def _entity_to_html(self, entity: Any, entity_text: str) -> Tuple[str, str]:
+        """
+        Converts a Telegram entity into opening and closing HTML tags.
 
         Args:
             entity: Telegram message entity
             entity_text: Text content of the entity
 
         Returns:
-            Tuple of (tag_name, attributes_dict, is_self_closing)
+            Tuple of (opening_tag, closing_tag)
         """
         attributes = {}
         tag_name = "span"
-        is_self_closing = False
 
         if isinstance(entity, MessageEntityBold):
-            tag_name = "b"
+            tag_name = "strong"
         elif isinstance(entity, MessageEntityItalic):
-            tag_name = "i"
+            tag_name = "em"
         elif isinstance(entity, MessageEntityUnderline):
             tag_name = "u"
         elif isinstance(entity, MessageEntityStrike):
-            tag_name = "s"
+            tag_name = "del"
         elif isinstance(entity, MessageEntityCode):
             tag_name = "code"
         elif isinstance(entity, MessageEntityPre):
             tag_name = "pre"
-            if hasattr(entity, 'language') and entity.language:
-                attributes['language'] = entity.language
+            language = getattr(entity, 'language', None)
+            if language:
+                pre_open = "<pre>"
+                code_open = self._build_html_tag("code", {"class": f"language-{language}"})
+                return f"{pre_open}{code_open}", "</code></pre>"
+            return "<pre>", "</pre>"
         elif isinstance(entity, MessageEntityTextUrl):
             tag_name = "a"
             if hasattr(entity, 'url') and entity.url:
                 attributes['href'] = entity.url
         elif isinstance(entity, MessageEntityUrl):
             tag_name = "a"
-            if entity_text.startswith(('http://', 'https://', 'ftp://', 'tg://')):
+            if entity_text:
                 attributes['href'] = entity_text
         elif isinstance(entity, MessageEntityEmail):
             tag_name = "a"
@@ -131,7 +158,7 @@ class RawHTMLConverter:
         elif isinstance(entity, MessageEntityBlockquote):
             tag_name = "blockquote"
             if hasattr(entity, 'collapsed') and entity.collapsed:
-                attributes['expandable'] = "true"
+                attributes['expandable'] = None
         elif isinstance(entity, MessageEntityMention):
             tag_name = "a"
             if entity_text.startswith('@'):
@@ -161,7 +188,8 @@ class RawHTMLConverter:
             attributes['class'] = "tg-unknown-entity"
             attributes['data-type'] = str(type(entity).__name__)
 
-        return tag_name, attributes, is_self_closing
+        opening_tag = self._build_html_tag(tag_name, attributes)
+        return opening_tag, f"</{tag_name}>"
 
     def _process_entities(self, text: str, entities: List) -> str:
         """
@@ -192,7 +220,8 @@ class RawHTMLConverter:
         events.sort(key=lambda x: (x[0], 0 if x[1] == 'end' else 1, x[2]))
 
         result_parts = []
-        current_tags = []  # Currently open HTML tags
+        # Currently open HTML tags as tuples: (entity, closing_html)
+        current_tags = []
         logical_stack = []  # Entities that should be active
         last_pos = 0
 
@@ -217,32 +246,25 @@ class RawHTMLConverter:
             # Find common prefix that doesn't need changes
             common_len = 0
             for i in range(min(len(current_tags), len(logical_stack))):
-                if current_tags[i] is logical_stack[i]:
+                if current_tags[i][0] is logical_stack[i]:
                     common_len += 1
                 else:
                     break
 
             # Close extra tags (from the end)
             while len(current_tags) > common_len:
-                entity_to_close = current_tags.pop()
-                tag_name, _, _ = self._entity_to_html(entity_to_close, "")
-                result_parts.append(f"</{tag_name}>")
+                _, closing_html = current_tags.pop()
+                result_parts.append(closing_html)
 
             # Open new tags
             while len(current_tags) < len(logical_stack):
                 entity_to_open = logical_stack[len(current_tags)]
                 # Get entity text for attributes that need it
                 entity_text = self._utf16_slice(text, entity_to_open.offset, entity_to_open.length)
-                tag_name, attrs, _ = self._entity_to_html(entity_to_open, entity_text)
+                opening_html, closing_html = self._entity_to_html(entity_to_open, entity_text)
 
-                # Build attributes string
-                if attrs:
-                    attrs_str = ' ' + ' '.join([f'{k}="{v}"' for k, v in attrs.items()])
-                else:
-                    attrs_str = ''
-
-                result_parts.append(f"<{tag_name}{attrs_str}>")
-                current_tags.append(entity_to_open)
+                result_parts.append(opening_html)
+                current_tags.append((entity_to_open, closing_html))
 
         # Add remaining text after last entity
         total_len = len(text.encode('utf-16-le')) // 2
@@ -253,9 +275,8 @@ class RawHTMLConverter:
 
         # Close any remaining open tags
         while current_tags:
-            entity_to_close = current_tags.pop()
-            tag_name, _, _ = self._entity_to_html(entity_to_close, "")
-            result_parts.append(f"</{tag_name}>")
+            _, closing_html = current_tags.pop()
+            result_parts.append(closing_html)
 
         return "".join(result_parts)
 

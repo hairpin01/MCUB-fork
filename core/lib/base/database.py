@@ -29,16 +29,16 @@ class DatabaseManager:
     def _validate_query(self, query: str) -> bool:
         """Валидация SQL запроса на безопасность."""
         query_upper = query.upper().strip()
-        
+
         for pattern in self.FORBIDDEN_PATTERNS:
             if re.search(pattern, query_upper):
                 self.logger.warning(f"db_query: blocked forbidden operation: {query[:50]}...")
                 return False
-        
+
         for op in self.ALLOWED_OPERATIONS:
             if query_upper.startswith(op):
                 return True
-        
+
         self.logger.warning(f"db_query: operation not in whitelist: {query[:50]}...")
         return False
 
@@ -77,10 +77,10 @@ class DatabaseManager:
         """Сохранить значение для модуля."""
         if not self.conn:
             raise Exception("База данных не инициализирована")
-        
+
         if not self._validate_identifier(module) or not self._validate_identifier(key):
             raise ValueError("Invalid module or key name. Use only alphanumeric and underscore.")
-        
+
         await self.conn.execute(
             "INSERT OR REPLACE INTO module_data VALUES (?, ?, ?)",
             (module, key, str(value))
@@ -91,10 +91,10 @@ class DatabaseManager:
         """Получить значение для модуля."""
         if not self.conn:
             raise Exception("База данных не инициализирована")
-        
+
         if not self._validate_identifier(module) or not self._validate_identifier(key):
             raise ValueError("Invalid module or key name. Use only alphanumeric and underscore.")
-        
+
         cursor = await self.conn.execute(
             "SELECT value FROM module_data WHERE module = ? AND key = ?",
             (module, key)
@@ -106,10 +106,10 @@ class DatabaseManager:
         """Удалить ключ из хранилища модуля."""
         if not self.conn:
             raise Exception("База данных не инициализирована")
-        
+
         if not self._validate_identifier(module) or not self._validate_identifier(key):
             raise ValueError("Invalid module or key name. Use only alphanumeric and underscore.")
-        
+
         await self.conn.execute(
             "DELETE FROM module_data WHERE module = ? AND key = ?",
             (module, key)
@@ -120,10 +120,10 @@ class DatabaseManager:
         """Выполнить произвольный SQL‑запрос (только SELECT/PRAGMA/EXPLAIN)."""
         if not self.conn:
             raise Exception("База данных не инициализирована")
-        
+
         if not self._validate_query(query):
             raise PermissionError("Query blocked by security policy. Only SELECT, PRAGMA, and EXPLAIN are allowed.")
-        
+
         cursor = await self.conn.execute(query, parameters)
         rows = await cursor.fetchall()
         return rows

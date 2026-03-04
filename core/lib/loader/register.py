@@ -665,7 +665,7 @@ class Register:
             del self.kernel.command_handlers[cmd]
             self.kernel.command_owners.pop(cmd, None)
             self.kernel.command_metadata.pop(cmd, None)
-            
+
             for alias, target in list(self.kernel.aliases.items()):
                 if target == cmd:
                     del self.kernel.aliases[alias]

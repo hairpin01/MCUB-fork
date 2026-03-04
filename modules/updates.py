@@ -1,37 +1,13 @@
 # author: @Hairpin00
-# version: 1.0.5
+# version: 1.0.6
 # description: Update module
 import asyncio
 import os
-import sys
 import re
-import time
 import random
 import aiohttp
 import subprocess
-
-ALLOWED_RESTART_ARGS = {"--no-web", "--proxy-web", "--port", "--host", "--core"}
-ARGS_WITH_VALUES = {"--proxy-web", "--port", "--host", "--core"}
-
-
-def _safe_restart():
-    safe_args = []
-    args = sys.argv[1:]
-
-    if sys.argv[0].endswith("__main__.py"):
-        safe_args = ["-m", "core"]
-
-    skip_next = False
-    for arg in args:
-        if skip_next:
-            skip_next = False
-            continue
-        key = arg.split("=")[0]
-        if key in ALLOWED_RESTART_ARGS:
-            safe_args.append(arg)
-            if key in ARGS_WITH_VALUES and "=" not in arg:
-                skip_next = True
-    os.execv(sys.executable, [sys.executable] + safe_args)
+from utils.restart import restart_kernel
 
 
 def register(kernel):
@@ -123,13 +99,12 @@ def register(kernel):
         )
         kernel.logger.info(lang_strings["restart_log"])
 
-        with open(kernel.RESTART_FILE, "w") as f:
-            if thread_id:
-                f.write(f"{event.chat_id},{msg.id},{time.time()},{thread_id}")
-            else:
-                f.write(f"{event.chat_id},{msg.id},{time.time()}")
-
-        _safe_restart()
+        await restart_kernel(
+            kernel,
+            chat_id=event.chat_id,
+            message_id=msg.id,
+            thread_id=thread_id,
+        )
 
     @kernel.register.command("update")
     async def update_handler(event):
@@ -173,7 +148,7 @@ def register(kernel):
                     )
                     kernel.logger.info("Restarting...")
                     await asyncio.sleep(2)
-                    _safe_restart()
+                    await restart_kernel(kernel)
                     return
 
             except Exception:
@@ -221,7 +196,7 @@ def register(kernel):
                                     parse_mode="html",
                                 )
                                 await asyncio.sleep(2)
-                                _safe_restart()
+                                await restart_kernel(kernel)
                             else:
                                 await msg.edit(
                                     lang_strings["already_updated"].format(
@@ -281,7 +256,7 @@ def register(kernel):
                 parse_mode="html",
             )
             await asyncio.sleep(2)
-            _safe_restart()
+            await restart_kernel(kernel)
         except Exception as e:
             await msg.edit(
                 lang_strings["rollback_error"].format(error=str(e)),

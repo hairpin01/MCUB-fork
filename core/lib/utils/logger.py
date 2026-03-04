@@ -29,11 +29,11 @@ def mask_sensitive_data(text: str) -> str:
     """Mask sensitive data in text."""
     if not text:
         return text
-    
+
     masked = text
     for pattern, replacement in SENSITIVE_PATTERNS:
         masked = re.sub(pattern, replacement, masked, flags=re.IGNORECASE)
-    
+
     return masked
 
 

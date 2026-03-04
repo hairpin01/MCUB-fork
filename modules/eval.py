@@ -7,7 +7,7 @@ import traceback
 import sys
 import io
 import time
-
+from html import unescape
 
 CUSTOM_EMOJI = {
     "🧿": '<tg-emoji emoji-id="5426900601101374618">🧿</tg-emoji>',
@@ -26,12 +26,16 @@ def register(kernel):
         'ru': {
             'code': 'Код',
             'result': 'Результат',
+            'result_file': 'Результат отправлен файлом',
+            'result_in_message': 'Результат в сообщении',
             'executed_in': 'Выполнено за',
             'ms': 'мс',
         },
         'en': {
             'code': 'Code',
             'result': 'Result',
+            'result_file': 'Result sent as file',
+            'result_in_message': 'Result in message',
             'executed_in': 'Executed in',
             'ms': 'ms',
         }
@@ -41,7 +45,7 @@ def register(kernel):
 
     @kernel.register.command("py")
     async def python_exec_handler(event):
-        code = event.text[len(kernel.custom_prefix) + 2 :].strip()
+        code = unescape(event.text[len(kernel.custom_prefix) + 2 :].strip())
 
         start_time = time.time()
 
@@ -92,16 +96,50 @@ def register(kernel):
         elapsed = round((end_time - start_time) * 1000, 2)
 
         code_display = html.escape(code[:1000]) + ("..." if len(code) > 1000 else "")
-        complete_display = html.escape(complete[:2000]) + (
-            "..." if len(complete) > 2000 else ""
-        )
+        result_text = complete if complete else "[no output]"
 
-        response = f"""{CUSTOM_EMOJI['🧿']} <b>{lang_strings['code']}</b>
+        if len(result_text) > 4000:
+            result_file = io.BytesIO(result_text.encode("utf-8", errors="replace"))
+            result_file.name = "eval_result.txt"
+
+            response = f"""{CUSTOM_EMOJI['🧿']} <b>{lang_strings['code']}</b>
 <blockquote expandable><code>{code_display}</code></blockquote>
-{CUSTOM_EMOJI['🧬']} <b>{lang_strings['result']}</b>
-<blockquote expandable><code>{complete_display}</code></blockquote>
+{CUSTOM_EMOJI['🧬']} <b>{lang_strings['result_file']}</b>
 <blockquote>{CUSTOM_EMOJI['💠']} <i>{lang_strings['executed_in']}</i> <code>{elapsed}{lang_strings['ms']}</code></blockquote>"""
-        try:
-            await event.edit(response, parse_mode="html")
-        except:
-            pass
+            try:
+                await event.edit(
+                    response,
+                    file=result_file,
+                    parse_mode="html",
+                    force_document=True,
+                )
+            except Exception:
+                try:
+                    result_file.seek(0)
+                except:
+                    pass
+                try:
+                    await client.send_file(
+                        event.chat_id,
+                        file=result_file,
+                        caption=response,
+                        parse_mode="html",
+                        reply_to=event.id,
+                        force_document=True,
+                    )
+                except:
+                    try:
+                        await event.edit(response, parse_mode="html")
+                    except:
+                        pass
+        else:
+            result_display = html.escape(result_text)
+            response = f"""{CUSTOM_EMOJI['🧿']} <b>{lang_strings['code']}</b>
+<blockquote expandable><code>{code_display}</code></blockquote>
+{CUSTOM_EMOJI['🧬']} <b>{lang_strings['result_in_message']}</b>
+<blockquote expandable><code>{result_display}</code></blockquote>
+<blockquote>{CUSTOM_EMOJI['💠']} <i>{lang_strings['executed_in']}</i> <code>{elapsed}{lang_strings['ms']}</code></blockquote>"""
+            try:
+                await event.edit(response, parse_mode="html")
+            except:
+                pass

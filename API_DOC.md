@@ -2405,9 +2405,12 @@ async def start(event):
 
 ### Event Registration
 
-`@kernel.register.event(event_type, **kwargs)`
+`@kernel.register.event(event_type, *args, bot_client=False, **kwargs)`
 ---
 Register a Telethon event handler. Unlike raw `client.add_event_handler`, handlers are stored in `module.register.__event_handlers__` and removed automatically when the module is unloaded.
+
+**Key parameter:**
+- `bot_client` (bool, default `False`): register this handler on `kernel.bot_client` instead of `kernel.client`.
 
 **Event types:**
 
@@ -2430,6 +2433,10 @@ async def hello(event):
 @kernel.register.event('callbackquery', pattern=b'menu_')
 async def menu_cb(event):
     await event.answer("Menu clicked")
+
+@kernel.register.event('newmessage', bot_client=True, pattern=r'/start')
+async def bot_start(event):
+    await event.reply("Hello from bot client")
 ```
 
 > [!WARNING]
@@ -2439,9 +2446,12 @@ async def menu_cb(event):
 
 ## Watchers
 
-`@kernel.register.watcher(**tags)`
+`@kernel.register.watcher(bot_client=False, **tags)`
 ---
 Register a passive message watcher. Fires on every new message (incoming and outgoing) and is cleaned up automatically on module unload.
+
+**Key parameter:**
+- `bot_client` (bool, default `False`): register watcher on `kernel.bot_client` instead of `kernel.client`.
 
 Filters are declared as keyword arguments — no `if` branches needed inside the handler.
 
@@ -2450,6 +2460,7 @@ Filters are declared as keyword arguments — no `if` branches needed inside the
 @kernel.register.watcher            # no filters
 @kernel.register.watcher()         # no filters
 @kernel.register.watcher(only_pm=True, no_media=True)   # with filters
+@kernel.register.watcher(bot_client=True, incoming=True) # on bot client
 ```
 
 **Available tags:**

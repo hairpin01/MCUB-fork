@@ -5,8 +5,10 @@
 import asyncio
 import inspect
 import re
-from telethon import events
 from typing import Any, Callable, Dict, List, Optional, Tuple
+
+from telethon import events
+
 
 class InfiniteLoop:
     """
@@ -88,57 +90,88 @@ def _watcher_passes_filters(event: Any, tags: Dict[str, Any]) -> bool:
 
     # chat type
     chat = getattr(event, "chat", None)
-    is_pm      = bool(chat) and not getattr(chat, "megagroup", False) \
-                             and not getattr(chat, "broadcast", False) \
-                             and not getattr(chat, "gigagroup", False)
-    is_group   = getattr(chat, "megagroup", False) or getattr(chat, "gigagroup", False)
+    is_pm = (
+        bool(chat)
+        and not getattr(chat, "megagroup", False)
+        and not getattr(chat, "broadcast", False)
+        and not getattr(chat, "gigagroup", False)
+    )
+    is_group = getattr(chat, "megagroup", False) or getattr(chat, "gigagroup", False)
     is_channel = getattr(chat, "broadcast", False)
 
-    if tags.get("only_pm")       and not is_pm:      return False
-    if tags.get("no_pm")         and is_pm:          return False
-    if tags.get("only_groups")   and not is_group:   return False
-    if tags.get("no_groups")     and is_group:       return False
-    if tags.get("only_channels") and not is_channel: return False
-    if tags.get("no_channels")   and is_channel:     return False
+    if tags.get("only_pm") and not is_pm:
+        return False
+    if tags.get("no_pm") and is_pm:
+        return False
+    if tags.get("only_groups") and not is_group:
+        return False
+    if tags.get("no_groups") and is_group:
+        return False
+    if tags.get("only_channels") and not is_channel:
+        return False
+    if tags.get("no_channels") and is_channel:
+        return False
 
     # media
-    media   = getattr(msg, "media", None)
-    photo   = media and hasattr(media, "photo")
-    video   = media and hasattr(media, "video")
-    doc     = media and hasattr(media, "document")
-    audio   = doc and getattr(getattr(media, "document", None), "mime_type", "").startswith("audio")
+    media = getattr(msg, "media", None)
+    photo = media and hasattr(media, "photo")
+    video = media and hasattr(media, "video")
+    doc = media and hasattr(media, "document")
+    audio = doc and getattr(
+        getattr(media, "document", None), "mime_type", ""
+    ).startswith("audio")
     sticker = doc and any(
         type(a).__name__ == "DocumentAttributeSticker"
         for a in getattr(getattr(media, "document", None), "attributes", [])
     )
 
-    if tags.get("only_media")    and not media:   return False
-    if tags.get("no_media")      and media:       return False
-    if tags.get("only_photos")   and not photo:   return False
-    if tags.get("no_photos")     and photo:       return False
-    if tags.get("only_videos")   and not video:   return False
-    if tags.get("no_videos")     and video:       return False
-    if tags.get("only_audios")   and not audio:   return False
-    if tags.get("no_audios")     and audio:       return False
-    if tags.get("only_docs")     and not doc:     return False
-    if tags.get("no_docs")       and doc:         return False
-    if tags.get("only_stickers") and not sticker: return False
-    if tags.get("no_stickers")   and sticker:     return False
+    if tags.get("only_media") and not media:
+        return False
+    if tags.get("no_media") and media:
+        return False
+    if tags.get("only_photos") and not photo:
+        return False
+    if tags.get("no_photos") and photo:
+        return False
+    if tags.get("only_videos") and not video:
+        return False
+    if tags.get("no_videos") and video:
+        return False
+    if tags.get("only_audios") and not audio:
+        return False
+    if tags.get("no_audios") and audio:
+        return False
+    if tags.get("only_docs") and not doc:
+        return False
+    if tags.get("no_docs") and doc:
+        return False
+    if tags.get("only_stickers") and not sticker:
+        return False
+    if tags.get("no_stickers") and sticker:
+        return False
 
     # forwards / replies
-    fwd   = getattr(msg, "fwd_from", None)
+    fwd = getattr(msg, "fwd_from", None)
     reply = getattr(msg, "reply_to", None)
-    if tags.get("only_forwards") and not fwd:   return False
-    if tags.get("no_forwards")   and fwd:       return False
-    if tags.get("only_reply")    and not reply: return False
-    if tags.get("no_reply")      and reply:     return False
+    if tags.get("only_forwards") and not fwd:
+        return False
+    if tags.get("no_forwards") and fwd:
+        return False
+    if tags.get("only_reply") and not reply:
+        return False
+    if tags.get("no_reply") and reply:
+        return False
 
     # text filters
     text = getattr(msg, "text", "") or ""
-    if "regex"      in tags and not re.search(tags["regex"], text): return False
-    if "startswith" in tags and not text.startswith(tags["startswith"]): return False
-    if "endswith"   in tags and not text.endswith(tags["endswith"]):     return False
-    if "contains"   in tags and tags["contains"] not in text:           return False
+    if "regex" in tags and not re.search(tags["regex"], text):
+        return False
+    if "startswith" in tags and not text.startswith(tags["startswith"]):
+        return False
+    if "endswith" in tags and not text.endswith(tags["endswith"]):
+        return False
+    if "contains" in tags and tags["contains"] not in text:
+        return False
 
     # sender / chat id filters
     if "from_id" in tags and getattr(event, "sender_id", None) != tags["from_id"]:
@@ -147,6 +180,7 @@ def _watcher_passes_filters(event: Any, tags: Dict[str, Any]) -> bool:
         return False
 
     return True
+
 
 class Register:
     """
@@ -189,6 +223,7 @@ class Register:
             >>> async def setup(kernel):
             >>>     kernel.logger.info("module ready")
         """
+
         def decorator(f: Callable) -> Callable:
             frame = inspect.stack()[1][0]
             module = inspect.getmodule(frame)
@@ -203,7 +238,9 @@ class Register:
             return decorator
         return decorator(func)
 
-    def event(self, event_type: str, *args: Any, bot_client: bool = False, **kwargs: Any) -> Callable:
+    def event(
+        self, event_type: str, *args: Any, bot_client: bool = False, **kwargs: Any
+    ) -> Callable:
         """
         Register a Telegram event handler tracked by the kernel.
 
@@ -229,24 +266,52 @@ class Register:
             >>>     await event.reply("Hello from bot!")
         """
         EVENT_TYPE_MAP: Dict[str, Any] = {
-            "newmessage":     events.NewMessage,
-            "message":        events.NewMessage,
-            "messageedited":  events.MessageEdited,
-            "edited":         events.MessageEdited,
+            "newmessage": events.NewMessage,
+            "message": events.NewMessage,
+            "messageedited": events.MessageEdited,
+            "edited": events.MessageEdited,
             "messagedeleted": events.MessageDeleted,
-            "deleted":        events.MessageDeleted,
-            "userupdate":     events.UserUpdate,
-            "user":           events.UserUpdate,
-            "inlinequery":    events.InlineQuery,
-            "inline":         events.InlineQuery,
-            "callbackquery":  events.CallbackQuery,
-            "callback":       events.CallbackQuery,
-            "raw":            events.Raw,
-            "custom":         events.Raw,
+            "deleted": events.MessageDeleted,
+            "userupdate": events.UserUpdate,
+            "user": events.UserUpdate,
+            "inlinequery": events.InlineQuery,
+            "inline": events.InlineQuery,
+            "callbackquery": events.CallbackQuery,
+            "callback": events.CallbackQuery,
+            "raw": events.Raw,
+            "custom": events.Raw,
         }
 
         frame = inspect.stack()[1][0]
         module = inspect.getmodule(frame)
+        _mod_name = getattr(module, "__name__", "unknown") if module else "unknown"
+
+        _key = event_type.lower()
+
+        # 1) inline / callback events must use bot_client=True.
+        #    User-accounts never receive InlineQuery or CallbackQuery updates.
+        _BOT_ONLY_EVENTS = {"inlinequery", "inline", "callbackquery", "callback"}
+        if _key in _BOT_ONLY_EVENTS and not bot_client:
+            self.kernel.logger.warning(
+                f"[{_mod_name}] register.event('{event_type}') called without "
+                "bot_client=True — InlineQuery / CallbackQuery events are delivered "
+                "only to bot accounts, not to userbots. "
+                "The handler will be registered on the userbot client but will "
+                "likely never fire. Add bot_client=True to fix this."
+            )
+
+        # 2) inline / callback handlers without a filter would match EVERY
+        #    query — that is never correct, so refuse outright.
+        if _key in _BOT_ONLY_EVENTS:
+            # callbackquery uses `data=`, inlinequery uses `pattern=`
+            _has_filter = "pattern" in kwargs or "data" in kwargs
+            if not _has_filter:
+                raise ValueError(
+                    f"[{_mod_name}] Refusing to register '{event_type}' event "
+                    "handler without a pattern/data filter — it would fire on "
+                    "EVERY incoming update. "
+                    "Add pattern=r'...' (or data=... for callbackquery)."
+                )
 
         def decorator(handler: Callable) -> Callable:
             key = event_type.lower()
@@ -257,7 +322,11 @@ class Register:
                 )
             event_obj = EVENT_TYPE_MAP[key](*args, **kwargs)
 
-            if bot_client and hasattr(self.kernel, 'bot_client') and self.kernel.bot_client is not None:
+            if (
+                bot_client
+                and hasattr(self.kernel, "bot_client")
+                and self.kernel.bot_client is not None
+            ):
                 tg_client = self.kernel.bot_client
             else:
                 tg_client = self.kernel.client
@@ -291,8 +360,10 @@ class Register:
             >>> async def ping(event):
             >>>     await event.edit("Pong!")
         """
+
         def decorator(func: Callable) -> Callable:
             import re
+
             escaped_prefix = re.escape(self.kernel.custom_prefix)
             cmd = re.sub(rf"^(\^|\\)?{escaped_prefix}", "", pattern)
             if cmd.endswith("$"):
@@ -335,7 +406,6 @@ class Register:
 
         return decorator
 
-
     def bot_command(self, pattern: str, **kwargs: Any) -> Callable:
         """
         Register a Telegram native /command (requires inline bot client).
@@ -345,6 +415,7 @@ class Register:
             >>> async def start(event):
             >>>     await event.respond("Hello!")
         """
+
         def decorator(func: Callable) -> Callable:
             cmd_pattern = ("/" + pattern) if not pattern.startswith("/") else pattern
             cmd = (
@@ -354,9 +425,7 @@ class Register:
             )
 
             if self.kernel.current_loading_module is None:
-                raise ValueError(
-                    "No current module set for bot command registration."
-                )
+                raise ValueError("No current module set for bot command registration.")
 
             if cmd in self.kernel.bot_command_handlers:
                 raise ValueError(
@@ -370,8 +439,9 @@ class Register:
 
         return decorator
 
-
-    def watcher(self, func: Optional[Callable] = None, bot_client: bool = False, **tags: Any) -> Callable:
+    def watcher(
+        self, func: Optional[Callable] = None, bot_client: bool = False, **tags: Any
+    ) -> Callable:
         """
         Register a passive message watcher.
 
@@ -425,16 +495,18 @@ class Register:
                 try:
                     await f(event)
                 except Exception as exc:
-                    self.kernel.logger.error(
-                        f"Watcher '{f.__name__}' raised: {exc}"
-                    )
+                    self.kernel.logger.error(f"Watcher '{f.__name__}' raised: {exc}")
 
             _wrapper.__name__ = f"watcher:{f.__name__}"
             _wrapper.__watcher_original__ = f
 
             event_obj = events.NewMessage()
 
-            if _use_bot_client and hasattr(self.kernel, 'bot_client') and self.kernel.bot_client is not None:
+            if (
+                _use_bot_client
+                and hasattr(self.kernel, "bot_client")
+                and self.kernel.bot_client is not None
+            ):
                 tg_client = self.kernel.bot_client
             else:
                 tg_client = self.kernel.client
@@ -497,6 +569,7 @@ class Register:
             >>> async def stop_cmd(event):
             >>>     checker.stop()
         """
+
         def decorator(f: Callable) -> "InfiniteLoop":
             il = InfiniteLoop(f, interval, autostart, wait_before)
 
@@ -523,6 +596,7 @@ class Register:
             >>> async def setup(kernel):
             >>>     await some_service.connect()
         """
+
         def decorator(f: Callable) -> Callable:
             frame = inspect.stack()[1][0]
             module = inspect.getmodule(frame)
@@ -550,6 +624,7 @@ class Register:
             >>> async def first_time(kernel):
             >>>     await kernel.client.send_message("me", "Module installed!")
         """
+
         def decorator(f: Callable) -> Callable:
             frame = inspect.stack()[1][0]
             module = inspect.getmodule(frame)
@@ -575,6 +650,7 @@ class Register:
             >>> async def on_unload(kernel):
             >>>     await some_client.close()
         """
+
         def decorator(f: Callable) -> Callable:
             frame = inspect.stack()[1][0]
             module = inspect.getmodule(frame)
@@ -617,7 +693,10 @@ class Register:
             List of (wrapper_func, event_obj, client) tuples.
         """
         watchers = []
-        for module_name, module in {**self.kernel.loaded_modules, **self.kernel.system_modules}.items():
+        for module_name, module in {
+            **self.kernel.loaded_modules,
+            **self.kernel.system_modules,
+        }.items():
             reg = getattr(module, "register", None)
             if reg and hasattr(reg, "__watchers__"):
                 watchers.extend(reg.__watchers__)
@@ -631,7 +710,10 @@ class Register:
             List of (handler, event_obj, client) tuples.
         """
         events = []
-        for module_name, module in {**self.kernel.loaded_modules, **self.kernel.system_modules}.items():
+        for module_name, module in {
+            **self.kernel.loaded_modules,
+            **self.kernel.system_modules,
+        }.items():
             reg = getattr(module, "register", None)
             if reg and hasattr(reg, "__event_handlers__"):
                 events.extend(reg.__event_handlers__)
@@ -645,7 +727,10 @@ class Register:
             List of InfiniteLoop instances.
         """
         loops = []
-        for module_name, module in {**self.kernel.loaded_modules, **self.kernel.system_modules}.items():
+        for module_name, module in {
+            **self.kernel.loaded_modules,
+            **self.kernel.system_modules,
+        }.items():
             reg = getattr(module, "register", None)
             if reg and hasattr(reg, "__loops__"):
                 loops.extend(reg.__loops__)

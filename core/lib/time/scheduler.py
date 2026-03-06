@@ -5,7 +5,7 @@
 import asyncio
 import traceback
 from datetime import datetime, timedelta
-from typing import Any, Callable, List
+from typing import Any, Callable, List, Optional
 
 
 class TaskScheduler:
@@ -19,6 +19,7 @@ class TaskScheduler:
         tasks: List of currently scheduled asyncio tasks
         running: Flag indicating whether the scheduler is active
     """
+
     def __init__(self, kernel: Any) -> None:
         """
         Initialize the task scheduler.
@@ -55,9 +56,9 @@ class TaskScheduler:
 
         self.tasks.clear()
 
-    async def add_interval_task(self,
-                               func: Callable[[], Any],
-                               interval_seconds: float) -> None:
+    async def add_interval_task(
+        self, func: Callable[[], Any], interval_seconds: float
+    ) -> None:
         """
         Schedule a function to run at fixed intervals.
 
@@ -71,6 +72,7 @@ class TaskScheduler:
         Example:
             >>> await scheduler.add_interval_task(update_cache, 60.0)
         """
+
         async def wrapper() -> None:
             """Wrapper function that handles the interval logic and error catching."""
             while self.running:
@@ -89,10 +91,9 @@ class TaskScheduler:
         task = asyncio.create_task(wrapper(), name=f"interval_{func.__name__}")
         self.tasks.append(task)
 
-    async def add_daily_task(self,
-                            func: Callable[[], Any],
-                            hour: int,
-                            minute: int) -> None:
+    async def add_daily_task(
+        self, func: Callable[[], Any], hour: int, minute: int
+    ) -> None:
         """
         Schedule a function to run daily at a specific time.
 
@@ -121,16 +122,11 @@ class TaskScheduler:
 
             while self.running:
                 try:
-                    calc = fsdf / 'ufshdu'
                     # Calculate time until next execution
                     now = datetime.now()
                     target_time = now.replace(
-                        hour=hour,
-                        minute=minute,
-                        second=0,
-                        microsecond=0
+                        hour=hour, minute=minute, second=0, microsecond=0
                     )
-
 
                     # If target time has passed today, schedule for tomorrow
                     if now >= target_time:
@@ -153,7 +149,7 @@ class TaskScheduler:
                     # Log the error but keep the task running
                     error_msg = f"Daily task error in {func.__name__}: {e}\n"
                     error_msg += traceback.format_exc()
-                    self.kernel.handle_error(error_msg, source='scheduler:wrapper')
+                    self.kernel.handle_error(error_msg, source="scheduler:wrapper")
                     await asyncio.sleep(60)
 
         task_name = f"daily_{func.__name__}_{hour:02d}:{minute:02d}"
@@ -173,10 +169,12 @@ class TaskScheduler:
         """Return the number of currently scheduled tasks."""
         return len(self.tasks)
 
-    async def add_task(self,
-                      func: Callable[[], Any],
-                      delay_seconds: float,
-                      task_id: str = None) -> str:
+    async def add_task(
+        self,
+        func: Callable[[], Any],
+        delay_seconds: float,
+        task_id: Optional[str] = None,
+    ) -> str:
         """
         Schedule a one-shot function to run after a delay.
 

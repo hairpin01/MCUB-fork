@@ -2351,6 +2351,111 @@ def register(kernel):
 > [!NOTE]
 > Available in MCUB kernel version 1.0.2 and later.
 
+### `InlineManager` Class (core_inline)
+
+Manages user permissions for inline bot interactions. Controls which users can use inline commands.
+
+**Initialization:**
+
+```python
+from core_inline.lib.manager import InlineManager
+inline_manager = InlineManager(kernel)
+```
+
+**Attributes:**
+- `MODULE` (str): Database module name - `"inline_permissions"`
+
+**Methods:**
+
+`is_admin(user_id)` → bool
+---
+Check if user is the bot admin.
+
+**Parameters:**
+- `user_id` (int): Telegram user ID
+
+**Returns:** True if user is ADMIN_ID
+
+---
+
+`is_allowed(user_id, command=None)` → bool
+---
+Check if user is allowed to use inline commands.
+
+**Parameters:**
+- `user_id` (int): Telegram user ID
+- `command` (str, optional): Specific command to check
+
+**Returns:** True if user is admin or allowed
+
+---
+
+`allow_user(user_id, command=None)` → bool
+---
+Grant permission to a user.
+
+**Parameters:**
+- `user_id` (int): Telegram user ID
+- `command` (str, optional): Specific command (if None, grants global access)
+
+**Returns:** True on success
+
+---
+
+`deny_user(user_id, command=None)` → bool
+---
+Revoke permission from a user.
+
+**Parameters:**
+- `user_id` (int): Telegram user ID
+- `command` (str, optional): Specific command (if None, removes global access)
+
+**Returns:** True if user was removed
+
+---
+
+`get_allowed_users(command=None)` → list
+---
+Get list of allowed users.
+
+**Parameters:**
+- `command` (str, optional): Specific command filter
+
+**Returns:** List of user IDs
+
+---
+
+`clear_all()` → bool
+---
+Clear all permissions.
+
+**Returns:** True on success
+
+**Usage Example:**
+
+```python
+from core_inline.lib.manager import InlineManager
+
+inline_mgr = InlineManager(kernel)
+
+# Check if user can use inline
+if await inline_mgr.is_allowed(event.sender_id):
+    await event.respond("Allowed!")
+
+# Allow user globally
+await inline_mgr.allow_user(123456789)
+
+# Allow user for specific command
+await inline_mgr.allow_user(123456789, "search")
+
+# Deny user
+await inline_mgr.deny_user(123456789)
+
+# List allowed users
+users = await inline_mgr.get_allowed_users()
+ping_users = await inline_mgr.get_allowed_users("ping")
+```
+
 ---
 
 ## Enhanced Registration API v1.0.2

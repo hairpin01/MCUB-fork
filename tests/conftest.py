@@ -69,10 +69,10 @@ def kernel_instance(mock_client, mock_db_connection, mock_db_manager):
         from core.kernel import Kernel
 
         kernel = Kernel()
-        
+
         # Replace db_manager with our mock
         kernel.db_manager = mock_db_manager
-        
+
         kernel.client = mock_client
 
         # Mock inline bot

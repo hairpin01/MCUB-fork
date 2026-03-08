@@ -16,13 +16,13 @@ class TestScheduler:
     async def test_scheduler_initialization(self):
         """Test scheduler setup"""
         from core.lib.time.scheduler import TaskScheduler
-        
+
         kernel = MagicMock()
         kernel.log_error = lambda msg: None
-        
+
         scheduler = TaskScheduler(kernel)
         await scheduler.start()
-        
+
         assert scheduler is not None
         assert scheduler.running is True
         await scheduler.stop()
@@ -30,10 +30,10 @@ class TestScheduler:
     async def test_interval_task(self):
         """Test interval task scheduling"""
         from core.lib.time.scheduler import TaskScheduler
-        
+
         kernel = MagicMock()
         kernel.log_error = lambda msg: None
-        
+
         scheduler = TaskScheduler(kernel)
         await scheduler.start()
 
@@ -43,7 +43,7 @@ class TestScheduler:
             executions.append(time.time())
 
         await scheduler.add_interval_task(interval_task, 0.1)
-        
+
         await asyncio.sleep(0.25)
         await scheduler.stop()
 
@@ -52,10 +52,10 @@ class TestScheduler:
     async def test_one_time_task(self):
         """Test delayed one-time task"""
         from core.lib.time.scheduler import TaskScheduler
-        
+
         kernel = MagicMock()
         kernel.log_error = lambda msg: None
-        
+
         scheduler = TaskScheduler(kernel)
         await scheduler.start()
 
@@ -77,10 +77,10 @@ class TestScheduler:
     async def test_scheduler_shutdown(self):
         """Test scheduler graceful shutdown"""
         from core.lib.time.scheduler import TaskScheduler
-        
+
         kernel = MagicMock()
         kernel.log_error = lambda msg: None
-        
+
         scheduler = TaskScheduler(kernel)
         await scheduler.start()
 

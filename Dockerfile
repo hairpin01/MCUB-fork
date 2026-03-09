@@ -1,37 +1,28 @@
-FROM python:3.11-slim
+FROM python:3.14-slim
 
 LABEL maintainer="MCUB-fork"
-LABEL description="MCUB (Mitrich Cube UserBot) - Telegram UserBot"
+LABEL description="MCUB (Mitrich UserBot) - Telegram UserBot"
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
+RUN apt-get update && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN git clone --depth 1 https://github.com/hairpin01/MCUB-fork.git .
 
-RUN pip install --no-cache-dir \
-    aiohttp-jinja2 \
-    jinja2 \
-    Pillow
-
-COPY core/ ./core/
-COPY modules/ ./modules/
-COPY utils/ ./utils/
-COPY core_inline/ ./core_inline/
-COPY img/ ./img/
-COPY version.txt .
-COPY repositories.json .
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir \
+        aiohttp-jinja2 \
+        jinja2 \
+        Pillow
 
 RUN mkdir -p /app/data
 
 ENV MCUB_NO_WEB=0
-ENV MCUB_PORT=8080
+ENV MCUB_PORT=8081
 ENV MCUB_HOST=0.0.0.0
 
 EXPOSE 8080

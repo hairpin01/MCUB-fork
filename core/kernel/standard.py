@@ -1010,7 +1010,19 @@ class Kernel:
                             },
                         }
                         .get(lang, {})
-                        .get
+                        .get("success"),
+                        {
+                            "ru": {
+                                "success": "Перезагрузка <b>успешна!</b>",
+                                "loading": "но модули ещё загружаются...",
+                            },
+                            "en": {
+                                "success": "Reboot <b>successful!</b>",
+                                "loading": "but modules are still loading...",
+                            },
+                        }
+                        .get(lang, {})
+                        .get("loading"),
                     )
                     emoji = "(*.*)"
                     total_ms = (
@@ -1022,8 +1034,8 @@ class Kernel:
                     await self.client.edit_message(
                         restart_chat_id,
                         restart_msg_id,
-                        f"{em_alembic} {strings('success')} {emoji}\n"
-                        f"<i>{strings('loading')}</i> <b>KLB:</b> <code>{total_ms} ms</code>",
+                        f"{em_alembic} {strings[0]} {emoji}\n"
+                        f"<i>{strings[1]}</i> <b>KLB:</b> <code>{total_ms} ms</code>",
                         parse_mode="html",
                     )
             except Exception:

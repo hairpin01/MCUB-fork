@@ -307,7 +307,7 @@ def register(kernel):
                             await asyncio.sleep(1)
                             if process.returncode is None:
                                 os.killpg(os.getpgid(process.pid), signal.SIGKILL)
-                        except ProcessLookupError:
+                        except (ProcessLookupError, OSError):
                             # Процесс уже завершен
                             pass
 

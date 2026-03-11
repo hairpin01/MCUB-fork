@@ -769,8 +769,10 @@ class ModuleLoader:
 
         to_remove = [cmd for cmd, owner in k.command_owners.items() if owner == module_name]
         for cmd in to_remove:
-            del k.command_handlers[cmd]
-            del k.command_owners[cmd]
+            if cmd in k.command_handlers:
+                del k.command_handlers[cmd]
+            if cmd in k.command_owners:
+                del k.command_owners[cmd]
             k.logger.debug(f"Unregistered command: {cmd}")
 
         k.unregister_module_inline_handlers(module_name)

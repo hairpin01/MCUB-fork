@@ -188,10 +188,10 @@ class ArgumentParser:
     def require(self, *names: str) -> Tuple[bool, str]:
         """
         Validate that required arguments are present.
-        
+
         Args:
             *names: Required argument names (positional indices or kwarg keys).
-        
+
         Returns:
             (is_valid, missing_name)
         """
@@ -234,7 +234,7 @@ def split_args(args_string: str) -> List[str]:
     """Split argument string into tokens considering quotes"""
     try:
         return shlex.split(args_string)
-    except:
+    except ValueError:
         parser = ArgumentParser(f".cmd {args_string}", '.')
         return parser.args
 

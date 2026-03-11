@@ -75,7 +75,7 @@ async def index(request: web.Request) -> web.Response:
                 cfg = json.load(f)
             if cfg.get("api_id") and cfg.get("api_hash") and cfg.get("phone"):
                 config_valid = True
-        except:
+        except (json.JSONDecodeError, IOError):
             pass
 
     # If config and session exist - MCUB is already configured
@@ -130,7 +130,7 @@ async def api_setup_state(request: web.Request) -> web.Response:
                 cfg = json.load(f)
             if cfg.get("api_id") and cfg.get("api_hash") and cfg.get("phone"):
                 needs_reauth = True
-        except:
+        except (json.JSONDecodeError, IOError):
             pass
 
     return web.json_response({

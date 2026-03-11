@@ -91,7 +91,7 @@ class String(Validator):
         if not isinstance(value, str):
             try:
                 value = str(value)
-            except:
+            except (TypeError, ValueError):
                 raise ValidationError(f"Expected string, got {type(value).__name__}")
         if self.min_len is not None and len(value) < self.min_len:
             raise ValidationError(f"String length must be >= {self.min_len}")

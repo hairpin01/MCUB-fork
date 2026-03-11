@@ -328,7 +328,7 @@ def register(kernel):
             await message.edit(text, parse_mode='html', **kwargs)
             return True
         except Exception as e:
-            kernel.logger.error('loader', f"Error in edit_with_emoji: {e}")
+            kernel.logger.error(f"loader: Error in edit_with_emoji: {e}")
             return False
 
     async def send_with_emoji(chat_id, text, **kwargs):

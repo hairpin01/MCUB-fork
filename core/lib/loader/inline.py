@@ -64,16 +64,13 @@ class InlineManager:
             k.logger.error(f"Callback registration error: {e}")
 
     def _build_buttons(self, raw_buttons: list) -> list:
-        """Convert a mixed-format button list into a list of dicts.
-
-        Supports dicts and (text, type, data, hint?) tuples/lists.
-
-        Returns:
-            Normalized list of button dicts.
-        """
         out = []
         for btn in raw_buttons:
-            if isinstance(btn, dict):
+            from telethon.tl.tlobject import TLObject
+            from telethon.tl.custom.button import Button as TelethonButton
+            if isinstance(btn, (TLObject, TelethonButton)):
+                out.append(btn)
+            elif isinstance(btn, dict):
                 out.append(btn)
             elif isinstance(btn, (list, tuple)) and len(btn) >= 2:
                 d = {"text": str(btn[0]), "type": str(btn[1]).lower()}
@@ -91,13 +88,16 @@ class InlineManager:
         return out
 
     def _format_telethon_buttons(self, buttons: list) -> list:
-        """Convert normalized button dicts into Telethon Button rows.
+        from telethon.tl.tlobject import TLObject
+        from telethon.tl.custom.button import Button as TelethonButton
 
-        Returns:
-            List of button rows (each row is a list).
-        """
         rows = []
         for btn in buttons:
+            # Уже готовый объект — кладём как есть
+            if isinstance(btn, (TLObject, TelethonButton)):
+                rows.append([btn])
+                continue
+
             t = btn.get("type", "callback").lower()
             text = btn.get("text", "Button")
             if t == "callback":

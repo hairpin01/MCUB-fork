@@ -18,39 +18,49 @@ def register(kernel):
 
     strings = {
         'ru': {
-            'creating_backup': '⌛ Creating backup...',
-            'backup_created': '✅ Backup created',
-            'backup_failed': '❌ Backup failed',
-            'reply_to_backup': '❌ Reply to a backup message',
-            'not_backup_file': '❌ This is not a backup file',
-            'restoring': '⌛ Restoring...',
-            'restored': '✅ Restored:',
-            'no_files': '⚠️ No files to restore',
-            'restore_error': '❌ Error:',
-            'backup_settings': '⚙️ Backup Settings',
+            'creating_backup': '⌛ Создаю бэкап...',
+            'backup_created': '✅ Бэкап создан',
+            'backup_failed': '❌ Ошибка создания бэкапа',
+            'reply_to_backup': '❌ Ответьте на сообщение с бэкапом',
+            'not_backup_file': '❌ Это не файл бэкапа',
+            'restoring': '⌛ Восстанавливаю...',
+            'restored': '✅ Восстановлено:',
+            'no_files': '⚠️ Нет файлов для восстановления',
+            'restore_error': '❌ Ошибка:',
+            'backup_settings': '⚙️ Настройки бэкапа',
             'chat_id': 'Chat ID:',
-            'interval': 'Interval:',
-            'auto_backup': 'Auto backup:',
-            'last_backup': 'Last backup:',
-            'total_backups': 'Total backups:',
-            'commands': 'Commands:',
-            'set_interval': 'Set backup interval',
-            'enable_disable': 'Enable/disable auto backup',
-            'set_chat': 'Set backup chat manually',
-            'interval_set': '✅ Interval set to {hours} hours',
-            'interval_invalid': '❌ Interval must be between 1 and 24 hours',
-            'auto_enabled': '✅ Auto backup enabled',
-            'auto_disabled': '✅ Auto backup disabled',
-            'chat_set': '✅ Backup chat set to {chat_id}',
-            'invalid_chat_id': '❌ Invalid chat ID',
-            'unknown_command': '❌ Unknown command',
-            'select_interval': '⏰ Select backup interval:',
-            'check_pm': '✅ Check your PM with the bot',
-            'bot_not_available': '⚠️ Bot is not available. Please start a chat with the bot first.',
-            'cant_send_pm': '❌ Can\'t send PM. Start a chat with the bot first',
-            'processing': '⌛ Processing...',
-            'group_created': '✅ Backup group created',
-            'tip_restore': 'tip: {prefix}restore to restore a backup',
+            'interval': 'Интервал:',
+            'auto_backup': 'Авто-бэкап:',
+            'last_backup': 'Последний бэкап:',
+            'total_backups': 'Всего бэкапов:',
+            'commands': 'Команды:',
+            'set_interval': 'Установить интервал бэкапа',
+            'enable_disable': 'Включить/выключить авто-бэкап',
+            'set_chat': 'Установить чат для бэкапа',
+            'interval_set': '✅ Интервал установлен на {hours} часов',
+            'interval_invalid': '❌ Интервал должен быть от 1 до 24 часов',
+            'auto_enabled': '✅ Авто-бэкап включен',
+            'auto_disabled': '✅ Авто-бэкап выключен',
+            'chat_set': '✅ Чат для бэкапа установлен: {chat_id}',
+            'invalid_chat_id': '❌ Неверный ID чата',
+            'unknown_command': '❌ Неизвестная команда',
+            'select_interval': '⏰ Выберите интервал бэкапа:',
+            'check_pm': '✅ Проверьте ЛС с ботом',
+            'bot_not_available': '⚠️ Бот недоступен. Сначала напишите боту.',
+            'cant_send_pm': '❌ Не могу отправить ЛС. Сначала напишите боту',
+            'processing': '⌛ Обработка...',
+            'group_created': '✅ Группа для бэкапов создана',
+            'tip_restore': 'подсказка: {prefix}restore для восстановления бэкапа',
+            'btn_restore': '🔄 Восстановить',
+            'btn_1_hour': '1 час',
+            'btn_6_hours': '6 часов',
+            'btn_12_hours': '12 часов',
+            'btn_24_hours': '24 часа',
+            'not_set': 'Не установлен',
+            'hours': 'часов',
+            'enabled': 'Включен',
+            'disabled': 'Выключен',
+            'invalid_interval': '❌ Неверный интервал',
         },
         'en': {
             'creating_backup': '⌛ Creating backup...',
@@ -86,6 +96,16 @@ def register(kernel):
             'processing': '⌛ Processing...',
             'group_created': '✅ Backup group created',
             'tip_restore': 'tip: {prefix}restore to restore a backup',
+            'btn_restore': '🔄 Restore',
+            'btn_1_hour': '1 hour',
+            'btn_6_hours': '6 hours',
+            'btn_12_hours': '12 hours',
+            'btn_24_hours': '24 hours',
+            'not_set': 'Not set',
+            'hours': 'hours',
+            'enabled': 'Enabled',
+            'disabled': 'Disabled',
+            'invalid_interval': '❌ Invalid interval',
         }
     }
 
@@ -266,7 +286,7 @@ def register(kernel):
                             chat.id,
                             zip_path,
                             caption=lang_strings['tip_restore'].format(prefix=kernel.custom_prefix),
-                            buttons=Button.inline("🔄 Restore", f"restore:{timestamp}"),
+                            buttons=Button.inline(lang_strings['btn_restore'], f"restore:{timestamp}"),
                             parse_mode="html",
                         )
                     except Exception as e:
@@ -412,9 +432,9 @@ def register(kernel):
 
             settings_text = f"""⚙️ **{lang_strings['backup_settings']}**
 
-**{lang_strings['chat_id']}** `{config['backup_chat_id'] or 'Not set'}`
-**{lang_strings['interval']}** `{config['backup_interval_hours']} hours`
-**{lang_strings['auto_backup']}** `{'Enabled' if config['enable_auto_backup'] else 'Disabled'}`
+**{lang_strings['chat_id']}** `{config['backup_chat_id'] or lang_strings['not_set']}`
+**{lang_strings['interval']}** `{config['backup_interval_hours']} {lang_strings['hours']}`
+**{lang_strings['auto_backup']}** `{lang_strings['enabled'] if config['enable_auto_backup'] else lang_strings['disabled']}`
 **{lang_strings['last_backup']}** `{last_backup}`
 **{lang_strings['total_backups']}** `{config['backup_count']}`
 
@@ -472,10 +492,10 @@ def register(kernel):
         user_id = event.sender_id
 
         buttons = [
-            [Button.inline("1 hour", "backup_interval:1")],
-            [Button.inline("6 hours", "backup_interval:6")],
-            [Button.inline("12 hours", "backup_interval:12")],
-            [Button.inline("24 hours", "backup_interval:24")],
+            [Button.inline(lang_strings['btn_1_hour'], "backup_interval:1")],
+            [Button.inline(lang_strings['btn_6_hours'], "backup_interval:6")],
+            [Button.inline(lang_strings['btn_12_hours'], "backup_interval:12")],
+            [Button.inline(lang_strings['btn_24_hours'], "backup_interval:24")],
         ]
 
         try:
@@ -498,10 +518,10 @@ def register(kernel):
                 await backup_module.save_config()
                 await backup_module.schedule_backups()
 
-                await event.answer(f"✅ {lang_strings['interval_set'].format(hours=interval)}", alert=False)
-                await event.edit(f"⏰ {lang_strings['interval']}: {interval} hours")
+                await event.answer(lang_strings['interval_set'].format(hours=interval), alert=False)
+                await event.edit(f"⏰ {lang_strings['interval']}: {interval} {lang_strings['hours']}")
             else:
-                await event.answer("❌ Invalid interval", alert=True)
+                await event.answer(lang_strings['invalid_interval'], alert=True)
         except Exception as e:
             await kernel.handle_error(e, source="backup_interval_callback", event=event)
 

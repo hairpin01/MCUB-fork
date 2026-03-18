@@ -21,6 +21,109 @@ def register(kernel):
     client = kernel.client
     bot_client = kernel.bot_client
 
+    language = kernel.config.get('language', 'en')
+
+    strings = {
+        'ru': {
+            'git_timeout': '⚠️ Git: тайм-аут (нет сети)',
+            'updates_available': '🔄 Доступны обновления ({count})',
+            'up_to_date': '✅ Актуальная версия',
+            'git_error': '⚠️ Ошибка Git',
+            'setup_log_group': '🤖 Настройка лог-группы',
+            'searching_logs': 'Error searching logs',
+            'creating_log_group': '📝 Создаю лог-группу...',
+            'bot_prepare_error': 'Не удалось подготовить бота для добавления',
+            'chat_id_error': '❌ Не удалось получить ID созданного чата',
+            'avatar_error': '⚠️ Не удалось установить аватарку',
+            'invite_error': '⚠️ Не удалось получить ссылку (возможно нет прав)',
+            'bot_added': '✅ Бот добавлен',
+            'bot_add_error': '⚠️ Не удалось добавить бота постфактум',
+            'chat_create_error': '❌ Ошибка создания чата',
+            'log_setup_title': 'Настраиваю лог-группу...',
+            'log_setup_success': '✅ Лог-группа настроена',
+            'log_setup_fail': '❌ Не удалось настроить',
+            'test_title': 'Тестирую отправку логов...',
+            'test_bot_available': 'Бот доступен',
+            'test_bot_not_available': 'Бот недоступен',
+            'test_bot_auth': 'Бот авторизован',
+            'test_bot_not_auth': 'Бот не авторизован',
+            'test_log_chat_id': 'Лог-чат ID',
+            'test_not_set': 'не установлен',
+            'test_time': 'Время',
+            'test_success': '✅ Тестовое сообщение отправлено',
+            'test_fail': '❌ Не удалось отправить',
+            'test_error': '❌ Ошибка теста',
+            'log_status_on': '✅ включен',
+            'log_status_off': '❌ выключен',
+            'log_not_configured': 'Не настроен',
+            'bot_running': '✅ запущен',
+            'bot_not_running': '❌ не запущен',
+            'errors_sent': '✅ отправляются',
+            'errors_not_sent': '❌ не отправляются',
+            'log_status_title': 'Статус лог-бота',
+            'log_group': 'Лог-группа',
+            'bot_sending': 'Отправка через бота',
+            'errors': 'Ошибки',
+            'startup_via_bot': '✅ Стартовое сообщение через бота',
+            'startup_via_userbot': '⚠️ Стартовое сообщение через юзербота',
+            'startup_error': '❌ Ошибка отправки',
+            'send_log_error': '❌ Не удалось отправить в лог',
+            'started': 'started!',
+            'update_status': 'Update status',
+            'prefix': 'Prefix',
+        },
+        'en': {
+            'git_timeout': '⚠️ Git: timeout (no network)',
+            'updates_available': '🔄 Updates available ({count})',
+            'up_to_date': '✅ Up to date',
+            'git_error': '⚠️ Git error',
+            'setup_log_group': '🤖 Setting up log group',
+            'searching_logs': 'Error searching logs',
+            'creating_log_group': '📝 Creating log group...',
+            'bot_prepare_error': 'Failed to prepare bot for adding',
+            'chat_id_error': '❌ Failed to get created chat ID',
+            'avatar_error': '⚠️ Failed to set avatar',
+            'invite_error': '⚠️ Failed to get invite link (no permissions)',
+            'bot_added': '✅ Bot added',
+            'bot_add_error': '⚠️ Failed to add bot after creation',
+            'chat_create_error': '❌ Chat creation error',
+            'log_setup_title': 'Setting up log group...',
+            'log_setup_success': '✅ Log group configured',
+            'log_setup_fail': '❌ Failed to configure',
+            'test_title': 'Testing log sending...',
+            'test_bot_available': 'Bot available',
+            'test_bot_not_available': 'Bot unavailable',
+            'test_bot_auth': 'Bot authorized',
+            'test_bot_not_auth': 'Bot not authorized',
+            'test_log_chat_id': 'Log chat ID',
+            'test_not_set': 'not set',
+            'test_time': 'Time',
+            'test_success': '✅ Test message sent',
+            'test_fail': '❌ Failed to send',
+            'test_error': '❌ Test error',
+            'log_status_on': '✅ enabled',
+            'log_status_off': '❌ disabled',
+            'log_not_configured': 'Not configured',
+            'bot_running': '✅ running',
+            'bot_not_running': '❌ not running',
+            'errors_sent': '✅ sent',
+            'errors_not_sent': '❌ not sent',
+            'log_status_title': 'Log bot status',
+            'log_group': 'Log group',
+            'bot_sending': 'Sending via bot',
+            'errors': 'Errors',
+            'startup_via_bot': '✅ Startup message via bot',
+            'startup_via_userbot': '⚠️ Startup message via userbot',
+            'startup_error': '❌ Send error',
+            'send_log_error': '❌ Failed to send to log',
+            'started': 'started!',
+            'update_status': 'Update status',
+            'prefix': 'Prefix',
+        }
+    }
+
+    lang_strings = strings.get(language, strings['en'])
+
     async def init_bot_client():
         pass
 
@@ -57,20 +160,20 @@ def register(kernel):
             try:
                 await asyncio.wait_for(run_git(["fetch", "origin"]), timeout=5)
             except asyncio.TimeoutError:
-                return "⚠️ Git: тайм-аут (нет сети)"
+                return lang_strings['git_timeout']
 
             code, output = await run_git(["rev-list", "--count", "HEAD..@{u}"])
 
             if code == 0 and output.isdigit():
                 updates_count = int(output)
                 if updates_count > 0:
-                    return f"🔄 Доступны обновления ({updates_count})"
+                    return lang_strings['updates_available'].format(count=updates_count)
 
-            return "✅ Актуальная версия"
+            return lang_strings['up_to_date']
 
         except Exception as e:
-            kernel.logger.error(f"Ошибка проверки обновлений: {e}")
-            return "⚠️ Ошибка Git"
+            kernel.logger.error(f"{lang_strings['git_error']}: {e}")
+            return lang_strings['git_error']
 
     async def setup_log_chat():
 
@@ -79,7 +182,7 @@ def register(kernel):
             return True
 
         kernel.logger.info(
-            f"{kernel.Colors.YELLOW}🤖 Настройка лог-группы{kernel.Colors.RESET}"
+            f"{kernel.Colors.YELLOW}{lang_strings['setup_log_group']}{kernel.Colors.RESET}"
         )
 
         try:
@@ -87,19 +190,18 @@ def register(kernel):
                 if dialog.title and "MCUB-logs" in dialog.title:
                     kernel.log_chat_id = dialog.id
                     kernel.config["log_chat_id"] = dialog.id
-                    # Сохраняем конфиг
                     with open(kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
                         json.dump(kernel.config, f, ensure_ascii=False, indent=2)
 
                     kernel.cprint(
-                        f"{kernel.Colors.GREEN}✅ Найден лог-чат: {dialog.title}{kernel.Colors.RESET}"
+                        f"{kernel.Colors.GREEN}✅ {dialog.title}{kernel.Colors.RESET}"
                     )
                     return True
         except Exception as e:
-            kernel.logger.error(f"Error searching logs: {e}")
+            kernel.logger.error(f"{lang_strings['searching_logs']}: {e}")
 
         kernel.logger.info(
-            f"{kernel.Colors.YELLOW}📝 Создаю лог-группу...{kernel.Colors.RESET}"
+            f"{kernel.Colors.YELLOW}{lang_strings['creating_log_group']}{kernel.Colors.RESET}"
         )
 
         users_to_invite = [InputUserSelf()]
@@ -116,19 +218,17 @@ def register(kernel):
                 users_to_invite.append(bot_entity)
             except Exception as e:
                 kernel.logger.warning(
-                    f"Не удалось подготовить бота для добавления: {e}"
+                    f"{lang_strings['bot_prepare_error']}: {e}"
                 )
 
         try:
             me = await kernel.client.get_me()
-            # Создаем чат
             created = await kernel.client(
                 CreateChatRequest(
                     title=f"MCUB-logs [{me.first_name}]", users=users_to_invite
                 )
             )
 
-            # Ищем ID чата в обновлениях
             chat_id = None
             if hasattr(created, "updates") and created.updates:
                 for update in created.updates:
@@ -139,13 +239,12 @@ def register(kernel):
                         break
             kernel.logger.debug(f"chat_id:{chat_id}")
 
-            # Резервный поиск ID
             if not chat_id and hasattr(created, "chats") and created.chats:
                 chat_id = created.chats[0].id
 
             if not chat_id:
                 kernel.logger.error(
-                    f"{kernel.Colors.RED}❌ Не удалось получить ID созданного чата{kernel.Colors.RESET}"
+                    f"{kernel.Colors.RED}{lang_strings['chat_id_error']}{kernel.Colors.RESET}"
                 )
                 return False
 
@@ -177,7 +276,7 @@ def register(kernel):
                             await kernel.client(EditPhotoRequest(channel=chat_id, photo=input_file))
             except Exception as e:
                 kernel.logger.warning(
-                    f"{kernel.Colors.YELLOW}⚠️ Не удалось установить аватарку: {e}{kernel.Colors.RESET}"
+                    f"{kernel.Colors.YELLOW}{lang_strings['avatar_error']}: {e}{kernel.Colors.RESET}"
                 )
 
             try:
@@ -186,11 +285,11 @@ def register(kernel):
                 )
                 if hasattr(invite, "link"):
                     kernel.logger.info(
-                        f"{kernel.Colors.GREEN}✅ Ссылка: {invite.link}{kernel.Colors.RESET}"
+                        f"{kernel.Colors.GREEN}✅ {invite.link}{kernel.Colors.RESET}"
                     )
             except Exception as e:
                 kernel.logger.warning(
-                    f"{kernel.Colors.YELLOW}⚠️ Не удалось получить ссылку (возможно нет прав): {e}{kernel.Colors.RESET}"
+                    f"{kernel.Colors.YELLOW}{lang_strings['invite_error']}: {e}{kernel.Colors.RESET}"
                 )
 
             if bot_entity and len(users_to_invite) == 1:
@@ -201,24 +300,24 @@ def register(kernel):
                         )
                     )
                     kernel.logger.info(
-                        f"{kernel.Colors.GREEN}✅ Бот добавлен{kernel.Colors.RESET}"
+                        f"{kernel.Colors.GREEN}{lang_strings['bot_added']}{kernel.Colors.RESET}"
                     )
                 except Exception as e:
                     kernel.logger.error(
-                        f"{kernel.Colors.YELLOW}⚠️ Не удалось добавить бота постфактум: {e}{kernel.Colors.RESET}"
+                        f"{kernel.Colors.YELLOW}{lang_strings['bot_add_error']}: {e}{kernel.Colors.RESET}"
                     )
 
             with open(kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(kernel.config, f, ensure_ascii=False, indent=2)
 
             kernel.logger.info(
-                f"{kernel.Colors.GREEN}✅ Лог-группа создана: {kernel.log_chat_id}{kernel.Colors.RESET}"
+                f"{kernel.Colors.GREEN}✅ {kernel.log_chat_id}{kernel.Colors.RESET}"
             )
             return True
 
         except Exception as e:
             kernel.logger.error(
-                f"{kernel.Colors.RED}❌ Ошибка создания чата: {e}{kernel.Colors.RESET}"
+                f"{kernel.Colors.RED}{lang_strings['chat_create_error']}: {e}{kernel.Colors.RESET}"
             )
             import traceback
 
@@ -227,47 +326,46 @@ def register(kernel):
 
     @kernel.register.command("log_setup")
     async def log_setup_handler(event):
-        await event.edit("🔄 Настраиваю лог-группу...")
+        await event.edit(lang_strings['log_setup_title'])
         if await setup_log_chat():
-            await event.edit(f"✅ Лог-группа настроена\nID: `{kernel.log_chat_id}`")
+            await event.edit(f"{lang_strings['log_setup_success']}\nID: `{kernel.log_chat_id}`")
         else:
-            await event.edit("❌ Не удалось настроить")
+            await event.edit(lang_strings['log_setup_fail'])
 
     @kernel.register.command("test_log")
     async def test_log_handler(event):
         try:
-            await event.edit("🧪 <i>Тестирую отправку логов...</i>", parse_mode="html")
+            await event.edit(f"<i>{lang_strings['test_title']}</i>", parse_mode="html")
             has_bot = hasattr(kernel, "bot_client") and kernel.bot_client
             bot_auth = has_bot and await kernel.bot_client.is_user_authorized()
             log_chat = kernel.log_chat_id
-            test_info = f"""🔧 <b>Тест отправки логов</b>
-<blockquote>🤖 <b>Бот доступен:</b> <mono>{'да' if has_bot else 'нет'}</mono>
-🔐 <b>Бот авторизован:</b> <mono>{'да' if bot_auth else 'нет'}</mono>
-💬 <b>Лог-чат ID:</b> <mono>{log_chat or 'не установлен'}</mono>
-⏰ <b>Время:</b> <mono>{datetime.now().strftime('%H:%M:%S')}</mono></blockquote>
-🧬 <i>Если это сообщение видно в лог-чате, значит всё работает</i>"""
+            test_info = f"""🔧 <b>{lang_strings['log_status_title']}</b>
+<blockquote>🤖 <b>{lang_strings['test_bot_available']}:</b> <mono>{lang_strings['test_bot_available'] if has_bot else lang_strings['test_bot_not_available']}</mono>
+🔐 <b>{lang_strings['test_bot_auth']}:</b> <mono>{lang_strings['test_bot_auth'] if bot_auth else lang_strings['test_bot_not_auth']}</mono>
+💬 <b>{lang_strings['test_log_chat_id']}:</b> <mono>{log_chat or lang_strings['test_not_set']}</mono>
+⏰ <b>{lang_strings['test_time']}:</b> <mono>{datetime.now().strftime('%H:%M:%S')}</mono></blockquote>"""
             success = await kernel.send_log_message(test_info)
             if success:
                 await event.edit(
-                    "✅ <i>Тестовое сообщение отправлено</i>", parse_mode="html"
+                    f"{lang_strings['test_success']}", parse_mode="html"
                 )
             else:
-                await event.edit("❌ <i>Не удалось отправить</i>", parse_mode="html")
+                await event.edit(f"{lang_strings['test_fail']}", parse_mode="html")
         except Exception as e:
             await event.edit(
-                f"❌ <i>Ошибка теста:</i> <code>{html.escape(str(e))}</code>",
+                f"{lang_strings['test_error']}: <code>{html.escape(str(e))}</code>",
                 parse_mode="html",
             )
 
     @kernel.register.command("log_status")
     async def log_status_handler(event):
-        status = "✅ включен" if kernel.log_chat_id else "❌ выключен"
-        chat_info = f"`{kernel.log_chat_id}`" if kernel.log_chat_id else "Не настроен"
-        bot_status = "✅ запущен" if bot_client else "❌ не запущен"
-        msg = f"""📊 <b>Статус лог-бота:</b> {status}
-<b>Лог-группа:</b> {chat_info}
-<b>Отправка через бота:</b> {bot_status}
-<b>Ошибки:</b> {'✅ отправляются' if kernel.log_chat_id else '❌ не отправляются'}"""
+        status = lang_strings['log_status_on'] if kernel.log_chat_id else lang_strings['log_status_off']
+        chat_info = f"`{kernel.log_chat_id}`" if kernel.log_chat_id else lang_strings['log_not_configured']
+        bot_status = lang_strings['bot_running'] if bot_client else lang_strings['bot_not_running']
+        msg = f"""📊 <b>{lang_strings['log_status_title']}</b>: {status}
+<b>{lang_strings['log_group']}:</b> {chat_info}
+<b>{lang_strings['bot_sending']}:</b> {bot_status}
+<b>{lang_strings['errors']}:</b> {lang_strings['errors_sent'] if kernel.log_chat_id else lang_strings['errors_not_sent']}"""
         await event.edit(msg, parse_mode="html")
 
     async def send_startup_message():
@@ -288,10 +386,10 @@ def register(kernel):
             ]
             if images:
                 image_path = os.path.join(kernel.IMG_DIR, images[0])
-        message = f"""🧬 <b>MCUB</b> {kernel.VERSION} started!
+        message = f"""🧬 <b>MCUB</b> {kernel.VERSION} {lang_strings['started']}
 <blockquote><b>🔭 GitHub commit SHA:</b> <code>{commit_hash}</code>
-🎩 <b>Update status:</b> <i>{update_status}</i></blockquote>
-🧿 <b><i>Prefix:</i></b> <code>{kernel.custom_prefix}</code>"""
+🎩 <b>{lang_strings['update_status']}:</b> <i>{update_status}</i></blockquote>
+🧿 <b><i>{lang_strings['prefix']}:</i></b> <code>{kernel.custom_prefix}</code>"""
         try:
             if bot_client and await bot_client.is_user_authorized():
                 if image_path and os.path.exists(image_path):
@@ -306,7 +404,7 @@ def register(kernel):
                         kernel.log_chat_id, message, parse_mode="html"
                     )
                 kernel.cprint(
-                    f"{kernel.Colors.GREEN}✅ Стартовое сообщение через бота{kernel.Colors.RESET}"
+                    f"{kernel.Colors.GREEN}{lang_strings['startup_via_bot']}{kernel.Colors.RESET}"
                 )
             else:
                 if image_path:
@@ -321,11 +419,11 @@ def register(kernel):
                         kernel.log_chat_id, message, parse_mode="html"
                     )
                 kernel.cprint(
-                    f"{kernel.Colors.YELLOW}⚠️ Стартовое сообщение через юзербота{kernel.Colors.RESET}"
+                    f"{kernel.Colors.YELLOW}{lang_strings['startup_via_userbot']}{kernel.Colors.RESET}"
                 )
         except Exception as e:
             kernel.cprint(
-                f"{kernel.Colors.RED}❌ Ошибка отправки: {e}{kernel.Colors.RESET}"
+                f"{kernel.Colors.RED}{lang_strings['startup_error']}: {e}{kernel.Colors.RESET}"
             )
 
     async def send_log_message_via_bot(self, text, file=None):
@@ -368,7 +466,7 @@ def register(kernel):
             except Exception:
                 pass
             self.cprint(
-                f"{self.Colors.RED}❌ Не удалось отправить в лог: {e}{self.Colors.RESET}"
+                f"{self.Colors.RED}{lang_strings['send_log_error']}: {e}{self.Colors.RESET}"
             )
             return False
 

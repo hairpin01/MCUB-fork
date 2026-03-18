@@ -94,7 +94,22 @@ def register(kernel):
 • <b>Lack of official support</b> - User API is not officially documented, may be unstable
 <b>User responsibility</b> - the account owner is responsible for bot actions that violate Telegram rules
 <b>Risk to main account</b> - recommended to use a separate account for userbot</blockquote>''',
-            'mcubinfo_error': '🌩️ <b>error, check logs</b>\nFull Logs: <pre>{e}<pre>'
+            'mcubinfo_error': '🌩️ <b>error, check logs</b>\nFull Logs: <pre>{e}<pre>',
+            'powersave_status': '🔋 Power save mode {status}{features}',
+            'select_language': '🌐 Select language',
+            'btn_russian': 'Русский',
+            'btn_english': 'English',
+            'settings_inline_title': '⚙️ Settings',
+            'settings_inline_description': 'Userbot settings panel',
+            'btn_reset_prefix': 'reset prefix',
+            'btn_reset_alias': 'reset alias',
+            'btn_api_protection': '{status} api protection',
+            'btn_powersave': '{status} powersave',
+            'btn_2fa': '{status} 2fa',
+            'btn_mcubinfo': 'mcub info',
+            'btn_kernel_version': 'Kernel version: {version}',
+            'api_protection_status': 'API protection {status}',
+            '2fa_status': '2FA {status}'
         }
     }
 
@@ -169,15 +184,23 @@ def register(kernel):
 
         status = _('powersave_enabled') if kernel.power_save_mode else _('powersave_disabled')
         features = _('powersave_features') if kernel.power_save_mode else ""
-        await event.edit(f"Режим энергосбережения {status}{features}", parse_mode='html')
+        await event.edit(_('powersave_status', status=status, features=features), parse_mode='html')
 
     @kernel.register.command("lang")
     async def lang_handler(event):
         args = event.text.split()
         if len(args) < 2:
-            await event.edit(_('lang_usage', prefix=kernel.custom_prefix))
-            return
+            buttons = [
+                [
+                    Button.inline(_('btn_russian'), "lang:ru"),
+                    Button.inline(_('btn_english'), "lang:en")
+                ]
+            ]
+            success = await kernel.inline_form(event.chat_id, _('select_language'), buttons=buttons)
+            if success:
+                await event.delete()
 
+            return
         new_lang = args[1].lower()
         LANGS = {"ru", "en"}
 
@@ -217,29 +240,29 @@ def register(kernel):
 
         buttons = [
             [
-                Button.inline("reset prefix", b"settings_reset_prefix"),
-                Button.inline("reset alias", b"settings_reset_alias"),
+                Button.inline(_('btn_reset_prefix'), b"settings_reset_prefix"),
+                Button.inline(_('btn_reset_alias'), b"settings_reset_alias"),
                 Button.inline(
-                    f"{'✅' if api_protection else '❌'} api protection",
+                    _('btn_api_protection', status='✅' if api_protection else '❌'),
                     b"settings_toggle_api",
                 ),
             ],
             [
                 Button.inline(
-                    f"{'✅' if power_save else '❌'} powersave",
+                    _('btn_powersave', status='✅' if power_save else '❌'),
                     b"settings_toggle_powersave",
                 ),
                 Button.inline(
-                    f"{'✅' if two_fa else '❌'} 2fa", b"settings_toggle_2fa"
+                    _('btn_2fa', status='✅' if two_fa else '❌'), b"settings_toggle_2fa"
                 ),
             ],
-            [Button.inline("mcub info", b"settings_mcubinfo")],
-            [Button.inline(f"Kernel version: {kernel.VERSION}", b"settings_version")],
+            [Button.inline(_('btn_mcubinfo'), b"settings_mcubinfo")],
+            [Button.inline(_('btn_kernel_version', version=kernel.VERSION), b"settings_version")],
         ]
 
         result = event.builder.article(
-            title="Settings",
-            description="Userbot settings panel",
+            title=_('settings_inline_title'),
+            description=_('settings_inline_description'),
             text=_('settings_title'),
             buttons=buttons,
             parse_mode='html'
@@ -269,7 +292,7 @@ def register(kernel):
             with open(kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(kernel.config, f, ensure_ascii=False, indent=2)
             status = _('api_enabled') if not current else _('api_disabled')
-            await event.edit(f"API protection {status}", parse_mode='html')
+            await event.edit(_('api_protection_status', status=status), parse_mode='html')
 
         elif data == "settings_toggle_powersave":
             current = kernel.config.get("power_save_mode", False)
@@ -277,16 +300,16 @@ def register(kernel):
             kernel.power_save_mode = not current
             with open(kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(kernel.config, f, ensure_ascii=False, indent=2)
-            status = _('api_enabled') if not current else _('api_disabled')
-            await event.edit(f"Power save mode {status}", parse_mode='html')
+            status = _('powersave_enabled') if not current else _('powersave_disabled')
+            await event.edit(_('api_protection_status', status=status), parse_mode='html')
 
         elif data == "settings_toggle_2fa":
             current = kernel.config.get("2fa_enabled", False)
             kernel.config["2fa_enabled"] = not current
             with open(kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(kernel.config, f, ensure_ascii=False, indent=2)
-            status = _('api_enabled') if not current else _('api_disabled')
-            await event.edit(f"2FA {status}", parse_mode='html')
+            status = _('2fa_enabled') if not current else _('2fa_disabled')
+            await event.edit(_('2fa_status', status=status), parse_mode='html')
 
         elif data == "settings_mcubinfo":
             info_text = (
@@ -298,8 +321,18 @@ def register(kernel):
             await event.edit(info_text)
 
         elif data == "settings_version":
-            await event.answer(f"Kernel version: {kernel.VERSION}", alert=True)
+            await event.answer(_('btn_kernel_version', version=kernel.VERSION), alert=True)
 
+        await event.answer()
+
+    async def lang_callback_handler(event):
+        data = event.data.decode()
+        if data.startswith("lang:"):
+            lang = data.split(":")[1]
+            kernel.config["language"] = lang
+            with open(kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
+                json.dump(kernel.config, f, ensure_ascii=False, indent=2)
+            await event.edit(_('lang_changed', lang=lang), parse_mode='html')
         await event.answer()
 
     @kernel.register.command("mcubinfo")
@@ -314,3 +347,4 @@ def register(kernel):
 
     kernel.register_inline_handler("settings", settings_inline_handler)
     kernel.register_callback_handler("settings_", settings_callback_handler)
+    kernel.register_callback_handler("lang:", lang_callback_handler)

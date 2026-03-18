@@ -329,6 +329,13 @@ def register(kernel):
             'module_manager': 'Менеджер модулей\n\nИспользуйте "man" для просмотра модулей или "man [модуль]" для поиска.',
             'search_hint': '🔍 Поиск модулей\n\nНапишите "man [название]" для поиска модулей и команд\nПример: man ping',
             'search_results': 'Результаты поиска',
+            'command': 'Command',
+            'and_more_commands': '... и еще {count} команд',
+            'not_found_hint': 'Попробуйте другой запрос.',
+            'closed': 'Closed',
+            'page_error': 'Error',
+            'search_error': 'Search Error',
+            'search_error_desc': 'An error occurred',
         },
         'en': {
             'help_not_command': 'Did you mean ',
@@ -353,6 +360,13 @@ def register(kernel):
             'module_manager': 'Module Manager\n\nUse "man" to browse modules or "man [module]" to search.',
             'search_hint': '🔍 Search Modules\n\nType "man [name]" to search for modules and commands\nExample: man ping',
             'search_results': 'Search results',
+            'command': 'Command',
+            'and_more_commands': '... and {count} more commands',
+            'not_found_hint': 'Try another query.',
+            'closed': 'Closed',
+            'page_error': 'Error',
+            'search_error': 'Search Error',
+            'search_error_desc': 'An error occurred',
         }
     }
 
@@ -429,16 +443,16 @@ def register(kernel):
         msg += f'<blockquote expandable>{CUSTOM_EMOJI["alembic"]} <b>{strings["description"]}:</b> <i>{metadata.get("description", strings["no_description"])}</i>\n</blockquote>'
 
         if commands:
-            msg += f'\n<b>Command:</b>\n'
+            msg += f'\n<b>{strings["command"]}:</b>\n'
             msg += '<blockquote expandable>'
-            for cmd in commands[:5]:  # Показываем только первые 5 команд
+            for cmd in commands[:5]:
                 cmd_desc = metadata.get("commands", {}).get(
                     cmd, f'{CUSTOM_EMOJI["confused"]} {strings["no_description"]}'
                 )
                 msg += f'• <code>{kernel.custom_prefix}{cmd}</code> - {cmd_desc}\n'
 
             if len(commands) > 5:
-                msg += f'... и еще {len(commands)-5} команд\n'
+                msg += f'... {strings["and_more_commands"].format(count=len(commands)-5)}\n'
         else:
             msg += f'\n{CUSTOM_EMOJI["blocked"]} {strings["no_commands"]}\n'
         msg += '</blockquote>'
@@ -510,7 +524,7 @@ def register(kernel):
                         search_header = event.builder.article(
                             title=f"Search: {search_term}",
                             description=f"Found {result_count} modules",
-                            text=f'<b>🔍 {lang_strings["search_results"]}: "{search_term}"</b>\n'
+                            text=f'<b>🔍 {strings["search_results"]}: "{search_term}"</b>\n'
                                  f'<i>Найдено {result_count} модулей</i>\n\n',
                             parse_mode="html",
                             thumb=thumb_search
@@ -573,7 +587,7 @@ def register(kernel):
                             description=f"No results for '{search_term}'",
                             text=f'<b>{CUSTOM_EMOJI["blocked"]} {lang_strings["module_not_found"]}</b>\n\n'
                                  f'<i>По запросу "{search_term}" ничего не найдено.</i>\n'
-                                 f'Попробуйте другой запрос.',
+                                 f'{lang_strings["not_found_hint"]}',
                             parse_mode="html",
                             thumb=thumb_not_found
                         )
@@ -592,8 +606,8 @@ def register(kernel):
                     )
 
                     error_article = event.builder.article(
-                        title="Search Error",
-                        description="An error occurred",
+                        title=lang_strings["search_error"],
+                        description=lang_strings["search_error_desc"],
                         text=f'<b>{CUSTOM_EMOJI["blocked"]} {lang_strings["error"]}</b>\n\n'
                              f'<code>{str(e)[:200]}</code>',
                         parse_mode="html",
@@ -618,7 +632,7 @@ def register(kernel):
             try:
                 await kernel.client.delete_messages(event.chat_id, [event.message_id])
             except Exception:
-                await event.answer("Closed", alert=False)
+                await event.answer(lang_strings["closed"], alert=False)
 
         elif data.startswith("man_page_"):
             try:
@@ -635,7 +649,7 @@ def register(kernel):
                 except TypeError:
                     await event.edit(add_inline_banner_preview(msg), buttons=buttons, parse_mode="html")
             except Exception as e:
-                await event.answer(f"Error: {str(e)[:50]}", alert=True)
+                await event.answer(f"{lang_strings['page_error']}: {str(e)[:50]}", alert=True)
 
     @kernel.register.command("man")
     async def man_handler(event):

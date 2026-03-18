@@ -340,85 +340,9 @@ def register(kernel):
             'dict_set_confirm': '✏️ Set key {key}: {old} → {new}',
             'operation_success': '✅ Operation successful',
             'operation_failed': '❌ Operation failed: {error}',
-        },
-        'ru': {
-            'config_menu_text': '{menu_emoji} <b>Меню конфигурации</b>\nВыберите раздел конфигурации:',
-            'btn_kernel_config': '🪄 Конфиг ядра',
-            'btn_modules_config': '🚂 Конфиг модулей',
-            'kernel_config_title': '{pencil} <b>Конфиг ядра</b>\n{page_emoji} Страница <b>{page}/{total_pages}</b> ({total_keys} ключей)',
-            'modules_config_title': '{puzzle} <b>Конфиг модулей</b>\n{page_emoji} Страница <b>{page}/{total_pages}</b> ({total_modules} модулей)',
-            'module_config_title': '{puzzle} <b>Модуль:</b> <code>{module_name}</code>\n{page_emoji} Страница <b>{page}/{total_pages}</b> ({total_items} ключей)',
-            'key_view': '{note} <b>{key}</b> ({type_emoji} {value_type})\n{display_value}',
-            'btn_back': '⬅️',
-            'btn_next': '➡️',
-            'btn_menu': '🔙 Меню',
-            'btn_modules': '🔙 Модули',
-            'btn_back_simple': '🔙 Назад',
-            'expired': '❌ Истекло',
-            'invalid_type': '❌ Неверный тип конфига',
-            'not_found': '❌ Не найдено',
-            'no_config': '❌ У модуля нет конфига',
-            'not_boolean': '❌ Не булево значение',
-            'changed_to': '✅ Изменено на {value}',
-            'error': '❌ Ошибка: {error}',
-            'cfg_usage': '{gear} <b>Конфиг</b>: Используйте инлайн или <code>.cfg [ключ]</code> или <code>.cfg [now/hide/unhide] [ключ]</code>',
-            'hidden_key': '{briefcase} <b>Скрыто</b>: <code>{key}</code>',
-            'key_not_found': '{ballot} <b>Не найдено</b>: <code>{key}</code>',
-            'system_key': '{paperclip} <b>Системный ключ</b>',
-            'visible_key': '{book} <b>Видимый</b>: <code>{key}</code>',
-            'fcfg_usage': '{gear} <code>.fcfg [set/del/add/dict/list] -m [modules]</code>',
-            'specify_module': '{cross} Укажите имя модуля после -m',
-            'not_enough_args': '{cross} Недостаточно аргументов',
-            'protected_key': '{cross} <b>Защищено</b>',
-            'set_success': '{check} <b>Установлено</b> <code>{key}</code> = <code>{value}</code>',
-            'set_module_success': '{check} <b>Установлено</b> модуль <code>{module}</code> ключ <code>{key}</code> = <code>{value}</code>',
-            'delete_success': '{ballot} <b>Удалено</b> <code>{key}</code>',
-            'delete_module_success': '{ballot} <b>Удалено</b> модуль <code>{module}</code> ключ <code>{key}</code>',
-            'not_found_in_module': '{cross} Не найдено в конфиге модуля',
-            'key_exists': '{cross} Уже существует',
-            'add_success': '{check} <b>Добавлено</b> <code>{key}</code>',
-            'add_module_success': '{check} <b>Добавлено</b> модуль <code>{module}</code> ключ <code>{key}</code>',
-            'not_dict': '{cross} Ключ не является словарем',
-            'dict_success': '{check} <b>Словарь</b> <code>{key}[{subkey}]</code> обновлен',
-            'dict_module_success': '{check} <b>Словарь</b> модуль <code>{module}</code> ключ <code>{key}[{subkey}]</code> обновлен',
-            'not_list': '{cross} Ключ не является списком',
-            'list_success': '{check} <b>Список</b> <code>{key}</code> дополнен',
-            'list_module_success': '{check} <b>Список</b> модуль <code>{module}</code> ключ <code>{key}</code> дополнен',
-            'toggle_false': '❌ Установить false',
-            'toggle_true': '✅ Установить true',
-            'invalid_format': '❌ Неверный формат',
-            'btn_edit': '✏️ Изменить',
-            'btn_delete': '🗑️ Удалить',
-            'btn_reveal': '👁️ Раскрыть',
-            'btn_list_add': '📝 Добавить в список',
-            'btn_list_del': '🗑️ Удалить из списка',
-            'btn_list_set': '✏️ Изменить элемент списка',
-            'btn_dict_add': '🔑 Добавить в словарь',
-            'btn_dict_del': '🗑️ Удалить ключ словаря',
-            'btn_dict_set': '✏️ Изменить значение словаря',
-            'fcfg_inline_usage': 'Используйте: fcfg set <id_ключа> <значение> | fcfg list/dict <add/del/set> <id_ключа> [значение] | fcfg module <модуль> ...',
-            'fcfg_inline_only_set': '❌ В инлайн режиме поддерживается только set',
-            'fcfg_inline_no_module': '❌ Неверная связка модуль/ключ',
-            'fcfg_inline_success': '✅ Ключ {key} изменен на {value}',
-            'fcfg_inline_id_not_found': '❌ ID ключа не найден или истек',
-            'fcfg_inline_protected': '❌ Этот ключ защищен',
-            'fcfg_confirm_title': '✅ Подтвердить значение',
-            'fcfg_confirm_text': 'Значение передаётся в config',
-            'fcfg_confirm_success': '✅ Ключ конфига {key} обновлен на {value}',
-            'fcfg_confirm_error': '❌ Ошибка обновления конфига: {error}',
-            'fcfg_confirm_expired': '❌ Подтверждение истекло или уже использовано',
-            'key_deleted': '🗑️ Ключ удален',
-            'value_inserted': '✅ Значение вставлено',
-            'list_empty': '📭 Список пуст',
-            'dict_empty': '📭 Словарь пуст',
-            'list_add_confirm': '➕ Добавить: {value}',
-            'list_remove_confirm': '🗑️ Удалить элемент {index}: {value}',
-            'list_set_confirm': '✏️ Заменить элемент {index}: {old} → {new}',
-            'dict_add_confirm': '🔑 Добавить ключ: {key} = {value}',
-            'dict_remove_confirm': '🗑️ Удалить ключ: {key}',
-            'dict_set_confirm': '✏️ Установить ключ {key}: {old} → {new}',
-            'operation_success': '✅ Операция выполнена успешно',
-            'operation_failed': '❌ Ошибка операции: {error}',
+            'btn_close': '❌ Close',
+            'kernel_config_title_short': 'Kernel Config - {page}',
+            'modules_config_title_short': 'Modules Config - {page}',
         }
     }
 
@@ -639,7 +563,7 @@ def register(kernel):
             buttons.append(nav_buttons)
 
 
-        buttons.append([Button.inline("❌ Close", data=b"cfg_close")])
+        buttons.append([Button.inline("❌ Close", data=b"cfg_close", style="danger")])
 
         return buttons
 
@@ -672,7 +596,7 @@ def register(kernel):
             buttons.append(nav_buttons)
 
 
-        buttons.append([Button.inline("❌ Close", data=b"cfg_close")])
+        buttons.append([Button.inline("❌ Close", data=b"cfg_close", style="danger")])
 
         return buttons
 
@@ -713,7 +637,7 @@ def register(kernel):
             buttons.append(nav_buttons)
 
 
-        buttons.append([Button.inline("❌ Close", data=b"cfg_close")])
+        buttons.append([Button.inline("❌ Close", data=b"cfg_close", style="danger")])
 
         return buttons
 
@@ -724,11 +648,11 @@ def register(kernel):
 
         buttons = [
             [
-                Button.inline(t('btn_kernel_config'), data=b"config_kernel_page_0"),
-                Button.inline(t('btn_modules_config'), data=b"config_modules_page_0")
+                Button.inline(t('btn_kernel_config'), data=b"config_kernel_page_0", style="primary"),
+                Button.inline(t('btn_modules_config'), data=b"config_modules_page_0", style="primary")
             ],
             [
-                Button.inline("❌ Close", data=b"cfg_close")
+                Button.inline("❌ Close", data=b"cfg_close", style="danger")
             ],
         ]
         thumb = InputWebDocument(
@@ -974,11 +898,14 @@ def register(kernel):
             # Bool toggle button
             if value_type == "bool":
                 toggle_text = t('toggle_false') if value else t('toggle_true')
+                toggle_style = "danger" if value else "success"
+                toggle_style = "danger" if value else "success"
                 buttons.append(
                     [
                         Button.inline(
                             toggle_text,
                             data=f"cfg_modules_bool_{module_name}__{key}__{page}".encode(),
+                            style=toggle_style
                         )
                     ]
                 )
@@ -993,7 +920,8 @@ def register(kernel):
                         Button.switch_inline(
                             text=t('btn_edit'),
                             query=f"fcfg module {module_name} set {key_id} ",
-                            same_peer=True
+                            same_peer=True,
+                            style="primary"
                         )
                     ])
 
@@ -1006,21 +934,24 @@ def register(kernel):
                     Button.switch_inline(
                         text=t('btn_list_add'),
                         query=f"fcfg module {module_name} list add {key_id} ",
-                        same_peer=True
+                        same_peer=True,
+                        style="success"
                     )
                 ])
                 buttons.append([
                     Button.switch_inline(
                         text=t('btn_list_del'),
                         query=f"fcfg module {module_name} list del {key_id}",
-                        same_peer=True
+                        same_peer=True,
+                        style="danger"
                     )
                 ])
                 buttons.append([
                     Button.switch_inline(
                         text=t('btn_list_set'),
                         query=f"fcfg module {module_name} list set {key_id} ",
-                        same_peer=True
+                        same_peer=True,
+                        style="primary"
                     )
                 ])
             elif value_type == "dict" and not is_hidden and not is_secret:
@@ -1031,21 +962,24 @@ def register(kernel):
                     Button.switch_inline(
                         text=t('btn_dict_add'),
                         query=f"fcfg module {module_name} dict add {key_id} ",
-                        same_peer=True
+                        same_peer=True,
+                        style="success"
                     )
                 ])
                 buttons.append([
                     Button.switch_inline(
                         text=t('btn_dict_del'),
                         query=f"fcfg module {module_name} dict del {key_id}",
-                        same_peer=True
+                        same_peer=True,
+                        style="danger"
                     )
                 ])
                 buttons.append([
                     Button.switch_inline(
                         text=t('btn_dict_set'),
                         query=f"fcfg module {module_name} dict set {key_id} ",
-                        same_peer=True
+                        same_peer=True,
+                        style="primary"
                     )
                 ])
 
@@ -1057,6 +991,8 @@ def register(kernel):
                     Button.inline(
                         t('btn_reveal'),
                         data=f"cfg_module_reveal_{key_id}".encode()
+                    ,
+                        style="primary"
                     )
                 ])
 
@@ -1078,7 +1014,7 @@ def register(kernel):
             buttons.append(nav_buttons)
 
             buttons.append([
-                Button.inline("❌ Close", data=b"cfg_close")
+                Button.inline("❌ Close", data=b"cfg_close", style="danger")
             ])
 
             await event.edit(text, buttons=buttons, parse_mode="html")
@@ -1819,11 +1755,11 @@ def register(kernel):
             text = t('config_menu_text', menu_emoji='<tg-emoji emoji-id="5404451992456156919">🧬</tg-emoji>')
             buttons = [
                     [
-                        Button.inline(t('btn_kernel_config'), data=b"config_kernel_page_0"),
-                        Button.inline(t('btn_modules_config'), data=b"config_modules_page_0")
+                        Button.inline(t('btn_kernel_config'), data=b"config_kernel_page_0", style="primary"),
+                        Button.inline(t('btn_modules_config'), data=b"config_modules_page_0", style="primary")
                     ],
                     [
-                        Button.inline("❌ Close", data=b"cfg_close")
+                        Button.inline("❌ Close", data=b"cfg_close", style="danger")
                     ],
                 ]
             try:
@@ -1971,10 +1907,13 @@ def register(kernel):
 
                 if value_type == "bool":
                     toggle_text = t('toggle_false') if value else t('toggle_true')
+                    toggle_style = "danger" if value else "success"
+                    toggle_style = "danger" if value else "success"
                     buttons.append(
                         [
                             Button.inline(
-                                toggle_text, data=f"cfg_bool_toggle_{key_id}".encode()
+                                toggle_text, data=f"cfg_bool_toggle_{key_id}".encode(),
+                                style=toggle_style
                             )
                         ]
                     )
@@ -1985,7 +1924,8 @@ def register(kernel):
                             Button.switch_inline(
                                 text=t('btn_edit'),
                                 query=f"fcfg set {key_id} ",
-                                same_peer=True
+                                same_peer=True,
+                                style="primary"
                             )
                         ])
 
@@ -1996,21 +1936,24 @@ def register(kernel):
                         Button.switch_inline(
                             text=t('btn_list_add'),
                             query=f"fcfg list add {key_id} ",
-                            same_peer=True
+                            same_peer=True,
+                            style="success"
                         )
                     ])
                     buttons.append([
                         Button.switch_inline(
                             text=t('btn_list_del'),
                             query=f"fcfg list del {key_id}",
-                            same_peer=True
+                            same_peer=True,
+                            style="danger"
                         )
                     ])
                     buttons.append([
                         Button.switch_inline(
                             text=t('btn_list_set'),
                             query=f"fcfg list set {key_id} ",
-                            same_peer=True
+                            same_peer=True,
+                            style="primary"
                         )
                     ])
 
@@ -2020,21 +1963,24 @@ def register(kernel):
                         Button.switch_inline(
                             text=t('btn_dict_add'),
                             query=f"fcfg dict add {key_id} ",
-                            same_peer=True
+                            same_peer=True,
+                            style="success"
                         )
                     ])
                     buttons.append([
                         Button.switch_inline(
                             text=t('btn_dict_del'),
                             query=f"fcfg dict del {key_id}",
-                            same_peer=True
+                            same_peer=True,
+                            style="danger"
                         )
                     ])
                     buttons.append([
                         Button.switch_inline(
                             text=t('btn_dict_set'),
                             query=f"fcfg dict set {key_id} ",
-                            same_peer=True
+                            same_peer=True,
+                            style="primary"
                         )
                     ])
 
@@ -2044,6 +1990,8 @@ def register(kernel):
                         Button.inline(
                             t('btn_delete'),
                             data=f"cfg_delete_{key_id}".encode()
+                        ,
+                            style="danger"
                         )
                     ])
 
@@ -2053,6 +2001,8 @@ def register(kernel):
                         Button.inline(
                             t('btn_reveal'),
                             data=f"cfg_reveal_{key_id}".encode()
+                        ,
+                            style="primary"
                         )
                     ])
 
@@ -2069,7 +2019,7 @@ def register(kernel):
 
 
                 buttons.append([
-                    Button.inline("❌ Close", data=b"cfg_close")
+                    Button.inline("❌ Close", data=b"cfg_close", style="danger")
                 ])
 
                 await event.edit(text, buttons=buttons, parse_mode="html")
@@ -2104,10 +2054,13 @@ def register(kernel):
 
                 new_value = kernel.config[key]
                 toggle_text = t('toggle_false') if new_value else t('toggle_true')
+                toggle_style = "danger" if new_value else "success"
+                toggle_style = "danger" if new_value else "success"
                 buttons = [
                     [
                         Button.inline(
-                            toggle_text, data=f"cfg_bool_toggle_{key_id}".encode()
+                            toggle_text, data=f"cfg_bool_toggle_{key_id}".encode(),
+                            style=toggle_style
                         )
                     ],
 
@@ -2115,6 +2068,8 @@ def register(kernel):
                         Button.inline(
                             t('btn_delete'),
                             data=f"cfg_delete_{key_id}".encode()
+                        ,
+                            style="danger"
                         )
                     ],
                     [
@@ -2177,12 +2132,14 @@ def register(kernel):
                 buttons = []
                 if value_type == "bool":
                     toggle_text = t('toggle_false') if value else t('toggle_true')
+                    toggle_style = "danger" if value else "success"
+                    toggle_style = "danger" if value else "success"
                     buttons.append([
                         Button.inline(toggle_text, data=f"cfg_bool_toggle_{key_id}".encode())
                     ])
                 elif not is_key_hidden(key) or key not in SENSITIVE_KEYS:
                     buttons.append([
-                        Button.switch_inline(t('btn_edit'), query=f"fcfg set {key_id} ")
+                        Button.switch_inline(t('btn_edit'), query=f"fcfg set {key_id} ", style="primary")
                     ])
 
                 # Кнопки для списков и словарей
@@ -2191,21 +2148,24 @@ def register(kernel):
                         Button.switch_inline(
                             text=t('btn_list_add'),
                             query=f"fcfg list add {key_id} ",
-                            same_peer=True
+                            same_peer=True,
+                            style="success"
                         )
                     ])
                     buttons.append([
                         Button.switch_inline(
                             text=t('btn_list_del'),
                             query=f"fcfg list del {key_id}",
-                            same_peer=True
+                            same_peer=True,
+                            style="danger"
                         )
                     ])
                     buttons.append([
                         Button.switch_inline(
                             text=t('btn_list_set'),
                             query=f"fcfg list set {key_id} ",
-                            same_peer=True
+                            same_peer=True,
+                            style="primary"
                         )
                     ])
 
@@ -2214,26 +2174,29 @@ def register(kernel):
                         Button.switch_inline(
                             text=t('btn_dict_add'),
                             query=f"fcfg dict add {key_id} ",
-                            same_peer=True
+                            same_peer=True,
+                            style="success"
                         )
                     ])
                     buttons.append([
                         Button.switch_inline(
                             text=t('btn_dict_del'),
                             query=f"fcfg dict del {key_id}",
-                            same_peer=True
+                            same_peer=True,
+                            style="danger"
                         )
                     ])
                     buttons.append([
                         Button.switch_inline(
                             text=t('btn_dict_set'),
                             query=f"fcfg dict set {key_id} ",
-                            same_peer=True
+                            same_peer=True,
+                            style="primary"
                         )
                     ])
 
                 buttons.append([
-                    Button.inline(t('btn_delete'), data=f"cfg_delete_{key_id}".encode())
+                    Button.inline(t('btn_delete'), data=f"cfg_delete_{key_id}".encode(), style="danger")
                 ])
 
                 # Кнопки навигации
@@ -2245,7 +2208,7 @@ def register(kernel):
 
 
                 buttons.append([
-                    Button.inline("❌ Close", data=b"cfg_close")
+                    Button.inline("❌ Close", data=b"cfg_close", style="danger")
                 ])
 
                 await event.edit(text, buttons=buttons, parse_mode="html")
@@ -2312,11 +2275,14 @@ def register(kernel):
                 # Bool toggle button
                 if value_type == "bool":
                     toggle_text = t('toggle_false') if value else t('toggle_true')
+                    toggle_style = "danger" if value else "success"
+                    toggle_style = "danger" if value else "success"
                     buttons.append(
                         [
                             Button.inline(
                                 toggle_text,
                                 data=f"cfg_modules_bool_{module_name}__{key}__{page}".encode(),
+                                style=toggle_style
                             )
                         ]
                     )
@@ -2326,7 +2292,8 @@ def register(kernel):
                         Button.switch_inline(
                             text=t('btn_edit'),
                             query=f"fcfg module {module_name} set {key_id} ",
-                            same_peer=True
+                            same_peer=True,
+                            style="primary"
                         )
                     ])
 
@@ -2336,21 +2303,24 @@ def register(kernel):
                         Button.switch_inline(
                             text=t('btn_list_add'),
                             query=f"fcfg module {module_name} list add {key_id} ",
-                            same_peer=True
+                            same_peer=True,
+                            style="success"
                         )
                     ])
                     buttons.append([
                         Button.switch_inline(
                             text=t('btn_list_del'),
                             query=f"fcfg module {module_name} list del {key_id}",
-                            same_peer=True
+                            same_peer=True,
+                            style="danger"
                         )
                     ])
                     buttons.append([
                         Button.switch_inline(
                             text=t('btn_list_set'),
                             query=f"fcfg module {module_name} list set {key_id} ",
-                            same_peer=True
+                            same_peer=True,
+                            style="primary"
                         )
                     ])
                 elif value_type == "dict":
@@ -2358,21 +2328,24 @@ def register(kernel):
                         Button.switch_inline(
                             text=t('btn_dict_add'),
                             query=f"fcfg module {module_name} dict add {key_id} ",
-                            same_peer=True
+                            same_peer=True,
+                            style="success"
                         )
                     ])
                     buttons.append([
                         Button.switch_inline(
                             text=t('btn_dict_del'),
                             query=f"fcfg module {module_name} dict del {key_id}",
-                            same_peer=True
+                            same_peer=True,
+                            style="danger"
                         )
                     ])
                     buttons.append([
                         Button.switch_inline(
                             text=t('btn_dict_set'),
                             query=f"fcfg module {module_name} dict set {key_id} ",
-                            same_peer=True
+                            same_peer=True,
+                            style="primary"
                         )
                     ])
 
@@ -2390,7 +2363,7 @@ def register(kernel):
                 buttons.append(nav_buttons)
 
                 buttons.append([
-                    Button.inline("❌ Close", data=b"cfg_close")
+                    Button.inline("❌ Close", data=b"cfg_close", style="danger")
                 ])
 
                 await event.edit(text, buttons=buttons, parse_mode="html")

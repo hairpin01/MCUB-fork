@@ -967,16 +967,33 @@ class Kernel:
         async def message_handler(event):
             _tele = '<tg-emoji emoji-id="5429283852684124412">🔭</tg-emoji>'
             _note = '<tg-emoji emoji-id="5334882760735598374">📝</tg-emoji>'
+
             try:
                 await self.process_command(event)
             except Exception as e:
                 await self.handle_error(e, source="message_handler", event=event)
+
+                from telethon.errors import RPCError
+                if isinstance(e, RPCError):
+                    cmd_text = html.escape(event.text or "")
+                    rpc_msg = html.escape(str(e))
+                    try:
+                        await event.edit(
+                            f"{_tele} <b>Call <code>{cmd_text}</code> failed due to RPC error:</b> "
+                            f"<code>{rpc_msg}{request_name}</code>",
+                            parse_mode="html",
+                        )
+                    except Exception as edit_err:
+                        self.logger.error(f"Could not edit RPC error message: {edit_err}")
+                    return
+
+
                 tb = traceback.format_exc()
                 if len(tb) > 1000:
                     tb = tb[-1000:] + "\n...(truncated)"
                 try:
                     await event.edit(
-                        f"{_tele} <b>Call <code>{event.text}</code> failed!</b>\n\n"
+                        f"{_tele} <b>Call <code>{event.text}</code> failed!</b>\n"
                         f"{_note} <b><i>Full log:</i></b>\n<pre>{tb}</pre>",
                         parse_mode="html",
                     )

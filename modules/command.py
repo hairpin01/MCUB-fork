@@ -54,6 +54,9 @@ def register(kernel):
             "backup_no": "No / Нет",
             "backup_enabled": "Auto-backup enabled / Авто-бэкап включен",
             "backup_disabled": "Auto-backup disabled / Авто-бэкап выключен",
+            "btn_ru": "RU",
+            "btn_en": "EN",
+            "backup_not_found": "Backup module not found",
         },
         "en": {
             "hello": "Hello! I am a bot from MCUB-fork",
@@ -98,6 +101,9 @@ def register(kernel):
             "backup_no": "No / Нет",
             "backup_enabled": "Auto-backup enabled / Авто-бэкап включен",
             "backup_disabled": "Auto-backup disabled / Авто-бэкап выключен",
+            "btn_ru": "RU",
+            "btn_en": "EN",
+            "backup_not_found": "Backup module not found",
         },
     }
 
@@ -141,8 +147,8 @@ def register(kernel):
                 file="https://x0.at/ZXNS.mp4",
                 message=(
                     f"<b>{lang_strings['hello']}</b>\n"
-                    f"<blockquote>{lang_strings['developers']} \n"
-                    f"{lang_strings['fork']} @Hairpin01,\n"
+                    f"<blockquote>{lang_strings['developers']}\n"
+                    f"{lang_strings['fork']} @Hairpin01\n"
                     f"{lang_strings['original']} @Mitrichq</blockquote>"
                 ),
                 parse_mode="html",
@@ -212,8 +218,8 @@ def register(kernel):
                 message=lang_strings["choose_language"],
                 buttons=[
                     [
-                        Button.inline("RU", b"start_lang_ru"),
-                        Button.inline("EN", b"start_lang_en"),
+                        Button.inline(lang_strings["btn_ru"], b"start_lang_ru"),
+                        Button.inline(lang_strings["btn_en"], b"start_lang_en"),
                     ]
                 ],
             )
@@ -404,7 +410,7 @@ def register(kernel):
 
                 await event.answer(f"{strings_current['backup_enabled']} ({interval}h)", alert=True)
             else:
-                await event.edit("Backup module not found")
+                await event.edit(lang_strings["backup_not_found"])
 
         except Exception as e:
             kernel.logger.error(f"{lang_strings['callback_error']}: {e}")

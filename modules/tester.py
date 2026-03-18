@@ -70,6 +70,12 @@ def register(kernel):
             "send_banner_error": "Error sending banner",
             "logs": "Logs",
             "kernel_version": "Kernel Version",
+            "ping": "ping",
+            "uptime": "uptime",
+            "ms": "ms",
+            "hours": "h",
+            "minutes": "m",
+            "seconds": "s",
         },
         "ru": {
             "error_logs": "{snowflake} <b>Ошибка, смотри логи</b>",
@@ -80,11 +86,17 @@ def register(kernel):
             "freezing_number": "{speech} Укажите число секунд",
             "freezing_start": "{snowflake} Замораживаю на {seconds} секунд...",
             "freezing_done": "{check} Разморожено после {seconds} секунд",
-            "custom_text_error": "<b>Error in custom text format:</b> {error}",
+            "custom_text_error": "<b>Ошибка в форматировании кастомного текста:</b> {error}",
             "quote_mode_error": "Ошибка в режиме цитирования",
             "send_banner_error": "Ошибка отправки баннера",
             "logs": "Логи",
             "kernel_version": "Версия ядра",
+            "ping": "пинг",
+            "uptime": "время работы",
+            "ms": "мс",
+            "hours": "ч",
+            "minutes": "м",
+            "seconds": "с",
         },
     }
 
@@ -139,11 +151,11 @@ def register(kernel):
             seconds = uptime_seconds % 60
 
             if hours > 0:
-                uptime = f"{hours}ч {minutes}м {seconds}с"
+                uptime = f"{hours}{lang_strings['hours']} {minutes}{lang_strings['minutes']} {seconds}{lang_strings['seconds']}"
             elif minutes > 0:
-                uptime = f"{minutes}м {seconds}с"
+                uptime = f"{minutes}{lang_strings['minutes']} {seconds}{lang_strings['seconds']}"
             else:
-                uptime = f"{seconds}с"
+                uptime = f"{seconds}{lang_strings['seconds']}"
 
             system_user = getpass.getuser()
             hostname = socket.gethostname()
@@ -163,8 +175,8 @@ def register(kernel):
                     )
                     response = t("custom_text_error", error=str(e))
             else:
-                response = f"""<blockquote>{CUSTOM_EMOJI['❄️']} <b>ping:</b> {ping_time} ms</blockquote>
-<blockquote>{CUSTOM_EMOJI['❄️']} <b>uptime:</b> {uptime}</blockquote>"""
+                response = f"""<blockquote>{CUSTOM_EMOJI['❄️']} <b>{lang_strings['ping']}:</b> {ping_time} {lang_strings['ms']}</blockquote>
+<blockquote>{CUSTOM_EMOJI['❄️']} <b>{lang_strings['uptime']}:</b> {uptime}</blockquote>"""
 
             banner_url = kernel.config.get("ping_banner_url")
             quote_media = kernel.config.get("ping_quote_media", False)

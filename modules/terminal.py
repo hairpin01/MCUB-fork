@@ -62,6 +62,7 @@ def register(kernel):
             'no_running_commands': 'Нет выполняющихся команд',
             'stdout': 'stdout:',
             'stderr': 'stderr:',
+            'command_not_specified': 'Команда не указана',
         },
         'en': {
             'empty': 'empty',
@@ -79,6 +80,7 @@ def register(kernel):
             'no_running_commands': 'No running commands',
             'stdout': 'stdout:',
             'stderr': 'stderr:',
+            'command_not_specified': 'Command not specified',
         }
     }
 
@@ -354,7 +356,7 @@ def register(kernel):
     async def terminal_handler(event):
         args = event.text.split(maxsplit=1)
         if len(args) < 2:
-            await event.edit(f"{CUSTOM_EMOJI['🗯']} <i>Команда не указана</i>", parse_mode="html")
+            await event.edit(f"{CUSTOM_EMOJI['🗯']} <i>{lang_strings['command_not_specified']}</i>", parse_mode="html")
             return
         command = args[1]
 

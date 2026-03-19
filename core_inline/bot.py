@@ -2,11 +2,10 @@ import asyncio
 import aiohttp
 import json
 import re
-import sys
 import os
 import tempfile
 import time
-from telethon import TelegramClient, Button, events
+from telethon import TelegramClient, events
 
 class InlineBot:
     def __init__(self, kernel):
@@ -128,16 +127,14 @@ class InlineBot:
 
             if not username:
                 self.kernel.logger.error("Username не может быть пустым")
-                print(f"{self.kernel.Colors.RED}=X Username не может быть пустым{self.kernel.Colors.RESET}")
                 continue
 
             if not re.match(r'^[a-zA-Z0-9_]{5,32}$', username):
                 self.kernel.logger.error(f"Некорректный формат username: {username}")
-                print(f"{self.kernel.Colors.RED}=X Username должен быть 5-32 символа, только латиница, цифры и _ {self.kernel.Colors.RESET}")
                 continue
 
             if not username.lower().endswith('bot'):
-                print(f"{self.kernel.Colors.YELLOW}=? Username бота должен оканчиваться на 'bot'. Текущий: {username}{self.kernel.Colors.RESET}")
+                self.kernel.logger.warning(f"Username бота должен оканчиваться на 'bot'. Текущий: {username}")
                 confirm = input(f"{self.kernel.Colors.YELLOW}Продолжить с этим username? (y/n): {self.kernel.Colors.RESET}").strip().lower()
                 if confirm != 'y':
                     continue

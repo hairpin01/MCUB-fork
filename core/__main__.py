@@ -4,9 +4,6 @@
 
 import sys
 import os
-import threading
-import time
-import itertools
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -103,7 +100,6 @@ def _parse_args():
 
 
 async def _main() -> None:
-    import asyncio
     args        = _parse_args()
     web_enabled = not args.no_web
 
@@ -158,12 +154,12 @@ async def _main() -> None:
     kernel.web_enabled = web_enabled
     kernel.web_host    = args.host
     kernel.web_port    = args.port
-    kernel.proxy_web = args.proxy_web
+    kernel.proxy_web   = args.proxy_web
     await kernel.run()
 
 
 if __name__ == "__main__":
-    import traceback
+
     import asyncio
 
     try:
@@ -171,7 +167,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n-> exit kernel…", flush=True)
         sys.exit(0)
-    except Exception as exc:
-        print(f'\nFatal: "{exc}" [X]', flush=True)
-        traceback.print_exc()
-        sys.exit(1)

@@ -7,16 +7,13 @@ Fixed: Correctly handles nested entities, multi-byte characters, and preserves \
 import html
 from collections import deque
 from html.parser import HTMLParser
-from typing import Optional, Tuple, List, Dict, Any, Union
+from typing import Optional, Tuple, List, Union
 
 from telethon.tl.types import (
     MessageEntityBold, MessageEntityItalic, MessageEntityCode,
     MessageEntityPre, MessageEntityTextUrl, MessageEntityUnderline,
     MessageEntityStrike, MessageEntityBlockquote, MessageEntityCustomEmoji,
-    MessageEntitySpoiler, MessageEntityEmail, MessageEntityUrl,
-    MessageEntityMention, MessageEntityMentionName, MessageEntityHashtag,
-    MessageEntityCashtag, MessageEntityBotCommand, MessageEntityBankCard,
-    MessageEntityPhone
+    MessageEntitySpoiler, MessageEntityEmail
 )
 
 
@@ -69,8 +66,6 @@ class TelegramHTMLParser(HTMLParser):
         elif tag == 'a':
             href = attrs_dict.get('href', '')
             if href.startswith('mailto:'):
-                # Extract email without mailto: prefix
-                email = href[7:]
                 self._open_entities[tag] = MessageEntityEmail(self._utf16_offset, 0)
             elif href:
                 self._open_entities[tag] = MessageEntityTextUrl(self._utf16_offset, 0, url=href)
@@ -163,8 +158,8 @@ class HTMLDecorator:
 
             # Reconcile current tags with logical stack
             common = 0
-            for c, l in zip(current_tags, logical_stack):
-                if c is l:
+            for c, logical in zip(current_tags, logical_stack):
+                if c is logical:
                     common += 1
                 else:
                     break
@@ -234,7 +229,7 @@ class HTMLDecorator:
                 end = (entity.offset + entity.length) * 2
                 email_text = utf16_bytes[start:end].decode('utf-16-le')
                 attrs['href'] = f"mailto:{email_text}"
-            except:
+            except Exception:
                 attrs['href'] = "mailto:"
         elif isinstance(entity, MessageEntityCustomEmoji):
             tag = "tg-emoji"

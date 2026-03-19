@@ -437,9 +437,7 @@ def register(kernel):
 
     def strip_formatting(value_str):
         """Убирает HTML-теги и Markdown-форматирование из вставляемого значения"""
-        # Убираем HTML-теги
-        value_str = re.sub(r'<[^>]+>', '', value_str)
-        # Декодируем HTML-сущности
+        # Декодируем HTML-сущности (теги HTML сохраняются как есть)
         value_str = html.unescape(value_str)
         # Убираем Markdown-форматирование (bold, italic, underline, strikethrough, code, spoiler)
         # Порядок важен: сначала длинные паттерны

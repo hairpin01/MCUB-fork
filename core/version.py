@@ -5,13 +5,12 @@ import time
 import aiohttp
 import asyncio
 import subprocess
-import os
 from typing import Tuple, Optional
 import shutil
 
 
 # version kenrel MCUB
-__version__ = "1.0.3.9"
+__version__ = "1.0.4"
 VERSION = __version__
 
 class VersionManager:

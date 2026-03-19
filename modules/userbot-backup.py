@@ -253,6 +253,10 @@ def register(kernel):
             if config_file.exists():
                 shutil.copy2(config_file, backup_dir / "config.json")
 
+            db_file = current_dir / "userbot.db"
+            if db_file.exists():
+                shutil.copy2(db_file, backup_dir / 'userbot.db')
+
             modules_dir = current_dir / "modules_loaded"
             if modules_dir.exists():
                 shutil.copytree(modules_dir, backup_dir / "modules_loaded")

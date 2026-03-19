@@ -164,7 +164,6 @@ class KernelLogger:
 
         try:
             self.save_error_to_file(f"Error in {source}:\n{mask_sensitive_data(tb)}")
-            print(f"=X {tb}")
 
             client = (
                 k.bot_client

@@ -1,20 +1,19 @@
 # author: @Hairpin00
 # version: 1.0.9
 # description: loader modules
-import asyncio
+import logging
 import os
 import re
 import sys
 import subprocess
-import importlib.util
 import inspect
 import aiohttp
 from datetime import datetime
 import html
-import json
 import random
-from telethon import events, Button
-from telethon.tl.functions.messages import EditMessageRequest
+from telethon import Button
+
+logger = logging.getLogger("mcub.loader")
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
@@ -495,7 +494,7 @@ def register(kernel):
                                 if "/" in repo_url
                                 else repo_url
                             )
-            except Exception as e:
+            except Exception:
                 modules = []
                 repo_name = repo_url.split("/")[-2] if "/" in repo_url else repo_url
 
@@ -559,7 +558,7 @@ def register(kernel):
             return msg, buttons
 
         except Exception as e:
-            print(f"Ошибка в handle_catalog: {e}")
+            logger.error(f"Ошибка в handle_catalog: {e}")
             import traceback
             traceback.print_exc()
             return t('catalog_error', error=str(e)[:100]), []
@@ -592,7 +591,7 @@ def register(kernel):
             await event.answer([builder])
 
         except Exception as e:
-            print(f"Ошибка в catalog_inline_handler: {e}")
+            logger.error(f"Ошибка в catalog_inline_handler: {e}")
 
     async def catalog_callback_handler(event):
         try:
@@ -604,7 +603,7 @@ def register(kernel):
             await event.edit(msg, buttons=buttons if buttons else None, parse_mode="html")
 
         except Exception as e:
-            print(f"Ошибка в catalog_callback_handler: {e}")
+            logger.error(f"Ошибка в catalog_callback_handler: {e}")
             await event.answer(f"Ошибка: {str(e)[:50]}", alert=True)
 
     kernel.register_inline_handler("catalog", catalog_inline_handler)
@@ -789,7 +788,7 @@ def register(kernel):
             add_log(t('log_conflict', error=e))
             log_text = "\n".join(install_log)
 
-            conflict_details = f"Команда '{e.command}' уже зарегистрирована модулем '{e.conflict_type}'"
+            _conflict_details = f"Команда '{e.command}' уже зарегистрирована модулем '{e.conflict_type}'"
 
             if e.conflict_type == "system":
                 await edit_with_emoji(
@@ -1022,7 +1021,6 @@ def register(kernel):
                             if resp.status == 200:
                                 code = await resp.text()
                                 add_log(t('log_download_success', status=resp.status))
-                                save_name = module_name + ".py"
                             else:
                                 add_log(t('log_download_failed', status=resp.status))
                                 await edit_with_emoji(
@@ -1424,7 +1422,7 @@ def register(kernel):
 
     @kernel.register.command("modules")
     async def modules_list_handler(event):
-        await log_to_bot(f"🔷 Просмотр списка модулей")
+        await log_to_bot("🔷 Просмотр списка модулей")
 
         if not kernel.loaded_modules and not kernel.system_modules:
             await edit_with_emoji(

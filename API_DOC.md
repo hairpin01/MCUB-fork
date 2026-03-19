@@ -1,4 +1,4 @@
-# `MCUB` Module API Documentation `1.0.3.9`
+# `MCUB` Module API Documentation `1.0.4`
 
 __Table of Contents__
 
@@ -28,6 +28,7 @@ __Table of Contents__
 > 24. [Lifecycle Callbacks](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#lifecycle-callbacks)
 > 25. [Custom Core MCUB](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#custom-core-mcub)
 > 26. [AntiScamModules](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#antiscammodules)
+> 27. [Localization (i18n)](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#localization-i18n)
 
 # Introduction
 
@@ -2535,17 +2536,22 @@ Register a Telethon event handler. Unlike raw `client.add_event_handler`, handle
 async def hello(event):
     await event.reply("Hi!")
 
-@kernel.register.event('callbackquery', pattern=b'menu_')
-async def menu_cb(event):
-    await event.answer("Menu clicked")
-
 @kernel.register.event('newmessage', bot_client=True, pattern=r'/start')
 async def bot_start(event):
     await event.reply("Hello from bot client")
+
+# CallbackQuery MUST be registered on bot_client — inline buttons
+# are answered through the bot, not the user account.
+@kernel.register.event('callbackquery', bot_client=True, pattern=b'menu_')
+async def menu_cb(event):
+    await event.answer("Menu clicked")
 ```
 
 > [!WARNING]
 > Do **not** mix `@kernel.register.event` with raw `@kernel.client.on(...)` in the same module. The raw form bypasses the tracker and will leak a handler after unload.
+
+> [!IMPORTANT]
+> `callbackquery` handlers **must** use `bot_client=True`. Callback queries from inline buttons are routed through the Telegram Bot API — registering on `kernel.client` (the user account) will cause the handler to never fire.
 
 ---
 
@@ -3102,3 +3108,226 @@ To ship your core as a drop-in file (like the built-in `zen` core):
 
 > [!TIP]
 > Prefix your core file with your username to avoid conflicts: `core/kernel/hairpin_custom.py`.
+
+---
+
+## Localization (i18n)
+
+MCUB modules use `utils/strings.py` — a lightweight helper class that reads the active language from `kernel.config` and provides a clean API for string lookup and formatting.
+
+Default language: **`ru`**. Falls back to `ru` → first locale in dict if the configured language is not found.
+
+---
+
+### Setup
+
+Place `utils/strings.py` in the `utils/` directory of your MCUB installation, then import in any module:
+
+```python
+from utils.strings import Strings
+```
+
+---
+
+### Language Config
+
+`kernel.config.get('language', 'ru')`
+---
+
+Returns the user's language code. The user sets it once:
+
+```python
+kernel.config['language'] = 'en'
+kernel.save_config()
+```
+
+`Strings` reads this automatically when passed a kernel object — no manual `config.get(...)` needed.
+
+---
+
+### `Strings(kernel_or_lang, data, *, fallback='ru', strict=False)`
+
+Creates a localized string accessor.
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `kernel_or_lang` | kernel \| str | Kernel object (reads language automatically) or a bare string like `'ru'` |
+| `data` | `dict[str, dict[str, str]]` | `{ 'ru': { 'key': 'value' }, 'en': { … } }` |
+| `fallback` | str | Locale to use when active locale is missing. Default: `'ru'` |
+| `strict` | bool | If `True`, raises `KeyError` on missing keys instead of returning `[key]` |
+
+**Usage:**
+
+```python
+def register(kernel):
+    lang = Strings(kernel, {
+        'ru': {
+            'hello':     'Привет, {name}!',
+            'done':      '✅ Готово',
+            'no_args':   '❌ Аргументы не переданы',
+        },
+        'en': {
+            'hello':     'Hello, {name}!',
+            'done':      '✅ Done',
+            'no_args':   '❌ No arguments provided',
+        },
+    })
+```
+
+---
+
+### API Reference
+
+`lang['key']`
+---
+Return the raw string for the active locale.
+
+```python
+await event.edit(lang['done'])
+```
+
+---
+
+`lang('key', **kwargs)`
+---
+Return the string formatted with the given keyword arguments (`str.format_map`).
+
+```python
+await event.edit(lang('hello', name='Митрич'))
+# → 'Привет, Митрич!'
+```
+
+---
+
+`lang.fmt('key', **kwargs)`
+---
+Alias for `lang('key', **kwargs)`.
+
+---
+
+`lang.get('key', default=None)`
+---
+Return the string for `key`, or `default` if the key is absent. Never raises.
+
+```python
+label = lang.get('optional_key', '—')
+```
+
+---
+
+`lang.has('key')`
+---
+Return `True` if `key` exists in the active or fallback locale.
+
+---
+
+`lang.keys()`
+---
+Return the set of all keys available in the active locale (union with fallback).
+
+---
+
+`lang.locale`
+---
+The active language code as a string (`'ru'`, `'en'`, …).
+
+---
+
+`Strings.validate(data)`
+---
+Class method. Check that all locales in `data` define exactly the same set of keys.
+
+Returns a list of problem strings — empty list means everything is consistent.
+
+```python
+problems = Strings.validate(strings_data)
+if problems:
+    kernel.logger.warning('\n'.join(problems))
+```
+
+---
+
+### Parametric Strings
+
+Use `{placeholder}` in string values, then pass keyword arguments when calling:
+
+```python
+'ru': { 'banned_in': 'Заблокирован в {count} из {total} групп' },
+'en': { 'banned_in': 'Banned in {count} of {total} groups' },
+
+# in handler:
+await event.edit(lang('banned_in', count=37, total=42))
+```
+
+---
+
+### Adding a New Language
+
+Add a new key to the data dict with all the same keys as `'ru'`. No other changes needed:
+
+```python
+lang = Strings(kernel, {
+    'ru': { 'done': 'Готово', 'error': 'Ошибка' },
+    'en': { 'done': 'Done',   'error': 'Error'   },
+    'de': { 'done': 'Fertig', 'error': 'Fehler'  },  # ← new
+})
+```
+
+---
+
+### Currently Supported Languages
+
+| Code | Language |
+|------|----------|
+| `ru` | Русский (по умолчанию) |
+| `en` | English |
+
+Community modules may add additional codes following the same pattern.
+
+---
+
+### Best Practices
+
+- **Always define `'ru'` first** — it is the canonical reference and default fallback.
+- **Create `Strings` once** at the top of `register()`, not inside handlers.
+- **Never hardcode UI strings** directly in `event.edit(...)` calls.
+- **Use `Strings.validate()`** during development to catch missing keys early.
+- **Keep key names short and consistent** across modules: `'done'`, `'error'`, `'no_args'`.
+
+---
+
+### Full Example
+
+```python
+# author: @example
+# version: 1.0.0
+# description: i18n example using utils/strings.py
+
+from utils import get_args_raw
+from utils.strings import Strings
+
+def register(kernel):
+    lang = Strings(kernel, {
+        'ru': {
+            'no_args': '❌ Аргументы не переданы',
+            'result':  'Результат: {value}',
+            'done':    '✅ Готово',
+        },
+        'en': {
+            'no_args': '❌ No arguments provided',
+            'result':  'Result: {value}',
+            'done':    '✅ Done',
+        },
+    })
+
+    @kernel.register.command('calc')
+    async def calc_handler(event):
+        args = get_args_raw(event)
+        if not args:
+            await event.edit(lang['no_args'])
+            return
+
+        await event.edit(lang('result', value=args.upper()))
+```

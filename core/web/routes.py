@@ -774,7 +774,7 @@ async def api_setup_complete(request: web.Request) -> web.Response:
     ev: asyncio.Event | None = request.app.get("setup_event")
     if ev is not None:
         ev.set()
-        print("[setup] setup_event fired (from bot step)", flush=True)
+        log.debug("setup_event fired (from bot step)")
         return web.json_response({"success": True, "message": "Kernel starting..."})
     return web.json_response({"error": "No setup event pending"}, status=400)
 

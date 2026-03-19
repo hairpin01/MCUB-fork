@@ -160,20 +160,6 @@ def register(kernel):
 
         await event.edit(_('alias_created', prefix=kernel.custom_prefix, alias=alias, command=command), parse_mode='html')
 
-    @kernel.register.command("2fa")
-    async def twofa_handler(event):
-        current = kernel.config.get("2fa_enabled", False)
-        kernel.config["2fa_enabled"] = not current
-
-        with open(kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
-            json.dump(kernel.config, f, ensure_ascii=False, indent=2)
-
-        status = _('2fa_enabled') if not current else _('2fa_disabled')
-        await event.edit(
-            f"{status}",
-            parse_mode='html'
-            )
-
     @kernel.register.command("powersave")
     async def powersave_handler(event):
         kernel.power_save_mode = not kernel.power_save_mode
@@ -251,10 +237,7 @@ def register(kernel):
                 Button.inline(
                     _('btn_powersave', status='✅' if power_save else '❌'),
                     b"settings_toggle_powersave",
-                ),
-                Button.inline(
-                    _('btn_2fa', status='✅' if two_fa else '❌'), b"settings_toggle_2fa"
-                ),
+                )
             ],
             [Button.inline(_('btn_mcubinfo'), b"settings_mcubinfo")],
             [Button.inline(_('btn_kernel_version', version=kernel.VERSION), b"settings_version")],
@@ -302,14 +285,6 @@ def register(kernel):
                 json.dump(kernel.config, f, ensure_ascii=False, indent=2)
             status = _('powersave_enabled') if not current else _('powersave_disabled')
             await event.edit(_('api_protection_status', status=status), parse_mode='html')
-
-        elif data == "settings_toggle_2fa":
-            current = kernel.config.get("2fa_enabled", False)
-            kernel.config["2fa_enabled"] = not current
-            with open(kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
-                json.dump(kernel.config, f, ensure_ascii=False, indent=2)
-            status = _('2fa_enabled') if not current else _('2fa_disabled')
-            await event.edit(_('2fa_status', status=status), parse_mode='html')
 
         elif data == "settings_mcubinfo":
             info_text = (

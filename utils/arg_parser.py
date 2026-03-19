@@ -2,9 +2,8 @@
 # version: 1.0.0
 # description: MCUB command argument parser
 
-import re
 import shlex
-from typing import List, Dict, Any, Tuple, Optional, Union
+from typing import List, Dict, Any, Tuple, Optional
 
 class ArgumentParser:
     """Argument parser for MCUB commands"""
@@ -294,45 +293,3 @@ class ArgumentValidator:
             return True
         except (ValueError, TypeError):
             return False
-
-def example_usage():
-    """Example usage of argument parser"""
-
-    parser1 = parse_arguments(".ping")
-    print(f"Command: {parser1.command}")
-    print(f"Args: {parser1.args}")
-
-    parser2 = parse_arguments(".echo Hello World!")
-    print(f"Command: {parser2.command}")
-    print(f"Args: {parser2.args}")
-    print(f"Arg 0: {parser2.get(0)}")
-    print(f"Arg 1: {parser2.get(1)}")
-
-    parser3 = parse_arguments(".send --to=12345 --message='Hello' --silent")
-    print(f"Command: {parser3.command}")
-    print(f"Flags: {parser3.flags}")
-    print(f"Kwargs: {parser3.kwargs}")
-    print(f"Has silent: {parser3.get_flag('silent')}")
-    print(f"Get to: {parser3.get_kwarg('to')}")
-
-    parser4 = parse_arguments(".search python --limit=10 --verbose")
-    print(f"Command: {parser4.command}")
-    print(f"Args: {parser4.args}")
-    print(f"Kwargs: {parser4.kwargs}")
-
-    parser5 = parse_arguments(".backup -v -f --output=/backup")
-    print(f"Command: {parser5.command}")
-    print(f"Flags: {parser5.flags}")
-    print(f"Kwargs: {parser5.kwargs}")
-
-    validator = ArgumentValidator()
-    parser6 = parse_arguments(".user add --name=John --age=25")
-
-    if validator.validate_required(parser6, 'name', 'age'):
-        print("All required arguments present")
-
-    if validator.validate_kwarg_type(parser6, 'age', int):
-        print("Age is a number")
-
-if __name__ == "__main__":
-    example_usage()

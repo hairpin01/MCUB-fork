@@ -22,7 +22,6 @@ try:
     import logging
     from telethon import events
     from core.lib.utils.exceptions import McubTelethonError
-    # from telethon import _check_mcub_installation
 except Exception as e:
     tb = traceback.format_exc()
     print(f"E: {e}\n>: {tb}")
@@ -32,9 +31,7 @@ try:
     from telethon import _check_mcub_installation
     _check_mcub_installation()
 except Exception:
-    # tb = traceback.format_exc()
     raise McubTelethonError("YOU is not install telethon-mcub, please run: 'pip install telethon-mcub' and 'pip uninstall telethon -y'! (or update telethon-mcub)")
-    sys.exit(106)
 
 try:
     from ..lib.utils.colors import Colors
@@ -257,8 +254,8 @@ class Kernel:
     def check_dependencies(self) -> None:
         """Check and install missing dependencies."""
         import subprocess
-        import itertools
         import threading
+        import itertools
         import time
 
         _REQUIREMENTS = [
@@ -944,10 +941,6 @@ class Kernel:
         if not await self.init_client():
             return
 
-        # self.shell = Shell(kernel=self)
-        # self.shell.attach_logging()
-        # self.shell.attach_stderr()
-        # asyncio.ensure_future(self.shell.run())
         try:
             await self.init_db()
         except ImportError:
@@ -980,7 +973,7 @@ class Kernel:
                     try:
                         await event.edit(
                             f"{_tele} <b>Call <code>{cmd_text}</code> failed due to RPC error:</b> "
-                            f"<code>{rpc_msg}{request_name}</code>",
+                            f"<code>{rpc_msg}</code>",
                             parse_mode="html",
                         )
                     except Exception as edit_err:
@@ -1015,32 +1008,18 @@ class Kernel:
                         '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>'
                     )
                     lang = self.config.get("language", "ru")
-                    strings = (
-                        {
-                            "ru": {
-                                "success": "Перезагрузка <b>успешна!</b>",
-                                "loading": "но модули ещё загружаются...",
-                            },
-                            "en": {
-                                "success": "Reboot <b>successful!</b>",
-                                "loading": "but modules are still loading...",
-                            },
-                        }
-                        .get(lang, {})
-                        .get("success"),
-                        {
-                            "ru": {
-                                "success": "Перезагрузка <b>успешна!</b>",
-                                "loading": "но модули ещё загружаются...",
-                            },
-                            "en": {
-                                "success": "Reboot <b>successful!</b>",
-                                "loading": "but modules are still loading...",
-                            },
-                        }
-                        .get(lang, {})
-                        .get("loading"),
-                    )
+                    _strings = {
+                        "ru": {
+                            "success": "Перезагрузка <b>успешна!</b>",
+                            "loading": "но модули ещё загружаются...",
+                        },
+                        "en": {
+                            "success": "Reboot <b>successful!</b>",
+                            "loading": "but modules are still loading...",
+                        },
+                    }
+                    lang_strings = _strings.get(lang, _strings["en"])
+                    strings = (lang_strings["success"], lang_strings["loading"])
                     emoji = "(*.*)"
                     total_ms = (
                         round((time.time() - restart_time) * 1000, 2)

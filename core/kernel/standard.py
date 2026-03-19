@@ -1099,7 +1099,7 @@ class Kernel:
 
             me = await self.client.get_me()
             mcub = (
-                '<tg-emoji emoji-id="5470015630302287916">🔮</tg-emoji>' * 4
+                '<tg-emoji emoji-id="5470015630302287916">🕳️</tg-emoji><tg-emoji emoji-id="5469945764069280010">Ⓜ️</tg-emoji><tg-emoji emoji-id="5469943045354984820">Ⓜ️</tg-emoji><tg-emoji emoji-id="5469879466954098867">Ⓜ️</tg-emoji>'
                 if me.premium
                 else "MCUB"
             )

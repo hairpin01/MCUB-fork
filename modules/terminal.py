@@ -3,14 +3,13 @@
 # version: 1.0.7
 # description: Terminal commands
 import asyncio
-import subprocess
+import logging
 import time
 import html
-import re
 import signal
 import os
-from pathlib import Path
-from telethon import events
+
+logger = logging.getLogger("mcub.terminal")
 
 CUSTOM_EMOJI = {
     "💻": '<tg-emoji emoji-id="5472111548572900003">💻</tg-emoji>',
@@ -176,7 +175,7 @@ def register(kernel):
                             break
                         data += chunk
                 except Exception as e:
-                    print(f"Error reading stream: {e}")
+                    logger.error(f"Error reading stream: {e}")
 
                 if is_stderr:
                     cmd_data["stderr"] += data
@@ -200,7 +199,7 @@ def register(kernel):
                 # Корректная обработка отмены задачи
                 pass
             except Exception as e:
-                print(f"Error in read_output: {e}")
+                logger.error(f"Error in read_output: {e}")
             finally:
                 if chat_id in self.update_tasks:
                     tasks = self.update_tasks[chat_id]
@@ -243,7 +242,7 @@ def register(kernel):
                 except asyncio.CancelledError:
                     break
                 except Exception as e:
-                    print(f"Update error: {e}")
+                    logger.error(f"Update error: {e}")
                     break
 
         async def send_final_output(self, chat_id):
@@ -271,7 +270,7 @@ def register(kernel):
                     chat_id, cmd_data["message_id"], output, parse_mode="html"
                 )
             except Exception as e:
-                print(f"Error editing final message: {e}")
+                logger.error(f"Error editing final message: {e}")
 
         async def kill_command(self, chat_id, message_id=None):
             if chat_id not in self.running_commands:

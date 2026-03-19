@@ -209,7 +209,7 @@ class InlineHandlers:
                 if not query.strip():
                     results = []
                     modules_count = len(self.kernel.loaded_modules) + len(self.kernel.system_modules)
-                    inline_cmd_count = len(self.kernel.inline_handlers)
+                    _inline_cmd_count = len(self.kernel.inline_handlers)
 
                     info_text = (
                         f"{self.EMOJI_CRYSTAL} <b>MCUB Bot</b>\n"
@@ -236,7 +236,6 @@ class InlineHandlers:
                     for pattern, handler in self.kernel.inline_handlers.items():
                         if len(results) >= 50:
                             break
-                        handler_name = getattr(handler, '__name__', 'Обработчик')
                         docstring = getattr(handler, '__doc__', None) or "команда"
                         cmd_text = f"{self.EMOJI_TELESCOPE} <b>Команда:</b> <code>{html.escape(pattern)}</code>\n\n"
                         thumb_cmd = InputWebDocument(
@@ -315,7 +314,7 @@ class InlineHandlers:
                 )
 
                 error = event.builder.article(
-                    f"Error",
+                    "Error",
                     text=f'🃏 Inline query error:\n <pre>{error_traceback}</pre>',
                     description=f"E: {str(e)[:50]}",
                     parse_mode="html",

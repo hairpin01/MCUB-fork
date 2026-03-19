@@ -524,7 +524,7 @@ def register(kernel):
                         search_header = event.builder.article(
                             title=f"Search: {search_term}",
                             description=f"Found {result_count} modules",
-                            text=f'<b>🔍 {strings["search_results"]}: "{search_term}"</b>\n'
+                            text=f'<b>🔍 {lang_strings["search_results"]}: "{search_term}"</b>\n'
                                  f'<i>Найдено {result_count} модулей</i>\n\n',
                             parse_mode="html",
                             thumb=thumb_search

@@ -316,7 +316,7 @@ class InlineHandlers:
 
                 error = event.builder.article(
                     f"Error",
-                    text=f'🃏 Inline query error: <pre>{error_traceback}</pre>',
+                    text=f'🃏 Inline query error:\n <pre>{error_traceback}</pre>',
                     description=f"E: {str(e)[:50]}",
                     parse_mode="html",
                     thumb=thumb,

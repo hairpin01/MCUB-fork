@@ -81,14 +81,14 @@ class DependencyResolver:
         global importlib
         mod_name = pkg_name.split("[")[0].replace("-", "_").lower()
         try:
-            importlib.import_module(mod_name) 
+            importlib.import_module(mod_name)
             return True
 
         except ImportError:
             pass
         # Try importlib.util for non-importable top-level packages
         try:
-            return importlib.util.find_spec(mod_name) is not None 
+            return importlib.util.find_spec(mod_name) is not None
         except (ModuleNotFoundError, ValueError):
             return False
 

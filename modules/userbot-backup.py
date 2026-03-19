@@ -413,6 +413,8 @@ def register(kernel):
 
             if restored:
                 await event.edit(f"{lang_strings['restored']}\n" + "\n".join(restored))
+                cmd = await event.reply(f'{kernel.custom_prefix}restart')
+                await kernel.process_command(cmd)
             else:
                 await event.edit(lang_strings['no_files'])
         except Exception as e:

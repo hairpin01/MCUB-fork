@@ -23,20 +23,20 @@ def hash_token(token: str) -> str:
 class AuthMiddleware:
     """
     Token-based authentication middleware for aiohttp web panel.
-    
+
     Supports:
     - Token authentication via Authorization header
     - Bypass for setup wizard endpoints
     - Configurable via config.json
     """
-    
+
     PUBLIC_PATHS = {
         "/",
         "/static",
         "/static/img",
         "/setup/reset",
     }
-    
+
     PUBLIC_API_PATHS = {
         "/api/setup/send_code",
         "/api/setup/verify_code",
@@ -46,18 +46,18 @@ class AuthMiddleware:
         "/api/bot/save_token",
         "/api/bot/auto_create",
     }
-    
+
     def __init__(self, app: web.Application):
         self.app = app
         self.token_hash: Optional[str] = None
         self.auth_enabled: bool = False
         self._setup_auth()
-    
+
     def _setup_auth(self) -> None:
         """Load auth configuration from app state."""
         kernel = self.app.get("kernel")
         config = {}
-        
+
         if kernel is not None:
             config = kernel.config
         elif self.app.get("setup_state"):
@@ -70,13 +70,13 @@ class AuthMiddleware:
                         config = json.load(f)
                 except Exception:
                     pass
-        
+
         web_token = config.get("web_panel_token")
         self.auth_enabled = bool(web_token)
-        
+
         if web_token:
             self.token_hash = hash_token(web_token)
-    
+
     def _is_public_path(self, path: str) -> bool:
         """Check if path is public (setup wizard)."""
         if path in self.PUBLIC_PATHS:
@@ -88,37 +88,37 @@ class AuthMiddleware:
         if path.startswith("/api/setup") or path.startswith("/api/bot"):
             return True
         return False
-    
+
     async def _authenticate(self, request: web.Request) -> bool:
         """Authenticate request using token from Authorization header."""
         auth_header = request.headers.get("Authorization", "")
-        
+
         if not auth_header.startswith("Bearer "):
             return False
-        
+
         token = auth_header[7:]
         provided_hash = hash_token(token)
-        
+
         return provided_hash == self.token_hash
-    
+
     async def __call__(self, app: web.Application) -> None:
         """Middleware factory."""
         @web.middleware
         async def auth_middleware(request: web.Request, handler: Callable) -> web.Response:
             if not self.auth_enabled:
                 return await handler(request)
-            
+
             if self._is_public_path(request.path):
                 return await handler(request)
-            
+
             if await self._authenticate(request):
                 return await handler(request)
-            
+
             return web.json_response(
                 {"error": "Unauthorized. Provide valid token in Authorization header."},
                 status=401
             )
-        
+
         app.middlewares.append(auth_middleware)
 
 

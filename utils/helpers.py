@@ -324,7 +324,7 @@ def format_time(seconds: Union[int, float], detailed: bool = False) -> str:
         days, seconds = divmod(seconds, 86400)
         hours, seconds = divmod(seconds, 3600)
         minutes, seconds = divmod(seconds, 60)
-        
+
         parts = []
         if weeks: parts.append(f"{weeks}w")
         if days: parts.append(f"{days}d")
@@ -332,7 +332,7 @@ def format_time(seconds: Union[int, float], detailed: bool = False) -> str:
         if minutes: parts.append(f"{minutes}m")
         if seconds or not parts: parts.append(f"{seconds}s")
         return " ".join(parts)
-    
+
     if seconds < 60:
         return f"{int(seconds)}s"
     elif seconds < 3600:
@@ -408,7 +408,7 @@ async def get_admins(event_or_client, chat_id: Optional[int] = None) -> List[Dic
     client = getattr(event_or_client, 'client', event_or_client)
     if chat_id is None:
         chat_id = getattr(event_or_client, 'chat_id', None)
-    
+
     if not chat_id:
         return []
 
@@ -442,22 +442,22 @@ async def resolve_peer(client, identifier: Union[str, int]) -> Optional[int]:
     try:
         if isinstance(identifier, int):
             return identifier
-        
+
         identifier = identifier.strip()
-        
+
         if identifier.isdigit():
             return int(identifier)
-        
+
         if identifier.startswith('@'):
             identifier = identifier[1:]
-        
+
         entity = await client.get_entity(identifier)
         return entity.id
     except Exception:
         return None
 
 
-def make_button(text: str, data: Optional[str] = None, url: Optional[str] = None, 
+def make_button(text: str, data: Optional[str] = None, url: Optional[str] = None,
                 switch: Optional[str] = None, same_peer: bool = False) -> Button:
     """
     Create a button with less boilerplate.
@@ -513,7 +513,7 @@ def make_buttons(buttons: Union[List[Dict[str, Any]], List[List[Dict[str, Any]]]
     """
     if not buttons:
         return []
-    
+
     first = buttons[0]
     if isinstance(first, list):
         result = []
@@ -529,10 +529,10 @@ def make_buttons(buttons: Union[List[Dict[str, Any]], List[List[Dict[str, Any]]]
                 ))
             result.append(button_row)
         return result
-    
+
     if cols is None:
         cols = 2
-    
+
     result = []
     for i in range(0, len(buttons), cols):
         row = []

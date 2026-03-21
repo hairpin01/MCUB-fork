@@ -5,6 +5,7 @@ import getpass
 import socket
 from telethon.tl.types import MessageEntityTextUrl
 from telethon import functions
+from copy import copy
 
 CUSTOM_EMOJI = {
     "📝": '<tg-emoji emoji-id="5334882760735598374">📝</tg-emoji>',
@@ -32,20 +33,17 @@ def add_link_preview(text, entities, link):
         return text, entities
 
     new_text = ZERO_WIDTH_CHAR + text
-
     new_entities = []
 
     if entities:
         for entity in entities:
-            new_entity = entity
+            new_entity = copy(entity)
             if hasattr(entity, "offset"):
                 new_entity.offset += 1
             new_entities.append(new_entity)
 
     link_entity = MessageEntityTextUrl(offset=0, length=1, url=link)
-
     new_entities.append(link_entity)
-
     return new_text, new_entities
 
 
@@ -162,7 +160,11 @@ def register(kernel):
             custom_text = kernel.config.get("ping_custom_text")
             if custom_text:
                 try:
-                    response = custom_text.format(
+                    _known = ["ping_time", "uptime", "system_user", "hostname"]
+                    _safe = custom_text.replace("{", "{{").replace("}", "}}")
+                    for _k in _known:
+                        _safe = _safe.replace("{{" + _k + "}}", "{" + _k + "}")
+                    response = _safe.format(
                         ping_time=ping_time,
                         uptime=uptime,
                         system_user=system_user,

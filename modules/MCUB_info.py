@@ -126,7 +126,7 @@ def register(kernel):
             timeout = aiohttp.ClientTimeout(total=10)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(
-                    "https://raw.githubusercontent.com/Mitrichdfklwhcluio/MCUBFB/main/core/kernel.py"
+                    "https://raw.githubusercontent.com/hairpin01/MCUB-fork/main/core/kernel.py"
                 ) as resp:
                     if resp.status == 200:
                         content = await resp.text()
@@ -265,7 +265,16 @@ def register(kernel):
             custom_text = kernel.config.get("info_custom_text")
             if custom_text:
                 try:
-                    info_text = custom_text.format(
+                    _known = [
+                        "kernel_version", "core_name", "ping_time", "uptime_str",
+                        "distro_name", "distro_emoji", "platform_type", "cpu_usage",
+                        "ram_usage", "system_user", "hostname", "update_emoji",
+                        "update_text", "update_needed",
+                    ]
+                    _safe = custom_text.replace("{", "{{").replace("}", "}}")
+                    for _k in _known:
+                        _safe = _safe.replace("{{" + _k + "}}", "{" + _k + "}")
+                    info_text = _safe.format(
                         kernel_version=kernel.VERSION,
                         core_name=core_name,
                         ping_time=ping_time,

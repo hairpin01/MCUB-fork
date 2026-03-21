@@ -54,6 +54,49 @@ class ModuleLoader:
     def __init__(self, kernel: "Kernel") -> None:
         self.k = kernel
 
+    def _build_module(self, spec, file_path: str, module_name: str):
+        """Create a module object preloaded with kernel context."""
+        module = importlib.util.module_from_spec(spec)
+        module.kernel = self.k
+        module.client = self.k.client
+        module.custom_prefix = self.k.custom_prefix
+        module.__file__ = file_path
+        module.__name__ = module_name
+        return module
+
+    def _iter_register_methods(self, register) -> list:
+        """Return callable register decorators stored on ``register.__dict__``."""
+        if not hasattr(register, "__dict__"):
+            return []
+        return [
+            attr
+            for name, attr in register.__dict__.items()
+            if callable(attr) and not name.startswith("__")
+        ]
+
+    def _get_register_param_name(self, register) -> str | None:
+        """Return the only register parameter name, if it is introspectable."""
+        if not callable(register):
+            return None
+        try:
+            params = list(inspect.signature(register).parameters.values())
+        except (TypeError, ValueError):
+            return None
+        if len(params) != 1:
+            return None
+        return params[0].name
+
+    async def _call_register(self, fn, arg) -> None:
+        """Invoke sync or async registration callbacks uniformly."""
+        if inspect.iscoroutinefunction(fn):
+            await fn(arg)
+        else:
+            fn(arg)
+
+    async def _check_module_compatibility(self, code: str) -> Tuple[bool, str]:
+        """Proxy compatibility checks through the kernel version manager."""
+        return await self.k.version_manager.check_module_compatibility(code)
+
     def resolve_pip_name(self, import_name: str) -> str:
         """Translate an import name to its pip package name."""
         return _IMPORT_TO_PIP.get(import_name, import_name)
@@ -287,15 +330,14 @@ class ModuleLoader:
         if not hasattr(module, "register"):
             return "none"
 
-        if hasattr(module.register, "__dict__"):
-            for name, attr in module.register.__dict__.items():
-                if callable(attr) and not name.startswith("__"):
-                    return "method"
+        if self._iter_register_methods(module.register):
+            return "method"
 
-        if callable(module.register):
-            params = list(inspect.signature(module.register).parameters.values())
-            if len(params) == 1:
-                return "new" if params[0].name == "kernel" else "old"
+        param_name = self._get_register_param_name(module.register)
+        if param_name == "kernel":
+            return "new"
+        if param_name is not None:
+            return "old"
 
         return "none"
 
@@ -307,37 +349,31 @@ class ModuleLoader:
         """
         k = self.k
         try:
-            async def _call(fn, arg):
-                if inspect.iscoroutinefunction(fn):
-                    await fn(arg)
-                else:
-                    fn(arg)
-
             if module_type == "method":
-                if not (hasattr(module, "register") and hasattr(module.register, "__dict__")):
+                methods = self._iter_register_methods(getattr(module, "register", None))
+                if not methods:
                     return False
-                for name, attr in module.register.__dict__.items():
-                    if callable(attr) and not name.startswith("__"):
-                        await _call(attr, k)
+                for attr in methods:
+                    await self._call_register(attr, k)
 
             elif module_type == "new":
                 if not (hasattr(module, "register") and callable(module.register)):
                     return False
-                await _call(module.register, k)
+                await self._call_register(module.register, k)
 
             elif module_type == "old":
                 if not (hasattr(module, "register") and callable(module.register)):
                     return False
-                await _call(module.register, k.client)
+                await self._call_register(module.register, k.client)
 
             else:
                 if not (hasattr(module, "register") and callable(module.register)):
                     return False
                 try:
-                    await _call(module.register, k)
+                    await self._call_register(module.register, k)
                 except Exception:
                     try:
-                        await _call(module.register, k.client)
+                        await self._call_register(module.register, k.client)
                     except Exception:
                         return False
 
@@ -418,7 +454,7 @@ class ModuleLoader:
             with open(file_path, "r", encoding="utf-8") as f:
                 code = f.read()
 
-            ok, msg = await k.version_manager.check_module_compatibility(code)
+            ok, msg = await self._check_module_compatibility(code)
             if not ok:
                 return False, f"Kernel version mismatch: {msg}"
 
@@ -436,12 +472,7 @@ class ModuleLoader:
             if spec is None:
                 return False, f"Cannot create module spec for {module_name}"
 
-            module = importlib.util.module_from_spec(spec)
-            module.kernel = k
-            module.client = k.client
-            module.custom_prefix = k.custom_prefix
-            module.__file__ = file_path
-            module.__name__ = module_name
+            module = self._build_module(spec, file_path, module_name)
             sys.modules[module_name] = module
 
             k.set_loading_module(module_name, "system" if is_system else "user")
@@ -506,10 +537,7 @@ class ModuleLoader:
                 await self.pre_install_requirements(code, module_name)
 
                 spec = importlib.util.spec_from_file_location(module_name, file_path)
-                module = importlib.util.module_from_spec(spec)
-                module.kernel = k
-                module.client = k.client
-                module.custom_prefix = k.custom_prefix
+                module = self._build_module(spec, file_path, module_name)
                 sys.modules[module_name] = module
 
                 k.set_loading_module(module_name, "system")
@@ -674,7 +702,7 @@ class ModuleLoader:
                         return False, f"Download failed (HTTP {resp.status})"
                     code = await resp.text()
 
-                ok, msg = await k.version_manager.check_module_compatibility(code)
+                ok, msg = await self._check_module_compatibility(code)
                 if not ok:
                     return False, f"Kernel version mismatch: {msg}"
 

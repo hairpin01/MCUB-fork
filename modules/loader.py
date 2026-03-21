@@ -437,19 +437,24 @@ def register(kernel):
             return False, f"Ошибка загрузки: {str(e)}"
 
     def detect_module_type(module):
-        if hasattr(module, "register"):
-            sig = inspect.signature(module.register)
-            params = list(sig.parameters.keys())
-            if len(params) == 0:
-                return "unknown"
-            elif len(params) == 1:
-                param_name = params[0]
-                if param_name == "kernel":
-                    return "new"
-                elif param_name == "client":
-                    return "old"
+        register = getattr(module, "register", None)
+        if register is None:
+            return "none"
+
+        try:
+            params = list(inspect.signature(register).parameters.keys())
+        except (TypeError, ValueError):
             return "unknown"
-        return "none"
+
+        if len(params) == 0:
+            return "unknown"
+        if len(params) == 1:
+            param_name = params[0]
+            if param_name == "kernel":
+                return "new"
+            if param_name == "client":
+                return "old"
+        return "unknown"
 
     async def handle_catalog(event, query_or_data):
         try:

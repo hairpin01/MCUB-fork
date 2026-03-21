@@ -446,7 +446,7 @@ def register(kernel):
         value_str = re.sub(r'__(.+?)__', r'\1', value_str, flags=re.DOTALL)        # __underline__
         value_str = re.sub(r'~~(.+?)~~', r'\1', value_str, flags=re.DOTALL)        # ~~strikethrough~~
         value_str = re.sub(r'\*(.+?)\*', r'\1', value_str, flags=re.DOTALL)        # *italic*
-        value_str = re.sub(r'_(.+?)_', r'\1', value_str, flags=re.DOTALL)          # _italic_
+        value_str = re.sub(r'(?<!\w)_(.+?)_(?!\w)', r'\1', value_str, flags=re.DOTALL)  # _italic_
         return value_str
 
     def is_key_hidden(key):

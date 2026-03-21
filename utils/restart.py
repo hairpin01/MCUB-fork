@@ -12,6 +12,30 @@ ALLOWED_RESTART_ARGS = {"--no-web", "--proxy-web", "--port", "--host", "--core"}
 ARGS_WITH_VALUES = {"--proxy-web", "--port", "--host", "--core"}
 
 
+async def _maybe_await(result) -> None:
+    """Await a value only when it is awaitable."""
+    if inspect.isawaitable(result):
+        await result
+
+
+async def _close_kernel_resources(kernel) -> None:
+    """Close restart-sensitive kernel resources in a safe order."""
+    db_conn = getattr(kernel, "db_conn", None)
+    if db_conn and hasattr(db_conn, "close"):
+        await _maybe_await(db_conn.close())
+
+    scheduler = getattr(kernel, "scheduler", None)
+    if not scheduler:
+        return
+
+    if hasattr(scheduler, "cancel_all_tasks"):
+        scheduler.cancel_all_tasks()
+        return
+
+    if hasattr(scheduler, "stop"):
+        await _maybe_await(scheduler.stop())
+
+
 def build_safe_restart_args(
     argv: Optional[list[str]] = None,
     entrypoint: Optional[str] = None,
@@ -114,20 +138,7 @@ async def restart_kernel(
 
     # Закрываем ресурсы ядра
     try:
-        db_conn = getattr(kernel, "db_conn", None)
-        if db_conn and hasattr(db_conn, "close"):
-            close_result = db_conn.close()
-            if inspect.isawaitable(close_result):
-                await close_result
-
-        scheduler = getattr(kernel, "scheduler", None)
-        if scheduler:
-            if hasattr(scheduler, "cancel_all_tasks"):
-                scheduler.cancel_all_tasks()
-            elif hasattr(scheduler, "stop"):
-                stop_result = scheduler.stop()
-                if inspect.isawaitable(stop_result):
-                    await stop_result
+        await _close_kernel_resources(kernel)
     except Exception as e:
         kernel.logger.error(f"Ошибка при закрытии ресурсов: {e}")
 

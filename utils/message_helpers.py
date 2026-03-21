@@ -7,6 +7,31 @@ import re
 import html
 from .html_parser import parse_html, _utf16_len
 
+_CUSTOM_EMOJI_TAG_RE = re.compile(r"<tg-emoji[^>]*>(.*?)</tg-emoji>", re.IGNORECASE)
+_LEGACY_EMOJI_WITH_ALT_RE = re.compile(
+    r'<img[^>]*src="tg://emoji\?id=[^"]+"[^>]*alt="([^"]*)"[^>]*>',
+    re.IGNORECASE,
+)
+_LEGACY_EMOJI_RE = re.compile(
+    r'<img[^>]*src="tg://emoji\?id=[^"]+"[^>]*>',
+    re.IGNORECASE,
+)
+_SUPPORTED_HTML_TAG_PATTERNS = (
+    re.compile(
+        r"</(?:b|strong|i|em|u|s|del|code|pre|blockquote|a|tg-spoiler|spoiler)>",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"<(?:b|strong|i|em|u|s|del|code|tg-spoiler|spoiler)(?:\s[^>]*)?>",
+        re.IGNORECASE,
+    ),
+    re.compile(r"<pre(?:\s[^>]*)?>", re.IGNORECASE),
+    re.compile(r"<blockquote(?:\s[^>]*)?>", re.IGNORECASE),
+    re.compile(r"<a\s[^>]*>", re.IGNORECASE),
+    re.compile(r"<br(?:\s[^>]*)?>", re.IGNORECASE),
+)
+_WHITESPACE_RE = re.compile(r"\s+")
+
 def clean_html_fallback(html_text: str) -> str:
     """
     Universal HTML cleanup in case of parsing errors.
@@ -21,40 +46,18 @@ def clean_html_fallback(html_text: str) -> str:
     if not html_text:
         return ""
 
-    # Important: replace emojis first
-    # Custom emojis (new syntax)
-    text = re.sub(r'<tg-emoji[^>]*>(.*?)</tg-emoji>', r'\1', html_text)
+    text = _CUSTOM_EMOJI_TAG_RE.sub(r"\1", html_text)
+    text = _LEGACY_EMOJI_WITH_ALT_RE.sub(r"\1", text)
+    text = _LEGACY_EMOJI_RE.sub("", text)
 
-    # Custom emojis (old syntax via img)
-    text = re.sub(r'<img[^>]*src="tg://emoji\?id=[^"]+"[^>]*alt="([^"]*)"[^>]*>', r'\1', text)
-    text = re.sub(r'<img[^>]*src="tg://emoji\?id=[^"]+"[^>]*>', '', text)
-
-    # Remove all formatting tags (opening and closing)
-    # Order is important: closing tags first, then opening ones
-    tags_patterns = [
-        # Closing tags
-        r'</(?:b|strong|i|em|u|s|del|code|pre|blockquote|a|tg-spoiler|spoiler)>',
-
-        # Opening tags (without attributes or with attributes)
-        r'<(?:b|strong|i|em|u|s|del|code|tg-spoiler|spoiler)(?:\s[^>]*)?>',
-
-        # Opening tags with attributes
-        r'<pre(?:\s[^>]*)?>',
-        r'<blockquote(?:\s[^>]*)?>',
-        r'<a\s[^>]*>',
-
-        # Self-closing tags
-        r'<br(?:\s[^>]*)?>',
-    ]
-
-    for pattern in tags_patterns:
-        text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+    for pattern in _SUPPORTED_HTML_TAG_PATTERNS:
+        text = pattern.sub("", text)
 
     # Decode HTML entities
     text = html.unescape(text)
 
     # Remove extra spaces left after tag removal
-    text = re.sub(r'\s+', ' ', text).strip()
+    text = _WHITESPACE_RE.sub(" ", text).strip()
 
     return text
 
@@ -100,7 +103,7 @@ def truncate_text_with_entities(text: str, entities: list, max_length: int = 409
             if hasattr(entity, '__dict__'):
                 # For most Telethon entities
                 entity_dict = entity.__dict__.copy()
-                entity_dict['length'] = current_length - entity.offset
+                entity_dict["length"] = current_length - entity.offset
                 new_entity = entity.__class__(**entity_dict)
                 truncated_entities.append(new_entity)
 

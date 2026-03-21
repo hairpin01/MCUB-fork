@@ -14,6 +14,7 @@ from telethon.tl.types import (
     MessageEntityBotCommand, MessageEntityUrl, MessageEntityBankCard,
     MessageEntityPhone, MessageEntityUnknown
 )
+from .html_parser import _utf16_len, _utf16_slice
 
 
 class RawHTMLConverter:
@@ -30,36 +31,6 @@ class RawHTMLConverter:
             preserve_unknown: Whether to preserve unknown entity types
         """
         self.preserve_unknown = preserve_unknown
-
-    def _utf16_slice(self, text: str, offset: int, length: int) -> str:
-        """
-        Extracts a substring from text considering UTF-16 offsets.
-
-        Args:
-            text: Source text
-            offset: UTF-16 offset
-            length: UTF-16 length
-
-        Returns:
-            Extracted substring
-        """
-        if not text:
-            return ""
-        try:
-            utf16_bytes = text.encode('utf-16-le')
-            start_byte = offset * 2
-            end_byte = (offset + length) * 2
-            if start_byte >= len(utf16_bytes):
-                return ""
-            end_byte = min(end_byte, len(utf16_bytes))
-            if start_byte >= end_byte:
-                return ""
-            return utf16_bytes[start_byte:end_byte].decode('utf-16-le')
-        except Exception:
-            # Fallback to regular string slicing
-            if offset < len(text):
-                return text[offset:min(offset + length, len(text))]
-            return ""
 
     def _escape_html(self, text: str) -> str:
         """
@@ -228,7 +199,7 @@ class RawHTMLConverter:
         for pos, event_type, _, _, entity in events:
             # Add text segment before this position
             if pos > last_pos:
-                segment = self._utf16_slice(text, last_pos, pos - last_pos)
+                segment = _utf16_slice(text, last_pos, pos - last_pos)
                 if segment:
                     result_parts.append(self._escape_html(segment))
                 last_pos = pos
@@ -260,16 +231,16 @@ class RawHTMLConverter:
             while len(current_tags) < len(logical_stack):
                 entity_to_open = logical_stack[len(current_tags)]
                 # Get entity text for attributes that need it
-                entity_text = self._utf16_slice(text, entity_to_open.offset, entity_to_open.length)
+                entity_text = _utf16_slice(text, entity_to_open.offset, entity_to_open.length)
                 opening_html, closing_html = self._entity_to_html(entity_to_open, entity_text)
 
                 result_parts.append(opening_html)
                 current_tags.append((entity_to_open, closing_html))
 
         # Add remaining text after last entity
-        total_len = len(text.encode('utf-16-le')) // 2
+        total_len = _utf16_len(text)
         if last_pos < total_len:
-            segment = self._utf16_slice(text, last_pos, total_len - last_pos)
+            segment = _utf16_slice(text, last_pos, total_len - last_pos)
             if segment:
                 result_parts.append(self._escape_html(segment))
 
@@ -457,7 +428,7 @@ def debug_entities(message) -> List[Dict]:
     converter = RawHTMLConverter()
     entities_info = []
     for entity in entity_list:
-        entity_text = converter._utf16_slice(text, entity.offset, entity.length)
+        entity_text = _utf16_slice(text, entity.offset, entity.length)
         entities_info.append({
             'type': type(entity).__name__,
             'offset': entity.offset,

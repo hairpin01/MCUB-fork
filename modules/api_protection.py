@@ -6,14 +6,12 @@ import asyncio
 import time
 import json
 from collections import deque, defaultdict
-from telethon import events
 from telethon.tl import TLRequest
 
 DEFAULT_CONFIG = {
     'time_sample': 15,
     'threshold': 100,
     'local_floodwait': 30,
-    'dangerous_methods': ['joinChannel', 'importChatInvite', 'sendReaction'],
     'ignore_methods': ['GetMessagesRequest'],
     'enable_protection': True,
 }
@@ -105,6 +103,10 @@ def register(kernel):
 
     kernel.config['api_protection'] = api_config
 
+    def persist_api_config():
+        kernel.config['api_protection'] = api_config
+        kernel.save_config()
+
     protection_enabled = api_config['enable_protection']
     blocked_until = 0.0
     original_call = None
@@ -147,9 +149,6 @@ def register(kernel):
         original_call = client._call
         client._call = api_call_interceptor
         client._original_call = original_call
-
-
-    # install_interceptor(kernel)
 
     @kernel.register.uninstall()
     async def uninstall_interceptor(kernel):
@@ -273,9 +272,7 @@ def register(kernel):
         else:
             await event.edit(lang['api_protection_usage'])
 
-        kernel.config['api_protection'] = api_config
-        with open(kernel.CONFIG_FILE, 'w', encoding='utf-8') as f:
-            json.dump(kernel.config, f, ensure_ascii=False, indent=2)
+        persist_api_config()
 
 
     @kernel.register.command('api_reset')
@@ -311,67 +308,6 @@ def register(kernel):
             api_config['enable_protection'] = False
             await event.edit(f'<tg-emoji emoji-id="5368585403467048206">🪬</tg-emoji> {lang["api_protection_off"]}', parse_mode='html')
 
-        kernel.config['api_protection'] = api_config
-        with open(kernel.CONFIG_FILE, 'w', encoding='utf-8') as f:
-            json.dump(kernel.config, f, ensure_ascii=False, indent=2)
+        persist_api_config()
 
     kernel.register_callback_handler(b"api_protection_", api_protection_callback_handler)
-
-    request_timestamps = defaultdict(list)
-    DANGEROUS_COMMANDS = {"update", "stop", "um", "rollback", "t", "py"}
-    RATE_LIMITS = {
-        "default": {"requests": 15, "seconds": 30},
-        "dangerous": {"requests": 9, "seconds": 290},
-        "message": {"requests": 10, "seconds": 10},
-    }
-
-    def cleanup_old_requests():
-        now = time.time()
-        for key in list(request_timestamps.keys()):
-            request_timestamps[key] = [
-                t for t in request_timestamps[key] if now - t < 3600
-            ]
-            if not request_timestamps[key]:
-                del request_timestamps[key]
-
-    def check_rate_limit(user_id, limit_type="default"):
-        if not protection_enabled:
-            return True
-
-        cleanup_old_requests()
-
-        now = time.time()
-        key = f"{user_id}_{limit_type}"
-
-        if now < blocked_until:
-            return False
-
-        timestamps = request_timestamps[key]
-        limit = RATE_LIMITS[limit_type]
-
-        timestamps = [t for t in timestamps if now - t < limit["seconds"]]
-        request_timestamps[key] = timestamps
-
-        if len(timestamps) >= limit["requests"]:
-            return False
-
-        timestamps.append(now)
-        return True
-
-    async def enforce_cooldown(event, seconds, reason):
-        nonlocal blocked_until
-        blocked_until = time.time() + seconds
-
-        await event.edit(
-            f"❄️ <b>{reason}</b>\n<blockquote>{lang['bot_stopped'].format(seconds=seconds)}</blockquote>",
-            parse_mode="html",
-        )
-
-        if kernel.client.is_connected():
-            await kernel.client.disconnect()
-
-        await asyncio.sleep(seconds)
-
-        blocked_until = 0
-        await kernel.client.connect()
-        await event.edit(lang['bot_unlocked'].format(seconds=seconds))

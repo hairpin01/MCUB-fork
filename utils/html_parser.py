@@ -22,6 +22,24 @@ def _utf16_len(text: str) -> int:
     return len(text.encode('utf-16-le')) // 2
 
 
+def _utf16_slice(text: str, offset: int, length: int) -> str:
+    """Extract a substring using UTF-16 offsets."""
+    if not text:
+        return ""
+
+    try:
+        utf16_bytes = text.encode("utf-16-le")
+        start_byte = offset * 2
+        end_byte = min((offset + length) * 2, len(utf16_bytes))
+        if start_byte >= end_byte:
+            return ""
+        return utf16_bytes[start_byte:end_byte].decode("utf-16-le")
+    except Exception:
+        if offset < len(text):
+            return text[offset:min(offset + length, len(text))]
+        return ""
+
+
 class TelegramHTMLParser(HTMLParser):
     """
     Parses HTML markup and converts it to Telegram message entities.
@@ -34,10 +52,6 @@ class TelegramHTMLParser(HTMLParser):
         self._open_entities = {}
         self._tag_stack = deque()
         self._utf16_offset = 0
-
-    def _utf16_len(self, text: str) -> int:
-        """Calculate UTF-16 length of a string."""
-        return len(text.encode('utf-16-le')) // 2
 
     def handle_starttag(self, tag: str, attrs: List[Tuple[str, str]]) -> None:
         """Handle opening HTML tags."""
@@ -90,7 +104,7 @@ class TelegramHTMLParser(HTMLParser):
         if not data:
             return
         self.text += data
-        self._utf16_offset += self._utf16_len(data)
+        self._utf16_offset += _utf16_len(data)
 
     def handle_startendtag(self, tag: str, attrs: List[Tuple[str, str]]) -> None:
         """Handle self-closing tags like <br/>."""
@@ -224,10 +238,7 @@ class HTMLDecorator:
             tag = "a"
             # Extract email text from the content
             try:
-                utf16_bytes = text_content.encode('utf-16-le')
-                start = entity.offset * 2
-                end = (entity.offset + entity.length) * 2
-                email_text = utf16_bytes[start:end].decode('utf-16-le')
+                email_text = _utf16_slice(text_content, entity.offset, entity.length)
                 attrs['href'] = f"mailto:{email_text}"
             except Exception:
                 attrs['href'] = "mailto:"
@@ -290,4 +301,12 @@ def format_message(text: str, entities: Optional[List] = None, as_html: bool = F
     return text
 
 
-__all__ = ['TelegramHTMLParser', 'parse_html', 'telegram_to_html', 'format_message', 'HTMLDecorator']
+__all__ = [
+    'TelegramHTMLParser',
+    'parse_html',
+    'telegram_to_html',
+    'format_message',
+    'HTMLDecorator',
+    '_utf16_len',
+    '_utf16_slice',
+]

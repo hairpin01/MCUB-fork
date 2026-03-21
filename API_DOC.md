@@ -1949,6 +1949,8 @@ or:
   - `<blockquote expandable>` - expandable quote (expanded by default)
   - `<blockquote expandable="false">` - collapsed quote
 
+[CHANGELOG](https://github.com/hairpin01/Telethon-MCUB/blob/v1/CHANGELOG.md)
+
 ---
 
 ## AntiScamModules

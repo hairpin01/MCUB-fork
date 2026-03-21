@@ -1,6 +1,5 @@
 import json
 import ipaddress
-import socket
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 

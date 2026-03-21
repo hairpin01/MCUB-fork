@@ -4,7 +4,6 @@ Web panel authentication middleware.
 
 import hashlib
 import secrets
-import time
 from typing import Callable, Optional
 
 from aiohttp import web

@@ -698,7 +698,6 @@ async def api_bot_save_token(request: web.Request) -> web.Response:
 
 async def api_bot_auto_create(request: web.Request) -> web.Response:
     """Create bot automatically via BotFather."""
-    import aiohttp
 
     state: dict = request.app.get("setup_state") or {}
     client = state.get("client")

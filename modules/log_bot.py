@@ -3,18 +3,15 @@
 # description: logs send bot
 import io
 import os
-import time
 import subprocess
 import asyncio
 import json
 import html
 import aiohttp
 from datetime import datetime
-from telethon import TelegramClient, events, Button
 from telethon.tl.functions.messages import CreateChatRequest, ExportChatInviteRequest, AddChatUserRequest
 from telethon.tl.functions.channels import EditPhotoRequest
 from telethon.tl.types import InputUserSelf
-from telethon.tl.types import PeerChat
 
 
 def register(kernel):

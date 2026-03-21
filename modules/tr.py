@@ -11,8 +11,6 @@ from urllib.error import URLError, HTTPError
 
 
 def register(kernel):
-    client = kernel.client
-
     language = kernel.config.get('language', 'en')
 
     strings = {
@@ -55,7 +53,7 @@ def register(kernel):
     async def translate_text(text: str, dest: str = "ru") -> str:
         try:
             encoded_text = quote(text)
-            url = f"https://translate.googleapis.com/translate_a/single"
+            url = "https://translate.googleapis.com/translate_a/single"
 
             params = {
                 "client": "gtx",

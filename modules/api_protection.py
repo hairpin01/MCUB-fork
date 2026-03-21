@@ -180,7 +180,8 @@ def register(kernel):
             methods=methods_str
         )
 
-        import io, csv
+        import io
+        import csv
         filtered_log = [(ts, m) for m, ts in request_log if ts > cutoff]
         filtered_log.sort(key=lambda x: x[0])
 
@@ -255,7 +256,7 @@ def register(kernel):
                                 api_config[param] = new_val
                             else:
                                 raise ValueError
-                        except:
+                        except Exception:
                             await event.edit(lang['api_param_error'])
                             return
                     elif isinstance(api_config[param], (int, float)):

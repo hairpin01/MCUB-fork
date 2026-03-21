@@ -116,7 +116,7 @@ try:
         raw_html_converter
     )
     RAW_HTML_AVAILABLE = True
-except ImportError as e:
+except ImportError:
     RAW_HTML_AVAILABLE = False
 
 if RAW_HTML_AVAILABLE:

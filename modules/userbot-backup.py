@@ -1,16 +1,13 @@
-import io
 import os
-import json
 import zipfile
 import tempfile
 import asyncio
 import shutil
 import aiohttp
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from telethon import TelegramClient, Button
+from telethon import Button
 from telethon.tl.functions.channels import CreateChannelRequest, InviteToChannelRequest, EditPhotoRequest
-from telethon.tl.functions.photos import UploadProfilePhotoRequest
 
 
 def register(kernel):
@@ -512,7 +509,7 @@ def register(kernel):
                 await event.edit(lang_strings['check_pm'])
             else:
                 await event.edit(lang_strings['bot_not_available'])
-        except Exception as e:
+        except Exception:
             await event.edit(lang_strings['cant_send_pm'])
 
     async def backup_interval_callback(event):

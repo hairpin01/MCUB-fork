@@ -52,7 +52,7 @@ class EmojiParser:
                     document_id=doc_id
                 )
                 entities.append(entity)
-            except (ValueError, TypeError) as e:
+            except (ValueError, TypeError):
                 # Если document_id не число, пропускаем этот тег
                 continue
 

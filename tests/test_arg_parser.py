@@ -2,9 +2,7 @@
 Tests for utils arg_parser
 """
 
-import pytest
 from utils.arg_parser import (
-    ArgumentParser,
     parse_arguments,
     extract_command,
     split_args,

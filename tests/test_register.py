@@ -3,9 +3,8 @@ Tests for Register class
 """
 
 import pytest
-import re
 import asyncio
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import MagicMock
 
 
 class TestRegisterClass:

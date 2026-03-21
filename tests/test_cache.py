@@ -2,7 +2,6 @@
 Tests for TTL cache implementation
 """
 
-import pytest
 import time
 from core.lib.time.cache import TTLCache
 

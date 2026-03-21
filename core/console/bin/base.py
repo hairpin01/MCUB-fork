@@ -164,5 +164,5 @@ async def _confirm(shell, prompt: str) -> bool:
     except Exception:
         pass
     # Fallback: just return True (non-interactive)
-    shell.output(f"\033[90m  (auto-confirmed)\033[0m\n")
+    shell.output("\033[90m  (auto-confirmed)\033[0m\n")
     return True

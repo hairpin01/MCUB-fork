@@ -425,7 +425,6 @@ def debug_entities(message) -> List[Dict]:
     text = text or ""
 
     # Create debug info for each entity
-    converter = RawHTMLConverter()
     entities_info = []
     for entity in entity_list:
         entity_text = _utf16_slice(text, entity.offset, entity.length)

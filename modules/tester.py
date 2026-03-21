@@ -1,11 +1,10 @@
 import asyncio
 import os
 import time
-import json
 import getpass
 import socket
-from telethon.tl.types import MessageEntityTextUrl, InputMediaWebPage
-from telethon import functions, types
+from telethon.tl.types import MessageEntityTextUrl
+from telethon import functions
 
 CUSTOM_EMOJI = {
     "📝": '<tg-emoji emoji-id="5334882760735598374">📝</tg-emoji>',
@@ -231,7 +230,7 @@ def register(kernel):
                     try:
                         await msg.edit(response, file=banner_url, parse_mode="html")
                         banner_sent = True
-                    except Exception as e:
+                    except Exception:
                         pass
                 else:
                     try:
@@ -239,7 +238,7 @@ def register(kernel):
                             response, file=banner_url, parse_mode="html"
                         )
                         banner_sent = True
-                    except Exception as e:
+                    except Exception:
                         pass
 
                 if not banner_sent:
@@ -251,7 +250,7 @@ def register(kernel):
                         await msg.edit(
                             text, formatting_entities=entities, parse_mode=None
                         )
-                    except Exception as e:
+                    except Exception:
                         await msg.edit(response, parse_mode="html")
             else:
                 await msg.edit(response, parse_mode="html")

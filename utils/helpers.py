@@ -6,11 +6,14 @@ import shlex
 import html as html_escape
 import datetime
 import time as time_module
-from typing import List, Optional, Union, Any, Dict
+from typing import List, Optional, Union, Any, Dict, TYPE_CHECKING
 
 from telethon import events, Button
 from telethon.tl.custom import Message
 from telethon.tl.types import TypeMessageEntity
+
+if TYPE_CHECKING:
+    pass
 
 # Local imports from the same utils package
 from .html_parser import telegram_to_html
@@ -100,7 +103,7 @@ def get_args_html(event: Union[Message, events.NewMessage.Event]) -> str:
 
 
 async def answer(
-    event: Union[Message, events.NewMessage.Event, 'InlineCall', 'InlineMessage'],
+    event: Union[Message, events.NewMessage.Event, Any],
     text: str,
     *,
     reply_markup: Optional[Any] = None,
@@ -147,7 +150,7 @@ async def answer(
         return await event.reply(text, **kwargs)
 
 async def answer_file(
-    event: Union[Message, events.NewMessage.Event, 'InlineCall', 'InlineMessage'],
+    event: Union[Message, events.NewMessage.Event, Any],
     file: Any,
     caption: Optional[str] = None,
     *,

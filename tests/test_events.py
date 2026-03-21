@@ -2,7 +2,6 @@
 Tests for event handling
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 

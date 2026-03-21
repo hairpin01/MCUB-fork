@@ -3,7 +3,6 @@ Mock Telegram client for testing
 """
 
 from unittest.mock import AsyncMock, Mock
-import asyncio
 
 
 class MockTelegramClient:

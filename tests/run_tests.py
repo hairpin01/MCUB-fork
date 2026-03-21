@@ -1,16 +1,12 @@
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
-import json
-import asyncio
-import time
+import sys
+import subprocess
+import argparse
+from pathlib import Path
 
 #!/usr/bin/env python3
 """
 Test runner script for MCUB
 """
-import sys
-import subprocess
-import argparse
-from pathlib import Path
 
 
 def run_tests(test_pattern=None, verbose=False, coverage=False):

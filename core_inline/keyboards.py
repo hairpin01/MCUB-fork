@@ -1,5 +1,4 @@
 from telethon import Button
-import aiohttp
 
 
 class InlineKeyboards:

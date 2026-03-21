@@ -5,8 +5,7 @@ Tests for task scheduler
 import pytest
 import asyncio
 import time
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 
 @pytest.mark.asyncio

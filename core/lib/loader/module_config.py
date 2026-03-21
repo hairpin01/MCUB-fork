@@ -4,7 +4,6 @@ Module configuration system for MCUB.
 Provides declarative configuration similar to Hikka.
 """
 
-import inspect
 from typing import Any, Callable, Dict, List, Optional, Union
 
 

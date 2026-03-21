@@ -2,7 +2,7 @@
 # author: @Hairpin00
 # version: 1.0.5
 # description: Module manager
-from telethon import events, Button
+from telethon import Button
 import re
 from html import escape
 import math

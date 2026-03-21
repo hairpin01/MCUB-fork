@@ -3,8 +3,7 @@
 # description: settings
 
 import json
-import os
-from telethon import events, Button
+from telethon import Button
 # <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji>
 # <tg-emoji emoji-id="5904692292324692386">⚠️</tg-emoji>
 # <tg-emoji emoji-id="5893382531037794941">🔎</tg-emoji>

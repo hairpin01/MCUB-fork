@@ -6,14 +6,12 @@ import psutil
 import aiohttp
 import getpass
 import socket
-import subprocess
 import re
 
 from utils.platform import get_platform, is_wsl, is_termux
-from telethon.tl.types import MessageEntityTextUrl, InputMediaWebPage
-from telethon import functions, types
+from telethon.tl.types import MessageEntityTextUrl
+from telethon import functions
 from pathlib import Path
-from typing import Set
 from copy import copy
 
 CUSTOM_EMOJI = {

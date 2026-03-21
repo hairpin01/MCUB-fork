@@ -42,7 +42,6 @@ CUSTOM_EMOJI = {
     "🔄": '<tg-emoji emoji-id="5332600281970517875">🔄</tg-emoji>',
     "🧩": '<tg-emoji emoji-id="5359785904535774578">🧩</tg-emoji>',
     "🔧": '<tg-emoji emoji-id="5332654441508119011">🔧</tg-emoji>',
-    "📝": '<tg-emoji emoji-id="5334882760735598374">📝</tg-emoji>',
 }
 
 ITEMS_PER_PAGE = 16
@@ -168,7 +167,7 @@ class EmojiProvider:
                 if loop.is_running():
                     # Планируем обновление асинхронно
                     asyncio.create_task(self._update_cache())
-            except:
+            except Exception:
                 pass
 
         if self._use_premium:
@@ -180,7 +179,7 @@ class EmojiProvider:
         """Метод get как у словаря"""
         try:
             return self[emoji_char]
-        except:
+        except Exception:
             return default if default is not None else emoji_char
 
 
@@ -239,7 +238,6 @@ class ConfigSettings:
 
 
 def register(kernel):
-    client = kernel.client
     language = kernel.config.get('language', 'en')
 
     # Создаем провайдер эмодзи и настроек
@@ -556,7 +554,7 @@ def register(kernel):
             nav_buttons.append(
                 Button.inline(t('btn_next'), data=f"config_kernel_page_{page + 1}".encode())
             )
-        nav_buttons.append(Button.inline(t('btn_menu'), data=f"config_menu".encode()))
+        nav_buttons.append(Button.inline(t('btn_menu'), data="config_menu".encode()))
         if nav_buttons:
             buttons.append(nav_buttons)
 
@@ -589,7 +587,7 @@ def register(kernel):
             nav_buttons.append(
                 Button.inline(t('btn_next'), data=f"config_modules_page_{page + 1}".encode())
             )
-        nav_buttons.append(Button.inline(t('btn_menu'), data=f"config_menu".encode()))
+        nav_buttons.append(Button.inline(t('btn_menu'), data="config_menu".encode()))
         if nav_buttons:
             buttons.append(nav_buttons)
 
@@ -629,7 +627,7 @@ def register(kernel):
                 )
             )
         nav_buttons.append(
-            Button.inline(t('btn_modules'), data=f"config_modules_page_0".encode())
+            Button.inline(t('btn_modules'), data="config_modules_page_0".encode())
         )
         if nav_buttons:
             buttons.append(nav_buttons)
@@ -641,7 +639,6 @@ def register(kernel):
 
     async def config_menu_handler(event):
         await ensure_config_initialized()
-        query = event.text.strip()
         text = t('config_menu_text', menu_emoji=emoji_provider['📋'])
 
         buttons = [
@@ -1745,7 +1742,7 @@ def register(kernel):
                 kernel.logger.error(e)
                 try:
                     await event.edit("❌ Closed")
-                except Exception as e:
+                except Exception:
                     await event.answer("Closed", alert=False)
             return
 

@@ -3,7 +3,6 @@ import pkgutil
 import logging
 from pathlib import Path
 from aiohttp import web
-import aiohttp_jinja2
 import jinja2
 
 logger = logging.getLogger("web.plugin_manager")

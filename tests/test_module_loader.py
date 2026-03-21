@@ -3,9 +3,7 @@ Tests for module loader
 """
 
 import pytest
-import asyncio
 import os
-import tempfile
 import inspect
 from unittest.mock import MagicMock, AsyncMock, patch
 

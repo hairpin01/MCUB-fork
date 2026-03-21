@@ -3,7 +3,6 @@ Tests for Kernel - additional functionality
 """
 
 import pytest
-import json
 import time
 from unittest.mock import MagicMock, AsyncMock, patch
 

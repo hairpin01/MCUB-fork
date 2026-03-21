@@ -2,7 +2,6 @@
 Tests for utils helpers
 """
 
-import pytest
 import datetime
 from utils.helpers import (
     format_time,

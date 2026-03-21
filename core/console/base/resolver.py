@@ -78,7 +78,6 @@ class DependencyResolver:
     def _is_installed(pkg_name: str) -> bool:
         """Check if a pip package is importable (by module name heuristic)."""
         # Normalise: some packages use dashes, import uses underscores
-        global importlib
         mod_name = pkg_name.split("[")[0].replace("-", "_").lower()
         try:
             importlib.import_module(mod_name)

@@ -5,7 +5,7 @@ import time
 import aiohttp
 import asyncio
 import subprocess
-from typing import Tuple, Optional
+from typing import Tuple
 import shutil
 
 

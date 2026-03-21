@@ -16,8 +16,6 @@ import select
 import struct
 import tempfile
 import threading
-import random
-import math
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -539,7 +537,6 @@ class _LineEditor:
                         continue
                     elif ch == "\x12":   # another Ctrl+R — cycle
                         # find next match before current
-                        idx = None
                         for i in range(len(self._history) - 1, -1, -1):
                             if (self._search_query in self._history[i]
                                     and self._history[i] != self._search_result):
@@ -836,7 +833,6 @@ class Shell:
 
     def _prompt_str(self) -> tuple[str, int]:
         """Return (ansi_prompt, visible_length)."""
-        pc       = self._pcol()
         ok_col   = _C.GREEN if self._last_ok else _C.RED
         dir_part = f"{_C.BLUE}{_C.BOLD}{self._short_cwd()}{_C.RESET}"
         sym_part = f"{ok_col}{_C.BOLD}{self.PROMPT}{_C.RESET} "

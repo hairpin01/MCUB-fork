@@ -26,15 +26,11 @@ Local layout after install:
 from __future__ import annotations
 
 import asyncio
-import importlib.util
-import os
 import shutil
 import sys
-import textwrap
 import traceback
-from datetime import datetime
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, List, Optional
 
 import aiohttp
 
@@ -42,10 +38,9 @@ import aiohttp
 try:
     from .config_parser import PackageConfig
     from .display       import (
-        GREEN, RED, YELLOW, CYAN, GREY, MAGENTA, RESET, BOLD, DIM,
-        SYM_OK, SYM_ERR, SYM_WARN, SYM_INFO, SYM_DL, SYM_INST,
-        SYM_DEL, SYM_UPD, SYM_PKG, SYM_ARROW,
-        ok, err, warn, info, step, h1, h2, kv, sep,
+        GREEN, YELLOW, CYAN, GREY, RESET, BOLD, DIM,
+        SYM_OK, SYM_DL, SYM_DEL,
+        ok, err, warn, info, step, h1, kv,
         pkg_badge, progress_bar, format_pkg_info, format_installed_list,
     )
     from .lockfile      import LockFile
@@ -55,10 +50,9 @@ except ImportError:
     sys.path.insert(0, str(base_dir))
     from config_parser import PackageConfig
     from display       import (
-        GREEN, RED, YELLOW, CYAN, GREY, MAGENTA, RESET, BOLD, DIM,
-        SYM_OK, SYM_ERR, SYM_WARN, SYM_INFO, SYM_DL, SYM_INST,
-        SYM_DEL, SYM_UPD, SYM_PKG, SYM_ARROW,
-        ok, err, warn, info, step, h1, h2, kv, sep,
+        GREEN, YELLOW, CYAN, GREY, RESET, BOLD, DIM,
+        SYM_OK, SYM_DL, SYM_DEL,
+        ok, err, warn, info, step, h1, kv,
         pkg_badge, progress_bar, format_pkg_info, format_installed_list,
     )
     from lockfile      import LockFile
@@ -165,7 +159,7 @@ class PackageManager:
     async def search(self, query: str, output: OutputCB) -> None:
         """Search available packages in the repository."""
         output(h1(f"Searching:  {CYAN}{query}{RESET}"))
-        output(step(SYM_DL, f"Fetching package list from repo..."))
+        output(step(SYM_DL, "Fetching package list from repo..."))
 
         packages = await self._fetch_packages_ini()
         if packages is None:
@@ -177,7 +171,7 @@ class PackageManager:
 
         if not matches:
             output(warn(f"No packages found matching '{query}'."))
-            output(info(f"Run 'base list --available' to see all packages."))
+            output(info("Run 'base list --available' to see all packages."))
             return
 
         output(info(f"Found {CYAN}{len(matches)}{RESET} package(s):"))
@@ -342,9 +336,9 @@ class PackageManager:
                     progress(0.82, f"Running entry script: {cfg.entry_file}")
                     result = await self._run_entry(entry_path)
                     if result:
-                        progress(0.86, f"  ✔ Entry script completed")
+                        progress(0.86, "  ✔ Entry script completed")
                     else:
-                        output(warn(f"  ⚠ Entry script returned non-zero"))
+                        output(warn("  ⚠ Entry script returned non-zero"))
                 else:
                     output(warn(f"  ⚠ Entry script '{cfg.entry_file}' not found"))
 

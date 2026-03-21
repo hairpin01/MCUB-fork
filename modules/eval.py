@@ -79,14 +79,14 @@ def register(kernel):
 
         try:
             exec(
-                f"async def __exec():\n    " + "\n    ".join(code.split("\n")),
+                "async def __exec():\n    " + "\n    ".join(code.split("\n")),
                 local_vars,
             )
             result = await local_vars["__exec"]()
             complete = output.getvalue()
             if result is not None:
                 complete += str(result)
-        except Exception as e:
+        except Exception:
             complete = traceback.format_exc()
 
         sys.stdout = old_stdout

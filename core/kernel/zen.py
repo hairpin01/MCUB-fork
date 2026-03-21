@@ -37,7 +37,6 @@ try:
 except Exception:
     # tb = traceback.format_exc()
     raise McubTelethonError("YOU is not install telethon-mcub, please run: 'pip install telethon-mcub' and 'pip uninstall telethon -y'! (or update telethon-mcub)")
-    sys.exit(106)
 
 try:
     from ..lib.utils.colors import Colors

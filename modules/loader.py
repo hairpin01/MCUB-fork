@@ -793,8 +793,6 @@ def register(kernel):
             add_log(t('log_conflict', error=e))
             log_text = "\n".join(install_log)
 
-            _conflict_details = f"Команда '{e.command}' уже зарегистрирована модулем '{e.conflict_type}'"
-
             if e.conflict_type == "system":
                 await edit_with_emoji(
                     msg,

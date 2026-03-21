@@ -1091,6 +1091,7 @@ class Kernel:
             await self.inline_bot.setup()
 
         @self.client.on(events.NewMessage(outgoing=True))
+        @self.client.on(events.MessageEdited(outgoing=True))
         async def message_handler(event):
             _tele = '<tg-emoji emoji-id="5429283852684124412">🔭</tg-emoji>'
             _note = '<tg-emoji emoji-id="5334882760735598374">📝</tg-emoji>'

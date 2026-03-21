@@ -155,6 +155,9 @@ class Kernel:
         self.current_loading_module_type = None
         self.repositories: list = []
         self.middleware_chain: list = []
+        self.request_middleware_chain: list = []
+        self._event_middleware_ids: set[int] = set()
+        self._request_middleware_ids: set[int] = set()
         self.scheduler = None
         self.log_chat_id = None
         self.log_bot_enabled = False
@@ -640,7 +643,10 @@ class Kernel:
 
     async def init_client(self) -> bool:
         """Initialize and authorize the main Telegram client."""
-        return await self._client_mgr.init_client()
+        ok = await self._client_mgr.init_client()
+        if ok:
+            self._sync_client_middlewares()
+        return ok
 
     async def setup_inline_bot(self) -> bool:
         """Start the inline bot client if configured."""
@@ -672,6 +678,27 @@ class Kernel:
     def db_conn(self):
         return self.db_manager.conn if self.db_manager else None
 
+    def _sync_client_middlewares(self) -> None:
+        """Bind kernel middleware to the active Telethon client."""
+        if not self.client:
+            return
+
+        if hasattr(self.client, "add_event_middleware"):
+            for middleware_func in self.middleware_chain:
+                middleware_id = id(middleware_func)
+                if middleware_id in self._event_middleware_ids:
+                    continue
+                self.client.add_event_middleware(middleware_func)
+                self._event_middleware_ids.add(middleware_id)
+
+        if hasattr(self.client, "add_request_middleware"):
+            for middleware_func in self.request_middleware_chain:
+                middleware_id = id(middleware_func)
+                if middleware_id in self._request_middleware_ids:
+                    continue
+                self.client.add_request_middleware(middleware_func)
+                self._request_middleware_ids.add(middleware_id)
+
     async def get_latest_kernel_version(self) -> str:
         return await self.version_manager.get_latest_kernel_version()
 
@@ -684,12 +711,62 @@ class Kernel:
         await self.scheduler.start()
         self.logger.info("Scheduler initialized")
 
-    def add_middleware(self, middleware_func: Callable) -> None:
-        """Register a middleware function in the processing chain."""
-        self.middleware_chain.append(middleware_func)
+    def add_event_middleware(self, middleware_func: Callable):
+        """Register an event middleware and bind it to the Telethon client."""
+        if middleware_func not in self.middleware_chain:
+            self.middleware_chain.append(middleware_func)
+        self._sync_client_middlewares()
+        return middleware_func
+
+    def remove_event_middleware(self, middleware_func: Callable) -> None:
+        """Unregister an event middleware from the kernel and Telethon client."""
+        if middleware_func in self.middleware_chain:
+            self.middleware_chain.remove(middleware_func)
+        if self.client and hasattr(self.client, "remove_event_middleware"):
+            try:
+                self.client.remove_event_middleware(middleware_func)
+            except ValueError:
+                pass
+        self._event_middleware_ids.discard(id(middleware_func))
+
+    def middleware(self, middleware_func: Callable):
+        """Decorator alias for registering an event middleware."""
+        return self.add_event_middleware(middleware_func)
+
+    def add_middleware(self, middleware_func: Callable):
+        """Backward-compatible alias for event middleware registration."""
+        return self.add_event_middleware(middleware_func)
+
+    def add_request_middleware(self, middleware_func: Callable):
+        """Register a request middleware and bind it to the Telethon client."""
+        if middleware_func not in self.request_middleware_chain:
+            self.request_middleware_chain.append(middleware_func)
+        self._sync_client_middlewares()
+        return middleware_func
+
+    def remove_request_middleware(self, middleware_func: Callable) -> None:
+        """Unregister a request middleware from the kernel and Telethon client."""
+        if middleware_func in self.request_middleware_chain:
+            self.request_middleware_chain.remove(middleware_func)
+        if self.client and hasattr(self.client, "remove_request_middleware"):
+            try:
+                self.client.remove_request_middleware(middleware_func)
+            except ValueError:
+                pass
+        self._request_middleware_ids.discard(id(middleware_func))
+
+    def request_middleware(self, middleware_func: Callable):
+        """Decorator alias for request middleware registration."""
+        return self.add_request_middleware(middleware_func)
 
     async def process_with_middleware(self, event, handler: Callable):
         """Run *event* through all middleware, then call *handler*."""
+        if self.client and hasattr(self.client, "_middleware"):
+            return await self.client._middleware.process(
+                event,
+                lambda current_event: handler(current_event),
+            )
+
         for mw in self.middleware_chain:
             if await mw(event, handler) is False:
                 return False
@@ -781,12 +858,39 @@ class Kernel:
         """
         if not event:
             return None
-        thread_id = None
-        if hasattr(event, "reply_to") and event.reply_to:
+
+        thread_id = getattr(event, "reply_to_top_id", None)
+        if not thread_id and hasattr(event, "reply_to") and event.reply_to:
             thread_id = getattr(event.reply_to, "reply_to_top_id", None)
-        if not thread_id and hasattr(event, "message"):
-            thread_id = getattr(event.message, "reply_to_top_id", None)
+
+        message = getattr(event, "message", None)
+        if not thread_id and message:
+            thread_id = getattr(message, "reply_to_top_id", None)
+        if not thread_id and message:
+            reply_to = getattr(message, "reply_to", None)
+            thread_id = getattr(reply_to, "reply_to_top_id", None)
+
         return thread_id
+
+    def iter_topic_messages(self, entity, topic, *args, **kwargs):
+        """Iterate messages from a single forum topic thread."""
+        return self.client.iter_topic_messages(entity, topic, *args, **kwargs)
+
+    async def send_to_topic(self, entity, topic, message="", **kwargs):
+        """Send a message directly into a forum topic thread."""
+        return await self.client.send_to_topic(entity, topic, message, **kwargs)
+
+    async def send_file_to_topic(self, entity, topic, file, **kwargs):
+        """Send a file directly into a forum topic thread."""
+        return await self.client.send_file_to_topic(entity, topic, file, **kwargs)
+
+    def iter_history_batches(self, entity, *args, **kwargs):
+        """Iterate history in batches using Telethon-MCUB helpers."""
+        return self.client.iter_history_batches(entity, *args, **kwargs)
+
+    async def export_history(self, entity, *, output, **kwargs):
+        """Export chat history using Telethon-MCUB high-level helpers."""
+        return await self.client.export_history(entity, output=output, **kwargs)
 
     async def restart(self, chat_id=None, message_id=None) -> None:
         """Restart the userbot process, optionally notifying via a message."""
@@ -846,22 +950,52 @@ class Kernel:
         Returns:
             Sent message object.
         """
-        if not self.emoji_parser or not self.emoji_parser.is_emoji_tag(text):
-            return await self.client.send_message(chat_id, text, **kwargs)
-        try:
-            parsed, entities = self.emoji_parser.parse_to_entities(text)
-            input_peer = await self.client.get_input_entity(chat_id)
+        topic = kwargs.pop("topic", None)
+        file = kwargs.pop("file", None)
+        formatting_entities = kwargs.pop("formatting_entities", None)
+        kwargs.pop("entities", None)
+
+        async def send_payload(message_text: str, *, entities=None):
+            payload_kwargs = dict(kwargs)
+            if entities is not None:
+                payload_kwargs["formatting_entities"] = entities
+
+            if topic is not None:
+                if file is not None and hasattr(self.client, "send_file_to_topic"):
+                    return await self.client.send_file_to_topic(
+                        chat_id,
+                        topic,
+                        file,
+                        caption=message_text,
+                        **payload_kwargs,
+                    )
+                if hasattr(self.client, "send_to_topic"):
+                    return await self.client.send_to_topic(
+                        chat_id,
+                        topic,
+                        message_text,
+                        **payload_kwargs,
+                    )
+
             return await self.client.send_message(
-                input_peer,
-                parsed,
-                entities=entities,
-                **{k: v for k, v in kwargs.items() if k != "entities"},
+                chat_id,
+                message_text,
+                file=file,
+                topic=topic,
+                **payload_kwargs,
             )
+
+        if not self.emoji_parser or not self.emoji_parser.is_emoji_tag(text):
+            return await send_payload(text, entities=formatting_entities)
+
+        try:
+            parsed, emoji_entities = self.emoji_parser.parse_to_entities(text)
+            return await send_payload(parsed, entities=emoji_entities)
         except Exception:
             fallback = (
                 self.emoji_parser.remove_emoji_tags(text) if self.emoji_parser else text
             )
-            return await self.client.send_message(chat_id, fallback, **kwargs)
+            return await send_payload(fallback, entities=formatting_entities)
 
     async def run_panel(self) -> None:
         """Start web panel. If config.json is missing, run setup wizard first."""

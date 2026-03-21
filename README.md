@@ -31,6 +31,9 @@
 > [!TIP]
 > Module documentation: [API documentation](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md)
 
+> [!IMPORTANT]
+> Recent Telethon-MCUB changes: [CHANGELOG.md](https://github.com/hairpin01/Telethon-MCUB/blob/main/CHANGELOG.md)
+
 ### Installation
 
 <details>

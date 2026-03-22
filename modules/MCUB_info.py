@@ -16,6 +16,22 @@ from pathlib import Path
 from copy import copy
 
 
+def _detect_branch_sync():
+    try:
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
+            cwd=base_dir,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return "main"
+
+
 CUSTOM_EMOJI = {
     "load": '<tg-emoji emoji-id="5469913852462242978">🏓</tg-emoji>',
     "arch": '<tg-emoji emoji-id="5361837567463399422">🪩</tg-emoji>',
@@ -41,6 +57,7 @@ CUSTOM_EMOJI = {
     "❌": '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji>',
     "⚠️": '<tg-emoji emoji-id="5904692292324692386">⚠️</tg-emoji>',
     "🧩": '<tg-emoji emoji-id="5332534105114445343">🧩</tg-emoji>',
+    '🌐': '<tg-emoji emoji-id="4906943755644306322">🌐</tg-emoji>',
 }
 
 ZERO_WIDTH_CHAR = "\u2060"
@@ -94,10 +111,12 @@ def register(kernel):
             return key
         return lang_strings[key].format(**kwargs)
 
+    branch = _detect_branch_sync()
+
     kernel.config.setdefault("info_quote_media", False)
     kernel.config.setdefault(
         "info_banner_url",
-        "https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/info.png",
+        f"https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/{branch}/img/info.png",
     )
     kernel.config.setdefault("info_invert_media", False)
     kernel.config.setdefault("info_custom_text", None)
@@ -128,7 +147,7 @@ def register(kernel):
             timeout = aiohttp.ClientTimeout(total=10)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(
-                    "https://raw.githubusercontent.com/hairpin01/MCUB-fork/main/core/kernel.py"
+                    f"https://raw.githubusercontent.com/hairpin01/MCUB-fork/{branch}/core/kernel.py"
                 ) as resp:
                     if resp.status == 200:
                         content = await resp.text()
@@ -264,9 +283,9 @@ def register(kernel):
                 else "Mitrich UserBot"
             )
 
-            branch = await kernel.version.detect_branch()
-            commit_sha = await kernel.version.get_commit_sha()
-            commit_url = await kernel.version.get_github_commit_url()
+            branch = await kernel.version_manager.detect_branch()
+            commit_sha = await kernel.version_manager.get_commit_sha()
+            commit_url = await kernel.version_manager.get_github_commit_url()
 
             custom_text = kernel.config.get("info_custom_text")
             if custom_text:

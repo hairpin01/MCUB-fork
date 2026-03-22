@@ -3,9 +3,27 @@ import os
 import time
 import getpass
 import socket
+import subprocess
 from telethon.tl.types import MessageEntityTextUrl
 from telethon import functions
 from copy import copy
+
+
+def _detect_branch_sync():
+    try:
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
+            cwd=base_dir,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return "main"
+
 
 CUSTOM_EMOJI = {
     "📝": '<tg-emoji emoji-id="5334882760735598374">📝</tg-emoji>',
@@ -106,10 +124,12 @@ def register(kernel):
             return key
         return lang_strings[key].format(**kwargs)
 
+    branch = _detect_branch_sync()
+
     kernel.config.setdefault("ping_quote_media", False)
     kernel.config.setdefault(
         "ping_banner_url",
-        "https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/ping.png",
+        f"https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/{branch}/img/ping.png",
     )
     kernel.config.setdefault("ping_invert_media", False)
     kernel.config.setdefault("ping_custom_text", None)

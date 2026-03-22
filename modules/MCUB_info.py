@@ -16,38 +16,6 @@ from pathlib import Path
 from copy import copy
 
 
-def _detect_branch_sync():
-    try:
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        result = subprocess.run(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-            capture_output=True,
-            text=True,
-            cwd=base_dir,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            return result.stdout.strip()
-    except Exception:
-        pass
-    return "main"
-
-
-def _get_commit_sha_sync(short=True):
-    try:
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            capture_output=True,
-            text=True,
-            cwd=base_dir,
-        )
-        if result.returncode == 0:
-            sha = result.stdout.strip()
-            return sha[:7] if short else sha
-    except Exception:
-        pass
-    return "unknown"
-
 CUSTOM_EMOJI = {
     "load": '<tg-emoji emoji-id="5469913852462242978">🏓</tg-emoji>',
     "arch": '<tg-emoji emoji-id="5361837567463399422">🪩</tg-emoji>',
@@ -296,8 +264,9 @@ def register(kernel):
                 else "Mitrich UserBot"
             )
 
-            branch = _detect_branch_sync()
-            commit_sha = _get_commit_sha_sync()
+            branch = await kernel.version.detect_branch()
+            commit_sha = await kernel.version.get_commit_sha()
+            commit_url = await kernel.version.get_github_commit_url()
 
             custom_text = kernel.config.get("info_custom_text")
             if custom_text:
@@ -335,11 +304,12 @@ def register(kernel):
                     )
                     info_text = t('custom_text_error', error=str(e))
             else:
+                branch_display = f"{CUSTOM_EMOJI['🌐']} <b><code>{branch}</code><a href=\"{commit_url}\">#{commit_sha}</a></b>" if commit_url else f"{CUSTOM_EMOJI['🌐']} <b><code>{branch}</code>#{commit_sha}</b>"
                 info_text = f"""<b>{mcub_emoji}</b>
 <blockquote>{CUSTOM_EMOJI['🌩️']} <b>Version:</b> <code>{kernel.VERSION}</code>
 {CUSTOM_EMOJI['🧩']} <b>Kernel:</b> <code>{core_name}</code>
 {f"{CUSTOM_EMOJI['💔']} <b>Update needed</b>" if update_needed else f"{CUSTOM_EMOJI['🔮']} <b>No update needed</b>"}
-{CUSTOM_EMOJI['🌐']} <b>Branch:</b> <code>{branch}</code> <b>Build:</b> <code>{commit_sha}</code></blockquote>
+{branch_display}</blockquote>
 
 <blockquote>{CUSTOM_EMOJI['📡']} <b>Ping:</b> <code>{ping_time} ms</code>
 {CUSTOM_EMOJI['🧪']} <b>Uptime:</b> <code>{uptime_str}</code>

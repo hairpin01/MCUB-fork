@@ -127,7 +127,7 @@ def register(kernel):
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                     preexec_fn=os.setsid if os.name != 'nt' else None,
-                )
+                ) # noqa: S602, S607, B606
 
                 cmd_data["process"] = process
                 start_time = time.time()
@@ -333,7 +333,6 @@ def register(kernel):
                 if chat_id in self.running_commands:
                     del self.running_commands[chat_id]
 
-                # Редактируем сообщение tkill вместо отправки нового
                 if message_id:
                     await client.edit_message(
                         chat_id,

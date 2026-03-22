@@ -81,7 +81,7 @@ def register(kernel):
             exec(
                 "async def __exec():\n    " + "\n    ".join(code.split("\n")),
                 local_vars,
-            )
+            ) # noqa: S102
             result = await local_vars["__exec"]()
             complete = output.getvalue()
             if result is not None:

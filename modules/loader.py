@@ -1,6 +1,6 @@
 # author: @Hairpin00
 # version: 1.1.0
-# description: loader modules (+ hikka/heroku compat)
+# description: loader modules
 import logging
 import os
 import re

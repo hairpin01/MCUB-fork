@@ -146,7 +146,10 @@ def register(kernel):
         return CUSTOM_EMOJI.get(value, value)
 
     async def mcub_handler():
-        me = await kernel.client.get_me()
+        me = kernel.cache.get('tester:me')
+        if me is None:
+            me = await kernel.client.get_me()
+            kernel.cache.set('tester:me', me, ttl=3600)
         mcub_emoji = (
             '<tg-emoji emoji-id="5470015630302287916">🔮</tg-emoji><tg-emoji emoji-id="5469945764069280010">🔮</tg-emoji><tg-emoji emoji-id="5469943045354984820">🔮</tg-emoji><tg-emoji emoji-id="5469879466954098867">🔮</tg-emoji>'
             if me.premium
@@ -174,8 +177,16 @@ def register(kernel):
             else:
                 uptime = f"{seconds}{lang_strings['seconds']}"
 
-            system_user = getpass.getuser()
-            hostname = socket.gethostname()
+            _identity = kernel.cache.get('tester:identity')
+            if _identity is None:
+                try:
+                    system_user = getpass.getuser()
+                    hostname = socket.gethostname()
+                except Exception:
+                    system_user = hostname = "Unknown"
+                kernel.cache.set('tester:identity', (system_user, hostname))
+            else:
+                system_user, hostname = _identity
 
             custom_text = kernel.config.get("ping_custom_text")
             if custom_text:

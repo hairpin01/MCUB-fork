@@ -143,6 +143,9 @@ def register(kernel):
         return f"{secs}s"
 
     async def check_update():
+        cached = kernel.cache.get('info:update_needed')
+        if cached is not None:
+            return cached
         try:
             timeout = aiohttp.ClientTimeout(total=10)
             async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -154,8 +157,10 @@ def register(kernel):
                         match = re.search(r"VERSION = '([^']+)'", content)
                         if match:
                             remote_version = match.group(1)
-                            if remote_version != kernel.VERSION:
-                                return True
+                            result = remote_version != kernel.VERSION
+                            kernel.cache.set('info:update_needed', result, ttl=300)
+                            return result
+            kernel.cache.set('info:update_needed', False, ttl=300)
             return False
         except (asyncio.TimeoutError, Exception):
             return False
@@ -218,18 +223,21 @@ def register(kernel):
 
             uptime_str = format_uptime(time.time() - kernel.start_time)
 
-            distro_name = "Unknown"
-            try:
-                if os.path.exists("/etc/os-release"):
-                    with open("/etc/os-release", "r") as f:
-                        for line in f:
-                            if "PRETTY_NAME" in line:
-                                distro_name = line.split("=")[1].strip().strip('"')
-                                break
-                else:
-                    distro_name = platform.platform()
-            except:
-                distro_name = "Linux"
+            distro_name = kernel.cache.get('info:distro_name')
+            if distro_name is None:
+                distro_name = "Unknown"
+                try:
+                    if os.path.exists("/etc/os-release"):
+                        with open("/etc/os-release", "r") as f:
+                            for line in f:
+                                if "PRETTY_NAME" in line:
+                                    distro_name = line.split("=")[1].strip().strip('"')
+                                    break
+                    else:
+                        distro_name = platform.platform()
+                except:
+                    distro_name = "Linux"
+                kernel.cache.set('info:distro_name', distro_name)
 
             distro_emojis = {
                 "arch": CUSTOM_EMOJI["arch"],
@@ -246,26 +254,37 @@ def register(kernel):
                     distro_emoji = emoji
                     break
 
-            current_platform = get_platform()
-            platform_type = f"VDS {CUSTOM_EMOJI['vds']}"
-            if is_wsl():
-                platform_type = f"WSL {CUSTOM_EMOJI['wsl']}"
-            elif is_termux():
-                platform_type = f"Termux {CUSTOM_EMOJI['termux']}"
+            platform_type = kernel.cache.get('info:platform_type')
+            if platform_type is None:
+                get_platform()  # side-effects if any
+                platform_type = f"VDS {CUSTOM_EMOJI['vds']}"
+                if is_wsl():
+                    platform_type = f"WSL {CUSTOM_EMOJI['wsl']}"
+                elif is_termux():
+                    platform_type = f"Termux {CUSTOM_EMOJI['termux']}"
+                kernel.cache.set('info:platform_type', platform_type)
 
             cpu_usage, ram_usage = get_system_info()
             update_needed = await check_update()
 
-            try:
-                system_user = getpass.getuser()
-                hostname = socket.gethostname()
-            except Exception:
-                system_user = hostname = "Unknown"
+            _identity = kernel.cache.get('info:identity')
+            if _identity is None:
+                try:
+                    system_user = getpass.getuser()
+                    hostname = socket.gethostname()
+                except Exception:
+                    system_user = hostname = "Unknown"
+                kernel.cache.set('info:identity', (system_user, hostname))
+            else:
+                system_user, hostname = _identity
 
             update_emoji = CUSTOM_EMOJI["💔"] if update_needed else CUSTOM_EMOJI["🔮"]
             update_text = "Update needed" if update_needed else "No update needed"
 
-            me = await client.get_me()
+            me = kernel.cache.get('info:me')
+            if me is None:
+                me = await client.get_me()
+                kernel.cache.set('info:me', me, ttl=3600)
             user_ids = me.id
 
             user_emojis = {
@@ -283,9 +302,14 @@ def register(kernel):
                 else "Mitrich UserBot"
             )
 
-            branch = await kernel.version_manager.detect_branch()
-            commit_sha = await kernel.version_manager.get_commit_sha()
-            commit_url = await kernel.version_manager.get_github_commit_url()
+            _version_info = kernel.cache.get('info:version_info')
+            if _version_info is None:
+                branch = await kernel.version_manager.detect_branch()
+                commit_sha = await kernel.version_manager.get_commit_sha()
+                commit_url = await kernel.version_manager.get_github_commit_url()
+                kernel.cache.set('info:version_info', (branch, commit_sha, commit_url), ttl=600)
+            else:
+                branch, commit_sha, commit_url = _version_info
 
             custom_text = kernel.config.get("info_custom_text")
             if custom_text:
@@ -323,7 +347,7 @@ def register(kernel):
                     )
                     info_text = t('custom_text_error', error=str(e))
             else:
-                branch_display = f"{CUSTOM_EMOJI['🌐']} <b><code>{branch}</code><a href=\"{commit_url}\">#{commit_sha}</a></b>" if commit_url else f"{CUSTOM_EMOJI['🌐']} <b><code>{branch}</code>#{commit_sha}</b>"
+                branch_display = f"{CUSTOM_EMOJI['🌐']}<b> Branch: {branch}</b><b><a href=\"{commit_url}\">#{commit_sha}</a></b>" if commit_url else f"{CUSTOM_EMOJI['🌐']}<b> Branch {branch}#{commit_sha}</b>"
                 info_text = f"""<b>{mcub_emoji}</b>
 <blockquote>{CUSTOM_EMOJI['🌩️']} <b>Version:</b> <code>{kernel.VERSION}</code>
 {CUSTOM_EMOJI['🧩']} <b>Kernel:</b> <code>{core_name}</code>

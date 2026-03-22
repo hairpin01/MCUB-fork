@@ -1,6 +1,6 @@
 # author: @Hairpin00
-# version: 1.0.9
-# description: loader modules
+# version: 1.1.0
+# description: loader modules (+ hikka/heroku compat)
 import logging
 import os
 import re
@@ -12,6 +12,15 @@ from datetime import datetime
 import html
 import random
 from telethon import Button
+
+try:
+    from core.lib.loader.hikka_compat import is_hikka_module, load_hikka_module, unload_hikka_module
+    HIKKA_COMPAT = True
+except ImportError:
+    HIKKA_COMPAT = False
+    def is_hikka_module(code): return False
+    async def load_hikka_module(kernel, path, name): return False, "hikka_compat not found"
+    async def unload_hikka_module(kernel, name): return False
 
 logger = logging.getLogger("mcub.loader")
 
@@ -180,7 +189,9 @@ def register(kernel):
             'catalog_error': '❌ Catalog loading error: {error}',
             'btn_back': '⬅️ Back',
             'btn_next': '➡️ Next',
-            'modules_not_mcub': '{warning} Module is not {mcub} type, [Heroku/Hikka]'
+            'modules_not_mcub': '{warning} Module is not {mcub} type, [Heroku/Hikka]',
+            'log_hikka_detected': '=+ Hikka/Heroku module detected — loading via compat layer',
+            'hikka_no_compat': '{warning} <b>Hikka compat, not found.</b>',
         },
         'ru': {
             'reply_to_py': '{warning} <b>Ответьте на .py файл</b>',
@@ -287,9 +298,12 @@ def register(kernel):
             'catalog_error': '❌ Ошибка загрузки каталога: {error}',
             'btn_back': '⬅️ Назад',
             'btn_next': '➡️ Вперёд',
-            'modules_not_mcub': '{warning} Модуль не {mcub} типа <i>[Heroku/Hikka]</i>'
+            'modules_not_mcub': '{warning} Модуль не {mcub} типа <i>[Heroku/Hikka]</i>',
+            'log_hikka_detected': '=+ Обнаружен Hikka/Heroku модуль',
+            'hikka_no_compat': '{warning} <b>Hikka compat не найден.</b>',
         }
     }
+
 
     # Получаем строки для текущего языка
     lang_strings = strings.get(language, strings['en'])
@@ -674,30 +688,137 @@ def register(kernel):
                 code = f.read()
             add_log(t('log_file_read'))
 
-            mcub = await mcub_handler()
-            add_log(t('log_checking_compatibility'))
-            if re.search(r'^from \.\. import', code, re.MULTILINE) or re.search(r'^import loader\b', code, re.MULTILINE):
-                add_log(t('log_incompatible'))
-                await edit_with_emoji(
-                    msg, t('modules_not_mcub', mcub=mcub, warning=CUSTOM_EMOJI['warning'])
-                )
-                os.remove(file_path)
-                return
-            add_log(t('log_compatible'))
-
-
             add_log(t('log_getting_metadata'))
             metadata = await kernel.get_module_metadata(code)
             add_log(t('log_author', author=metadata['author']))
             add_log(t('log_version', version=metadata['version']))
             add_log(t('log_description', description=metadata['description']))
 
+            mcub = await mcub_handler()
+            add_log(t('log_checking_compatibility'))
+            if is_hikka_module(code):
+                add_log(t('log_hikka_detected'))
+                if not HIKKA_COMPAT:
+                    await edit_with_emoji(
+                        msg,
+                        t('hikka_no_compat', warning=CUSTOM_EMOJI['warning']),
+                    )
+                    os.remove(file_path)
+                    return
+
+                await edit_with_emoji(
+                    msg,
+                    t('starting_install', action=t('installing', test=CUSTOM_EMOJI['loading'])),
+                )
+
+                # Install deps before compat load
+                dependencies = []
+                if "requires" in code:
+                    reqs = re.findall(r"# requires: (.+)", code)
+                    if reqs:
+                        raw = reqs[0]
+                        # Split by comma first, then by whitespace for space-separated deps
+                        parts = []
+                        for part in raw.split(","):
+                            part = part.strip()
+                            if not part:
+                                continue
+                            # If part contains spaces without commas, split by whitespace
+                            if " " in part:
+                                parts.extend(part.split())
+                            else:
+                                parts.append(part)
+                        dependencies = [p.strip() for p in parts if p.strip()]
+                        add_log(t('log_deps_found', deps=', '.join(dependencies)))
+                if dependencies:
+                    await edit_with_emoji(
+                        msg,
+                        t('installing_deps',
+                          dependencies=CUSTOM_EMOJI['dependencies'],
+                          deps_list='\n'.join(dependencies)),
+                    )
+                    for dep in dependencies:
+                        add_log(t('log_installing_dep', dep=dep))
+                        result = subprocess.run(
+                            [sys.executable, "-m", "pip", "install", dep],
+                            capture_output=True, text=True,
+                        )
+                        if result.returncode == 0:
+                            add_log(t('log_dep_installed', dep=dep))
+                        else:
+                            add_log(t('log_dep_error', dep=dep, error=result.stderr[:200]))
+
+                if is_update:
+                    add_log(t('log_removing_old', module_name=module_name))
+                    kernel.unregister_module_commands(module_name)
+
+                ok, err, extra = await load_hikka_module(kernel, file_path, module_name)
+                extra = extra or {}
+                conflicts = extra.get("conflicts", [])
+                if ok:
+                    commands, aliases_info = get_module_commands(module_name, kernel)
+                    emoji = random.choice(RANDOM_EMOJIS)
+                    commands_list = ""
+                    for cmd in commands:
+                        cmd_desc = metadata["commands"].get(
+                            cmd, t('no_cmd_desc', no_cmd=CUSTOM_EMOJI['no_cmd'])
+                        )
+                        command_line = t('command_line',
+                                        crystal=CUSTOM_EMOJI['crystal'],
+                                        prefix=kernel.custom_prefix,
+                                        cmd=cmd, desc=cmd_desc)
+                        commands_list += command_line + "\n"
+
+                    conflict_text = ""
+                    if conflicts:
+                        conflict_text = f"⚠️ <b>Command conflicts ({len(conflicts)}):</b>\n"
+                        for cf in conflicts:
+                            owner = cf.get("owner") or "unknown"
+                            conflict_text += f"<code>{cf['command']}</code> — registered by <code>{owner}</code>\n"
+
+                    kernel.logger.info(f"Hikka модуль {module_name} установлен")
+                    await edit_with_emoji(
+                        msg,
+                        t('module_loaded',
+                          success=CUSTOM_EMOJI['success'],
+                          module_name=module_name,
+                          emoji=emoji,
+                          idea=CUSTOM_EMOJI['idea'],
+                          description=metadata["description"],
+                          version=metadata["version"],
+                          commands_list=commands_list + conflict_text),
+                    )
+                else:
+                    add_log(t('log_install_error', error=err))
+                    log_text = "\n".join(install_log)
+                    await edit_with_emoji(
+                        msg,
+                        t('install_failed',
+                          blocked=CUSTOM_EMOJI['blocked'],
+                          idea=CUSTOM_EMOJI['idea'],
+                          log=html.escape(log_text)),
+                    )
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                return
+            add_log(t('log_compatible'))
+
             dependencies = []
             add_log(t('log_checking_deps'))
             if "requires" in code:
                 reqs = re.findall(r"# requires: (.+)", code)
                 if reqs:
-                    dependencies = [req.strip() for req in reqs[0].split(",")]
+                    raw = reqs[0]
+                    parts = []
+                    for part in raw.split(","):
+                        part = part.strip()
+                        if not part:
+                            continue
+                        if " " in part:
+                            parts.extend(part.split())
+                        else:
+                            parts.append(part)
+                    dependencies = [p.strip() for p in parts if p.strip()]
                     add_log(t('log_deps_found', deps=', '.join(dependencies)))
 
             if dependencies:
@@ -1122,7 +1243,17 @@ def register(kernel):
             if "requires" in code:
                 reqs = re.findall(r"# requires: (.+)", code)
                 if reqs:
-                    dependencies = [req.strip() for req in reqs[0].split(",")]
+                    raw = reqs[0]
+                    parts = []
+                    for part in raw.split(","):
+                        part = part.strip()
+                        if not part:
+                            continue
+                        if " " in part:
+                            parts.extend(part.split())
+                        else:
+                            parts.append(part)
+                    dependencies = [p.strip() for p in parts if p.strip()]
                     add_log(t('log_deps_found', deps=', '.join(dependencies)))
 
             if dependencies:
@@ -1154,6 +1285,76 @@ def register(kernel):
                 f.write(code)
 
             add_log(t('log_loading_to_kernel'))
+
+            # ── Hikka/Heroku compat ──────────────────────────────────────────
+            if is_hikka_module(code):
+                add_log(t('log_hikka_detected'))
+                if not HIKKA_COMPAT:
+                    await edit_with_emoji(
+                        msg,
+                        t('hikka_no_compat', warning=CUSTOM_EMOJI['warning']),
+                    )
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                    return
+
+                await edit_with_emoji(
+                    msg, t('starting_install', action=t('installing', test=CUSTOM_EMOJI['loading']))
+                )
+                ok, err, extra = await load_hikka_module(kernel, file_path, module_name)
+                extra = extra or {}
+                conflicts = extra.get("conflicts", [])
+                if ok:
+                    add_log(t('log_module_loaded_kernel'))
+                    commands, aliases_info = get_module_commands(module_name, kernel)
+                    emoji = random.choice(RANDOM_EMOJIS)
+                    commands_list = ""
+                    if commands:
+                        add_log(t('log_commands_found', count=len(commands)))
+                        for cmd in commands:
+                            cmd_desc = metadata["commands"].get(
+                                cmd, t('no_cmd_desc', no_cmd=CUSTOM_EMOJI['no_cmd'])
+                            )
+                            command_line = t('command_line',
+                                            crystal=CUSTOM_EMOJI['crystal'],
+                                            prefix=kernel.custom_prefix,
+                                            cmd=cmd, desc=cmd_desc)
+                            commands_list += command_line + "\n"
+
+                    conflict_text = ""
+                    if conflicts:
+                        conflict_text = f"\n\n⚠️ <b>Command conflicts ({len(conflicts)}):</b>\n"
+                        for cf in conflicts:
+                            owner = cf.get("owner") or "unknown"
+                            conflict_text += f"<code>{cf['command']}</code> — registered by <code>{owner}</code>\n"
+
+                    kernel.logger.info(f"Hikka модуль {module_name} установлен")
+                    await edit_with_emoji(
+                        msg,
+                        t('module_loaded',
+                          success=CUSTOM_EMOJI['success'],
+                          module_name=module_name,
+                          emoji=emoji,
+                          idea=CUSTOM_EMOJI['idea'],
+                          description=metadata["description"],
+                          version=metadata["version"],
+                          commands_list=commands_list + conflict_text),
+                    )
+                else:
+                    add_log(t('log_install_error', error=err))
+                    log_text = "\n".join(install_log)
+                    await edit_with_emoji(
+                        msg,
+                        t('install_failed',
+                          blocked=CUSTOM_EMOJI['blocked'],
+                          idea=CUSTOM_EMOJI['idea'],
+                          log=html.escape(log_text)),
+                    )
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                return
+            # ── end Hikka compat ─────────────────────────────────────────────
+
             success, message_text = await kernel.load_module_from_file(
                 file_path, module_name, False
             )
@@ -1280,7 +1481,12 @@ def register(kernel):
             )
             return
 
-        kernel.unregister_module_commands(module_name)
+        instance = kernel.loaded_modules.get(module_name)
+        if instance and getattr(instance, '_hikka_compat', False):
+            import asyncio
+            asyncio.ensure_future(unload_hikka_module(kernel, module_name))
+        else:
+            kernel.unregister_module_commands(module_name)
 
         file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
         if os.path.exists(file_path):

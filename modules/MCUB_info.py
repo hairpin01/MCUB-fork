@@ -7,12 +7,46 @@ import aiohttp
 import getpass
 import socket
 import re
+import subprocess
 
 from utils.platform import get_platform, is_wsl, is_termux
 from telethon.tl.types import MessageEntityTextUrl
 from telethon import functions
 from pathlib import Path
 from copy import copy
+
+
+def _detect_branch_sync():
+    try:
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
+            cwd=base_dir,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return "main"
+
+
+def _get_commit_sha_sync(short=True):
+    try:
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            cwd=base_dir,
+        )
+        if result.returncode == 0:
+            sha = result.stdout.strip()
+            return sha[:7] if short else sha
+    except Exception:
+        pass
+    return "unknown"
 
 CUSTOM_EMOJI = {
     "load": '<tg-emoji emoji-id="5469913852462242978">🏓</tg-emoji>',
@@ -262,6 +296,9 @@ def register(kernel):
                 else "Mitrich UserBot"
             )
 
+            branch = _detect_branch_sync()
+            commit_sha = _get_commit_sha_sync()
+
             custom_text = kernel.config.get("info_custom_text")
             if custom_text:
                 try:
@@ -269,7 +306,7 @@ def register(kernel):
                         "kernel_version", "core_name", "ping_time", "uptime_str",
                         "distro_name", "distro_emoji", "platform_type", "cpu_usage",
                         "ram_usage", "system_user", "hostname", "update_emoji",
-                        "update_text", "update_needed",
+                        "update_text", "update_needed", "branch", "commit_sha",
                     ]
                     _safe = custom_text.replace("{", "{{").replace("}", "}}")
                     for _k in _known:
@@ -289,6 +326,8 @@ def register(kernel):
                         update_emoji=update_emoji,
                         update_text=update_text,
                         update_needed=update_needed,
+                        branch=branch,
+                        commit_sha=commit_sha,
                     )
                 except Exception as e:
                     await kernel.handle_error(
@@ -299,7 +338,8 @@ def register(kernel):
                 info_text = f"""<b>{mcub_emoji}</b>
 <blockquote>{CUSTOM_EMOJI['🌩️']} <b>Version:</b> <code>{kernel.VERSION}</code>
 {CUSTOM_EMOJI['🧩']} <b>Kernel:</b> <code>{core_name}</code>
-{f"{CUSTOM_EMOJI['💔']} <b>Update needed</b>" if update_needed else f"{CUSTOM_EMOJI['🔮']} <b>No update needed</b>"}</blockquote>
+{f"{CUSTOM_EMOJI['💔']} <b>Update needed</b>" if update_needed else f"{CUSTOM_EMOJI['🔮']} <b>No update needed</b>"}
+{CUSTOM_EMOJI['🌐']} <b>Branch:</b> <code>{branch}</code> <b>Build:</b> <code>{commit_sha}</code></blockquote>
 
 <blockquote>{CUSTOM_EMOJI['📡']} <b>Ping:</b> <code>{ping_time} ms</code>
 {CUSTOM_EMOJI['🧪']} <b>Uptime:</b> <code>{uptime_str}</code>

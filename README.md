@@ -215,6 +215,37 @@ Module list ___(without inline bot)___: `.dlm -list {module name / nothing}`
 
 Need a module for MCUB-fork? [click here](https://github.com/hairpin01/repo-MCUB-fork)
 
+### Heroku / Hikka Module Support *(beta)*
+
+> [!WARNING]
+> This feature is in **beta** and not fully implemented. Not all Hikka modules will work correctly with MCUB-fork.
+
+MCUB-fork has experimental support for Hikka/Heroku-style modules via Fheta (module searcher).
+
+**Install Fheta:**
+```
+.dlm fheta-MCUB-repo
+```
+
+**Search for modules:**
+```
+.fheta [query]
+```
+or just use `.dlm` to browse available modules *(MCUB-compatible modules)*.
+
+**Install a module from the repo:**
+```
+.dlm [module name / URL]
+```
+
+**Send a module to chat instead of installing:**
+```
+.dlm -s [module name / URL]
+```
+
+> [!NOTE]
+> Only MCUB-compatible modules from the repo are guaranteed to work. Hikka modules may have unsupported APIs or dependencies.
+
 ---
 
 ## Русский
@@ -404,6 +435,37 @@ python3 -m core
 Список модулей ___(без инлайн бота)___: `.dlm -list {название модуля/нечего}`
 
 Нужен модуль для MCUB-fork? [жмякни здесь](https://github.com/hairpin01/repo-MCUB-fork)
+
+### Поддержка модулей Heroku / Hikka *(бета)*
+
+> [!WARNING]
+> Функция находится в **бета-версии** и реализована не полностью. Не все модули Hikka будут корректно работать с MCUB-fork.
+
+MCUB-fork имеет экспериментальную поддержку модулей в стиле Hikka/Heroku через Fheta (поисковик модулей).
+
+**Установить Fheta:**
+```
+.dlm fheta-MCUB-repo
+```
+
+**Поиск модулей:**
+```
+.fheta [запрос]
+```
+или просто используйте `.dlm` для просмотра доступных модулей *(MCUB-совместимые модули)*.
+
+**Установить модуль из репозитория:**
+```
+.dlm [название модуля / URL]
+```
+
+**Отправить модуль в чат вместо установки:**
+```
+.dlm -s [название модуля / URL]
+```
+
+> [!NOTE]
+> Гарантированно работают только MCUB-совместимые модули из репозитория. Модули Hikka могут использовать неподдерживаемые API или зависимости.
 
 ---
 
@@ -595,6 +657,37 @@ python3 -m core
 
 Потрібен модуль для MCUB-fork? [натисніть тут](https://github.com/hairpin01/repo-MCUB-fork)
 
+### Підтримка модулів Heroku / Hikka *(бета)*
+
+> [!WARNING]
+> Функція перебуває в **бета-версії** і реалізована не повністю. Не всі модулі Hikka коректно працюватимуть з MCUB-fork.
+
+MCUB-fork має експериментальну підтримку модулів у стилі Hikka/Heroku через Fheta (пошуковик модулів).
+
+**Встановити Fheta:**
+```
+.dlm fheta-MCUB-repo
+```
+
+**Пошук модулів:**
+```
+.fheta [запит]
+```
+або просто використовуйте `.dlm` для перегляду доступних модулів *(MCUB-сумісні модулі)*.
+
+**Встановити модуль з репозиторію:**
+```
+.dlm [назва модуля / URL]
+```
+
+**Надіслати модуль у чат замість встановлення:**
+```
+.dlm -s [назва модуля / URL]
+```
+
+> [!NOTE]
+> Гарантовано працюють лише MCUB-сумісні модулі з репозиторію. Модулі Hikka можуть використовувати непідтримувані API або залежності.
+
 ---
 
 ## Español
@@ -784,6 +877,37 @@ Instalar: `.dlm` {nombre-del-módulo / sin argumentos para todos los módulos}
 Lista de módulos ___(sin bot inline)___: `.dlm -list {nombre-del-módulo / nada}`
 
 ¿Necesitas un módulo para MCUB-fork? [haz clic aquí](https://github.com/hairpin01/repo-MCUB-fork)
+
+### Soporte de módulos Heroku / Hikka *(beta)*
+
+> [!WARNING]
+> Esta función está en **beta** y no está completamente implementada. No todos los módulos de Hikka funcionarán correctamente con MCUB-fork.
+
+MCUB-fork tiene soporte experimental para módulos estilo Hikka/Heroku a través de Fheta (buscador de módulos).
+
+**Instalar Fheta:**
+```
+.dlm fheta-MCUB-repo
+```
+
+**Buscar módulos:**
+```
+.fheta [consulta]
+```
+o simplemente usa `.dlm` para explorar los módulos disponibles *(módulos compatibles con MCUB)*.
+
+**Instalar un módulo del repositorio:**
+```
+.dlm [nombre del módulo / URL]
+```
+
+**Enviar un módulo al chat en lugar de instalarlo:**
+```
+.dlm -s [nombre del módulo / URL]
+```
+
+> [!NOTE]
+> Solo se garantiza que funcionen los módulos compatibles con MCUB del repositorio. Los módulos de Hikka pueden tener APIs o dependencias no compatibles.
 
 ---
 
@@ -975,6 +1099,37 @@ Modulliste ___(ohne Inline-Bot)___: `.dlm -list {Modulname / nichts}`
 
 Brauchst du ein Modul für MCUB-fork? [hier klicken](https://github.com/hairpin01/repo-MCUB-fork)
 
+### Heroku / Hikka Modulunterstützung *(Beta)*
+
+> [!WARNING]
+> Diese Funktion befindet sich in der **Beta**-Phase und ist noch nicht vollständig implementiert. Nicht alle Hikka-Module werden mit MCUB-fork korrekt funktionieren.
+
+MCUB-fork hat experimentelle Unterstützung für Hikka/Heroku-Module über Fheta (Modulsucher).
+
+**Fheta installieren:**
+```
+.dlm fheta-MCUB-repo
+```
+
+**Module suchen:**
+```
+.fheta [Suchanfrage]
+```
+oder verwende einfach `.dlm`, um verfügbare Module zu durchsuchen *(MCUB-kompatible Module)*.
+
+**Modul aus dem Repository installieren:**
+```
+.dlm [Modulname / URL]
+```
+
+**Modul in den Chat senden statt installieren:**
+```
+.dlm -s [Modulname / URL]
+```
+
+> [!NOTE]
+> Nur MCUB-kompatible Module aus dem Repository sind garantiert funktionsfähig. Hikka-Module können nicht unterstützte APIs oder Abhängigkeiten haben.
+
 ---
 
 ## 中文
@@ -1164,3 +1319,34 @@ Telegram 群组 [*点击这里*](https://t.me/+LVnbdp4DNVE5YTFi)
 模块列表 ___(无内联机器人)___：`.dlm -list {模块名称 / 无}`
 
 需要 MCUB-fork 的模块？ [*点击这里*](https://github.com/hairpin01/repo-MCUB-fork)
+
+### Heroku / Hikka 模块支持 *（测试版）*
+
+> [!WARNING]
+> 此功能处于**测试阶段**，尚未完全实现。并非所有 Hikka 模块都能与 MCUB-fork 正常配合使用。
+
+MCUB-fork 通过 Fheta（模块搜索器）实验性地支持 Hikka/Heroku 风格的模块。
+
+**安装 Fheta：**
+```
+.dlm fheta-MCUB-repo
+```
+
+**搜索模块：**
+```
+.fheta [搜索关键词]
+```
+或直接使用 `.dlm` 浏览可用模块 *（MCUB 兼容模块）*。
+
+**从仓库安装模块：**
+```
+.dlm [模块名称 / URL]
+```
+
+**将模块发送到聊天而非安装：**
+```
+.dlm -s [模块名称 / URL]
+```
+
+> [!NOTE]
+> 仅保证仓库中与 MCUB 兼容的模块正常工作。Hikka 模块可能使用不受支持的 API 或依赖项。

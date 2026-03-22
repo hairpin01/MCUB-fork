@@ -343,7 +343,7 @@ class InlineHandlers:
                     await kb.handle_confirm_no(event)
 
 
-            for pattern, handler in self.kernel.callback_handlers.items():
+            for pattern, handler in list(self.kernel.callback_handlers.items()):
                 p_str = pattern.decode() if isinstance(pattern, bytes) else str(pattern)
                 if data_str.startswith(p_str):
                     await handler(event)

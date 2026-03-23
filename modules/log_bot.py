@@ -238,13 +238,12 @@ def register(kernel):
             count=len(commits), branch=branch
         )
         lines = []
-        lines.append('<blockquote>')
+
         for sha, subject, author, time_str in commits:
             lines.append(
-                f"<code>{sha}</code> {html.escape(subject)} | "
-                f"<i>{html.escape(author)}</i> | {time_str}"
+                f"<blockquote><code>{sha}</code> {html.escape(subject)} | "
+                f"<i>{html.escape(author)}</i> | {time_str}</blockquote>"
             )
-        lines.append('</blockquote>')
 
         text = header + "\n\n" + "\n".join(lines)
         btn = Button.inline(lang_strings['new_commits_btn'], data=b"do_update")
@@ -308,7 +307,7 @@ def register(kernel):
     async def on_update_callback(event):
         await event.answer()
         try:
-            await event.edit(lang_strings['update_running'], buttons=None)
+            await event.edit(lang_strings['update_running'], buttons=None, parse_mode='html')
         except Exception:
             pass
         try:

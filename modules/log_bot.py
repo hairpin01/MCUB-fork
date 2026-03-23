@@ -312,8 +312,9 @@ def register(kernel):
             pass
         try:
             repo_path = os.path.dirname(os.path.abspath(__file__))
+            branch = await kernel.version_manager.detect_branch()
             proc = await asyncio.create_subprocess_exec(
-                "git", "pull", "--ff-only",
+                "git", "pull", "--ff-only", "origin", branch,
                 cwd=repo_path,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,

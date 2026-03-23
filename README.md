@@ -222,7 +222,7 @@ Need a module for MCUB-fork? [click here](https://github.com/hairpin01/repo-MCUB
 `MCUB-fork` это userbot и форк `MCUBFB` с улучшенным `API`, и с правильной структурой.
 
 > [!TIP]
-> документация по модулям: [api documentation](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md)
+> документация по модулям: [API Documentation](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md)
 
 ### Установка
 

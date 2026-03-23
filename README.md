@@ -190,7 +190,7 @@ python3 -m core
 - `.info` - userbot info
 - `.restart` - restart
 - `.iload` - install module __(reply to `.py` file)__
-- `.man` - list of modules __(and their commands)__
+- `.man [name/None]` - list of modules __(and their commands)__
 - `.um [name]` - remove module
 
 > [!TIP]

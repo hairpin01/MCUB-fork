@@ -318,7 +318,10 @@ def register(kernel):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            await asyncio.wait_for(proc.communicate(), timeout=30)
+            stdout_pull, stderr_pull = await asyncio.wait_for(proc.communicate(), timeout=30)
+            if proc.returncode != 0:
+                error_msg = stderr_pull.decode().strip() or stdout_pull.decode().strip()
+                raise Exception(f"git pull failed (code {proc.returncode}): {error_msg}")
 
             proc2 = await asyncio.create_subprocess_exec(
                 "git", "rev-parse", "--short", "HEAD",

@@ -1,9 +1,9 @@
 telethon_mcub
-psutil
+# psutil
 aiohttp
 pysocks
 aiosqlite
-cryptg
+# cryptg
 socks
 jinja2
 aiohttp-jinja2

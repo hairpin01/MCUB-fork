@@ -43,36 +43,36 @@ jobs:
       - name: Run tests
         run: python tests/run_tests.py
 
-    docker:
-        name: Docker Build
-        runs-on: ubuntu-latest
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        steps:
-        - uses: actions/checkout@v4
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    steps:
+      - uses: actions/checkout@v4
 
-        - name: Привести имя репозитория к нижнему регистру
-            run: echo "REPO_LC=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+      - name: Привести имя репозитория к нижнему регистру
+        run: echo "REPO_LC=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
 
-        - name: Set up Docker Buildx
-            uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-        - name: Login to GitHub Container Registry
-            uses: docker/login-action@v3
-            with:
-            registry: ghcr.io
-            username: ${{ github.actor }}
-            password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-        - name: Build and push
-            uses: docker/build-push-action@v6
-            with:
-            context: .
-            push: true
-            tags: |
-                ghcr.io/${{ env.REPO_LC }}:latest
-                ghcr.io/${{ env.REPO_LC }}:${{ github.sha }}
-            cache-from: type=gha
-            cache-to: type=gha,mode=max
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ env.REPO_LC }}:latest
+            ghcr.io/${{ env.REPO_LC }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   quality:
     name: Code Quality

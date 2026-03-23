@@ -28,14 +28,14 @@ def register(kernel):
             'up_to_date': '✅ Актуальная версия',
             'git_error': '⚠️ Ошибка Git',
             'setup_log_group': '🤖 Настройка лог-группы',
-            'searching_logs': 'Error searching logs',
+            'searching_logs': 'Ошибка поиска логов',
             'creating_log_group': '📝 Создаю лог-группу...',
             'bot_prepare_error': 'Не удалось подготовить бота для добавления',
             'chat_id_error': '❌ Не удалось получить ID созданного чата',
             'avatar_error': '⚠️ Не удалось установить аватарку',
-            'invite_error': '⚠️ Не удалось получить ссылку (возможно нет прав)',
+            'invite_error': '⚠️ Не удалось получить ссылку (нет прав)',
             'bot_added': '✅ Бот добавлен',
-            'bot_add_error': '⚠️ Не удалось добавить бота постфактум',
+            'bot_add_error': '⚠️ Не удалось добавить бота',
             'chat_create_error': '❌ Ошибка создания чата',
             'log_setup_title': 'Настраиваю лог-группу...',
             'log_setup_success': '✅ Лог-группа настроена',
@@ -67,12 +67,12 @@ def register(kernel):
             'startup_error': '❌ Ошибка отправки',
             'send_log_error': '❌ Не удалось отправить в лог',
             'started': 'started!',
-            'update_status': 'Update status',
-            'prefix': 'Prefix',
-            'new_commits_header': '🔔 Доступно <b>{count}</b> обновлений на ветку <code>{branch}</code>',
+            'update_status': 'Статус обновления',
+            'prefix': 'Префикс',
+            'new_commits_header': '<tg-emoji emoji-id="5465300082628763143">💬</tg-emoji> <b>Доступно {count} обновлений на ветку</b> <code>{branch}</code>',
             'new_commits_btn': '🔄 Обновить',
-            'update_running': '⏳ Обновляю...',
-            'update_done': '✅ Обновлено до <code>{sha}</code>\n⚠️ Перезапусти юзербот вручную',
+            'update_running': '<tg-emoji emoji-id="5326015457155620929">📦</tg-emoji> <b>Обновляю...</b>',
+            'update_done': '✅ Обновлено до <code>{sha}</code>\n<blockquote>⚠️ Автоматическая перезагрузка</blockquote>',
             'update_error': '❌ Ошибка обновления: <code>{error}</code>',
             'update_no_log': '⚠️ Лог-чат не настроен, уведомления об обновлениях недоступны',
         },
@@ -123,10 +123,10 @@ def register(kernel):
             'started': 'started!',
             'update_status': 'Update status',
             'prefix': 'Prefix',
-            'new_commits_header': '🔔 <b>{count}</b> updates available on branch <code>{branch}</code>',
+            'new_commits_header': '<tg-emoji emoji-id="5465300082628763143">💬</tg-emoji> <b>{count} updates available on branch</b> <code>{branch}</code>',
             'new_commits_btn': '🔄 Update',
-            'update_running': '⏳ Updating...',
-            'update_done': '✅ Updated to <code>{sha}</code>\n⚠️ Restart the userbot manually',
+            'update_running': '<tg-emoji emoji-id="5326015457155620929">📦</tg-emoji> <b>Updating...</b>',
+            'update_done': '✅ Updated to <code>{sha}</code>\n<blockquote>⚠️ Auto restart the userbot</blockquote>',
             'update_error': '❌ Update error: <code>{error}</code>',
             'update_no_log': '⚠️ Log chat not configured, update notifications unavailable',
         }
@@ -238,11 +238,13 @@ def register(kernel):
             count=len(commits), branch=branch
         )
         lines = []
+        lines.append('<blockquote>')
         for sha, subject, author, time_str in commits:
             lines.append(
                 f"<code>{sha}</code> {html.escape(subject)} | "
                 f"<i>{html.escape(author)}</i> | {time_str}"
             )
+        lines.append('</blockquote>')
 
         text = header + "\n\n" + "\n".join(lines)
         btn = Button.inline(lang_strings['new_commits_btn'], data=b"do_update")

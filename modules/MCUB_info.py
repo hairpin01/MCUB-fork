@@ -3,10 +3,8 @@ import os
 import time
 import platform
 import psutil
-import aiohttp
 import getpass
 import socket
-import re
 import subprocess
 from datetime import datetime
 
@@ -148,22 +146,32 @@ def register(kernel):
         if cached is not None:
             return cached
         try:
-            timeout = aiohttp.ClientTimeout(total=10)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get(
-                    f"https://raw.githubusercontent.com/hairpin01/MCUB-fork/{branch}/core/kernel.py"
-                ) as resp:
-                    if resp.status == 200:
-                        content = await resp.text()
-                        match = re.search(r"VERSION = '([^']+)'", content)
-                        if match:
-                            remote_version = match.group(1)
-                            result = remote_version != kernel.VERSION
-                            kernel.cache.set('info:update_needed', result, ttl=300)
-                            return result
+            repo_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+            async def run_git(args):
+                process = await asyncio.create_subprocess_exec(
+                    "git", *args,
+                    cwd=repo_path,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, _ = await process.communicate()
+                return process.returncode, stdout.decode().strip()
+
+            try:
+                await asyncio.wait_for(run_git(["fetch", "origin"]), timeout=10)
+            except asyncio.TimeoutError:
+                return False
+
+            code, output = await run_git(["rev-list", "--count", "HEAD..@{u}"])
+            if code == 0 and output.isdigit():
+                result = int(output) > 0
+                kernel.cache.set('info:update_needed', result, ttl=300)
+                return result
+
             kernel.cache.set('info:update_needed', False, ttl=300)
             return False
-        except (asyncio.TimeoutError, Exception):
+        except Exception:
             return False
 
     def get_system_info():

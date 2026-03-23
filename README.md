@@ -43,7 +43,7 @@
 
    <div align="left">
 
-   <img src="img/image_2026-03-23_17-12-31.png" alt="3" width="300"/>
+   <img src="img/image_2026-03-23_17-10-45.png" alt="3" width="300"/>
 
    </div>
 

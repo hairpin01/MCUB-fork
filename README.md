@@ -123,7 +123,7 @@ python3 -m core
 
 MCUB-fork uses a custom fork of Telethon - [Telethon-MCUB](https://github.com/hairpin01/Telethon-MCUB).
 
-Install/upgrade: `pip install -U telethon_mcub`
+**Install/upgrade:** `pip install -U telethon_mcub`
 
 ### CLI Flags
 

@@ -123,7 +123,7 @@ python3 -m core
 
 MCUB-fork uses a custom fork of Telethon - [Telethon-MCUB](https://github.com/hairpin01/Telethon-MCUB).
 
-Install/upgrade: `pip install telethon_mcub`
+**Install/upgrade:** `pip install -U telethon_mcub`
 
 ### CLI Flags
 
@@ -253,7 +253,7 @@ or just use `.dlm` to browse available modules *(MCUB-compatible modules)*.
 `MCUB-fork` это userbot и форк `MCUBFB` с улучшенным `API`, и с правильной структурой.
 
 > [!TIP]
-> документация по модулям: [api documentation](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md)
+> документация по модулям: [API Documentation](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md)
 
 ### Установка
 
@@ -344,7 +344,7 @@ python3 -m core
 
 MCUB-fork использует форк Telethon - [Telethon-MCUB](https://github.com/hairpin01/Telethon-MCUB).
 
-Установить/обновить: `pip install telethon_mcub`
+Установить/обновить: `pip install -U telethon_mcub`
 
 ### Аргументы командной строки
 
@@ -565,7 +565,7 @@ python3 -m core
 
 MCUB-fork використовує форк Telethon - [Telethon-MCUB](https://github.com/hairpin01/Telethon-MCUB).
 
-Встановити/оновити: `pip install telethon_mcub`
+Встановити/оновити: `pip install -U telethon_mcub`
 
 ### Параметри командного рядка
 
@@ -786,7 +786,7 @@ python3 -m core
 
 MCUB-fork usa un fork de Telethon - [Telethon-MCUB](https://github.com/hairpin01/Telethon-MCUB).
 
-Instalar/actualizar: `pip install telethon_mcub`
+Instalar/actualizar: `pip install -U telethon_mcub`
 
 ### Banderas CLI
 
@@ -1007,7 +1007,7 @@ python3 -m core
 
 MCUB-fork verwendet einen Fork von Telethon - [Telethon-MCUB](https://github.com/hairpin01/Telethon-MCUB).
 
-Installieren/Aktualisieren: `pip install telethon_mcub`
+Installieren/Aktualisieren: `pip install -U telethon_mcub`
 
 ### CLI-Flags
 
@@ -1228,7 +1228,7 @@ python3 -m core
 
 MCUB-fork 使用 Telethon 的分支版本 - [Telethon-MCUB](https://github.com/hairpin01/Telethon-MCUB)。
 
-安装/更新: `pip install telethon_mcub`
+安装/更新: `pip install -U telethon_mcub`
 
 ### CLI 参数
 

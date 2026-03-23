@@ -7,12 +7,31 @@ import aiohttp
 import getpass
 import socket
 import re
+import subprocess
+from datetime import datetime
 
 from utils.platform import get_platform, is_wsl, is_termux
 from telethon.tl.types import MessageEntityTextUrl
 from telethon import functions
 from pathlib import Path
 from copy import copy
+
+
+def _detect_branch_sync():
+    try:
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
+            cwd=base_dir,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return "main"
+
 
 CUSTOM_EMOJI = {
     "load": '<tg-emoji emoji-id="5469913852462242978">🏓</tg-emoji>',
@@ -39,6 +58,7 @@ CUSTOM_EMOJI = {
     "❌": '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji>',
     "⚠️": '<tg-emoji emoji-id="5904692292324692386">⚠️</tg-emoji>',
     "🧩": '<tg-emoji emoji-id="5332534105114445343">🧩</tg-emoji>',
+    '🌐': '<tg-emoji emoji-id="4906943755644306322">🌐</tg-emoji>',
 }
 
 ZERO_WIDTH_CHAR = "\u2060"
@@ -92,10 +112,12 @@ def register(kernel):
             return key
         return lang_strings[key].format(**kwargs)
 
+    branch = _detect_branch_sync()
+
     kernel.config.setdefault("info_quote_media", False)
     kernel.config.setdefault(
         "info_banner_url",
-        "https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/info.png",
+        f"https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/{branch}/img/info.png",
     )
     kernel.config.setdefault("info_invert_media", False)
     kernel.config.setdefault("info_custom_text", None)
@@ -122,19 +144,24 @@ def register(kernel):
         return f"{secs}s"
 
     async def check_update():
+        cached = kernel.cache.get('info:update_needed')
+        if cached is not None:
+            return cached
         try:
             timeout = aiohttp.ClientTimeout(total=10)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(
-                    "https://raw.githubusercontent.com/hairpin01/MCUB-fork/main/core/kernel.py"
+                    f"https://raw.githubusercontent.com/hairpin01/MCUB-fork/{branch}/core/kernel.py"
                 ) as resp:
                     if resp.status == 200:
                         content = await resp.text()
                         match = re.search(r"VERSION = '([^']+)'", content)
                         if match:
                             remote_version = match.group(1)
-                            if remote_version != kernel.VERSION:
-                                return True
+                            result = remote_version != kernel.VERSION
+                            kernel.cache.set('info:update_needed', result, ttl=300)
+                            return result
+            kernel.cache.set('info:update_needed', False, ttl=300)
             return False
         except (asyncio.TimeoutError, Exception):
             return False
@@ -197,79 +224,154 @@ def register(kernel):
 
             uptime_str = format_uptime(time.time() - kernel.start_time)
 
-            distro_name = "Unknown"
-            try:
-                if os.path.exists("/etc/os-release"):
-                    with open("/etc/os-release", "r") as f:
-                        for line in f:
-                            if "PRETTY_NAME" in line:
-                                distro_name = line.split("=")[1].strip().strip('"')
-                                break
-                else:
-                    distro_name = platform.platform()
-            except:
-                distro_name = "Linux"
-
-            distro_emojis = {
-                "arch": CUSTOM_EMOJI["arch"],
-                "ubuntu": CUSTOM_EMOJI["ubuntu"],
-                "mint": CUSTOM_EMOJI["mint"],
-                "fedora": CUSTOM_EMOJI["fedora"],
-                "centos": CUSTOM_EMOJI["centos"],
-            }
-
-            distro_emoji = ""
-            distro_lower = distro_name.lower()
-            for key, emoji in distro_emojis.items():
-                if key in distro_lower:
-                    distro_emoji = emoji
-                    break
-
-            current_platform = get_platform()
-            platform_type = f"VDS {CUSTOM_EMOJI['vds']}"
-            if is_wsl():
-                platform_type = f"WSL {CUSTOM_EMOJI['wsl']}"
-            elif is_termux():
-                platform_type = f"Termux {CUSTOM_EMOJI['termux']}"
-
-            cpu_usage, ram_usage = get_system_info()
-            update_needed = await check_update()
-
-            try:
-                system_user = getpass.getuser()
-                hostname = socket.gethostname()
-            except Exception:
-                system_user = hostname = "Unknown"
-
-            update_emoji = CUSTOM_EMOJI["💔"] if update_needed else CUSTOM_EMOJI["🔮"]
-            update_text = "Update needed" if update_needed else "No update needed"
-
-            me = await client.get_me()
-            user_ids = me.id
-
-            user_emojis = {
-                6020965582: '5469888215802482605',
-                2037125547: '5467932472379480411',
-                779572293: '5470163024989952512',
-                8405520863: '5470170528297817805',
-                855890735: '5470063433288290290',
-            }
-            user = f'<tg-emoji emoji-id="{user_emojis.get(user_ids, "5470015630302287916")}">{"Ⓜ️" if user_ids in user_emojis else "🕳"}</tg-emoji>'
-
-            mcub_emoji = (
-                f'{user}<tg-emoji emoji-id="5469945764069280010">🔮</tg-emoji><tg-emoji emoji-id="5469943045354984820">🔮</tg-emoji><tg-emoji emoji-id="5469879466954098867">🔮</tg-emoji>'
-                if me.premium
-                else "Mitrich UserBot"
-            )
-
             custom_text = kernel.config.get("info_custom_text")
+
             if custom_text:
+                def uses(*keys):
+                    return any(f"{{{k}}}" in custom_text for k in keys)
+
+                _now = datetime.now()
+                _month_names_ru = ["Января","Февраля","Марта","Апреля","Мая","Июня",
+                                   "Июля","Августа","Сентября","Октября","Ноября","Декабря"]
+                _month_names_en = ["January","February","March","April","May","June",
+                                   "July","August","September","October","November","December"]
+                _weekday_names_ru = ["Понедельник","Вторник","Среда","Четверг","Пятница","Суббота","Воскресенье"]
+                _weekday_names_en = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+                _use_ru = language == "ru"
+                now_date       = _now.strftime("%d.%m.%Y")
+                now_time       = _now.strftime("%H:%M:%S")
+                now_day        = _now.strftime("%d")
+                now_month      = _now.strftime("%m")
+                now_month_name = (_month_names_ru if _use_ru else _month_names_en)[_now.month - 1]
+                now_year       = _now.strftime("%Y")
+                now_weekday    = (_weekday_names_ru if _use_ru else _weekday_names_en)[_now.weekday()]
+                now_hour       = _now.strftime("%H")
+                now_minute     = _now.strftime("%M")
+                now_second     = _now.strftime("%S")
+
+                # distro_name / distro_emoji
+                if uses("distro_name", "distro_emoji"):
+                    distro_name = kernel.cache.get('info:distro_name')
+                    if distro_name is None:
+                        distro_name = "Unknown"
+                        try:
+                            if os.path.exists("/etc/os-release"):
+                                with open("/etc/os-release", "r") as f:
+                                    for line in f:
+                                        if "PRETTY_NAME" in line:
+                                            distro_name = line.split("=")[1].strip().strip('"')
+                                            break
+                            else:
+                                distro_name = platform.platform()
+                        except Exception:
+                            distro_name = "Linux"
+                        kernel.cache.set('info:distro_name', distro_name)
+                    distro_emojis = {
+                        "arch": CUSTOM_EMOJI["arch"],
+                        "ubuntu": CUSTOM_EMOJI["ubuntu"],
+                        "mint": CUSTOM_EMOJI["mint"],
+                        "fedora": CUSTOM_EMOJI["fedora"],
+                        "centos": CUSTOM_EMOJI["centos"],
+                    }
+                    distro_emoji = ""
+                    for key, emoji in distro_emojis.items():
+                        if key in distro_name.lower():
+                            distro_emoji = emoji
+                            break
+                else:
+                    distro_name = distro_emoji = ""
+
+                # platform_type
+                if uses("platform_type"):
+                    platform_type = kernel.cache.get('info:platform_type')
+                    if platform_type is None:
+                        get_platform()
+                        platform_type = f"VDS {CUSTOM_EMOJI['vds']}"
+                        if is_wsl():
+                            platform_type = f"WSL {CUSTOM_EMOJI['wsl']}"
+                        elif is_termux():
+                            platform_type = f"Termux {CUSTOM_EMOJI['termux']}"
+                        kernel.cache.set('info:platform_type', platform_type)
+                else:
+                    platform_type = ""
+
+                # cpu_usage / ram_usage — sync sleep 0.1 s
+                if uses("cpu_usage", "ram_usage"):
+                    cpu_usage, ram_usage = get_system_info()
+                else:
+                    cpu_usage = ram_usage = ""
+
+                # update_needed / update_emoji / update_text
+                if uses("update_needed", "update_emoji", "update_text"):
+                    update_needed = await check_update()
+                    update_emoji = CUSTOM_EMOJI["💔"] if update_needed else CUSTOM_EMOJI["🔮"]
+                    update_text = "Update needed" if update_needed else "No update needed"
+                else:
+                    update_needed = False
+                    update_emoji = update_text = ""
+
+                # system_user / hostname
+                if uses("system_user", "hostname"):
+                    _identity = kernel.cache.get('info:identity')
+                    if _identity is None:
+                        try:
+                            system_user = getpass.getuser()
+                            hostname = socket.gethostname()
+                        except Exception:
+                            system_user = hostname = "Unknown"
+                        kernel.cache.set('info:identity', (system_user, hostname))
+                    else:
+                        system_user, hostname = _identity
+                else:
+                    system_user = hostname = ""
+
+                # me / user_id / mcub_emoji / me_first_name / me_username — get_me()
+                if uses("me_first_name", "me_username", "user_id", "mcub_emoji"):
+                    me = kernel.cache.get('info:me')
+                    if me is None:
+                        me = await client.get_me()
+                        kernel.cache.set('info:me', me, ttl=3600)
+                    user_ids = me.id
+                    _user_emojis = {
+                        6020965582: '5469888215802482605',
+                        2037125547: '5467932472379480411',
+                        779572293: '5470163024989952512',
+                        8405520863: '5470170528297817805',
+                        855890735: '5470063433288290290',
+                    }
+                    _user = f'<tg-emoji emoji-id="{_user_emojis.get(user_ids, "5470015630302287916")}">{"Ⓜ️" if user_ids in _user_emojis else "🕳"}</tg-emoji>'
+                    mcub_emoji = (
+                        f'{_user}<tg-emoji emoji-id="5469945764069280010">🔮</tg-emoji><tg-emoji emoji-id="5469943045354984820">🔮</tg-emoji><tg-emoji emoji-id="5469879466954098867">🔮</tg-emoji>'
+                        if me.premium
+                        else "Mitrich UserBot"
+                    )
+                    me_first_name = me.first_name or ""
+                    me_username = f"@{me.username}" if me.username else ""
+                else:
+                    user_ids = mcub_emoji = me_first_name = me_username = ""
+
+                # branch / commit_sha / commit_url
+                if uses("branch", "commit_sha", "commit_url"):
+                    _version_info = kernel.cache.get('info:version_info')
+                    if _version_info is None:
+                        branch = await kernel.version_manager.detect_branch()
+                        commit_sha = await kernel.version_manager.get_commit_sha()
+                        commit_url = await kernel.version_manager.get_github_commit_url()
+                        kernel.cache.set('info:version_info', (branch, commit_sha, commit_url), ttl=600)
+                    else:
+                        branch, commit_sha, commit_url = _version_info
+                else:
+                    branch = commit_sha = commit_url = ""
+
                 try:
                     _known = [
                         "kernel_version", "core_name", "ping_time", "uptime_str",
                         "distro_name", "distro_emoji", "platform_type", "cpu_usage",
                         "ram_usage", "system_user", "hostname", "update_emoji",
-                        "update_text", "update_needed",
+                        "update_text", "update_needed", "branch", "commit_sha",
+                        "commit_url", "mcub_emoji", "user_id", "me_first_name", "me_username",
+                        "now_date", "now_time", "now_day", "now_month", "now_month_name",
+                        "now_year", "now_weekday", "now_hour", "now_minute", "now_second",
                     ]
                     _safe = custom_text.replace("{", "{{").replace("}", "}}")
                     for _k in _known:
@@ -289,17 +391,123 @@ def register(kernel):
                         update_emoji=update_emoji,
                         update_text=update_text,
                         update_needed=update_needed,
+                        branch=branch,
+                        commit_sha=commit_sha,
+                        commit_url=commit_url or "",
+                        mcub_emoji=mcub_emoji,
+                        user_id=user_ids,
+                        me_first_name=me_first_name,
+                        me_username=me_username,
+                        now_date=now_date,
+                        now_time=now_time,
+                        now_day=now_day,
+                        now_month=now_month,
+                        now_month_name=now_month_name,
+                        now_year=now_year,
+                        now_weekday=now_weekday,
+                        now_hour=now_hour,
+                        now_minute=now_minute,
+                        now_second=now_second,
                     )
                 except Exception as e:
                     await kernel.handle_error(
                         e, source="info_cmd:custom_text_format", event=event
                     )
                     info_text = t('custom_text_error', error=str(e))
+
             else:
+                distro_name = kernel.cache.get('info:distro_name')
+                if distro_name is None:
+                    distro_name = "Unknown"
+                    try:
+                        if os.path.exists("/etc/os-release"):
+                            with open("/etc/os-release", "r") as f:
+                                for line in f:
+                                    if "PRETTY_NAME" in line:
+                                        distro_name = line.split("=")[1].strip().strip('"')
+                                        break
+                        else:
+                            distro_name = platform.platform()
+                    except Exception:
+                        distro_name = "Linux"
+                    kernel.cache.set('info:distro_name', distro_name)
+
+                distro_emojis = {
+                    "arch": CUSTOM_EMOJI["arch"],
+                    "ubuntu": CUSTOM_EMOJI["ubuntu"],
+                    "mint": CUSTOM_EMOJI["mint"],
+                    "fedora": CUSTOM_EMOJI["fedora"],
+                    "centos": CUSTOM_EMOJI["centos"],
+                }
+                distro_emoji = ""
+                distro_lower = distro_name.lower()
+                for key, emoji in distro_emojis.items():
+                    if key in distro_lower:
+                        distro_emoji = emoji
+                        break
+
+                platform_type = kernel.cache.get('info:platform_type')
+                if platform_type is None:
+                    get_platform()
+                    platform_type = f"VDS {CUSTOM_EMOJI['vds']}"
+                    if is_wsl():
+                        platform_type = f"WSL {CUSTOM_EMOJI['wsl']}"
+                    elif is_termux():
+                        platform_type = f"Termux {CUSTOM_EMOJI['termux']}"
+                    kernel.cache.set('info:platform_type', platform_type)
+
+                cpu_usage, ram_usage = get_system_info()
+                update_needed = await check_update()
+
+                _identity = kernel.cache.get('info:identity')
+                if _identity is None:
+                    try:
+                        system_user = getpass.getuser()
+                        hostname = socket.gethostname()
+                    except Exception:
+                        system_user = hostname = "Unknown"
+                    kernel.cache.set('info:identity', (system_user, hostname))
+                else:
+                    system_user, hostname = _identity
+
+                update_emoji = CUSTOM_EMOJI["💔"] if update_needed else CUSTOM_EMOJI["🔮"]
+                update_text = "Update needed" if update_needed else "No update needed"
+
+                me = kernel.cache.get('info:me')
+                if me is None:
+                    me = await client.get_me()
+                    kernel.cache.set('info:me', me, ttl=3600)
+                user_ids = me.id
+
+                user_emojis = {
+                    6020965582: '5469888215802482605',
+                    2037125547: '5467932472379480411',
+                    779572293: '5470163024989952512',
+                    8405520863: '5470170528297817805',
+                    855890735: '5470063433288290290',
+                }
+                user = f'<tg-emoji emoji-id="{user_emojis.get(user_ids, "5470015630302287916")}">{"Ⓜ️" if user_ids in user_emojis else "🕳"}</tg-emoji>'
+                mcub_emoji = (
+                    f'{user}<tg-emoji emoji-id="5469945764069280010">🔮</tg-emoji><tg-emoji emoji-id="5469943045354984820">🔮</tg-emoji><tg-emoji emoji-id="5469879466954098867">🔮</tg-emoji>'
+                    if me.premium
+                    else "Mitrich UserBot"
+                )
+
+                _version_info = kernel.cache.get('info:version_info')
+                if _version_info is None:
+                    branch = await kernel.version_manager.detect_branch()
+                    commit_sha = await kernel.version_manager.get_commit_sha()
+                    commit_url = await kernel.version_manager.get_github_commit_url()
+                    kernel.cache.set('info:version_info', (branch, commit_sha, commit_url), ttl=600)
+                else:
+                    branch, commit_sha, commit_url = _version_info
+
+                branch_display = f"{CUSTOM_EMOJI['🌐']}<b> Branch: {branch}</b><b><a href=\"{commit_url}\">#{commit_sha}</a></b>" if commit_url else f"{CUSTOM_EMOJI['🌐']}<b> Branch {branch}#{commit_sha}</b>"
                 info_text = f"""<b>{mcub_emoji}</b>
 <blockquote>{CUSTOM_EMOJI['🌩️']} <b>Version:</b> <code>{kernel.VERSION}</code>
 {CUSTOM_EMOJI['🧩']} <b>Kernel:</b> <code>{core_name}</code>
-{f"{CUSTOM_EMOJI['💔']} <b>Update needed</b>" if update_needed else f"{CUSTOM_EMOJI['🔮']} <b>No update needed</b>"}</blockquote>
+{f"{CUSTOM_EMOJI['💔']} <b>Update needed</b>" if update_needed else f"{CUSTOM_EMOJI['🔮']} <b>No update needed</b>"}
+{branch_display}</blockquote>
 
 <blockquote>{CUSTOM_EMOJI['📡']} <b>Ping:</b> <code>{ping_time} ms</code>
 {CUSTOM_EMOJI['🧪']} <b>Uptime:</b> <code>{uptime_str}</code>

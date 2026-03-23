@@ -10,7 +10,7 @@ import shutil
 
 
 # version kenrel MCUB
-__version__ = "1.0.4.1"
+__version__ = "1.0.4.5"
 VERSION = __version__
 
 class VersionManager:
@@ -68,7 +68,6 @@ class VersionManager:
             if process.returncode == 0:
                 branch = stdout.decode().strip()
                 if branch:
-                    self.logger.debug(f"Detected git branch: {branch}")
                     return branch
         except (FileNotFoundError, asyncio.TimeoutError, subprocess.SubprocessError) as e:
             self.logger.debug(f"Git branch detection failed: {e}")
@@ -80,6 +79,38 @@ class VersionManager:
 
         self.logger.debug("No branch specified, using 'main'")
         return "main"
+
+    async def get_commit_sha(self, short: bool = True) -> str:
+        """
+        Возвращает SHA текущего коммита.
+        Если short=True, возвращает первые 7 символов.
+        """
+        try:
+            process = await asyncio.create_subprocess_exec(
+                "git", "rev-parse", "HEAD",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await process.communicate()
+            if process.returncode == 0:
+                sha = stdout.decode().strip()
+                return sha[:7] if short else sha
+        except (FileNotFoundError, asyncio.TimeoutError, subprocess.SubprocessError) as e:
+            self.logger.debug(f"Git commit SHA detection failed: {e}")
+        return "unknown"
+
+    async def get_github_commit_url(self) -> str:
+        """
+        Возвращает URL на текущий коммит в GitHub.
+        """
+        try:
+            branch = await self.detect_branch()
+            sha = await self.get_commit_sha(short=False)
+            repo = self.kernel.UPDATE_REPO.rstrip('/')
+            return f"{repo}/commit/{sha}"
+        except Exception as e:
+            self.logger.debug(f"GitHub commit URL generation failed: {e}")
+        return ""
 
     def get_update_base_url(self) -> str:
         """

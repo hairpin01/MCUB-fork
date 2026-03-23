@@ -454,6 +454,17 @@ class ModuleLoader:
             with open(file_path, "r", encoding="utf-8") as f:
                 code = f.read()
 
+            try:
+                from core.lib.loader.hikka_compat import is_hikka_module, load_hikka_module
+                if is_hikka_module(code):
+                    import os as _os
+                    abs_path = file_path if _os.path.isabs(file_path) else _os.path.abspath(file_path)
+                    ok, err, _ = await load_hikka_module(k, abs_path, module_name)
+                    return ok, err
+            except ImportError:
+                pass  # hikka_compat.py not installed, fall through
+
+
             ok, msg = await self._check_module_compatibility(code)
             if not ok:
                 return False, f"Kernel version mismatch: {msg}"
@@ -573,6 +584,12 @@ class ModuleLoader:
         import os
         k = self.k
 
+        try:
+            from core.lib.loader.hikka_compat import is_hikka_module, load_hikka_module
+            _hikka_compat = True
+        except ImportError:
+            _hikka_compat = False
+
         files = os.listdir(k.MODULES_LOADED_DIR)
         if "log_bot.py" in files:
             files.remove("log_bot.py")
@@ -586,6 +603,14 @@ class ModuleLoader:
             try:
                 with open(file_path, "r", encoding="utf-8") as f:
                     code = f.read()
+
+                if _hikka_compat and is_hikka_module(code):
+                    k.set_loading_module(module_name, "user")
+                    ok, err, _ = await load_hikka_module(k, os.path.abspath(file_path), module_name)
+                    if not ok:
+                        k.logger.error(f"Error loading module {file_name}: {err}")
+                        k.error_load_modules += 1
+                    continue
 
                 await self.pre_install_requirements(code, module_name)
 

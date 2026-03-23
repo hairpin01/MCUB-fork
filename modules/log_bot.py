@@ -247,14 +247,29 @@ def register(kernel):
         text = header + "\n\n" + "\n".join(lines)
         btn = Button.inline(lang_strings['new_commits_btn'], data=b"do_update")
 
+        update_image_path = None
+        for candidate in ["img/update.png", os.path.join(os.path.dirname(os.path.abspath(__file__)), "img", "update.png")]:
+            if os.path.exists(candidate):
+                update_image_path = candidate
+                break
+
         try:
             sender = bot_client if (bot_client and await bot_client.is_user_authorized()) else client
-            await sender.send_message(
-                kernel.log_chat_id,
-                text,
-                parse_mode="html",
-                buttons=[[btn]],
-            )
+            if update_image_path:
+                await sender.send_file(
+                    kernel.log_chat_id,
+                    update_image_path,
+                    caption=text,
+                    parse_mode="html",
+                    buttons=[[btn]],
+                )
+            else:
+                await sender.send_message(
+                    kernel.log_chat_id,
+                    text,
+                    parse_mode="html",
+                    buttons=[[btn]],
+                )
         except Exception as e:
             kernel.logger.error(f"notify_new_commits error: {e}")
 

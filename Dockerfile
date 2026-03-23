@@ -14,10 +14,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends git \
 RUN git clone --depth 1 https://github.com/hairpin01/MCUB-fork.git .
 
 RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir \
-        aiohttp-jinja2 \
-        jinja2 \
-        Pillow
 
 RUN mkdir -p /app/data
 

@@ -22,6 +22,41 @@
 
 [English](#english) | [Русский](#русский) | [Українська](#українська) | [Español](#español) | [Deutsch](#deutsch) | [中文](#中文)
 
+<details>
+<summary><i>Screenshots <b>(click)</b></i></summary>
+   
+   <div align="left">
+
+   <img src="img/image_2026-03-23_17-14-29.png" alt="1" width="300"/>
+
+   </div>
+
+
+
+   <div align="left">
+
+   <img src="img/image_2026-03-23_17-12-31.png" alt="2" width="300"/>
+
+   </div>
+
+
+
+   <div align="left">
+
+   <img src="img/image_2026-03-23_17-12-31.png" alt="3" width="300"/>
+
+   </div>
+
+
+   
+   <div align="left">
+
+   <img src="img/image_2026-03-23_17-10-01.png" alt="4" width="300"/>
+
+   </div>
+</details>
+
+
 ---
 
 ## English

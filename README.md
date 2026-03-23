@@ -204,11 +204,6 @@ python3 -m core --clear-default-core
 > [!TIP]
 > The **zen** kernel core is a more stable alternative to `standard`. It receives updates less frequently, which means fewer regressions and a smoother experience for everyday use.
 
-To enable the zen kernel, rename the bundled file:
-```bash
-mv core/kernel/zen.py.off core/kernel/zen.py
-```
-
 Then launch with:
 ```bash
 # One-time launch
@@ -393,11 +388,6 @@ python3 -m core --clear-default-core
 
 > [!TIP]
 > **zen** — более стабильная альтернатива ядру `standard`. Обновляется реже, что означает меньше регрессий и плавнее работу в повседневном использовании.
-
-Чтобы включить zen ядро, переименуйте файл:
-```bash
-mv core/kernel/zen.py.off core/kernel/zen.py
-```
 
 Затем запустите:
 ```bash
@@ -584,11 +574,6 @@ python3 -m core --clear-default-core
 > [!TIP]
 > **zen** — стабільніша альтернатива ядру `standard`. Оновлюється рідше, що означає менше регресій і плавнішу роботу щодня.
 
-Щоб увімкнути zen ядро, перейменуйте файл:
-```bash
-mv core/kernel/zen.py.off core/kernel/zen.py
-```
-
 Потім запустіть:
 ```bash
 # Одноразовий запуск
@@ -773,11 +758,6 @@ python3 -m core --clear-default-core
 
 > [!TIP]
 > El núcleo **zen** es una alternativa más estable a `standard`. Se actualiza con menos frecuencia, lo que significa menos regresiones y una experiencia más fluida.
-
-Para activar el núcleo zen, renombra el archivo:
-```bash
-mv core/kernel/zen.py.off core/kernel/zen.py
-```
 
 Luego ejecuta:
 ```bash
@@ -964,11 +944,6 @@ python3 -m core --clear-default-core
 > [!TIP]
 > Der **zen**-Kernel ist eine stabilere Alternative zu `standard`. Er wird seltener aktualisiert, was weniger Regressionen und eine reibungslosere Nutzung bedeutet.
 
-Um den zen-Kernel zu aktivieren, die Datei umbenennen:
-```bash
-mv core/kernel/zen.py.off core/kernel/zen.py
-```
-
 Dann starten:
 ```bash
 # Einmaliger Start
@@ -1098,10 +1073,10 @@ python3 -m core
    - `api_hash` - 你的 API Hash
    - `phone` - 你的电话号码 (+79991234567)
 
-> [!提示]
+> [!TIP]
 > 有时需要创建虚拟环境（`python -m venv .venv ; source .venv/bin/activate`）
 
-> [!重要]
+> [!WARNING]
 > `config.json` 文件包含敏感数据
 
 ### Telethon-MCUB
@@ -1154,11 +1129,6 @@ python3 -m core --clear-default-core
 > [!TIP]
 > **zen** 内核是 `standard` 的更稳定替代方案。它更新频率更低，意味着更少的回归问题和更流畅的日常使用体验。
 
-启用 zen 内核，请重命名文件：
-```bash
-mv core/kernel/zen.py.off core/kernel/zen.py
-```
-
 然后启动：
 ```bash
 # 单次启动
@@ -1178,11 +1148,11 @@ python3 -m core
 - `.man` - 模块列表 __(及其命令)__
 - `.um [名称]` - 删除模块
 
-> [!提示]
+> [!WARNING]
 > __安全：__ 不要安装__可疑__模块。为了安全，有 API 保护（启用：`.api_protection`）。
 > 不要使用 `.py`（Python）或 `.t`（终端）执行可疑代码
 
-> [!注意]
+> [!NOTE]
 > 要获取消息的 HTML 源码 - 只需回复 `.py print(r_text)`
 
 ### 模块

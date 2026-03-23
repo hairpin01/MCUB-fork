@@ -4,6 +4,12 @@ import time
 import getpass
 import socket
 import subprocess
+from datetime import datetime
+
+try:
+    import psutil as _psutil
+except ImportError:
+    _psutil = None
 from telethon.tl.types import MessageEntityTextUrl
 from telethon import functions
 from copy import copy
@@ -145,6 +151,18 @@ def register(kernel):
             return CUSTOM_EMOJI["✏️"]
         return CUSTOM_EMOJI.get(value, value)
 
+    def get_cpu_ram():
+        cpu_usage = "N/A"
+        ram_usage = "N/A"
+        try:
+            if _psutil is not None:
+                cpu_usage = f"{_psutil.cpu_percent(interval=0.1)}%"
+                ram = _psutil.virtual_memory()
+                ram_usage = f"{ram.percent}%"
+        except Exception:
+            pass
+        return cpu_usage, ram_usage
+
     async def mcub_handler():
         me = kernel.cache.get('tester:me')
         if me is None:
@@ -177,21 +195,75 @@ def register(kernel):
             else:
                 uptime = f"{seconds}{lang_strings['seconds']}"
 
-            _identity = kernel.cache.get('tester:identity')
-            if _identity is None:
-                try:
-                    system_user = getpass.getuser()
-                    hostname = socket.gethostname()
-                except Exception:
-                    system_user = hostname = "Unknown"
-                kernel.cache.set('tester:identity', (system_user, hostname))
-            else:
-                system_user, hostname = _identity
-
             custom_text = kernel.config.get("ping_custom_text")
             if custom_text:
+                def uses(*keys):
+                    return any(f"{{{k}}}" in custom_text for k in keys)
+
+                _now = datetime.now()
+                _month_names_ru = ["Января","Февраля","Марта","Апреля","Мая","Июня",
+                                   "Июля","Августа","Сентября","Октября","Ноября","Декабря"]
+                _month_names_en = ["January","February","March","April","May","June",
+                                   "July","August","September","October","November","December"]
+                _weekday_names_ru = ["Понедельник","Вторник","Среда","Четверг","Пятница","Суббота","Воскресенье"]
+                _weekday_names_en = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+                _use_ru = language == "ru"
+                now_date       = _now.strftime("%d.%m.%Y")
+                now_time       = _now.strftime("%H:%M:%S")
+                now_day        = _now.strftime("%d")
+                now_month      = _now.strftime("%m")
+                now_month_name = (_month_names_ru if _use_ru else _month_names_en)[_now.month - 1]
+                now_year       = _now.strftime("%Y")
+                now_weekday    = (_weekday_names_ru if _use_ru else _weekday_names_en)[_now.weekday()]
+                now_hour       = _now.strftime("%H")
+                now_minute     = _now.strftime("%M")
+                now_second     = _now.strftime("%S")
+
+                # system_user / hostname
+                if uses("system_user", "hostname"):
+                    _identity = kernel.cache.get('tester:identity')
+                    if _identity is None:
+                        try:
+                            system_user = getpass.getuser()
+                            hostname = socket.gethostname()
+                        except Exception:
+                            system_user = hostname = "Unknown"
+                        kernel.cache.set('tester:identity', (system_user, hostname))
+                    else:
+                        system_user, hostname = _identity
+                else:
+                    system_user = hostname = ""
+
+                # kernel_version / core_name
+                kernel_version = kernel.VERSION if uses("kernel_version") else ""
+                core_name = getattr(kernel, "CORE_NAME", "standard") if uses("core_name") else ""
+
+                # cpu / ram
+                if uses("cpu_usage", "ram_usage"):
+                    cpu_usage, ram_usage = get_cpu_ram()
+                else:
+                    cpu_usage = ram_usage = ""
+
+                # branch / commit_sha
+                if uses("branch", "commit_sha"):
+                    _version_info = kernel.cache.get('tester:version_info')
+                    if _version_info is None:
+                        branch = await kernel.version_manager.detect_branch()
+                        commit_sha = await kernel.version_manager.get_commit_sha()
+                        kernel.cache.set('tester:version_info', (branch, commit_sha), ttl=600)
+                    else:
+                        branch, commit_sha = _version_info
+                else:
+                    branch = commit_sha = ""
+
                 try:
-                    _known = ["ping_time", "uptime", "system_user", "hostname"]
+                    _known = [
+                        "ping_time", "uptime", "system_user", "hostname",
+                        "kernel_version", "core_name", "cpu_usage", "ram_usage",
+                        "branch", "commit_sha",
+                        "now_date", "now_time", "now_day", "now_month", "now_month_name",
+                        "now_year", "now_weekday", "now_hour", "now_minute", "now_second",
+                    ]
                     _safe = custom_text.replace("{", "{{").replace("}", "}}")
                     for _k in _known:
                         _safe = _safe.replace("{{" + _k + "}}", "{" + _k + "}")
@@ -200,6 +272,22 @@ def register(kernel):
                         uptime=uptime,
                         system_user=system_user,
                         hostname=hostname,
+                        kernel_version=kernel_version,
+                        core_name=core_name,
+                        cpu_usage=cpu_usage,
+                        ram_usage=ram_usage,
+                        branch=branch,
+                        commit_sha=commit_sha,
+                        now_date=now_date,
+                        now_time=now_time,
+                        now_day=now_day,
+                        now_month=now_month,
+                        now_month_name=now_month_name,
+                        now_year=now_year,
+                        now_weekday=now_weekday,
+                        now_hour=now_hour,
+                        now_minute=now_minute,
+                        now_second=now_second,
                     )
                 except Exception as e:
                     await kernel.handle_error(

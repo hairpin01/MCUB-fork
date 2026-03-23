@@ -212,6 +212,8 @@ class InlineManager:
         buttons=None,
         auto_send: bool = True,
         ttl: int = 200,
+        media: str | None = None,
+        media_type: str = "photo",
         **kwargs,
     ):
         """Create and optionally send an inline form.
@@ -224,6 +226,8 @@ class InlineManager:
             auto_send: If True, send immediately and return (success, message).
                        If False, return the form_id string.
             ttl: Cache TTL for the form (seconds).
+            media: Public URL or file_id of a photo/document/gif to attach.
+            media_type: One of "photo", "document", "gif" (default "photo").
 
         Returns:
             (success, message) when auto_send=True, else form_id str.
@@ -234,12 +238,18 @@ class InlineManager:
 
             lines = [title]
             if isinstance(fields, dict):
-                lines += [f"{k}: {v}" for k, v in fields.items()]
+                lines += [f"{fk}: {fv}" for fk, fv in fields.items()]
             elif isinstance(fields, list):
                 lines += [f"Field {i}: {v}" for i, v in enumerate(fields, 1)]
 
             handlers = InlineHandlers(k, k.bot_client)
-            form_id = handlers.create_inline_form("\n".join(lines), buttons, ttl)
+            form_id = handlers.create_inline_form(
+                "\n".join(lines),
+                buttons,
+                ttl,
+                media=media,
+                media_type=media_type,
+            )
 
             if auto_send:
                 return await self.inline_query_and_click(chat_id=chat_id, query=form_id, **kwargs)

@@ -66,8 +66,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ lower(github.repository) }}:latest
-            ghcr.io/${{ lower(github.repository) }}:${{ github.sha }}
+            ghcr.io/${{ github.repository.toLower() }}:latest
+            ghcr.io/${{ github.repository.toLower() }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

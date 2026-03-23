@@ -68,7 +68,6 @@ class VersionManager:
             if process.returncode == 0:
                 branch = stdout.decode().strip()
                 if branch:
-                    self.logger.debug(f"Detected git branch: {branch}")
                     return branch
         except (FileNotFoundError, asyncio.TimeoutError, subprocess.SubprocessError) as e:
             self.logger.debug(f"Git branch detection failed: {e}")

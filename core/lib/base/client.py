@@ -23,6 +23,7 @@ class ClientManager:
             True when the client is authorized and ready.
         """
         from utils.platform import get_platform_name, PlatformDetector
+        from utils.security import ensure_locked_after_write
         from telethon.sessions import SQLiteSession
 
         k = self.k
@@ -52,6 +53,9 @@ class ClientManager:
         try:
             await k.client.start(phone=k.PHONE, max_attempts=3)
 
+            # Lock the session file right after Telethon creates/writes it
+            ensure_locked_after_write("user_session.session", k.logger)
+
             if not await k.client.is_user_authorized():
                 k.logger.error("Authorization failed")
                 return False
@@ -78,6 +82,8 @@ class ClientManager:
         Returns:
             True when the bot started successfully.
         """
+        from utils.security import ensure_locked_after_write
+
         k = self.k
         token = k.config.get("inline_bot_token")
         if not token:
@@ -91,11 +97,16 @@ class ClientManager:
 
         try:
             await k.bot_client.start(bot_token=token)
+
+            # Lock the bot session file right after creation
+            ensure_locked_after_write("inline_bot_session.session", k.logger)
+
             bot_me = await k.bot_client.get_me()
             k.config["inline_bot_username"] = bot_me.username
 
             with open(k.CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(k.config, f, ensure_ascii=False, indent=2)
+            ensure_locked_after_write(k.CONFIG_FILE, k.logger)
 
             from core_inline.handlers import InlineHandlers
             handlers = InlineHandlers(k, k.bot_client)

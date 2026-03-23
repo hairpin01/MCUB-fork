@@ -104,10 +104,18 @@ class VersionManager:
         Возвращает URL на текущий коммит в GitHub.
         """
         try:
-            branch = await self.detect_branch()
             sha = await self.get_commit_sha(short=False)
             repo = self.kernel.UPDATE_REPO.rstrip('/')
-            return f"{repo}/commit/{sha}"
+
+            if "raw.githubusercontent.com" in repo:
+                parts = repo.split('/')
+                # parts: ['https:', '', 'raw.githubusercontent.com', 'user', 'repo', 'branch']
+                base = f"https://github.com/{parts[3]}/{parts[4]}"
+            else:
+                branch = await self.detect_branch()
+                base = repo[: -(len(branch) + 1)] if repo.endswith('/' + branch) else repo
+
+            return f"{base}/commit/{sha}"
         except Exception as e:
             self.logger.debug(f"GitHub commit URL generation failed: {e}")
         return ""

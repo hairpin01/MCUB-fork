@@ -1,10 +1,13 @@
 # author: @Hairpin00
-# version: 1.0.2
+# version: 1.0.3
 # description: SQLite database manager for the userbot.
 import aiosqlite
 import os
 import re
 from typing import Any
+
+from utils.security import ensure_locked_after_write
+
 
 class DatabaseManager:
     """SQLite database manager for the userbot."""
@@ -75,6 +78,8 @@ class DatabaseManager:
             db_file = self._resolve_db_file()
             self.conn = await aiosqlite.connect(db_file)
             await self._create_tables()
+            # Lock the DB file right after creation/open
+            ensure_locked_after_write(db_file, self.logger)
             self.logger.info(f"=> Database initialized: {db_file}")
             return True
         except Exception as e:

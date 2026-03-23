@@ -4,6 +4,7 @@ import sys
 from typing import TYPE_CHECKING, Any
 
 from ..utils.colors import Colors
+from utils.security import ensure_locked_after_write, lock_sensitive_files
 
 if TYPE_CHECKING:
     from kernel import Kernel
@@ -25,6 +26,10 @@ class ConfigManager:
         if not os.path.exists(k.CONFIG_FILE):
             return False
 
+        # Tighten permissions on every load (covers files created before this
+        # version of the code was deployed)
+        ensure_locked_after_write(k.CONFIG_FILE, getattr(k, "logger", None))
+
         with open(k.CONFIG_FILE, "r", encoding="utf-8") as f:
             k.config = json.load(f)
 
@@ -41,6 +46,7 @@ class ConfigManager:
         k = self.k
         with open(k.CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(k.config, f, ensure_ascii=False, indent=2)
+        ensure_locked_after_write(k.CONFIG_FILE, k.logger)
         k.logger.debug("Config saved")
 
     def setup(self) -> bool:
@@ -71,6 +77,7 @@ class ConfigManager:
             True when config is saved successfully.
         """
         k = self.k
+
         print("""
 ███╗   ███╗ ██████╗██╗   ██╗██████╗       ███████╗ ██████╗ ██████╗ ██╗  ██╗
 ████╗ ████║██╔════╝██║   ██║██╔══██╗      ██╔════╝██╔═══██╗██╔══██╗██║ ██╔╝
@@ -96,7 +103,7 @@ class ConfigManager:
                     print("API HASH cannot be empty\n")
                     continue
 
-                phone = input("Phone number (e.g. +1234567890):\n").strip()
+                phone = input("Phone number (e.g. +1234567890): ").strip()
                 if not phone.startswith("+"):
                     print("Phone must start with + (e.g. +1234567890)\n")
                     continue
@@ -120,6 +127,8 @@ class ConfigManager:
                 }
                 with open(k.CONFIG_FILE, "w", encoding="utf-8") as f:
                     json.dump(k.config, f, ensure_ascii=False, indent=2)
+                # Lock immediately after first write
+                ensure_locked_after_write(k.CONFIG_FILE)
                 self.setup()
                 print("Config saved")
                 return True

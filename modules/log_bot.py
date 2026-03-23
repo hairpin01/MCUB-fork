@@ -312,13 +312,17 @@ def register(kernel):
             pass
         try:
             repo_path = os.path.dirname(os.path.abspath(__file__))
+            branch = await kernel.version_manager.detect_branch()
             proc = await asyncio.create_subprocess_exec(
-                "git", "pull", "--ff-only",
+                "git", "pull", "--ff-only", "origin", branch,
                 cwd=repo_path,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            await asyncio.wait_for(proc.communicate(), timeout=30)
+            stdout_pull, stderr_pull = await asyncio.wait_for(proc.communicate(), timeout=30)
+            if proc.returncode != 0:
+                error_msg = stderr_pull.decode().strip() or stdout_pull.decode().strip()
+                raise Exception(f"git pull failed (code {proc.returncode}): {error_msg}")
 
             proc2 = await asyncio.create_subprocess_exec(
                 "git", "rev-parse", "--short", "HEAD",

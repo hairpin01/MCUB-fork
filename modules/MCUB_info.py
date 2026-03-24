@@ -9,7 +9,7 @@ import subprocess
 from datetime import datetime
 
 from utils.platform import get_platform, is_wsl, is_termux
-from telethon.tl.types import MessageEntityTextUrl
+from telethon.tl.types import InputMediaWebPage
 from telethon import functions
 from pathlib import Path
 from copy import copy
@@ -58,28 +58,6 @@ CUSTOM_EMOJI = {
     "🧩": '<tg-emoji emoji-id="5332534105114445343">🧩</tg-emoji>',
     '🌐': '<tg-emoji emoji-id="4906943755644306322">🌐</tg-emoji>',
 }
-
-ZERO_WIDTH_CHAR = "\u2060"
-
-
-def add_link_preview(text, entities, link):
-    if not text or not link:
-        return text, entities
-
-    new_text = ZERO_WIDTH_CHAR + text
-    new_entities = []
-
-    if entities:
-        for entity in entities:
-            new_entity = copy(entity)
-            if hasattr(entity, "offset"):
-                new_entity.offset += 1
-            new_entities.append(new_entity)
-
-    link_entity = MessageEntityTextUrl(offset=0, length=1, url=link)
-    new_entities.append(link_entity)
-    return new_text, new_entities
-
 
 def register(kernel):
     client = kernel.client
@@ -535,24 +513,17 @@ def register(kernel):
                 and banner_url.startswith(("http://", "https://"))
             ):
                 try:
-                    text, entities = await client._parse_message_text(info_text, "html")
-                    text, entities = add_link_preview(text, entities, banner_url)
-
+                    media = InputMediaWebPage(banner_url, optional=True)
                     try:
-                        await msg.edit(
-                            text,
-                            formatting_entities=entities,
-                            link_preview=True,
-                            invert_media=invert_media,
-                        )
+                        await msg.edit(info_text, parse_mode="html", file=media, link_preview=False, invert_media=invert_media)
                         return
                     except TypeError:
                         await client(
                             functions.messages.EditMessageRequest(
                                 peer=await event.get_input_chat(),
                                 id=msg.id,
-                                message=text,
-                                entities=entities,
+                                message=info_text,
+                                parse_mode='html',
                                 invert_media=invert_media,
                                 no_webpage=False,
                             )

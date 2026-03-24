@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from telethon import Button
 from telethon.tl.functions.channels import CreateChannelRequest, InviteToChannelRequest, EditPhotoRequest
+from telethon.errors import ChannelsTooMuchError
 
 
 def register(kernel):
@@ -184,7 +185,8 @@ def register(kernel):
                 except Exception:
                     self.config["backup_chat_id"] = None
 
-            async for dialog in self.client.iter_dialogs(limit=100):
+            # Search up to 500 dialogs so we don't miss an existing backup group
+            async for dialog in self.client.iter_dialogs(limit=500):
                 if hasattr(dialog.entity, "title") and dialog.entity.title:
                     if "backup" in dialog.entity.title.lower():
                         self.config["backup_chat_id"] = dialog.entity.id
@@ -235,6 +237,16 @@ def register(kernel):
                 await self.set_group_photo(chat_id, "https://x0.at/4Bjx.jpg")
 
                 return chat
+            except ChannelsTooMuchError:
+                # Telegram's channel limit reached — can't auto-create a backup group.
+                # The user must manually leave some channels or set a chat ID via
+                # `.backupsettings chat <id>` and then disable / re-enable auto-backup.
+                await kernel.log_warning(
+                    "ChannelsTooMuchError: cannot create backup group because the account "
+                    "has joined the maximum number of channels/supergroups. "
+                    "Leave some channels or run `.backupsettings chat <id>` to use an existing group."
+                )
+                return None
             except Exception as e:
                 await kernel.handle_error(e, source="ensure_backup_chat", event=None)
                 return None

@@ -23,7 +23,18 @@ from .runtime import (
     _StringsShim,
     _translator_stub,
 )
-from .decorators import tds, tag, command, inline_handler, callback_handler, watcher, on, loop, InfiniteLoop, Placeholder
+from .decorators import (
+    tds,
+    tag,
+    command,
+    inline_handler,
+    callback_handler,
+    watcher,
+    on,
+    loop,
+    InfiniteLoop,
+    Placeholder,
+)
 from .utils import _Utils
 from . import security
 from . import translat as translations
@@ -54,9 +65,51 @@ _FAKE_PKG_NAME = "__hikka_mcub_compat__"
 
 
 _MODULE_ALIASES: dict[str, str] = {
+    "heroku": "telethon",
     "herokutl": "telethon",
     "hikkatl": "telethon",
+    "hikka": "telethon",
+    "ftg": "telethon",
+    "tgcalls": "telethon",
 }
+
+
+_HIKKA_INDICATORS = (
+    "loader.tds",
+    "loader.Module",
+    "@loader.tds",
+    "loader.ModuleConfig",
+    "loader.command",
+    "@loader.watcher",
+    "loader.Library",
+    "loader.LibraryConfig",
+)
+
+
+_GEEKG_INDICATORS = (
+    "GeekInlineQuery",
+    "self.inline._bot",
+)
+
+
+_NATIVE_MCUB_INDICATORS = (
+    "def register(kernel",
+    "from core.lib.loader import",
+)
+
+
+def _detect_module_type(source_code: str) -> str:
+    native_score = sum(ind in source_code for ind in _NATIVE_MCUB_INDICATORS)
+    hikka_score = sum(ind in source_code for ind in _HIKKA_INDICATORS)
+    geek_score = sum(ind in source_code for ind in _GEEKG_INDICATORS)
+
+    if native_score >= 1:
+        return "native"
+    if geek_score >= 1:
+        return "geek"
+    if hikka_score >= 1:
+        return "hikka"
+    return "native"
 
 
 class ScamDetectionError(Exception):
@@ -110,15 +163,17 @@ def _inject_module_alias(missing_top: str, missing_full: str) -> bool:
     real_prefix = real_top + "."
     for name, mod in list(sys.modules.items()):
         if name.startswith(real_prefix):
-            alias_sub = missing_top + name[len(real_top):]
+            alias_sub = missing_top + name[len(real_top) :]
             if alias_sub not in sys.modules:
                 sys.modules[alias_sub] = mod
             _patch_aliased_submodule(alias_sub)
 
     alias_pkg = sys.modules[missing_top]
     if not getattr(alias_pkg, "__alias_patched__", False):
-        def _alias_getattr(attr: str, _real=real_mod,
-                           _alias_top=missing_top, _real_top=real_top):
+
+        def _alias_getattr(
+            attr: str, _real=real_mod, _alias_top=missing_top, _real_top=real_top
+        ):
             try:
                 return getattr(_real, attr)
             except AttributeError:
@@ -129,9 +184,10 @@ def _inject_module_alias(missing_top: str, missing_full: str) -> bool:
                 sys.modules[f"{_alias_top}.{attr}"] = sub
                 return sub
             except ImportError:
-                raise AttributeError(
-                    f"module {_alias_top!r} has no attribute {attr!r}"
-                )
+                fake_sub = types.ModuleType(f"{_alias_top}.{attr}")
+                sys.modules[f"{_alias_top}.{attr}"] = fake_sub
+                return fake_sub
+
         try:
             alias_pkg.__getattr__ = _alias_getattr
             alias_pkg.__alias_patched__ = True
@@ -139,7 +195,7 @@ def _inject_module_alias(missing_top: str, missing_full: str) -> bool:
             pass
 
     if missing_full and missing_full != missing_top and missing_full not in sys.modules:
-        real_full = real_top + missing_full[len(missing_top):]
+        real_full = real_top + missing_full[len(missing_top) :]
         try:
             sub = importlib.import_module(real_full)
             sys.modules[missing_full] = sub
@@ -147,10 +203,12 @@ def _inject_module_alias(missing_top: str, missing_full: str) -> bool:
             parts = missing_full.split(".")
             for i in range(2, len(parts)):
                 alias_partial = ".".join(parts[:i])
-                real_partial  = real_top + "." + ".".join(parts[1:i])
+                real_partial = real_top + "." + ".".join(parts[1:i])
                 if alias_partial not in sys.modules:
                     try:
-                        sys.modules[alias_partial] = importlib.import_module(real_partial)
+                        sys.modules[alias_partial] = importlib.import_module(
+                            real_partial
+                        )
                         _patch_aliased_submodule(alias_partial)
                     except ImportError:
                         pass
@@ -224,6 +282,7 @@ def _ensure_fake_package() -> str:
     loader_mod.Placeholder = Placeholder
 
     from . import security
+
     loader_mod.owner = security.owner
     loader_mod.group_owner = security.group_owner
     loader_mod.group_admin = security.group_admin
@@ -273,6 +332,7 @@ def _ensure_fake_package() -> str:
         re.MULTILINE,
     )
     import site
+
     loader_mod.USER_INSTALL = not getattr(site, "ENABLE_USER_SITE", True)
 
     utils_mod = types.ModuleType(f"{_FAKE_PKG_NAME}.utils")
@@ -289,34 +349,59 @@ def _ensure_fake_package() -> str:
     utils_mod.get_user = _Utils.get_user
     utils_mod.get_target = _Utils.get_target
     utils_mod.run_sync = _Utils.run_sync
+    utils_mod.BASEDIR = ""
+    utils_mod.USERS_DIR = ""
+    utils_mod.DOWNLOADS_DIR = ""
 
     security._security_mod.__name__ = f"{_FAKE_PKG_NAME}.security"
     translations._translations_mod.__name__ = f"{_FAKE_PKG_NAME}.translations"
+
+    from . import inline_types as _inline_types
+    from . import inline_utils as _inline_utils
+
+    inline_types_mod = types.ModuleType(f"{_FAKE_PKG_NAME}.inline.types")
+    for _attr_name in dir(_inline_types):
+        if not _attr_name.startswith("_"):
+            setattr(inline_types_mod, _attr_name, getattr(_inline_types, _attr_name))
+
+    inline_mod = types.ModuleType(f"{_FAKE_PKG_NAME}.inline")
+    inline_mod.types = inline_types_mod
+    for _attr_name in dir(_inline_types):
+        if not _attr_name.startswith("_"):
+            setattr(inline_mod, _attr_name, getattr(_inline_types, _attr_name))
+
+    inline_utils_mod = types.ModuleType(f"{_FAKE_PKG_NAME}.inline.utils")
+    for _attr_name in dir(_inline_utils):
+        if not _attr_name.startswith("_"):
+            setattr(inline_utils_mod, _attr_name, getattr(_inline_utils, _attr_name))
+
+    inline_mod.utils = inline_utils_mod
+
+    strings_mod = types.ModuleType(f"{_FAKE_PKG_NAME}.strings")
+    strings_mod.Strings = translations._StringsShim
 
     parent.loader = loader_mod
     parent.utils = utils_mod
     parent.security = security._security_mod
     parent.translations = translations._translations_mod
+    parent.inline = inline_mod
+    parent.strings = strings_mod
 
     sys.modules[_FAKE_PKG_NAME] = parent
     sys.modules[f"{_FAKE_PKG_NAME}.loader"] = loader_mod
     sys.modules[f"{_FAKE_PKG_NAME}.utils"] = utils_mod
     sys.modules[f"{_FAKE_PKG_NAME}.security"] = security._security_mod
     sys.modules[f"{_FAKE_PKG_NAME}.translations"] = translations._translations_mod
+    sys.modules[f"{_FAKE_PKG_NAME}.inline"] = inline_mod
+    sys.modules[f"{_FAKE_PKG_NAME}.inline.types"] = inline_types_mod
+    sys.modules[f"{_FAKE_PKG_NAME}.inline.utils"] = inline_utils_mod
+    sys.modules[f"{_FAKE_PKG_NAME}.strings"] = strings_mod
 
     return _FAKE_PKG_NAME
 
 
 def is_hikka_module(source_code: str) -> bool:
-    indicators = (
-        "from .. import loader",
-        "loader.tds",
-        "loader.Module",
-        "@loader.tds",
-        "loader.ModuleConfig",
-        "loader.command",
-    )
-    return sum(ind in source_code for ind in indicators) >= 2
+    return _detect_module_type(source_code) == "hikka"
 
 
 def _create_system_stub(pkg_name: str) -> None:
@@ -329,30 +414,39 @@ def _create_system_stub(pkg_name: str) -> None:
     stub.__file__ = f"<system stub: {pkg_name}>"
 
     if pkg_name == "git":
+
         class GitRepo:
             def __init__(self, path=None):
                 self.working_dir = path
+
             def clone(self, url, to_path=None):
                 return GitRepo(to_path)
+
         stub.Repo = GitRepo
 
     elif pkg_name in ("ffmpeg", "flac", "curl"):
         stub.command = None
 
     elif pkg_name == "requests":
+
         class FakeResponse:
             def __init__(self):
                 self.status_code = 200
                 self.text = ""
                 self.content = b""
+
             def json(self):
                 import json as _json
+
                 return _json.loads(self.text)
+
         class FakeRequests:
             def get(self, url, **kwargs):
                 return FakeResponse()
+
             def post(self, url, **kwargs):
                 return FakeResponse()
+
         stub.get = lambda url, **kw: FakeResponse()
         stub.post = lambda url, **kw: FakeResponse()
 
@@ -386,6 +480,8 @@ async def load_hikka_module(
     file_path: str,
     module_name: str,
 ) -> tuple[bool, str, dict]:
+    from . import geek as _geek_compat
+
     pkg_name = _ensure_fake_package()
     child_pkg = f"{pkg_name}.{module_name}"
 
@@ -393,6 +489,13 @@ async def load_hikka_module(
         source = Path(file_path).read_text(encoding="utf-8")
     except OSError as e:
         return False, f"Cannot read {file_path}: {e}", {}
+
+    module_type = _detect_module_type(source)
+    if module_type == "geek":
+        kernel.logger.info(
+            f"[hikka_compat] Detected GeekTG module '{module_name}', applying compatibility transform"
+        )
+        source = _geek_compat.compat(source)
 
     try:
         code = compile(source, file_path, "exec")
@@ -411,7 +514,7 @@ async def load_hikka_module(
 
     for _attempt in range(_MAX_DEP_RETRIES):
         try:
-            exec(code, mod_obj.__dict__) # noqa: S102
+            exec(code, mod_obj.__dict__)  # noqa: S102
             break
         except ModuleNotFoundError as e:
             missing_pkg = e.name.split(".")[0] if e.name else None
@@ -437,10 +540,31 @@ async def load_hikka_module(
                 continue
 
             _SYSTEM_PACKAGES = {
-                "git", "ffmpeg", "flac", "curl", "wget", "unzip", "tar",
-                "gcc", "g++", "make", "cmake", "pkg-config", "libssl-dev",
-                "python3-dev", "python-dev", "libffi-dev", "libjpeg-dev",
-                "zlib1g-dev", "libxml2-dev", "libxslt-dev", "libcurl4-openssl-dev",
+                "git",
+                "ffmpeg",
+                "flac",
+                "curl",
+                "wget",
+                "unzip",
+                "tar",
+                "gcc",
+                "g++",
+                "make",
+                "cmake",
+                "pkg-config",
+                "libssl-dev",
+                "python3-dev",
+                "python-dev",
+                "libffi-dev",
+                "libjpeg-dev",
+                "zlib1g-dev",
+                "libxml2-dev",
+                "libxslt-dev",
+                "libcurl4-openssl-dev",
+                "heroku",
+                "tgcalls",
+                "aexec",
+                "pytgcalls",
             }
             if missing_pkg.lower() in _SYSTEM_PACKAGES:
                 kernel.logger.warning(
@@ -451,11 +575,19 @@ async def load_hikka_module(
                 continue
 
             import subprocess as _sp
+
             kernel.logger.info(
                 f"[hikka_compat] Auto-installing missing dependency: {missing_pkg}"
             )
             strategies = [
-                [sys.executable, "-m", "pip", "install", missing_pkg, "--break-system-packages"],
+                [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    missing_pkg,
+                    "--break-system-packages",
+                ],
                 [sys.executable, "-m", "pip", "install", missing_pkg],
                 [sys.executable, "-m", "pip", "install", missing_pkg, "--user"],
             ]
@@ -495,6 +627,10 @@ async def load_hikka_module(
     if isinstance(_raw_strings, dict) and not callable(_raw_strings):
         cls.strings = _CallableStringsDict(_raw_strings)
 
+    if not hasattr(cls, "__origin__"):
+        cls.__origin__ = f"<hikka_compat {file_path}>"
+        cls.__force_internal__ = False
+
     try:
         instance = cls()
     except Exception as e:
@@ -532,6 +668,7 @@ async def load_hikka_module(
         elif getattr(method, "__hikka_on_event__", None) is not None:
             event_type = method.__hikka_on_event__
             try:
+
                 @kernel.client.on(event_type)
                 async def _on_wrapper(event, _m=method):
                     try:
@@ -540,6 +677,7 @@ async def load_hikka_module(
                         kernel.logger.error(
                             f"[hikka_compat] @on handler error in {module_name}: {_e}"
                         )
+
                 event_handles.append(_on_wrapper)
             except Exception as e:
                 kernel.logger.warning(
@@ -558,6 +696,7 @@ async def load_hikka_module(
             conflict_module = None
             if "already registered" in err_str.lower():
                 import re
+
                 m = re.search(r"already registered by ['\"]?([^'\"]+)['\"]?", err_str)
                 if m:
                     conflict_module = m.group(1)
@@ -565,11 +704,13 @@ async def load_hikka_module(
                     conflict_module = kernel.command_owners.get(cmd_name)
                 if not conflict_module:
                     conflict_module = kernel.current_loading_module
-            conflicts.append({
-                "command": cmd_name,
-                "owner": conflict_module or "unknown",
-                "error": err_str,
-            })
+            conflicts.append(
+                {
+                    "command": cmd_name,
+                    "owner": conflict_module or "unknown",
+                    "error": err_str,
+                }
+            )
             kernel.logger.warning(
                 f"[hikka_compat] Could not register command '{cmd_name}' "
                 f"from {module_name}: {e}"
@@ -589,9 +730,7 @@ async def load_hikka_module(
             try:
                 await _wm(event)
             except Exception as _e:
-                kernel.logger.error(
-                    f"[hikka_compat] watcher error in {_mn}: {_e}"
-                )
+                kernel.logger.error(f"[hikka_compat] watcher error in {_mn}: {_e}")
 
         @kernel.client.on(_tl_events.NewMessage(outgoing=True))
         async def _watcher_out(event):

@@ -139,40 +139,340 @@ class DbProxy:
 class InlineProxy:
     def __init__(self, kernel):
         self._kernel = kernel
+        self._units: dict = {}
+        self._custom_map: dict = {}
 
-    async def form(self, text: str, *, reply_markup=None, message=None, **kwargs):
+    @property
+    def bot(self):
+        if hasattr(self._kernel, "_inline") and self._kernel._inline:
+            return getattr(self._kernel._inline, "bot", None)
+        return None
+
+    @property
+    def _bot(self):
+        return self.bot
+
+    async def form(
+        self,
+        text: str,
+        message=None,
+        reply_markup=None,
+        *,
+        force_me: bool = False,
+        always_allow: list = None,
+        manual_security: bool = False,
+        disable_security: bool = False,
+        ttl: int = None,
+        on_unload: callable = None,
+        photo: str = None,
+        gif: str = None,
+        file: str = None,
+        mime_type: str = None,
+        video: str = None,
+        location: tuple = None,
+        audio: dict = None,
+        silent: bool = False,
+        **kwargs,
+    ):
+        """Send inline form to chat (Hikka/Heroku compatible).
+
+        Args:
+            text: Content of inline form. HTML markdown supported.
+            message: Message object or chat_id to send to.
+            reply_markup: List of buttons to insert in markup.
+            force_me: Either this form buttons must be pressed only by owner scope.
+            always_allow: Users, that are allowed to press buttons in addition to previous rules.
+            ttl: Time, when the form is going to be unloaded.
+            photo: Attach a photo to the form. URL must be supplied.
+            gif: Attach a gif to the form. URL must be supplied.
+            file: Attach a file to the form. URL must be supplied.
+            video: Attach a video to the form. URL must be supplied.
+            location: Attach a map point (latitude, longitude).
+            audio: Attach an audio. Dict or URL must be supplied.
+            silent: Whether the form must be sent silently.
+
+        Returns:
+            InlineMessage on success, False otherwise.
+        """
+        from .inline_types import InlineMessage as _InlineMessage
+        from .inline_utils import sanitise_text as _sanitise_text
+
         if message is None:
-            return None
+            return False
 
-        if self._kernel._inline and hasattr(self._kernel._inline, "form"):
+        if always_allow is None:
+            always_allow = []
+
+        text = _sanitise_text(text) if text else ""
+
+        if hasattr(message, "chat_id"):
+            chat_id = message.chat_id
+        elif isinstance(message, int):
+            chat_id = message
+        else:
+            return False
+
+        inline_form = (
+            getattr(self._kernel._inline, "inline_form", None)
+            if self._kernel._inline
+            else None
+        )
+        if inline_form:
             try:
-                return await self._kernel._inline.form(
-                    message.chat_id,
-                    text,
+                media = photo or gif or video or file
+                media_type = "photo"
+                if gif:
+                    media_type = "gif"
+                elif video:
+                    media_type = "document"
+                elif file:
+                    media_type = "document"
+
+                result = await inline_form(
+                    chat_id=chat_id,
+                    title=text,
+                    fields=None,
                     buttons=reply_markup,
                     auto_send=True,
+                    ttl=ttl or 200,
+                    media=media,
+                    media_type=media_type,
                 )
+
+                if isinstance(result, tuple) and len(result) == 2:
+                    success, sent_msg = result
+                    if success and sent_msg:
+                        unit_id = getattr(sent_msg, "id", None) or f"hikka_{chat_id}"
+                        return _InlineMessage(
+                            inline_message_id=str(getattr(sent_msg, "id", "")),
+                            unit_id=unit_id,
+                            inline_proxy=self,
+                        )
+                return False
             except Exception as e:
                 self._kernel.logger.debug(
-                    f"[hikka_compat] InlineProxy.form() via _inline failed: {e}"
+                    f"[hikka_compat] InlineProxy.form() via inline_form failed: {e}"
                 )
 
         return await self._plain_send(message, text)
 
-    async def list(self, text: str, *, strings: list[str] = None, message=None, **kwargs):
+    async def list(
+        self,
+        text: str,
+        message=None,
+        strings: list = None,
+        reply_markup=None,
+        ttl: int = None,
+        **kwargs,
+    ):
+        """Send inline list to chat.
+
+        Args:
+            text: List header text.
+            message: Message object or chat_id.
+            strings: List of strings to display.
+            reply_markup: Inline buttons.
+            ttl: Time to live.
+
+        Returns:
+            InlineMessage on success, False otherwise.
+        """
+        from .inline_types import InlineMessage as _InlineMessage
+
+        if message is None:
+            return False
+
+        if hasattr(message, "chat_id"):
+            chat_id = message.chat_id
+        elif isinstance(message, int):
+            chat_id = message
+        else:
+            return False
+
         body = text
         if strings:
             body = text + "\n" + "\n".join(f"• {s}" for s in strings)
-        return await self._plain_send(message, body) if message else None
 
-    async def gallery(self, *args, message=None, **kwargs):
-        if message:
-            return await self._plain_send(
-                message, "⚠️ Gallery requires full Heroku/Hikka inline support."
-            )
+        inline_list = (
+            getattr(self._kernel._inline, "list", None)
+            if self._kernel._inline
+            else None
+        )
+        if inline_list:
+            try:
+                result = await inline_list(
+                    chat_id=chat_id,
+                    title=text,
+                    items=strings or [],
+                    buttons=reply_markup,
+                    ttl=ttl or 200,
+                )
+                if isinstance(result, tuple) and len(result) == 2:
+                    success, sent_msg = result
+                    if success and sent_msg:
+                        return _InlineMessage(
+                            inline_message_id=str(getattr(sent_msg, "id", "")),
+                            unit_id=f"hikka_list_{chat_id}",
+                            inline_proxy=self,
+                        )
+                return False
+            except Exception as e:
+                self._kernel.logger.debug(
+                    f"[hikka_compat] InlineProxy.list() via inline list failed: {e}"
+                )
+
+        return await self._plain_send(message, body)
+
+    async def gallery(
+        self,
+        message,
+        text: str,
+        rows: list = None,
+        force_me: bool = False,
+        always_allow: list = None,
+        disable_security: bool = False,
+        ttl: int = None,
+        silent: bool = False,
+        **kwargs,
+    ):
+        """Send inline gallery to chat.
+
+        Args:
+            message: Message object or chat_id to send to.
+            text: Gallery header text.
+            rows: List of items (dicts with photo/gif/video and text).
+            force_me: Either this gallery must be controlled only by owner.
+            always_allow: Additional users allowed to interact.
+            disable_security: Disable all security checks.
+            ttl: Time to live for the gallery.
+            silent: Send silently.
+
+        Returns:
+            List of InlineMessages on success, False otherwise.
+        """
+        from .inline_types import InlineMessage as _InlineMessage
+
+        if message is None:
+            return False
+
+        if always_allow is None:
+            always_allow = []
+
+        if hasattr(message, "chat_id"):
+            chat_id = message.chat_id
+        elif isinstance(message, int):
+            chat_id = message
+        else:
+            return False
+
+        inline_gallery = (
+            getattr(self._kernel._inline, "gallery", None)
+            if self._kernel._inline
+            else None
+        )
+        if inline_gallery and rows:
+            try:
+                results = await inline_gallery(
+                    chat_id=chat_id,
+                    title=text,
+                    rows=rows[:10],
+                    force_me=force_me,
+                    always_allow=always_allow,
+                    disable_security=disable_security,
+                    ttl=ttl or 200,
+                    silent=silent,
+                )
+
+                messages = []
+                for i, result in enumerate(results):
+                    if isinstance(result, tuple) and len(result) == 2:
+                        success, sent_msg = result
+                        if success and sent_msg:
+                            messages.append(
+                                _InlineMessage(
+                                    inline_message_id=str(getattr(sent_msg, "id", "")),
+                                    unit_id=f"hikka_gallery_{chat_id}_{i}",
+                                    inline_proxy=self,
+                                )
+                            )
+                return messages if messages else False
+            except Exception as e:
+                self._kernel.logger.debug(
+                    f"[hikka_compat] InlineProxy.gallery() via inline gallery failed: {e}"
+                )
+
+        return await self._plain_send(
+            message, "⚠️ Gallery requires full Heroku/Hikka inline support."
+        )
+        if inline_form and rows:
+            try:
+                for i, row in enumerate(rows[:10]):
+                    media = row.get("photo") or row.get("gif") or row.get("video")
+                    if media:
+                        media_type = "photo"
+                        if row.get("gif"):
+                            media_type = "gif"
+                        elif row.get("video"):
+                            media_type = "document"
+
+                        item_text = row.get("text", row.get("title", ""))
+                        result = await inline_form(
+                            chat_id=chat_id,
+                            title=item_text,
+                            fields=None,
+                            buttons=row.get("buttons"),
+                            auto_send=True,
+                            ttl=ttl or 200,
+                            media=media,
+                            media_type=media_type,
+                        )
+
+                unit_id = f"hikka_gallery_{chat_id}"
+                return _InlineMessage(
+                    inline_message_id="",
+                    unit_id=unit_id,
+                    inline_proxy=self,
+                )
+            except Exception as e:
+                self._kernel.logger.debug(
+                    f"[hikka_compat] InlineProxy.gallery() via inline_form failed: {e}"
+                )
+
+        return await self._plain_send(
+            message, "⚠️ Gallery requires full Heroku/Hikka inline support."
+        )
+
+    async def query(
+        self,
+        query: str,
+        user_id: int,
+        offset: str = "",
+        cache_time: int = 300,
+    ):
+        if self._kernel._inline and hasattr(self._kernel._inline, "query"):
+            try:
+                return await self._kernel._inline.query(
+                    query,
+                    user_id,
+                    offset=offset,
+                    cache_time=cache_time,
+                )
+            except Exception as e:
+                self._kernel.logger.debug(
+                    f"[hikka_compat] InlineProxy.query() failed: {e}"
+                )
+        return []
+
+    def generate_markup(self, reply_markup):
+        if self._kernel._inline and hasattr(self._kernel._inline, "generate_markup"):
+            try:
+                return self._kernel._inline.generate_markup(reply_markup)
+            except Exception:
+                pass
+        return reply_markup
 
     @staticmethod
-    async def _plain_send(message, text: str):
+    async def _plain_send(message, text: str, **kwargs):
         try:
             return await message.edit(text, parse_mode="html")
         except Exception:
@@ -182,8 +482,9 @@ class InlineProxy:
                 return None
 
 
-def _get_members(mod, ending: str, attribute: Optional[str] = None,
-                 strict: bool = False) -> dict:
+def _get_members(
+    mod, ending: str, attribute: Optional[str] = None, strict: bool = False
+) -> dict:
     result = {}
     for method_name in dir(type(mod)):
         if isinstance(getattr(type(mod), method_name, None), property):
@@ -191,7 +492,9 @@ def _get_members(mod, ending: str, attribute: Optional[str] = None,
         method = getattr(mod, method_name, None)
         if not callable(method):
             continue
-        matches_ending = (method_name == ending) if strict else method_name.endswith(ending)
+        matches_ending = (
+            (method_name == ending) if strict else method_name.endswith(ending)
+        )
         matches_attr = bool(attribute and getattr(method, attribute, False))
         if not matches_ending and not matches_attr:
             continue
@@ -298,22 +601,41 @@ class Module:
     def heroku_watchers(self) -> dict:
         return self.watchers
 
+    @property
+    def aiogram_watchers(self) -> dict:
+        return _get_members(self, "aiogram_watcher")
+
     @commands.setter
-    def commands(self, _): pass
+    def commands(self, _):
+        pass
+
     @heroku_commands.setter
-    def heroku_commands(self, _): pass
+    def heroku_commands(self, _):
+        pass
+
     @inline_handlers.setter
-    def inline_handlers(self, _): pass
+    def inline_handlers(self, _):
+        pass
+
     @heroku_inline_handlers.setter
-    def heroku_inline_handlers(self, _): pass
+    def heroku_inline_handlers(self, _):
+        pass
+
     @callback_handlers.setter
-    def callback_handlers(self, _): pass
+    def callback_handlers(self, _):
+        pass
+
     @heroku_callback_handlers.setter
-    def heroku_callback_handlers(self, _): pass
+    def heroku_callback_handlers(self, _):
+        pass
+
     @watchers.setter
-    def watchers(self, _): pass
+    def watchers(self, _):
+        pass
+
     @heroku_watchers.setter
-    def heroku_watchers(self, _): pass
+    def heroku_watchers(self, _):
+        pass
 
     def get_prefix(self) -> str:
         return getattr(self._kernel, "custom_prefix", ".")
@@ -332,8 +654,11 @@ class Module:
     def get_string(self, key: str) -> str:
         return self.strings.get(key) or key
 
-    async def animate(self, message, frames: list, interval: float, *, inline: bool = False):
+    async def animate(
+        self, message, frames: list, interval: float, *, inline: bool = False
+    ):
         import asyncio as _asyncio
+
         if interval < 0.1:
             interval = 0.1
         for frame in frames:
@@ -347,8 +672,14 @@ class Module:
             await _asyncio.sleep(interval)
         return message
 
-    async def invoke(self, command: str, args: Optional[str] = None,
-                     peer=None, message=None, edit: bool = False):
+    async def invoke(
+        self,
+        command: str,
+        args: Optional[str] = None,
+        peer=None,
+        message=None,
+        edit: bool = False,
+    ):
         all_cmds = self.allmodules.commands if hasattr(self, "allmodules") else {}
         if command not in all_cmds:
             raise ValueError(f"Command {command!r} not found")
@@ -360,10 +691,17 @@ class Module:
         await all_cmds[command](message)
         return message
 
-    def config_complete(self): pass
-    async def on_load(self) -> None: pass
-    async def on_unload(self) -> None: pass
-    async def on_dlmod(self) -> None: pass
+    def config_complete(self):
+        pass
+
+    async def on_load(self) -> None:
+        pass
+
+    async def on_unload(self) -> None:
+        pass
+
+    async def on_dlmod(self) -> None:
+        pass
 
     async def client_ready(self, client=None, db=None) -> None:
         pass
@@ -411,6 +749,7 @@ class _Utils:
     @staticmethod
     def remove_html(text: str) -> str:
         import re
+
         return re.sub(r"<[^>]+>", "", str(text))
 
     @staticmethod

@@ -1,16 +1,27 @@
 from .validators import validators
 from .config import ConfigValue, ModuleConfig, LibraryConfig
-from .runtime import Module, Library, DbProxy, InlineProxy, _AllModulesStub, _CallableStringsDict
+from .runtime import (
+    Module,
+    Library,
+    DbProxy,
+    InlineProxy,
+    _AllModulesStub,
+    _CallableStringsDict,
+)
 from .decorators import tds, command, inline_handler, callback_handler, watcher, on
 from . import utils
 from . import security
 from . import translat as translations
+from . import geek
+from . import inline_types
+from . import inline_utils
 from .fake_package import (
     _ensure_fake_package,
     is_hikka_module,
     load_hikka_module,
     unload_hikka_module,
     _inject_module_alias,
+    _detect_module_type,
 )
 from . import loader
 from .types import (
@@ -35,6 +46,24 @@ from .types import (
     get_watchers,
 )
 
+from .inline_types import (
+    InlineMessage,
+    BotMessage,
+    InlineCall,
+    BotInlineCall,
+    InlineUnit,
+    InlineQuery,
+    InlineResults,
+)
+
+from .inline_utils import (
+    InlineMarkupBuilder,
+    generate_markup,
+    process_buttons,
+    sanitise_text,
+    VALID_BUTTON_STYLES,
+)
+
 __all__ = [
     "validators",
     "ConfigValue",
@@ -55,11 +84,15 @@ __all__ = [
     "utils",
     "security",
     "translations",
+    "geek",
+    "inline_types",
+    "inline_utils",
     "_ensure_fake_package",
     "is_hikka_module",
     "load_hikka_module",
     "unload_hikka_module",
     "_inject_module_alias",
+    "_detect_module_type",
     "loader",
     "JSONSerializable",
     "HerokuReplyMarkup",
@@ -80,4 +113,16 @@ __all__ = [
     "get_inline_handlers",
     "get_callback_handlers",
     "get_watchers",
+    "InlineMessage",
+    "BotMessage",
+    "InlineCall",
+    "BotInlineCall",
+    "InlineUnit",
+    "InlineQuery",
+    "InlineResults",
+    "InlineMarkupBuilder",
+    "generate_markup",
+    "process_buttons",
+    "sanitise_text",
+    "VALID_BUTTON_STYLES",
 ]

@@ -499,43 +499,7 @@ class InlineManager:
             await k.handle_error(e, source="inline_query_and_click")
             return False, None
 
-    async def send_inline(
-        self, chat_id: int, query: str, buttons: list | None = None
-    ) -> bool:
-        """Send an inline result using the configured inline bot.
 
-        Returns:
-            True on success.
-        """
-        k = self.k
-        bot_username = k.config.get("inline_bot_username")
-        if not bot_username:
-            return False
-        try:
-            results = await k.client.inline_query(bot_username, query)
-            if results:
-                kw = {"buttons": self._format_telethon_buttons(buttons)} if buttons else {}
-                await results[0].click(chat_id, **kw)
-                return True
-        except Exception as e:
-            k.logger.error(f"send_inline error: {e}")
-            await k.handle_error(e, source="send_inline")
-        return False
-
-    async def send_inline_from_config(
-        self, chat_id: int, query: str, buttons: list | None = None
-    ):
-        """Simplified inline send using the bot configured in config.json.
-
-        Returns:
-            Result of inline_query_and_click.
-        """
-        return await self.inline_query_and_click(
-            chat_id=chat_id,
-            query=query,
-            bot_username=self.k.config.get("inline_bot_username"),
-            buttons=buttons,
-        )
 
     async def inline_form(
         self,

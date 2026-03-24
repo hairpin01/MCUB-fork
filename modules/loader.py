@@ -65,6 +65,7 @@ CUSTOM_EMOJI = {
     "convert": '<tg-emoji emoji-id="5332600281970517875">🔄</tg-emoji>',
     "download": '<tg-emoji emoji-id="5469785308386041323">⬇️</tg-emoji>',
     "no_cmd": '<tg-emoji emoji-id="5429428837895141860">🫨</tg-emoji>',
+    'author': '<tg-emoji emoji-id="5332630862137685609">💖</tg-emoji>',
 }
 
 # Случайные эмодзи для завершения
@@ -127,7 +128,7 @@ def register(kernel):
             "log_loading_module": "=- Loading module {module_name}...",
             "log_module_loaded": "=> Module loaded successfully",
             "log_commands_found": "=> Commands found: {count}",
-            "module_loaded": "{success} <b>Module {module_name} loaded!</b> {emoji}\n<blockquote expandable>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote expandable>{commands_list}</blockquote>",
+            "module_loaded": "{success} <b>Module {module_name} loaded!</b> {emoji}\n<blockquote expandable>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote expandable>{commands_list}</blockquote>\n<blockquote>{emoji_author} Author: {author}</blockquote>",
             "no_cmd_desc": "{no_cmd} Command has no description",
             "command_line": "{crystal} <code>{prefix}{cmd}</code> – <b>{desc}</b>",
             "aliases_text": " (Aliases: {alias_text})",
@@ -236,7 +237,7 @@ def register(kernel):
             "log_loading_module": "=- Загружаю модуль {module_name}...",
             "log_module_loaded": "=> Модуль успешно загружен",
             "log_commands_found": "=> Найдено команд: {count}",
-            "module_loaded": "{success} <b>Модуль {module_name} загружен!</b> {emoji}\n<blockquote expandable>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote expandable>{commands_list}</blockquote>",
+            "module_loaded": "{success} <b>Модуль {module_name} загружен!</b> {emoji}\n<blockquote expandable>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote expandable>{commands_list}</blockquote>\n <blockquote>{emoji_author} Автор: {author}</blockquote>",
             "no_cmd_desc": "{no_cmd} У команды нету описания",
             "command_line": "{crystal} <code>{prefix}{cmd}</code> – <b>{desc}</b>",
             "aliases_text": " (Aliases: {alias_text})",
@@ -813,6 +814,8 @@ def register(kernel):
                             idea=CUSTOM_EMOJI["idea"],
                             description=metadata["description"],
                             version=metadata["version"],
+                            author=metadata['author'],
+                            emoji_author=CUSTOM_EMOJI['author'],
                             commands_list=commands_list + conflict_text,
                         ),
                     )
@@ -932,6 +935,8 @@ def register(kernel):
                     idea=CUSTOM_EMOJI["idea"],
                     description=metadata["description"],
                     version=metadata["version"],
+                    author=metadata["author"],
+                    emoji_author=CUSTOM_EMOJI['author'],
                     commands_list=commands_list,
                 )
 
@@ -1395,7 +1400,6 @@ def register(kernel):
 
             add_log(t("log_loading_to_kernel"))
 
-            # ── Hikka/Heroku compat ──────────────────────────────────────────
             if is_hikka_module(code):
                 add_log(t("log_hikka_detected"))
                 if not HIKKA_COMPAT:
@@ -1457,6 +1461,8 @@ def register(kernel):
                             idea=CUSTOM_EMOJI["idea"],
                             description=metadata["description"],
                             version=metadata["version"],
+                            author=metadata["author"],
+                            emoji_author=CUSTOM_EMOJI['author'],
                             commands_list=commands_list + conflict_text,
                         ),
                     )
@@ -1475,7 +1481,7 @@ def register(kernel):
                     if os.path.exists(file_path):
                         os.remove(file_path)
                 return
-            # ── end Hikka compat ─────────────────────────────────────────────
+
 
             success, message_text = await kernel.load_module_from_file(
                 file_path, module_name, False
@@ -1530,6 +1536,8 @@ def register(kernel):
                     idea=CUSTOM_EMOJI["idea"],
                     description=metadata["description"],
                     version=metadata["version"],
+                    author=metadata["author"],
+                    emoji_author=CUSTOM_EMOJI['author'],
                     commands_list=commands_list,
                 )
 

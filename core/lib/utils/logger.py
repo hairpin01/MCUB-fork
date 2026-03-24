@@ -321,7 +321,7 @@ class KernelLogger:
         k.cache.set(f"tb_{error_id}", rich.full_stack)
 
         src_esc = html.escape(source or "unknown", quote=False)
-        body = f"<blockquote><tg-emoji emoji-id=\"5426900601101374618\">🧿</tg-emoji> <b>Source:</b> <code>{src_esc}</code>\n{rich.message}"
+        body = f"<blockquote><tg-emoji emoji-id=\"5372846474881146350\">🔭</tg-emoji> <b>Source:</b> <code>{src_esc}</code>\n{rich.message}"
 
         if event:
             try:
@@ -333,7 +333,7 @@ class KernelLogger:
                 )
                 txt = html.escape((event.text or "")[:200], quote=False)
                 body += (
-                    f"\n💬 <b>Message info:</b>\n"
+                    f"\n<tg-emoji emoji-id=\"5298499667569425533\">🃏</tg-emoji> <b>Message info:</b>\n"
                     f"<blockquote>🪬 <b>User:</b> {user_info}\n"
                     f"⌨️ <b>Text:</b> <code>{txt}</code>\n"
                     f"📬 <b>Chat:</b> {html.escape(str(chat_title))}</blockquote>"

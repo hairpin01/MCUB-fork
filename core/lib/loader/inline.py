@@ -227,7 +227,7 @@ class InlineManager:
                 escape_html_flag = bool(gallery_data.get("escape_html", False))
                 total = len(rows)
                 if total <= 0:
-                    await event.answer("❌ Empty gallery", show_alert=True)
+                    await event.answer("❌ Empty gallery", alert=True)
                     return
 
                 if action == "prev":
@@ -261,7 +261,7 @@ class InlineManager:
                     await event.answer()
                 except Exception as e:
                     k.logger.error(f"gallery nav error: {e}")
-                    await event.answer(f"❌ Error: {e}", show_alert=True)
+                    await event.answer(f"❌ Error: {e}", alert=True)
                 return
 
             # Navigation: list_<uuid>_<action>
@@ -310,7 +310,7 @@ class InlineManager:
                     await event.answer()
                 except Exception as e:
                     k.logger.error(f"list nav error: {e}")
-                    await event.answer(f"❌ Error: {e}", show_alert=True)
+                    await event.answer(f"❌ Error: {e}", alert=True)
                 return
 
         try:

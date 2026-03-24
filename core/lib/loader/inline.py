@@ -169,7 +169,7 @@ class InlineManager:
                 uuid_key = data[len("temp_callback_") :]
                 item_data = inline_self._session_get(uuid_key, pop=True)
                 if not item_data:
-                    await event.answer("❌ Session expired", show_alert=True)
+                    await event.answer("❌ Session expired", alert=True)
                     return
 
                 item_type = item_data.get("type", "gallery")
@@ -206,7 +206,7 @@ class InlineManager:
                     await event.answer()
                 except Exception as e:
                     k.logger.error(f"temp_callback error: {e}")
-                    await event.answer(f"❌ Error: {e}", show_alert=True)
+                    await event.answer(f"❌ Error: {e}", alert=True)
                 return
 
             # Navigation: gallery_<uuid>_<action>
@@ -218,7 +218,7 @@ class InlineManager:
                 session_key = inline_self._gallery_session_key(gallery_uuid)
                 gallery_data = inline_self._session_get(session_key)
                 if not gallery_data:
-                    await event.answer("❌ Session expired", show_alert=True)
+                    await event.answer("❌ Session expired", alert=True)
                     return
 
                 rows = gallery_data.get("rows", [])
@@ -273,7 +273,7 @@ class InlineManager:
                 session_key = inline_self._list_session_key(list_uuid)
                 list_data = inline_self._session_get(session_key)
                 if not list_data:
-                    await event.answer("❌ Session expired", show_alert=True)
+                    await event.answer("❌ Session expired", alert=True)
                     return
 
                 items = list_data.get("items", [])

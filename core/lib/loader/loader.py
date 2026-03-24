@@ -530,11 +530,12 @@ class ModuleLoader:
 
             try:
                 from core.lib.loader.hikka_compat import (
-                    is_hikka_module,
+                    _detect_module_type,
                     load_hikka_module,
                 )
 
-                if is_hikka_module(code):
+                module_type = _detect_module_type(code)
+                if module_type in ("hikka", "geek"):
                     import os as _os
 
                     abs_path = (

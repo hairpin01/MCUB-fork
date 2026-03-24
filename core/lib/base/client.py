@@ -109,6 +109,7 @@ class ClientManager:
             ensure_locked_after_write(k.CONFIG_FILE, k.logger)
 
             from core_inline.handlers import InlineHandlers
+
             handlers = InlineHandlers(k, k.bot_client)
             await handlers.register_handlers()
 
@@ -144,8 +145,12 @@ class ClientManager:
                 await k.client.connect()
                 if await k.client.is_user_authorized():
                     k.reconnect_attempts = 0
+                    if hasattr(k, "_log") and k._log:
+                        await k._log.log_network("Client reconnected successfully")
                     return True
-            except Exception:
+            except Exception as e:
                 k.reconnect_attempts += 1
+                if hasattr(k, "_log") and k._log:
+                    await k._log.log_network(f"Connection attempt failed: {e}")
                 await asyncio.sleep(k.reconnect_delay * k.reconnect_attempts)
         return False

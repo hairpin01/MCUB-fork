@@ -2164,6 +2164,126 @@ another_field: another_value
 
 ---
 
+### `gallery()`
+
+Sends an inline gallery with navigation buttons `[◀] [🔄] [▶]`.
+
+**Flow:**
+1. Creates gallery with first item + navigation buttons
+2. Navigation data stored in cache with uuid
+3. User clicks [◀] or [▶] to navigate between items
+4. Media shown directly in message
+
+---
+
+**Parameters:**
+- `chat_id` (int): Target chat ID.
+- `title` (str): Gallery header text.
+- `rows` (list): List of gallery items. Each item is a dict with:
+  - `photo` / `gif` / `video` (str): Media URL
+  - `text` (str): Item description
+  - `title` (str, optional): Item title (defaults to "Item N")
+- `ttl` (int, default=200): Cache TTL for navigation (seconds).
+
+---
+
+**Returns:**
+- `tuple[bool, Message]`: (success, message) tuple.
+
+---
+
+**Usage Examples:**
+
+#### Basic gallery
+```python
+rows = [
+    {"photo": "https://example.com/photo1.jpg", "text": "Beautiful sunset"},
+    {"photo": "https://example.com/photo2.jpg", "text": "Mountain view"},
+    {"photo": "https://example.com/photo3.jpg", "text": "Ocean waves"},
+]
+result = await kernel._inline.gallery(
+    event.chat_id,
+    "Nature Gallery",
+    rows=rows
+)
+```
+
+**Complete Example:**
+```python
+@kernel.register.command('gallery')
+async def gallery_handler(event):
+    rows = [
+        {"photo": url1, "text": "Item 1"},
+        {"photo": url2, "text": "Item 2"},
+        {"photo": url3, "text": "Item 3"},
+    ]
+    success, msg = await kernel._inline.gallery(event.chat_id, "My Gallery", rows=rows)
+    if success:
+        await event.edit("Gallery sent!")
+```
+
+> [!NOTE]
+> Available in kernel version 1.0.4 and later.
+
+---
+
+### `list()`
+
+Sends an inline list with pagination `[◀] [🔄] [▶]`.
+
+**Flow:**
+1. Creates list view with first page (5 items) + navigation
+2. Navigation data stored in cache with uuid
+3. User clicks [◀] or [▶] to navigate between pages
+
+---
+
+**Parameters:**
+- `chat_id` (int): Target chat ID.
+- `title` (str): List header text.
+- `items` (list): List of strings to display.
+- `ttl` (int, default=200): Cache TTL (seconds).
+
+---
+
+**Returns:**
+- `tuple[bool, Message]`: (success, message) tuple.
+
+---
+
+**Usage Examples:**
+
+#### Basic list
+```python
+result = await kernel._inline.list(
+    event.chat_id,
+    "Features",
+    items=["Feature 1", "Feature 2", "Feature 3", "Feature 4", "Feature 5", "Feature 6"]
+)
+```
+
+**Complete Example:**
+```python
+@kernel.register.command('showlist')
+async def showlist_handler(event):
+    items = [
+        "📦 Package: MCUB v1.0.4",
+        "⏰ Uptime: 5h 30m",
+        "💾 Memory: 128MB",
+        "🔧 Status: Running",
+        "📊 Users: 1000",
+        "⚡ Speed: Fast",
+    ]
+    success, msg = await kernel._inline.list(event.chat_id, "📊 System Info", items=items)
+    if success:
+        await event.delete()
+```
+
+> [!NOTE]
+> Available in kernel version 1.0.4 and later.
+
+---
+
 ### `inline_query_and_click()`
 ---
 

@@ -10,7 +10,7 @@ try:
     import psutil as _psutil
 except ImportError:
     _psutil = None
-from telethon.tl.types import MessageEntityTextUrl
+from telethon.tl.types import InputMediaWebPage
 from telethon import functions
 from copy import copy
 
@@ -48,27 +48,6 @@ CUSTOM_EMOJI = {
     "🗳": '<tg-emoji emoji-id="5359741159566484212">🗳</tg-emoji>',
     "📰": '<tg-emoji emoji-id="5433982607035474385">📰</tg-emoji>',
 }
-
-ZERO_WIDTH_CHAR = "\u2060"
-
-
-def add_link_preview(text, entities, link):
-    if not text or not link:
-        return text, entities
-
-    new_text = ZERO_WIDTH_CHAR + text
-    new_entities = []
-
-    if entities:
-        for entity in entities:
-            new_entity = copy(entity)
-            if hasattr(entity, "offset"):
-                new_entity.offset += 1
-            new_entities.append(new_entity)
-
-    link_entity = MessageEntityTextUrl(offset=0, length=1, url=link)
-    new_entities.append(link_entity)
-    return new_text, new_entities
 
 
 def register(kernel):
@@ -308,24 +287,23 @@ def register(kernel):
                 and banner_url.startswith(("http://", "https://"))
             ):
                 try:
-                    text, entities = await client._parse_message_text(response, "html")
-                    text, entities = add_link_preview(text, entities, banner_url)
-
                     try:
                         await msg.edit(
-                            text,
-                            formatting_entities=entities,
+                            response,
+                            file=InputMediaWebPage(banner_url, optional=True),
+                            parse_mode='html',
                             link_preview=True,
                             invert_media=invert_media
                         )
                         return
-                    except TypeError:
+                    except TypeError as e:
+                        kernel.logger.error('error: ', e)
                         await client(
                             functions.messages.EditMessageRequest(
                                 peer=await event.get_input_chat(),
                                 id=msg.id,
-                                message=text,
-                                entities=entities,
+                                message=response,
+                                parse_mode='html',
                                 invert_media=invert_media,
                                 no_webpage=False,
                             )

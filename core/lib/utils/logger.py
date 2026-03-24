@@ -405,5 +405,5 @@ class KernelLogger:
             return
         rich = RichException.from_exc_info(exc_type, exc_value, tb)
         src_esc = html.escape(source, quote=False)
-        body = f"<blockquote><tg-emoji emoji-id=\"5321304062715517873\">🛰</tg-emoji> <b>Source:</b> <code>{src_esc}</code></blockquote>\n{rich.message}"
+        body = rich.message
         await self.send_log_message(body)

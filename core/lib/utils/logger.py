@@ -283,7 +283,7 @@ class KernelLogger:
         )
         if message_info:
             body += (
-                f"\n<tg-emoji emoji-id=\"5298499667569425533\">🃏</tg-emoji> <b>Message:</b> <code>{html.escape(message_info[:300])}</code>"
+                f"\n<tg-emoji emoji-id=\"5298499667569425533\">🃏</tg-emoji> <blo<b>Message:</b> <code>{html.escape(message_info[:300])}</code>"
             )
 
         await self.send_log_message(body)
@@ -321,7 +321,7 @@ class KernelLogger:
         k.cache.set(f"tb_{error_id}", rich.full_stack)
 
         src_esc = html.escape(source or "unknown", quote=False)
-        body = f"<blockquote><tg-emoji emoji-id=\"5372846474881146350\">🔭</tg-emoji> <b>Source:</b> <code>{src_esc}</code>\n{rich.message}"
+        body = f"<blockquote><tg-emoji emoji-id=\"5372846474881146350\">🔭</tg-emoji> <b>Source:</b> <code>{src_esc}</code>\n{rich.message}</blockquote>"
 
         if event:
             try:

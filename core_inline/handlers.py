@@ -436,7 +436,7 @@ class InlineHandlers:
                 traceback_text = traceback_text[:3800] + "\n... [truncated]"
 
             await event.edit(
-                f"<b>Full Traceback:</b>\n<pre>{html.escape(traceback_text)}</pre>",
+                f"<b>Full Traceback:</b>\n{traceback_text}",
                 parse_mode="html",
                 buttons=None
             )

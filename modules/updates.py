@@ -88,13 +88,12 @@ def register(kernel):
     async def restart_handler(event):
         thread_id = None
         if event.reply_to:
-
             thread_id = getattr(event.reply_to, "reply_to_top_id", None) or getattr(
                 event.reply_to, "reply_to_msg_id", None
             )
 
         msg = await event.edit(
-            f'{PREMIUM_EMOJI["telescope"]} <i>{lang_strings["restarting"].format(mcub=await mcub_handler())}</i>',
+            f"{PREMIUM_EMOJI['telescope']} <i>{lang_strings['restarting'].format(mcub=await mcub_handler())}</i>",
             parse_mode="html",
         )
 
@@ -110,7 +109,6 @@ def register(kernel):
         msg = await event.edit("❄️")
         kernel.logger.info("Updating MCUB-fork")
         try:
-
             try:
                 result = subprocess.run(
                     ["git", "pull", "origin", "main"],
@@ -176,7 +174,10 @@ def register(kernel):
                                     parse_mode="html",
                                 )
 
-                                kernel_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), "kernel.py")
+                                kernel_file = os.path.join(
+                                    os.path.dirname(os.path.dirname(__file__)),
+                                    "kernel.py",
+                                )
                                 with open(kernel_file, "r", encoding="utf-8") as f:
                                     current_code = f.read()
                                 with open(

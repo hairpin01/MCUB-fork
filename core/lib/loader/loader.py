@@ -32,19 +32,91 @@ _IMPORT_TO_PIP: dict[str, str] = {
 }
 
 _NON_INSTALLABLE: set[str] = {
-    "os", "sys", "re", "io", "math", "time", "json", "uuid", "html",
-    "http", "urllib", "email", "logging", "hashlib", "hmac", "base64",
-    "struct", "socket", "ssl", "threading", "multiprocessing", "subprocess",
-    "asyncio", "inspect", "traceback", "importlib", "pathlib", "shutil",
-    "tempfile", "glob", "fnmatch", "collections", "itertools", "functools",
-    "operator", "copy", "pprint", "textwrap", "string", "enum", "typing",
-    "dataclasses", "abc", "contextlib", "warnings", "weakref", "gc",
-    "random", "statistics", "decimal", "fractions", "datetime", "calendar",
-    "zlib", "gzip", "bz2", "lzma", "zipfile", "tarfile", "csv", "sqlite3",
-    "xml", "html", "urllib", "http", "ftplib", "imaplib", "smtplib",
-    "unittest", "doctest", "pdb", "profile", "timeit", "signal",
-    "platform", "sysconfig", "site", "builtins", "tokenize", "ast",
-    "dis", "code", "codeop", "compileall", "py_compile",
+    "os",
+    "sys",
+    "re",
+    "io",
+    "math",
+    "time",
+    "json",
+    "uuid",
+    "html",
+    "http",
+    "urllib",
+    "email",
+    "logging",
+    "hashlib",
+    "hmac",
+    "base64",
+    "struct",
+    "socket",
+    "ssl",
+    "threading",
+    "multiprocessing",
+    "subprocess",
+    "asyncio",
+    "inspect",
+    "traceback",
+    "importlib",
+    "pathlib",
+    "shutil",
+    "tempfile",
+    "glob",
+    "fnmatch",
+    "collections",
+    "itertools",
+    "functools",
+    "operator",
+    "copy",
+    "pprint",
+    "textwrap",
+    "string",
+    "enum",
+    "typing",
+    "dataclasses",
+    "abc",
+    "contextlib",
+    "warnings",
+    "weakref",
+    "gc",
+    "random",
+    "statistics",
+    "decimal",
+    "fractions",
+    "datetime",
+    "calendar",
+    "zlib",
+    "gzip",
+    "bz2",
+    "lzma",
+    "zipfile",
+    "tarfile",
+    "csv",
+    "sqlite3",
+    "xml",
+    "html",
+    "urllib",
+    "http",
+    "ftplib",
+    "imaplib",
+    "smtplib",
+    "unittest",
+    "doctest",
+    "pdb",
+    "profile",
+    "timeit",
+    "signal",
+    "platform",
+    "sysconfig",
+    "site",
+    "builtins",
+    "tokenize",
+    "ast",
+    "dis",
+    "code",
+    "codeop",
+    "compileall",
+    "py_compile",
 }
 
 
@@ -403,7 +475,9 @@ class ModuleLoader:
             if loop.autostart:
                 try:
                     loop.start()
-                    k.logger.debug(f"Autostarted loop '{loop.func.__name__}' ({module_name})")
+                    k.logger.debug(
+                        f"Autostarted loop '{loop.func.__name__}' ({module_name})"
+                    )
                 except Exception as e:
                     k.logger.error(f"Error autostarting loop in {module_name}: {e}")
 
@@ -455,27 +529,42 @@ class ModuleLoader:
                 code = f.read()
 
             try:
-                from core.lib.loader.hikka_compat import is_hikka_module, load_hikka_module
-                if is_hikka_module(code):
+                from core.lib.loader.hikka_compat import (
+                    _detect_module_type,
+                    load_hikka_module,
+                )
+
+                module_type = _detect_module_type(code)
+                if module_type in ("hikka", "geek"):
                     import os as _os
-                    abs_path = file_path if _os.path.isabs(file_path) else _os.path.abspath(file_path)
+
+                    abs_path = (
+                        file_path
+                        if _os.path.isabs(file_path)
+                        else _os.path.abspath(file_path)
+                    )
                     ok, err, _ = await load_hikka_module(k, abs_path, module_name)
                     return ok, err
             except ImportError:
                 pass  # hikka_compat.py not installed, fall through
-
 
             ok, msg = await self._check_module_compatibility(code)
             if not ok:
                 return False, f"Kernel version mismatch: {msg}"
 
             incompatible = [
-                "from .. import", "import loader", "__import__('loader')",
-                "from hikkalt import", "from herokult import",
+                "from .. import",
+                "import loader",
+                "__import__('loader')",
+                "from hikkalt import",
+                "from herokult import",
             ]
             for pat in incompatible:
                 if pat in code:
-                    return False, "Incompatible module (Heroku/hikka style not supported)"
+                    return (
+                        False,
+                        "Incompatible module (Heroku/hikka style not supported)",
+                    )
 
             sys.modules.pop(module_name, None)
 
@@ -527,6 +616,8 @@ class ModuleLoader:
             raise
         except Exception as e:
             k.logger.error(f"Failed to load {module_name}: {e}", exc_info=True)
+            if hasattr(k, "_log") and k._log:
+                await k._log.log_error_from_exc(f"load_module:{module_name}")
             return False, f"Module loading error: {e}"
         finally:
             k.clear_loading_module()
@@ -534,6 +625,7 @@ class ModuleLoader:
     async def load_system_modules(self) -> None:
         """Load all .py files from the system modules directory."""
         import os
+
         k = self.k
 
         for file_name in os.listdir(k.MODULES_DIR):
@@ -572,9 +664,15 @@ class ModuleLoader:
 
             except CommandConflictError as e:
                 k.logger.error(f"Command conflict loading {module_name}: {e}")
+                if hasattr(k, "_log") and k._log:
+                    await k._log.log_error_from_exc(
+                        f"load_system_module_conflict:{module_name}"
+                    )
                 k.error_load_modules += 1
             except Exception as e:
                 k.logger.error(f"Error loading system module {file_name}: {e}")
+                if hasattr(k, "_log") and k._log:
+                    await k._log.log_error_from_exc(f"load_system_module:{module_name}")
                 k.error_load_modules += 1
             finally:
                 k.clear_loading_module()
@@ -582,10 +680,12 @@ class ModuleLoader:
     async def load_user_modules(self) -> None:
         """Load all .py files from the user modules directory."""
         import os
+
         k = self.k
 
         try:
             from core.lib.loader.hikka_compat import is_hikka_module, load_hikka_module
+
             _hikka_compat = True
         except ImportError:
             _hikka_compat = False
@@ -606,7 +706,9 @@ class ModuleLoader:
 
                 if _hikka_compat and is_hikka_module(code):
                     k.set_loading_module(module_name, "user")
-                    ok, err, _ = await load_hikka_module(k, os.path.abspath(file_path), module_name)
+                    ok, err, _ = await load_hikka_module(
+                        k, os.path.abspath(file_path), module_name
+                    )
                     if not ok:
                         k.logger.error(f"Error loading module {file_name}: {err}")
                         k.error_load_modules += 1
@@ -644,18 +746,14 @@ class ModuleLoader:
 
             except CommandConflictError as e:
                 k.logger.error(f"Command conflict loading {file_name}: {e}")
+                if hasattr(k, "_log") and k._log:
+                    await k._log.log_error_from_exc(f"load_module_conflict:{file_name}")
                 k.error_load_modules += 1
-                try:
-                    await k.handle_error(e, source=f"load_module_conflict:{file_name}")
-                except Exception:
-                    pass
             except Exception as e:
                 k.logger.error(f"Error loading module {file_name}: {e}")
+                if hasattr(k, "_log") and k._log:
+                    await k._log.log_error_from_exc(f"load_module:{file_name}")
                 k.error_load_modules += 1
-                try:
-                    await k.handle_error(e, source=f"load_module:{file_name}")
-                except Exception:
-                    pass
             finally:
                 k.clear_loading_module()
 
@@ -687,6 +785,7 @@ class ModuleLoader:
         import aiohttp
         import hashlib
         from urllib.parse import urlparse
+
         k = self.k
 
         TRUSTED_DOMAINS = [
@@ -732,7 +831,7 @@ class ModuleLoader:
                     return False, f"Kernel version mismatch: {msg}"
 
                 if expected_hash:
-                    actual_hash = hashlib.sha256(code.encode('utf-8')).hexdigest()
+                    actual_hash = hashlib.sha256(code.encode("utf-8")).hexdigest()
                     if actual_hash != expected_hash:
                         k.logger.error(
                             f"⚠️ SECURITY: Hash mismatch for module '{module_name}'!\n"
@@ -757,7 +856,9 @@ class ModuleLoader:
                     if auto_dependencies:
                         await self.pre_install_requirements(code, module_name)
 
-                    success, message = await self.load_module_from_file(tmp, module_name, False)
+                    success, message = await self.load_module_from_file(
+                        tmp, module_name, False
+                    )
                     if success:
                         target = os.path.join(k.MODULES_LOADED_DIR, f"{module_name}.py")
                         os.makedirs(os.path.dirname(target), exist_ok=True)
@@ -805,7 +906,9 @@ class ModuleLoader:
                 try:
                     client.remove_event_handler(handler, event_obj)
                 except Exception as e:
-                    k.logger.error(f"Error removing event handler in {module_name}: {e}")
+                    k.logger.error(
+                        f"Error removing event handler in {module_name}: {e}"
+                    )
 
         uninstall = getattr(reg, "__uninstall__", None)
         if uninstall is not None:
@@ -820,7 +923,9 @@ class ModuleLoader:
             except Exception as e:
                 k.logger.error(f"Error in uninstall callback of {module_name}: {e}")
 
-        to_remove = [cmd for cmd, owner in k.command_owners.items() if owner == module_name]
+        to_remove = [
+            cmd for cmd, owner in k.command_owners.items() if owner == module_name
+        ]
         for cmd in to_remove:
             if cmd in k.command_handlers:
                 del k.command_handlers[cmd]
@@ -899,7 +1004,9 @@ class ModuleLoader:
             if not m:
                 continue
             cmd = m.group(1).lstrip("\\.")
-            description = _comment_before(pos) or _comment_after(pos) or "No description"
+            description = (
+                _comment_before(pos) or _comment_after(pos) or "No description"
+            )
             metadata["commands"][cmd] = description
 
         if not metadata["commands"]:
@@ -912,7 +1019,9 @@ class ModuleLoader:
                 r"@register\.bot_command\s*\(\s*['\"]([^'\"]+)['\"]",
             ):
                 for match in re.findall(pat, code, re.IGNORECASE):
-                    cmd = (match[0] if isinstance(match, tuple) else match).lstrip("\\.")
+                    cmd = (match[0] if isinstance(match, tuple) else match).lstrip(
+                        "\\."
+                    )
                     if cmd not in metadata["commands"]:
                         metadata["commands"][cmd] = "No description"
 
@@ -929,6 +1038,7 @@ class ModuleLoader:
             Description string, or a default message if not found.
         """
         import os
+
         k = self.k
 
         if module_name in k.system_modules:

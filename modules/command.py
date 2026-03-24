@@ -13,7 +13,7 @@ def register(kernel):
 
     strings = {
         "ru": {
-            "hello": "Привет! Я бот от MCUB-fork",
+            "hello": "<tg-emoji emoji-id=\"6012620675829734836\">❤️</tg-emoji> Привет! Я бот от MCUB-fork",
             "developers": "Developers:",
             "fork": "fork:",
             "original": "Original:",
@@ -24,11 +24,11 @@ def register(kernel):
             "name": "Name:",
             "prefix": "Prefix:",
             "kernel_version": "Kernel version:",
-            "profile_error": "Не удалось получить информацию о профиле.",
-            "goodbye": "Прощайте!",
+            "profile_error": "<tg-emoji emoji-id=\"6010399722471168034\">❔</tg-emoji> Не удалось получить информацию о профиле.",
+            "goodbye": "<tg-emoji emoji-id=\"6012610604131424315\">🥺</tg-emoji> Прощайте!",
             "bot_removed": "Бот удален из чата",
             "delete_error": "Не удалось удалить бота из чата.",
-            "hello_installed": "Привет, MCUB установлен!",
+            "hello_installed": "<tg-emoji emoji-id=\"6012620675829734836\">❤️</tg-emoji> Привет, MCUB установлен!",
             "mini_guide": "Мини гайд:",
             "prefix_cmd": "Префикс:",
             "logs": "Логи:",
@@ -38,28 +38,28 @@ def register(kernel):
             "load": "Загрузить:",
             "remove": "Удалить:",
             "list_modules": "Список:",
-            "choose_language": "Choose a language / Выберите язык",
-            "setup_completed": "Настройка завершена!",
+            "choose_language": "<tg-emoji emoji-id=\"6010399722471168034\">❔</tg-emoji> Choose a language / Выберите язык",
+            "setup_completed": "<tg-emoji emoji-id=\"6012423240478103267\">🥰</tg-emoji> Настройка завершена!",
             "callback_error": "Ошибка Callback:",
             "pong": "Понг!",
             "start_init_error": "Ошибка start_init:",
             "start_error": "Ошибка /start:",
             "init_error": "Ошибка /init:",
             "backup_setup": "Auto-backup setup / Настройка авто-бэкапа",
-            "backup_enable": "Enable auto-backup? / Включить авто-бэкап?",
+            "backup_enable": "<tg-emoji emoji-id=\"6012610604131424315\">🥺</tg-emoji> Enable auto-backup? / Включить авто-бэкап?",
             "backup_interval": "Select interval: / Выберите интервал:",
             "backup_created": "MCUB-backup group created! / Группа MCUB-backup создана!",
             "backup_skip": "Skip / Пропустить",
             "backup_yes": "Yes / Да",
             "backup_no": "No / Нет",
-            "backup_enabled": "Auto-backup enabled / Авто-бэкап включен",
+            "backup_enabled": "<tg-emoji emoji-id=\"6012423240478103267\">🥰</tg-emoji> Auto-backup enabled / Авто-бэкап включен",
             "backup_disabled": "Auto-backup disabled / Авто-бэкап выключен",
             "btn_ru": "RU",
             "btn_en": "EN",
             "backup_not_found": "Backup module not found",
         },
         "en": {
-            "hello": "Hello! I am a bot from MCUB-fork",
+            "hello": "<tg-emoji emoji-id=\"6012620675829734836\">❤️</tg-emoji> Hello! I am a bot from MCUB-fork",
             "developers": "Developers:",
             "fork": "fork:",
             "original": "Original:",
@@ -70,11 +70,11 @@ def register(kernel):
             "name": "Name:",
             "prefix": "Prefix:",
             "kernel_version": "Kernel version:",
-            "profile_error": "Failed to get profile information.",
-            "goodbye": "Goodbye!",
+            "profile_error": "<tg-emoji emoji-id=\"6010399722471168034\">❔</tg-emoji> Failed to get profile information.",
+            "goodbye": "<tg-emoji emoji-id=\"6012610604131424315\">🥺</tg-emoji> Goodbye!",
             "bot_removed": "Bot removed from chat",
             "delete_error": "Failed to remove bot from chat.",
-            "hello_installed": "Hello, MCUB installed!",
+            "hello_installed": "<tg-emoji emoji-id=\"6012620675829734836\">❤️</tg-emoji> Hello, MCUB installed!",
             "mini_guide": "Mini guide:",
             "main_commands": "Main commands:",
             "prefix_cmd": "Prefix:",
@@ -85,7 +85,7 @@ def register(kernel):
             "load": "Load:",
             "remove": "Remove:",
             "list_modules": "List repo modules:",
-            "choose_language": "Choose a language / Выберите язык",
+            "choose_language": "<tg-emoji emoji-id=\"6010399722471168034\">❔</tg-emoji> Choose a language / Выберите язык",
             "setup_completed": "Setup completed!",
             "callback_error": "Callback error:",
             "pong": "Pong!",
@@ -93,13 +93,13 @@ def register(kernel):
             "start_error": "Error /start:",
             "init_error": "Error /init:",
             "backup_setup": "Auto-backup setup / Настройка авто-бэкапа",
-            "backup_enable": "Enable auto-backup? / Включить авто-бэкап?",
+            "backup_enable": "<tg-emoji emoji-id=\"6012610604131424315\">🥺</tg-emoji> Enable auto-backup? / Включить авто-бэкап?",
             "backup_interval": "Select interval: / Выберите интервал:",
             "backup_created": "MCUB-backup group created! / Группа MCUB-backup создана!",
             "backup_skip": "Skip / Пропустить",
             "backup_yes": "Yes / Да",
             "backup_no": "No / Нет",
-            "backup_enabled": "Auto-backup enabled / Авто-бэкап включен",
+            "backup_enabled": "<tg-emoji emoji-id=\"6012423240478103267\">🥰</tg-emoji> Auto-backup enabled / Авто-бэкап включен",
             "backup_disabled": "Auto-backup disabled / Авто-бэкап выключен",
             "btn_ru": "RU",
             "btn_en": "EN",
@@ -201,7 +201,7 @@ def register(kernel):
             )
         except Exception as e:
             kernel.logger.error(f"{lang_strings['profile_error']}: {e}")
-            await event.reply(lang_strings["profile_error"])
+            await event.reply(lang_strings["profile_error"], parse_mode='html')
 
     @bot_client.on(events.NewMessage(pattern=r"/init$"))
     @private_only
@@ -222,6 +222,7 @@ def register(kernel):
                         Button.inline(lang_strings["btn_en"], b"start_lang_en"),
                     ]
                 ],
+                parse_mode='html'
             )
             try:
                 await event.delete()
@@ -256,7 +257,7 @@ def register(kernel):
 
         except Exception as e:
             kernel.logger.error(f"{lang_strings['delete_error']}: {e}")
-            await event.reply(f"{lang_strings['delete_error']} {e}")
+            await event.reply(f"{lang_strings['delete_error']} {e}", parse_mode='html')
 
     @bot_client.on(events.CallbackQuery(pattern=r"start_lang_(ru|en)"))
     async def language_handler(event):
@@ -410,7 +411,7 @@ def register(kernel):
 
                 await event.answer(f"{strings_current['backup_enabled']} ({interval}h)", alert=True)
             else:
-                await event.edit(lang_strings["backup_not_found"])
+                await event.edit(lang_strings["backup_not_found"], parse_mode='html')
 
         except Exception as e:
             kernel.logger.error(f"{lang_strings['callback_error']}: {e}")
@@ -432,7 +433,7 @@ def register(kernel):
     @bot_client.on(events.NewMessage(pattern=r"^(/ping|пинг$)"))
     async def ping_bot_handler(event):
         await event.reply(
-            f"<blockquote>{lang_strings['pong']}</blockquote>", parse_mode="html"
+            f"<blockquote><tg-emoji emoji-id=\"6010179991944305029\">☺️</tg-emoji> {lang_strings['pong']}</blockquote>", parse_mode="html"
         )
 
     kernel.client.loop.create_task(start_init(kernel))

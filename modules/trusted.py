@@ -147,7 +147,37 @@ def register(kernel):
             return
 
         cmd = await kernel.client.send_message(event.chat_id, text, reply_to=event.reply_to_msg_id)
-        await kernel.process_command(cmd)
+
+        class _MessageEventProxy:
+            def __init__(self, msg):
+                self._msg = msg
+
+            def __getattr__(self, name):
+                return getattr(self._msg, name)
+
+            @property
+            def message(self):
+                return self._msg
+
+            @property
+            def is_reply(self):
+                return bool(getattr(self._msg, "reply_to", None))
+
+            @property
+            def reply_to_msg_id(self):
+                rt = getattr(self._msg, "reply_to", None)
+                return getattr(rt, "reply_to_msg_id", None) if rt else None
+
+            async def edit(self, *args, **kwargs):
+                return await self._msg.edit(*args, **kwargs)
+
+            async def reply(self, *args, **kwargs):
+                return await self._msg.reply(*args, **kwargs)
+
+            async def get_reply_message(self):
+                return await self._msg.get_reply_message()
+
+        await kernel.process_command(_MessageEventProxy(cmd))
 
     @kernel.register.loop(interval=30, autostart=True)
     async def update_callback_permissions(_kernel):

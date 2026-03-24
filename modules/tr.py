@@ -11,36 +11,36 @@ from urllib.error import URLError, HTTPError
 
 
 def register(kernel):
-    language = kernel.config.get('language', 'en')
+    language = kernel.config.get("language", "en")
 
     strings = {
-        'ru': {
-            'loading': 'Перевожу...',
-            'no_args': 'No args',
-            'specify_text': 'Укажите текст для перевода или ответьте на сообщение',
-            'no_text': 'Не указан текст для перевода',
-            'translation_error': 'Ошибка перевода',
-            'network_error': 'Ошибка сети:',
-            'translation_failed': 'Не удалось получить перевод',
-            'request_timeout': 'Таймаут запроса',
-            'decode_error': 'Ошибка декодирования ответа',
-            'translation_error_generic': 'Ошибка перевода:',
+        "ru": {
+            "loading": "Перевожу...",
+            "no_args": "No args",
+            "specify_text": "Укажите текст для перевода или ответьте на сообщение",
+            "no_text": "Не указан текст для перевода",
+            "translation_error": "Ошибка перевода",
+            "network_error": "Ошибка сети:",
+            "translation_failed": "Не удалось получить перевод",
+            "request_timeout": "Таймаут запроса",
+            "decode_error": "Ошибка декодирования ответа",
+            "translation_error_generic": "Ошибка перевода:",
         },
-        'en': {
-            'loading': 'Translating...',
-            'no_args': 'No args',
-            'specify_text': 'Specify text for translation or reply to message',
-            'no_text': 'No text specified for translation',
-            'translation_error': 'Translation error',
-            'network_error': 'Network error:',
-            'translation_failed': 'Failed to get translation',
-            'request_timeout': 'Request timeout',
-            'decode_error': 'Response decode error',
-            'translation_error_generic': 'Translation error:',
-        }
+        "en": {
+            "loading": "Translating...",
+            "no_args": "No args",
+            "specify_text": "Specify text for translation or reply to message",
+            "no_text": "No text specified for translation",
+            "translation_error": "Translation error",
+            "network_error": "Network error:",
+            "translation_failed": "Failed to get translation",
+            "request_timeout": "Request timeout",
+            "decode_error": "Response decode error",
+            "translation_error_generic": "Translation error:",
+        },
     }
 
-    lang_strings = strings.get(language, strings['en'])
+    lang_strings = strings.get(language, strings["en"])
 
     EMOJI_LOADING = '<tg-emoji emoji-id="5323463142775202324">🏓</tg-emoji>'
     EMOJI_SUCCESS = '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji>'
@@ -80,6 +80,10 @@ def register(kernel):
                         decoded_data = data.decode("utf-8")
                         return json.loads(decoded_data)
                 except (URLError, HTTPError) as e:
+                    if hasattr(kernel, "_log") and kernel._log:
+                        asyncio.create_task(
+                            kernel._log.log_network(f"Translation API error: {e}")
+                        )
                     raise Exception(f"{lang_strings['network_error']} {str(e)}")
 
             loop = asyncio.get_running_loop()
@@ -92,12 +96,12 @@ def register(kernel):
                         translated_parts.append(str(sentence[0]))
                 return "".join(translated_parts)
             else:
-                return lang_strings['translation_failed']
+                return lang_strings["translation_failed"]
 
         except asyncio.TimeoutError:
-            return lang_strings['request_timeout']
+            return lang_strings["request_timeout"]
         except json.JSONDecodeError:
-            return lang_strings['decode_error']
+            return lang_strings["decode_error"]
         except Exception as e:
             return f"{lang_strings['translation_error_generic']} {str(e)}"
 
@@ -135,7 +139,7 @@ def register(kernel):
                     if reply_text:
                         text_to_translate = reply_text
                     else:
-                        await event.edit(lang_strings['no_args'])
+                        await event.edit(lang_strings["no_args"])
                         return
 
                 elif len(args) == 2:

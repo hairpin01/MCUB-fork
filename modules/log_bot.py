@@ -604,7 +604,7 @@ def register(kernel):
                     await bot_client.send_message(
                         kernel.log_chat_id, message, parse_mode="html"
                     )
-                kernel.cprint(
+                kernel.logger.info(
                     f"{kernel.Colors.GREEN}{lang_strings['startup_via_bot']}{kernel.Colors.RESET}"
                 )
             else:

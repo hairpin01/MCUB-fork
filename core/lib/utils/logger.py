@@ -279,7 +279,7 @@ class KernelLogger:
 
         body = (
             f"<blockquote><tg-emoji emoji-id=\"5379679518740978720\">🎯</tg-emoji> <b>Source:</b> <code>{html.escape(source_file)}</code>\n"
-            f"<blockquote><tg-emoji emoji-id=\"5426900601101374618\">🧿</tg-emoji> <b>Error:</b> <blockquote><code>{html.escape(error_text[:500])}</code></blockquote>"
+            f"<blockquote><tg-emoji emoji-id=\"5426900601101374618\">🧿</tg-emoji> <b>Error:</b> <code>{html.escape(error_text[:500])}</code></blockquote>"
         )
         if message_info:
             body += (

@@ -29,9 +29,12 @@ except Exception as e:
     sys.exit(104)
 try:
     from telethon import _check_mcub_installation
+
     _check_mcub_installation()
 except Exception:
-    raise McubTelethonError("YOU is not install telethon-mcub, please run: 'pip install telethon-mcub' and 'pip uninstall telethon -y'! (or update telethon-mcub)")
+    raise McubTelethonError(
+        "YOU is not install telethon-mcub, please run: 'pip install telethon-mcub' and 'pip uninstall telethon -y'! (or update telethon-mcub)"
+    )
 
 try:
     from ..lib.utils.colors import Colors
@@ -51,7 +54,7 @@ try:
     from ..lib.loader.inline import InlineManager
 except Exception as error_module:
     tb = traceback.format_exc()
-    print("⚠️, Error loaded lib modules!\n" f"🔎, {error_module}!\n" f"🗓, {tb}")
+    print(f"⚠️, Error loaded lib modules!\n🔎, {error_module}!\n🗓, {tb}")
     sys.exit(105)
 
 try:
@@ -447,6 +450,10 @@ class Kernel:
         """Send a module event to the log chat."""
         await self._log.log_module(message)
 
+    async def log_error_from_exc(self, source: str = "unknown") -> None:
+        """Send an error to the log chat using RichException formatting."""
+        await self._log.log_error_from_exc(source)
+
     def load_repositories(self) -> None:
         """Load repository list from config."""
         self._repo.load()
@@ -782,6 +789,7 @@ class Kernel:
         """
         if depth > 5:
             self.logger.error(f"Alias recursion limit reached: {event.text}")
+            await self.log_error_async(f"Alias recursion limit reached: {event.text}")
             return False
 
         text = event.text
@@ -1043,9 +1051,11 @@ class Kernel:
         # Start the actual web panel in the background
         try:
             from core.web.app import start_web_panel
+
             asyncio.create_task(start_web_panel(self, host, port))
         except Exception as e:
             self.logger.error(f"Failed to start web panel: {e}")
+            await self.log_error_async(f"Failed to start web panel: {e}")
 
     async def run(self) -> None:
         """setup, connect, load modules, and run until disconnected."""
@@ -1059,7 +1069,6 @@ class Kernel:
             no_session = not os.path.exists("user_session.session")
             no_config = not os.path.exists(self.CONFIG_FILE)
 
-            # запускаем панель если: явно включено ИЛИ нет сессии ИЛИ нет конфига
             if web_via_env or web_via_config or no_session or no_config:
                 await self.run_panel()
 
@@ -1075,12 +1084,16 @@ class Kernel:
         if not await self.init_client():
             return
 
+        await self.log_network("Client connected")
+
         try:
             await self.init_db()
         except ImportError:
             self.cprint(f"{Colors.YELLOW}Install: pip install aiosqlite{Colors.RESET}")
+            await self.log_error_async("DB init failed: aiosqlite not installed")
         except Exception as e:
             self.cprint(f"{Colors.RED}=X DB init error: {e}{Colors.RESET}")
+            await self.log_error_async(f"DB init error: {e}")
 
         await self.setup_inline_bot()
 
@@ -1102,6 +1115,7 @@ class Kernel:
                 await self.handle_error(e, source="message_handler", event=event)
 
                 from telethon.errors import RPCError
+
                 if isinstance(e, RPCError):
                     cmd_text = html.escape(event.text or "")
                     rpc_msg = html.escape(str(e))
@@ -1112,9 +1126,10 @@ class Kernel:
                             parse_mode="html",
                         )
                     except Exception as edit_err:
-                        self.logger.error(f"Could not edit RPC error message: {edit_err}")
+                        self.logger.error(
+                            f"Could not edit RPC error message: {edit_err}"
+                        )
                     return
-
 
                 tb = traceback.format_exc()
                 if len(tb) > 1000:
@@ -1139,9 +1154,7 @@ class Kernel:
                     if len(data) >= 3:
                         restart_time = float(data[2])
 
-                    em_alembic = (
-                        '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>'
-                    )
+                    em_alembic = '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>'
                     lang = self.config.get("language", "ru")
                     _strings = {
                         "ru": {
@@ -1246,30 +1259,25 @@ class Kernel:
             mod_ms = round((modules_end - modules_start) * 1000, 2)
 
             lang = self.config.get("language", "ru")
-            strings = (
-                {
-                    "ru": {
-                        "success": "Перезагрузка <b>успешна!</b>",
-                        "loading": "но модули ещё загружаются...",
-                        "loaded": f"Твой <b>{mcub}</b> полностью загрузился!",
-                        "errors": f"Твой <b>{mcub}</b> <b>загрузился c ошибками</b> :(",
-                    },
-                    "en": {
-                        "success": "Reboot <b>successful!</b>",
-                        "loading": "but modules are still loading...",
-                        "loaded": f"Your <b>{mcub}</b> is fully loaded!",
-                        "errors": f"Your <b>{mcub}</b> <b>loaded with errors</b> :(",
-                    },
-                }
-                .get(lang, {})
-                .get
-            )
+            strings = {
+                "ru": {
+                    "success": "Перезагрузка <b>успешна!</b>",
+                    "loading": "но модули ещё загружаются...",
+                    "loaded": f"Твой <b>{mcub}</b> полностью загрузился!",
+                    "errors": f"Твой <b>{mcub}</b> <b>загрузился c ошибками</b> :(",
+                },
+                "en": {
+                    "success": "Reboot <b>successful!</b>",
+                    "loading": "but modules are still loading...",
+                    "loaded": f"Your <b>{mcub}</b> is fully loaded!",
+                    "errors": f"Your <b>{mcub}</b> <b>loaded with errors</b> :(",
+                },
+            }.get(lang, {}).get
 
             if not self.client.is_connected():
                 return
 
             try:
-
                 if not self.error_load_modules:
                     await self.client.edit_message(
                         chat_id,

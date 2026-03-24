@@ -22,7 +22,9 @@ if TYPE_CHECKING:
     from kernel import Kernel
 
 SENSITIVE_PATTERNS = [
-    (r"\b\d{10,}\b", lambda m: "X" * len(m.group())),  # Long numbers (phone)
+    (
+        r"(?<!emoji-id=[\"'])\b\d{10,}\b", lambda m: "X" * len(m.group())
+    ),  # Long numbers (phone)
     (
         r"""token(?:['"\s:=]|&#x27;|&quot;)+(?:['"\s]|&#x27;|&quot;)?([A-Za-z0-9_-]+)""",
         r'token="***"',

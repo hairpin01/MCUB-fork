@@ -323,7 +323,8 @@ class KernelLogger:
         rich = RichException.from_exc_info(*exc_info)
         k.cache.set(f"tb_{error_id}", rich.full_stack)
 
-        body = rich.message
+        src_esc = html.escape(source or "unknown", quote=False)
+        body = f"<blockquote><tg-emoji emoji-id=\"5372846474881146350\">🔭</tg-emoji> <b>Source Message:</b> <code>{src_esc}</code></blockquote>\n{rich.message}"
 
         if event:
             try:

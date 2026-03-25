@@ -98,7 +98,7 @@ async def generate_detailed_page(search_term, kernel, strings):
         inline_commands = kernel.get_module_inline_commands(name)
         if inline_commands:
             inline_emoji = '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
-            msg += f"\n<blockquote expandable>"
+            msg += f"<blockquote expandable>"
             for cmd, desc in inline_commands:
                 if desc:
                     msg += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>\n"

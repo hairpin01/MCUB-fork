@@ -1892,7 +1892,7 @@ def register(kernel):
         )
 
         if success:
-            commands, aliases = get_module_commands(module_name, kernel)
+            commands, _, _ = get_module_commands(module_name, kernel)
             cmd_text = (
                 f"{CUSTOM_EMOJI['crystal']} {', '.join([f'<code>{kernel.custom_prefix}{cmd}</code>' for cmd in commands])}"
                 if commands

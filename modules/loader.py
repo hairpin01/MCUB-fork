@@ -874,8 +874,7 @@ def register(kernel):
                             or metadata["commands"].get(cmd)
                             or t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
                         )
-                            cmd, t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
-                        )
+
                         command_line = t(
                             "command_line",
                             crystal=CUSTOM_EMOJI["crystal"],
@@ -1421,13 +1420,13 @@ def register(kernel):
                     commands_list = ""
                     if commands:
                         add_log(t("log_commands_found", count=len(commands)))
-                    for cmd in commands:
-                        cmd_desc = (
-                            descriptions.get(cmd)
-                            or metadata["commands"].get(cmd)
-                            or t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
-                        )
-                        command_line = t(
+                        for cmd in commands:
+                            cmd_desc = (
+                                descriptions.get(cmd)
+                                or metadata["commands"].get(cmd)
+                                or t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
+                            )
+                            command_line = t(
                                 "command_line",
                                 crystal=CUSTOM_EMOJI["crystal"],
                                 prefix=kernel.custom_prefix,
@@ -1538,8 +1537,7 @@ def register(kernel):
                             or metadata["commands"].get(cmd)
                             or t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
                         )
-                            cmd, t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
-                        )
+
                         command_line = t(
                             "command_line",
                             crystal=CUSTOM_EMOJI["crystal"],

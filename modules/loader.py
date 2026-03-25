@@ -76,6 +76,7 @@ CUSTOM_EMOJI = {
     "convert": '<tg-emoji emoji-id="5332600281970517875">🔄</tg-emoji>',
     "download": '<tg-emoji emoji-id="5469785308386041323">⬇️</tg-emoji>',
     "no_cmd": '<tg-emoji emoji-id="5429428837895141860">🫨</tg-emoji>',
+    "author": '<tg-emoji emoji-id="5332630862137685609">💖</tg-emoji>',
 }
 
 # Случайные эмодзи для завершения
@@ -709,12 +710,16 @@ def register(kernel):
                 extra = extra or {}
                 conflicts = extra.get("conflicts", [])
                 if ok:
-                    commands, aliases_info, _ = get_module_commands(module_name, kernel)
+                    commands, aliases_info, descriptions = get_module_commands(
+                        module_name, kernel
+                    )
                     emoji = random.choice(RANDOM_EMOJIS)
                     commands_list = ""
                     for cmd in commands:
-                        cmd_desc = metadata["commands"].get(
-                            cmd, t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
+                        cmd_desc = (
+                            descriptions.get(cmd)
+                            or metadata["commands"].get(cmd)
+                            or t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
                         )
                         command_line = t(
                             "command_line",
@@ -781,6 +786,8 @@ def register(kernel):
                                 idea=CUSTOM_EMOJI["idea"],
                                 description=metadata["description"],
                                 version=metadata["version"],
+                                author=metadata.get("author", "unknown"),
+                                emoji_author=CUSTOM_EMOJI["author"],
                                 commands_list=commands_list + conflict_text,
                             ),
                         )
@@ -852,7 +859,9 @@ def register(kernel):
 
             if success:
                 add_log(t("log_module_loaded"))
-                commands, aliases_info, _ = get_module_commands(module_name, kernel)
+                commands, aliases_info, descriptions = get_module_commands(
+                    module_name, kernel
+                )
 
                 emoji = random.choice(RANDOM_EMOJIS)
 
@@ -860,7 +869,11 @@ def register(kernel):
                 if commands:
                     add_log(t("log_commands_found", count=len(commands)))
                     for cmd in commands:
-                        cmd_desc = metadata["commands"].get(
+                        cmd_desc = (
+                            descriptions.get(cmd)
+                            or metadata["commands"].get(cmd)
+                            or t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
+                        )
                             cmd, t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
                         )
                         command_line = t(
@@ -900,6 +913,8 @@ def register(kernel):
                     idea=CUSTOM_EMOJI["idea"],
                     description=metadata["description"],
                     version=metadata["version"],
+                    author=metadata.get("author", "unknown"),
+                    emoji_author=CUSTOM_EMOJI["author"],
                     commands_list=commands_list,
                 )
 
@@ -1399,16 +1414,20 @@ def register(kernel):
                 conflicts = extra.get("conflicts", [])
                 if ok:
                     add_log(t("log_module_loaded_kernel"))
-                    commands, aliases_info, _ = get_module_commands(module_name, kernel)
+                    commands, aliases_info, descriptions = get_module_commands(
+                        module_name, kernel
+                    )
                     emoji = random.choice(RANDOM_EMOJIS)
                     commands_list = ""
                     if commands:
                         add_log(t("log_commands_found", count=len(commands)))
-                        for cmd in commands:
-                            cmd_desc = metadata["commands"].get(
-                                cmd, t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
-                            )
-                            command_line = t(
+                    for cmd in commands:
+                        cmd_desc = (
+                            descriptions.get(cmd)
+                            or metadata["commands"].get(cmd)
+                            or t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
+                        )
+                        command_line = t(
                                 "command_line",
                                 crystal=CUSTOM_EMOJI["crystal"],
                                 prefix=kernel.custom_prefix,
@@ -1505,14 +1524,20 @@ def register(kernel):
 
             if success:
                 add_log(t("log_module_loaded_kernel"))
-                commands, aliases_info, _ = get_module_commands(module_name, kernel)
+                commands, aliases_info, descriptions = get_module_commands(
+                    module_name, kernel
+                )
                 emoji = random.choice(RANDOM_EMOJIS)
 
                 commands_list = ""
                 if commands:
                     add_log(t("log_commands_found", count=len(commands)))
                     for cmd in commands:
-                        cmd_desc = metadata["commands"].get(
+                        cmd_desc = (
+                            descriptions.get(cmd)
+                            or metadata["commands"].get(cmd)
+                            or t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
+                        )
                             cmd, t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
                         )
                         command_line = t(
@@ -1552,6 +1577,8 @@ def register(kernel):
                     idea=CUSTOM_EMOJI["idea"],
                     description=metadata["description"],
                     version=metadata["version"],
+                    author=metadata.get("author", "unknown"),
+                    emoji_author=CUSTOM_EMOJI["author"],
                     commands_list=commands_list,
                 )
 

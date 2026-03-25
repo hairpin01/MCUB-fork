@@ -138,7 +138,7 @@ def register(kernel):
             "log_loading_module": "=- Loading module {module_name}...",
             "log_module_loaded": "=> Module loaded successfully",
             "log_commands_found": "=> Commands found: {count}",
-            "module_loaded": "{success} <b>Module {module_name} loaded!</b> {emoji}\n<blockquote expandable>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote expandable>{commands_list}</blockquote>",
+            "module_loaded": "{success} <b>Module {module_name} loaded!</b> {emoji}\n<blockquote expandable>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote expandable>{commands_list}</blockquote>\n<blockquote>{emoji_author} Author: {author}</blockquote>",
             "no_cmd_desc": "{no_cmd} Command has no description",
             "command_line": "{crystal} <code>{prefix}{cmd}</code> – <b>{desc}</b>",
             "aliases_text": " (Aliases: {alias_text})",
@@ -247,7 +247,7 @@ def register(kernel):
             "log_loading_module": "=- Загружаю модуль {module_name}...",
             "log_module_loaded": "=> Модуль успешно загружен",
             "log_commands_found": "=> Найдено команд: {count}",
-            "module_loaded": "{success} <b>Модуль {module_name} загружен!</b> {emoji}\n<blockquote expandable>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote expandable>{commands_list}</blockquote>",
+            "module_loaded": "{success} <b>Модуль {module_name} загружен!</b> {emoji}\n<blockquote expandable>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote expandable>{commands_list}</blockquote>\n<blockquote>{emoji_author} Author: {author}</blockquote>",
             "no_cmd_desc": "{no_cmd} У команды нету описания",
             "command_line": "{crystal} <code>{prefix}{cmd}</code> – <b>{desc}</b>",
             "aliases_text": " (Aliases: {alias_text})",
@@ -735,19 +735,55 @@ def register(kernel):
                             conflict_text += f"<code>{cf['command']}</code> — registered by <code>{owner}</code>\n"
 
                     kernel.logger.info(f"Hikka модуль {module_name} установлен")
-                    await edit_with_emoji(
-                        msg,
-                        t(
-                            "module_loaded",
-                            success=CUSTOM_EMOJI["success"],
-                            module_name=module_name,
-                            emoji=emoji,
-                            idea=CUSTOM_EMOJI["idea"],
-                            description=metadata["description"],
-                            version=metadata["version"],
-                            commands_list=commands_list + conflict_text,
-                        ),
-                    )
+
+                    banner_url = metadata.get("banner_url")
+                    if banner_url and banner_url.startswith(("http://", "https://")):
+                        try:
+                            media = InputMediaWebPage(banner_url, optional=True)
+                            await msg.edit(
+                                t(
+                                    "module_loaded",
+                                    success=CUSTOM_EMOJI["success"],
+                                    module_name=module_name,
+                                    emoji=emoji,
+                                    idea=CUSTOM_EMOJI["idea"],
+                                    description=metadata["description"],
+                                    version=metadata["version"],
+                                    commands_list=commands_list + conflict_text,
+                                ),
+                                file=media,
+                                parse_mode="html",
+                                invert_media=True,
+                            )
+                        except Exception as e:
+                            kernel.logger.error(f"Banner edit error: {e}")
+                            await edit_with_emoji(
+                                msg,
+                                t(
+                                    "module_loaded",
+                                    success=CUSTOM_EMOJI["success"],
+                                    module_name=module_name,
+                                    emoji=emoji,
+                                    idea=CUSTOM_EMOJI["idea"],
+                                    description=metadata["description"],
+                                    version=metadata["version"],
+                                    commands_list=commands_list + conflict_text,
+                                ),
+                            )
+                    else:
+                        await edit_with_emoji(
+                            msg,
+                            t(
+                                "module_loaded",
+                                success=CUSTOM_EMOJI["success"],
+                                module_name=module_name,
+                                emoji=emoji,
+                                idea=CUSTOM_EMOJI["idea"],
+                                description=metadata["description"],
+                                version=metadata["version"],
+                                commands_list=commands_list + conflict_text,
+                            ),
+                        )
                 else:
                     add_log(t("log_install_error", error=err))
                     log_text = "\n".join(install_log)
@@ -868,7 +904,19 @@ def register(kernel):
                 )
 
                 kernel.logger.info(f"Модуль {module_name} установлен")
-                await edit_with_emoji(msg, final_msg)
+
+                banner_url = metadata.get("banner_url")
+                if banner_url and banner_url.startswith(("http://", "https://")):
+                    try:
+                        media = InputMediaWebPage(banner_url, optional=True)
+                        await msg.edit(
+                            final_msg, file=media, parse_mode="html", invert_media=True
+                        )
+                    except Exception as e:
+                        kernel.logger.error(f"Banner edit error: {e}")
+                        await edit_with_emoji(msg, final_msg)
+                else:
+                    await edit_with_emoji(msg, final_msg)
 
             else:
                 add_log(t("log_install_error", error=message_text))
@@ -1379,19 +1427,61 @@ def register(kernel):
                             conflict_text += f"<code>{cf['command']}</code> — registered by <code>{owner}</code>\n"
 
                     kernel.logger.info(f"Hikka модуль {module_name} установлен")
-                    await edit_with_emoji(
-                        msg,
-                        t(
-                            "module_loaded",
-                            success=CUSTOM_EMOJI["success"],
-                            module_name=module_name,
-                            emoji=emoji,
-                            idea=CUSTOM_EMOJI["idea"],
-                            description=metadata["description"],
-                            version=metadata["version"],
-                            commands_list=commands_list + conflict_text,
-                        ),
-                    )
+
+                    banner_url = metadata.get("banner_url")
+                    if banner_url and banner_url.startswith(("http://", "https://")):
+                        try:
+                            media = InputMediaWebPage(banner_url, optional=True)
+                            await msg.edit(
+                                t(
+                                    "module_loaded",
+                                    success=CUSTOM_EMOJI["success"],
+                                    module_name=module_name,
+                                    emoji=emoji,
+                                    idea=CUSTOM_EMOJI["idea"],
+                                    description=metadata["description"],
+                                    version=metadata["version"],
+                                    author=metadata.get("author", "unknown"),
+                                    emoji_author=CUSTOM_EMOJI["author"],
+                                    commands_list=commands_list + conflict_text,
+                                ),
+                                file=media,
+                                parse_mode="html",
+                                invert_media=True,
+                            )
+                        except Exception as e:
+                            kernel.logger.error(f"Banner edit error: {e}")
+                            await edit_with_emoji(
+                                msg,
+                                t(
+                                    "module_loaded",
+                                    success=CUSTOM_EMOJI["success"],
+                                    module_name=module_name,
+                                    emoji=emoji,
+                                    idea=CUSTOM_EMOJI["idea"],
+                                    description=metadata["description"],
+                                    version=metadata["version"],
+                                    author=metadata.get("author", "unknown"),
+                                    emoji_author=CUSTOM_EMOJI["author"],
+                                    commands_list=commands_list + conflict_text,
+                                ),
+                            )
+                    else:
+                        await edit_with_emoji(
+                            msg,
+                            t(
+                                "module_loaded",
+                                success=CUSTOM_EMOJI["success"],
+                                module_name=module_name,
+                                emoji=emoji,
+                                idea=CUSTOM_EMOJI["idea"],
+                                description=metadata["description"],
+                                version=metadata["version"],
+                                author=metadata.get("author", "unknown"),
+                                emoji_author=CUSTOM_EMOJI["author"],
+                                commands_list=commands_list + conflict_text,
+                            ),
+                        )
                 else:
                     add_log(t("log_install_error", error=err))
                     log_text = "\n".join(install_log)
@@ -1466,7 +1556,19 @@ def register(kernel):
                 )
 
                 kernel.logger.info(f"Модуль {module_name} скачан")
-                await edit_with_emoji(msg, final_msg)
+
+                banner_url = metadata.get("banner_url")
+                if banner_url and banner_url.startswith(("http://", "https://")):
+                    try:
+                        media = InputMediaWebPage(banner_url, optional=True)
+                        await msg.edit(
+                            final_msg, file=media, parse_mode="html", invert_media=True
+                        )
+                    except Exception as e:
+                        kernel.logger.error(f"Banner edit error: {e}")
+                        await edit_with_emoji(msg, final_msg)
+                else:
+                    await edit_with_emoji(msg, final_msg)
             else:
                 add_log(t("log_install_error", error=message_text))
                 log_text = "\n".join(install_log)

@@ -35,6 +35,16 @@ except ImportError:
         return False
 
 
+async def safe_edit(msg, *args, **kwargs):
+    """Edit message, ignoring MessageNotModifiedError."""
+    try:
+        return await msg.edit(*args, **kwargs)
+    except Exception as e:
+        if "Content of the message was not modified" in str(e):
+            return msg
+        raise
+
+
 logger = logging.getLogger("mcub.loader")
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -1144,7 +1154,8 @@ def register(kernel):
                 else t("installing", test=CUSTOM_EMOJI["reload"])
             )
 
-        msg = await event.edit(
+        msg = await safe_edit(
+            event,
             t("starting_install", action=action, module_name=module_name),
             parse_mode="html",
         )

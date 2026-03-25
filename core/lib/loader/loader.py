@@ -993,10 +993,16 @@ class ModuleLoader:
                         metadata["description"] = desc_m.group(1).strip()
                         break
 
-        if metadata["banner_url"] is None:
-            m = re.search(r"banner\s*=\s*['\"]([^'\"]+)['\"]", code)
+        if metadata["description"] == "no description":
+            m = re.search(
+                r"class\s+\w+[^:]*:\s*\n(\s*'''(.+?)'''|\s*\"\"\"(.+?)\"\"\")",
+                code,
+                re.DOTALL,
+            )
             if m:
-                metadata["banner_url"] = m.group(1).strip()
+                doc = m.group(2) or m.group(3)
+                if doc:
+                    metadata["description"] = doc.strip().split("\n")[0].strip()
 
         if metadata["banner_url"] is None:
             m = re.search(r"banner\s*=\s*['\"]([^'\"]+)['\"]", code)

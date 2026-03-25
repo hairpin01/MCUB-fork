@@ -7,6 +7,8 @@ __Table of Contents__
 
 > 1. [Introduction](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#introduction)
 > 2. [Module Structure](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#module-structure)
+>    - [Module Header Comments](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#module-header-comments) (`# scop:`, `# requires:`, …)
+>    - [Command Descriptions](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#command-descriptions)
 > 3. [Kernel API Reference](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#kernel-api-reference)
 > 4. [Database API](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#database-api)
 > 5. [Key-Value Database API](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#key-value-database-api)
@@ -51,6 +53,127 @@ __Table of Contents__
 def register(kernel):
     # Module code here
 ```
+
+### Module Header Comments
+
+Each module file can contain special comment directives in its header. These are parsed by the kernel at load time.
+
+| Directive | Description |
+|-----------|-------------|
+| `# requires:` | Comma-separated list of pip packages the module depends on |
+| `# author:` | Author name or username |
+| `# version:` | Module version string (e.g. `1.0.0`) |
+| `# description:` | Short human-readable description of the module |
+| `# banner_url:` | URL to an image to display as banner when module loads or when viewing with `man` command |
+| `# scop:` | Kernel compatibility constraints (see below) |
+
+> [!NOTE]
+> `# requires:` — библиотеки **обязательно** перечислять через запятую:
+> ```python
+> # requires: library1, library2, library3
+> ```
+> Без запятых зависимости не будут распознаны корректно.
+
+---
+
+#### `# banner_url:` — Module Banner
+
+Displays an image banner when the module is loaded or when viewing the module with the `man` command.
+
+**Syntax:**
+
+```
+# banner_url: https://example.com/banner.png
+```
+
+**Example:**
+
+```python
+# author: @Hairpin00
+# version: 1.0.0
+# description: My awesome module
+# banner_url: https://raw.githubusercontent.com/user/repo/main/banner.png
+
+def register(kernel):
+    # ...
+```
+
+> [!NOTE]
+> The banner is displayed using `invert_media=True` mode for better visibility.
+
+---
+
+#### `# scop:` — Kernel Compatibility
+
+Controls which kernel versions the module is compatible with.
+
+**Syntax:**
+
+```
+# scop: inline
+# scop: ffmpeg
+# scop: kernel min v{version}
+# scop: kernel max v{version}
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `inline` | Module requires an inline bot to be configured (`надо обязательно инлайн бот`) |
+| `ffmpeg` | Module requires `ffmpeg` to be installed on the system |
+| `kernel min v{version}` | Minimum kernel version required (e.g. `kernel min v1.0.2`) |
+| `kernel max v{version}` | Maximum kernel version supported (e.g. `kernel max v1.0.2`) |
+
+> [!NOTE]
+> For `min`/`max` version you can use the special value `[__lastest__]` (or `v[__lastest__]`) — the kernel will resolve it to the latest available version in the repository.
+>
+> Example: `# scop: kernel min v[__lastest__]`
+
+**Multiple flags** can be combined — place each on its own `# scop:` line:
+
+```python
+# scop: inline
+# scop: ffmpeg
+# scop: kernel min v1.0.2
+# scop: kernel max v[__lastest__]
+```
+
+---
+
+### Command Descriptions
+
+To document a command, place a single-line comment **immediately after** the `@kernel.register.command(...)` decorator. The comment becomes the command's description (shown in help listings, etc.).
+
+**Format:**
+
+```python
+@kernel.register.command("cmd", alias=['command'])
+# list trust users
+async def command_handler(event):
+    # ...
+```
+
+> [!TIP]
+> Keep command descriptions to **one line** — concise and lowercase. They are displayed in help output as-is.
+
+**Full example:**
+
+```python
+def register(kernel):
+
+    @kernel.register.command("trust", alias=['tl'])
+    # list trusted users
+    async def trust_list(event):
+        ...
+
+    @kernel.register.command("untrust", alias=['utl'])
+    # remove user from trust list
+    async def untrust_user(event):
+        ...
+```
+
+---
 
 ## Kernel API Reference
 Core Properties

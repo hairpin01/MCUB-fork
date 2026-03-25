@@ -946,12 +946,14 @@ class ModuleLoader:
             "version": "X.X.X",
             "description": "no description",
             "commands": {},
+            "banner_url": None,
         }
 
         for key, pat in {
             "author": r"#\s*author\s*:\s*(.+)",
             "version": r"#\s*version\s*:\s*(.+)",
             "description": r"#\s*description\s*:\s*(.+)",
+            "banner_url": r"#\s*banner_url\s*:\s*(.+)",
         }.items():
             m = re.search(pat, code, re.IGNORECASE)
             if m:
@@ -1055,3 +1057,161 @@ class ModuleLoader:
             return meta["commands"].get(command, "🫨 No description")
         except Exception:
             return "🫨 No description"
+
+    def get_module_commands(self, module_name: str) -> Tuple[list, dict, dict]:
+        """Get commands, aliases and descriptions for a module.
+
+        Args:
+            module_name: Name of the module.
+
+        Returns:
+            Tuple of (commands list, aliases dict {cmd: [aliases]}, descriptions dict {cmd: str})
+        """
+        import os
+        import re
+
+        k = self.k
+        commands = []
+        aliases_info = {}
+        descriptions = {}
+
+        module = None
+        if module_name in k.system_modules:
+            module = k.system_modules[module_name]
+        elif module_name in k.loaded_modules:
+            module = k.loaded_modules[module_name]
+
+        if module:
+            for cmd, owner in k.command_owners.items():
+                if owner == module_name:
+                    commands.append(cmd)
+
+            for cmd in commands:
+                handler = k.command_handlers.get(cmd)
+                if handler:
+                    doc = getattr(handler, "__doc__", None)
+                    if doc:
+                        descriptions[cmd] = doc.strip()
+
+        file_path = None
+        parsed_descriptions = {}
+
+        if not commands:
+            if module_name in k.system_modules:
+                file_path = f"modules/{module_name}.py"
+            elif module_name in k.loaded_modules:
+                file_path = f"modules_loaded/{module_name}.py"
+
+            if file_path and os.path.exists(file_path):
+                try:
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        code = f.read()
+
+                    patterns = [
+                        r"@kernel\.register\.command\s*\(\s*['\"]([^'\"]+)['\"]",
+                        r"kernel\.register\.command\s*\(\s*['\"]([^'\"]+)['\"]",
+                        r"@kernel\.register_command\s*\(\s*['\"]([^'\"]+)['\"]",
+                        r"kernel\.register_command\s*\(\s*['\"]([^'\"]+)['\"]",
+                        r"register_command\s*\(\s*['\"]([^'\"]+)['\"]",
+                        r"pattern\s*=\s*r['\"]\^?\\?\.([a-zA-Z0-9_]+)['\"]",
+                        r"pattern\s*=\s*r['\"]\\\\\.([^'\"]+)['\"]",
+                        r"@client\.on\s*\(\s*events\.NewMessage\s*\(\s*outgoing\s*=\s*True\s*,\s*pattern\s*=\s*r['\"]\\\\\.([^'\"]+)['\"]",
+                        rf"pattern\s*=\s*r['\"]\\{re.escape(k.custom_prefix)}([^'\"]+)['\"]",
+                    ]
+
+                    for pattern in patterns:
+                        found = re.findall(pattern, code)
+                        commands.extend(found)
+
+                    alias_patterns = [
+                        r"alias\s*=\s*['\"]([^'\"]+)['\"]",
+                        r"alias\s*=\s*\[([^\]]+)\]",
+                    ]
+
+                    for cmd in list(set(commands)):
+                        if not cmd:
+                            continue
+                        esc = re.escape(cmd)
+                        cmd_patterns = [
+                            rf"(?:@kernel\.register\.command|kernel\.register\.command)\s*\(\s*['\"]{esc}['\"][^)]+\)",
+                            rf"(?:@kernel\.register_command|kernel\.register_command)\s*\(\s*['\"]{esc}['\"][^)]+\)",
+                        ]
+
+                        for cmd_pattern in cmd_patterns:
+                            cmd_match = re.search(cmd_pattern, code, re.DOTALL)
+                            if not cmd_match:
+                                continue
+
+                            cmd_line = cmd_match.group(0)
+                            for alias_pattern in alias_patterns:
+                                alias_matches = re.findall(alias_pattern, cmd_line)
+                                for alias_match in alias_matches:
+                                    if "[" in alias_match:
+                                        alias_list = [
+                                            a.strip().strip("'\"")
+                                            for a in alias_match.split(",")
+                                            if a.strip()
+                                        ]
+                                        if alias_list:
+                                            aliases_info[cmd] = alias_list
+                                    else:
+                                        aliases_info[cmd] = [alias_match.strip()]
+                            break
+
+                    for cmd in list(set(commands)):
+                        if not cmd:
+                            continue
+                        client_on_pattern = rf"@client\.on\s*\(\s*events\.NewMessage\s*\([^)]*pattern\s*=\s*r['\"]\\\\\.{re.escape(cmd)}['\"][^)]+\)"
+                        client_match = re.search(client_on_pattern, code, re.DOTALL)
+                        if client_match:
+                            line = client_match.group(0)
+                            for alias_pattern in alias_patterns:
+                                alias_matches = re.findall(alias_pattern, line)
+                                for alias_match in alias_matches:
+                                    if "[" in alias_match:
+                                        alias_list = [
+                                            a.strip().strip("'\"")
+                                            for a in alias_match.split(",")
+                                            if a.strip()
+                                        ]
+                                        if alias_list:
+                                            aliases_info[cmd] = alias_list
+                                    else:
+                                        aliases_info[cmd] = [alias_match.strip()]
+
+                    def _get_doc_from_code(code: str, func_name: str) -> str | None:
+                        pattern = rf"async\s+def\s+{re.escape(func_name)}\s*\([^)]*\)\s*(?:->\s*[^:]+)?\s*:\s*\n(\s*'''(.+?)'''|\s*\"\"\"(.+?)\"\"\")"
+                        match = re.search(pattern, code, re.DOTALL)
+                        if match:
+                            return (match.group(2) or match.group(3)).strip()
+                        return None
+
+                    for cmd in commands:
+                        if cmd not in parsed_descriptions:
+                            doc = _get_doc_from_code(code, cmd)
+                            if doc:
+                                parsed_descriptions[cmd] = doc
+
+                except Exception as e:
+                    k.logger.error(f"Error parsing commands for {module_name}: {e}")
+
+        seen = set()
+        uniq = []
+        for c in commands:
+            if c and c not in seen:
+                seen.add(c)
+                uniq.append(c)
+        commands = uniq
+
+        for alias, target_cmd in k.aliases.items():
+            if target_cmd in commands:
+                if target_cmd not in aliases_info:
+                    aliases_info[target_cmd] = []
+                if alias not in aliases_info[target_cmd]:
+                    aliases_info[target_cmd].append(alias)
+
+        for cmd in commands:
+            if cmd not in descriptions:
+                descriptions[cmd] = parsed_descriptions.get(cmd)
+
+        return commands, aliases_info, descriptions

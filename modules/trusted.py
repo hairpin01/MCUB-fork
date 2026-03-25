@@ -5,6 +5,7 @@
 import json
 from core_inline.lib.manager import InlineManager
 
+
 def register(kernel):
     client = kernel.client
     language = kernel.config.get("language", "en")
@@ -64,7 +65,7 @@ def register(kernel):
     async def save_trusted_list(users):
         await kernel.db_set("trusted", "users", json.dumps(users))
 
-    @kernel.register.command("trust", alias=['addowner'])
+    @kernel.register.command("trust", alias=["addowner"])
     # add trust users
     async def trust_handler(event):
         if event.sender_id != kernel.ADMIN_ID:
@@ -85,7 +86,7 @@ def register(kernel):
         await save_trusted_list(trusted)
         await event.edit(lang_strings["trust_added"], parse_mode="html")
 
-    @kernel.register.command("untrust", alias=['delowner'])
+    @kernel.register.command("untrust", alias=["delowner"])
     # delete trust users
     async def untrust_handler(event):
         if event.sender_id != kernel.ADMIN_ID:
@@ -106,7 +107,7 @@ def register(kernel):
         await save_trusted_list(trusted)
         await event.edit(lang_strings["trust_removed"], parse_mode="html")
 
-    @kernel.register.command("trustlist", alias=['listowner'])
+    @kernel.register.command("trustlist", alias=["listowner"])
     # list trust users
     async def trustlist_handler(event):
         trusted = await get_trusted_list()
@@ -118,7 +119,11 @@ def register(kernel):
         for uid in trusted:
             try:
                 user = await client.get_entity(uid)
-                name = f"@{user.username}" if hasattr(user, "username") and user.username else user.first_name or str(uid)
+                name = (
+                    f"@{user.username}"
+                    if hasattr(user, "username") and user.username
+                    else user.first_name or str(uid)
+                )
                 lines.append(f"• {name} (<code>{uid}</code>)")
             except Exception:
                 lines.append(f"• <code>{uid}</code>")
@@ -141,13 +146,49 @@ def register(kernel):
         if not text.startswith(kernel.custom_prefix):
             return
 
-        cmd_name = text[len(kernel.custom_prefix):].split()[0] if len(text) > len(kernel.custom_prefix) else ""
+        cmd_name = (
+            text[len(kernel.custom_prefix) :].split()[0]
+            if len(text) > len(kernel.custom_prefix)
+            else ""
+        )
 
         if cmd_name not in kernel.command_handlers:
             return
 
-        cmd = await kernel.client.send_message(event.chat_id, text, reply_to=event.reply_to_msg_id)
-        await kernel.process_command(cmd)
+        cmd = await kernel.client.send_message(
+            event.chat_id, text, reply_to=event.reply_to_msg_id
+        )
+
+        class _MessageEventProxy:
+            def __init__(self, msg):
+                self._msg = msg
+
+            def __getattr__(self, name):
+                return getattr(self._msg, name)
+
+            @property
+            def message(self):
+                return self._msg
+
+            @property
+            def is_reply(self):
+                return bool(getattr(self._msg, "reply_to", None))
+
+            @property
+            def reply_to_msg_id(self):
+                rt = getattr(self._msg, "reply_to", None)
+                return getattr(rt, "reply_to_msg_id", None) if rt else None
+
+            async def edit(self, *args, **kwargs):
+                return await self._msg.edit(*args, **kwargs)
+
+            async def reply(self, *args, **kwargs):
+                return await self._msg.reply(*args, **kwargs)
+
+            async def get_reply_message(self):
+                return await self._msg.get_reply_message()
+
+        await kernel.process_command(_MessageEventProxy(cmd))
 
     @kernel.register.loop(interval=30, autostart=True)
     async def update_callback_permissions(_kernel):

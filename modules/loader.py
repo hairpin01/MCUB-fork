@@ -1397,21 +1397,61 @@ def register(kernel):
                             conflict_text += f"<code>{cf['command']}</code> — registered by <code>{owner}</code>\n"
 
                     kernel.logger.info(f"Hikka модуль {module_name} установлен")
-                    await edit_with_emoji(
-                        msg,
-                        t(
-                            "module_loaded",
-                            success=CUSTOM_EMOJI["success"],
-                            module_name=module_name,
-                            emoji=emoji,
-                            idea=CUSTOM_EMOJI["idea"],
-                            description=metadata["description"],
-                            version=metadata["version"],
-                            author=metadata["author"],
-                            emoji_author=CUSTOM_EMOJI["author"],
-                            commands_list=commands_list + conflict_text,
-                        ),
-                    )
+
+                    banner_url = metadata.get("banner_url")
+                    if banner_url and banner_url.startswith(("http://", "https://")):
+                        try:
+                            media = InputMediaWebPage(banner_url, optional=True)
+                            await msg.edit(
+                                t(
+                                    "module_loaded",
+                                    success=CUSTOM_EMOJI["success"],
+                                    module_name=module_name,
+                                    emoji=emoji,
+                                    idea=CUSTOM_EMOJI["idea"],
+                                    description=metadata["description"],
+                                    version=metadata["version"],
+                                    author=metadata["author"],
+                                    emoji_author=CUSTOM_EMOJI["author"],
+                                    commands_list=commands_list + conflict_text,
+                                ),
+                                file=media,
+                                parse_mode="html",
+                                invert_media=True,
+                            )
+                        except Exception as e:
+                            kernel.logger.error(f"Banner edit error: {e}")
+                            await edit_with_emoji(
+                                msg,
+                                t(
+                                    "module_loaded",
+                                    success=CUSTOM_EMOJI["success"],
+                                    module_name=module_name,
+                                    emoji=emoji,
+                                    idea=CUSTOM_EMOJI["idea"],
+                                    description=metadata["description"],
+                                    version=metadata["version"],
+                                    author=metadata["author"],
+                                    emoji_author=CUSTOM_EMOJI["author"],
+                                    commands_list=commands_list + conflict_text,
+                                ),
+                            )
+                    else:
+                        await edit_with_emoji(
+                            msg,
+                            t(
+                                "module_loaded",
+                                success=CUSTOM_EMOJI["success"],
+                                module_name=module_name,
+                                emoji=emoji,
+                                idea=CUSTOM_EMOJI["idea"],
+                                description=metadata["description"],
+                                version=metadata["version"],
+                                author=metadata["author"],
+                                emoji_author=CUSTOM_EMOJI["author"],
+                                commands_list=commands_list + conflict_text,
+                            ),
+                        )
                 else:
                     add_log(t("log_install_error", error=err))
                     log_text = "\n".join(install_log)
@@ -1491,7 +1531,19 @@ def register(kernel):
                 )
 
                 kernel.logger.info(f"Модуль {module_name} скачан")
-                await edit_with_emoji(msg, final_msg)
+
+                banner_url = metadata.get("banner_url")
+                if banner_url and banner_url.startswith(("http://", "https://")):
+                    try:
+                        media = InputMediaWebPage(banner_url, optional=True)
+                        await msg.edit(
+                            final_msg, file=media, parse_mode="html", invert_media=True
+                        )
+                    except Exception as e:
+                        kernel.logger.error(f"Banner edit error: {e}")
+                        await edit_with_emoji(msg, final_msg)
+                else:
+                    await edit_with_emoji(msg, final_msg)
             else:
                 add_log(t("log_install_error", error=message_text))
                 log_text = "\n".join(install_log)

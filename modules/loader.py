@@ -434,31 +434,40 @@ def register(kernel):
                 repo_index = 0
 
             repo_url = repos[repo_index]
+            cache_key = f"catalog:{repo_url}"
+            cached = kernel.cache.get(cache_key)
 
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(f"{repo_url}/modules.ini") as resp:
-                        if resp.status == 200:
-                            modules_text = await resp.text()
-                            modules = [
-                                line.strip()
-                                for line in modules_text.split("\n")
-                                if line.strip()
-                            ]
-                        else:
-                            modules = []
+            if cached is not None:
+                modules, repo_name = cached
+            else:
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(f"{repo_url}/modules.ini") as resp:
+                            if resp.status == 200:
+                                modules_text = await resp.text()
+                                modules = [
+                                    line.strip()
+                                    for line in modules_text.split("\n")
+                                    if line.strip()
+                                ]
+                            else:
+                                modules = []
 
-                    async with session.get(f"{repo_url}/name.ini") as resp:
-                        if resp.status == 200:
-                            repo_name = await resp.text()
-                            repo_name = repo_name.strip()
-                        else:
-                            repo_name = (
-                                repo_url.split("/")[-2] if "/" in repo_url else repo_url
-                            )
-            except Exception:
-                modules = []
-                repo_name = repo_url.split("/")[-2] if "/" in repo_url else repo_url
+                        async with session.get(f"{repo_url}/name.ini") as resp:
+                            if resp.status == 200:
+                                repo_name = await resp.text()
+                                repo_name = repo_name.strip()
+                            else:
+                                repo_name = (
+                                    repo_url.split("/")[-2]
+                                    if "/" in repo_url
+                                    else repo_url
+                                )
+
+                        kernel.cache.set(cache_key, (modules, repo_name), ttl=300)
+                except Exception:
+                    modules = []
+                    repo_name = repo_url.split("/")[-2] if "/" in repo_url else repo_url
 
             per_page = 8
             total_pages = (len(modules) + per_page - 1) // per_page if modules else 1

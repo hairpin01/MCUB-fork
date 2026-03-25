@@ -12,6 +12,7 @@ from datetime import datetime
 import html
 import random
 from telethon import Button
+from telethon.types import InputMediaWebPage
 
 try:
     from core.lib.loader.hikka_compat import (
@@ -32,6 +33,16 @@ except ImportError:
 
     async def unload_hikka_module(kernel, name):
         return False
+
+
+async def safe_edit(msg, *args, **kwargs):
+    """Edit message, ignoring MessageNotModifiedError."""
+    try:
+        return await msg.edit(*args, **kwargs)
+    except Exception as e:
+        if "Content of the message was not modified" in str(e):
+            return msg
+        raise
 
 
 logger = logging.getLogger("mcub.loader")
@@ -372,86 +383,7 @@ def register(kernel):
             return await client.send_message(chat_id, fallback_text, **kwargs)
 
     def get_module_commands(module_name, kernel):
-        commands = []
-        aliases_info = {}
-
-        module = None
-        if module_name in kernel.system_modules:
-            module = kernel.system_modules[module_name]
-        elif module_name in kernel.loaded_modules:
-            module = kernel.loaded_modules[module_name]
-
-        if module:
-            for cmd, owner in kernel.command_owners.items():
-                if owner == module_name:
-                    commands.append(cmd)
-
-        file_path = None
-        if not commands:
-            if module_name in kernel.system_modules:
-                file_path = f"modules/{module_name}.py"
-            elif module_name in kernel.loaded_modules:
-                file_path = f"modules_loaded/{module_name}.py"
-
-            if file_path and os.path.exists(file_path):
-                try:
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        code = f.read()
-
-                        patterns = [
-                            # Новый формат
-                            r"@kernel\.register\.command\('([^']+)'\)",
-                            r"kernel\.register\.command\('([^']+)'\)",
-                            # Старый формат
-                            r"@kernel\.register_command\('([^']+)'\)",
-                            r"kernel\.register_command\('([^']+)'\)",
-                            # Формат с client.on
-                            r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'\\\\.([^']+)'\)\)",
-                            # Формат с декоратором register
-                            r"@register\.command\('([^']+)'\)",
-                            # Формат с кастомным префиксом
-                            r"pattern=r'\\{}(\[^'\]]+)'".format(
-                                re.escape(kernel.custom_prefix)
-                            ),
-                        ]
-
-                        for pattern in patterns:
-                            found = re.findall(pattern, code)
-                            commands.extend(found)
-
-                        for cmd in commands:
-                            cmd_pattern = rf"(?:@kernel\.register\.command|kernel\.register\.command|@kernel\.register_command|kernel\.register_command)\(['\"]{cmd}['\"][^)]+alias\s*=\s*(.+?)\)"
-                            cmd_match = re.search(cmd_pattern, code, re.DOTALL)
-                            if cmd_match:
-                                alias_part = cmd_match.group(1)
-                                if alias_part.startswith("["):
-                                    aliases = re.findall(
-                                        r"['\"]([^'\"]+)['\"]", alias_part
-                                    )
-                                    if aliases:
-                                        aliases_info[cmd] = aliases
-                                else:
-                                    alias_match = re.search(
-                                        r"['\"]([^'\"]+)['\"]", alias_part
-                                    )
-                                    if alias_match:
-                                        aliases_info[cmd] = [alias_match.group(1)]
-
-                except Exception as e:
-                    kernel.logger.error(
-                        f"Ошибка при парсинге команд модуля {module_name}: {e}"
-                    )
-
-        for alias, target_cmd in kernel.aliases.items():
-            if target_cmd in commands:
-                if target_cmd not in aliases_info:
-                    aliases_info[target_cmd] = []
-                if alias not in aliases_info[target_cmd]:
-                    aliases_info[target_cmd].append(alias)
-
-        commands = list(set([cmd for cmd in commands if cmd]))
-
-        return commands, aliases_info
+        return kernel._loader.get_module_commands(module_name)
 
     async def load_module_from_file(file_path, module_name, is_system=False):
         try:
@@ -777,7 +709,7 @@ def register(kernel):
                 extra = extra or {}
                 conflicts = extra.get("conflicts", [])
                 if ok:
-                    commands, aliases_info = get_module_commands(module_name, kernel)
+                    commands, aliases_info, _ = get_module_commands(module_name, kernel)
                     emoji = random.choice(RANDOM_EMOJIS)
                     commands_list = ""
                     for cmd in commands:
@@ -884,7 +816,7 @@ def register(kernel):
 
             if success:
                 add_log(t("log_module_loaded"))
-                commands, aliases_info = get_module_commands(module_name, kernel)
+                commands, aliases_info, _ = get_module_commands(module_name, kernel)
 
                 emoji = random.choice(RANDOM_EMOJIS)
 
@@ -1419,7 +1351,7 @@ def register(kernel):
                 conflicts = extra.get("conflicts", [])
                 if ok:
                     add_log(t("log_module_loaded_kernel"))
-                    commands, aliases_info = get_module_commands(module_name, kernel)
+                    commands, aliases_info, _ = get_module_commands(module_name, kernel)
                     emoji = random.choice(RANDOM_EMOJIS)
                     commands_list = ""
                     if commands:
@@ -1483,7 +1415,7 @@ def register(kernel):
 
             if success:
                 add_log(t("log_module_loaded_kernel"))
-                commands, aliases_info = get_module_commands(module_name, kernel)
+                commands, aliases_info, _ = get_module_commands(module_name, kernel)
                 emoji = random.choice(RANDOM_EMOJIS)
 
                 commands_list = ""
@@ -1829,14 +1761,14 @@ def register(kernel):
         if kernel.system_modules:
             msg += t("system_modules", shield=CUSTOM_EMOJI["shield"])
             for name in sorted(kernel.system_modules.keys()):
-                commands, _ = get_module_commands(name, kernel)
+                commands, _, _ = get_module_commands(name, kernel)
                 msg += t("module_line", name=name, count=len(commands))
             msg += "\n"
 
         if kernel.loaded_modules:
             msg += t("user_modules", sparkle=CUSTOM_EMOJI["sparkle"])
             for name in sorted(kernel.loaded_modules.keys()):
-                commands, _ = get_module_commands(name, kernel)
+                commands, _, _ = get_module_commands(name, kernel)
                 msg += t("module_line", name=name, count=len(commands))
 
         await edit_with_emoji(event, msg)

@@ -9,7 +9,7 @@ from typing import Tuple
 
 
 # version kenrel MCUB
-__version__ = "1.0.4.6"
+__version__ = "1.0.4.7"
 VERSION = __version__
 
 class VersionManager:

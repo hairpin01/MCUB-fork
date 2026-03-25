@@ -94,6 +94,18 @@ async def generate_detailed_page(search_term, kernel, strings):
         else:
             msg += f"{CUSTOM_EMOJI['blocked']} {strings['no_commands']}\n"
         msg += "</blockquote>"
+
+        inline_commands = kernel.get_module_inline_commands(name)
+        if inline_commands:
+            inline_emoji = '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
+            msg += f"\n<blockquote expandable>"
+            for cmd, desc in inline_commands:
+                if desc:
+                    msg += f"{inline_emoji} <code>@{kernel.config.get('bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>\n"
+                else:
+                    msg += f"{inline_emoji} <code>@{kernel.config.get('bot_username', 'bot')} {cmd}</code>\n"
+            msg += "</blockquote>"
+
         msg += f"\n<blockquote>{CUSTOM_EMOJI['pancake']} <b>{strings['author']}:</b> <i>{metadata.get('author', strings['unknown'])}</i></blockquote>"
         return msg, metadata.get("banner_url")
 
@@ -165,6 +177,22 @@ def get_paginated_data(kernel, page, strings):
                 cmd_text = ", ".join(cmd_display)
                 if len(commands) > 3:
                     cmd_text += f" (+{len(commands) - 3})"
+
+                inline_commands = kernel.get_module_inline_commands(name)
+                if inline_commands:
+                    inline_emoji = (
+                        '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
+                    )
+                    inline_cmds = ", ".join(
+                        [
+                            f"{inline_emoji} <code>{cmd}</code>"
+                            for cmd, _ in inline_commands[:3]
+                        ]
+                    )
+                    if len(inline_commands) > 3:
+                        inline_cmds += f" (+{len(inline_commands) - 3})"
+                    cmd_text += f" {inline_cmds}"
+
                 msg += f"<b>{name}:</b> {cmd_text}\n"
         msg += "</blockquote>"
     else:
@@ -199,6 +227,22 @@ def get_paginated_data(kernel, page, strings):
                 cmd_text = ", ".join(cmd_display)
                 if len(commands) > 3:
                     cmd_text += f" (+{len(commands) - 3})"
+
+                inline_commands = kernel.get_module_inline_commands(name)
+                if inline_commands:
+                    inline_emoji = (
+                        '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
+                    )
+                    inline_cmds = ", ".join(
+                        [
+                            f"{inline_emoji} <code>{cmd}</code>"
+                            for cmd, _ in inline_commands[:3]
+                        ]
+                    )
+                    if len(inline_commands) > 3:
+                        inline_cmds += f" (+{len(inline_commands) - 3})"
+                    cmd_text += f" {inline_cmds}"
+
                 msg += f"<b>{name}:</b> {cmd_text}\n"
         msg += "</blockquote>"
 

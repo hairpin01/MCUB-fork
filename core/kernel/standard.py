@@ -648,6 +648,10 @@ class Kernel:
             chat_id, title, fields, buttons, auto_send, ttl, **kwargs
         )
 
+    def get_module_inline_commands(self, module_name: str) -> list:
+        """Get inline commands registered by a module."""
+        return self._inline.get_module_inline_commands(module_name)
+
     async def init_client(self) -> bool:
         """Initialize and authorize the main Telegram client."""
         ok = await self._client_mgr.init_client()

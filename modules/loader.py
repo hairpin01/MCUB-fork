@@ -730,6 +730,17 @@ def register(kernel):
                         )
                         commands_list += command_line + "\n"
 
+                    inline_commands = kernel.get_module_inline_commands(module_name)
+                    if inline_commands:
+                        inline_emoji = (
+                            '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
+                        )
+                        for cmd, desc in inline_commands:
+                            if desc:
+                                commands_list += f"{inline_emoji} <code>@{kernel.config.get('bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>\n"
+                            else:
+                                commands_list += f"{inline_emoji} <code>@{kernel.config.get('bot_username', 'bot')} {cmd}</code>\n"
+
                     conflict_text = ""
                     if conflicts:
                         conflict_text = (
@@ -903,6 +914,17 @@ def register(kernel):
                                     )
                                 )
                         commands_list += command_line + "\n"
+
+                inline_commands = kernel.get_module_inline_commands(module_name)
+                if inline_commands:
+                    inline_emoji = (
+                        '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
+                    )
+                    for cmd, desc in inline_commands:
+                        if desc:
+                            commands_list += f"{inline_emoji} <code>@{kernel.config.get('bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>\n"
+                        else:
+                            commands_list += f"{inline_emoji} <code>@{kernel.config.get('bot_username', 'bot')} {cmd}</code>\n"
 
                 final_msg = t(
                     "module_loaded",
@@ -1435,6 +1457,17 @@ def register(kernel):
                             )
                             commands_list += command_line + "\n"
 
+                    inline_commands = kernel.get_module_inline_commands(module_name)
+                    if inline_commands:
+                        inline_emoji = (
+                            '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
+                        )
+                        for cmd, desc in inline_commands:
+                            if desc:
+                                commands_list += f"{inline_emoji} <code>@{kernel.config.get('bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>\n"
+                            else:
+                                commands_list += f"{inline_emoji} <code>@{kernel.config.get('bot_username', 'bot')} {cmd}</code>\n"
+
                     conflict_text = ""
                     if conflicts:
                         conflict_text = (
@@ -1566,6 +1599,17 @@ def register(kernel):
                                     )
                                 )
                         commands_list += command_line + "\n"
+
+                inline_commands = kernel.get_module_inline_commands(module_name)
+                if inline_commands:
+                    inline_emoji = (
+                        '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
+                    )
+                    for cmd, desc in inline_commands:
+                        if desc:
+                            commands_list += f"{inline_emoji} <code>@{kernel.config.get('bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>\n"
+                        else:
+                            commands_list += f"{inline_emoji} <code>@{kernel.config.get('bot_username', 'bot')} {cmd}</code>\n"
 
                 final_msg = t(
                     "module_loaded",

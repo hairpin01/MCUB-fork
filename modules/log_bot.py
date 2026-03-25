@@ -75,6 +75,7 @@ def register(kernel):
             'update_done': '✅ Обновлено до <code>{sha}</code>\n<blockquote>⚠️ Автоматическая перезагрузка</blockquote>',
             'update_error': '❌ Ошибка обновления: <code>{error}</code>',
             'update_no_log': '⚠️ Лог-чат не настроен, уведомления об обновлениях недоступны',
+            'and_more_commits': '... и ещё {} коммитов',
         },
         'en': {
             'git_timeout': '⚠️ Git: timeout (no network)',
@@ -129,6 +130,7 @@ def register(kernel):
             'update_done': '✅ Updated to <code>{sha}</code>\n<blockquote>⚠️ Auto restart the userbot</blockquote>',
             'update_error': '❌ Update error: <code>{error}</code>',
             'update_no_log': '⚠️ Log chat not configured, update notifications unavailable',
+            'and_more_commits': '... and {} more commits',
         }
     }
 
@@ -237,13 +239,27 @@ def register(kernel):
         header = lang_strings['new_commits_header'].format(
             count=len(commits), branch=branch
         )
-        lines = []
 
+        MAX_CAPTION = 6
+        all_lines = []
         for sha, subject, author, time_str in commits:
-            lines.append(
+            all_lines.append(
                 f"<blockquote><code>{sha}</code> {html.escape(subject)} | "
                 f"<i>{html.escape(author)}</i> | {time_str}</blockquote>"
             )
+
+        lines = []
+        for i, line in enumerate(all_lines):
+            remaining = len(commits) - i
+            tail = f"\n<blockquote>{lang_strings['and_more_commits'].format(remaining)}</blockquote>"
+            candidate = header + "\n\n" + "\n".join(lines + [line])
+            # If not the last line, reserve space for the tail in case next line overflows
+            if len(candidate) + (len(tail) if i < len(all_lines) - 1 else 0) > MAX_CAPTION:
+                lines.append(
+                    f"<blockquote>{lang_strings['and_more_commits'].format(remaining)}</blockquote>"
+                )
+                break
+            lines.append(line)
 
         text = header + "\n\n" + "\n".join(lines)
         btn = Button.inline(lang_strings['new_commits_btn'], data=b"do_update")

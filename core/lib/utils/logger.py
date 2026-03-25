@@ -119,7 +119,7 @@ class RichException:
                 )
             return f"<code>{html.escape(line)}</code>"
 
-        full_stack_html = "\n".join(_fmt_line(l) for l in raw_tb.splitlines())
+        full_stack_html = "\n".join(_fmt_line(line) for line in raw_tb.splitlines())
 
         # Try to identify calling method/class from the current call stack
         caller_info = ""
@@ -280,10 +280,13 @@ class KernelLogger:
         body = (
             f"<blockquote><tg-emoji emoji-id=\"5379679518740978720\">🎯</tg-emoji> <b>Source:</b> <code>{html.escape(source_file)}</code>\n"
             f"<blockquote><tg-emoji emoji-id=\"5426900601101374618\">🧿</tg-emoji> <b>Error:</b> <code>{html.escape(error_text[:500])}</code></blockquote>"
+            f"</blockquote>"
         )
         if message_info:
+
             body += (
-                f"\n<tg-emoji emoji-id=\"5298499667569425533\">🃏</tg-emoji> <blo<b>Message:</b> <code>{html.escape(message_info[:300])}</code>"
+                f"\n<tg-emoji emoji-id=\"5298499667569425533\">🃏</tg-emoji> "
+                f"<blockquote><b>Message:</b> <code>{html.escape(message_info[:300])}</code></blockquote>"
             )
 
         await self.send_log_message(body)
@@ -320,8 +323,7 @@ class KernelLogger:
         rich = RichException.from_exc_info(*exc_info)
         k.cache.set(f"tb_{error_id}", rich.full_stack)
 
-        src_esc = html.escape(source or "unknown", quote=False)
-        body = f"<blockquote><tg-emoji emoji-id=\"5372846474881146350\">🔭</tg-emoji> <b>Source:</b> <code>{src_esc}</code>\n{rich.message}</blockquote>"
+        body = rich.message
 
         if event:
             try:
@@ -404,6 +406,5 @@ class KernelLogger:
         if not k.log_chat_id:
             return
         rich = RichException.from_exc_info(exc_type, exc_value, tb)
-        src_esc = html.escape(source, quote=False)
         body = rich.message
         await self.send_log_message(body)

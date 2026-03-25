@@ -46,11 +46,35 @@ __Table of Contents__
 # author: Author Name
 # version: 1.0.0
 # description: Module description here
+# banner_url: https://example.com/banner.png
 # scop: kernel (min|max|None) v(version|[__lastest__])
 
 def register(kernel):
     # Module code here
 ```
+
+### Module Header Comments
+
+Each module file can contain special comment directives:
+
+| Directive | Description |
+|-----------|-------------|
+| `# requires:` | Comma-separated list of pip packages |
+| `# author:` | Author name or username |
+| `# version:` | Module version (e.g. `1.0.0`) |
+| `# description:` | Short module description |
+| `# banner_url:` | URL to image for banner display on load/man |
+| `# scop:` | Kernel compatibility constraints |
+
+#### `# banner_url:` — Module Banner
+
+Displays an image banner when module loads or when viewing with `man` command.
+
+```python
+# banner_url: https://raw.githubusercontent.com/user/repo/main/banner.png
+```
+
+> Banner uses `invert_media=True` for better visibility.
 
 ## Kernel API Reference
 Core Properties

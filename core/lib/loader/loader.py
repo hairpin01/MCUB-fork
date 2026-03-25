@@ -963,27 +963,57 @@ class ModuleLoader:
             m = re.search(r"__author__\s*=\s*['\"]([^'\"]+)['\"]", code)
             if m:
                 metadata["author"] = m.group(1).strip()
+            else:
+                m = re.search(r"#\s*meta\s+developer:\s*(.+)", code, re.IGNORECASE)
+                if m:
+                    metadata["author"] = m.group(1).strip()
 
         if metadata["version"] == "X.X.X":
             m = re.search(r"__version__\s*=\s*['\"]([^'\"]+)['\"]", code)
             if m:
                 metadata["version"] = m.group(1).strip()
+            else:
+                m = re.search(
+                    r"__version__\s*=\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)", code
+                )
+                if m:
+                    metadata["version"] = f"{m.group(1)}.{m.group(2)}.{m.group(3)}"
 
         if metadata["description"] == "no description":
             strings_match = re.search(r"strings\s*=\s*\{([^}]+)\}", code, re.DOTALL)
             if strings_match:
                 strings_block = strings_match.group(1)
-                desc_m = re.search(
-                    r"['\"]desc['\"]\s*:\s*['\"]([^'\"]+)['\"]", strings_block
-                )
-                if desc_m:
-                    metadata["description"] = desc_m.group(1).strip()
-                else:
-                    name_m = re.search(
-                        r"['\"]name['\"]\s*:\s*['\"]([^'\"]+)['\"]", strings_block
-                    )
-                    if name_m:
-                        metadata["description"] = name_m.group(1).strip()
+                for pattern in [
+                    r"['\"]desc['\"]\s*:\s*['\"]([^'\"]+)['\"]",
+                    r"['\"]description['\"]\s*:\s*['\"]([^'\"]+)['\"]",
+                    r"['\"]help['\"]\s*:\s*['\"]([^'\"]+)['\"]",
+                ]:
+                    desc_m = re.search(pattern, strings_block)
+                    if desc_m:
+                        metadata["description"] = desc_m.group(1).strip()
+                        break
+
+        if metadata["banner_url"] is None:
+            m = re.search(r"banner\s*=\s*['\"]([^'\"]+)['\"]", code)
+            if m:
+                metadata["banner_url"] = m.group(1).strip()
+
+        if metadata["banner_url"] is None:
+            m = re.search(r"banner\s*=\s*['\"]([^'\"]+)['\"]", code)
+            if m:
+                metadata["banner_url"] = m.group(1).strip()
+            else:
+                strings_match = re.search(r"strings\s*=\s*\{([^}]+)\}", code, re.DOTALL)
+                if strings_match:
+                    strings_block = strings_match.group(1)
+                    for pattern in [
+                        r"['\"]banner['\"]\s*:\s*['\"]([^'\"]+)['\"]",
+                        r"['\"]pic['\"]\s*:\s*['\"]([^'\"]+)['\"]",
+                    ]:
+                        banner_m = re.search(pattern, strings_block)
+                        if banner_m:
+                            metadata["banner_url"] = banner_m.group(1).strip()
+                            break
 
         dec_pattern = (
             r"(@(?:kernel\.register\.command|register\.command|kernel\.register_command"

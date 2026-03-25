@@ -101,9 +101,9 @@ async def generate_detailed_page(search_term, kernel, strings):
             msg += f"\n<blockquote expandable>"
             for cmd, desc in inline_commands:
                 if desc:
-                    msg += f"{inline_emoji} <code>@{kernel.config.get('bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>\n"
+                    msg += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>\n"
                 else:
-                    msg += f"{inline_emoji} <code>@{kernel.config.get('bot_username', 'bot')} {cmd}</code>\n"
+                    msg += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code>\n"
             msg += "</blockquote>"
 
         msg += f"\n<blockquote>{CUSTOM_EMOJI['pancake']} <b>{strings['author']}:</b> <i>{metadata.get('author', strings['unknown'])}</i></blockquote>"

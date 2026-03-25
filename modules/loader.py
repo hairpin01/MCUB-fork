@@ -737,9 +737,9 @@ def register(kernel):
                         )
                         for cmd, desc in inline_commands:
                             if desc:
-                                commands_list += f"{inline_emoji} <code>@{kernel.config.get('bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>\n"
+                                commands_list += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>\n"
                             else:
-                                commands_list += f"{inline_emoji} <code>@{kernel.config.get('bot_username', 'bot')} {cmd}</code>\n"
+                                commands_list += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code>\n"
 
                     conflict_text = ""
                     if conflicts:
@@ -922,9 +922,9 @@ def register(kernel):
                     )
                     for cmd, desc in inline_commands:
                         if desc:
-                            commands_list += f"{inline_emoji} <code>@{kernel.config.get('bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>\n"
+                            commands_list += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>\n"
                         else:
-                            commands_list += f"{inline_emoji} <code>@{kernel.config.get('bot_username', 'bot')} {cmd}</code>\n"
+                            commands_list += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code>\n"
 
                 final_msg = t(
                     "module_loaded",
@@ -1464,9 +1464,9 @@ def register(kernel):
                         )
                         for cmd, desc in inline_commands:
                             if desc:
-                                commands_list += f"{inline_emoji} <code>@{kernel.config.get('bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>\n"
+                                commands_list += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>\n"
                             else:
-                                commands_list += f"{inline_emoji} <code>@{kernel.config.get('bot_username', 'bot')} {cmd}</code>\n"
+                                commands_list += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code>\n"
 
                     conflict_text = ""
                     if conflicts:
@@ -1607,9 +1607,9 @@ def register(kernel):
                     )
                     for cmd, desc in inline_commands:
                         if desc:
-                            commands_list += f"{inline_emoji} <code>@{kernel.config.get('bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>\n"
+                            commands_list += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>\n"
                         else:
-                            commands_list += f"{inline_emoji} <code>@{kernel.config.get('bot_username', 'bot')} {cmd}</code>\n"
+                            commands_list += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code>\n"
 
                 final_msg = t(
                     "module_loaded",

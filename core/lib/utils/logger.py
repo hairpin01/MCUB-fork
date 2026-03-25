@@ -3,11 +3,11 @@ import html
 import inspect
 import logging
 import re
+import sys
 import traceback
 import uuid
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
-from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
 from telethon import Button
@@ -21,10 +21,11 @@ from telethon.errors import (
 if TYPE_CHECKING:
     from kernel import Kernel
 
+_EMOJI_ID_RE = re.compile(r'emoji-id=["\'](\d+)["\']', re.IGNORECASE)
+
 SENSITIVE_PATTERNS = [
-    (
-        r"(?<!emoji-id=[\"'])\b\d{10,}\b", lambda m: "X" * len(m.group())
-    ),  # Long numbers (phone)
+    # Long numbers (phone / IDs) — emoji-id values are excluded separately below
+    (r"\b\d{10,}\b", lambda m: "X" * len(m.group())),
     (
         r"""token(?:['"\s:=]|&#x27;|&quot;)+(?:['"\s]|&#x27;|&quot;)?([A-Za-z0-9_-]+)""",
         r'token="***"',
@@ -50,12 +51,32 @@ SENSITIVE_PATTERNS = [
 
 
 def mask_sensitive_data(text: str) -> str:
-    """Mask sensitive data in text."""
+    """Mask sensitive data in text.
+
+    Emoji-id attribute values are preserved; all other long digit sequences
+    and credential-like patterns are redacted.
+    """
     if not text:
         return text
-    masked = text
+
+    # Step 1: collect emoji-id values so we can restore them after masking.
+    placeholders: dict[str, str] = {}
+    def _stash(m: re.Match) -> str:
+        key = f"\x00EMOJIID{len(placeholders)}\x00"
+        placeholders[key] = m.group(0)
+        return key
+
+    protected = _EMOJI_ID_RE.sub(_stash, text)
+
+    # Step 2: apply all sensitive patterns.
+    masked = protected
     for pattern, replacement in SENSITIVE_PATTERNS:
         masked = re.sub(pattern, replacement, masked, flags=re.IGNORECASE)
+
+    # Step 3: restore emoji-id values.
+    for key, original in placeholders.items():
+        masked = masked.replace(key, original)
+
     return masked
 
 
@@ -77,6 +98,13 @@ def override_text(exception: Exception) -> Optional[str]:
 
 
 _LINE_RE = re.compile(r'  File "(.*?)", line ([0-9]+), in (.+)')
+
+_STACK_INSPECT_DEPTH = 10
+
+# Skip frames that are part of the logger machinery itself.
+_LOGGER_FRAMES = frozenset(
+    {"handle_error", "from_exc_info", "log_error_from_exc", "<module>"}
+)
 
 
 class RichException:
@@ -119,19 +147,13 @@ class RichException:
                 )
             return f"<code>{html.escape(line)}</code>"
 
-        full_stack_html = "\n".join(_fmt_line(l) for l in raw_tb.splitlines())
+        full_stack_html = "\n".join(_fmt_line(line) for line in raw_tb.splitlines())
 
-        # Try to identify calling method/class from the current call stack
         caller_info = ""
-        for frame_info in inspect.stack():
+        for frame_info in inspect.stack()[:_STACK_INSPECT_DEPTH]:
             fn = frame_info.frame.f_locals.get("self")
             func = frame_info.function
-            if fn and func not in (
-                "handle_error",
-                "from_exc_info",
-                "log_error_from_exc",
-                "<module>",
-            ):
+            if fn and func not in _LOGGER_FRAMES:
                 caller_info = (
                     f"<blockquote><tg-emoji emoji-id=\"5426900601101374618\">🧿</tg-emoji> <b>Cause:</b> <code>{html.escape(func)}</code>"
                     f" of <code>{html.escape(type(fn).__name__)}</code></blockquote>\n"
@@ -192,13 +214,8 @@ class KernelLogger:
 
     def __init__(self, kernel: "Kernel") -> None:
         self.k = kernel
-        self._send_lock: "asyncio.Lock | None" = None
 
-    def _get_lock(self) -> asyncio.Lock:
-        """Return the send lock, creating it lazily inside the running loop."""
-        if self._send_lock is None:
-            self._send_lock = asyncio.Lock()
-        return self._send_lock
+        self._send_lock = asyncio.Lock()
 
     async def _get_client(self):
         """Pick bot_client when available and authorised, else fall back to user client."""
@@ -214,8 +231,6 @@ class KernelLogger:
     async def _send_with_retry(self, coro_factory, *, max_attempts: int = 2) -> bool:
         """Execute *coro_factory()* with automatic FloodWait retry.
 
-        Inspired by Heroku's ``_exc_sender`` pattern.
-
         Args:
             coro_factory: Zero-argument callable that returns a coroutine.
             max_attempts: How many times to retry on flood-wait before giving up.
@@ -223,6 +238,7 @@ class KernelLogger:
         Returns:
             True on success, False otherwise.
         """
+
         for attempt in range(max_attempts + 1):
             try:
                 await coro_factory()
@@ -236,7 +252,8 @@ class KernelLogger:
             except Exception as e:
                 self.k.logger.error(f"Log message send failed: {e}")
                 return False
-        return False
+
+        return False  # unreachable, satisfies type-checkers
 
     async def send_log_message(self, text: str, file=None) -> bool:
         """Send a message to the configured log chat.
@@ -251,7 +268,7 @@ class KernelLogger:
         if not k.log_chat_id:
             return False
 
-        async with self._get_lock():
+        async with self._send_lock:
             client = await self._get_client()
 
             async def _do_send():
@@ -277,13 +294,19 @@ class KernelLogger:
         if not self.k.log_chat_id:
             return
 
+        # FIX #4: Mask sensitive data before sending to Telegram.
+        safe_error = mask_sensitive_data(error_text[:500])
+        safe_source = html.escape(source_file)
+
         body = (
-            f"<blockquote><tg-emoji emoji-id=\"5379679518740978720\">🎯</tg-emoji> <b>Source:</b> <code>{html.escape(source_file)}</code>\n"
-            f"<blockquote><tg-emoji emoji-id=\"5426900601101374618\">🧿</tg-emoji> <b>Error:</b> <blockquote><code>{html.escape(error_text[:500])}</code></blockquote>"
+            f"<blockquote><tg-emoji emoji-id=\"5379679518740978720\">🎯</tg-emoji> <b>Source:</b> <code>{safe_source}</code>\n"
+            f"<blockquote><tg-emoji emoji-id=\"5426900601101374618\">🧿</tg-emoji> <b>Error:</b> <code>{html.escape(safe_error)}</code></blockquote>"
+            f"</blockquote>"
         )
         if message_info:
             body += (
-                f"\n<tg-emoji emoji-id=\"5298499667569425533\">🃏</tg-emoji> <b>Message:</b> <code>{html.escape(message_info[:300])}</code>"
+                f"\n<tg-emoji emoji-id=\"5298499667569425533\">🃏</tg-emoji> "
+                f"<blockquote><b>Message:</b> <code>{html.escape(message_info[:300])}</code></blockquote>"
             )
 
         await self.send_log_message(body)
@@ -318,10 +341,11 @@ class KernelLogger:
         # Build rich exception
         exc_info = (type(error), error, error.__traceback__)
         rich = RichException.from_exc_info(*exc_info)
-        k.cache.set(f"tb_{error_id}", rich.full_stack)
+
+        k.cache.set(f"tb_{error_id}", rich.full_stack, ttl=300)
 
         src_esc = html.escape(source or "unknown", quote=False)
-        body = f"<blockquote><tg-emoji emoji-id=\"5372846474881146350\">🔭</tg-emoji> <b>Source:</b> <code>{src_esc}</code>\n{rich.message}"
+        body = f"<blockquote><tg-emoji emoji-id=\"5372846474881146350\">🔭</tg-emoji> <b>Source Message:</b> <code>{src_esc}</code></blockquote>\n{rich.message}"
 
         if event:
             try:
@@ -342,10 +366,12 @@ class KernelLogger:
                 pass
 
         raw_tb = "".join(traceback.format_exception(*exc_info))
-        self.save_error_to_file(f"Error in {source}:\n{mask_sensitive_data(raw_tb)}")
+        masked_tb = mask_sensitive_data(raw_tb)
+
+        self.k.logger.error("Error in %s:\n%s", source, masked_tb)
 
         # Send to Telegram with traceback button
-        async with self._get_lock():
+        async with self._send_lock:
             client = await self._get_client()
 
             async def _do_send():
@@ -359,44 +385,33 @@ class KernelLogger:
             success = await self._send_with_retry(_do_send)
             if not success:
                 k.logger.error(f"Could not send error log: {error}")
-                k.logger.error(f"Original error: {mask_sensitive_data(raw_tb)}")
+                k.logger.error("Original error: %s", masked_tb)
 
-    def save_error_to_file(self, error_text: str) -> None:
-        """Append *error_text* to logs/kernel.log with a timestamp header.
+    async def log(self, message: str, emoji: str = "ℹ️") -> None:
+        """Send an event to the log chat and write it to the rotating log file.
 
         Args:
-            error_text: Full traceback or error message.
+            message: Human-readable description of the event.
+            emoji:   Prefix emoji that signals the event category.
         """
-        try:
-            log_dir = Path("logs")
-            log_dir.mkdir(exist_ok=True)
-            with open(log_dir / "kernel.log", "a", encoding="utf-8") as f:
-                sep = "=" * 60
-                f.write(f"\n\n{sep}\n")
-                f.write(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                f.write(f"{sep}\n{error_text}")
-        except Exception as e:
-            self.k.logger.error(f"Error writing to kernel.log: {e}")
+        await self.send_log_message(f"{emoji} {message}")
+        self.k.logger.info(message)
 
+    # Convenience aliases kept for backwards compatibility.
     async def log_network(self, message: str) -> None:
         """Send a network event to the log chat."""
-        await self.send_log_message(f"🌐 {message}")
-        self.k.logger.info(message)
+        await self.log(message, "🌐")
 
     async def log_error_async(self, message: str) -> None:
         """Send an error event to the log chat."""
-        await self.send_log_message(f"🔴 {message}")
-        self.k.logger.info(message)
+        await self.log(message, "🔴")
 
     async def log_module(self, message: str) -> None:
         """Send a module event to the log chat."""
-        await self.send_log_message(f"⚙️ {message}")
-        self.k.logger.info(message)
+        await self.log(message, "⚙️")
 
     async def log_error_from_exc(self, source: str = "unknown") -> None:
         """Send an error to the log chat using RichException for beautiful formatting."""
-        import sys
-
         exc_type, exc_value, tb = sys.exc_info()
         if exc_type is None:
             return
@@ -404,6 +419,5 @@ class KernelLogger:
         if not k.log_chat_id:
             return
         rich = RichException.from_exc_info(exc_type, exc_value, tb)
-        src_esc = html.escape(source, quote=False)
-        body = f"<blockquote><tg-emoji emoji-id=\"5321304062715517873\">🛰</tg-emoji> <b>Source:</b> <code>{src_esc}</code></blockquote>\n{rich.message}"
-        await self.send_log_message(body)
+
+        await self.send_log_message(mask_sensitive_data(rich.message))

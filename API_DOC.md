@@ -7,6 +7,8 @@ __Table of Contents__
 
 > 1. [Introduction](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#introduction)
 > 2. [Module Structure](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#module-structure)
+>    - [Module Header Comments](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#module-header-comments) (`# scop:`, `# requires:`, …)
+>    - [Command Descriptions](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#command-descriptions)
 > 3. [Kernel API Reference](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#kernel-api-reference)
 > 4. [Database API](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#database-api)
 > 5. [Key-Value Database API](https://github.com/hairpin01/MCUB-fork/blob/main/API_DOC.md#key-value-database-api)
@@ -46,10 +48,103 @@ __Table of Contents__
 # author: Author Name
 # version: 1.0.0
 # description: Module description here
+# banner_url: https://example.com/banner.png
 # scop: kernel (min|max|None) v(version|[__lastest__])
 
 def register(kernel):
     # Module code here
+```
+
+### Module Header Comments
+
+Each module file can contain special comment directives:
+
+| Directive | Description |
+|-----------|-------------|
+| `# requires:` | Comma-separated list of pip packages |
+| `# author:` | Author name or username |
+| `# version:` | Module version (e.g. `1.0.0`) |
+| `# description:` | Short module description |
+| `# banner_url:` | URL to image for banner display on load/man |
+| `# scop:` | Kernel compatibility constraints |
+
+> [!NOTE]
+> `# requires:` — библиотеки **обязательно** перечислять через запятую:
+> ```python
+> # requires: library1, library2, library3
+> ```
+> Без запятых зависимости не будут распознаны корректно.
+
+#### `# banner_url:` — Module Banner
+
+Displays an image banner when module loads or when viewing with `man` command.
+
+```python
+# banner_url: https://raw.githubusercontent.com/user/repo/main/banner.png
+```
+
+> Banner uses `invert_media=True` for better visibility.
+
+#### `# scop:` — Kernel Compatibility
+
+Controls which kernel versions the module is compatible with.
+
+**Syntax:**
+```
+# scop: inline
+# scop: ffmpeg
+# scop: kernel min v{version}
+# scop: kernel max v{version}
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `inline` | Module requires an inline bot to be configured |
+| `ffmpeg` | Module requires `ffmpeg` to be installed |
+| `kernel min v{version}` | Minimum kernel version required |
+| `kernel max v{version}` | Maximum kernel version supported |
+
+> [!NOTE]
+> For `min`/`max` version you can use `[__lastest__]` — the kernel will resolve it to the latest available version.
+
+**Multiple flags** can be combined:
+```python
+# scop: inline
+# scop: ffmpeg
+# scop: kernel min v1.0.2
+# scop: kernel max v[__lastest__]
+```
+
+### Command Descriptions
+
+To document a command, place a single-line comment **immediately after** the `@kernel.register.command(...)` decorator.
+
+**Format:**
+```python
+@kernel.register.command("cmd", alias=['command'])
+# list trust users
+async def command_handler(event):
+    # ...
+```
+
+> [!TIP]
+> Keep command descriptions to **one line** — concise and lowercase.
+
+**Full example:**
+```python
+def register(kernel):
+
+    @kernel.register.command("trust", alias=['tl'])
+    # list trusted users
+    async def trust_list(event):
+        ...
+
+    @kernel.register.command("untrust", alias=['utl'])
+    # remove user from trust list
+    async def untrust_user(event):
+        ...
 ```
 
 ## Kernel API Reference

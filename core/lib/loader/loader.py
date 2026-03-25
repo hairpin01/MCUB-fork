@@ -946,16 +946,91 @@ class ModuleLoader:
             "version": "X.X.X",
             "description": "no description",
             "commands": {},
+            "banner_url": None,
         }
 
         for key, pat in {
             "author": r"#\s*author\s*:\s*(.+)",
             "version": r"#\s*version\s*:\s*(.+)",
             "description": r"#\s*description\s*:\s*(.+)",
+            "banner_url": r"#\s*banner_url\s*:\s*(.+)",
         }.items():
             m = re.search(pat, code, re.IGNORECASE)
             if m:
                 metadata[key] = m.group(1).strip()
+
+        if metadata["author"] == "unknown":
+            m = re.search(r"__author__\s*=\s*['\"]([^'\"]+)['\"]", code)
+            if m:
+                metadata["author"] = m.group(1).strip()
+            else:
+                m = re.search(r"#\s*meta\s+developer:\s*(.+)", code, re.IGNORECASE)
+                if m:
+                    metadata["author"] = m.group(1).strip()
+
+        if metadata["version"] == "X.X.X":
+            m = re.search(r"__version__\s*=\s*['\"]([^'\"]+)['\"]", code)
+            if m:
+                metadata["version"] = m.group(1).strip()
+            else:
+                m = re.search(
+                    r"__version__\s*=\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)", code
+                )
+                if m:
+                    metadata["version"] = f"{m.group(1)}.{m.group(2)}.{m.group(3)}"
+
+        if metadata["description"] == "no description":
+            strings_match = re.search(r"strings\s*=\s*\{([^}]+)\}", code, re.DOTALL)
+            if strings_match:
+                strings_block = strings_match.group(1)
+                for pattern in [
+                    r"['\"]desc['\"]\s*:\s*['\"]([^'\"]+)['\"]",
+                    r"['\"]description['\"]\s*:\s*['\"]([^'\"]+)['\"]",
+                    r"['\"]help['\"]\s*:\s*['\"]([^'\"]+)['\"]",
+                ]:
+                    desc_m = re.search(pattern, strings_block)
+                    if desc_m:
+                        metadata["description"] = desc_m.group(1).strip()
+                        break
+
+        if metadata["description"] == "no description":
+            m = re.search(
+                r"class\s+\w+[^:]*:\s*\n(\s*'''(.+?)'''|\s*\"\"\"(.+?)\"\"\")",
+                code,
+                re.DOTALL,
+            )
+            if m:
+                doc = m.group(2) or m.group(3)
+                if doc:
+                    metadata["description"] = doc.strip().split("\n")[0].strip()
+
+        if metadata["description"] == "no description":
+            m = re.search(
+                r"def\s+register\s*\([^)]*\)[^:]*:\s*\n(\s*'''(.+?)'''|\s*\"\"\"(.+?)\"\"\")",
+                code,
+                re.DOTALL,
+            )
+            if m:
+                doc = m.group(2) or m.group(3)
+                if doc:
+                    metadata["description"] = doc.strip().split("\n")[0].strip()
+
+        if metadata["banner_url"] is None:
+            m = re.search(r"banner\s*=\s*['\"]([^'\"]+)['\"]", code)
+            if m:
+                metadata["banner_url"] = m.group(1).strip()
+            else:
+                strings_match = re.search(r"strings\s*=\s*\{([^}]+)\}", code, re.DOTALL)
+                if strings_match:
+                    strings_block = strings_match.group(1)
+                    for pattern in [
+                        r"['\"]banner['\"]\s*:\s*['\"]([^'\"]+)['\"]",
+                        r"['\"]pic['\"]\s*:\s*['\"]([^'\"]+)['\"]",
+                    ]:
+                        banner_m = re.search(pattern, strings_block)
+                        if banner_m:
+                            metadata["banner_url"] = banner_m.group(1).strip()
+                            break
 
         dec_pattern = (
             r"(@(?:kernel\.register\.command|register\.command|kernel\.register_command"
@@ -1055,3 +1130,97 @@ class ModuleLoader:
             return meta["commands"].get(command, "🫨 No description")
         except Exception:
             return "🫨 No description"
+
+    def get_module_commands(self, module_name: str) -> Tuple[list, dict, dict]:
+        """Get commands, aliases and descriptions for a module.
+
+        Args:
+            module_name: Name of the module.
+
+        Returns:
+            Tuple of (commands list, aliases dict {cmd: [aliases]}, descriptions dict {cmd: str})
+        """
+        import os
+        import re
+
+        k = self.k
+        commands = []
+        aliases_info = {}
+        descriptions = {}
+
+        module = None
+        if module_name in k.system_modules:
+            module = k.system_modules[module_name]
+        elif module_name in k.loaded_modules:
+            module = k.loaded_modules[module_name]
+
+        if module:
+            for cmd, owner in k.command_owners.items():
+                if owner == module_name:
+                    commands.append(cmd)
+
+            for cmd in commands:
+                handler = k.command_handlers.get(cmd)
+                if handler:
+                    doc = getattr(handler, "__doc__", None)
+                    if doc:
+                        descriptions[cmd] = doc.strip()
+
+        file_path = None
+        if not commands:
+            if module_name in k.system_modules:
+                file_path = f"modules/{module_name}.py"
+            elif module_name in k.loaded_modules:
+                file_path = f"modules_loaded/{module_name}.py"
+
+            if file_path and os.path.exists(file_path):
+                try:
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        code = f.read()
+
+                    patterns = [
+                        r"@kernel\.register\.command\s*\(\s*['\"]([^'\"]+)['\"]",
+                        r"kernel\.register\.command\s*\(\s*['\"]([^'\"]+)['\"]",
+                        r"@kernel\.register_command\s*\(\s*['\"]([^'\"]+)['\"]",
+                        r"kernel\.register_command\s*\(\s*['\"]([^'\"]+)['\"]",
+                        r"register_command\s*\(\s*['\"]([^'\"]+)['\"]",
+                        r"pattern\s*=\s*r['\"]\^?\\?\.([a-zA-Z0-9_]+)['\"]",
+                        r"pattern\s*=\s*r['\"]\\\\\.([^'\"]+)['\"]",
+                    ]
+
+                    for pattern in patterns:
+                        found = re.findall(pattern, code)
+                        commands.extend(found)
+
+                    def _get_doc_from_code(code: str, func_name: str) -> str | None:
+                        pattern = rf"async\s+def\s+{re.escape(func_name)}\s*\([^)]*\)\s*(?:->\s*[^:]+)?\s*:\s*\n(\s*'''(.+?)'''|\s*\"\"\"(.+?)\"\"\")"
+                        match = re.search(pattern, code, re.DOTALL)
+                        if match:
+                            return (match.group(2) or match.group(3)).strip()
+                        return None
+
+                    for cmd in commands:
+                        if cmd:
+                            doc = _get_doc_from_code(code, cmd)
+                            if doc:
+                                descriptions[cmd] = doc
+
+                except Exception as e:
+                    k.logger.error(f"Error parsing commands for {module_name}: {e}")
+
+        seen = set()
+        uniq = []
+        for c in commands:
+            if c and c not in seen:
+                seen.add(c)
+                uniq.append(c)
+        commands = uniq
+
+        for alias, target_cmd in k.aliases.items():
+            if target_cmd in commands:
+                if target_cmd not in aliases_info:
+                    aliases_info[target_cmd] = []
+                if alias not in aliases_info[target_cmd]:
+                    aliases_info[target_cmd].append(alias)
+
+        return commands, aliases_info, descriptions

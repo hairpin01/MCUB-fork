@@ -12,6 +12,7 @@ from datetime import datetime
 import html
 import random
 from telethon import Button
+from telethon.types import InputMediaWebPage
 
 try:
     from core.lib.loader.hikka_compat import (
@@ -32,6 +33,16 @@ except ImportError:
 
     async def unload_hikka_module(kernel, name):
         return False
+
+
+async def safe_edit(msg, *args, **kwargs):
+    """Edit message, ignoring MessageNotModifiedError."""
+    try:
+        return await msg.edit(*args, **kwargs)
+    except Exception as e:
+        if "Content of the message was not modified" in str(e):
+            return msg
+        raise
 
 
 logger = logging.getLogger("mcub.loader")
@@ -65,6 +76,7 @@ CUSTOM_EMOJI = {
     "convert": '<tg-emoji emoji-id="5332600281970517875">🔄</tg-emoji>',
     "download": '<tg-emoji emoji-id="5469785308386041323">⬇️</tg-emoji>',
     "no_cmd": '<tg-emoji emoji-id="5429428837895141860">🫨</tg-emoji>',
+    "author": '<tg-emoji emoji-id="5332630862137685609">💖</tg-emoji>',
 }
 
 # Случайные эмодзи для завершения
@@ -127,7 +139,7 @@ def register(kernel):
             "log_loading_module": "=- Loading module {module_name}...",
             "log_module_loaded": "=> Module loaded successfully",
             "log_commands_found": "=> Commands found: {count}",
-            "module_loaded": "{success} <b>Module {module_name} loaded!</b> {emoji}\n<blockquote expandable>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote expandable>{commands_list}</blockquote>",
+            "module_loaded": "{success} <b>Module {module_name} loaded!</b> {emoji}\n<blockquote expandable>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote expandable>{commands_list}</blockquote>\n<blockquote>{emoji_author} Author: {author}</blockquote>",
             "no_cmd_desc": "{no_cmd} Command has no description",
             "command_line": "{crystal} <code>{prefix}{cmd}</code> – <b>{desc}</b>",
             "aliases_text": " (Aliases: {alias_text})",
@@ -236,7 +248,7 @@ def register(kernel):
             "log_loading_module": "=- Загружаю модуль {module_name}...",
             "log_module_loaded": "=> Модуль успешно загружен",
             "log_commands_found": "=> Найдено команд: {count}",
-            "module_loaded": "{success} <b>Модуль {module_name} загружен!</b> {emoji}\n<blockquote expandable>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote expandable>{commands_list}</blockquote>",
+            "module_loaded": "{success} <b>Модуль {module_name} загружен!</b> {emoji}\n<blockquote expandable>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote expandable>{commands_list}</blockquote>\n<blockquote>{emoji_author} Author: {author}</blockquote>",
             "no_cmd_desc": "{no_cmd} У команды нету описания",
             "command_line": "{crystal} <code>{prefix}{cmd}</code> – <b>{desc}</b>",
             "aliases_text": " (Aliases: {alias_text})",
@@ -372,86 +384,7 @@ def register(kernel):
             return await client.send_message(chat_id, fallback_text, **kwargs)
 
     def get_module_commands(module_name, kernel):
-        commands = []
-        aliases_info = {}
-
-        module = None
-        if module_name in kernel.system_modules:
-            module = kernel.system_modules[module_name]
-        elif module_name in kernel.loaded_modules:
-            module = kernel.loaded_modules[module_name]
-
-        if module:
-            for cmd, owner in kernel.command_owners.items():
-                if owner == module_name:
-                    commands.append(cmd)
-
-        file_path = None
-        if not commands:
-            if module_name in kernel.system_modules:
-                file_path = f"modules/{module_name}.py"
-            elif module_name in kernel.loaded_modules:
-                file_path = f"modules_loaded/{module_name}.py"
-
-            if file_path and os.path.exists(file_path):
-                try:
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        code = f.read()
-
-                        patterns = [
-                            # Новый формат
-                            r"@kernel\.register\.command\('([^']+)'\)",
-                            r"kernel\.register\.command\('([^']+)'\)",
-                            # Старый формат
-                            r"@kernel\.register_command\('([^']+)'\)",
-                            r"kernel\.register_command\('([^']+)'\)",
-                            # Формат с client.on
-                            r"@client\.on\(events\.NewMessage\(outgoing=True,\s*pattern=r'\\\\.([^']+)'\)\)",
-                            # Формат с декоратором register
-                            r"@register\.command\('([^']+)'\)",
-                            # Формат с кастомным префиксом
-                            r"pattern=r'\\{}(\[^'\]]+)'".format(
-                                re.escape(kernel.custom_prefix)
-                            ),
-                        ]
-
-                        for pattern in patterns:
-                            found = re.findall(pattern, code)
-                            commands.extend(found)
-
-                        for cmd in commands:
-                            cmd_pattern = rf"(?:@kernel\.register\.command|kernel\.register\.command|@kernel\.register_command|kernel\.register_command)\(['\"]{cmd}['\"][^)]+alias\s*=\s*(.+?)\)"
-                            cmd_match = re.search(cmd_pattern, code, re.DOTALL)
-                            if cmd_match:
-                                alias_part = cmd_match.group(1)
-                                if alias_part.startswith("["):
-                                    aliases = re.findall(
-                                        r"['\"]([^'\"]+)['\"]", alias_part
-                                    )
-                                    if aliases:
-                                        aliases_info[cmd] = aliases
-                                else:
-                                    alias_match = re.search(
-                                        r"['\"]([^'\"]+)['\"]", alias_part
-                                    )
-                                    if alias_match:
-                                        aliases_info[cmd] = [alias_match.group(1)]
-
-                except Exception as e:
-                    kernel.logger.error(
-                        f"Ошибка при парсинге команд модуля {module_name}: {e}"
-                    )
-
-        for alias, target_cmd in kernel.aliases.items():
-            if target_cmd in commands:
-                if target_cmd not in aliases_info:
-                    aliases_info[target_cmd] = []
-                if alias not in aliases_info[target_cmd]:
-                    aliases_info[target_cmd].append(alias)
-
-        commands = list(set([cmd for cmd in commands if cmd]))
-
-        return commands, aliases_info
+        return kernel._loader.get_module_commands(module_name)
 
     async def load_module_from_file(file_path, module_name, is_system=False):
         try:
@@ -777,12 +710,16 @@ def register(kernel):
                 extra = extra or {}
                 conflicts = extra.get("conflicts", [])
                 if ok:
-                    commands, aliases_info = get_module_commands(module_name, kernel)
+                    commands, aliases_info, descriptions = get_module_commands(
+                        module_name, kernel
+                    )
                     emoji = random.choice(RANDOM_EMOJIS)
                     commands_list = ""
                     for cmd in commands:
-                        cmd_desc = metadata["commands"].get(
-                            cmd, t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
+                        cmd_desc = (
+                            descriptions.get(cmd)
+                            or metadata["commands"].get(cmd)
+                            or t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
                         )
                         command_line = t(
                             "command_line",
@@ -803,19 +740,57 @@ def register(kernel):
                             conflict_text += f"<code>{cf['command']}</code> — registered by <code>{owner}</code>\n"
 
                     kernel.logger.info(f"Hikka модуль {module_name} установлен")
-                    await edit_with_emoji(
-                        msg,
-                        t(
-                            "module_loaded",
-                            success=CUSTOM_EMOJI["success"],
-                            module_name=module_name,
-                            emoji=emoji,
-                            idea=CUSTOM_EMOJI["idea"],
-                            description=metadata["description"],
-                            version=metadata["version"],
-                            commands_list=commands_list + conflict_text,
-                        ),
-                    )
+
+                    banner_url = metadata.get("banner_url")
+                    if banner_url and banner_url.startswith(("http://", "https://")):
+                        try:
+                            media = InputMediaWebPage(banner_url, optional=True)
+                            await msg.edit(
+                                t(
+                                    "module_loaded",
+                                    success=CUSTOM_EMOJI["success"],
+                                    module_name=module_name,
+                                    emoji=emoji,
+                                    idea=CUSTOM_EMOJI["idea"],
+                                    description=metadata["description"],
+                                    version=metadata["version"],
+                                    commands_list=commands_list + conflict_text,
+                                ),
+                                file=media,
+                                parse_mode="html",
+                                invert_media=True,
+                            )
+                        except Exception as e:
+                            kernel.logger.error(f"Banner edit error: {e}")
+                            await edit_with_emoji(
+                                msg,
+                                t(
+                                    "module_loaded",
+                                    success=CUSTOM_EMOJI["success"],
+                                    module_name=module_name,
+                                    emoji=emoji,
+                                    idea=CUSTOM_EMOJI["idea"],
+                                    description=metadata["description"],
+                                    version=metadata["version"],
+                                    commands_list=commands_list + conflict_text,
+                                ),
+                            )
+                    else:
+                        await edit_with_emoji(
+                            msg,
+                            t(
+                                "module_loaded",
+                                success=CUSTOM_EMOJI["success"],
+                                module_name=module_name,
+                                emoji=emoji,
+                                idea=CUSTOM_EMOJI["idea"],
+                                description=metadata["description"],
+                                version=metadata["version"],
+                                author=metadata.get("author", "unknown"),
+                                emoji_author=CUSTOM_EMOJI["author"],
+                                commands_list=commands_list + conflict_text,
+                            ),
+                        )
                 else:
                     add_log(t("log_install_error", error=err))
                     log_text = "\n".join(install_log)
@@ -884,7 +859,9 @@ def register(kernel):
 
             if success:
                 add_log(t("log_module_loaded"))
-                commands, aliases_info = get_module_commands(module_name, kernel)
+                commands, aliases_info, descriptions = get_module_commands(
+                    module_name, kernel
+                )
 
                 emoji = random.choice(RANDOM_EMOJIS)
 
@@ -892,9 +869,12 @@ def register(kernel):
                 if commands:
                     add_log(t("log_commands_found", count=len(commands)))
                     for cmd in commands:
-                        cmd_desc = metadata["commands"].get(
-                            cmd, t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
+                        cmd_desc = (
+                            descriptions.get(cmd)
+                            or metadata["commands"].get(cmd)
+                            or t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
                         )
+
                         command_line = t(
                             "command_line",
                             crystal=CUSTOM_EMOJI["crystal"],
@@ -932,11 +912,25 @@ def register(kernel):
                     idea=CUSTOM_EMOJI["idea"],
                     description=metadata["description"],
                     version=metadata["version"],
+                    author=metadata.get("author", "unknown"),
+                    emoji_author=CUSTOM_EMOJI["author"],
                     commands_list=commands_list,
                 )
 
                 kernel.logger.info(f"Модуль {module_name} установлен")
-                await edit_with_emoji(msg, final_msg)
+
+                banner_url = metadata.get("banner_url")
+                if banner_url and banner_url.startswith(("http://", "https://")):
+                    try:
+                        media = InputMediaWebPage(banner_url, optional=True)
+                        await msg.edit(
+                            final_msg, file=media, parse_mode="html", invert_media=True
+                        )
+                    except Exception as e:
+                        kernel.logger.error(f"Banner edit error: {e}")
+                        await edit_with_emoji(msg, final_msg)
+                else:
+                    await edit_with_emoji(msg, final_msg)
 
             else:
                 add_log(t("log_install_error", error=message_text))
@@ -1419,14 +1413,18 @@ def register(kernel):
                 conflicts = extra.get("conflicts", [])
                 if ok:
                     add_log(t("log_module_loaded_kernel"))
-                    commands, aliases_info = get_module_commands(module_name, kernel)
+                    commands, aliases_info, descriptions = get_module_commands(
+                        module_name, kernel
+                    )
                     emoji = random.choice(RANDOM_EMOJIS)
                     commands_list = ""
                     if commands:
                         add_log(t("log_commands_found", count=len(commands)))
                         for cmd in commands:
-                            cmd_desc = metadata["commands"].get(
-                                cmd, t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
+                            cmd_desc = (
+                                descriptions.get(cmd)
+                                or metadata["commands"].get(cmd)
+                                or t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
                             )
                             command_line = t(
                                 "command_line",
@@ -1447,19 +1445,61 @@ def register(kernel):
                             conflict_text += f"<code>{cf['command']}</code> — registered by <code>{owner}</code>\n"
 
                     kernel.logger.info(f"Hikka модуль {module_name} установлен")
-                    await edit_with_emoji(
-                        msg,
-                        t(
-                            "module_loaded",
-                            success=CUSTOM_EMOJI["success"],
-                            module_name=module_name,
-                            emoji=emoji,
-                            idea=CUSTOM_EMOJI["idea"],
-                            description=metadata["description"],
-                            version=metadata["version"],
-                            commands_list=commands_list + conflict_text,
-                        ),
-                    )
+
+                    banner_url = metadata.get("banner_url")
+                    if banner_url and banner_url.startswith(("http://", "https://")):
+                        try:
+                            media = InputMediaWebPage(banner_url, optional=True)
+                            await msg.edit(
+                                t(
+                                    "module_loaded",
+                                    success=CUSTOM_EMOJI["success"],
+                                    module_name=module_name,
+                                    emoji=emoji,
+                                    idea=CUSTOM_EMOJI["idea"],
+                                    description=metadata["description"],
+                                    version=metadata["version"],
+                                    author=metadata.get("author", "unknown"),
+                                    emoji_author=CUSTOM_EMOJI["author"],
+                                    commands_list=commands_list + conflict_text,
+                                ),
+                                file=media,
+                                parse_mode="html",
+                                invert_media=True,
+                            )
+                        except Exception as e:
+                            kernel.logger.error(f"Banner edit error: {e}")
+                            await edit_with_emoji(
+                                msg,
+                                t(
+                                    "module_loaded",
+                                    success=CUSTOM_EMOJI["success"],
+                                    module_name=module_name,
+                                    emoji=emoji,
+                                    idea=CUSTOM_EMOJI["idea"],
+                                    description=metadata["description"],
+                                    version=metadata["version"],
+                                    author=metadata.get("author", "unknown"),
+                                    emoji_author=CUSTOM_EMOJI["author"],
+                                    commands_list=commands_list + conflict_text,
+                                ),
+                            )
+                    else:
+                        await edit_with_emoji(
+                            msg,
+                            t(
+                                "module_loaded",
+                                success=CUSTOM_EMOJI["success"],
+                                module_name=module_name,
+                                emoji=emoji,
+                                idea=CUSTOM_EMOJI["idea"],
+                                description=metadata["description"],
+                                version=metadata["version"],
+                                author=metadata.get("author", "unknown"),
+                                emoji_author=CUSTOM_EMOJI["author"],
+                                commands_list=commands_list + conflict_text,
+                            ),
+                        )
                 else:
                     add_log(t("log_install_error", error=err))
                     log_text = "\n".join(install_log)
@@ -1483,16 +1523,21 @@ def register(kernel):
 
             if success:
                 add_log(t("log_module_loaded_kernel"))
-                commands, aliases_info = get_module_commands(module_name, kernel)
+                commands, aliases_info, descriptions = get_module_commands(
+                    module_name, kernel
+                )
                 emoji = random.choice(RANDOM_EMOJIS)
 
                 commands_list = ""
                 if commands:
                     add_log(t("log_commands_found", count=len(commands)))
                     for cmd in commands:
-                        cmd_desc = metadata["commands"].get(
-                            cmd, t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
+                        cmd_desc = (
+                            descriptions.get(cmd)
+                            or metadata["commands"].get(cmd)
+                            or t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
                         )
+
                         command_line = t(
                             "command_line",
                             crystal=CUSTOM_EMOJI["crystal"],
@@ -1530,11 +1575,25 @@ def register(kernel):
                     idea=CUSTOM_EMOJI["idea"],
                     description=metadata["description"],
                     version=metadata["version"],
+                    author=metadata.get("author", "unknown"),
+                    emoji_author=CUSTOM_EMOJI["author"],
                     commands_list=commands_list,
                 )
 
                 kernel.logger.info(f"Модуль {module_name} скачан")
-                await edit_with_emoji(msg, final_msg)
+
+                banner_url = metadata.get("banner_url")
+                if banner_url and banner_url.startswith(("http://", "https://")):
+                    try:
+                        media = InputMediaWebPage(banner_url, optional=True)
+                        await msg.edit(
+                            final_msg, file=media, parse_mode="html", invert_media=True
+                        )
+                    except Exception as e:
+                        kernel.logger.error(f"Banner edit error: {e}")
+                        await edit_with_emoji(msg, final_msg)
+                else:
+                    await edit_with_emoji(msg, final_msg)
             else:
                 add_log(t("log_install_error", error=message_text))
                 log_text = "\n".join(install_log)
@@ -1829,14 +1888,14 @@ def register(kernel):
         if kernel.system_modules:
             msg += t("system_modules", shield=CUSTOM_EMOJI["shield"])
             for name in sorted(kernel.system_modules.keys()):
-                commands, _ = get_module_commands(name, kernel)
+                commands, _, _ = get_module_commands(name, kernel)
                 msg += t("module_line", name=name, count=len(commands))
             msg += "\n"
 
         if kernel.loaded_modules:
             msg += t("user_modules", sparkle=CUSTOM_EMOJI["sparkle"])
             for name in sorted(kernel.loaded_modules.keys()):
-                commands, _ = get_module_commands(name, kernel)
+                commands, _, _ = get_module_commands(name, kernel)
                 msg += t("module_line", name=name, count=len(commands))
 
         await edit_with_emoji(event, msg)

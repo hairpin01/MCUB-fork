@@ -9,7 +9,7 @@ import subprocess
 from datetime import datetime
 
 from utils.platform import get_platform, is_wsl, is_termux
-from telethon.tl.types import MessageEntityTextUrl
+from telethon.tl.types import MessageEntityTextUrl, InputMediaWebPage
 from telethon import functions
 from pathlib import Path
 from copy import copy
@@ -56,7 +56,7 @@ CUSTOM_EMOJI = {
     "❌": '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji>',
     "⚠️": '<tg-emoji emoji-id="5904692292324692386">⚠️</tg-emoji>',
     "🧩": '<tg-emoji emoji-id="5332534105114445343">🧩</tg-emoji>',
-    '🌐': '<tg-emoji emoji-id="4906943755644306322">🌐</tg-emoji>',
+    "🌐": '<tg-emoji emoji-id="4906943755644306322">🌐</tg-emoji>',
 }
 
 ZERO_WIDTH_CHAR = "\u2060"
@@ -83,26 +83,26 @@ def add_link_preview(text, entities, link):
 
 def register(kernel):
     client = kernel.client
-    language = kernel.config.get('language', 'en')
+    language = kernel.config.get("language", "en")
 
     # Локализованные строки
     strings = {
-        'en': {
-            'custom_text_error': '<b>Error in custom text format:</b> {error}',
-            'quote_mode_error': 'Error in quote mode',
-            'send_banner_error': 'Error sending banner',
-            'error_see_logs': '{warning} <b>Error, see logs</b>',
+        "en": {
+            "custom_text_error": "<b>Error in custom text format:</b> {error}",
+            "quote_mode_error": "Error in quote mode",
+            "send_banner_error": "Error sending banner",
+            "error_see_logs": "{warning} <b>Error, see logs</b>",
         },
-        'ru': {
-            'custom_text_error': '<b>Ошибка в форматировании кастомного текста:</b> {error}',
-            'quote_mode_error': 'Ошибка в режиме цитирования',
-            'send_banner_error': 'Ошибка отправки баннера',
-            'error_see_logs': '{warning} <b>Ошибка, смотри логи</b>',
-        }
+        "ru": {
+            "custom_text_error": "<b>Ошибка в форматировании кастомного текста:</b> {error}",
+            "quote_mode_error": "Ошибка в режиме цитирования",
+            "send_banner_error": "Ошибка отправки баннера",
+            "error_see_logs": "{warning} <b>Ошибка, смотри логи</b>",
+        },
     }
 
     # Получаем строки для текущего языка
-    lang_strings = strings.get(language, strings['en'])
+    lang_strings = strings.get(language, strings["en"])
 
     def t(key, **kwargs):
         """Возвращает локализованную строку с подстановкой значений"""
@@ -142,7 +142,7 @@ def register(kernel):
         return f"{secs}s"
 
     async def check_update():
-        cached = kernel.cache.get('info:update_needed')
+        cached = kernel.cache.get("info:update_needed")
         if cached is not None:
             return cached
         try:
@@ -150,7 +150,8 @@ def register(kernel):
 
             async def run_git(args):
                 process = await asyncio.create_subprocess_exec(
-                    "git", *args,
+                    "git",
+                    *args,
                     cwd=repo_path,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
@@ -166,10 +167,10 @@ def register(kernel):
             code, output = await run_git(["rev-list", "--count", "HEAD..@{u}"])
             if code == 0 and output.isdigit():
                 result = int(output) > 0
-                kernel.cache.set('info:update_needed', result, ttl=300)
+                kernel.cache.set("info:update_needed", result, ttl=300)
                 return result
 
-            kernel.cache.set('info:update_needed', False, ttl=300)
+            kernel.cache.set("info:update_needed", False, ttl=300)
             return False
         except Exception:
             return False
@@ -187,7 +188,9 @@ def register(kernel):
             proc_meminfo_path = "/proc/meminfo"
 
             try:
-                if os.path.exists(proc_stat_path) and os.access(proc_stat_path, os.R_OK):
+                if os.path.exists(proc_stat_path) and os.access(
+                    proc_stat_path, os.R_OK
+                ):
                     with open(proc_stat_path, "r") as f:
                         for line in f:
                             if line.startswith("cpu "):
@@ -200,7 +203,9 @@ def register(kernel):
                                     cpu_usage = f"{cpu_percent:.1f}%"
                                 break
 
-                if os.path.exists(proc_meminfo_path) and os.access(proc_meminfo_path, os.R_OK):
+                if os.path.exists(proc_meminfo_path) and os.access(
+                    proc_meminfo_path, os.R_OK
+                ):
                     meminfo = {}
                     with open(proc_meminfo_path, "r") as f:
                         for line in f:
@@ -210,7 +215,9 @@ def register(kernel):
 
                     if "MemTotal" in meminfo:
                         total = int(meminfo["MemTotal"].split()[0])
-                        available = meminfo.get("MemAvailable", meminfo.get("MemFree", "0"))
+                        available = meminfo.get(
+                            "MemAvailable", meminfo.get("MemFree", "0")
+                        )
                         available = int(available.split()[0])
                         used = total - available
                         if total > 0:
@@ -228,38 +235,83 @@ def register(kernel):
             msg = await event.edit(resolve_info_start_emoji(), parse_mode="html")
             ping_time = round((time.time() - start_time) * 1000, 2)
 
-            core_name  = getattr(kernel, "CORE_NAME", "standard")
+            core_name = getattr(kernel, "CORE_NAME", "standard")
 
             uptime_str = format_uptime(time.time() - kernel.start_time)
 
             custom_text = kernel.config.get("info_custom_text")
 
             if custom_text:
+
                 def uses(*keys):
                     return any(f"{{{k}}}" in custom_text for k in keys)
 
                 _now = datetime.now()
-                _month_names_ru = ["Января","Февраля","Марта","Апреля","Мая","Июня",
-                                   "Июля","Августа","Сентября","Октября","Ноября","Декабря"]
-                _month_names_en = ["January","February","March","April","May","June",
-                                   "July","August","September","October","November","December"]
-                _weekday_names_ru = ["Понедельник","Вторник","Среда","Четверг","Пятница","Суббота","Воскресенье"]
-                _weekday_names_en = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+                _month_names_ru = [
+                    "Января",
+                    "Февраля",
+                    "Марта",
+                    "Апреля",
+                    "Мая",
+                    "Июня",
+                    "Июля",
+                    "Августа",
+                    "Сентября",
+                    "Октября",
+                    "Ноября",
+                    "Декабря",
+                ]
+                _month_names_en = [
+                    "January",
+                    "February",
+                    "March",
+                    "April",
+                    "May",
+                    "June",
+                    "July",
+                    "August",
+                    "September",
+                    "October",
+                    "November",
+                    "December",
+                ]
+                _weekday_names_ru = [
+                    "Понедельник",
+                    "Вторник",
+                    "Среда",
+                    "Четверг",
+                    "Пятница",
+                    "Суббота",
+                    "Воскресенье",
+                ]
+                _weekday_names_en = [
+                    "Monday",
+                    "Tuesday",
+                    "Wednesday",
+                    "Thursday",
+                    "Friday",
+                    "Saturday",
+                    "Sunday",
+                ]
                 _use_ru = language == "ru"
-                now_date       = _now.strftime("%d.%m.%Y")
-                now_time       = _now.strftime("%H:%M:%S")
-                now_day        = _now.strftime("%d")
-                now_month      = _now.strftime("%m")
-                now_month_name = (_month_names_ru if _use_ru else _month_names_en)[_now.month - 1]
-                now_year       = _now.strftime("%Y")
-                now_weekday    = (_weekday_names_ru if _use_ru else _weekday_names_en)[_now.weekday()]
-                now_hour       = _now.strftime("%H")
-                now_minute     = _now.strftime("%M")
-                now_second     = _now.strftime("%S")
+                now_date = _now.strftime("%d.%m.%Y")
+                now_time = _now.strftime("%H:%M:%S")
+                now_day = _now.strftime("%d")
+                now_month = _now.strftime("%m")
+                now_month_name = (_month_names_ru if _use_ru else _month_names_en)[
+                    _now.month - 1
+                ]
+                now_year = _now.strftime("%Y")
+                now_weekday = (_weekday_names_ru if _use_ru else _weekday_names_en)[
+                    _now.weekday()
+                ]
+                now_hour = _now.strftime("%H")
+                now_minute = _now.strftime("%M")
+                now_second = _now.strftime("%S")
 
                 # distro_name / distro_emoji
                 if uses("distro_name", "distro_emoji"):
-                    distro_name = kernel.cache.get('info:distro_name')
+                    distro_name = kernel.cache.get("info:distro_name")
                     if distro_name is None:
                         distro_name = "Unknown"
                         try:
@@ -267,13 +319,15 @@ def register(kernel):
                                 with open("/etc/os-release", "r") as f:
                                     for line in f:
                                         if "PRETTY_NAME" in line:
-                                            distro_name = line.split("=")[1].strip().strip('"')
+                                            distro_name = (
+                                                line.split("=")[1].strip().strip('"')
+                                            )
                                             break
                             else:
                                 distro_name = platform.platform()
                         except Exception:
                             distro_name = "Linux"
-                        kernel.cache.set('info:distro_name', distro_name)
+                        kernel.cache.set("info:distro_name", distro_name)
                     distro_emojis = {
                         "arch": CUSTOM_EMOJI["arch"],
                         "ubuntu": CUSTOM_EMOJI["ubuntu"],
@@ -291,7 +345,7 @@ def register(kernel):
 
                 # platform_type
                 if uses("platform_type"):
-                    platform_type = kernel.cache.get('info:platform_type')
+                    platform_type = kernel.cache.get("info:platform_type")
                     if platform_type is None:
                         get_platform()
                         platform_type = f"VDS {CUSTOM_EMOJI['vds']}"
@@ -299,7 +353,7 @@ def register(kernel):
                             platform_type = f"WSL {CUSTOM_EMOJI['wsl']}"
                         elif is_termux():
                             platform_type = f"Termux {CUSTOM_EMOJI['termux']}"
-                        kernel.cache.set('info:platform_type', platform_type)
+                        kernel.cache.set("info:platform_type", platform_type)
                 else:
                     platform_type = ""
 
@@ -312,22 +366,26 @@ def register(kernel):
                 # update_needed / update_emoji / update_text
                 if uses("update_needed", "update_emoji", "update_text"):
                     update_needed = await check_update()
-                    update_emoji = CUSTOM_EMOJI["💔"] if update_needed else CUSTOM_EMOJI["🔮"]
-                    update_text = "Update needed" if update_needed else "No update needed"
+                    update_emoji = (
+                        CUSTOM_EMOJI["💔"] if update_needed else CUSTOM_EMOJI["🔮"]
+                    )
+                    update_text = (
+                        "Update needed" if update_needed else "No update needed"
+                    )
                 else:
                     update_needed = False
                     update_emoji = update_text = ""
 
                 # system_user / hostname
                 if uses("system_user", "hostname"):
-                    _identity = kernel.cache.get('info:identity')
+                    _identity = kernel.cache.get("info:identity")
                     if _identity is None:
                         try:
                             system_user = getpass.getuser()
                             hostname = socket.gethostname()
                         except Exception:
                             system_user = hostname = "Unknown"
-                        kernel.cache.set('info:identity', (system_user, hostname))
+                        kernel.cache.set("info:identity", (system_user, hostname))
                     else:
                         system_user, hostname = _identity
                 else:
@@ -335,17 +393,17 @@ def register(kernel):
 
                 # me / user_id / mcub_emoji / me_first_name / me_username — get_me()
                 if uses("me_first_name", "me_username", "user_id", "mcub_emoji"):
-                    me = kernel.cache.get('info:me')
+                    me = kernel.cache.get("info:me")
                     if me is None:
                         me = await client.get_me()
-                        kernel.cache.set('info:me', me, ttl=3600)
+                        kernel.cache.set("info:me", me, ttl=3600)
                     user_ids = me.id
                     _user_emojis = {
-                        6020965582: '5469888215802482605',
-                        2037125547: '5467932472379480411',
-                        779572293: '5470163024989952512',
-                        8405520863: '5470170528297817805',
-                        855890735: '5470063433288290290',
+                        6020965582: "5469888215802482605",
+                        2037125547: "5467932472379480411",
+                        779572293: "5470163024989952512",
+                        8405520863: "5470170528297817805",
+                        855890735: "5470063433288290290",
                     }
                     _user = f'<tg-emoji emoji-id="{_user_emojis.get(user_ids, "5470015630302287916")}">{"Ⓜ️" if user_ids in _user_emojis else "🕳"}</tg-emoji>'
                     mcub_emoji = (
@@ -360,12 +418,18 @@ def register(kernel):
 
                 # branch / commit_sha / commit_url
                 if uses("branch", "commit_sha", "commit_url"):
-                    _version_info = kernel.cache.get('info:version_info')
+                    _version_info = kernel.cache.get("info:version_info")
                     if _version_info is None:
                         branch = await kernel.version_manager.detect_branch()
                         commit_sha = await kernel.version_manager.get_commit_sha()
-                        commit_url = await kernel.version_manager.get_github_commit_url()
-                        kernel.cache.set('info:version_info', (branch, commit_sha, commit_url), ttl=600)
+                        commit_url = (
+                            await kernel.version_manager.get_github_commit_url()
+                        )
+                        kernel.cache.set(
+                            "info:version_info",
+                            (branch, commit_sha, commit_url),
+                            ttl=600,
+                        )
                     else:
                         branch, commit_sha, commit_url = _version_info
                 else:
@@ -373,13 +437,37 @@ def register(kernel):
 
                 try:
                     _known = [
-                        "kernel_version", "core_name", "ping_time", "uptime_str",
-                        "distro_name", "distro_emoji", "platform_type", "cpu_usage",
-                        "ram_usage", "system_user", "hostname", "update_emoji",
-                        "update_text", "update_needed", "branch", "commit_sha",
-                        "commit_url", "mcub_emoji", "user_id", "me_first_name", "me_username",
-                        "now_date", "now_time", "now_day", "now_month", "now_month_name",
-                        "now_year", "now_weekday", "now_hour", "now_minute", "now_second",
+                        "kernel_version",
+                        "core_name",
+                        "ping_time",
+                        "uptime_str",
+                        "distro_name",
+                        "distro_emoji",
+                        "platform_type",
+                        "cpu_usage",
+                        "ram_usage",
+                        "system_user",
+                        "hostname",
+                        "update_emoji",
+                        "update_text",
+                        "update_needed",
+                        "branch",
+                        "commit_sha",
+                        "commit_url",
+                        "mcub_emoji",
+                        "user_id",
+                        "me_first_name",
+                        "me_username",
+                        "now_date",
+                        "now_time",
+                        "now_day",
+                        "now_month",
+                        "now_month_name",
+                        "now_year",
+                        "now_weekday",
+                        "now_hour",
+                        "now_minute",
+                        "now_second",
                     ]
                     _safe = custom_text.replace("{", "{{").replace("}", "}}")
                     for _k in _known:
@@ -421,10 +509,10 @@ def register(kernel):
                     await kernel.handle_error(
                         e, source="info_cmd:custom_text_format", event=event
                     )
-                    info_text = t('custom_text_error', error=str(e))
+                    info_text = t("custom_text_error", error=str(e))
 
             else:
-                distro_name = kernel.cache.get('info:distro_name')
+                distro_name = kernel.cache.get("info:distro_name")
                 if distro_name is None:
                     distro_name = "Unknown"
                     try:
@@ -432,13 +520,15 @@ def register(kernel):
                             with open("/etc/os-release", "r") as f:
                                 for line in f:
                                     if "PRETTY_NAME" in line:
-                                        distro_name = line.split("=")[1].strip().strip('"')
+                                        distro_name = (
+                                            line.split("=")[1].strip().strip('"')
+                                        )
                                         break
                         else:
                             distro_name = platform.platform()
                     except Exception:
                         distro_name = "Linux"
-                    kernel.cache.set('info:distro_name', distro_name)
+                    kernel.cache.set("info:distro_name", distro_name)
 
                 distro_emojis = {
                     "arch": CUSTOM_EMOJI["arch"],
@@ -454,7 +544,7 @@ def register(kernel):
                         distro_emoji = emoji
                         break
 
-                platform_type = kernel.cache.get('info:platform_type')
+                platform_type = kernel.cache.get("info:platform_type")
                 if platform_type is None:
                     get_platform()
                     platform_type = f"VDS {CUSTOM_EMOJI['vds']}"
@@ -462,37 +552,39 @@ def register(kernel):
                         platform_type = f"WSL {CUSTOM_EMOJI['wsl']}"
                     elif is_termux():
                         platform_type = f"Termux {CUSTOM_EMOJI['termux']}"
-                    kernel.cache.set('info:platform_type', platform_type)
+                    kernel.cache.set("info:platform_type", platform_type)
 
                 cpu_usage, ram_usage = get_system_info()
                 update_needed = await check_update()
 
-                _identity = kernel.cache.get('info:identity')
+                _identity = kernel.cache.get("info:identity")
                 if _identity is None:
                     try:
                         system_user = getpass.getuser()
                         hostname = socket.gethostname()
                     except Exception:
                         system_user = hostname = "Unknown"
-                    kernel.cache.set('info:identity', (system_user, hostname))
+                    kernel.cache.set("info:identity", (system_user, hostname))
                 else:
                     system_user, hostname = _identity
 
-                update_emoji = CUSTOM_EMOJI["💔"] if update_needed else CUSTOM_EMOJI["🔮"]
+                update_emoji = (
+                    CUSTOM_EMOJI["💔"] if update_needed else CUSTOM_EMOJI["🔮"]
+                )
                 update_text = "Update needed" if update_needed else "No update needed"
 
-                me = kernel.cache.get('info:me')
+                me = kernel.cache.get("info:me")
                 if me is None:
                     me = await client.get_me()
-                    kernel.cache.set('info:me', me, ttl=3600)
+                    kernel.cache.set("info:me", me, ttl=3600)
                 user_ids = me.id
 
                 user_emojis = {
-                    6020965582: '5469888215802482605',
-                    2037125547: '5467932472379480411',
-                    779572293: '5470163024989952512',
-                    8405520863: '5470170528297817805',
-                    855890735: '5470063433288290290',
+                    6020965582: "5469888215802482605",
+                    2037125547: "5467932472379480411",
+                    779572293: "5470163024989952512",
+                    8405520863: "5470170528297817805",
+                    855890735: "5470063433288290290",
                 }
                 user = f'<tg-emoji emoji-id="{user_emojis.get(user_ids, "5470015630302287916")}">{"Ⓜ️" if user_ids in user_emojis else "🕳"}</tg-emoji>'
                 mcub_emoji = (
@@ -501,29 +593,35 @@ def register(kernel):
                     else "Mitrich UserBot"
                 )
 
-                _version_info = kernel.cache.get('info:version_info')
+                _version_info = kernel.cache.get("info:version_info")
                 if _version_info is None:
                     branch = await kernel.version_manager.detect_branch()
                     commit_sha = await kernel.version_manager.get_commit_sha()
                     commit_url = await kernel.version_manager.get_github_commit_url()
-                    kernel.cache.set('info:version_info', (branch, commit_sha, commit_url), ttl=600)
+                    kernel.cache.set(
+                        "info:version_info", (branch, commit_sha, commit_url), ttl=600
+                    )
                 else:
                     branch, commit_sha, commit_url = _version_info
 
-                branch_display = f"{CUSTOM_EMOJI['🌐']}<b> Branch: {branch}</b><b><a href=\"{commit_url}\">#{commit_sha}</a></b>" if commit_url else f"{CUSTOM_EMOJI['🌐']}<b> Branch {branch}#{commit_sha}</b>"
+                branch_display = (
+                    f'{CUSTOM_EMOJI["🌐"]}<b> Branch: {branch}</b><b><a href="{commit_url}">#{commit_sha}</a></b>'
+                    if commit_url
+                    else f"{CUSTOM_EMOJI['🌐']}<b> Branch {branch}#{commit_sha}</b>"
+                )
                 info_text = f"""<b>{mcub_emoji}</b>
-<blockquote>{CUSTOM_EMOJI['🌩️']} <b>Version:</b> <code>{kernel.VERSION}</code>
-{CUSTOM_EMOJI['🧩']} <b>Kernel:</b> <code>{core_name}</code>
+<blockquote>{CUSTOM_EMOJI["🌩️"]} <b>Version:</b> <code>{kernel.VERSION}</code>
+{CUSTOM_EMOJI["🧩"]} <b>Kernel:</b> <code>{core_name}</code>
 {f"{CUSTOM_EMOJI['💔']} <b>Update needed</b>" if update_needed else f"{CUSTOM_EMOJI['🔮']} <b>No update needed</b>"}
 {branch_display}</blockquote>
 
-<blockquote>{CUSTOM_EMOJI['📡']} <b>Ping:</b> <code>{ping_time} ms</code>
-{CUSTOM_EMOJI['🧪']} <b>Uptime:</b> <code>{uptime_str}</code>
-{CUSTOM_EMOJI['🔬']} <b>System:</b> {distro_name} {distro_emoji}
-{CUSTOM_EMOJI['🧬']} <b>Platform:</b> <code>{platform_type}</code></blockquote>
+<blockquote>{CUSTOM_EMOJI["📡"]} <b>Ping:</b> <code>{ping_time} ms</code>
+{CUSTOM_EMOJI["🧪"]} <b>Uptime:</b> <code>{uptime_str}</code>
+{CUSTOM_EMOJI["🔬"]} <b>System:</b> {distro_name} {distro_emoji}
+{CUSTOM_EMOJI["🧬"]} <b>Platform:</b> <code>{platform_type}</code></blockquote>
 
-<blockquote>{CUSTOM_EMOJI['🔷']} <b>CPU:</b> <i>~{cpu_usage}</i>
-{CUSTOM_EMOJI['🔶']} <b>RAM:</b> <i>~{ram_usage}</i></blockquote>"""
+<blockquote>{CUSTOM_EMOJI["🔷"]} <b>CPU:</b> <i>~{cpu_usage}</i>
+{CUSTOM_EMOJI["🔶"]} <b>RAM:</b> <i>~{ram_usage}</i></blockquote>"""
 
             banner_url = kernel.config.get("info_banner_url")
             quote_media = kernel.config.get("info_quote_media", False)
@@ -593,12 +691,21 @@ def register(kernel):
 
             if has_banner and banner_url:
                 try:
-                    await msg.edit(
-                        info_text,
-                        file=banner_url,
-                        parse_mode="html",
-                        invert_media=invert_media,
-                    )
+                    if banner_url.startswith(("http://", "https://")):
+                        media = InputMediaWebPage(banner_url, optional=True)
+                        await msg.edit(
+                            info_text,
+                            file=media,
+                            parse_mode="html",
+                            invert_media=invert_media,
+                        )
+                    else:
+                        await msg.edit(
+                            info_text,
+                            file=banner_url,
+                            parse_mode="html",
+                            invert_media=invert_media,
+                        )
                 except Exception as e:
                     await msg.edit(info_text, parse_mode="html")
                     await kernel.handle_error(
@@ -609,6 +716,6 @@ def register(kernel):
 
         except Exception as e:
             await event.edit(
-                t('error_see_logs', warning=CUSTOM_EMOJI['⚠️']), parse_mode="html"
+                t("error_see_logs", warning=CUSTOM_EMOJI["⚠️"]), parse_mode="html"
             )
             await kernel.handle_error(e, source="info_cmd", event=event)

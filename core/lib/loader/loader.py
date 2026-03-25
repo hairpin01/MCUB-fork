@@ -1004,6 +1004,17 @@ class ModuleLoader:
                 if doc:
                     metadata["description"] = doc.strip().split("\n")[0].strip()
 
+        if metadata["description"] == "no description":
+            m = re.search(
+                r"def\s+register\s*\([^)]*\)[^:]*:\s*\n(\s*'''(.+?)'''|\s*\"\"\"(.+?)\"\"\")",
+                code,
+                re.DOTALL,
+            )
+            if m:
+                doc = m.group(2) or m.group(3)
+                if doc:
+                    metadata["description"] = doc.strip().split("\n")[0].strip()
+
         if metadata["banner_url"] is None:
             m = re.search(r"banner\s*=\s*['\"]([^'\"]+)['\"]", code)
             if m:

@@ -6,7 +6,6 @@ import aiohttp
 import asyncio
 import subprocess
 from typing import Tuple
-import shutil
 
 
 # version kenrel MCUB
@@ -160,75 +159,7 @@ class VersionManager:
 
         return self.kernel.VERSION
 
-
-
-
     async def check_module_compatibility(self, code: str) -> Tuple[bool, str]:
-        """
-        Анализирует исходный код модуля на наличие директив '# scop: ...'
-        и проверяет выполнение всех требований.
-        Возвращает (True, "") если совместимо, иначе (False, сообщение об ошибке).
-        """
-        lines = code.split('\n')
-        directives = []
-
-        for line in lines:
-            stripped = line.strip()
-            if stripped.startswith('# scop:'):
-                rest = stripped[len('# scop:'):].strip()
-                space_index = rest.find(' ')
-                if space_index == -1:
-                    scope = rest
-                    params = ''
-                else:
-                    scope = rest[:space_index]
-                    params = rest[space_index+1:].strip()
-                directives.append((scope, params))
-
-        if not directives:
-            return True, ""
-
-        current_version = self.kernel.VERSION
-        latest_version = None
-
-        for scope, params in directives:
-            if scope == 'kernel':
-                parts = params.split()
-                if not parts:
-                    continue
-
-                if parts[0] == 'min':
-                    if len(parts) >= 2 and parts[1].startswith('v'):
-                        required = parts[1][1:]
-                        if self.compare_versions(current_version, required) < 0:
-                            return False, f"Module requires kernel version ≥ {required}, current is {current_version}"
-                elif parts[0] == 'max':
-                    if len(parts) >= 2 and parts[1].startswith('v'):
-                        required = parts[1][1:]
-                        if self.compare_versions(current_version, required) > 0:
-                            return False, f"Module requires kernel version ≤ {required}, current is {current_version}"
-                else:
-                    if not parts[0].startswith('v'):
-                        continue
-                    spec = parts[0][1:]
-                    if spec == '[__lastest__]':
-                        if latest_version is None:
-                            latest_version = await self.get_latest_kernel_version()
-                        if self.compare_versions(current_version, latest_version) != 0:
-                            return False, f"Module requires the latest kernel version ({latest_version}), but current is {current_version}"
-                    else:
-                        if self.compare_versions(current_version, spec) != 0:
-                            return False, f"Module requires kernel version exactly {spec}, but current is {current_version}"
-
-            elif scope == 'inline':
-                if not hasattr(self.kernel, 'bot_client') or self.kernel.bot_client is None:
-                    return False, "Module requires inline bot to be enabled, but bot_client is not available"
-                if not self.kernel.bot_client.is_connected():
-                    return False, "Module requires inline bot to be connected, but bot_client is disconnected"
-
-            elif scope == 'ffmpeg':
-                ffmpeg_path = shutil.which('ffmpeg')
-                if ffmpeg_path is None:
-                    return False, "Module requires ffmpeg to be installed on the system"
-
-        return True, ""
+        """Moved to core/lib/loader/compat.py — delegates to ModuleCompatChecker."""
+        from core.lib.loader.compat import ModuleCompatChecker
+        return await ModuleCompatChecker(self.kernel).check_module_compatibility(code)

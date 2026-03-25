@@ -19,13 +19,26 @@ class InlineHandlers:
     def __init__(self, kernel, bot_client):
         self.kernel = kernel
         self.bot_client = bot_client
-        if not hasattr(self.kernel, "session") or self.kernel.session is None or self.kernel.session.closed:
+        if (
+            not hasattr(self.kernel, "session")
+            or self.kernel.session is None
+            or self.kernel.session.closed
+        ):
             self.kernel.session = aiohttp.ClientSession()
 
         self._form_counter = 0
         self._inline_manager = InlineManager(kernel)
 
-    def create_inline_form(self, text, buttons=None, ttl=3600, media=None, media_type="photo"):
+    async def close(self) -> None:
+        """Close aiohttp session on bot shutdown."""
+        if hasattr(self.kernel, "session") and self.kernel.session is not None:
+            if not self.kernel.session.closed:
+                await self.kernel.session.close()
+            self.kernel.session = None
+
+    def create_inline_form(
+        self, text, buttons=None, ttl=3600, media=None, media_type="photo"
+    ):
         """
         Создаёт инлайн-форму и возвращает её ID.
 
@@ -138,9 +151,13 @@ class InlineHandlers:
                 if b_type == "callback":
                     return Button.inline(text, btn_dict.get("data", "").encode())
                 elif b_type == "url":
-                    return Button.url(text, btn_dict.get("url", btn_dict.get("data", "")))
+                    return Button.url(
+                        text, btn_dict.get("url", btn_dict.get("data", ""))
+                    )
                 elif b_type == "switch":
-                    return Button.switch_inline(text, btn_dict.get("query", ""), btn_dict.get("hint", ""))
+                    return Button.switch_inline(
+                        text, btn_dict.get("query", ""), btn_dict.get("hint", "")
+                    )
                 return None
 
             if isinstance(data, list):
@@ -178,45 +195,51 @@ class InlineHandlers:
                 query = event.text or ""
 
                 if not await self.check_admin(event):
-                    await event.answer([event.builder.article(
-                        "Нет доступа",
-                        text=f"{self.EMOJI_BLOCK} У вас нет доступа к inline MCUB bot\n"
-                            f"<blockquote>{self.EMOJI_SHIELD} ID: {event.sender_id}</blockquote>",
-                        parse_mode="html"
-                    )])
+                    await event.answer(
+                        [
+                            event.builder.article(
+                                "Нет доступа",
+                                text=f"{self.EMOJI_BLOCK} У вас нет доступа к inline MCUB bot\n"
+                                f"<blockquote>{self.EMOJI_SHIELD} ID: {event.sender_id}</blockquote>",
+                                parse_mode="html",
+                            )
+                        ]
+                    )
                     return
 
                 if query.startswith("form_"):
                     form_data = self.get_inline_form(query)
                     if form_data:
-                        media     = form_data.get("media")
-                        mtype     = (form_data.get("media_type") or "photo").lower()
-                        buttons   = form_data.get("buttons")
-                        text      = form_data["text"]
+                        media = form_data.get("media")
+                        mtype = (form_data.get("media_type") or "photo").lower()
+                        buttons = form_data.get("buttons")
+                        text = form_data["text"]
 
                         if media:
                             import uuid
+
                             _rid = str(uuid.uuid4())
                             _mime_map = {
-                                "video":    "video/mp4",
-                                "gif":      "video/mp4",
+                                "video": "video/mp4",
+                                "gif": "video/mp4",
                                 "document": "application/octet-stream",
-                                "photo":    "image/jpeg",
+                                "photo": "image/jpeg",
                             }
                             _type_map = {
-                                "video":    "video",
-                                "gif":      "mpeg4_gif",
+                                "video": "video",
+                                "gif": "mpeg4_gif",
                                 "document": "document",
-                                "photo":    "photo",
+                                "photo": "photo",
                             }
                             _bot_token = self.kernel.config.get("inline_bot_token")
                             if _bot_token:
-
                                 _result_obj = {
                                     "type": _type_map.get(mtype, "video"),
                                     "id": _rid,
                                     _type_map.get(mtype, "video") + "_url": media,
-                                    "thumb_url": "https://kappa.lol/KSKoOu" if mtype in ("video", "gif", "document") else media,
+                                    "thumb_url": "https://kappa.lol/KSKoOu"
+                                    if mtype in ("video", "gif", "document")
+                                    else media,
                                     "mime_type": _mime_map.get(mtype, "video/mp4"),
                                     "title": "Media",
                                     "caption": text,
@@ -229,14 +252,31 @@ class InlineHandlers:
                                             row = [row]
                                         _kbd_rows.append([])
                                         for _btn in row:
-                                            from telethon.tl.types import KeyboardButtonCallback, KeyboardButtonUrl
+                                            from telethon.tl.types import (
+                                                KeyboardButtonCallback,
+                                                KeyboardButtonUrl,
+                                            )
+
                                             if isinstance(_btn, KeyboardButtonCallback):
-                                                _kbd_rows[-1].append({"text": _btn.text, "callback_data": _btn.data.decode() if isinstance(_btn.data, bytes) else str(_btn.data)})
+                                                _kbd_rows[-1].append(
+                                                    {
+                                                        "text": _btn.text,
+                                                        "callback_data": _btn.data.decode()
+                                                        if isinstance(_btn.data, bytes)
+                                                        else str(_btn.data),
+                                                    }
+                                                )
                                             elif isinstance(_btn, KeyboardButtonUrl):
-                                                _kbd_rows[-1].append({"text": _btn.text, "url": _btn.url})
+                                                _kbd_rows[-1].append(
+                                                    {"text": _btn.text, "url": _btn.url}
+                                                )
                                             else:
-                                                _kbd_rows[-1].append({"text": str(_btn)})
-                                    _result_obj["reply_markup"] = {"inline_keyboard": _kbd_rows}
+                                                _kbd_rows[-1].append(
+                                                    {"text": str(_btn)}
+                                                )
+                                    _result_obj["reply_markup"] = {
+                                        "inline_keyboard": _kbd_rows
+                                    }
 
                                 async with self.kernel.session.post(
                                     f"https://api.telegram.org/bot{_bot_token}/answerInlineQuery",
@@ -244,30 +284,38 @@ class InlineHandlers:
                                         "inline_query_id": str(event.query.query_id),
                                         "results": [_result_obj],
                                         "cache_time": 0,
-                                    }
+                                    },
                                 ) as _resp:
                                     _data = await _resp.json()
                                     if not _data.get("ok"):
-                                        self.kernel.logger.error(f"Bot API answerInlineQuery error: {_data}")
+                                        self.kernel.logger.error(
+                                            f"Bot API answerInlineQuery error: {_data}"
+                                        )
                                 return
                             else:
-                                self.kernel.logger.warning("bot_token not in config, falling back to article")
+                                self.kernel.logger.warning(
+                                    "bot_token not in config, falling back to article"
+                                )
 
                         builder = event.builder.article(
-                                "Inline Form",
-                                text=text,
-                                buttons=buttons,
-                                parse_mode="html",
-                            )
+                            "Inline Form",
+                            text=text,
+                            buttons=buttons,
+                            parse_mode="html",
+                        )
 
                         await event.answer([builder])
                     else:
-                        await event.answer([event.builder.article(
-                            "Форма не найдена",
-                            text=f"{self.EMOJI_BLOCK} <b>Форма не найдена или истекла</b>\n"
-                                f"<i>ID: <code>{html.escape(query)}</code></i>",
-                            parse_mode="html"
-                        )])
+                        await event.answer(
+                            [
+                                event.builder.article(
+                                    "Форма не найдена",
+                                    text=f"{self.EMOJI_BLOCK} <b>Форма не найдена или истекла</b>\n"
+                                    f"<i>ID: <code>{html.escape(query)}</code></i>",
+                                    parse_mode="html",
+                                )
+                            ]
+                        )
                     return
 
                 for pattern, handler in self.kernel.inline_handlers.items():
@@ -277,7 +325,9 @@ class InlineHandlers:
 
                 if not query.strip():
                     results = []
-                    modules_count = len(self.kernel.loaded_modules) + len(self.kernel.system_modules)
+                    modules_count = len(self.kernel.loaded_modules) + len(
+                        self.kernel.system_modules
+                    )
                     _inline_cmd_count = len(self.kernel.inline_handlers)
 
                     info_text = (
@@ -287,10 +337,10 @@ class InlineHandlers:
                     )
 
                     thumb = InputWebDocument(
-                        url='https://kappa.lol/KSKoOu',
+                        url="https://kappa.lol/KSKoOu",
                         size=0,
-                        mime_type='image/jpeg',
-                        attributes=[]
+                        mime_type="image/jpeg",
+                        attributes=[],
                     )
 
                     info_article = event.builder.article(
@@ -298,20 +348,20 @@ class InlineHandlers:
                         text=info_text,
                         description="Info userbot",
                         parse_mode="html",
-                        thumb=thumb
+                        thumb=thumb,
                     )
                     results.append(info_article)
 
                     for pattern, handler in self.kernel.inline_handlers.items():
                         if len(results) >= 50:
                             break
-                        docstring = getattr(handler, '__doc__', None) or "команда"
+                        docstring = getattr(handler, "__doc__", None) or "команда"
                         cmd_text = f"{self.EMOJI_TELESCOPE} <b>Команда:</b> <code>{html.escape(pattern)}</code>\n\n"
                         thumb_cmd = InputWebDocument(
-                            url='https://kappa.lol/EKhGKM',
+                            url="https://kappa.lol/EKhGKM",
                             size=0,
-                            mime_type='image/jpeg',
-                            attributes=[]
+                            mime_type="image/jpeg",
+                            attributes=[],
                         )
                         cmd_article = event.builder.article(
                             f"Команда: {pattern[:20]}",
@@ -320,9 +370,14 @@ class InlineHandlers:
                             thumb=thumb_cmd,
                             description=html.escape(docstring.strip()),
                             buttons=[
-                                [Button.switch_inline(f"🏄‍♀️ Выполнить: {pattern}",
-                                                    query=pattern, same_peer=True)]
-                            ]
+                                [
+                                    Button.switch_inline(
+                                        f"🏄‍♀️ Выполнить: {pattern}",
+                                        query=pattern,
+                                        same_peer=True,
+                                    )
+                                ]
+                            ],
                         )
                         results.append(cmd_article)
 
@@ -332,9 +387,7 @@ class InlineHandlers:
                             f"{self.EMOJI_BLOCK} <i>Нет зарегистрированных inline-команд</i>\n\n"
                         )
                         no_cmds_article = event.builder.article(
-                            "Нет команд",
-                            text=no_cmds_text,
-                            parse_mode="html"
+                            "Нет команд", text=no_cmds_text, parse_mode="html"
                         )
                         results.append(no_cmds_article)
 
@@ -366,7 +419,9 @@ class InlineHandlers:
                         )
                 else:
                     text = query
-                    builder = event.builder.article("Message", text=text, parse_mode="html")
+                    builder = event.builder.article(
+                        "Message", text=text, parse_mode="html"
+                    )
 
                 await event.answer([builder] if builder else [])
 
@@ -376,19 +431,18 @@ class InlineHandlers:
                 )
 
                 thumb = InputWebDocument(
-                    url='https://kappa.lol/qNFKBT',
+                    url="https://kappa.lol/qNFKBT",
                     size=0,
-                    mime_type='image/jpeg',
-                    attributes=[]
+                    mime_type="image/jpeg",
+                    attributes=[],
                 )
 
                 error = event.builder.article(
                     "Error",
-                    text=f'🃏 Inline query error:\n <pre>{error_traceback}</pre>',
+                    text=f"🃏 Inline query error:\n <pre>{error_traceback}</pre>",
                     description=f"E: {str(e)[:50]}",
                     parse_mode="html",
                     thumb=thumb,
-
                 )
                 await event.answer([error])
 
@@ -396,21 +450,30 @@ class InlineHandlers:
         async def callback_query_handler(event):
             if not event.data:
                 return
-            data_str = event.data.decode("utf-8") if isinstance(event.data, bytes) else str(event.data)
+            data_str = (
+                event.data.decode("utf-8")
+                if isinstance(event.data, bytes)
+                else str(event.data)
+            )
 
-            if not await self.check_admin(event) and (not hasattr(self.kernel, 'callback_permissions') or not self.kernel.callback_permissions.is_allowed(event.sender_id, data_str)):
+            if not await self.check_admin(event) and (
+                not hasattr(self.kernel, "callback_permissions")
+                or not self.kernel.callback_permissions.is_allowed(
+                    event.sender_id, data_str
+                )
+            ):
                 return await event.answer("Нет доступа", alert=False)
 
             if data_str.startswith("show_tb"):
                 await self._handle_show_traceback(event)
             elif data_str.startswith("confirm_"):
                 from .keyboards import InlineKeyboards
+
                 kb = InlineKeyboards(self.kernel)
                 if "yes" in data_str:
                     await kb.handle_confirm_yes(event)
                 else:
                     await kb.handle_confirm_no(event)
-
 
             for pattern, handler in list(self.kernel.callback_handlers.items()):
                 p_str = pattern.decode() if isinstance(pattern, bytes) else str(pattern)
@@ -419,7 +482,11 @@ class InlineHandlers:
 
     async def _handle_show_traceback(self, event):
         try:
-            data_str = event.data.decode("utf-8") if isinstance(event.data, bytes) else str(event.data)
+            data_str = (
+                event.data.decode("utf-8")
+                if isinstance(event.data, bytes)
+                else str(event.data)
+            )
             sep = ":" if ":" in data_str else "_"
             parts = data_str.split(sep)
 
@@ -438,7 +505,7 @@ class InlineHandlers:
             await event.edit(
                 f"<b>Full Traceback:</b>\n{traceback_text}",
                 parse_mode="html",
-                buttons=None
+                buttons=None,
             )
         except Exception as e:
             await event.answer(f"Критическая ошибка: {e}", alert=True)

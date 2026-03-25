@@ -24,16 +24,25 @@ async def _close_kernel_resources(kernel) -> None:
     if db_conn and hasattr(db_conn, "close"):
         await _maybe_await(db_conn.close())
 
+    if hasattr(kernel, "session") and kernel.session is not None:
+        if not kernel.session.closed:
+            await kernel.session.close()
+        kernel.session = None
+
+    background_tasks = getattr(kernel, "_background_tasks", None)
+    if background_tasks:
+        for task in background_tasks:
+            if not task.done():
+                task.cancel()
+        kernel._background_tasks = []
+
     scheduler = getattr(kernel, "scheduler", None)
-    if not scheduler:
-        return
+    if scheduler:
+        if hasattr(scheduler, "cancel_all_tasks"):
+            scheduler.cancel_all_tasks()
 
-    if hasattr(scheduler, "cancel_all_tasks"):
-        scheduler.cancel_all_tasks()
-        return
-
-    if hasattr(scheduler, "stop"):
-        await _maybe_await(scheduler.stop())
+        if hasattr(scheduler, "stop"):
+            await _maybe_await(scheduler.stop())
 
 
 def build_safe_restart_args(
@@ -82,7 +91,9 @@ def build_safe_restart_args(
     return safe_args
 
 
-def safe_restart(argv: Optional[list[str]] = None, entrypoint: Optional[str] = None) -> None:
+def safe_restart(
+    argv: Optional[list[str]] = None, entrypoint: Optional[str] = None
+) -> None:
     """Restart current process with sanitized CLI args."""
     safe_args = build_safe_restart_args(argv=argv, entrypoint=entrypoint)
     os.execv(sys.executable, [sys.executable, *safe_args])

@@ -959,6 +959,32 @@ class ModuleLoader:
             if m:
                 metadata[key] = m.group(1).strip()
 
+        if metadata["author"] == "unknown":
+            m = re.search(r"__author__\s*=\s*['\"]([^'\"]+)['\"]", code)
+            if m:
+                metadata["author"] = m.group(1).strip()
+
+        if metadata["version"] == "X.X.X":
+            m = re.search(r"__version__\s*=\s*['\"]([^'\"]+)['\"]", code)
+            if m:
+                metadata["version"] = m.group(1).strip()
+
+        if metadata["description"] == "no description":
+            strings_match = re.search(r"strings\s*=\s*\{([^}]+)\}", code, re.DOTALL)
+            if strings_match:
+                strings_block = strings_match.group(1)
+                desc_m = re.search(
+                    r"['\"]desc['\"]\s*:\s*['\"]([^'\"]+)['\"]", strings_block
+                )
+                if desc_m:
+                    metadata["description"] = desc_m.group(1).strip()
+                else:
+                    name_m = re.search(
+                        r"['\"]name['\"]\s*:\s*['\"]([^'\"]+)['\"]", strings_block
+                    )
+                    if name_m:
+                        metadata["description"] = name_m.group(1).strip()
+
         dec_pattern = (
             r"(@(?:kernel\.register\.command|register\.command|kernel\.register_command"
             r"|kernel\.register\.bot_command|register\.bot_command|client\.on)\s*\([^)]+\))\s*\n"

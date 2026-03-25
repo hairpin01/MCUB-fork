@@ -51,7 +51,9 @@ async def generate_detailed_page(search_term, kernel, strings):
         name, typ, module = exact_match
         commands, aliases_info, descriptions = get_module_commands(name, kernel)
         file_path = (
-            f"modules/{name}.py" if typ == "system" else f"modules_loaded/{name}.py"
+            f"modules/{name}.py"
+            if typ == "system"
+            else f"{kernel.MODULES_LOADED_DIR}/{name}.py"
         )
         try:
             with open(file_path, "r", encoding="utf-8") as f:
@@ -338,7 +340,9 @@ def register(kernel):
         name, typ, module = module_info
         commands, _, descriptions = get_module_commands(name, kernel)
         file_path = (
-            f"modules/{name}.py" if typ == "system" else f"modules_loaded/{name}.py"
+            f"{kernel.MODULES_DIR}/{name}.py"
+            if typ == "system"
+            else f"{kernel.MODULES_LOADED_DIR}/{name}.py"
         )
 
         try:

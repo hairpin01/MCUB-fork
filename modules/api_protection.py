@@ -678,7 +678,7 @@ def register(kernel):
         predict_cooldown = api_config.get("predict_alert_cooldown", 10)
         warn_cooldown = api_config.get("warn_alert_cooldown", 30)
 
-        global last_predict_alert, last_warn_alert
+        nonlocal last_predict_alert, last_warn_alert
 
         if total_relevant >= threshold * warn_pct / 100 and total_relevant < threshold:
             if now - last_warn_alert >= warn_cooldown:

@@ -10,6 +10,10 @@ userbot.db
 .cache/
 .venv/
 .git/
+*.kate-swp
+*.tmp
+logs/
+*.log
 
 # C extensions
 *.so

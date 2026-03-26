@@ -1034,17 +1034,23 @@ class ModuleLoader:
             if m:
                 metadata["banner_url"] = m.group(1).strip()
             else:
-                strings_match = re.search(r"strings\s*=\s*\{([^}]+)\}", code, re.DOTALL)
-                if strings_match:
-                    strings_block = strings_match.group(1)
-                    for pattern in [
-                        r"['\"]banner['\"]\s*:\s*['\"]([^'\"]+)['\"]",
-                        r"['\"]pic['\"]\s*:\s*['\"]([^'\"]+)['\"]",
-                    ]:
-                        banner_m = re.search(pattern, strings_block)
-                        if banner_m:
-                            metadata["banner_url"] = banner_m.group(1).strip()
-                            break
+                m = re.search(r"#\s*meta\s+banner:\s*(.+)", code, re.IGNORECASE)
+                if m:
+                    metadata["banner_url"] = m.group(1).strip()
+                else:
+                    strings_match = re.search(
+                        r"strings\s*=\s*\{([^}]+)\}", code, re.DOTALL
+                    )
+                    if strings_match:
+                        strings_block = strings_match.group(1)
+                        for pattern in [
+                            r"['\"]banner['\"]\s*:\s*['\"]([^'\"]+)['\"]",
+                            r"['\"]pic['\"]\s*:\s*['\"]([^'\"]+)['\"]",
+                        ]:
+                            banner_m = re.search(pattern, strings_block)
+                            if banner_m:
+                                metadata["banner_url"] = banner_m.group(1).strip()
+                                break
 
         dec_pattern = (
             r"(@(?:kernel\.register\.command|register\.command|kernel\.register_command"

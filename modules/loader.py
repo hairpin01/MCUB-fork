@@ -1,5 +1,5 @@
 # author: @Hairpin00
-# version: 1.1.0
+# version: 1.1.5
 # description: loader modules
 import logging
 import os
@@ -114,9 +114,10 @@ def register(kernel):
             "reply_to_py": "{warning} <b>Reply to a .py file</b>",
             "not_py_file": "{warning} <b>This is not a .py file</b>",
             "system_module_update_attempt": "{confused} <b>Oops, looks like you tried to update a system module</b> <code>{module_name}</code>\n<blockquote><i>{blocked} Unfortunately, you cannot update system modules using <code>loadera</code></i></blockquote>",
-            "starting_install": "{action} modules",
-            "installing": "{test} Installing",
-            "updating": "{reload} Updating",
+            "starting_install": "{action} <b>modules</b>",
+            "installing": "{test} <b>Installing</b>",
+            "updating": "{reload} <b>Updating</b>",
+            "updating_version": "{reload} <b>Updating to v</b><code>{old_version}</code> <b>→ v</b><code>{new_version}</code>",
             "log_start": "=- Starting {action} module {module_name}",
             "log_filename": "=> File name: {filename}",
             "log_downloading": "=- Downloading file to {file_path}",
@@ -223,9 +224,10 @@ def register(kernel):
             "reply_to_py": "{warning} <b>Ответьте на .py файл</b>",
             "not_py_file": "{warning} <b>Это не .py файл</b>",
             "system_module_update_attempt": "{confused} <b>Ой, кажется ты попытался обновить системный модуль</b> <code>{module_name}</code>\n<blockquote><i>{blocked} К сожалению нельзя обновлять системные модули с помощью <code>loadera</code></i></blockquote>",
-            "starting_install": "{action} модуль",
-            "installing": "{test} Устанавливаю",
-            "updating": "{reload} Oбновляю",
+            "starting_install": "{action} <b>модуль</b>",
+            "installing": "{test} </b>Устанавливаю</b>",
+            "updating": "{reload} <b>Oбновляю</b>",
+            "updating_version": "{reload} <b>Oбновляю до v</b><code>{old_version}</code> <b>→ v</b><code>{new_version}</code>",
             "log_start": "=- Начинаю {action} модуля {module_name}",
             "log_filename": "=> Имя файла: {filename}",
             "log_downloading": "=- Скачиваю файл в {file_path}",
@@ -614,23 +616,19 @@ def register(kernel):
             )
             return
 
-        is_update = module_name in kernel.loaded_modules
-
-        action = (
-            t("updating", reload=CUSTOM_EMOJI["loading"])
-            if is_update
-            else t("installing", test=CUSTOM_EMOJI["loading"])
+        is_update = (
+            module_name in kernel.loaded_modules or module_name in kernel.system_modules
         )
-        msg = await event.edit(t("starting_install", action=action), parse_mode="html")
 
-        add_log(
-            t(
-                "log_start",
-                action="обновление" if is_update else "установку",
-                module_name=module_name,
+        old_version = None
+        if is_update:
+            old_file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
+            old_version = await kernel._loader.get_module_version_from_file(
+                old_file_path
             )
-        )
-        add_log(t("log_filename", filename=file_name))
+            kernel.logger.info(
+                f"[loader] BEFORE download - old_file={old_file_path} old_version={old_version}"
+            )
 
         file_path = os.path.join(kernel.MODULES_LOADED_DIR, file_name)
 
@@ -648,6 +646,36 @@ def register(kernel):
             add_log(t("log_author", author=metadata["author"]))
             add_log(t("log_version", version=metadata["version"]))
             add_log(t("log_description", description=metadata["description"]))
+
+            if is_update:
+                new_version = metadata["version"]
+                kernel.logger.info(
+                    f"[loader] update check: {module_name} old={old_version} new={new_version}"
+                )
+                if old_version != new_version:
+                    action = t(
+                        "updating_version",
+                        reload=CUSTOM_EMOJI["loading"],
+                        old_version=old_version,
+                        new_version=new_version,
+                    )
+                else:
+                    action = t("updating", reload=CUSTOM_EMOJI["loading"])
+            else:
+                action = t("installing", test=CUSTOM_EMOJI["loading"])
+
+            msg = await event.edit(
+                t("starting_install", action=action), parse_mode="html"
+            )
+
+            add_log(
+                t(
+                    "log_start",
+                    action="обновление" if is_update else "установку",
+                    module_name=module_name,
+                )
+            )
+            add_log(t("log_filename", filename=file_name))
 
             mcub = await mcub_handler()
             add_log(t("log_checking_compatibility"))
@@ -1213,19 +1241,12 @@ def register(kernel):
 
         is_update = module_name in kernel.loaded_modules
 
-        if send_mode:
-            action = t("downloading_module", download=CUSTOM_EMOJI["download"])
-        else:
-            action = (
-                t("updating", reload=CUSTOM_EMOJI["reload"])
-                if is_update
-                else t("installing", test=CUSTOM_EMOJI["reload"])
+        old_version = None
+        if is_update:
+            old_file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
+            old_version = await kernel._loader.get_module_version_from_file(
+                old_file_path
             )
-
-        msg = await event.edit(
-            t("starting_install", action=action, module_name=module_name),
-            parse_mode="html",
-        )
 
         install_log = []
 
@@ -1315,7 +1336,7 @@ def register(kernel):
             if not code:
                 add_log(t("module_not_found_repos", module_name=module_name))
                 await edit_with_emoji(
-                    msg,
+                    event,
                     t(
                         "module_not_found_repos",
                         warning=CUSTOM_EMOJI["warning"],
@@ -1329,6 +1350,31 @@ def register(kernel):
             add_log(t("log_author", author=metadata["author"]))
             add_log(t("log_version", version=metadata["version"]))
             add_log(t("log_description", description=metadata["description"]))
+
+            if send_mode:
+                action = t("downloading_module", download=CUSTOM_EMOJI["download"])
+            else:
+                if is_update:
+                    new_version = metadata["version"]
+                    kernel.logger.info(
+                        f"[loader] update check: {module_name} old={old_version} new={new_version}"
+                    )
+                    if old_version != new_version:
+                        action = t(
+                            "updating_version",
+                            reload=CUSTOM_EMOJI["reload"],
+                            old_version=old_version,
+                            new_version=new_version,
+                        )
+                    else:
+                        action = t("updating", reload=CUSTOM_EMOJI["reload"])
+                else:
+                    action = t("installing", test=CUSTOM_EMOJI["reload"])
+
+            msg = await event.edit(
+                t("starting_install", action=action, module_name=module_name),
+                parse_mode="html",
+            )
 
             file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
 

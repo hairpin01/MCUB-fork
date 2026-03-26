@@ -556,8 +556,10 @@ async def _finish_setup(
         json.dump(config, f, ensure_ascii=False, indent=2)
     log.info("[setup] config.json written")
 
-    await _disconnect(state.get("client"))
-    _rename_session(_SETUP_SESSION, "user_session")
+    # Only disconnect client when kernel is starting (setup fully complete)
+    if start_kernel:
+        await _disconnect(state.get("client"))
+        _rename_session(_SETUP_SESSION, "user_session")
 
     state["done"] = True
     state["awaiting_code"] = False

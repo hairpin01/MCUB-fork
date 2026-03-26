@@ -1014,12 +1014,15 @@ class Kernel:
         host = (
             getattr(self, "web_host", None)
             or os.environ.get("MCUB_HOST")
-            or self.config.get("web_panel_host", "127.0.0.1")
+            or (self.config.get("web_panel_host") if self.config else None)
+            or "0.0.0.0"
         )
         port = int(
             getattr(self, "web_port", None)
-            or os.environ.get("MCUB_PORT", 0)
-            or self.config.get("web_panel_port", 8080)
+            or os.environ.get("MCUB_PORT")
+            or 0
+            or (self.config.get("web_panel_port") if self.config else None)
+            or 8080
         )
 
         # Check if we need setup wizard

@@ -33,10 +33,13 @@ except ImportError as e:
 
 try:
     from telethon import _check_mcub_installation
+
     _check_mcub_installation()
 except Exception:
     # tb = traceback.format_exc()
-    raise McubTelethonError("YOU is not install telethon-mcub, please run: 'pip install telethon-mcub' and 'pip uninstall telethon -y'! (or update telethon-mcub)")
+    raise McubTelethonError(
+        "YOU is not install telethon-mcub, please run: 'pip install telethon-mcub' and 'pip uninstall telethon -y'! (or update telethon-mcub)"
+    )
 
 try:
     from ..lib.utils.colors import Colors
@@ -761,12 +764,15 @@ class Kernel:
         host = (
             getattr(self, "web_host", None)
             or os.environ.get("MCUB_HOST")
-            or self.config.get("web_panel_host", "127.0.0.1")
+            or (self.config.get("web_panel_host") if self.config else None)
+            or "0.0.0.0"
         )
         port = int(
             getattr(self, "web_port", None)
-            or os.environ.get("MCUB_PORT", 0)
-            or self.config.get("web_panel_port", 8080)
+            or os.environ.get("MCUB_PORT")
+            or 0
+            or (self.config.get("web_panel_port") if self.config else None)
+            or 8080
         )
 
         needs_setup = not os.path.exists(self.CONFIG_FILE)
@@ -798,6 +804,7 @@ class Kernel:
         # Start the actual web panel in the background
         try:
             from core.web.app import start_web_panel
+
             asyncio.create_task(start_web_panel(self, host, port))
         except Exception as e:
             self.logger.error(f"Failed to start web panel: {e}")

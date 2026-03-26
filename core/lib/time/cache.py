@@ -46,18 +46,15 @@ class TTLCache:
             If the cache exceeds max_size after insertion, the least recently
             used item is removed. The new item becomes the most recently used.
         """
-        # Calculate expiration time: current time + custom TTL or default TTL
+        # Memory leak fix: clean up expired entries before adding new ones
+        if len(self.cache) >= self.max_size:
+            self._cleanup_expired()
+            if len(self.cache) >= self.max_size:
+                self.cache.popitem(last=False)
+
         expire_time = time.time() + (ttl if ttl is not None else self.ttl)
-
-        # Store the key with its expiration time and value
         self.cache[key] = (expire_time, value)
-
-        # Move to end to mark as recently used (OrderedDict maintains insertion order)
         self.cache.move_to_end(key)
-
-        # Remove least recently used item if cache exceeds max size
-        if len(self.cache) > self.max_size:
-            self.cache.popitem(last=False)
 
     def get(self, key: Any) -> Optional[Any]:
         """
@@ -111,7 +108,8 @@ class TTLCache:
         """
         current_time = time.time()
         expired_keys = [
-            key for key, (expire_time, _) in self.cache.items()
+            key
+            for key, (expire_time, _) in self.cache.items()
             if current_time >= expire_time
         ]
 

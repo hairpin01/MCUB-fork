@@ -1,5 +1,5 @@
 # author: @Hairpin00
-# version: 1.1.0
+# version: 1.1.5
 # description: loader modules
 import logging
 import os
@@ -114,9 +114,10 @@ def register(kernel):
             "reply_to_py": "{warning} <b>Reply to a .py file</b>",
             "not_py_file": "{warning} <b>This is not a .py file</b>",
             "system_module_update_attempt": "{confused} <b>Oops, looks like you tried to update a system module</b> <code>{module_name}</code>\n<blockquote><i>{blocked} Unfortunately, you cannot update system modules using <code>loadera</code></i></blockquote>",
-            "starting_install": "{action} modules",
-            "installing": "{test} Installing",
-            "updating": "{reload} Updating",
+            "starting_install": "{action} <b>modules</b>",
+            "installing": "{test} <b>Installing</b>",
+            "updating": "{reload} <b>Updating</b>",
+            "updating_version": "{reload} <b>Updating to v</b><code>{old_version}</code> <b>→ v</b><code>{new_version}</code>",
             "log_start": "=- Starting {action} module {module_name}",
             "log_filename": "=> File name: {filename}",
             "log_downloading": "=- Downloading file to {file_path}",
@@ -218,14 +219,22 @@ def register(kernel):
             "modules_not_mcub": "{warning} Module is not {mcub} type, [Heroku/Hikka]",
             "log_hikka_detected": "=+ Hikka/Heroku module detected — loading via compat layer",
             "hikka_no_compat": "{warning} <b>Hikka compat, not found.</b>",
+            "reload_all": "{reload} <b>Reloading all modules...</b>",
+            "reload_all_success": "{success} <b>All modules reloaded!</b>\n<blockquote>{count}</blockquote>",
+            "reload_all_success_one": "{success} <b>All modules reloaded!</b>\n{count} (<code>{name}</code>)",
+            "reload_all_failed": "{warning} <b>Failed to reload {count} module(s):</b>\n<blockquote expandable>{failed_list}</blockquote>",
+            "reload_all_partial": "{success} <b>Modules reloaded!</b>\n{success_count}\n{warning} <b>Failed: {failed_count}</b>\n<blockquote expandable>{failed_list}</blockquote>",
+            "failed_module": "• <code>{name}</code>\n",
+            "and_more": "• <code>+{count} more</code>",
         },
         "ru": {
             "reply_to_py": "{warning} <b>Ответьте на .py файл</b>",
             "not_py_file": "{warning} <b>Это не .py файл</b>",
             "system_module_update_attempt": "{confused} <b>Ой, кажется ты попытался обновить системный модуль</b> <code>{module_name}</code>\n<blockquote><i>{blocked} К сожалению нельзя обновлять системные модули с помощью <code>loadera</code></i></blockquote>",
-            "starting_install": "{action} модуль",
-            "installing": "{test} Устанавливаю",
-            "updating": "{reload} Oбновляю",
+            "starting_install": "{action} <b>модуль</b>",
+            "installing": "{test} </b>Устанавливаю</b>",
+            "updating": "{reload} <b>Oбновляю</b>",
+            "updating_version": "{reload} <b>Oбновляю до v</b><code>{old_version}</code> <b>→ v</b><code>{new_version}</code>",
             "log_start": "=- Начинаю {action} модуля {module_name}",
             "log_filename": "=> Имя файла: {filename}",
             "log_downloading": "=- Скачиваю файл в {file_path}",
@@ -327,6 +336,13 @@ def register(kernel):
             "modules_not_mcub": "{warning} Модуль не {mcub} типа <i>[Heroku/Hikka]</i>",
             "log_hikka_detected": "=+ Обнаружен Hikka/Heroku модуль",
             "hikka_no_compat": "{warning} <b>Hikka compat не найден.</b>",
+            "reload_all": "{reload} <b>Перезагружаю все модули...</b>",
+            "reload_all_success": "{success} <b>Все модули перезагружены!</b>\n<blockquote>{count}</blockquote>",
+            "reload_all_success_one": "{success} <b>Все модули перезагружены!</b>\n{count} (<code>{name}</code>)",
+            "reload_all_failed": "{warning} <b>Не удалось перезагрузить {count} модуль(ей):</b>\n<blockquote expandable>{failed_list}</blockquote>",
+            "reload_all_partial": "{success} <b>Модули перезагружены!</b>\n{success_count}\n{warning} <b>Не удалось: {failed_count}</b>\n<blockquote expandable>{failed_list}</blockquote>",
+            "failed_module": "• <code>{name}</code>\n",
+            "and_more": "• <code>+{count} ещё</code>",
         },
     }
 
@@ -434,31 +450,40 @@ def register(kernel):
                 repo_index = 0
 
             repo_url = repos[repo_index]
+            cache_key = f"catalog:{repo_url}"
+            cached = kernel.cache.get(cache_key)
 
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(f"{repo_url}/modules.ini") as resp:
-                        if resp.status == 200:
-                            modules_text = await resp.text()
-                            modules = [
-                                line.strip()
-                                for line in modules_text.split("\n")
-                                if line.strip()
-                            ]
-                        else:
-                            modules = []
+            if cached is not None:
+                modules, repo_name = cached
+            else:
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(f"{repo_url}/modules.ini") as resp:
+                            if resp.status == 200:
+                                modules_text = await resp.text()
+                                modules = [
+                                    line.strip()
+                                    for line in modules_text.split("\n")
+                                    if line.strip()
+                                ]
+                            else:
+                                modules = []
 
-                    async with session.get(f"{repo_url}/name.ini") as resp:
-                        if resp.status == 200:
-                            repo_name = await resp.text()
-                            repo_name = repo_name.strip()
-                        else:
-                            repo_name = (
-                                repo_url.split("/")[-2] if "/" in repo_url else repo_url
-                            )
-            except Exception:
-                modules = []
-                repo_name = repo_url.split("/")[-2] if "/" in repo_url else repo_url
+                        async with session.get(f"{repo_url}/name.ini") as resp:
+                            if resp.status == 200:
+                                repo_name = await resp.text()
+                                repo_name = repo_name.strip()
+                            else:
+                                repo_name = (
+                                    repo_url.split("/")[-2]
+                                    if "/" in repo_url
+                                    else repo_url
+                                )
+
+                        kernel.cache.set(cache_key, (modules, repo_name), ttl=300)
+                except Exception:
+                    modules = []
+                    repo_name = repo_url.split("/")[-2] if "/" in repo_url else repo_url
 
             per_page = 8
             total_pages = (len(modules) + per_page - 1) // per_page if modules else 1
@@ -605,23 +630,19 @@ def register(kernel):
             )
             return
 
-        is_update = module_name in kernel.loaded_modules
-
-        action = (
-            t("updating", reload=CUSTOM_EMOJI["loading"])
-            if is_update
-            else t("installing", test=CUSTOM_EMOJI["loading"])
+        is_update = (
+            module_name in kernel.loaded_modules or module_name in kernel.system_modules
         )
-        msg = await event.edit(t("starting_install", action=action), parse_mode="html")
 
-        add_log(
-            t(
-                "log_start",
-                action="обновление" if is_update else "установку",
-                module_name=module_name,
+        old_version = None
+        if is_update:
+            old_file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
+            old_version = await kernel._loader.get_module_version_from_file(
+                old_file_path
             )
-        )
-        add_log(t("log_filename", filename=file_name))
+            kernel.logger.info(
+                f"[loader] BEFORE download - old_file={old_file_path} old_version={old_version}"
+            )
 
         file_path = os.path.join(kernel.MODULES_LOADED_DIR, file_name)
 
@@ -639,6 +660,36 @@ def register(kernel):
             add_log(t("log_author", author=metadata["author"]))
             add_log(t("log_version", version=metadata["version"]))
             add_log(t("log_description", description=metadata["description"]))
+
+            if is_update:
+                new_version = metadata["version"]
+                kernel.logger.info(
+                    f"[loader] update check: {module_name} old={old_version} new={new_version}"
+                )
+                if old_version != new_version:
+                    action = t(
+                        "updating_version",
+                        reload=CUSTOM_EMOJI["loading"],
+                        old_version=old_version,
+                        new_version=new_version,
+                    )
+                else:
+                    action = t("updating", reload=CUSTOM_EMOJI["loading"])
+            else:
+                action = t("installing", test=CUSTOM_EMOJI["loading"])
+
+            msg = await event.edit(
+                t("starting_install", action=action), parse_mode="html"
+            )
+
+            add_log(
+                t(
+                    "log_start",
+                    action="обновление" if is_update else "установку",
+                    module_name=module_name,
+                )
+            )
+            add_log(t("log_filename", filename=file_name))
 
             mcub = await mcub_handler()
             add_log(t("log_checking_compatibility"))
@@ -729,6 +780,17 @@ def register(kernel):
                             desc=cmd_desc,
                         )
                         commands_list += command_line + "\n"
+
+                    inline_commands = kernel.get_module_inline_commands(module_name)
+                    if inline_commands:
+                        inline_emoji = (
+                            '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
+                        )
+                        for cmd, desc in inline_commands:
+                            if desc:
+                                commands_list += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>\n"
+                            else:
+                                commands_list += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code>\n"
 
                     conflict_text = ""
                     if conflicts:
@@ -903,6 +965,17 @@ def register(kernel):
                                     )
                                 )
                         commands_list += command_line + "\n"
+
+                inline_commands = kernel.get_module_inline_commands(module_name)
+                if inline_commands:
+                    inline_emoji = (
+                        '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
+                    )
+                    for cmd, desc in inline_commands:
+                        if desc:
+                            commands_list += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>\n"
+                        else:
+                            commands_list += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code>\n"
 
                 final_msg = t(
                     "module_loaded",
@@ -1182,19 +1255,12 @@ def register(kernel):
 
         is_update = module_name in kernel.loaded_modules
 
-        if send_mode:
-            action = t("downloading_module", download=CUSTOM_EMOJI["download"])
-        else:
-            action = (
-                t("updating", reload=CUSTOM_EMOJI["reload"])
-                if is_update
-                else t("installing", test=CUSTOM_EMOJI["reload"])
+        old_version = None
+        if is_update:
+            old_file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
+            old_version = await kernel._loader.get_module_version_from_file(
+                old_file_path
             )
-
-        msg = await event.edit(
-            t("starting_install", action=action, module_name=module_name),
-            parse_mode="html",
-        )
 
         install_log = []
 
@@ -1207,6 +1273,7 @@ def register(kernel):
         try:
             code = None
             repo_url = None
+            msg = None
 
             add_log(
                 t(
@@ -1241,7 +1308,7 @@ def register(kernel):
                     add_log(t("log_download_exception", error=str(e)))
                     await kernel.handle_error(e, source="install_for_url", event=event)
                     await edit_with_emoji(
-                        msg,
+                        event,
                         t(
                             "url_exception",
                             warning=CUSTOM_EMOJI["warning"],
@@ -1284,7 +1351,7 @@ def register(kernel):
             if not code:
                 add_log(t("module_not_found_repos", module_name=module_name))
                 await edit_with_emoji(
-                    msg,
+                    event,
                     t(
                         "module_not_found_repos",
                         warning=CUSTOM_EMOJI["warning"],
@@ -1298,6 +1365,31 @@ def register(kernel):
             add_log(t("log_author", author=metadata["author"]))
             add_log(t("log_version", version=metadata["version"]))
             add_log(t("log_description", description=metadata["description"]))
+
+            if send_mode:
+                action = t("downloading_module", download=CUSTOM_EMOJI["download"])
+            else:
+                if is_update:
+                    new_version = metadata["version"]
+                    kernel.logger.info(
+                        f"[loader] update check: {module_name} old={old_version} new={new_version}"
+                    )
+                    if old_version != new_version:
+                        action = t(
+                            "updating_version",
+                            reload=CUSTOM_EMOJI["reload"],
+                            old_version=old_version,
+                            new_version=new_version,
+                        )
+                    else:
+                        action = t("updating", reload=CUSTOM_EMOJI["reload"])
+                else:
+                    action = t("installing", test=CUSTOM_EMOJI["reload"])
+
+            msg = await event.edit(
+                t("starting_install", action=action, module_name=module_name),
+                parse_mode="html",
+            )
 
             file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
 
@@ -1389,7 +1481,6 @@ def register(kernel):
 
             add_log(t("log_loading_to_kernel"))
 
-            # ── Hikka/Heroku compat ──────────────────────────────────────────
             if is_hikka_module(code):
                 add_log(t("log_hikka_detected"))
                 if not HIKKA_COMPAT:
@@ -1434,6 +1525,17 @@ def register(kernel):
                                 desc=cmd_desc,
                             )
                             commands_list += command_line + "\n"
+
+                    inline_commands = kernel.get_module_inline_commands(module_name)
+                    if inline_commands:
+                        inline_emoji = (
+                            '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
+                        )
+                        for cmd, desc in inline_commands:
+                            if desc:
+                                commands_list += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>\n"
+                            else:
+                                commands_list += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code>\n"
 
                     conflict_text = ""
                     if conflicts:
@@ -1515,7 +1617,6 @@ def register(kernel):
                     if os.path.exists(file_path):
                         os.remove(file_path)
                 return
-            # ── end Hikka compat ─────────────────────────────────────────────
 
             success, message_text = await kernel.load_module_from_file(
                 file_path, module_name, False
@@ -1566,6 +1667,17 @@ def register(kernel):
                                     )
                                 )
                         commands_list += command_line + "\n"
+
+                inline_commands = kernel.get_module_inline_commands(module_name)
+                if inline_commands:
+                    inline_emoji = (
+                        '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
+                    )
+                    for cmd, desc in inline_commands:
+                        if desc:
+                            commands_list += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>\n"
+                        else:
+                            commands_list += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code>\n"
 
                 final_msg = t(
                     "module_loaded",
@@ -1647,7 +1759,7 @@ def register(kernel):
 
             log_text = "\n".join(install_log)
             await edit_with_emoji(
-                msg,
+                msg or event,
                 t(
                     "install_failed",
                     blocked=CUSTOM_EMOJI["blocked"],
@@ -1786,15 +1898,103 @@ def register(kernel):
     # <modules> reload modules
     async def reload_module_handler(event):
         args = event.text.split()
+
         if len(args) < 2:
-            await edit_with_emoji(
-                event,
-                t(
-                    "reload_usage",
-                    warning=CUSTOM_EMOJI["warning"],
-                    prefix=kernel.custom_prefix,
-                ),
+            modules_to_reload = list(kernel.loaded_modules.keys())
+            if not modules_to_reload:
+                await edit_with_emoji(
+                    event,
+                    t("no_modules", folder=CUSTOM_EMOJI["folder"]),
+                )
+                return
+
+            msg = await event.edit(
+                t("reload_all", reload=CUSTOM_EMOJI["reload"]),
+                parse_mode="html",
             )
+
+            results = []
+            failed = []
+
+            for module_name in modules_to_reload:
+                if module_name in kernel.system_modules:
+                    continue
+
+                file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
+
+                if not os.path.exists(file_path):
+                    failed.append(module_name)
+                    continue
+
+                if module_name in sys.modules:
+                    del sys.modules[module_name]
+
+                kernel.unregister_module_commands(module_name)
+
+                if module_name in kernel.loaded_modules:
+                    del kernel.loaded_modules[module_name]
+
+                success, _ = await kernel.load_module_from_file(
+                    file_path, module_name, False
+                )
+
+                if success:
+                    results.append(module_name)
+                else:
+                    failed.append(module_name)
+
+            success_count = len(results)
+            failed_count = len(failed)
+
+            if failed:
+                failed_list = ""
+                for i, name in enumerate(failed[:10]):
+                    failed_list += t("failed_module", name=name)
+                if failed_count > 10:
+                    failed_list += t("and_more", count=failed_count - 10)
+
+                if success_count > 0:
+                    await edit_with_emoji(
+                        msg,
+                        t(
+                            "reload_all_partial",
+                            success=CUSTOM_EMOJI["success"],
+                            success_count=f"✓ {success_count}",
+                            warning=CUSTOM_EMOJI["warning"],
+                            failed_count=failed_count,
+                            failed_list=failed_list,
+                        ),
+                    )
+                else:
+                    await edit_with_emoji(
+                        msg,
+                        t(
+                            "reload_all_failed",
+                            warning=CUSTOM_EMOJI["warning"],
+                            count=failed_count,
+                            failed_list=failed_list,
+                        ),
+                    )
+            else:
+                if success_count == 1:
+                    await edit_with_emoji(
+                        msg,
+                        t(
+                            "reload_all_success_one",
+                            success=CUSTOM_EMOJI["success"],
+                            count=f"1",
+                            name=results[0],
+                        ),
+                    )
+                else:
+                    await edit_with_emoji(
+                        msg,
+                        t(
+                            "reload_all_success",
+                            success=CUSTOM_EMOJI["success"],
+                            count=f"✓ {success_count}",
+                        ),
+                    )
             return
 
         module_name = args[1]
@@ -1848,7 +2048,7 @@ def register(kernel):
         )
 
         if success:
-            commands, aliases = get_module_commands(module_name, kernel)
+            commands, _, _ = get_module_commands(module_name, kernel)
             cmd_text = (
                 f"{CUSTOM_EMOJI['crystal']} {', '.join([f'<code>{kernel.custom_prefix}{cmd}</code>' for cmd in commands])}"
                 if commands
@@ -1877,6 +2077,7 @@ def register(kernel):
 
     @kernel.register.command("modules")
     async def modules_list_handler(event):
+        """list lodules"""
         await log_to_bot("🔷 Просмотр списка модулей")
 
         if not kernel.loaded_modules and not kernel.system_modules:

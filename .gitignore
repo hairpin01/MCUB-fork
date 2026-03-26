@@ -2,6 +2,14 @@
 __pycache__/
 *.py[codz]
 *$py.class
+modules_loaded/
+data/
+userbot.db
+*.session-journal
+*.session
+.cache/
+.venv/
+.git/
 
 # C extensions
 *.so
@@ -229,3 +237,5 @@ logs/
 gemini_data/
 data/
 .default_core
+*.off
+sourcetrigger_*.json

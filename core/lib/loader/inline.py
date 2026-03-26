@@ -115,9 +115,12 @@ class InlineManager:
             item_text = html_escape(item_text)
             header = html_escape(header)
 
-        parts: list[str] = [f"<blockquote>📷 {header}</blockquote>", f"<blockquote>📌 {item_title}{'</blockquote>' if not item_text else ''}"]
+        parts: list[str] = [
+            f"<blockquote>📷 {header}</blockquote>",
+            f"<blockquote>📌 {item_title}{'</blockquote>' if not item_text else ''}",
+        ]
         if item_text:
-            parts.append(f'<b>{item_text[:200]}</b></blockquote>')
+            parts.append(f"<b>{item_text[:200]}</b></blockquote>")
         parts += [f"<u><b>🖼 {index + 1}/{total}</b></u>"]
         return "\n".join(parts), media, media_type
 
@@ -198,7 +201,9 @@ class InlineManager:
 
                     full_text = html_escape(title) if escape_html_flag else title
                     if text:
-                        full_text += f"\n{html_escape(text) if escape_html_flag else text}"
+                        full_text += (
+                            f"\n{html_escape(text) if escape_html_flag else text}"
+                        )
 
                     await event.edit(
                         full_text, file=media, buttons=buttons, parse_mode="html"
@@ -429,8 +434,10 @@ class InlineManager:
         rows: list[list[Any]] = []
 
         # Accept both [btn, btn] and [[btn, btn], [btn]] forms.
-        if isinstance(buttons, (list, tuple)) and buttons and isinstance(
-            buttons[0], (list, tuple)
+        if (
+            isinstance(buttons, (list, tuple))
+            and buttons
+            and isinstance(buttons[0], (list, tuple))
         ):
             for row in buttons:
                 rows.append([to_button(x) for x in row])
@@ -498,8 +505,6 @@ class InlineManager:
             k.logger.error(f"Inline query error: {e}")
             await k.handle_error(e, source="inline_query_and_click")
             return False, None
-
-
 
     async def inline_form(
         self,
@@ -688,3 +693,23 @@ class InlineManager:
             k.logger.error(f"list error: {e}")
             await k.handle_error(e, source="list")
             return (False, None)
+
+    def get_module_inline_commands(self, module_name: str) -> list:
+        """Get inline commands registered by a module.
+
+        Args:
+            module_name: Name of the module.
+
+        Returns:
+            List of (command, description) tuples.
+        """
+        k = self.k
+        commands = []
+
+        for cmd, owner in k.inline_handlers_owners.items():
+            if owner == module_name:
+                handler = k.inline_handlers.get(cmd)
+                doc = getattr(handler, "__doc__", None)
+                commands.append((cmd, doc if doc else None))
+
+        return commands

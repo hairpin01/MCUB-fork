@@ -13,6 +13,7 @@ except ImportError:
 from telethon.tl.types import InputMediaWebPage
 from telethon import functions
 from copy import copy
+from utils import get_args
 
 
 def _detect_branch_sync():
@@ -47,6 +48,7 @@ CUSTOM_EMOJI = {
     "📎": '<tg-emoji emoji-id="5377844313575150051">📎</tg-emoji>',
     "🗳": '<tg-emoji emoji-id="5359741159566484212">🗳</tg-emoji>',
     "📰": '<tg-emoji emoji-id="5433982607035474385">📰</tg-emoji>',
+    "🛰": '<tg-emoji emoji-id="5321304062715517873">🛰</tg-emoji>',
 }
 
 
@@ -76,6 +78,10 @@ def register(kernel):
             "hours": "h",
             "minutes": "m",
             "seconds": "s",
+            "branch": "Branch",
+            "logs_not_fount_args": "<b>Available argument:</b> <code>clear</code>",
+            "logs_clear": "<b>Cleared kernel logs</b>",
+            "file_empty": "<b>Is logs empty</b>",
         },
         "ru": {
             "error_logs": "{snowflake} <b>Ошибка, смотри логи</b>",
@@ -97,6 +103,10 @@ def register(kernel):
             "hours": "ч",
             "minutes": "м",
             "seconds": "с",
+            "branch": "Ветка",
+            "logs_not_fount_args": "<b>Доступный аргумент: </b><code>clear</code>",
+            "logs_clear": "<b>Логи очишены</b>",
+            "file_empty": "<b>Логи пустые</b>",
         },
     }
 
@@ -143,10 +153,10 @@ def register(kernel):
         return cpu_usage, ram_usage
 
     async def mcub_handler():
-        me = kernel.cache.get('tester:me')
+        me = kernel.cache.get("tester:me")
         if me is None:
             me = await kernel.client.get_me()
-            kernel.cache.set('tester:me', me, ttl=3600)
+            kernel.cache.set("tester:me", me, ttl=3600)
         mcub_emoji = (
             '<tg-emoji emoji-id="5470015630302287916">🔮</tg-emoji><tg-emoji emoji-id="5469945764069280010">🔮</tg-emoji><tg-emoji emoji-id="5469943045354984820">🔮</tg-emoji><tg-emoji emoji-id="5469879466954098867">🔮</tg-emoji>'
             if me.premium
@@ -156,6 +166,7 @@ def register(kernel):
 
     @kernel.register.command("ping")
     async def ping_handler(event):
+        """ping mcub"""
         try:
             start_time = time.time()
             msg = await event.edit(resolve_ping_start_emoji(), parse_mode="html")
@@ -176,38 +187,83 @@ def register(kernel):
 
             custom_text = kernel.config.get("ping_custom_text")
             if custom_text:
+
                 def uses(*keys):
                     return any(f"{{{k}}}" in custom_text for k in keys)
 
                 _now = datetime.now()
-                _month_names_ru = ["Января","Февраля","Марта","Апреля","Мая","Июня",
-                                   "Июля","Августа","Сентября","Октября","Ноября","Декабря"]
-                _month_names_en = ["January","February","March","April","May","June",
-                                   "July","August","September","October","November","December"]
-                _weekday_names_ru = ["Понедельник","Вторник","Среда","Четверг","Пятница","Суббота","Воскресенье"]
-                _weekday_names_en = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+                _month_names_ru = [
+                    "Января",
+                    "Февраля",
+                    "Марта",
+                    "Апреля",
+                    "Мая",
+                    "Июня",
+                    "Июля",
+                    "Августа",
+                    "Сентября",
+                    "Октября",
+                    "Ноября",
+                    "Декабря",
+                ]
+                _month_names_en = [
+                    "January",
+                    "February",
+                    "March",
+                    "April",
+                    "May",
+                    "June",
+                    "July",
+                    "August",
+                    "September",
+                    "October",
+                    "November",
+                    "December",
+                ]
+                _weekday_names_ru = [
+                    "Понедельник",
+                    "Вторник",
+                    "Среда",
+                    "Четверг",
+                    "Пятница",
+                    "Суббота",
+                    "Воскресенье",
+                ]
+                _weekday_names_en = [
+                    "Monday",
+                    "Tuesday",
+                    "Wednesday",
+                    "Thursday",
+                    "Friday",
+                    "Saturday",
+                    "Sunday",
+                ]
                 _use_ru = language == "ru"
-                now_date       = _now.strftime("%d.%m.%Y")
-                now_time       = _now.strftime("%H:%M:%S")
-                now_day        = _now.strftime("%d")
-                now_month      = _now.strftime("%m")
-                now_month_name = (_month_names_ru if _use_ru else _month_names_en)[_now.month - 1]
-                now_year       = _now.strftime("%Y")
-                now_weekday    = (_weekday_names_ru if _use_ru else _weekday_names_en)[_now.weekday()]
-                now_hour       = _now.strftime("%H")
-                now_minute     = _now.strftime("%M")
-                now_second     = _now.strftime("%S")
+                now_date = _now.strftime("%d.%m.%Y")
+                now_time = _now.strftime("%H:%M:%S")
+                now_day = _now.strftime("%d")
+                now_month = _now.strftime("%m")
+                now_month_name = (_month_names_ru if _use_ru else _month_names_en)[
+                    _now.month - 1
+                ]
+                now_year = _now.strftime("%Y")
+                now_weekday = (_weekday_names_ru if _use_ru else _weekday_names_en)[
+                    _now.weekday()
+                ]
+                now_hour = _now.strftime("%H")
+                now_minute = _now.strftime("%M")
+                now_second = _now.strftime("%S")
 
                 # system_user / hostname
                 if uses("system_user", "hostname"):
-                    _identity = kernel.cache.get('tester:identity')
+                    _identity = kernel.cache.get("tester:identity")
                     if _identity is None:
                         try:
                             system_user = getpass.getuser()
                             hostname = socket.gethostname()
                         except Exception:
                             system_user = hostname = "Unknown"
-                        kernel.cache.set('tester:identity', (system_user, hostname))
+                        kernel.cache.set("tester:identity", (system_user, hostname))
                     else:
                         system_user, hostname = _identity
                 else:
@@ -215,7 +271,11 @@ def register(kernel):
 
                 # kernel_version / core_name
                 kernel_version = kernel.VERSION if uses("kernel_version") else ""
-                core_name = getattr(kernel, "CORE_NAME", "standard") if uses("core_name") else ""
+                core_name = (
+                    getattr(kernel, "CORE_NAME", "standard")
+                    if uses("core_name")
+                    else ""
+                )
 
                 # cpu / ram
                 if uses("cpu_usage", "ram_usage"):
@@ -225,11 +285,13 @@ def register(kernel):
 
                 # branch / commit_sha
                 if uses("branch", "commit_sha"):
-                    _version_info = kernel.cache.get('tester:version_info')
+                    _version_info = kernel.cache.get("tester:version_info")
                     if _version_info is None:
                         branch = await kernel.version_manager.detect_branch()
                         commit_sha = await kernel.version_manager.get_commit_sha()
-                        kernel.cache.set('tester:version_info', (branch, commit_sha), ttl=600)
+                        kernel.cache.set(
+                            "tester:version_info", (branch, commit_sha), ttl=600
+                        )
                     else:
                         branch, commit_sha = _version_info
                 else:
@@ -237,11 +299,26 @@ def register(kernel):
 
                 try:
                     _known = [
-                        "ping_time", "uptime", "system_user", "hostname",
-                        "kernel_version", "core_name", "cpu_usage", "ram_usage",
-                        "branch", "commit_sha",
-                        "now_date", "now_time", "now_day", "now_month", "now_month_name",
-                        "now_year", "now_weekday", "now_hour", "now_minute", "now_second",
+                        "ping_time",
+                        "uptime",
+                        "system_user",
+                        "hostname",
+                        "kernel_version",
+                        "core_name",
+                        "cpu_usage",
+                        "ram_usage",
+                        "branch",
+                        "commit_sha",
+                        "now_date",
+                        "now_time",
+                        "now_day",
+                        "now_month",
+                        "now_month_name",
+                        "now_year",
+                        "now_weekday",
+                        "now_hour",
+                        "now_minute",
+                        "now_second",
                     ]
                     _safe = custom_text.replace("{", "{{").replace("}", "}}")
                     for _k in _known:
@@ -291,19 +368,19 @@ def register(kernel):
                         await msg.edit(
                             response,
                             file=InputMediaWebPage(banner_url, optional=True),
-                            parse_mode='html',
+                            parse_mode="html",
                             link_preview=True,
-                            invert_media=invert_media
+                            invert_media=invert_media,
                         )
                         return
                     except TypeError as e:
-                        kernel.logger.error('error: ', e)
+                        kernel.logger.error("error: ", e)
                         await client(
                             functions.messages.EditMessageRequest(
                                 peer=await event.get_input_chat(),
                                 id=msg.id,
                                 message=response,
-                                parse_mode='html',
+                                parse_mode="html",
                                 invert_media=invert_media,
                                 no_webpage=False,
                             )
@@ -333,9 +410,7 @@ def register(kernel):
                         pass
                 else:
                     try:
-                        await msg.edit(
-                            response, file=banner_url, parse_mode="html"
-                        )
+                        await msg.edit(response, file=banner_url, parse_mode="html")
                         banner_sent = True
                     except Exception:
                         pass
@@ -362,6 +437,7 @@ def register(kernel):
 
     @kernel.register.command("logs")
     async def logs_handler(event):
+        """[clear] - cleared logs kernel"""
         try:
 
             kernel_log_path = os.path.join(kernel.LOGS_DIR, "kernel.log")
@@ -371,26 +447,53 @@ def register(kernel):
                     t("logs_not_found", file=CUSTOM_EMOJI["📁"]), parse_mode="html"
                 )
                 return
+            size_kernel_log = os.path.getsize(kernel_log_path)
+
+            if size_kernel_log == 0:
+                await event.edit(
+                    f"{CUSTOM_EMOJI['🗳']} {t('file_empty')}", parse_mode="html"
+                )
+                return
+
+            args = get_args(event)
+            if args:
+                if args[0] in "clear":
+                    if size_kernel_log == 0:
+                        await event.edit(f"{CUSTOM_EMOJI['🗳']} {t('file_empty')}")
+                        return
+
+                    with open(kernel_log_path, "w") as f:
+                        pass
+
+                    await event.edit(
+                        f"{CUSTOM_EMOJI['🗳']} {t('logs_clear')}", parse_mode="html"
+                    )
+                    return
+                else:
+                    await event.edit(
+                        f"{CUSTOM_EMOJI['🧊']} {t('logs_not_fount_args')}",
+                        parse_mode="html",
+                    )
+                    return
 
             await event.edit(
                 t("logs_sending", printer=CUSTOM_EMOJI["🖨"]), parse_mode="html"
             )
-
-            send_params = {}
-            chat = await event.get_chat()
-            reply_to = None
-            if hasattr(chat, "forum") and chat.forum and event.message.reply_to:
-                reply_to = (
-                    event.message.reply_to.reply_to_top_id
-                    or event.message.reply_to.reply_to_msg_id
+            _version_info = kernel.cache.get("tester:version_info")
+            if _version_info is None:
+                branch = await kernel.version_manager.detect_branch()
+                commit_sha = await kernel.version_manager.get_commit_sha()
+                commit_url = await kernel.version_manager.get_github_commit_url()
+                kernel.cache.set(
+                    "tester:version_info", (branch, commit_sha, commit_url), ttl=600
                 )
-
-            if reply_to:
-                send_params["reply_to"] = reply_to
+            else:
+                branch, commit_sha, commit_url = _version_info
 
             await event.edit(
-                f'{CUSTOM_EMOJI["📝"]} {t("logs")} {await mcub_handler()}\n'
-                f'{CUSTOM_EMOJI["✏️"]} {t("kernel_version")} {kernel.VERSION}',
+                f'{CUSTOM_EMOJI["📝"]} <b>{t("logs")}</b> {await mcub_handler()}\n'
+                f'<blockquote>{CUSTOM_EMOJI["✏️"]} <b>{t("kernel_version")}</b> {kernel.VERSION}#<a href="{commit_url}">{commit_sha}</a>\n'
+                f"{CUSTOM_EMOJI['🛰']} <b>{t('branch')}:</b> {branch}</blockquote>",
                 file=kernel_log_path,
                 parse_mode="html",
             )
@@ -404,6 +507,7 @@ def register(kernel):
 
     @kernel.register.command("freezing")
     async def freezing_handler(event):
+        """[int] freezing userbot"""
         try:
             args = event.text.split()
             if len(args) < 2:

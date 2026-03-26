@@ -27,33 +27,36 @@ def _redact(value: object, visible: int = 2) -> str:
         return "*" * len(text)
     return f"{text[:visible]}***{text[-visible:]}"
 
+
 def setup_routes(app: web.Application) -> None:
-    app.router.add_get("/",                       index)
-    app.router.add_get("/status",                 status)
-    app.router.add_post("/api/setup/send_code",   api_send_code)
+    app.router.add_get("/", index)
+    app.router.add_get("/status", status)
+    app.router.add_post("/api/setup/send_code", api_send_code)
     app.router.add_post("/api/setup/verify_code", api_verify_code)
-    app.router.add_post("/api/setup/qr_login",    api_qr_login)
-    app.router.add_post("/api/setup/qr_poll",     api_qr_poll)
-    app.router.add_get("/api/setup/state",        api_setup_state)
-    app.router.add_get("/setup/reset",             setup_reset)
+    app.router.add_post("/api/setup/qr_login", api_qr_login)
+    app.router.add_post("/api/setup/qr_poll", api_qr_poll)
+    app.router.add_get("/api/setup/state", api_setup_state)
+    app.router.add_get("/setup/reset", setup_reset)
     # Bot management
-    app.router.add_get("/bot",                    bot_page)
-    app.router.add_post("/api/bot/verify_token",  api_bot_verify_token)
-    app.router.add_post("/api/bot/save_token",    api_bot_save_token)
-    app.router.add_post("/api/bot/start",         api_bot_start)
-    app.router.add_get("/api/bot/status",         api_bot_status)
-    app.router.add_post("/api/setup/complete",    api_setup_complete)
-    app.router.add_post("/api/bot/auto_create",   api_bot_auto_create)
-    app.router.add_get("/api/setup/prefill",       api_setup_prefill)
+    app.router.add_get("/bot", bot_page)
+    app.router.add_post("/api/bot/verify_token", api_bot_verify_token)
+    app.router.add_post("/api/bot/save_token", api_bot_save_token)
+    app.router.add_post("/api/bot/start", api_bot_start)
+    app.router.add_get("/api/bot/status", api_bot_status)
+    app.router.add_post("/api/setup/complete", api_setup_complete)
+    app.router.add_post("/api/bot/auto_create", api_bot_auto_create)
+    app.router.add_get("/api/setup/prefill", api_setup_prefill)
     # Auth management
-    app.router.add_get("/api/auth/status",         api_auth_status)
+    app.router.add_get("/api/auth/status", api_auth_status)
     app.router.add_post("/api/auth/generate_token", api_auth_generate_token)
     # Static files
     app.router.add_static("/static", path="core/web/static", name="static")
     # serve logo from core/web/img/
     import os
+
     if os.path.isdir("core/web/img"):
         app.router.add_static("/static/img", path="core/web/img", name="img")
+
 
 async def index(request: web.Request) -> web.Response:
     """Show setup wizard, or re-auth if config exists but session is missing,
@@ -80,11 +83,15 @@ async def index(request: web.Request) -> web.Response:
 
     # If config and session exist - MCUB is already configured
     if has_config and config_valid and has_session:
-        return aiohttp_jinja2.render_template("setup.html", request, {"already_configured": True})
+        return aiohttp_jinja2.render_template(
+            "setup.html", request, {"already_configured": True}
+        )
 
     # If config exists with valid credentials but no session - show re-auth page
     if has_config and config_valid and not has_session:
-        return aiohttp_jinja2.render_template("setup.html", request, {"reauth": True, "show_reauth": True})
+        return aiohttp_jinja2.render_template(
+            "setup.html", request, {"reauth": True, "show_reauth": True}
+        )
 
     return aiohttp_jinja2.render_template("setup.html", request, {})
 
@@ -98,20 +105,24 @@ async def status(request: web.Request) -> web.Response:
             return web.json_response({"error": "Unauthorized"}, status=401)
         token = auth_header[7:]
         from .auth import hash_token
+
         if hash_token(token) != auth_middleware.token_hash:
             return web.json_response({"error": "Unauthorized"}, status=401)
 
     kernel = request.app.get("kernel")
     if kernel is None or not _is_configured(kernel):
         return web.json_response({"error": "Kernel not available"}, status=503)
-    return web.json_response({
-        "version":            kernel.VERSION,
-        "prefix":             kernel.custom_prefix,
-        "modules":            list(kernel.loaded_modules.keys()),
-        "commands":           list(kernel.command_handlers.keys()),
-        "uptime":             time.time() - kernel.start_time,
-        "error_load_modules": kernel.error_load_modules,
-    })
+    return web.json_response(
+        {
+            "version": kernel.VERSION,
+            "prefix": kernel.custom_prefix,
+            "modules": list(kernel.loaded_modules.keys()),
+            "commands": list(kernel.command_handlers.keys()),
+            "uptime": time.time() - kernel.start_time,
+            "error_load_modules": kernel.error_load_modules,
+        }
+    )
+
 
 async def api_setup_state(request: web.Request) -> web.Response:
     import os
@@ -133,13 +144,16 @@ async def api_setup_state(request: web.Request) -> web.Response:
         except (json.JSONDecodeError, IOError):
             pass
 
-    return web.json_response({
-        "has_session":   "client" in s,
-        "awaiting_code": s.get("awaiting_code", False),
-        "awaiting_2fa":  s.get("awaiting_2fa",  False),
-        "done":          s.get("done",           False),
-        "needs_reauth":  needs_reauth,
-    })
+    return web.json_response(
+        {
+            "has_session": "client" in s,
+            "awaiting_code": s.get("awaiting_code", False),
+            "awaiting_2fa": s.get("awaiting_2fa", False),
+            "done": s.get("done", False),
+            "needs_reauth": needs_reauth,
+        }
+    )
+
 
 async def api_send_code(request: web.Request) -> web.Response:
     log.info("[setup] /api/setup/send_code called")
@@ -150,11 +164,15 @@ async def api_send_code(request: web.Request) -> web.Response:
         log.warning("[setup] bad JSON in send_code: %s", exc)
         return _err("Invalid JSON body")
 
-    api_id_raw = str(data.get("api_id",   "")).strip()
-    api_hash   = str(data.get("api_hash", "")).strip()
-    phone      = str(data.get("phone",    "")).strip()
+    api_id_raw = str(data.get("api_id", "")).strip()
+    api_hash = str(data.get("api_hash", "")).strip()
+    phone = str(data.get("phone", "")).strip()
 
-    log.info("[setup] send_code request api_id=%s phone=%s", _redact(api_id_raw), _redact(phone))
+    log.info(
+        "[setup] send_code request api_id=%s phone=%s",
+        _redact(api_id_raw),
+        _redact(phone),
+    )
 
     if not api_id_raw.isdigit():
         return _err("API ID must be a number")
@@ -177,8 +195,12 @@ async def api_send_code(request: web.Request) -> web.Response:
 
     log.debug("[setup] Creating TelegramClient for send_code")
     client = TelegramClient(
-        _SETUP_SESSION, api_id, api_hash,
-        connection_retries=5, retry_delay=2, timeout=30,
+        _SETUP_SESSION,
+        api_id,
+        api_hash,
+        connection_retries=5,
+        retry_delay=2,
+        timeout=30,
     )
 
     try:
@@ -198,16 +220,18 @@ async def api_send_code(request: web.Request) -> web.Response:
         return _err(_friendly_error(exc))
 
     state.clear()
-    state.update({
-        "client":          client,
-        "api_id":          api_id,
-        "api_hash":        api_hash,
-        "phone":           phone,
-        "phone_code_hash": result.phone_code_hash,
-        "awaiting_code":   True,
-        "awaiting_2fa":    False,
-        "done":            False,
-    })
+    state.update(
+        {
+            "client": client,
+            "api_id": api_id,
+            "api_hash": api_hash,
+            "phone": phone,
+            "phone_code_hash": result.phone_code_hash,
+            "awaiting_code": True,
+            "awaiting_2fa": False,
+            "done": False,
+        }
+    )
 
     return web.json_response({"success": True, "message": "Code sent to Telegram"})
 
@@ -222,8 +246,8 @@ async def api_qr_login(request: web.Request) -> web.Response:
         log.warning("[setup] bad JSON in qr_login: %s", exc)
         return _err("Invalid JSON body")
 
-    api_id_raw = str(data.get("api_id",   "")).strip()
-    api_hash   = str(data.get("api_hash", "")).strip()
+    api_id_raw = str(data.get("api_id", "")).strip()
+    api_hash = str(data.get("api_hash", "")).strip()
 
     log.info("[setup] QR login request api_id=%s", _redact(api_id_raw))
 
@@ -246,8 +270,12 @@ async def api_qr_login(request: web.Request) -> web.Response:
 
     log.debug("[setup] Creating TelegramClient for QR login")
     client = TelegramClient(
-        _SETUP_SESSION, api_id, api_hash,
-        connection_retries=5, retry_delay=2, timeout=30,
+        _SETUP_SESSION,
+        api_id,
+        api_hash,
+        connection_retries=5,
+        retry_delay=2,
+        timeout=30,
     )
 
     try:
@@ -255,17 +283,20 @@ async def api_qr_login(request: web.Request) -> web.Response:
         await client.connect()
 
         # Request login token
-        result = await client(functions.auth.ExportLoginTokenRequest(
-            api_id=api_id,
-            api_hash=api_hash,
-            except_ids=[]
-        ))
+        result = await client(
+            functions.auth.ExportLoginTokenRequest(
+                api_id=int(api_id), api_hash=api_hash, except_ids=[]
+            )
+        )
 
         log.debug("[setup] QR token result type: %s", type(result).__name__)
 
         # Generate QR URL from token
         import base64
-        qr_url = 'tg://login?token=' + base64.urlsafe_b64encode(result.token).decode('utf-8').rstrip('=')
+
+        qr_url = "tg://login?token=" + base64.urlsafe_b64encode(result.token).decode(
+            "utf-8"
+        ).rstrip("=")
         log.debug("[setup] QR URL generated")
 
     except Exception as exc:
@@ -275,23 +306,27 @@ async def api_qr_login(request: web.Request) -> web.Response:
         return _err(_friendly_error(exc))
 
     state.clear()
-    state.update({
-        "client":          client,
-        "api_id":          api_id,
-        "api_hash":        api_hash,
-        "qr_token":        result.token,
-        "qr_url":          qr_url,
-        "awaiting_qr":     True,
-        "awaiting_code":   False,
-        "awaiting_2fa":    False,
-        "done":            False,
-    })
+    state.update(
+        {
+            "client": client,
+            "api_id": api_id,
+            "api_hash": api_hash,
+            "qr_token": result.token,
+            "qr_url": qr_url,
+            "awaiting_qr": True,
+            "awaiting_code": False,
+            "awaiting_2fa": False,
+            "done": False,
+        }
+    )
 
-    return web.json_response({
-        "success": True,
-        "qr_url": qr_url,
-        "message": "Scan QR code with your Telegram app"
-    })
+    return web.json_response(
+        {
+            "success": True,
+            "qr_url": qr_url,
+            "message": "Scan QR code with your Telegram app",
+        }
+    )
 
 
 async def api_qr_poll(request: web.Request) -> web.Response:
@@ -317,11 +352,11 @@ async def api_qr_poll(request: web.Request) -> web.Response:
         log.debug("[setup] Checking token status")
 
         try:
-            result = await client(functions.auth.ExportLoginTokenRequest(
-                api_id=state["api_id"],
-                api_hash=state["api_hash"],
-                except_ids=[]
-            ))
+            result = await client(
+                functions.auth.ExportLoginTokenRequest(
+                    api_id=state["api_id"], api_hash=state["api_hash"], except_ids=[]
+                )
+            )
             log.debug("[setup] Token check result: %s", type(result).__name__)
         except Exception as token_err:
             err_str = str(token_err).lower()
@@ -331,28 +366,39 @@ async def api_qr_poll(request: web.Request) -> web.Response:
                 return web.json_response({"requires_2fa": True})
             if "expired" in err_str or "invalid" in err_str:
                 log.info("[setup] QR token expired, generating new token")
-                result = await client(functions.auth.ExportLoginTokenRequest(
-                    api_id=state["api_id"],
-                    api_hash=state["api_hash"],
-                    except_ids=[]
-                ))
+                result = await client(
+                    functions.auth.ExportLoginTokenRequest(
+                        api_id=state["api_id"],
+                        api_hash=state["api_hash"],
+                        except_ids=[],
+                    )
+                )
                 import base64
-                qr_url = 'tg://login?token=' + base64.urlsafe_b64encode(result.token).decode('utf-8').rstrip('=')
+
+                qr_url = "tg://login?token=" + base64.urlsafe_b64encode(
+                    result.token
+                ).decode("utf-8").rstrip("=")
                 state["qr_token"] = result.token
                 state["qr_url"] = qr_url
-                return web.json_response({
-                    "success": True,
-                    "qr_url": qr_url,
-                    "qr_expired": True,
-                    "message": "QR code expired, showing new one"
-                })
+                return web.json_response(
+                    {
+                        "success": True,
+                        "qr_url": qr_url,
+                        "qr_expired": True,
+                        "message": "QR code expired, showing new one",
+                    }
+                )
             raise
 
         # Check result type
         if isinstance(result, types.auth.LoginTokenSuccess):
             log.info("[setup] QR login success")
             user = result.authorization.user
-            phone = getattr(user, 'phone', None) or getattr(user, 'username', None) or "+unknown"
+            phone = (
+                getattr(user, "phone", None)
+                or getattr(user, "username", None)
+                or "+unknown"
+            )
             state["phone"] = phone
             state["awaiting_qr"] = False
             return await _finish_setup(request, state, start_kernel=False)
@@ -363,19 +409,26 @@ async def api_qr_poll(request: web.Request) -> web.Response:
             result = await client(functions.auth.ImportLoginTokenRequest(result.token))
             if isinstance(result, types.auth.LoginTokenSuccess):
                 user = result.authorization.user
-                phone = getattr(user, 'phone', None) or getattr(user, 'username', None) or "+unknown"
+                phone = (
+                    getattr(user, "phone", None)
+                    or getattr(user, "username", None)
+                    or "+unknown"
+                )
                 state["phone"] = phone
                 state["awaiting_qr"] = False
                 return await _finish_setup(request, state, start_kernel=False)
 
         # Still waiting for scan
         log.debug("[setup] Still waiting for QR scan")
-        return web.json_response({"success": True, "waiting": True, "message": "Waiting for QR scan…"})
+        return web.json_response(
+            {"success": True, "waiting": True, "message": "Waiting for QR scan…"}
+        )
 
     except Exception as exc:
         tb = traceback.format_exc()
         log.error("[setup] QR POLL ERROR:\n%s", tb)
         return _err(_friendly_error(exc))
+
 
 async def api_verify_code(request: web.Request) -> web.Response:
     log.info("[setup] /api/setup/verify_code called")
@@ -390,9 +443,11 @@ async def api_verify_code(request: web.Request) -> web.Response:
     except Exception:
         return _err("Invalid JSON body")
 
-    code     = str(data.get("code",     "")).strip()
+    code = str(data.get("code", "")).strip()
     password = str(data.get("password", "")).strip()
-    log.info("[setup] verify_code has_code=%s has_password=%s", bool(code), bool(password))
+    log.info(
+        "[setup] verify_code has_code=%s has_password=%s", bool(code), bool(password)
+    )
 
     from telethon.errors import (
         PhoneCodeInvalidError,
@@ -417,7 +472,11 @@ async def api_verify_code(request: web.Request) -> web.Response:
         # Get user info after successful 2FA login
         if state.get("awaiting_qr"):
             me = await client.get_me()
-            state["phone"] = getattr(me, 'phone', None) or getattr(me, 'username', None) or "+unknown"
+            state["phone"] = (
+                getattr(me, "phone", None)
+                or getattr(me, "username", None)
+                or "+unknown"
+            )
 
         # Don't start kernel yet - wait for bot step
         return await _finish_setup(request, state, start_kernel=False)
@@ -432,7 +491,7 @@ async def api_verify_code(request: web.Request) -> web.Response:
     if "phone_code_hash" not in state:
         return _err("No pending code request - go back and request a new one")
 
-    phone           = state["phone"]
+    phone = state["phone"]
     phone_code_hash = state["phone_code_hash"]
     log.info("[setup] sign_in phone=%s", _redact(phone))
 
@@ -469,37 +528,42 @@ async def api_verify_code(request: web.Request) -> web.Response:
     # Don't start kernel yet - wait for bot step
     return await _finish_setup(request, state, start_kernel=False)
 
-async def _finish_setup(request: web.Request, state: dict, start_kernel: bool = True) -> web.Response:
+
+async def _finish_setup(
+    request: web.Request, state: dict, start_kernel: bool = True
+) -> web.Response:
     log.info("[setup] Auth OK; writing config.json")
 
     config = {
-        "api_id":               state["api_id"],
-        "api_hash":             state["api_hash"],
-        "phone":                state["phone"],
-        "command_prefix":       ".",
-        "aliases":              {},
-        "power_save_mode":      False,
-        "2fa_enabled":          state.get("awaiting_2fa", False),
+        "api_id": state["api_id"],
+        "api_hash": state["api_hash"],
+        "phone": state["phone"],
+        "command_prefix": ".",
+        "aliases": {},
+        "power_save_mode": False,
+        "2fa_enabled": state.get("awaiting_2fa", False),
         "healthcheck_interval": 30,
-        "developer_chat_id":    None,
-        "language":             "ru",
-        "theme":               "default",
-        "proxy":               None,
-        "inline_bot_token":    None,
+        "developer_chat_id": None,
+        "language": "ru",
+        "theme": "default",
+        "proxy": None,
+        "inline_bot_token": None,
         "inline_bot_username": None,
-        "db_version":          2,
+        "db_version": 2,
     }
 
     with open("config.json", "w", encoding="utf-8") as f:
         json.dump(config, f, ensure_ascii=False, indent=2)
     log.info("[setup] config.json written")
 
-    await _disconnect(state.get("client"))
-    _rename_session(_SETUP_SESSION, "user_session")
+    # Only disconnect client when kernel is starting (setup fully complete)
+    if start_kernel:
+        await _disconnect(state.get("client"))
+        _rename_session(_SETUP_SESSION, "user_session")
 
-    state["done"]          = True
+    state["done"] = True
     state["awaiting_code"] = False
-    state["awaiting_2fa"]  = False
+    state["awaiting_2fa"] = False
 
     # Only start kernel if explicitly requested
     if start_kernel:
@@ -508,11 +572,14 @@ async def _finish_setup(request: web.Request, state: dict, start_kernel: bool = 
             ev.set()
             log.debug("[setup] setup_event fired")
 
-    return web.json_response({
-        "success": True,
-        "message": "Setup complete! Kernel is starting…",
-        "start_kernel": start_kernel,
-    })
+    return web.json_response(
+        {
+            "success": True,
+            "message": "Setup complete! Kernel is starting…",
+            "start_kernel": start_kernel,
+        }
+    )
+
 
 def _err(msg: str, status: int = 400) -> web.Response:
     log.warning("[setup] error: %s", msg)
@@ -561,7 +628,8 @@ async def setup_reset(request: web.Request) -> web.Response:
 
 
 def _friendly_error(exc: Exception) -> str:
-    s = str(exc); low = s.lower()
+    s = str(exc)
+    low = s.lower()
     if "api_id" in low or "api_hash" in low:
         return "Invalid API ID or API Hash"
     if "phone" in low and "invalid" in low:
@@ -622,17 +690,19 @@ async def api_bot_status(request: web.Request) -> web.Response:
     bot_username = kernel.config.get("inline_bot_username")
     bot_running = False
 
-    if hasattr(kernel, 'bot_client') and kernel.bot_client:
+    if hasattr(kernel, "bot_client") and kernel.bot_client:
         try:
             bot_running = kernel.bot_client.is_connected()
         except Exception:
             pass
 
-    return web.json_response({
-        "has_token": bool(bot_token),
-        "username": bot_username,
-        "running": bot_running,
-    })
+    return web.json_response(
+        {
+            "has_token": bool(bot_token),
+            "username": bot_username,
+            "running": bot_running,
+        }
+    )
 
 
 async def api_bot_verify_token(request: web.Request) -> web.Response:
@@ -652,20 +722,26 @@ async def api_bot_verify_token(request: web.Request) -> web.Response:
 
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(f"https://api.telegram.org/bot{token}/getMe") as resp:
+            async with session.get(
+                f"https://api.telegram.org/bot{token}/getMe"
+            ) as resp:
                 result = await resp.json()
                 if result.get("ok"):
                     bot_info = result["result"]
-                    return web.json_response({
-                        "valid": True,
-                        "username": bot_info.get("username"),
-                        "name": bot_info.get("first_name"),
-                    })
+                    return web.json_response(
+                        {
+                            "valid": True,
+                            "username": bot_info.get("username"),
+                            "name": bot_info.get("first_name"),
+                        }
+                    )
                 else:
-                    return web.json_response({
-                        "valid": False,
-                        "error": result.get("description", "Invalid token"),
-                    })
+                    return web.json_response(
+                        {
+                            "valid": False,
+                            "error": result.get("description", "Invalid token"),
+                        }
+                    )
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
 
@@ -703,47 +779,22 @@ async def api_bot_auto_create(request: web.Request) -> web.Response:
     client = state.get("client")
 
     if client is None:
-        # Try to use kernel's client
         kernel = request.app.get("kernel")
         if kernel is None:
             return web.json_response({"error": "No client available"}, status=400)
         client = kernel.client
 
     try:
-        botfather = await client.get_entity("BotFather")
+        from core_inline.bot import InlineBot
 
-        # Generate random bot username
-        import random
-        import string
-        suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
-        bot_username = f"mcub_{suffix}_bot"
+        inline_bot = InlineBot(kernel=None)
+        result = await inline_bot.create_bot_auto_web(client)
 
-        # Send /newbot command
-        await client.send_message(botfather, "/newbot")
-        await asyncio.sleep(1)
-        await client.send_message(botfather, "🪄 MCUB Inline Bot")
-        await asyncio.sleep(1)
-        await client.send_message(botfather, bot_username)
-        await asyncio.sleep(3)
+        if "error" in result:
+            return web.json_response(
+                result, status=400 if result.get("manual") else 500
+            )
 
-        # Wait for token
-        messages = await client.get_messages(botfather, limit=3)
-        token = None
-        for msg in messages:
-            if msg.text:
-                import re
-                match = re.search(r"(\d+:[A-Za-z0-9_-]+)", msg.text)
-                if match:
-                    token = match.group(1)
-                    break
-
-        if not token:
-            return web.json_response({
-                "error": "Could not get token from BotFather. Please create bot manually.",
-                "manual": True
-            }, status=400)
-
-        # Save token to config
         config_path = "config.json"
         if os.path.exists(config_path):
             with open(config_path, "r", encoding="utf-8") as f:
@@ -751,18 +802,20 @@ async def api_bot_auto_create(request: web.Request) -> web.Response:
         else:
             config = {}
 
-        config["inline_bot_token"] = token
-        config["inline_bot_username"] = bot_username
+        config["inline_bot_token"] = result["token"]
+        config["inline_bot_username"] = result["username"]
 
         with open(config_path, "w", encoding="utf-8") as f:
             json.dump(config, f, ensure_ascii=False, indent=2)
 
-        return web.json_response({
-            "success": True,
-            "token": token,
-            "username": bot_username,
-            "message": f"Bot @{bot_username} created! Token saved."
-        })
+        return web.json_response(
+            {
+                "success": True,
+                "token": result["token"],
+                "username": result["username"],
+                "message": f"Bot @{result['username']} created! Token saved.",
+            }
+        )
 
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
@@ -789,6 +842,7 @@ async def api_bot_start(request: web.Request) -> web.Response:
 
     try:
         from core_inline.bot import InlineBot
+
         inline_bot = InlineBot(kernel)
         await inline_bot.start_bot()
         return web.json_response({"success": True, "message": "Bot started"})
@@ -804,12 +858,14 @@ async def api_setup_prefill(request: web.Request) -> web.Response:
     try:
         with open(config_path, "r") as f:
             cfg = json.load(f)
-        return web.json_response({
-            "ok":       True,
-            "api_id":   cfg.get("api_id", ""),
-            "api_hash": cfg.get("api_hash", ""),
-            "phone":    cfg.get("phone", ""),
-        })
+        return web.json_response(
+            {
+                "ok": True,
+                "api_id": cfg.get("api_id", ""),
+                "api_hash": cfg.get("api_hash", ""),
+                "phone": cfg.get("phone", ""),
+            }
+        )
     except Exception as e:
         return web.json_response({"ok": False, "error": str(e)})
 
@@ -824,7 +880,7 @@ def _fmt_uptime(start_ts) -> str:
     if not start_ts:
         return "N/A"
     h, rem = divmod(int(time.time() - start_ts), 3600)
-    m, s   = divmod(rem, 60)
+    m, s = divmod(rem, 60)
     return f"{h:02}:{m:02}:{s:02}"
 
 
@@ -832,13 +888,8 @@ async def api_auth_status(request: web.Request) -> web.Response:
     """Check if authentication is enabled."""
     auth_middleware = request.app.get("auth_middleware")
     if auth_middleware is None:
-        return web.json_response({
-            "enabled": False,
-            "message": "Auth not configured"
-        })
-    return web.json_response({
-        "enabled": auth_middleware.auth_enabled
-    })
+        return web.json_response({"enabled": False, "message": "Auth not configured"})
+    return web.json_response({"enabled": auth_middleware.auth_enabled})
 
 
 async def api_auth_generate_token(request: web.Request) -> web.Response:
@@ -853,6 +904,7 @@ async def api_auth_generate_token(request: web.Request) -> web.Response:
         if auth_header.startswith("Bearer "):
             token = auth_header[7:]
             from .auth import hash_token
+
             provided_hash = hash_token(token)
             has_valid_auth = provided_hash == auth_middleware.token_hash
 
@@ -876,8 +928,10 @@ async def api_auth_generate_token(request: web.Request) -> web.Response:
         auth_middleware.token_hash = hash_token(new_token)
         auth_middleware.auth_enabled = True
 
-    return web.json_response({
-        "success": True,
-        "token": new_token,
-        "message": "New token generated and saved to config.json"
-    })
+    return web.json_response(
+        {
+            "success": True,
+            "token": new_token,
+            "message": "New token generated and saved to config.json",
+        }
+    )

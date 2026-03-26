@@ -33,6 +33,7 @@ class DatabaseManager:
 
     def _resolve_db_file(self) -> str:
         """Resolve database path from kernel settings with a safe fallback."""
+
         def _normalize_path(value) -> str | None:
             if isinstance(value, str):
                 value = value.strip()
@@ -62,7 +63,9 @@ class DatabaseManager:
 
         for pattern in self.FORBIDDEN_PATTERNS:
             if re.search(pattern, query_upper):
-                self.logger.warning(f"db_query: blocked forbidden operation: {query[:50]}...")
+                self.logger.warning(
+                    f"db_query: blocked forbidden operation: {query[:50]}..."
+                )
                 return False
 
         for op in self.ALLOWED_OPERATIONS:
@@ -88,14 +91,16 @@ class DatabaseManager:
 
     async def _create_tables(self):
         """Create required tables."""
-        await self.conn.execute("""
+        await self.conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS module_data (
                 module TEXT,
                 key TEXT,
                 value TEXT,
                 PRIMARY KEY (module, key)
             )
-        """)
+        """
+        )
         await self.conn.commit()
 
     def _validate_identifier(self, value: str) -> bool:
@@ -104,7 +109,7 @@ class DatabaseManager:
             return False
         if len(value) > 64:
             return False
-        return bool(re.match(r'^[a-zA-Z0-9_-]+$', value))
+        return bool(re.match(r"^[a-zA-Z0-9_-]+$", value))
 
     async def db_set(self, module: str, key: str, value: Any):
         """Save value for a module key."""
@@ -112,11 +117,13 @@ class DatabaseManager:
             raise RuntimeError("Database is not initialized")
 
         if not self._validate_identifier(module) or not self._validate_identifier(key):
-            raise ValueError("Invalid module or key name. Use only alphanumeric and underscore.")
+            raise ValueError(
+                "Invalid module or key name. Use only alphanumeric and underscore."
+            )
 
         await self.conn.execute(
             "INSERT OR REPLACE INTO module_data VALUES (?, ?, ?)",
-            (module, key, str(value))
+            (module, key, str(value)),
         )
         await self.conn.commit()
 
@@ -126,13 +133,15 @@ class DatabaseManager:
             raise RuntimeError("Database is not initialized")
 
         if not self._validate_identifier(module) or not self._validate_identifier(key):
-            raise ValueError("Invalid module or key name. Use only alphanumeric and underscore.")
+            raise ValueError(
+                "Invalid module or key name. Use only alphanumeric and underscore."
+            )
 
         cursor = await self.conn.execute(
-            "SELECT value FROM module_data WHERE module = ? AND key = ?",
-            (module, key)
+            "SELECT value FROM module_data WHERE module = ? AND key = ?", (module, key)
         )
         row = await cursor.fetchone()
+        await cursor.close()
         return row[0] if row else None
 
     async def db_delete(self, module: str, key: str):
@@ -141,11 +150,12 @@ class DatabaseManager:
             raise RuntimeError("Database is not initialized")
 
         if not self._validate_identifier(module) or not self._validate_identifier(key):
-            raise ValueError("Invalid module or key name. Use only alphanumeric and underscore.")
+            raise ValueError(
+                "Invalid module or key name. Use only alphanumeric and underscore."
+            )
 
         await self.conn.execute(
-            "DELETE FROM module_data WHERE module = ? AND key = ?",
-            (module, key)
+            "DELETE FROM module_data WHERE module = ? AND key = ?", (module, key)
         )
         await self.conn.commit()
 
@@ -158,8 +168,11 @@ class DatabaseManager:
             parameters = ()
 
         if not self._validate_query(query):
-            raise PermissionError("Query blocked by security policy. Only SELECT, PRAGMA, and EXPLAIN are allowed.")
+            raise PermissionError(
+                "Query blocked by security policy. Only SELECT, PRAGMA, and EXPLAIN are allowed."
+            )
 
         cursor = await self.conn.execute(query, parameters)
         rows = await cursor.fetchall()
+        await cursor.close()
         return rows

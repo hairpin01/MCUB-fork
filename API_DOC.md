@@ -68,12 +68,6 @@ Each module file can contain special comment directives:
 | `# banner_url:` | URL to image for banner display on load/man |
 | `# scop:` | Kernel compatibility constraints |
 
-> [!NOTE]
-> `# requires:` — библиотеки **обязательно** перечислять через запятую:
-> ```python
-> # requires: library1, library2, library3
-> ```
-> Без запятых зависимости не будут распознаны корректно.
 
 #### `# banner_url:` — Module Banner
 

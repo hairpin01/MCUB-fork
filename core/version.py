@@ -10,15 +10,16 @@ import shutil
 
 
 # version kenrel MCUB
-__version__ = "1.0.4.7"
+__version__ = "1.0.4.8"
 VERSION = __version__
+
 
 class VersionManager:
 
     def __init__(self, kernel):
         self.kernel = kernel
         self.logger = kernel.logger
-        self._latest_version_cache = None   # (timestamp, version)
+        self._latest_version_cache = None  # (timestamp, version)
 
     @staticmethod
     def _parse_version(version_str: str) -> tuple:
@@ -27,7 +28,7 @@ class VersionManager:
         Нечисловые части заменяются на 0.
         """
         parts = []
-        for part in version_str.split('.'):
+        for part in version_str.split("."):
             try:
                 parts.append(int(part))
             except ValueError:
@@ -60,16 +61,23 @@ class VersionManager:
         """
         try:
             process = await asyncio.create_subprocess_exec(
-                "git", "rev-parse", "--abbrev-ref", "HEAD",
+                "git",
+                "rev-parse",
+                "--abbrev-ref",
+                "HEAD",
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
             )
             stdout, stderr = await process.communicate()
             if process.returncode == 0:
                 branch = stdout.decode().strip()
                 if branch:
                     return branch
-        except (FileNotFoundError, asyncio.TimeoutError, subprocess.SubprocessError) as e:
+        except (
+            FileNotFoundError,
+            asyncio.TimeoutError,
+            subprocess.SubprocessError,
+        ) as e:
             self.logger.debug(f"Git branch detection failed: {e}")
 
         config_branch = self.kernel.config.get("branch")
@@ -87,15 +95,21 @@ class VersionManager:
         """
         try:
             process = await asyncio.create_subprocess_exec(
-                "git", "rev-parse", "HEAD",
+                "git",
+                "rev-parse",
+                "HEAD",
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
             )
             stdout, stderr = await process.communicate()
             if process.returncode == 0:
                 sha = stdout.decode().strip()
                 return sha[:7] if short else sha
-        except (FileNotFoundError, asyncio.TimeoutError, subprocess.SubprocessError) as e:
+        except (
+            FileNotFoundError,
+            asyncio.TimeoutError,
+            subprocess.SubprocessError,
+        ) as e:
             self.logger.debug(f"Git commit SHA detection failed: {e}")
         return "unknown"
 
@@ -105,15 +119,17 @@ class VersionManager:
         """
         try:
             sha = await self.get_commit_sha(short=False)
-            repo = self.kernel.UPDATE_REPO.rstrip('/')
+            repo = self.kernel.UPDATE_REPO.rstrip("/")
 
             if "raw.githubusercontent.com" in repo:
-                parts = repo.split('/')
+                parts = repo.split("/")
                 # parts: ['https:', '', 'raw.githubusercontent.com', 'user', 'repo', 'branch']
                 base = f"https://github.com/{parts[3]}/{parts[4]}"
             else:
                 branch = await self.detect_branch()
-                base = repo[: -(len(branch) + 1)] if repo.endswith('/' + branch) else repo
+                base = (
+                    repo[: -(len(branch) + 1)] if repo.endswith("/" + branch) else repo
+                )
 
             return f"{base}/commit/{sha}"
         except Exception as e:
@@ -125,7 +141,7 @@ class VersionManager:
         Возвращает базовый URL для обновлений с учётом ветки.
         По умолчанию используется self.kernel.UPDATE_REPO
         """
-        base = self.kernel.UPDATE_REPO.rstrip('/')
+        base = self.kernel.UPDATE_REPO.rstrip("/")
         return base
 
     async def get_latest_kernel_version(self) -> str:
@@ -139,13 +155,13 @@ class VersionManager:
 
         branch = await self.detect_branch()
         base_url = self.get_update_base_url()
-        if not base_url.endswith(branch + '/'):
+        if not base_url.endswith(branch + "/"):
 
-            parts = base_url.split('/')
-            if parts[-1] == '':
+            parts = base_url.split("/")
+            if parts[-1] == "":
                 parts = parts[:-1]
             parts[-1] = branch
-            base_url = '/'.join(parts) + '/'
+            base_url = "/".join(parts) + "/"
         url = base_url + "version.txt"
 
         try:
@@ -160,29 +176,26 @@ class VersionManager:
 
         return self.kernel.VERSION
 
-
-
-
     async def check_module_compatibility(self, code: str) -> Tuple[bool, str]:
         """
         Анализирует исходный код модуля на наличие директив '# scop: ...'
         и проверяет выполнение всех требований.
         Возвращает (True, "") если совместимо, иначе (False, сообщение об ошибке).
         """
-        lines = code.split('\n')
+        lines = code.split("\n")
         directives = []
 
         for line in lines:
             stripped = line.strip()
-            if stripped.startswith('# scop:'):
-                rest = stripped[len('# scop:'):].strip()
-                space_index = rest.find(' ')
+            if stripped.startswith("# scop:"):
+                rest = stripped[len("# scop:") :].strip()
+                space_index = rest.find(" ")
                 if space_index == -1:
                     scope = rest
-                    params = ''
+                    params = ""
                 else:
                     scope = rest[:space_index]
-                    params = rest[space_index+1:].strip()
+                    params = rest[space_index + 1 :].strip()
                 directives.append((scope, params))
 
         if not directives:
@@ -192,42 +205,63 @@ class VersionManager:
         latest_version = None
 
         for scope, params in directives:
-            if scope == 'kernel':
+            if scope == "kernel":
                 parts = params.split()
                 if not parts:
                     continue
 
-                if parts[0] == 'min':
-                    if len(parts) >= 2 and parts[1].startswith('v'):
+                if parts[0] == "min":
+                    if len(parts) >= 2 and parts[1].startswith("v"):
                         required = parts[1][1:]
                         if self.compare_versions(current_version, required) < 0:
-                            return False, f"Module requires kernel version ≥ {required}, current is {current_version}"
-                elif parts[0] == 'max':
-                    if len(parts) >= 2 and parts[1].startswith('v'):
+                            return (
+                                False,
+                                f"Module requires kernel version ≥ {required}, current is {current_version}",
+                            )
+                elif parts[0] == "max":
+                    if len(parts) >= 2 and parts[1].startswith("v"):
                         required = parts[1][1:]
                         if self.compare_versions(current_version, required) > 0:
-                            return False, f"Module requires kernel version ≤ {required}, current is {current_version}"
+                            return (
+                                False,
+                                f"Module requires kernel version ≤ {required}, current is {current_version}",
+                            )
                 else:
-                    if not parts[0].startswith('v'):
+                    if not parts[0].startswith("v"):
                         continue
                     spec = parts[0][1:]
-                    if spec == '[__lastest__]':
+                    if spec == "[__lastest__]":
                         if latest_version is None:
                             latest_version = await self.get_latest_kernel_version()
                         if self.compare_versions(current_version, latest_version) != 0:
-                            return False, f"Module requires the latest kernel version ({latest_version}), but current is {current_version}"
+                            return (
+                                False,
+                                f"Module requires the latest kernel version ({latest_version}), but current is {current_version}",
+                            )
                     else:
                         if self.compare_versions(current_version, spec) != 0:
-                            return False, f"Module requires kernel version exactly {spec}, but current is {current_version}"
+                            return (
+                                False,
+                                f"Module requires kernel version exactly {spec}, but current is {current_version}",
+                            )
 
-            elif scope == 'inline':
-                if not hasattr(self.kernel, 'bot_client') or self.kernel.bot_client is None:
-                    return False, "Module requires inline bot to be enabled, but bot_client is not available"
+            elif scope == "inline":
+                if (
+                    not hasattr(self.kernel, "bot_client")
+                    or self.kernel.bot_client is None
+                ):
+                    return (
+                        False,
+                        "Module requires inline bot to be enabled, but bot_client is not available",
+                    )
                 if not self.kernel.bot_client.is_connected():
-                    return False, "Module requires inline bot to be connected, but bot_client is disconnected"
+                    return (
+                        False,
+                        "Module requires inline bot to be connected, but bot_client is disconnected",
+                    )
 
-            elif scope == 'ffmpeg':
-                ffmpeg_path = shutil.which('ffmpeg')
+            elif scope == "ffmpeg":
+                ffmpeg_path = shutil.which("ffmpeg")
                 if ffmpeg_path is None:
                     return False, "Module requires ffmpeg to be installed on the system"
 

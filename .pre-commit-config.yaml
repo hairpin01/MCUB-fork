@@ -19,7 +19,7 @@ repos:
       - id: detect-secrets
         args:
           - --exclude-files
-          - (^|/)(config\.example\.json)$
+          - (^|/)(config\.example\.json|config\.json\.off|sourcetrigger_.+\.json)$
 
   - repo: https://github.com/psf/black
     rev: 25.1.0

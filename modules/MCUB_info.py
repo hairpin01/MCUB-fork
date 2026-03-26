@@ -230,6 +230,7 @@ def register(kernel):
 
     @kernel.register.command("info")
     async def info_cmd(event):
+        """info mcub-fork"""
         try:
             start_time = time.time()
             msg = await event.edit(resolve_info_start_emoji(), parse_mode="html")

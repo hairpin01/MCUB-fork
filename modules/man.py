@@ -631,6 +631,7 @@ def register(kernel):
 
     @kernel.register.command("man")
     async def man_handler(event):
+        """- [modules/None] info modules/list modules for inline"""
         try:
             args = event.text.split()
 
@@ -716,6 +717,7 @@ def register(kernel):
 
     @kernel.register.command("help")
     async def help_cmd(event):
+        """fallback"""
         await event.edit(
             f"<b>{lang_strings['help_not_command']}</b><code>{kernel.custom_prefix}man?</code>",
             parse_mode="html",

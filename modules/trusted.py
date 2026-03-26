@@ -84,6 +84,7 @@ def register(kernel):
 
         trusted.append(user_id)
         await save_trusted_list(trusted)
+        await inline_manager.allow_user(user_id)
         await event.edit(lang_strings["trust_added"], parse_mode="html")
 
     @kernel.register.command("untrust", alias=["delowner"])
@@ -105,6 +106,8 @@ def register(kernel):
 
         trusted.remove(user_id)
         await save_trusted_list(trusted)
+        await inline_manager.deny_user(user_id)
+        kernel.callback_permissions.prohibit(user_id)
         await event.edit(lang_strings["trust_removed"], parse_mode="html")
 
     @kernel.register.command("trustlist", alias=["listowner"])

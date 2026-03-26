@@ -166,7 +166,7 @@ def register(kernel):
 
     @kernel.register.command("ping")
     async def ping_handler(event):
-        """ping"""
+        """ping mcub"""
         try:
             start_time = time.time()
             msg = await event.edit(resolve_ping_start_emoji(), parse_mode="html")

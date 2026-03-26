@@ -219,6 +219,13 @@ def register(kernel):
             "modules_not_mcub": "{warning} Module is not {mcub} type, [Heroku/Hikka]",
             "log_hikka_detected": "=+ Hikka/Heroku module detected — loading via compat layer",
             "hikka_no_compat": "{warning} <b>Hikka compat, not found.</b>",
+            "reload_all": "{reload} <b>Reloading all modules...</b>",
+            "reload_all_success": "{success} <b>All modules reloaded!</b>\n<blockquote>{count}</blockquote>",
+            "reload_all_success_one": "{success} <b>All modules reloaded!</b>\n{count} (<code>{name}</code>)",
+            "reload_all_failed": "{warning} <b>Failed to reload {count} module(s):</b>\n<blockquote expandable>{failed_list}</blockquote>",
+            "reload_all_partial": "{success} <b>Modules reloaded!</b>\n{success_count}\n{warning} <b>Failed: {failed_count}</b>\n<blockquote expandable>{failed_list}</blockquote>",
+            "failed_module": "• <code>{name}</code>\n",
+            "and_more": "• <code>+{count} more</code>",
         },
         "ru": {
             "reply_to_py": "{warning} <b>Ответьте на .py файл</b>",
@@ -329,6 +336,13 @@ def register(kernel):
             "modules_not_mcub": "{warning} Модуль не {mcub} типа <i>[Heroku/Hikka]</i>",
             "log_hikka_detected": "=+ Обнаружен Hikka/Heroku модуль",
             "hikka_no_compat": "{warning} <b>Hikka compat не найден.</b>",
+            "reload_all": "{reload} <b>Перезагружаю все модули...</b>",
+            "reload_all_success": "{success} <b>Все модули перезагружены!</b>\n<blockquote>{count}</blockquote>",
+            "reload_all_success_one": "{success} <b>Все модули перезагружены!</b>\n{count} (<code>{name}</code>)",
+            "reload_all_failed": "{warning} <b>Не удалось перезагрузить {count} модуль(ей):</b>\n<blockquote expandable>{failed_list}</blockquote>",
+            "reload_all_partial": "{success} <b>Модули перезагружены!</b>\n{success_count}\n{warning} <b>Не удалось: {failed_count}</b>\n<blockquote expandable>{failed_list}</blockquote>",
+            "failed_module": "• <code>{name}</code>\n",
+            "and_more": "• <code>+{count} ещё</code>",
         },
     }
 
@@ -1467,7 +1481,6 @@ def register(kernel):
 
             add_log(t("log_loading_to_kernel"))
 
-            # ── Hikka/Heroku compat ──────────────────────────────────────────
             if is_hikka_module(code):
                 add_log(t("log_hikka_detected"))
                 if not HIKKA_COMPAT:
@@ -1604,7 +1617,6 @@ def register(kernel):
                     if os.path.exists(file_path):
                         os.remove(file_path)
                 return
-            # ── end Hikka compat ─────────────────────────────────────────────
 
             success, message_text = await kernel.load_module_from_file(
                 file_path, module_name, False
@@ -1886,15 +1898,103 @@ def register(kernel):
     # <modules> reload modules
     async def reload_module_handler(event):
         args = event.text.split()
+
         if len(args) < 2:
-            await edit_with_emoji(
-                event,
-                t(
-                    "reload_usage",
-                    warning=CUSTOM_EMOJI["warning"],
-                    prefix=kernel.custom_prefix,
-                ),
+            modules_to_reload = list(kernel.loaded_modules.keys())
+            if not modules_to_reload:
+                await edit_with_emoji(
+                    event,
+                    t("no_modules", folder=CUSTOM_EMOJI["folder"]),
+                )
+                return
+
+            msg = await event.edit(
+                t("reload_all", reload=CUSTOM_EMOJI["reload"]),
+                parse_mode="html",
             )
+
+            results = []
+            failed = []
+
+            for module_name in modules_to_reload:
+                if module_name in kernel.system_modules:
+                    continue
+
+                file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
+
+                if not os.path.exists(file_path):
+                    failed.append(module_name)
+                    continue
+
+                if module_name in sys.modules:
+                    del sys.modules[module_name]
+
+                kernel.unregister_module_commands(module_name)
+
+                if module_name in kernel.loaded_modules:
+                    del kernel.loaded_modules[module_name]
+
+                success, _ = await kernel.load_module_from_file(
+                    file_path, module_name, False
+                )
+
+                if success:
+                    results.append(module_name)
+                else:
+                    failed.append(module_name)
+
+            success_count = len(results)
+            failed_count = len(failed)
+
+            if failed:
+                failed_list = ""
+                for i, name in enumerate(failed[:10]):
+                    failed_list += t("failed_module", name=name)
+                if failed_count > 10:
+                    failed_list += t("and_more", count=failed_count - 10)
+
+                if success_count > 0:
+                    await edit_with_emoji(
+                        msg,
+                        t(
+                            "reload_all_partial",
+                            success=CUSTOM_EMOJI["success"],
+                            success_count=f"✓ {success_count}",
+                            warning=CUSTOM_EMOJI["warning"],
+                            failed_count=failed_count,
+                            failed_list=failed_list,
+                        ),
+                    )
+                else:
+                    await edit_with_emoji(
+                        msg,
+                        t(
+                            "reload_all_failed",
+                            warning=CUSTOM_EMOJI["warning"],
+                            count=failed_count,
+                            failed_list=failed_list,
+                        ),
+                    )
+            else:
+                if success_count == 1:
+                    await edit_with_emoji(
+                        msg,
+                        t(
+                            "reload_all_success_one",
+                            success=CUSTOM_EMOJI["success"],
+                            count=f"1",
+                            name=results[0],
+                        ),
+                    )
+                else:
+                    await edit_with_emoji(
+                        msg,
+                        t(
+                            "reload_all_success",
+                            success=CUSTOM_EMOJI["success"],
+                            count=f"✓ {success_count}",
+                        ),
+                    )
             return
 
         module_name = args[1]
@@ -1977,6 +2077,7 @@ def register(kernel):
 
     @kernel.register.command("modules")
     async def modules_list_handler(event):
+        """list lodules"""
         await log_to_bot("🔷 Просмотр списка модулей")
 
         if not kernel.loaded_modules and not kernel.system_modules:

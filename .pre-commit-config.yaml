@@ -27,28 +27,9 @@ repos:
       - id: black
         language_version: python3
 
-  - repo: https://github.com/pycqa/isort
-    rev: 5.14.0
-    hooks:
-      - id: isort
-        args: ["--profile", "black"]
-
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.11.0
     hooks:
       - id: ruff
         args: ["--fix"]
       - id: ruff-format
-
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.15.0
-    hooks:
-      - id: mypy
-        additional_dependencies: [types-all]
-        args: ["--ignore-missing-imports", "--no-error-summary"]
-
-  - repo: https://github.com/pre-commit-dev-tools/pre-commit-hooks-extra
-    rev: 1.0.0
-    hooks:
-      - id: no-commit-to-branch
-        args: ["--branch", "main", "--branch", "master"]

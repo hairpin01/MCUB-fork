@@ -66,14 +66,16 @@ class InlineBot:
             response = await client.send_message(botfather, bot_username)
             await asyncio.sleep(2)
 
-            messages = await client.get_messages(botfather, limit=5)
+            messages = await client.get_messages(botfather, limit=10)
             token = None
             for msg in messages:
-                if msg.text and ":" in msg.text:
-                    match = re.search(r"(\d+:[A-Za-z0-9_-]{20,})", msg.text)
+                if msg.text:
+                    match = re.search(r"(\d+:[A-Za-z0-9_-]+)", msg.text)
                     if match:
-                        token = match.group(1)
-                        break
+                        potential = match.group(1)
+                        if len(potential.split(":")[1]) >= 10:
+                            token = potential
+                            break
 
             if not token:
                 return {
@@ -84,7 +86,7 @@ class InlineBot:
             self.token = token
             self.username = bot_username
 
-            await self._configure_bot_via_botfather(botfather)
+            await self._configure_bot_via_botfather(botfather, client=client)
 
             return {"success": True, "token": token, "username": bot_username}
 
@@ -262,61 +264,63 @@ class InlineBot:
             self.kernel.logger.error(f"Ошибка при проверке токена: {e}")
             return False
 
-    async def _configure_bot_via_botfather(self, botfather):
+    async def _configure_bot_via_botfather(self, botfather, client=None):
+        client = client or self.kernel.client
         try:
-            await self.kernel.client.send_message(botfather, "/setdescription")
+            await client.send_message(botfather, "/setdescription")
             await asyncio.sleep(1)
-            await self.kernel.client.send_message(botfather, f"@{self.username}")
+            await client.send_message(botfather, f"@{self.username}")
             await asyncio.sleep(1)
-            await self.kernel.client.send_message(
+            await client.send_message(
                 botfather,
                 "🌠 I'm a bot from MCUB for inline actions. source code https://github.com/hairpin01/MCUB-fork",
             )
             self.kernel.logger.debug("Описание установлено")
             await asyncio.sleep(2)
 
-            await self.kernel.client.send_message(botfather, "/setuserpic")
+            await client.send_message(botfather, "/setuserpic")
             await asyncio.sleep(1)
-            await self.kernel.client.send_message(botfather, f"@{self.username}")
+            await client.send_message(botfather, f"@{self.username}")
             await asyncio.sleep(1)
-            await self._send_avatar(botfather)
+            await self._send_avatar(botfather, client=client)
             await asyncio.sleep(2)
 
-            await self.kernel.client.send_message(botfather, "/setinline")
+            await client.send_message(botfather, "/setinline")
             await asyncio.sleep(1)
-            await self.kernel.client.send_message(botfather, f"@{self.username}")
+            await client.send_message(botfather, f"@{self.username}")
             await asyncio.sleep(1)
             placeholder = "mcub@MCUB~$ "
-            await self.kernel.client.send_message(botfather, placeholder)
+            await client.send_message(botfather, placeholder)
             self.kernel.logger.debug(f"Инлайн-плейсхолдер установлен: {placeholder}")
             await asyncio.sleep(2)
 
             # Включение инлайн-фидбека
-            await self.kernel.client.send_message(botfather, "/setinlinefeedback")
+            await client.send_message(botfather, "/setinlinefeedback")
             await asyncio.sleep(1)
-            await self.kernel.client.send_message(botfather, f"@{self.username}")
+            await client.send_message(botfather, f"@{self.username}")
             await asyncio.sleep(1)
-            await self.kernel.client.send_message(botfather, "Enabled")
+            await client.send_message(botfather, "Enabled")
             await asyncio.sleep(2)
 
-            await self.kernel.client.send_message(botfather, "/setcommands")
+            await client.send_message(botfather, "/setcommands")
             await asyncio.sleep(1)
-            await self.kernel.client.send_message(botfather, f"@{self.username}")
+            await client.send_message(botfather, f"@{self.username}")
             await asyncio.sleep(1)
             commands_text = """start - старт
 profile - профиль
 ping - пинг
 delete_mcub_bot - удалить из чата бота
 """
-            await self.kernel.client.send_message(botfather, commands_text)
+            await client.send_message(botfather, commands_text)
             self.kernel.logger.debug("Команды установлены")
             await asyncio.sleep(2)
 
         except Exception as e:
             self.kernel.logger.error(f"Ошибка при настройке бота: {e}", exc_info=True)
 
-    async def _send_avatar(self, botfather):
+    async def _send_avatar(self, botfather, client=None):
         """Скачивает и отправляет аватар для бота."""
+        client = client or self.kernel.client
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get("https://x0.at/4WcE.jpg") as resp:
@@ -328,7 +332,7 @@ delete_mcub_bot - удалить из чата бота
                             f.write(avatar_data)
                             temp_path = f.name
                         try:
-                            await self.kernel.client.send_file(botfather, temp_path)
+                            await client.send_file(botfather, temp_path)
                             self.kernel.logger.debug("Аватар отправлен")
                         finally:
                             os.unlink(temp_path)

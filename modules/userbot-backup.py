@@ -1,18 +1,20 @@
-import os
-import zipfile
-import tempfile
 import asyncio
+import os
 import shutil
-import aiohttp
+import tempfile
+import zipfile
 from datetime import datetime
 from pathlib import Path
+
+# ruff: noqa: RUF001
+import aiohttp
 from telethon import Button
+from telethon.errors import ChannelsTooMuchError
 from telethon.tl.functions.channels import (
     CreateChannelRequest,
-    InviteToChannelRequest,
     EditPhotoRequest,
+    InviteToChannelRequest,
 )
-from telethon.errors import ChannelsTooMuchError
 
 
 def register(kernel):
@@ -276,7 +278,7 @@ def register(kernel):
             zip_path = Path(temp_dir) / f"MCUB_backup_{timestamp}.zip"
 
             with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
-                for root, dirs, files in os.walk(backup_dir):
+                for root, _dirs, files in os.walk(backup_dir):
                     for file in files:
                         file_path = Path(root) / file
                         arcname = file_path.relative_to(backup_dir)
@@ -297,7 +299,7 @@ def register(kernel):
 
                 if kernel.is_bot_available():
                     try:
-                        message = await kernel.bot_client.send_file(
+                        await kernel.bot_client.send_file(
                             chat.id,
                             zip_path,
                             caption=lang_strings["tip_restore"].format(
@@ -312,7 +314,7 @@ def register(kernel):
                         kernel.log_warning(
                             f"Failed to send backup via bot: {e}, trying via main client"
                         )
-                        message = await self.client.send_file(
+                        await self.client.send_file(
                             chat.id,
                             zip_path,
                             caption=lang_strings["tip_restore"].format(
@@ -321,7 +323,7 @@ def register(kernel):
                             parse_mode="html",
                         )
                 else:
-                    message = await self.client.send_file(
+                    await self.client.send_file(
                         chat.id,
                         zip_path,
                         caption=lang_strings["tip_restore"].format(
@@ -445,7 +447,7 @@ def register(kernel):
                 await event.edit(lang_strings["no_files"])
         except Exception as e:
             await kernel.handle_error(e, source="restore_handler", event=event)
-            await event.edit(f"{lang_strings['restore_error']} {str(e)}")
+            await event.edit(f"{lang_strings['restore_error']} {e!s}")
 
     @kernel.register.command("backupsettings")
     async def backup_settings_handler(event):
@@ -583,6 +585,9 @@ def register(kernel):
                 async def edit(self, text):
                     await event.edit(text)
 
+                async def reply(self, text):
+                    return await event.reply(text)
+
             mock_event = MockEvent(message)
 
             await restore_handler(mock_event)
@@ -594,4 +599,4 @@ def register(kernel):
     kernel.register_callback_handler("backup_interval:", backup_interval_callback)
     kernel.register_callback_handler("restore:", restore_callback)
 
-    asyncio.create_task(backup_module.initialize())
+    asyncio.create_task(backup_module.initialize())  # noqa: RUF006

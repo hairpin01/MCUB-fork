@@ -604,7 +604,9 @@ def register(kernel):
                 reason=reason,
             )
             try:
-                await kernel.client.send_message(kernel.log_chat_id, text)
+                await kernel.client.send_message(
+                    kernel.log_chat_id, text, parse_mode="html"
+                )
             except Exception:
                 try:
                     await kernel.client.send_message("me", text, parse_mode="html")
@@ -755,9 +757,13 @@ def register(kernel):
         if not kernel.log_chat_id:
             return
         try:
-            await kernel.bot_client.send_message(kernel.log_chat_id, text)
+            await kernel.bot_client.send_message(
+                kernel.log_chat_id, text, parse_mode="html"
+            )
         except (TypeError, AttributeError, ValueError):
-            await kernel.client.send_message(kernel.log_chat_id, text)
+            await kernel.client.send_message(
+                kernel.log_chat_id, text, parse_mode="html"
+            )
         except Exception as e:
             kernel.logger.error(f"send warn error: {e}")
 

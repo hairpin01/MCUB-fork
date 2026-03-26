@@ -61,6 +61,7 @@ def mask_sensitive_data(text: str) -> str:
 
     # Step 1: collect emoji-id values so we can restore them after masking.
     placeholders: dict[str, str] = {}
+
     def _stash(m: re.Match) -> str:
         key = f"\x00EMOJIID{len(placeholders)}\x00"
         placeholders[key] = m.group(0)
@@ -155,7 +156,7 @@ class RichException:
             func = frame_info.function
             if fn and func not in _LOGGER_FRAMES:
                 caller_info = (
-                    f"<blockquote><tg-emoji emoji-id=\"5426900601101374618\">🧿</tg-emoji> <b>Cause:</b> <code>{html.escape(func)}</code>"
+                    f'<blockquote><tg-emoji emoji-id="5426900601101374618">🧿</tg-emoji> <b>Cause:</b> <code>{html.escape(func)}</code>'
                     f" of <code>{html.escape(type(fn).__name__)}</code></blockquote>\n"
                 )
                 break
@@ -168,13 +169,13 @@ class RichException:
                 "".join(traceback.format_exception_only(exc_type, exc_value)).strip()
             )
             src_part = (
-                f"<blockquote><tg-emoji emoji-id=\"5379679518740978720\">🎯</tg-emoji> <b>Source:</b> <code>{html.escape(filename)}:{lineno}</code>"
+                f'<blockquote><tg-emoji emoji-id="5379679518740978720">🎯</tg-emoji> <b>Source:</b> <code>{html.escape(filename)}:{lineno}</code>'
                 f" <b>in</b> <code>{html.escape(name)}</code></blockquote>\n"
                 if filename
                 else ""
             )
             comment_part = (
-                f"\n<blockquote><tg-emoji emoji-id=\"5465300082628763143\">💬</tg-emoji> <b>Message:</b> <code>{html.escape(str(comment))}</code></blockquote>"
+                f'\n<blockquote><tg-emoji emoji-id="5465300082628763143">💬</tg-emoji> <b>Message:</b> <code>{html.escape(str(comment))}</code></blockquote>'
                 if comment
                 else ""
             )
@@ -282,7 +283,7 @@ class KernelLogger:
             return await self._send_with_retry(_do_send)
 
     async def send_error_log(
-        self, error_text: str, source_file: str, message_info: str = ""
+        self, error_text: str, source_file: str, message_info: str = "", exc_info=None
     ) -> None:
         """Format and send a simple error to the log chat.
 
@@ -290,6 +291,7 @@ class KernelLogger:
             error_text: Short error description.
             source_file: File or location where the error occurred.
             message_info: Optional context string.
+            exc_info: Optional (type, value, tb) tuple for full traceback.
         """
         if not self.k.log_chat_id:
             return
@@ -298,18 +300,35 @@ class KernelLogger:
         safe_error = mask_sensitive_data(error_text[:500])
         safe_source = html.escape(source_file)
 
+        error_id = None
+        if exc_info:
+            error_id = f"err_{uuid.uuid4().hex[:8]}"
+            raw_tb = "".join(traceback.format_exception(*exc_info))
+            masked_tb = mask_sensitive_data(raw_tb)
+            self.k.cache.set(f"tb_{error_id}", masked_tb, ttl=300)
+
         body = (
-            f"<blockquote><tg-emoji emoji-id=\"5379679518740978720\">🎯</tg-emoji> <b>Source:</b> <code>{safe_source}</code>\n"
-            f"<blockquote><tg-emoji emoji-id=\"5426900601101374618\">🧿</tg-emoji> <b>Error:</b> <code>{html.escape(safe_error)}</code></blockquote>"
+            f'<blockquote><tg-emoji emoji-id="5379679518740978720">🎯</tg-emoji> <b>Source:</b> <code>{safe_source}</code>\n'
+            f'<blockquote><tg-emoji emoji-id="5426900601101374618">🧿</tg-emoji> <b>Error:</b> <code>{html.escape(safe_error)}</code></blockquote>'
             f"</blockquote>"
         )
         if message_info:
             body += (
-                f"\n<tg-emoji emoji-id=\"5298499667569425533\">🃏</tg-emoji> "
+                f'\n<tg-emoji emoji-id="5298499667569425533">🃏</tg-emoji> '
                 f"<blockquote><b>Message:</b> <code>{html.escape(message_info[:300])}</code></blockquote>"
             )
 
-        await self.send_log_message(body)
+        if error_id:
+            async with self._send_lock:
+                client = await self._get_client()
+                await client.send_message(
+                    self.k.log_chat_id,
+                    mask_sensitive_data(body),
+                    buttons=[Button.inline("🔍 Traceback", data=f"show_tb:{error_id}")],
+                    parse_mode="html",
+                )
+        else:
+            await self.send_log_message(body)
 
     async def handle_error(
         self, error: Exception, source: str = "unknown", event=None
@@ -345,7 +364,7 @@ class KernelLogger:
         k.cache.set(f"tb_{error_id}", rich.full_stack, ttl=300)
 
         src_esc = html.escape(source or "unknown", quote=False)
-        body = f"<blockquote><tg-emoji emoji-id=\"5372846474881146350\">🔭</tg-emoji> <b>Source Message:</b> <code>{src_esc}</code></blockquote>\n{rich.message}"
+        body = f'<blockquote><tg-emoji emoji-id="5372846474881146350">🔭</tg-emoji> <b>Source Message:</b> <code>{src_esc}</code></blockquote>\n{rich.message}'
 
         if event:
             try:
@@ -357,7 +376,7 @@ class KernelLogger:
                 )
                 txt = html.escape((event.text or "")[:200], quote=False)
                 body += (
-                    f"\n<tg-emoji emoji-id=\"5298499667569425533\">🃏</tg-emoji> <b>Message info:</b>\n"
+                    f'\n<tg-emoji emoji-id="5298499667569425533">🃏</tg-emoji> <b>Message info:</b>\n'
                     f"<blockquote>🪬 <b>User:</b> {user_info}\n"
                     f"⌨️ <b>Text:</b> <code>{txt}</code>\n"
                     f"📬 <b>Chat:</b> {html.escape(str(chat_title))}</blockquote>"
@@ -420,4 +439,16 @@ class KernelLogger:
             return
         rich = RichException.from_exc_info(exc_type, exc_value, tb)
 
-        await self.send_log_message(mask_sensitive_data(rich.message))
+        error_id = f"err_{uuid.uuid4().hex[:8]}"
+        raw_tb = "".join(traceback.format_exception(exc_type, exc_value, tb))
+        masked_tb = mask_sensitive_data(raw_tb)
+        k.cache.set(f"tb_{error_id}", masked_tb, ttl=300)
+
+        async with self._send_lock:
+            client = await self._get_client()
+            await client.send_message(
+                k.log_chat_id,
+                mask_sensitive_data(rich.message),
+                buttons=[Button.inline("🔍 Traceback", data=f"show_tb:{error_id}")],
+                parse_mode="html",
+            )

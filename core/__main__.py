@@ -16,7 +16,7 @@ def _get_available_cores():
         return []
     cores = []
     for item in core_dir.iterdir():
-        if item.suffix == '.py' and not item.name.startswith('_'):
+        if item.suffix == ".py" and not item.name.startswith("_"):
             cores.append(item.stem)
     return sorted(cores)
 
@@ -50,6 +50,7 @@ def _clear_default_core() -> None:
 
 def _parse_args():
     import argparse
+
     p = argparse.ArgumentParser(description="MCUB Kernel")
     p.add_argument(
         "--no-web",
@@ -98,9 +99,8 @@ def _parse_args():
     return p.parse_args()
 
 
-
 async def _main() -> None:
-    args        = _parse_args()
+    args = _parse_args()
     web_enabled = not args.no_web
 
     available_cores = _get_available_cores()
@@ -132,10 +132,12 @@ async def _main() -> None:
         if len(available_cores) == 1:
             selected_core = available_cores[0]
         else:
-            saved  = _get_default_core()
-            hint   = f" [{saved}]" if saved else f" [{available_cores[0]}]"
+            saved = _get_default_core()
+            hint = f" [{saved}]" if saved else f" [{available_cores[0]}]"
             print(f"Available cores: {', '.join(available_cores)}", flush=True)
-            print("Tip: --set-default-core <n> to skip this prompt next time", flush=True)
+            print(
+                "Tip: --set-default-core <n> to skip this prompt next time", flush=True
+            )
             answer = input(f"Select core{hint}: ").strip()
             selected_core = answer or saved or available_cores[0]
 
@@ -147,15 +149,19 @@ async def _main() -> None:
     print(f"=> Kernel Load: kernel.{selected_core}()", flush=True)
 
     from importlib import import_module
+
     Kernel = import_module(f"core.kernel.{selected_core}").Kernel
 
     kernel = Kernel()
-    kernel.CORE_NAME   = selected_core
+    kernel.CORE_NAME = selected_core
     kernel.web_enabled = web_enabled
-    kernel.web_host    = args.host
-    kernel.web_port    = args.port
-    kernel.proxy_web   = args.proxy_web
-    await kernel.run()
+    kernel.web_host = args.host
+    kernel.web_port = args.port
+    kernel.proxy_web = args.proxy_web
+    try:
+        await kernel.run()
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        pass
 
 
 if __name__ == "__main__":
@@ -166,4 +172,3 @@ if __name__ == "__main__":
         asyncio.run(_main())
     except KeyboardInterrupt:
         print("\n-> exit kernel…", flush=True)
-        sys.exit(0)

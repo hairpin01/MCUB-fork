@@ -240,6 +240,14 @@ class KernelLogger:
             True on success, False otherwise.
         """
 
+        _NETWORK_ERRORS = (
+            TimedOutError,
+            NetworkMigrateError,
+            ServerError,
+            ConnectionError,
+            OSError,
+        )
+
         for attempt in range(max_attempts + 1):
             try:
                 await coro_factory()
@@ -249,6 +257,14 @@ class KernelLogger:
                     await asyncio.sleep(e.seconds)
                 else:
                     self.k.logger.warning(f"Flood wait exceeded retries: {e.seconds}s")
+                    return False
+            except _NETWORK_ERRORS as e:
+                if attempt < max_attempts:
+                    await asyncio.sleep(2**attempt)
+                else:
+                    self.k.logger.warning(
+                        f"Network error after {max_attempts} retries: {e}"
+                    )
                     return False
             except Exception as e:
                 self.k.logger.error(f"Log message send failed: {e}")
@@ -321,12 +337,18 @@ class KernelLogger:
         if error_id:
             async with self._send_lock:
                 client = await self._get_client()
-                await client.send_message(
-                    self.k.log_chat_id,
-                    mask_sensitive_data(body),
-                    buttons=[Button.inline("🔍 Traceback", data=f"show_tb:{error_id}")],
-                    parse_mode="html",
-                )
+
+                async def _do_send_btn():
+                    await client.send_message(
+                        self.k.log_chat_id,
+                        mask_sensitive_data(body),
+                        buttons=[
+                            Button.inline("🔍 Traceback", data=f"show_tb:{error_id}")
+                        ],
+                        parse_mode="html",
+                    )
+
+                await self._send_with_retry(_do_send_btn)
         else:
             await self.send_log_message(body)
 
@@ -446,9 +468,13 @@ class KernelLogger:
 
         async with self._send_lock:
             client = await self._get_client()
-            await client.send_message(
-                k.log_chat_id,
-                mask_sensitive_data(rich.message),
-                buttons=[Button.inline("🔍 Traceback", data=f"show_tb:{error_id}")],
-                parse_mode="html",
-            )
+
+            async def _do_send():
+                await client.send_message(
+                    k.log_chat_id,
+                    mask_sensitive_data(rich.message),
+                    buttons=[Button.inline("🔍 Traceback", data=f"show_tb:{error_id}")],
+                    parse_mode="html",
+                )
+
+            await self._send_with_retry(_do_send)

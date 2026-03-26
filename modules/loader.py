@@ -1259,6 +1259,7 @@ def register(kernel):
         try:
             code = None
             repo_url = None
+            msg = None
 
             add_log(
                 t(
@@ -1293,7 +1294,7 @@ def register(kernel):
                     add_log(t("log_download_exception", error=str(e)))
                     await kernel.handle_error(e, source="install_for_url", event=event)
                     await edit_with_emoji(
-                        msg,
+                        event,
                         t(
                             "url_exception",
                             warning=CUSTOM_EMOJI["warning"],
@@ -1746,7 +1747,7 @@ def register(kernel):
 
             log_text = "\n".join(install_log)
             await edit_with_emoji(
-                msg,
+                msg or event,
                 t(
                     "install_failed",
                     blocked=CUSTOM_EMOJI["blocked"],

@@ -122,7 +122,8 @@ def register(kernel):
             self.config = {}
             self.backup_task = None
 
-        async def initialize(self):
+        @kernel.register.on_load()
+        async def initialize(self, kernel):
             self.config = await kernel.get_module_config(
                 __name__,
                 {
@@ -598,5 +599,3 @@ def register(kernel):
 
     kernel.register_callback_handler("backup_interval:", backup_interval_callback)
     kernel.register_callback_handler("restore:", restore_callback)
-
-    asyncio.create_task(backup_module.initialize())  # noqa: RUF006

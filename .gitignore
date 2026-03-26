@@ -237,3 +237,5 @@ logs/
 gemini_data/
 data/
 .default_core
+*.off
+sourcetrigger_*.json

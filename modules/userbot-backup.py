@@ -122,8 +122,7 @@ def register(kernel):
             self.config = {}
             self.backup_task = None
 
-        @kernel.register.on_load()
-        async def initialize(self, kernel):
+        async def initialize(self):
             self.config = await kernel.get_module_config(
                 __name__,
                 {
@@ -296,7 +295,7 @@ def register(kernel):
                 if not chat:
                     return False
 
-                zip_path, timestamp, zip_size = await self.create_backup_archive()
+                zip_path, timestamp, _zip_size = await self.create_backup_archive()
 
                 if kernel.is_bot_available():
                     try:
@@ -381,6 +380,7 @@ def register(kernel):
                 await kernel.handle_error(e, source="set_group_photo", event=None)
 
     backup_module = BackupModule()
+    _task = asyncio.create_task(backup_module.initialize())  # noqa: RUF006
 
     @kernel.register.command("backup")
     async def backup_handler(event):
@@ -570,28 +570,10 @@ def register(kernel):
         try:
             await event.answer(lang_strings["processing"], alert=False)
 
-            message = await event.get_message()
-
-            class MockEvent:
-                def __init__(self, msg):
-                    self.is_reply = True
-                    self.message = msg
-                    self.sender_id = event.sender_id
-                    self.chat_id = event.chat_id
-                    self.text = f"{kernel.custom_prefix}restore"
-
-                async def get_reply_message(self):
-                    return self.message
-
-                async def edit(self, text):
-                    await event.edit(text)
-
-                async def reply(self, text):
-                    return await event.reply(text)
-
-            mock_event = MockEvent(message)
-
-            await restore_handler(mock_event)
+            restart_cmd = await kernel.client.send_message(
+                event.chat_id, f"{kernel.custom_prefix}restart"
+            )
+            await kernel.process_command(restart_cmd)
 
         except Exception as e:
             await kernel.handle_error(e, source="restore_callback", event=event)

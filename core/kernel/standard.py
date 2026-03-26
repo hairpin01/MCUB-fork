@@ -7,20 +7,21 @@
 # [🌐 https://github.com/hairpin01, 🌐 https://github.com/Mitrichdfklwhcluio, 🌐 https://t.me/HenerTLG]
 # ----------------------- end -----------------------
 
-import time
-import sys
-import os
-import re
 import asyncio
 import html
-import traceback
 import importlib.util
-
-from typing import Callable, Tuple
+import os
+import re
+import sys
+import time
+import traceback
+from collections.abc import Callable
 
 try:
     import logging
+
     from telethon import events
+
     from core.lib.utils.exceptions import McubTelethonError
 except Exception as e:
     tb = traceback.format_exc()
@@ -34,24 +35,23 @@ try:
 except Exception:
     raise McubTelethonError(
         "YOU is not install telethon-mcub, please run: 'pip install telethon-mcub' and 'pip uninstall telethon -y'! (or update telethon-mcub)"
-    )
+    ) from None
 
 try:
-    from ..lib.utils.colors import Colors
-    from ..lib.utils.exceptions import CommandConflictError
+    from ..lib.base.client import ClientManager
+    from ..lib.base.config import ConfigManager
+    from ..lib.base.database import DatabaseManager
+    from ..lib.base.permissions import CallbackPermissionManager
+    from ..lib.loader.inline import InlineManager
+    from ..lib.loader.loader import ModuleLoader
+    from ..lib.loader.register import Register
+    from ..lib.loader.repository import RepositoryManager
     from ..lib.time.cache import TTLCache
     from ..lib.time.scheduler import TaskScheduler
-    from ..lib.loader.register import Register
-    from ..lib.base.permissions import CallbackPermissionManager
-    from ..lib.base.database import DatabaseManager
-    from ..version import VersionManager, VERSION
-
-    from ..lib.loader.loader import ModuleLoader
-    from ..lib.loader.repository import RepositoryManager
+    from ..lib.utils.colors import Colors
+    from ..lib.utils.exceptions import CommandConflictError
     from ..lib.utils.logger import KernelLogger, setup_logging
-    from ..lib.base.config import ConfigManager
-    from ..lib.base.client import ClientManager
-    from ..lib.loader.inline import InlineManager
+    from ..version import VERSION, VersionManager
 except Exception as error_module:
     tb = traceback.format_exc()
     print(f"⚠️, Error loaded lib modules!\n🔎, {error_module}!\n🗓, {tb}")
@@ -62,8 +62,8 @@ try:
     from utils.message_helpers import (
         edit_with_html,
         reply_with_html,
-        send_with_html,
         send_file_with_html,
+        send_with_html,
     )
 
     HTML_PARSER_AVAILABLE = True
@@ -259,9 +259,9 @@ class Kernel:
 
     def check_dependencies(self) -> None:
         """Check and install missing dependencies."""
+        import itertools
         import subprocess
         import threading
-        import itertools
         import time
 
         _REQUIREMENTS = [
@@ -713,7 +713,7 @@ class Kernel:
     async def get_latest_kernel_version(self) -> str:
         return await self.version_manager.get_latest_kernel_version()
 
-    async def _check_kernel_version_compatibility(self, code: str) -> Tuple[bool, str]:
+    async def _check_kernel_version_compatibility(self, code: str) -> tuple[bool, str]:
         return await self.version_manager.check_module_compatibility(code)
 
     async def init_scheduler(self) -> None:
@@ -1037,6 +1037,7 @@ class Kernel:
         if needs_setup:
             try:
                 from aiohttp import web
+
                 from core.web.app import create_app
 
                 done = asyncio.Event()
@@ -1059,7 +1060,9 @@ class Kernel:
         try:
             from core.web.app import start_web_panel
 
-            asyncio.create_task(start_web_panel(self, host, port))
+            _task = asyncio.create_task(
+                start_web_panel(self, host, port)
+            )  # noqa: RUF006
         except Exception as e:
             self.logger.error(f"Failed to start web panel: {e}")
             await self.log_error_async(f"Failed to start web panel: {e}")
@@ -1153,7 +1156,7 @@ class Kernel:
         restart_time = None
         if os.path.exists(self.RESTART_FILE):
             try:
-                with open(self.RESTART_FILE, "r") as f:
+                with open(self.RESTART_FILE) as f:
                     data = f.read().split(",")
                 if len(data) >= 2:
                     restart_chat_id = int(data[0])
@@ -1239,7 +1242,7 @@ class Kernel:
             modules_end: Timestamp when module loading finished.
         """
         try:
-            with open(self.RESTART_FILE, "r") as f:
+            with open(self.RESTART_FILE) as f:
                 data = f.read().split(",")
 
             if len(data) < 3:
@@ -1266,48 +1269,56 @@ class Kernel:
             mod_ms = round((modules_end - modules_start) * 1000, 2)
 
             lang = self.config.get("language", "ru")
-            strings = {
-                "ru": {
-                    "success": "Перезагрузка <b>успешна!</b>",
-                    "loading": "но модули ещё загружаются...",
-                    "loaded": f"Твой <b>{mcub}</b> полностью загрузился!",
-                    "errors": f"Твой <b>{mcub}</b> <b>загрузился c ошибками</b> :(",
-                },
-                "en": {
-                    "success": "Reboot <b>successful!</b>",
-                    "loading": "but modules are still loading...",
-                    "loaded": f"Your <b>{mcub}</b> is fully loaded!",
-                    "errors": f"Your <b>{mcub}</b> <b>loaded with errors</b> :(",
-                },
-            }.get(lang, {}).get
+            strings = (
+                {
+                    "ru": {
+                        "success": "Перезагрузка <b>успешна!</b>",
+                        "loading": "но модули ещё загружаются...",
+                        "loaded": f"Твой <b>{mcub}</b> полностью загрузился!",
+                        "errors": f"Твой <b>{mcub}</b> <b>загрузился c ошибками</b> :(",
+                    },
+                    "en": {
+                        "success": "Reboot <b>successful!</b>",
+                        "loading": "but modules are still loading...",
+                        "loaded": f"Your <b>{mcub}</b> is fully loaded!",
+                        "errors": f"Your <b>{mcub}</b> <b>loaded with errors</b> :(",
+                    },
+                }
+                .get(lang, {})
+                .get
+            )
 
             if not self.client.is_connected():
                 return
 
             try:
                 if not self.error_load_modules:
-                    await self.client.edit_message(
-                        chat_id,
-                        msg_id,
+                    msg_text = (
                         f"{em_package} {strings('loaded')}\n"
                         f"<blockquote><b>Kernel:</b> <code>{total_ms} ms</code>. "
-                        f"<b>Modules:</b> <code>{mod_ms} ms</code>.</blockquote>",
-                        parse_mode="html",
+                        f"<b>Modules:</b> <code>{mod_ms} ms</code>.</blockquote>"
                     )
                 else:
+                    msg_text = (
+                        f"{em_error} {strings('errors')}\n"
+                        f"<blockquote><b>Kernel:</b> <code>{total_ms} ms</code>. "
+                        f"<b>Modules:</b> <code>{mod_ms} ms</code>.</blockquote>"
+                    )
+
+                try:
                     await self.client.edit_message(
                         chat_id,
                         msg_id,
-                        f"{em_error} {strings('errors')}\n"
-                        f"<blockquote><b>Kernel:</b> <code>{total_ms} ms</code>. "
-                        f"<b>Module errors:</b> <code>{self.error_load_modules}</code></blockquote>",
+                        msg_text,
                         parse_mode="html",
                     )
+                except Exception:
+                    await self.client.send_message(chat_id, msg_text, parse_mode="html")
             except Exception as e:
                 self.logger.error(f"Could not send restart notification: {e}")
                 await self.handle_error(e, source="restart")
 
-        except (FileNotFoundError, IOError, ValueError) as e:
+        except (OSError, FileNotFoundError, ValueError) as e:
             self.logger.error(f"Restart file error: {e}")
             if os.path.exists(self.RESTART_FILE):
                 try:

@@ -1144,9 +1144,10 @@ class Kernel:
                 tb = traceback.format_exc()
                 if len(tb) > 1000:
                     tb = tb[-1000:] + "\n...(truncated)"
+                safe_cmd = html.escape(event.text or "")
                 try:
                     await event.edit(
-                        f"{_tele} <b>Call <code>{event.text}</code> failed!</b>\n"
+                        f"{_tele} <b>Call <code>{safe_cmd}</code> failed!</b>\n"
                         f"{_note} <b><i>Full log:</i></b>\n<pre>{tb}</pre>",
                         parse_mode="html",
                     )
@@ -1229,8 +1230,52 @@ class Kernel:
 
         if os.path.exists(self.RESTART_FILE):
             await self._handle_restart_notification(modules_start, modules_end)
+        try:
+            await self.client.run_until_disconnected()
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            pass
+        finally:
+            await self.shutdown()
 
-        await self.client.run_until_disconnected()
+    async def shutdown(self) -> None:
+        """Gracefully close all sessions and disconnect clients."""
+        import gc
+
+        self.shutdown_flag = True
+
+        if self.scheduler:
+            try:
+                await self.scheduler.stop()
+            except Exception:
+                pass
+
+        if hasattr(self, "bot_client") and self.bot_client:
+            try:
+                await self.bot_client.disconnect()
+            except Exception:
+                pass
+
+        try:
+            import aiohttp
+
+            for obj in gc.get_objects():
+                if isinstance(obj, aiohttp.ClientSession) and not obj.closed:
+                    try:
+                        await obj.close()
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        if self.client and self.client.is_connected():
+            try:
+                await self.client.disconnect()
+            except Exception:
+                pass
+
+        await asyncio.sleep(0)
+
+        sys.exit(0)
 
     async def _handle_restart_notification(
         self, modules_start: float, modules_end: float

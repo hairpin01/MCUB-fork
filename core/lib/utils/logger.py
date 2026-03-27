@@ -220,7 +220,11 @@ class ErrorFormatter:
             message = f"{caller_info}{override}{comment_part}"
         else:
             err_only = html.escape(
-                "".join(traceback.format_exception_only(exc_type, exc_value)).strip()
+                mask_sensitive_data(
+                    "".join(
+                        traceback.format_exception_only(exc_type, exc_value)
+                    ).strip()
+                )
             )
             src_part = (
                 f'<blockquote><tg-emoji emoji-id="5379679518740978720">🎯</tg-emoji> <b>Source:</b> <code>{html.escape(filename or "")}:{lineno or ""}</code>'

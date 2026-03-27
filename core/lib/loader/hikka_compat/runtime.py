@@ -560,6 +560,20 @@ class Module:
         self.strings = _StringsShim(self, _translator_stub)
         self.translator = _translator_stub
 
+        if hasattr(kernel.client, "hikka_me"):
+            self.hikka_me = kernel.client.hikka_me
+            self._hikka_me = self.hikka_me
+        else:
+
+            class _HikkaMeProxy:
+                def __getattr__(self, name):
+                    if name == "id":
+                        return getattr(kernel, "ADMIN_ID", None)
+                    return None
+
+            self.hikka_me = _HikkaMeProxy()
+            self._hikka_me = self.hikka_me
+
     def get(self, key: str, default=None):
         return self._db.get(type(self).__name__, key, default)
 

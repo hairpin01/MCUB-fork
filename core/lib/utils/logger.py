@@ -118,6 +118,14 @@ def mask_sensitive_data(text: str) -> str:
     return masked
 
 
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def strip_html(text: str) -> str:
+    """Remove HTML tags for plain text logging."""
+    return _HTML_TAG_RE.sub("", text)
+
+
 def override_text(exception: Exception) -> str | None:
     """Return a user-friendly HTML string for well-known error types."""
     match exception:
@@ -514,7 +522,9 @@ class KernelLogger:
             success = await self._send_with_retry(_do_send)
             if not success:
                 self.k.logger.error("Could not send error log")
-                self.k.logger.error("Original traceback: %s", masked_traceback[:500])
+                self.k.logger.error(
+                    "Original traceback: %s", strip_html(masked_traceback[:500])
+                )
             return success
 
     async def send_error_log(
@@ -597,7 +607,7 @@ class KernelLogger:
             except Exception:
                 pass
 
-        safe_stack = mask_sensitive_data(rich.full_stack[:500])
+        safe_stack = strip_html(mask_sensitive_data(rich.full_stack[:500]))
         self.k.logger.error("Error in %s:\n%s", source, safe_stack)
 
         await self._send_error_with_traceback(body, rich.full_stack, error_id=error_id)
@@ -642,7 +652,7 @@ class KernelLogger:
         rich = RichException.from_exc_info(exc_type, cast(Exception, exc_value), tb)
         error_id = f"err_{uuid.uuid4().hex[:8]}"
 
-        safe_stack = mask_sensitive_data(rich.full_stack[:500])
+        safe_stack = strip_html(mask_sensitive_data(rich.full_stack[:500]))
         self.k.logger.error("Error in %s:\n%s", source, safe_stack)
 
         await self._send_error_with_traceback(
@@ -795,14 +805,15 @@ class TelegramLogHandler:
             self._rate_timestamps.append(now)
 
         if len(unique_messages) == 1:
-            text = f"<code>{html.escape(unique_messages[0])}</code>"
+            text = f"<blockquote expandable><code>{html.escape(unique_messages[0])}</code></blockquote>"
         else:
-            lines = [
-                f"<code>{html.escape(line)}</code>"
-                for line in unique_messages[: self._batch_size]
-            ]
-            text = "\n".join(lines)
+            lines = [html.escape(line) for line in unique_messages[: self._batch_size]]
+            text = (
+                "<blockquote expandable>\n<code>"
+                + "\n".join(lines)
+                + "\n</code></blockquote>"
+            )
             if len(unique_messages) > self._batch_size:
-                text += f"\n<blockquote>... and {len(unique_messages) - self._batch_size} more errors</blockquote>"
+                text += f"\n<blockquote><code>... and {len(unique_messages) - self._batch_size} more errors</code></blockquote>"
 
         await self._kernel_logger.send_log_message(text)

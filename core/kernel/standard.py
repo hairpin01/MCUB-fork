@@ -18,8 +18,6 @@ import traceback
 from collections.abc import Callable
 
 try:
-    import logging
-
     from telethon import events
 
     from core.lib.utils.exceptions import McubTelethonError
@@ -50,7 +48,11 @@ try:
     from ..lib.time.scheduler import TaskScheduler
     from ..lib.utils.colors import Colors
     from ..lib.utils.exceptions import CommandConflictError
-    from ..lib.utils.logger import KernelLogger, setup_logging
+    from ..lib.utils.logger import (
+        KernelLogger,
+        setup_logging,
+        setup_telegram_logging,
+    )
     from ..version import VERSION, VersionManager
 except Exception as error_module:
     tb = traceback.format_exc()
@@ -165,6 +167,11 @@ class Kernel:
         self.log_chat_id = None
         self.log_bot_enabled = False
         self.inline_message_manager = None
+
+        # Reconnection settings
+        self.reconnect_attempts = 0
+        self.max_reconnect_attempts = -1  # -1 = infinite
+        self.reconnect_delay = 5
 
         self.Colors = Colors
 
@@ -410,6 +417,9 @@ class Kernel:
     async def update_module_config(self, module_name: str, updates: dict) -> bool:
         """Merge *updates* into a module's config."""
         return await self._cfg.update(module_name, updates)
+
+    async def get_all_module_names_with_config(self) -> list[str]:
+        return await self._cfg.get_all_module_names_with_config()
 
     def log_debug(self, message: str) -> None:
         self.logger.debug(message)
@@ -1070,6 +1080,7 @@ class Kernel:
     async def run(self) -> None:
         """setup, connect, load modules, and run until disconnected."""
         import os
+        import logging
 
         no_web = not getattr(self, "web_enabled", True)  # True если --no-web
 
@@ -1086,9 +1097,9 @@ class Kernel:
             if not self.first_time_setup():
                 self.logger.error("Setup failed")
                 return
+        logging.basicConfig(level=logging.WARNING)
 
         self.load_repositories()
-        logging.basicConfig(level=logging.INFO)
         await self.init_scheduler()
 
         if not await self.init_client():
@@ -1112,6 +1123,38 @@ class Kernel:
 
             self.inline_bot = InlineBot(self)
             await self.inline_bot.setup()
+
+        kernel_logger = KernelLogger(self)
+        telegram_handler = setup_telegram_logging(
+            self.logger,
+            kernel_logger,
+        )
+        await telegram_handler.start()
+
+        self._telegram_handler = telegram_handler
+        self._kernel_logger = kernel_logger
+
+        async def _monitor_connection():
+            """Monitor connection state and log events."""
+            reconnect_count = 0
+            while not self.shutdown_flag:
+                try:
+                    await self.client.disconnected
+                    if not self.shutdown_flag and self.client.is_connected():
+                        reconnect_count += 1
+                        if reconnect_count <= 3 or reconnect_count % 10 == 0:
+                            self.logger.warning("Connection problems detected...")
+                        elif reconnect_count == 4:
+                            self.logger.warning(
+                                "Telegram servers may be experiencing issues"
+                            )
+                except asyncio.CancelledError:
+                    break
+                except Exception:
+                    pass
+                await asyncio.sleep(1)
+
+        self._connection_monitor = asyncio.create_task(_monitor_connection())
 
         @self.client.on(events.NewMessage(outgoing=True))
         @self.client.on(events.MessageEdited(outgoing=True))
@@ -1230,8 +1273,51 @@ class Kernel:
 
         if os.path.exists(self.RESTART_FILE):
             await self._handle_restart_notification(modules_start, modules_end)
+
+        async def _run_with_reconnect():
+            """Run client with automatic reconnection and logging."""
+            self.reconnect_attempts = 0
+            while not self.shutdown_flag:
+                try:
+                    if self.client.is_connected():
+                        await self.client.disconnected
+                    else:
+                        await self.client.connect()
+                        if await self.client.is_user_authorized():
+                            await self.log_network("Client reconnected successfully")
+                except (KeyboardInterrupt, asyncio.CancelledError):
+                    break
+                except ConnectionError:
+                    self.reconnect_attempts += 1
+                    if (
+                        self.reconnect_attempts <= 3
+                        or self.reconnect_attempts % 10 == 0
+                    ):
+                        self.logger.warning(
+                            f"Connection lost, attempt {self.reconnect_attempts}, retrying..."
+                        )
+                    elif self.reconnect_attempts == 4:
+                        self.logger.warning(
+                            "Connection unstable - will continue silently"
+                        )
+                    await asyncio.sleep(
+                        self.reconnect_delay * min(self.reconnect_attempts, 10)
+                    )
+                except Exception as e:
+                    if "failed 5 time" in str(e) or "Task exception" in str(e):
+                        continue
+                    self.reconnect_attempts += 1
+                    self.logger.warning(
+                        f"Connection issue ({type(e).__name__}), attempt {self.reconnect_attempts}"
+                    )
+                    await asyncio.sleep(
+                        self.reconnect_delay * min(self.reconnect_attempts, 10)
+                    )
+
+        asyncio.get_event_loop().set_exception_handler(lambda loop, ctx: None)
+
         try:
-            await self.client.run_until_disconnected()
+            await _run_with_reconnect()
         except (KeyboardInterrupt, asyncio.CancelledError):
             pass
         finally:
@@ -1243,9 +1329,22 @@ class Kernel:
 
         self.shutdown_flag = True
 
+        if hasattr(self, "_connection_monitor") and self._connection_monitor:
+            self._connection_monitor.cancel()
+            try:
+                await self._connection_monitor
+            except asyncio.CancelledError:
+                pass
+
         if self.scheduler:
             try:
                 await self.scheduler.stop()
+            except Exception:
+                pass
+
+        if hasattr(self, "_telegram_handler") and self._telegram_handler:
+            try:
+                await self._telegram_handler.stop()
             except Exception:
                 pass
 

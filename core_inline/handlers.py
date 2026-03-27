@@ -435,7 +435,8 @@ class InlineHandlers:
                 error_traceback = "".join(
                     traceback.format_exception(type(e), e, e.__traceback__)
                 )
-
+                kernel.logger.error(f"Inline query error: {e}")
+                kernel.logger.error(f"Full traceback: {error_traceback}")
                 thumb = InputWebDocument(
                     url="https://kappa.lol/qNFKBT",
                     size=0,

@@ -128,19 +128,19 @@ def strip_html(text: str) -> str:
 
 def override_text(exception: Exception) -> str | None:
     """Return a user-friendly HTML string for well-known error types."""
-    match exception:
-        case TimedOutError() | NetworkMigrateError():
-            return "✈️ <b>Connection problems on the server.</b>"
-        case ServerError():
-            return "📡 <b>Telegram servers are currently experiencing issues.</b>"
-        case FloodWaitError() as e:
-            return f"✋ <b>Flood wait triggered — retry in {e.seconds}s.</b>"
-        case ModuleNotFoundError():
-            detail = traceback.format_exception_only(type(exception), exception)[0]
-            detail = detail.split(":", 1)[-1].strip()
-            return f"📦 <b>Missing module:</b> <code>{html.escape(detail)}</code>"
-        case _:
-            return None
+    exc_type_name = type(exception).__name__
+    if exc_type_name in ("TimedOutError", "NetworkMigrateError"):
+        return "✈️ <b>Connection problems on the server.</b>"
+    if exc_type_name == "ServerError":
+        return "📡 <b>Telegram servers are currently experiencing issues.</b>"
+    if exc_type_name == "FloodWaitError":
+        seconds = getattr(exception, "seconds", 0)
+        return f"✋ <b>Flood wait triggered — retry in {seconds}s.</b>"
+    if exc_type_name == "ModuleNotFoundError":
+        detail = traceback.format_exception_only(type(exception), exception)[0]
+        detail = detail.split(":", 1)[-1].strip()
+        return f"📦 <b>Missing module:</b> <code>{html.escape(detail)}</code>"
+    return None
 
 
 _LINE_RE = re.compile(r'  File "(.*?)", line ([0-9]+), in (.+)')
@@ -440,29 +440,40 @@ class KernelLogger:
             ConnectionError,
             OSError,
         )
+        _NETWORK_ERROR_NAMES = frozenset(e.__name__ for e in _NETWORK_ERRORS) | {
+            "ConnectionError",
+            "OSError",
+        }
 
         for attempt in range(max_attempts + 1):
             try:
                 await coro_factory()
                 return True
-            except FloodWaitError as e:
-                if attempt < max_attempts:
-                    await asyncio.sleep(e.seconds)
-                else:
-                    self.k.logger.warning(f"Flood wait exceeded retries: {e.seconds}s")
-                    return False
-            except _NETWORK_ERRORS as e:
-                if attempt < max_attempts:
-                    self._auth_cache = None
-                    await asyncio.sleep(2**attempt)
-                else:
-                    self.k.logger.warning(
-                        f"Network error after {max_attempts} retries: {e}"
-                    )
-                    return False
             except Exception as e:
-                self.k.logger.error(f"Log message send failed: {e}")
-                return False
+                exc_type_name = type(e).__name__
+                is_flood_wait = exc_type_name == "FloodWaitError"
+                is_network_error = exc_type_name in _NETWORK_ERROR_NAMES
+
+                if is_flood_wait:
+                    if attempt < max_attempts:
+                        await asyncio.sleep(getattr(e, "seconds", 0))
+                    else:
+                        self.k.logger.warning(
+                            f"Flood wait exceeded retries: {getattr(e, 'seconds', 0)}s"
+                        )
+                        return False
+                elif is_network_error:
+                    if attempt < max_attempts:
+                        self._auth_cache = None
+                        await asyncio.sleep(2**attempt)
+                    else:
+                        self.k.logger.warning(
+                            f"Network error after {max_attempts} retries: {e}"
+                        )
+                        return False
+                else:
+                    self.k.logger.error(f"Log message send failed: {e}")
+                    return False
 
         return False
 

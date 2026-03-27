@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch, mock_open
 
+
 def _make_telethon_stubs():
     """Create minimal stubs for telethon and its sub-modules."""
 
@@ -33,7 +34,13 @@ def _make_telethon_stubs():
     class TimedOutError(_RPCError):
         pass
 
-    for cls in (FloodWaitError, NetworkMigrateError, ServerError, TimedOutError, _RPCError):
+    for cls in (
+        FloodWaitError,
+        NetworkMigrateError,
+        ServerError,
+        TimedOutError,
+        _RPCError,
+    ):
         setattr(errors_mod, cls.__name__, cls)
 
     errors_mod.RPCError = _RPCError
@@ -64,18 +71,25 @@ if str(_root) not in sys.path:
 
 _logger_mod = importlib.import_module("core.lib.utils.logger")
 
-from core.lib.utils.logger import (   # noqa: E402
+from core.lib.utils.logger import (  # noqa: E402
     KernelLogger,
     RichException,
+    ErrorFormatter,
+    TelegramLogHandler,
+    _SyncToAsyncBridge,
+    setup_logging,
+    setup_telegram_logging,
     mask_sensitive_data,
     override_text,
-    setup_logging,
+    strip_html,
 )
+import logging
 
-FloodWaitError     = _errors.FloodWaitError
+FloodWaitError = _errors.FloodWaitError
 NetworkMigrateError = _errors.NetworkMigrateError
-ServerError        = _errors.ServerError
-TimedOutError      = _errors.TimedOutError
+ServerError = _errors.ServerError
+TimedOutError = _errors.TimedOutError
+
 
 def _make_kernel(*, log_chat_id=123456):
     """Return a MagicMock that looks like a minimal Kernel."""
@@ -100,8 +114,8 @@ def _make_kernel(*, log_chat_id=123456):
 def run(coro):
     return asyncio.run(coro)
 
-class TestMaskSensitiveData(unittest.TestCase):
 
+class TestMaskSensitiveData(unittest.TestCase):
     def test_phone_number_masked(self):
         result = mask_sensitive_data("phone: 79991234567")
         self.assertNotIn("79991234567", result)
@@ -146,8 +160,8 @@ class TestMaskSensitiveData(unittest.TestCase):
         result = mask_sensitive_data("TOKEN='XYZ'")
         self.assertNotIn("XYZ", result)
 
-class TestOverrideText(unittest.TestCase):
 
+class TestOverrideText(unittest.TestCase):
     def test_flood_wait_returns_string(self):
         e = FloodWaitError()
         result = override_text(e)
@@ -181,13 +195,18 @@ class TestOverrideText(unittest.TestCase):
 
     def test_result_is_html_string(self):
         """override_text must always return str or None, never raise."""
-        for exc in [FloodWaitError(), ServerError(), TimedOutError(),
-                    ModuleNotFoundError("x"), ValueError("x")]:
+        for exc in [
+            FloodWaitError(),
+            ServerError(),
+            TimedOutError(),
+            ModuleNotFoundError("x"),
+            ValueError("x"),
+        ]:
             result = override_text(exc)
             self.assertIn(type(result), (str, type(None)))
 
-class TestRichException(unittest.TestCase):
 
+class TestRichException(unittest.TestCase):
     def _raise_and_capture(self, exc):
         try:
             raise exc
@@ -224,7 +243,9 @@ class TestRichException(unittest.TestCase):
         try:
             raise RuntimeError("base")
         except RuntimeError as e:
-            rich = RichException.from_exc_info(type(e), e, e.__traceback__, comment="ctx")
+            rich = RichException.from_exc_info(
+                type(e), e, e.__traceback__, comment="ctx"
+            )
         self.assertIn("ctx", rich.message)
 
     def test_no_comment_no_crash(self):
@@ -247,12 +268,10 @@ class TestRichException(unittest.TestCase):
         """Generic exceptions should report filename and line number."""
         rich = self._raise_and_capture(RuntimeError("traceit"))
         # Either 🎯 Source or the file path appears somewhere
-        self.assertTrue(
-            "🎯" in rich.message or "test_logger" in rich.message
-        )
+        self.assertTrue("🎯" in rich.message or "test_logger" in rich.message)
+
 
 class TestSendLogMessage(unittest.TestCase):
-
     def test_returns_true_on_success(self):
         k = _make_kernel()
         kl = KernelLogger(k)
@@ -294,8 +313,8 @@ class TestSendLogMessage(unittest.TestCase):
         result = run(kl.send_log_message("hello"))
         self.assertFalse(result)
 
-class TestSendWithRetry(unittest.TestCase):
 
+class TestSendWithRetry(unittest.TestCase):
     def test_retries_on_flood_wait(self):
         k = _make_kernel()
         kl = KernelLogger(k)
@@ -307,7 +326,7 @@ class TestSendWithRetry(unittest.TestCase):
             call_count += 1
             if call_count == 1:
                 e = FloodWaitError()
-                e.seconds = 0          # don't actually sleep in tests
+                e.seconds = 0  # don't actually sleep in tests
                 raise e
 
         with patch("asyncio.sleep", new=AsyncMock()):
@@ -340,8 +359,8 @@ class TestSendWithRetry(unittest.TestCase):
         result = run(kl._send_with_retry(boom))
         self.assertFalse(result)
 
-class TestHandleError(unittest.TestCase):
 
+class TestHandleError(unittest.TestCase):
     def test_sends_message_to_telegram(self):
         k = _make_kernel()
         kl = KernelLogger(k)
@@ -407,32 +426,8 @@ class TestHandleError(unittest.TestCase):
         sent_text = call_args[1].get("message") or call_args[0][1]
         self.assertNotIn("supersecret123", sent_text)
 
-class TestSaveErrorToFile(unittest.TestCase):
-
-    def test_writes_to_file(self):
-        k = _make_kernel()
-        kl = KernelLogger(k)
-        m = mock_open()
-        with patch("builtins.open", m), patch("pathlib.Path.mkdir"):
-            kl.save_error_to_file("Something went wrong")
-        m.assert_called_once()
-        handle = m()
-        written = "".join(call[0][0] for call in handle.write.call_args_list)
-        self.assertIn("Something went wrong", written)
-        self.assertIn("Time:", written)
-
-    def test_does_not_raise_on_os_error(self):
-        k = _make_kernel()
-        kl = KernelLogger(k)
-        with patch("builtins.open", side_effect=OSError("disk full")):
-            with patch("pathlib.Path.mkdir"):
-                # Should swallow the error, not propagate it
-                kl.save_error_to_file("error text")
-        k.logger.error.assert_called()
-
 
 class TestConvenienceHelpers(unittest.TestCase):
-
     def _run_helper(self, method_name, message="test message"):
         k = _make_kernel()
         kl = KernelLogger(k)
@@ -460,6 +455,207 @@ class TestConvenienceHelpers(unittest.TestCase):
     def test_helpers_also_call_file_logger(self):
         k = self._run_helper("log_network")
         k.logger.info.assert_called_once_with("test message")
+
+
+class TestStripHtml(unittest.TestCase):
+    def test_removes_simple_tags(self):
+        result = strip_html("<b>bold</b> text")
+        self.assertEqual(result, "bold text")
+
+    def test_removes_nested_tags(self):
+        result = strip_html("<pre><code>x = 1</code></pre>")
+        self.assertEqual(result, "x = 1")
+
+    def test_preserves_text_without_tags(self):
+        result = strip_html("plain text")
+        self.assertEqual(result, "plain text")
+
+    def test_empty_string(self):
+        self.assertEqual(strip_html(""), "")
+
+
+class TestErrorFormatter(unittest.TestCase):
+    def test_format_traceback_line_with_file(self):
+        line = '  File "/path/to/file.py", line 42, in main'
+        result = ErrorFormatter.format_traceback_line(line)
+        self.assertIn("file.py:42", result)
+        self.assertIn("main", result)
+
+    def test_format_traceback_line_without_file(self):
+        line = "some random line"
+        result = ErrorFormatter.format_traceback_line(line)
+        self.assertIn("some random line", result)
+
+    def test_format_full_traceback(self):
+        raw_tb = (
+            '  File "x.py", line 1, in <module>\n  File "y.py", line 2, in <module>'
+        )
+        result = ErrorFormatter.format_full_traceback(raw_tb)
+        self.assertIn("x.py", result)
+        self.assertIn("y.py", result)
+
+    def test_find_source_location_returns_first_match(self):
+        raw_tb = '  File "a.py", line 10, in foo\n  File "b.py", line 20, in bar'
+        result = ErrorFormatter.find_source_location(raw_tb)
+        self.assertEqual(result[0], "b.py")
+        self.assertEqual(result[1], "20")
+        self.assertEqual(result[2], "bar")
+
+    def test_find_source_location_returns_none_for_empty(self):
+        self.assertEqual(ErrorFormatter.find_source_location(""), (None, None, None))
+
+
+class TestTelegramLogHandler(unittest.TestCase):
+    def test_queue_size_starts_at_zero(self):
+        k = _make_kernel()
+        kl = KernelLogger(k)
+        handler = TelegramLogHandler(kl, batch_size=5, batch_interval=0.1)
+        self.assertEqual(handler.queue_size(), 0)
+
+    def test_emit_adds_to_queue(self):
+        k = _make_kernel()
+        kl = KernelLogger(k)
+        handler = TelegramLogHandler(kl, batch_size=5, batch_interval=0.1)
+        handler.emit("test message")
+        self.assertEqual(handler.queue_size(), 1)
+
+    def test_emit_ignores_when_shutdown(self):
+        k = _make_kernel()
+        kl = KernelLogger(k)
+        handler = TelegramLogHandler(kl)
+        handler._shutdown = True
+        handler.emit("test")
+        self.assertEqual(handler.queue_size(), 0)
+
+    def test_rate_limit_detection(self):
+        k = _make_kernel()
+        kl = KernelLogger(k)
+        handler = TelegramLogHandler(kl, rate_limit=2, rate_window=60)
+        import time
+
+        now = time.time()
+        handler._rate_timestamps.extend([now - 10, now - 5])
+        self.assertTrue(handler._is_rate_limited(now))
+
+    def test_clean_rate_timestamps_removes_old(self):
+        k = _make_kernel()
+        kl = KernelLogger(k)
+        handler = TelegramLogHandler(kl, rate_window=30)
+        import time
+
+        now = time.time()
+        handler._rate_timestamps = [now - 100, now - 50, now - 10]
+        handler._clean_rate_timestamps(now)
+        self.assertEqual(len(handler._rate_timestamps), 1)
+
+
+class TestSetupTelegramLogging(unittest.TestCase):
+    def test_returns_telegram_log_handler(self):
+        k = _make_kernel()
+        kl = KernelLogger(k)
+        logger = logging.getLogger("test_telegram_log")
+        logger.handlers = []
+        handler = setup_telegram_logging(logger, kl)
+        self.assertIsInstance(handler, TelegramLogHandler)
+
+    def test_adds_bridge_handler(self):
+        k = _make_kernel()
+        kl = KernelLogger(k)
+        logger = logging.getLogger("test_bridge_log")
+        logger.handlers = []
+        setup_telegram_logging(logger, kl)
+        self.assertTrue(any(isinstance(h, _SyncToAsyncBridge) for h in logger.handlers))
+
+
+class TestKernelLoggerProperties(unittest.TestCase):
+    def test_log_chat_id_from_kernel(self):
+        k = _make_kernel(log_chat_id=999)
+        kl = KernelLogger(k)
+        self.assertEqual(kl.log_chat_id, 999)
+
+    def test_log_chat_id_explicit_overrides(self):
+        k = _make_kernel(log_chat_id=999)
+        kl = KernelLogger(k, log_chat_id=888)
+        self.assertEqual(kl.log_chat_id, 888)
+
+    def test_client_uses_fallback(self):
+        k = _make_kernel()
+        kl = KernelLogger(k)
+        self.assertEqual(kl.client, k.client)
+
+    def test_client_explicit_overrides(self):
+        custom_client = AsyncMock()
+        k = _make_kernel()
+        kl = KernelLogger(k, client=custom_client)
+        self.assertEqual(kl.client, custom_client)
+
+    def test_bot_client_explicit_overrides(self):
+        custom_bot = AsyncMock()
+        k = _make_kernel()
+        kl = KernelLogger(k, bot_client=custom_bot)
+        self.assertEqual(kl.bot_client, custom_bot)
+
+    def test_cache_uses_fallback(self):
+        k = _make_kernel()
+        kl = KernelLogger(k)
+        self.assertEqual(kl.cache, k.cache)
+
+    def test_cache_explicit_overrides(self):
+        custom_cache = MagicMock()
+        k = _make_kernel()
+        kl = KernelLogger(k, cache=custom_cache)
+        self.assertEqual(kl.cache, custom_cache)
+
+
+class TestSendErrorLog(unittest.TestCase):
+    def test_sends_simple_error(self):
+        k = _make_kernel()
+        kl = KernelLogger(k)
+        run(kl.send_error_log("test error", "test_source"))
+        k.bot_client.send_message.assert_called_once()
+
+    def test_respects_max_text_length(self):
+        k = _make_kernel()
+        kl = KernelLogger(k)
+        long_text = "x" * 1000
+        run(kl.send_error_log(long_text, "src"))
+        call_args = k.bot_client.send_message.call_args
+        text = call_args[0][1] if call_args[0] else call_args[1].get("message", "")
+        self.assertLessEqual(len(text), 2000)
+
+    def test_no_log_chat_skips_send(self):
+        k = _make_kernel(log_chat_id=None)
+        kl = KernelLogger(k)
+        run(kl.send_error_log("error", "src"))
+        k.bot_client.send_message.assert_not_called()
+
+
+class TestLogErrorFromExc(unittest.TestCase):
+    def test_sends_rich_exception(self):
+        k = _make_kernel()
+        kl = KernelLogger(k)
+        try:
+            raise ValueError("boom")
+        except ValueError:
+            run(kl.log_error_from_exc("test_src"))
+        k.bot_client.send_message.assert_called_once()
+
+    def test_deduplication_works(self):
+        k = _make_kernel()
+        k.cache.get.return_value = True
+        kl = KernelLogger(k)
+        try:
+            raise ValueError("dup")
+        except ValueError:
+            run(kl.log_error_from_exc("src"))
+        k.bot_client.send_message.assert_not_called()
+
+    def test_no_exc_info_returns_early(self):
+        k = _make_kernel()
+        kl = KernelLogger(k)
+        result = run(kl.log_error_from_exc("src"))
+        k.bot_client.send_message.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

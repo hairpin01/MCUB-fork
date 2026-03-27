@@ -8,7 +8,20 @@ from .runtime import (
     _AllModulesStub,
     _CallableStringsDict,
 )
-from .decorators import tds, command, inline_handler, callback_handler, watcher, on
+from .decorators import (
+    tds,
+    tag,
+    command,
+    inline_handler,
+    callback_handler,
+    watcher,
+    on,
+    loop,
+    raw_handler,
+    debug_method,
+    InfiniteLoop,
+    Placeholder,
+)
 from . import utils
 from . import security
 from . import translat as translations
@@ -76,11 +89,17 @@ __all__ = [
     "_AllModulesStub",
     "_CallableStringsDict",
     "tds",
+    "tag",
     "command",
+    "loop",
+    "InfiniteLoop",
+    "Placeholder",
     "inline_handler",
     "callback_handler",
     "watcher",
     "on",
+    "raw_handler",
+    "debug_method",
     "utils",
     "security",
     "translations",

@@ -1,7 +1,20 @@
 from .validators import validators
 from .config import ConfigValue, ModuleConfig, LibraryConfig
 from .runtime import Module, Library
-from .decorators import tds, command, inline_handler, callback_handler, watcher, on
+from .decorators import (
+    tds,
+    tag,
+    command,
+    inline_handler,
+    callback_handler,
+    watcher,
+    on,
+    loop,
+    raw_handler,
+    debug_method,
+    InfiniteLoop,
+    Placeholder,
+)
 from .types import (
     StringLoader,
     LoadError,
@@ -34,11 +47,17 @@ __all__ = [
     "ConfigValue",
     "validators",
     "tds",
+    "tag",
     "command",
+    "loop",
+    "InfiniteLoop",
+    "Placeholder",
     "watcher",
     "on",
     "inline_handler",
     "callback_handler",
+    "raw_handler",
+    "debug_method",
     "StringLoader",
     "LoadError",
     "CoreOverwriteError",

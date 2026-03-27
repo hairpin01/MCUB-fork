@@ -77,3 +77,16 @@ _translations_mod = _TranslationsModule("__hikka_mcub_compat_translations__")
 _translations_mod.Strings = _StringsShim
 _translations_mod.translator = _translator_stub
 _translations_mod.fmt = _fmt
+_translations_mod.SUPPORTED_LANGUAGES = {
+    "en": "🇬🇧 English",
+    "ru": "🇷🇺 Русский",
+    "ua": "🇺🇦 Український",
+    "de": "🇩🇪 Deutsch",
+    "jp": "🇯🇵 日本語",
+}
+_translations_mod.MEME_LANGUAGES = {
+    "leet": "🏴‍☠️ 1337",
+    "uwu": "🏴‍☠️ UwU",
+    "tiktok": "🏴‍☠️ TikTokKid",
+    "neofit": "🏴‍☠️ Neofit",
+}

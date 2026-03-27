@@ -4,6 +4,8 @@ import copy
 from functools import wraps
 from typing import Callable, Optional, Union
 
+from .types import StopLoop
+
 
 def tds(cls):
     cls.__hikka_module__ = True
@@ -30,12 +32,14 @@ def tag(*tags, **kwarg_tags):
         • startswith, endswith, contains, regex, filter
         • from_id, chat_id, thumb_url, alias, aliases
     """
+
     def inner(func):
         for _tag in tags:
             setattr(func, _tag, True)
         for _tag, value in kwarg_tags.items():
             setattr(func, _tag, value)
         return func
+
     return inner
 
 
@@ -43,6 +47,7 @@ def command(*args, **kwargs):
     def decorator(func):
         func.__hikka_command__ = True
         func.is_command = True
+        func.__command_kwargs__ = dict(kwargs)
         if "ru_doc" in kwargs:
             func.__doc_ru__ = kwargs["ru_doc"]
         if "en_doc" in kwargs:
@@ -51,6 +56,11 @@ def command(*args, **kwargs):
             func.alias = kwargs["alias"]
         if "aliases" in kwargs:
             func.aliases = kwargs["aliases"]
+        for k, v in kwargs.items():
+            try:
+                setattr(func, k, v)
+            except (AttributeError, TypeError):
+                pass
         return func
 
     if args and callable(args[0]):
@@ -62,9 +72,15 @@ def inline_handler(*args, **kwargs):
     def decorator(func):
         func.__hikka_inline_handler__ = True
         func.is_inline_handler = True
+        func.__inline_handler_kwargs__ = dict(kwargs)
         for k, v in kwargs.items():
             if k.endswith("_doc"):
                 setattr(func, k, v)
+            else:
+                try:
+                    setattr(func, k, v)
+                except (AttributeError, TypeError):
+                    pass
         return func
 
     if args and callable(args[0]):
@@ -76,9 +92,15 @@ def callback_handler(*args, **kwargs):
     def decorator(func):
         func.__hikka_callback_handler__ = True
         func.is_callback_handler = True
+        func.__callback_handler_kwargs__ = dict(kwargs)
         for k, v in kwargs.items():
             if k.endswith("_doc"):
                 setattr(func, k, v)
+            else:
+                try:
+                    setattr(func, k, v)
+                except (AttributeError, TypeError):
+                    pass
         return func
 
     if args and callable(args[0]):
@@ -87,10 +109,21 @@ def callback_handler(*args, **kwargs):
 
 
 def watcher(*args, **kwargs):
+    positional_tags = []
+    if args and not callable(args[0]):
+        positional_tags = list(args)
+        args = ()
+
     def decorator(func):
         func.__hikka_watcher__ = True
-        func.__watcher_kwargs__ = kwargs
-        for k, v in kwargs.items():
+        func.is_watcher = True
+        merged_kwargs = dict(kwargs)
+        for tag_name in positional_tags:
+            if isinstance(tag_name, str):
+                merged_kwargs.setdefault(tag_name, True)
+        func.__watcher_tags__ = tuple(t for t in positional_tags if isinstance(t, str))
+        func.__watcher_kwargs__ = merged_kwargs
+        for k, v in merged_kwargs.items():
             try:
                 setattr(func, k, v)
             except (AttributeError, TypeError):
@@ -106,16 +139,19 @@ def on(event_type):
     def decorator(func):
         func.__hikka_on_event__ = event_type
         return func
+
     return decorator
 
 
 def debug_method(*args, **kwargs):
     """Decorator that marks function as IDM (Internal Debug Method)."""
+
     def decorator(func):
         func.is_debug_method = True
         for k, v in kwargs.items():
             setattr(func, k, v)
         return func
+
     if args and callable(args[0]):
         return decorator(args[0])
     return decorator
@@ -123,15 +159,19 @@ def debug_method(*args, **kwargs):
 
 def raw_handler(*updates):
     """Decorator that marks function as raw telethon events handler."""
+
     def decorator(func):
         func.is_raw_handler = True
+        func.__raw_handler__ = True
         func.updates = updates
         return func
+
     return decorator
 
 
 class InfiniteLoop:
     """Class for creating infinite loops in modules."""
+
     _task = None
     status = False
     module_instance = None
@@ -154,14 +194,25 @@ class InfiniteLoop:
         if hasattr(self, "_wait_for_stop"):
             self._wait_for_stop.set()
 
+    def _create_task(self, coro):
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            coro.close()
+            return None
+        if loop.is_closed():
+            coro.close()
+            return None
+        return loop.create_task(coro)
+
     def stop(self, *args, **kwargs):
         if self._task:
             self._wait_for_stop = asyncio.Event()
             self.status = False
             self._task.add_done_callback(self._stop)
             self._task.cancel()
-            return asyncio.ensure_future(self._wait_for_stop.wait())
-        return asyncio.ensure_future(self._stop_placeholder())
+            return self._create_task(self._wait_for_stop.wait())
+        return self._create_task(self._stop_placeholder())
 
     async def _stop_placeholder(self):
         return True
@@ -205,7 +256,8 @@ class InfiniteLoop:
         self.status = False
 
     def __del__(self):
-        self.stop()
+        with contextlib.suppress(Exception):
+            self.stop()
 
 
 def loop(
@@ -221,13 +273,16 @@ def loop(
     :param wait_before: Insert delay before actual iteration, rather than after
     :param stop_clause: Database key, based on which the loop will run
     """
+
     def wrapped(func):
         return InfiniteLoop(func, interval, autostart, wait_before, stop_clause)
+
     return wrapped
 
 
 class Placeholder:
     """Placeholder class."""
+
     pass
 
 

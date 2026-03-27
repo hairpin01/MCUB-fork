@@ -1,4 +1,7 @@
 import functools
+import random
+import re
+import string
 import types
 import typing
 
@@ -55,41 +58,67 @@ class InlineMarkupBuilder:
 
 def generate_markup(
     markup: typing.Optional[
-        typing.Union[typing.List[typing.List[dict]], typing.List[dict], dict]
+        typing.Union[typing.List[typing.List[dict]], typing.List[dict], dict, str]
     ],
     custom_map: typing.Optional[typing.Dict[str, dict]] = None,
+    inline_proxy=None,
+    unit_id: typing.Optional[str] = None,
 ) -> typing.Optional[typing.List[typing.List[dict]]]:
     if not markup:
         return None
 
-    if isinstance(markup, list):
-        return markup
+    normalized = _normalize_markup(markup, inline_proxy=inline_proxy)
+    if not normalized:
+        return None
 
-    if isinstance(markup, dict):
-        return markup.get("buttons", [])
-
-    return None
+    return process_buttons(
+        normalized,
+        custom_map=custom_map,
+        inline_proxy=inline_proxy,
+        unit_id=unit_id,
+    )
 
 
 def process_buttons(
     buttons: typing.List[typing.List[dict]],
     custom_map: typing.Optional[typing.Dict[str, dict]] = None,
+    inline_proxy=None,
+    unit_id: typing.Optional[str] = None,
 ) -> typing.List[typing.List[dict]]:
+    if custom_map is None:
+        custom_map = getattr(inline_proxy, "_custom_map", None)
+
     result: typing.List[typing.List[dict]] = []
 
-    for row in buttons:
+    for row in _normalize_markup(buttons):
         processed_row: typing.List[dict] = []
         for button in row:
             if not isinstance(button, dict):
                 continue
 
             btn_copy = dict(button)
+            _apply_action_button(btn_copy, inline_proxy)
 
             if "callback" in btn_copy and "_callback_data" not in btn_copy:
                 btn_copy["_callback_data"] = _generate_id(30)
 
             if "input" in btn_copy and "_switch_query" not in btn_copy:
                 btn_copy["_switch_query"] = _generate_id(10)
+
+            if (
+                custom_map is not None
+                and "callback" in btn_copy
+                and "_callback_data" in btn_copy
+            ):
+                custom_map[btn_copy["_callback_data"]] = {
+                    "handler": btn_copy["callback"],
+                    "always_allow": btn_copy.get("always_allow", []),
+                    "args": btn_copy.get("args", ()),
+                    "kwargs": btn_copy.get("kwargs", {}),
+                    "force_me": bool(btn_copy.get("force_me", False)),
+                    "disable_security": bool(btn_copy.get("disable_security", False)),
+                    "unit_id": unit_id or btn_copy.get("unit_id"),
+                }
 
             result_button = _build_button(btn_copy)
             if result_button:
@@ -102,10 +131,76 @@ def process_buttons(
 
 
 def _generate_id(length: int) -> str:
-    import random
-    import string
-
     return "".join(random.choices(string.ascii_letters + string.digits, k=length))
+
+
+def _normalize_markup(markup, inline_proxy=None) -> typing.List[typing.List[dict]]:
+    if not markup:
+        return []
+
+    if isinstance(markup, str):
+        units = getattr(inline_proxy, "_units", {}) if inline_proxy is not None else {}
+        unit = units.get(markup, {})
+        markup = unit.get("buttons", [])
+
+    if isinstance(markup, dict):
+        if "buttons" in markup and isinstance(markup["buttons"], list):
+            markup = markup["buttons"]
+        else:
+            return [[markup]]
+
+    if not isinstance(markup, list):
+        return []
+
+    if not markup:
+        return []
+
+    if any(isinstance(i, dict) for i in markup):
+        return [typing.cast(typing.List[dict], markup)]
+
+    normalized: typing.List[typing.List[dict]] = []
+    for row in markup:
+        if isinstance(row, dict):
+            normalized.append([row])
+            continue
+        if isinstance(row, list):
+            normalized.append([btn for btn in row if isinstance(btn, dict)])
+
+    return [row for row in normalized if row]
+
+
+def _apply_action_button(button: dict, inline_proxy=None) -> None:
+    if "callback" in button:
+        return
+
+    action = str(button.get("action", "")).lower()
+    if not action:
+        return
+
+    if action == "close":
+        callback = getattr(inline_proxy, "_close_unit_handler", None)
+        if callback:
+            button["callback"] = callback
+        return
+
+    if action == "unload":
+        callback = getattr(inline_proxy, "_unload_unit_handler", None)
+        if callback:
+            button["callback"] = callback
+        return
+
+    if action == "answer":
+        text = str(button.get("message", ""))
+        if not text:
+            return
+
+        callback = getattr(inline_proxy, "_answer_unit_handler", None)
+        if callback:
+            button["callback"] = functools.partial(
+                callback,
+                show_alert=bool(button.get("show_alert", False)),
+                text=text,
+            )
 
 
 def _build_button(button: dict) -> typing.Optional[dict]:
@@ -123,10 +218,22 @@ def _build_button(button: dict) -> typing.Optional[dict]:
         result["url"] = button["url"]
     elif "callback" in button:
         result["callback_data"] = button.get("_callback_data", "")
+    elif "data" in button:
+        result["callback_data"] = str(button.get("data", ""))
     elif "input" in button:
         result["switch_inline_query_current_chat"] = (
             button.get("_switch_query", "") + " "
         )
+    elif "switch_inline_query_current_chat" in button:
+        result["switch_inline_query_current_chat"] = str(
+            button.get("switch_inline_query_current_chat", "")
+        )
+    elif "switch_inline_query" in button:
+        result["switch_inline_query"] = str(button.get("switch_inline_query", ""))
+    elif "copy" in button:
+        result["copy_text"] = str(button.get("copy", ""))
+    elif "web_app" in button:
+        result["web_app"] = button["web_app"]
 
     return result
 
@@ -142,16 +249,10 @@ def sanitise_text(text: typing.Optional[str]) -> str:
         return ""
 
     text = str(text)
-    replacements = {
-        "<": "&lt;",
-        ">": "&gt;",
-        "&": "&amp;",
-    }
-
-    for old, new in replacements.items():
-        text = text.replace(old, new)
-
-    return text
+    text = text.replace("\x00", "")
+    text = re.sub(r"<tg-emoji[^>]*>(.*?)</tg-emoji>", r"\1", text, flags=re.I | re.S)
+    text = re.sub(r"</?emoji[^>]*>", "", text, flags=re.I)
+    return text.strip()
 
 
 def _build_inline_results(

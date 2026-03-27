@@ -502,7 +502,6 @@ class InlineManager:
             return True, message
 
         except Exception as e:
-            k.logger.error(f"Inline query error: {e}")
             await k.handle_error(e, source="inline_query_and_click")
             return False, None
 
@@ -560,7 +559,6 @@ class InlineManager:
             return form_id
 
         except Exception as e:
-            k.logger.error(f"inline_form error: {e}")
             await k.handle_error(e, source="inline_form")
             return (False, None) if auto_send else None
 
@@ -628,7 +626,6 @@ class InlineManager:
             )
 
         except Exception as e:
-            k.logger.error(f"gallery error: {e}")
             await k.handle_error(e, source="gallery")
             return (False, None)
 

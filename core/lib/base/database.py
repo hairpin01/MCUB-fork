@@ -109,7 +109,7 @@ class DatabaseManager:
             return False
         if len(value) > 64:
             return False
-        return bool(re.match(r"^[a-zA-Z0-9_-]+$", value))
+        return bool(re.match(r"^[a-zA-Z0-9_.\-]+$", value))
 
     async def db_set(self, module: str, key: str, value: Any):
         """Save value for a module key."""
@@ -176,3 +176,37 @@ class DatabaseManager:
         rows = await cursor.fetchall()
         await cursor.close()
         return rows
+
+    async def db_get_module_keys(self, module: str) -> list[str]:
+        """Get all keys for a given module."""
+        if not self.conn:
+            raise RuntimeError("Database is not initialized")
+
+        if not self._validate_identifier(module):
+            raise ValueError("Invalid module name")
+
+        cursor = await self.conn.execute(
+            "SELECT key FROM module_data WHERE module = ?", (module,)
+        )
+        rows = await cursor.fetchall()
+        await cursor.close()
+        return [row[0] for row in rows]
+
+    async def db_get_config_modules(self) -> list[str]:
+        """Get all module names that have configs stored (for module_configs table)."""
+        if not self.conn:
+            raise RuntimeError("Database is not initialized")
+
+        cursor = await self.conn.execute(
+            "SELECT key, value FROM module_data WHERE module = 'module_configs'"
+        )
+        rows = await cursor.fetchall()
+        await cursor.close()
+
+        result = []
+        for row in rows:
+            key = row[0]
+            value = row[1]
+            if value and value.strip() not in ("{}", "[]", "null", '""', "''"):
+                result.append(key)
+        return result

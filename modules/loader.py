@@ -375,7 +375,6 @@ def register(kernel):
             await message.edit(text, parse_mode="html", **kwargs)
             return True
         except Exception as e:
-            kernel.logger.error(f"loader: Error in edit_with_emoji: {e}")
             return False
 
     async def send_with_emoji(chat_id, text, **kwargs):
@@ -391,7 +390,6 @@ def register(kernel):
             else:
                 return await client.send_message(chat_id, text, **kwargs)
         except Exception as e:
-            kernel.logger.error(f"Error in send_with_emoji: {e}")
             await kernel.handle_error(e, source="send_with_emoji")
             # Fallback
             fallback_text = re.sub(r"<tg-emoji[^>]*>.*?</tg-emoji>", "", text)

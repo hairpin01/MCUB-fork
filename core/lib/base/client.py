@@ -22,9 +22,10 @@ class ClientManager:
         Returns:
             True when the client is authorized and ready.
         """
-        from utils.platform import get_platform_name, PlatformDetector
-        from utils.security import ensure_locked_after_write
         from telethon.sessions import SQLiteSession
+
+        from utils.platform import PlatformDetector, get_platform_name
+        from utils.security import ensure_locked_after_write
 
         k = self.k
         platform = PlatformDetector()
@@ -38,7 +39,7 @@ class ClientManager:
             k.API_ID,
             k.API_HASH,
             proxy=k.config.get("proxy"),
-            connection_retries=3,
+            connection_retries=999999,
             request_retries=3,
             flood_sleep_threshold=30,
             device_model=f"MCUB-{platform.detect()}",
@@ -48,6 +49,7 @@ class ClientManager:
             system_lang_code="en-US",
             base_logger=None,
             catch_up=False,
+            auto_reconnect=True,
         )
 
         try:
@@ -130,13 +132,15 @@ class ClientManager:
         """Attempt to (re-)connect the client with exponential back-off.
 
         Uses kernel attributes: reconnect_attempts, max_reconnect_attempts,
-        reconnect_delay, shutdown_flag.
+        reconnect_delay, shutdown_flag. Set max_reconnect_attempts=-1 for infinite.
 
         Returns:
             True when connected and authorized.
         """
         k = self.k
-        while k.reconnect_attempts < k.max_reconnect_attempts:
+        infinite = k.max_reconnect_attempts < 0
+
+        while infinite or k.reconnect_attempts < k.max_reconnect_attempts:
             if k.shutdown_flag:
                 return False
             try:
@@ -151,6 +155,14 @@ class ClientManager:
             except Exception as e:
                 k.reconnect_attempts += 1
                 if hasattr(k, "_log") and k._log:
-                    await k._log.log_network(f"Connection attempt failed: {e}")
-                await asyncio.sleep(k.reconnect_delay * k.reconnect_attempts)
+                    if k.reconnect_attempts <= 3 or k.reconnect_attempts % 10 == 0:
+                        await k._log.log_network(
+                            f"Connection attempt {k.reconnect_attempts} failed: {type(e).__name__}: {e}"
+                        )
+                    elif k.reconnect_attempts == 4:
+                        await k._log.log_network(
+                            "⚠️ Connection unstable - reconnection attempts will continue silently (logged every 10 attempts)"
+                        )
+                delay = k.reconnect_delay * min(k.reconnect_attempts, 10)
+                await asyncio.sleep(delay)
         return False

@@ -455,37 +455,46 @@ class InlineHandlers:
 
         @self.bot_client.on(events.CallbackQuery)
         async def callback_query_handler(event):
-            if not event.data:
-                return
-            data_str = (
-                event.data.decode("utf-8")
-                if isinstance(event.data, bytes)
-                else str(event.data)
-            )
-
-            if not await self.check_admin(event) and (
-                not hasattr(self.kernel, "callback_permissions")
-                or not self.kernel.callback_permissions.is_allowed(
-                    event.sender_id, data_str
+            try:
+                if not event.data:
+                    return
+                data_str = (
+                    event.data.decode("utf-8")
+                    if isinstance(event.data, bytes)
+                    else str(event.data)
                 )
-            ):
-                return await event.answer("Нет доступа", alert=False)
 
-            if data_str.startswith("show_tb"):
-                await self._handle_show_traceback(event)
-            elif data_str.startswith("confirm_"):
-                from .keyboards import InlineKeyboards
+                if not await self.check_admin(event) and (
+                    not hasattr(self.kernel, "callback_permissions")
+                    or not self.kernel.callback_permissions.is_allowed(
+                        event.sender_id, data_str
+                    )
+                ):
+                    return await event.answer("Нет доступа", alert=False)
 
-                kb = InlineKeyboards(self.kernel)
-                if "yes" in data_str:
-                    await kb.handle_confirm_yes(event)
-                else:
-                    await kb.handle_confirm_no(event)
+                if data_str.startswith("show_tb"):
+                    await self._handle_show_traceback(event)
+                elif data_str.startswith("confirm_"):
+                    from .keyboards import InlineKeyboards
 
-            for pattern, handler in list(self.kernel.callback_handlers.items()):
-                p_str = pattern.decode() if isinstance(pattern, bytes) else str(pattern)
-                if data_str.startswith(p_str):
-                    await handler(event)
+                    kb = InlineKeyboards(self.kernel)
+                    if "yes" in data_str:
+                        await kb.handle_confirm_yes(event)
+                    else:
+                        await kb.handle_confirm_no(event)
+
+                for pattern, handler in list(self.kernel.callback_handlers.items()):
+                    p_str = (
+                        pattern.decode() if isinstance(pattern, bytes) else str(pattern)
+                    )
+                    if data_str.startswith(p_str):
+                        await handler(event)
+            except Exception as e:
+                error_traceback = "".join(
+                    traceback.format_exception(type(e), e, e.__traceback__)
+                )
+                kernel.logger.error(f"Error callback_handlers: {error_traceback}")
+                await event.answer(f"error: {e}")
 
     async def _handle_show_traceback(self, event):
         try:
@@ -515,4 +524,8 @@ class InlineHandlers:
                 buttons=None,
             )
         except Exception as e:
+            error_traceback = "".join(
+                traceback.format_exception(type(e), e, e.__traceback__)
+            )
+            kernel.logger.error(f"Error _handle_show_traceback: {error_traceback}")
             await event.answer(f"Критическая ошибка: {e}", alert=True)

@@ -123,6 +123,13 @@ class FloodWaitError(Exception):
         super().__init__(f"Flood wait: {seconds}s")
 
 
+class ScamDetectionError(Exception):
+    """Raised when Telegram detects potential scam activity."""
+
+    def __init__(self, message: str = "Scam detection triggered"):
+        super().__init__(message)
+
+
 _SUBMODULE_EXTRA_ATTRS: dict[str, dict] = {
     "herokutl.errors.common": {"ScamDetectionError": ScamDetectionError},
     "hikkatl.errors.common": {"ScamDetectionError": ScamDetectionError},
@@ -685,12 +692,47 @@ async def load_hikka_module(
                     f"from {module_name}: {e}"
                 )
             continue
+        elif getattr(method, "__hikka_inline_handler__", False):
+            handler_name = attr_name
+            pattern = getattr(method, "pattern", None)
+            try:
+                if hasattr(kernel, "register") and pattern:
+                    kernel.register.event(
+                        "inlinequery", pattern=pattern, bot_client=True
+                    )(method)
+                elif hasattr(kernel, "register_inline_handler"):
+                    kernel.register_inline_handler(handler_name, method)
+            except Exception as e:
+                kernel.logger.warning(
+                    f"[hikka_compat] Could not register inline handler '{attr_name}' "
+                    f"from {module_name}: {e}"
+                )
+            continue
+        elif getattr(method, "__hikka_callback_handler__", False):
+            handler_name = attr_name
+            data = getattr(method, "data", None)
+            try:
+                if hasattr(kernel, "register") and data:
+                    kernel.register.event("callbackquery", data=data, bot_client=True)(
+                        method
+                    )
+                elif hasattr(kernel, "register_callback_handler"):
+                    kernel.register_callback_handler(handler_name, method)
+            except Exception as e:
+                kernel.logger.warning(
+                    f"[hikka_compat] Could not register callback handler '{attr_name}' "
+                    f"from {module_name}: {e}"
+                )
+            continue
         else:
             continue
 
         try:
-            kernel.register_command(cmd_name, method)
-            registered_cmds.append(cmd_name)
+            registered_method = kernel.register.command(cmd_name)(method)
+            if hasattr(registered_method, "__cmd_name__"):
+                registered_cmds.append(registered_method.__cmd_name__)
+            else:
+                registered_cmds.append(cmd_name)
         except Exception as e:
             err_str = str(e)
             conflict_module = None
@@ -778,9 +820,25 @@ async def unload_hikka_module(kernel, module_name: str) -> bool:
     except Exception as e:
         kernel.logger.warning(f"[hikka_compat] on_unload() error in {module_name}: {e}")
 
-    for cmd in getattr(instance, "_registered_cmds", []):
+    registered_cmds = getattr(instance, "_registered_cmds", [])
+    for cmd in registered_cmds:
         kernel.command_handlers.pop(cmd, None)
         kernel.command_owners.pop(cmd, None)
+
+    to_remove = [
+        cmd for cmd, owner in kernel.command_owners.items() if owner == module_name
+    ]
+    for cmd in to_remove:
+        kernel.command_handlers.pop(cmd, None)
+        kernel.command_owners.pop(cmd, None)
+
+    aliases_to_remove = [
+        alias
+        for alias, cmd in kernel.aliases.items()
+        if cmd in to_remove or kernel.command_owners.get(cmd) == module_name
+    ]
+    for alias in aliases_to_remove:
+        kernel.aliases.pop(alias, None)
 
     for handle in getattr(instance, "_watcher_handles", []):
         try:
@@ -793,6 +851,14 @@ async def unload_hikka_module(kernel, module_name: str) -> bool:
             kernel.client.remove_event_handler(handle)
         except Exception:
             pass
+
+    if hasattr(kernel, "unregister_module_inline_handlers"):
+        try:
+            kernel.unregister_module_inline_handlers(module_name)
+        except Exception as e:
+            kernel.logger.warning(
+                f"[hikka_compat] Error unregistering inline handlers for {module_name}: {e}"
+            )
 
     kernel.loaded_modules.pop(module_name, None)
 

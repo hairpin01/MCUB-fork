@@ -8,7 +8,9 @@ class InlineManager:
         self.kernel = kernel
 
     async def is_admin(self, user_id: int) -> bool:
-        return hasattr(self.kernel, "ADMIN_ID") and int(user_id) == int(self.kernel.ADMIN_ID)
+        return hasattr(self.kernel, "ADMIN_ID") and int(user_id) == int(
+            self.kernel.ADMIN_ID
+        )
 
     async def is_allowed(self, user_id: int, command: str = None) -> bool:
         if await self.is_admin(user_id):
@@ -56,7 +58,9 @@ class InlineManager:
 
             if target in allowed and user_id in allowed[target]:
                 allowed[target].remove(user_id)
-                await self.kernel.db_set(self.MODULE, "allowed_users", json.dumps(allowed))
+                await self.kernel.db_set(
+                    self.MODULE, "allowed_users", json.dumps(allowed)
+                )
                 return True
             return False
         except Exception as e:

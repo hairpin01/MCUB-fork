@@ -10,7 +10,11 @@ import html
 import aiohttp
 from datetime import datetime, timezone
 from telethon import Button
-from telethon.tl.functions.messages import CreateChatRequest, ExportChatInviteRequest, AddChatUserRequest
+from telethon.tl.functions.messages import (
+    CreateChatRequest,
+    ExportChatInviteRequest,
+    AddChatUserRequest,
+)
 from telethon.tl.functions.channels import EditPhotoRequest
 from telethon.tl.types import InputUserSelf
 
@@ -19,122 +23,122 @@ def register(kernel):
     client = kernel.client
     bot_client = kernel.bot_client
 
-    language = kernel.config.get('language', 'en')
+    language = kernel.config.get("language", "en")
 
     strings = {
-        'ru': {
-            'git_timeout': '⚠️ Git: тайм-аут (нет сети)',
-            'updates_available': '🔄 Доступны обновления ({count})',
-            'up_to_date': '✅ Актуальная версия',
-            'git_error': '⚠️ Ошибка Git',
-            'setup_log_group': '🤖 Настройка лог-группы',
-            'searching_logs': 'Ошибка поиска логов',
-            'creating_log_group': '📝 Создаю лог-группу...',
-            'bot_prepare_error': 'Не удалось подготовить бота для добавления',
-            'chat_id_error': '❌ Не удалось получить ID созданного чата',
-            'avatar_error': '⚠️ Не удалось установить аватарку',
-            'invite_error': '⚠️ Не удалось получить ссылку (нет прав)',
-            'bot_added': '✅ Бот добавлен',
-            'bot_add_error': '⚠️ Не удалось добавить бота',
-            'chat_create_error': '❌ Ошибка создания чата',
-            'log_setup_title': 'Настраиваю лог-группу...',
-            'log_setup_success': '✅ Лог-группа настроена',
-            'log_setup_fail': '❌ Не удалось настроить',
-            'test_title': 'Тестирую отправку логов...',
-            'test_bot_available': 'Бот доступен',
-            'test_bot_not_available': 'Бот недоступен',
-            'test_bot_auth': 'Бот авторизован',
-            'test_bot_not_auth': 'Бот не авторизован',
-            'test_log_chat_id': 'Лог-чат ID',
-            'test_not_set': 'не установлен',
-            'test_time': 'Время',
-            'test_success': '✅ Тестовое сообщение отправлено',
-            'test_fail': '❌ Не удалось отправить',
-            'test_error': '❌ Ошибка теста',
-            'log_status_on': '✅ включен',
-            'log_status_off': '❌ выключен',
-            'log_not_configured': 'Не настроен',
-            'bot_running': '✅ запущен',
-            'bot_not_running': '❌ не запущен',
-            'errors_sent': '✅ отправляются',
-            'errors_not_sent': '❌ не отправляются',
-            'log_status_title': 'Статус лог-бота',
-            'log_group': 'Лог-группа',
-            'bot_sending': 'Отправка через бота',
-            'errors': 'Ошибки',
-            'startup_via_bot': '✅ Стартовое сообщение через бота',
-            'startup_via_userbot': '⚠️ Стартовое сообщение через юзербота',
-            'startup_error': '❌ Ошибка отправки',
-            'send_log_error': '❌ Не удалось отправить в лог',
-            'started': 'started!',
-            'update_status': 'Статус обновления',
-            'prefix': 'Префикс',
-            'new_commits_header': '<tg-emoji emoji-id="5465300082628763143">💬</tg-emoji> <b>Доступно {count} обновлений на ветку</b> <code>{branch}</code>',
-            'new_commits_btn': '🔄 Обновить',
-            'update_running': '<tg-emoji emoji-id="5326015457155620929">📦</tg-emoji> <b>Обновляю...</b>',
-            'update_done': '✅ Обновлено до <code>{sha}</code>\n<blockquote>⚠️ Автоматическая перезагрузка</blockquote>',
-            'update_error': '❌ Ошибка обновления: <code>{error}</code>',
-            'update_no_log': '⚠️ Лог-чат не настроен, уведомления об обновлениях недоступны',
-            'and_more_commits': '... и ещё {} коммитов',
+        "ru": {
+            "git_timeout": "⚠️ Git: тайм-аут (нет сети)",
+            "updates_available": "🔄 Доступны обновления ({count})",
+            "up_to_date": "✅ Актуальная версия",
+            "git_error": "⚠️ Ошибка Git",
+            "setup_log_group": "🤖 Настройка лог-группы",
+            "searching_logs": "Ошибка поиска логов",
+            "creating_log_group": "📝 Создаю лог-группу...",
+            "bot_prepare_error": "Не удалось подготовить бота для добавления",
+            "chat_id_error": "❌ Не удалось получить ID созданного чата",
+            "avatar_error": "⚠️ Не удалось установить аватарку",
+            "invite_error": "⚠️ Не удалось получить ссылку (нет прав)",
+            "bot_added": "✅ Бот добавлен",
+            "bot_add_error": "⚠️ Не удалось добавить бота",
+            "chat_create_error": "❌ Ошибка создания чата",
+            "log_setup_title": "Настраиваю лог-группу...",
+            "log_setup_success": "✅ Лог-группа настроена",
+            "log_setup_fail": "❌ Не удалось настроить",
+            "test_title": "Тестирую отправку логов...",
+            "test_bot_available": "Бот доступен",
+            "test_bot_not_available": "Бот недоступен",
+            "test_bot_auth": "Бот авторизован",
+            "test_bot_not_auth": "Бот не авторизован",
+            "test_log_chat_id": "Лог-чат ID",
+            "test_not_set": "не установлен",
+            "test_time": "Время",
+            "test_success": "✅ Тестовое сообщение отправлено",
+            "test_fail": "❌ Не удалось отправить",
+            "test_error": "❌ Ошибка теста",
+            "log_status_on": "✅ включен",
+            "log_status_off": "❌ выключен",
+            "log_not_configured": "Не настроен",
+            "bot_running": "✅ запущен",
+            "bot_not_running": "❌ не запущен",
+            "errors_sent": "✅ отправляются",
+            "errors_not_sent": "❌ не отправляются",
+            "log_status_title": "Статус лог-бота",
+            "log_group": "Лог-группа",
+            "bot_sending": "Отправка через бота",
+            "errors": "Ошибки",
+            "startup_via_bot": "✅ Стартовое сообщение через бота",
+            "startup_via_userbot": "⚠️ Стартовое сообщение через юзербота",
+            "startup_error": "❌ Ошибка отправки",
+            "send_log_error": "❌ Не удалось отправить в лог",
+            "started": "started!",
+            "update_status": "Статус обновления",
+            "prefix": "Префикс",
+            "new_commits_header": '<tg-emoji emoji-id="5465300082628763143">💬</tg-emoji> <b>Доступно {count} обновлений на ветку</b> <code>{branch}</code>',
+            "new_commits_btn": "🔄 Обновить",
+            "update_running": '<tg-emoji emoji-id="5326015457155620929">📦</tg-emoji> <b>Обновляю...</b>',
+            "update_done": "✅ Обновлено до <code>{sha}</code>\n<blockquote>⚠️ Автоматическая перезагрузка</blockquote>",
+            "update_error": "❌ Ошибка обновления: <code>{error}</code>",
+            "update_no_log": "⚠️ Лог-чат не настроен, уведомления об обновлениях недоступны",
+            "and_more_commits": "... и ещё {} коммитов",
         },
-        'en': {
-            'git_timeout': '⚠️ Git: timeout (no network)',
-            'updates_available': '🔄 Updates available ({count})',
-            'up_to_date': '✅ Up to date',
-            'git_error': '⚠️ Git error',
-            'setup_log_group': '🤖 Setting up log group',
-            'searching_logs': 'Error searching logs',
-            'creating_log_group': '📝 Creating log group...',
-            'bot_prepare_error': 'Failed to prepare bot for adding',
-            'chat_id_error': '❌ Failed to get created chat ID',
-            'avatar_error': '⚠️ Failed to set avatar',
-            'invite_error': '⚠️ Failed to get invite link (no permissions)',
-            'bot_added': '✅ Bot added',
-            'bot_add_error': '⚠️ Failed to add bot after creation',
-            'chat_create_error': '❌ Chat creation error',
-            'log_setup_title': 'Setting up log group...',
-            'log_setup_success': '✅ Log group configured',
-            'log_setup_fail': '❌ Failed to configure',
-            'test_title': 'Testing log sending...',
-            'test_bot_available': 'Bot available',
-            'test_bot_not_available': 'Bot unavailable',
-            'test_bot_auth': 'Bot authorized',
-            'test_bot_not_auth': 'Bot not authorized',
-            'test_log_chat_id': 'Log chat ID',
-            'test_not_set': 'not set',
-            'test_time': 'Time',
-            'test_success': '✅ Test message sent',
-            'test_fail': '❌ Failed to send',
-            'test_error': '❌ Test error',
-            'log_status_on': '✅ enabled',
-            'log_status_off': '❌ disabled',
-            'log_not_configured': 'Not configured',
-            'bot_running': '✅ running',
-            'bot_not_running': '❌ not running',
-            'errors_sent': '✅ sent',
-            'errors_not_sent': '❌ not sent',
-            'log_status_title': 'Log bot status',
-            'log_group': 'Log group',
-            'bot_sending': 'Sending via bot',
-            'errors': 'Errors',
-            'startup_via_bot': '✅ Startup message via bot',
-            'startup_via_userbot': '⚠️ Startup message via userbot',
-            'startup_error': '❌ Send error',
-            'send_log_error': '❌ Failed to send to log',
-            'started': 'started!',
-            'update_status': 'Update status',
-            'prefix': 'Prefix',
-            'new_commits_header': '<tg-emoji emoji-id="5465300082628763143">💬</tg-emoji> <b>{count} updates available on branch</b> <code>{branch}</code>',
-            'new_commits_btn': '🔄 Update',
-            'update_running': '<tg-emoji emoji-id="5326015457155620929">📦</tg-emoji> <b>Updating...</b>',
-            'update_done': '✅ Updated to <code>{sha}</code>\n<blockquote>⚠️ Auto restart the userbot</blockquote>',
-            'update_error': '❌ Update error: <code>{error}</code>',
-            'update_no_log': '⚠️ Log chat not configured, update notifications unavailable',
-            'and_more_commits': '... and {} more commits',
-        }
+        "en": {
+            "git_timeout": "⚠️ Git: timeout (no network)",
+            "updates_available": "🔄 Updates available ({count})",
+            "up_to_date": "✅ Up to date",
+            "git_error": "⚠️ Git error",
+            "setup_log_group": "🤖 Setting up log group",
+            "searching_logs": "Error searching logs",
+            "creating_log_group": "📝 Creating log group...",
+            "bot_prepare_error": "Failed to prepare bot for adding",
+            "chat_id_error": "❌ Failed to get created chat ID",
+            "avatar_error": "⚠️ Failed to set avatar",
+            "invite_error": "⚠️ Failed to get invite link (no permissions)",
+            "bot_added": "✅ Bot added",
+            "bot_add_error": "⚠️ Failed to add bot after creation",
+            "chat_create_error": "❌ Chat creation error",
+            "log_setup_title": "Setting up log group...",
+            "log_setup_success": "✅ Log group configured",
+            "log_setup_fail": "❌ Failed to configure",
+            "test_title": "Testing log sending...",
+            "test_bot_available": "Bot available",
+            "test_bot_not_available": "Bot unavailable",
+            "test_bot_auth": "Bot authorized",
+            "test_bot_not_auth": "Bot not authorized",
+            "test_log_chat_id": "Log chat ID",
+            "test_not_set": "not set",
+            "test_time": "Time",
+            "test_success": "✅ Test message sent",
+            "test_fail": "❌ Failed to send",
+            "test_error": "❌ Test error",
+            "log_status_on": "✅ enabled",
+            "log_status_off": "❌ disabled",
+            "log_not_configured": "Not configured",
+            "bot_running": "✅ running",
+            "bot_not_running": "❌ not running",
+            "errors_sent": "✅ sent",
+            "errors_not_sent": "❌ not sent",
+            "log_status_title": "Log bot status",
+            "log_group": "Log group",
+            "bot_sending": "Sending via bot",
+            "errors": "Errors",
+            "startup_via_bot": "✅ Startup message via bot",
+            "startup_via_userbot": "⚠️ Startup message via userbot",
+            "startup_error": "❌ Send error",
+            "send_log_error": "❌ Failed to send to log",
+            "started": "started!",
+            "update_status": "Update status",
+            "prefix": "Prefix",
+            "new_commits_header": '<tg-emoji emoji-id="5465300082628763143">💬</tg-emoji> <b>{count} updates available on branch</b> <code>{branch}</code>',
+            "new_commits_btn": "🔄 Update",
+            "update_running": '<tg-emoji emoji-id="5326015457155620929">📦</tg-emoji> <b>Updating...</b>',
+            "update_done": "✅ Updated to <code>{sha}</code>\n<blockquote>⚠️ Auto restart the userbot</blockquote>",
+            "update_error": "❌ Update error: <code>{error}</code>",
+            "update_no_log": "⚠️ Log chat not configured, update notifications unavailable",
+            "and_more_commits": "... and {} more commits",
+        },
     }
 
-    lang_strings = strings.get(language, strings['en'])
+    lang_strings = strings.get(language, strings["en"])
 
     async def init_bot_client():
         pass
@@ -155,7 +159,6 @@ def register(kernel):
 
     async def get_update_status():
         try:
-
             repo_path = os.path.dirname(os.path.abspath(__file__))
 
             async def run_git(args):
@@ -172,20 +175,20 @@ def register(kernel):
             try:
                 await asyncio.wait_for(run_git(["fetch", "origin"]), timeout=5)
             except asyncio.TimeoutError:
-                return lang_strings['git_timeout']
+                return lang_strings["git_timeout"]
 
             code, output = await run_git(["rev-list", "--count", "HEAD..@{u}"])
 
             if code == 0 and output.isdigit():
                 updates_count = int(output)
                 if updates_count > 0:
-                    return lang_strings['updates_available'].format(count=updates_count)
+                    return lang_strings["updates_available"].format(count=updates_count)
 
-            return lang_strings['up_to_date']
+            return lang_strings["up_to_date"]
 
         except Exception as e:
             kernel.logger.error(f"{lang_strings['git_error']}: {e}")
-            return lang_strings['git_error']
+            return lang_strings["git_error"]
 
     async def get_new_commits():
         """Возвращает список новых коммитов (sha, subject, author, time) относительно HEAD."""
@@ -194,7 +197,8 @@ def register(kernel):
 
             async def run_git(args):
                 process = await asyncio.create_subprocess_exec(
-                    "git", *args,
+                    "git",
+                    *args,
                     cwd=repo_path,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
@@ -207,10 +211,13 @@ def register(kernel):
             except asyncio.TimeoutError:
                 return None
 
-            code, output = await run_git([
-                "log", "HEAD..@{u}",
-                "--format=%h\x1f%s\x1f%an\x1f%ci",
-            ])
+            code, output = await run_git(
+                [
+                    "log",
+                    "HEAD..@{u}",
+                    "--format=%h\x1f%s\x1f%an\x1f%ci",
+                ]
+            )
             if code != 0 or not output:
                 return []
 
@@ -224,7 +231,9 @@ def register(kernel):
                         time_str = dt.strftime("%d.%m %H:%M")
                     except Exception:
                         time_str = date_str.strip()[:16]
-                    commits.append((sha.strip(), subject.strip(), author.strip(), time_str))
+                    commits.append(
+                        (sha.strip(), subject.strip(), author.strip(), time_str)
+                    )
             return commits
 
         except Exception as e:
@@ -236,42 +245,44 @@ def register(kernel):
         if not kernel.log_chat_id:
             return
 
-        header = lang_strings['new_commits_header'].format(
+        header = lang_strings["new_commits_header"].format(
             count=len(commits), branch=branch
         )
 
-        MAX_CAPTION = 6
-        all_lines = []
-        for sha, subject, author, time_str in commits:
-            all_lines.append(
-                f"<blockquote><code>{sha}</code> {html.escape(subject)} | "
-                f"<i>{html.escape(author)}</i> | {time_str}</blockquote>"
+        MAX_COMMITS = 5
+        commit_lines = []
+        for sha, subject, author, time_str in commits[:MAX_COMMITS]:
+            commit_lines.append(
+                f"<blockquote expandable><code>{sha}</code> {html.escape(subject)} | "
+                f"{html.escape(author)} | {time_str}</blockquote>"
             )
 
-        lines = []
-        for i, line in enumerate(all_lines):
-            remaining = len(commits) - i
-            tail = f"\n<blockquote>{lang_strings['and_more_commits'].format(remaining)}</blockquote>"
-            candidate = header + "\n\n" + "\n".join(lines + [line])
-            # If not the last line, reserve space for the tail in case next line overflows
-            if len(candidate) + (len(tail) if i < len(all_lines) - 1 else 0) > MAX_CAPTION:
-                lines.append(
-                    f"<blockquote>{lang_strings['and_more_commits'].format(remaining)}</blockquote>"
-                )
-                break
-            lines.append(line)
+        remaining = len(commits) - MAX_COMMITS
+        if remaining > 0:
+            commit_lines.append(
+                f"<blockquote>{lang_strings['and_more_commits'].format(remaining)}</blockquote>"
+            )
 
-        text = header + "\n\n" + "\n".join(lines)
-        btn = Button.inline(lang_strings['new_commits_btn'], data=b"do_update")
+        text = header + "\n\n" + "\n".join(commit_lines)
+        btn = Button.inline(lang_strings["new_commits_btn"], data=b"do_update")
 
         update_image_path = None
-        for candidate in ["img/update.png", os.path.join(os.path.dirname(os.path.abspath(__file__)), "img", "update.png")]:
+        for candidate in [
+            "img/update.png",
+            os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), "img", "update.png"
+            ),
+        ]:
             if os.path.exists(candidate):
                 update_image_path = candidate
                 break
 
         try:
-            sender = bot_client if (bot_client and await bot_client.is_user_authorized()) else client
+            sender = (
+                bot_client
+                if (bot_client and await bot_client.is_user_authorized())
+                else client
+            )
             if update_image_path:
                 await sender.send_file(
                     kernel.log_chat_id,
@@ -298,7 +309,7 @@ def register(kernel):
     )
     async def update_check_loop(kernel):
         if not kernel.log_chat_id:
-            kernel.logger.warning(lang_strings['update_no_log'])
+            kernel.logger.warning(lang_strings["update_no_log"])
             return
 
         try:
@@ -309,39 +320,52 @@ def register(kernel):
                 return
 
             newest_sha = commits[0][0]
-            last_sha = kernel.cache.get('log_bot:last_notified_sha')
+            last_sha = kernel.cache.get("log_bot:last_notified_sha")
             if newest_sha == last_sha:
                 return
 
             await notify_new_commits(commits, branch)
-            kernel.cache.set('log_bot:last_notified_sha', newest_sha)
+            kernel.cache.set("log_bot:last_notified_sha", newest_sha)
 
         except Exception as e:
             kernel.logger.error(f"update_check_loop error: {e}")
 
-    @kernel.register.event('callbackquery', bot_client=True, pattern=b"do_update")
+    @kernel.register.event("callbackquery", bot_client=True, pattern=b"do_update")
     async def on_update_callback(event):
         await event.answer()
         try:
-            await event.edit(lang_strings['update_running'], buttons=None, parse_mode='html')
+            await event.edit(
+                lang_strings["update_running"], buttons=None, parse_mode="html"
+            )
         except Exception:
             pass
         try:
             repo_path = os.path.dirname(os.path.abspath(__file__))
             branch = await kernel.version_manager.detect_branch()
             proc = await asyncio.create_subprocess_exec(
-                "git", "pull", "--ff-only", "origin", branch,
+                "git",
+                "pull",
+                "--ff-only",
+                "origin",
+                branch,
                 cwd=repo_path,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout_pull, stderr_pull = await asyncio.wait_for(proc.communicate(), timeout=30)
+            stdout_pull, stderr_pull = await asyncio.wait_for(
+                proc.communicate(), timeout=30
+            )
             if proc.returncode != 0:
                 error_msg = stderr_pull.decode().strip() or stdout_pull.decode().strip()
-                raise Exception(f"git pull failed (code {proc.returncode}): {error_msg}")
+                raise Exception(
+                    f"git pull failed (code {proc.returncode}): {error_msg}"
+                )
 
             proc2 = await asyncio.create_subprocess_exec(
-                "git", "rev-parse", "--short", "HEAD",
+                "git",
+                "rev-parse",
+                "--short",
+                "HEAD",
                 cwd=repo_path,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -349,18 +373,20 @@ def register(kernel):
             stdout2, _ = await proc2.communicate()
             sha = stdout2.decode().strip() or "?"
 
-            kernel.cache.set('log_bot:last_notified_sha', sha)
+            kernel.cache.set("log_bot:last_notified_sha", sha)
 
             await event.edit(
-                lang_strings['update_done'].format(sha=sha),
+                lang_strings["update_done"].format(sha=sha),
                 parse_mode="html",
                 buttons=None,
             )
-            restart_cmd = await kernel.client.send_message(kernel.log_chat_id, f'{kernel.custom_prefix}restart')
+            restart_cmd = await kernel.client.send_message(
+                kernel.log_chat_id, f"{kernel.custom_prefix}restart"
+            )
             await kernel.process_command(restart_cmd)
         except Exception as e:
             await event.edit(
-                lang_strings['update_error'].format(error=html.escape(str(e))),
+                lang_strings["update_error"].format(error=html.escape(str(e))),
                 parse_mode="html",
                 buttons=None,
             )
@@ -407,9 +433,7 @@ def register(kernel):
                 bot_entity = await kernel.client.get_input_entity(bot_me.username)
                 users_to_invite.append(bot_entity)
             except Exception as e:
-                kernel.logger.warning(
-                    f"{lang_strings['bot_prepare_error']}: {e}"
-                )
+                kernel.logger.warning(f"{lang_strings['bot_prepare_error']}: {e}")
 
         try:
             me = await kernel.client.get_me()
@@ -449,21 +473,27 @@ def register(kernel):
                         if resp.status == 200:
                             photo_data = await resp.read()
 
-                            content_type = resp.headers.get("Content-Type", "image/jpeg")
+                            content_type = resp.headers.get(
+                                "Content-Type", "image/jpeg"
+                            )
                             ext_map = {
                                 "image/jpeg": "photo.jpg",
-                                "image/jpg":  "photo.jpg",
-                                "image/png":  "photo.png",
+                                "image/jpg": "photo.jpg",
+                                "image/png": "photo.png",
                                 "image/webp": "photo.jpg",
-                                "image/gif":  "photo.gif",
+                                "image/gif": "photo.gif",
                             }
-                            filename = ext_map.get(content_type.split(";")[0].strip(), "photo.jpg")
+                            filename = ext_map.get(
+                                content_type.split(";")[0].strip(), "photo.jpg"
+                            )
 
                             buf = io.BytesIO(photo_data)
                             buf.name = filename
 
                             input_file = await kernel.client.upload_file(buf)
-                            await kernel.client(EditPhotoRequest(channel=chat_id, photo=input_file))
+                            await kernel.client(
+                                EditPhotoRequest(channel=chat_id, photo=input_file)
+                            )
             except Exception as e:
                 kernel.logger.warning(
                     f"{kernel.Colors.YELLOW}{lang_strings['avatar_error']}: {e}{kernel.Colors.RESET}"
@@ -516,11 +546,13 @@ def register(kernel):
 
     @kernel.register.command("log_setup")
     async def log_setup_handler(event):
-        await event.edit(lang_strings['log_setup_title'])
+        await event.edit(lang_strings["log_setup_title"])
         if await setup_log_chat():
-            await event.edit(f"{lang_strings['log_setup_success']}\nID: `{kernel.log_chat_id}`")
+            await event.edit(
+                f"{lang_strings['log_setup_success']}\nID: `{kernel.log_chat_id}`"
+            )
         else:
-            await event.edit(lang_strings['log_setup_fail'])
+            await event.edit(lang_strings["log_setup_fail"])
 
     @kernel.register.command("test_log")
     async def test_log_handler(event):
@@ -529,16 +561,14 @@ def register(kernel):
             has_bot = hasattr(kernel, "bot_client") and kernel.bot_client
             bot_auth = has_bot and await kernel.bot_client.is_user_authorized()
             log_chat = kernel.log_chat_id
-            test_info = f"""🔧 <b>{lang_strings['log_status_title']}</b>
-<blockquote>🤖 <b>{lang_strings['test_bot_available']}:</b> <mono>{lang_strings['test_bot_available'] if has_bot else lang_strings['test_bot_not_available']}</mono>
-🔐 <b>{lang_strings['test_bot_auth']}:</b> <mono>{lang_strings['test_bot_auth'] if bot_auth else lang_strings['test_bot_not_auth']}</mono>
-💬 <b>{lang_strings['test_log_chat_id']}:</b> <mono>{log_chat or lang_strings['test_not_set']}</mono>
-⏰ <b>{lang_strings['test_time']}:</b> <mono>{datetime.now().strftime('%H:%M:%S')}</mono></blockquote>"""
+            test_info = f"""🔧 <b>{lang_strings["log_status_title"]}</b>
+<blockquote>🤖 <b>{lang_strings["test_bot_available"]}:</b> <mono>{lang_strings["test_bot_available"] if has_bot else lang_strings["test_bot_not_available"]}</mono>
+🔐 <b>{lang_strings["test_bot_auth"]}:</b> <mono>{lang_strings["test_bot_auth"] if bot_auth else lang_strings["test_bot_not_auth"]}</mono>
+💬 <b>{lang_strings["test_log_chat_id"]}:</b> <mono>{log_chat or lang_strings["test_not_set"]}</mono>
+⏰ <b>{lang_strings["test_time"]}:</b> <mono>{datetime.now().strftime("%H:%M:%S")}</mono></blockquote>"""
             success = await kernel.send_log_message(test_info)
             if success:
-                await event.edit(
-                    f"{lang_strings['test_success']}", parse_mode="html"
-                )
+                await event.edit(f"{lang_strings['test_success']}", parse_mode="html")
             else:
                 await event.edit(f"{lang_strings['test_fail']}", parse_mode="html")
         except Exception as e:
@@ -549,20 +579,32 @@ def register(kernel):
 
     @kernel.register.command("log_status")
     async def log_status_handler(event):
-        status = lang_strings['log_status_on'] if kernel.log_chat_id else lang_strings['log_status_off']
-        chat_info = f"`{kernel.log_chat_id}`" if kernel.log_chat_id else lang_strings['log_not_configured']
-        bot_status = lang_strings['bot_running'] if bot_client else lang_strings['bot_not_running']
-        msg = f"""📊 <b>{lang_strings['log_status_title']}</b>: {status}
-<b>{lang_strings['log_group']}:</b> {chat_info}
-<b>{lang_strings['bot_sending']}:</b> {bot_status}
-<b>{lang_strings['errors']}:</b> {lang_strings['errors_sent'] if kernel.log_chat_id else lang_strings['errors_not_sent']}"""
+        status = (
+            lang_strings["log_status_on"]
+            if kernel.log_chat_id
+            else lang_strings["log_status_off"]
+        )
+        chat_info = (
+            f"`{kernel.log_chat_id}`"
+            if kernel.log_chat_id
+            else lang_strings["log_not_configured"]
+        )
+        bot_status = (
+            lang_strings["bot_running"]
+            if bot_client
+            else lang_strings["bot_not_running"]
+        )
+        msg = f"""📊 <b>{lang_strings["log_status_title"]}</b>: {status}
+<b>{lang_strings["log_group"]}:</b> {chat_info}
+<b>{lang_strings["bot_sending"]}:</b> {bot_status}
+<b>{lang_strings["errors"]}:</b> {lang_strings["errors_sent"] if kernel.log_chat_id else lang_strings["errors_not_sent"]}"""
         await event.edit(msg, parse_mode="html")
 
     async def mcub_handler():
-        me = kernel.cache.get('log_bot:me')
+        me = kernel.cache.get("log_bot:me")
         if me is None:
             me = await kernel.client.get_me()
-            kernel.cache.set('log_bot:me', me, ttl=3600)
+            kernel.cache.set("log_bot:me", me, ttl=3600)
         mcub_emoji = (
             '<tg-emoji emoji-id="5470015630302287916">🔮</tg-emoji><tg-emoji emoji-id="5469945764069280010">🔮</tg-emoji><tg-emoji emoji-id="5469943045354984820">🔮</tg-emoji><tg-emoji emoji-id="5469879466954098867">🔮</tg-emoji>'
             if me.premium
@@ -596,17 +638,17 @@ def register(kernel):
         if commit_url:
             commit_display = f'<b><a href="{commit_url}">{update_status}</a></b>'
         else:
-            commit_display = f'<b>{update_status}</b>'
+            commit_display = f"<b>{update_status}</b>"
 
-        message = f"""<b>{await mcub_handler()}</b> <b>{kernel.VERSION}</b> {lang_strings['started']}
+        message = f"""<b>{await mcub_handler()}</b> <b>{kernel.VERSION}</b> {lang_strings["started"]}
 <blockquote><b><tg-emoji emoji-id="5368585403467048206">🔭</tg-emoji> GitHub commit SHA:</b> <code>{commit_sha}</code>
-<tg-emoji emoji-id="5467480195143310096">🎩</tg-emoji> <b>{lang_strings['update_status']}:</b> <i>{commit_display}</i>
-<tg-emoji emoji-id="5436275698664759373">🌂</tg-emoji> <b>branch:</b> <code>{branch}</code>{'' if kernel.error_load_modules else '</blockquote>'}"""
+<tg-emoji emoji-id="5467480195143310096">🎩</tg-emoji> <b>{lang_strings["update_status"]}:</b> <i>{commit_display}</i>
+<tg-emoji emoji-id="5436275698664759373">🌂</tg-emoji> <b>branch:</b> <code>{branch}</code>{"" if kernel.error_load_modules else "</blockquote>"}"""
 
         if kernel.error_load_modules:
-            message += f"\n<tg-emoji emoji-id=\"5467928559664242360\">❗️</tg-emoji> <b>Error load modules:</b> <code>{kernel.error_load_modules}</code></blockquote>"
+            message += f'\n<tg-emoji emoji-id="5467928559664242360">❗️</tg-emoji> <b>Error load modules:</b> <code>{kernel.error_load_modules}</code></blockquote>'
 
-        message += f"\n<tg-emoji emoji-id=\"5426900601101374618\">🧿</tg-emoji> <b><i>{lang_strings['prefix']}:</i></b> <code>{kernel.custom_prefix}</code>"
+        message += f'\n<tg-emoji emoji-id="5426900601101374618">🧿</tg-emoji> <b><i>{lang_strings["prefix"]}:</i></b> <code>{kernel.custom_prefix}</code>'
         try:
             if bot_client and await bot_client.is_user_authorized():
                 if image_path and os.path.exists(image_path):

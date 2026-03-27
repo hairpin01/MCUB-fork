@@ -78,7 +78,8 @@ class ConfigManager:
         """
         k = self.k
 
-        print("""
+        print(
+            """
 ███╗   ███╗ ██████╗██╗   ██╗██████╗       ███████╗ ██████╗ ██████╗ ██╗  ██╗
 ████╗ ████║██╔════╝██║   ██║██╔══██╗      ██╔════╝██╔═══██╗██╔══██╗██║ ██╔╝
 ██╔████╔██║██║     ██║   ██║██████╔╝█████╗█████╗  ██║   ██║██████╔╝█████╔╝
@@ -89,7 +90,8 @@ class ConfigManager:
 2. Click on API development tools
 3. Create a new application
 4. Copy your API ID and API hash
-        """)
+        """
+        )
 
         while True:
             try:
@@ -232,3 +234,16 @@ class ConfigManager:
         config = await self.get_module_config(module_name, {})
         config.update(updates)
         return await self.save_module_config(module_name, config)
+
+    async def get_all_module_names_with_config(self) -> list[str]:
+        """Get all module names that have a config stored in DB.
+
+        Returns:
+            List of module names with stored configs.
+        """
+        k = self.k
+        try:
+            return await k.db_get_config_modules()
+        except Exception as e:
+            k.logger.error(f"Error getting module configs list: {e}")
+            return []

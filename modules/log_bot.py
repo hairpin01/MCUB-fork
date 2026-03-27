@@ -253,13 +253,15 @@ def register(kernel):
         commit_lines = []
         for sha, subject, author, time_str in commits[:MAX_COMMITS]:
             commit_lines.append(
-                f"<code>{sha}</code> {html.escape(subject)} | "
-                f"{html.escape(author)} | {time_str}"
+                f"<blockquote expandable><code>{sha}</code> {html.escape(subject)} | "
+                f"{html.escape(author)} | {time_str}</blockquote>"
             )
 
         remaining = len(commits) - MAX_COMMITS
         if remaining > 0:
-            commit_lines.append(lang_strings["and_more_commits"].format(remaining))
+            commit_lines.append(
+                f"<blockquote>{lang_strings['and_more_commits'].format(remaining)}</blockquote>"
+            )
 
         text = header + "\n\n" + "\n".join(commit_lines)
         btn = Button.inline(lang_strings["new_commits_btn"], data=b"do_update")

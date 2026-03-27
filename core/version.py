@@ -10,7 +10,7 @@ import shutil
 
 
 # version kenrel MCUB
-__version__ = "1.0.4.8"
+__version__ = "1.0.4.9-beta-logging"
 VERSION = __version__
 
 

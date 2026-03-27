@@ -814,6 +814,8 @@ def register(kernel):
                                     idea=CUSTOM_EMOJI["idea"],
                                     description=metadata["description"],
                                     version=metadata["version"],
+                                    author=metadata.get("author", "unknown"),
+                                    emoji_author=CUSTOM_EMOJI["author"],
                                     commands_list=commands_list + conflict_text,
                                 ),
                                 file=media,
@@ -832,6 +834,8 @@ def register(kernel):
                                     idea=CUSTOM_EMOJI["idea"],
                                     description=metadata["description"],
                                     version=metadata["version"],
+                                    author=metadata.get("author", "unknown"),
+                                    emoji_author=CUSTOM_EMOJI["author"],
                                     commands_list=commands_list + conflict_text,
                                 ),
                             )
@@ -1788,10 +1792,18 @@ def register(kernel):
 
         module_name = args[1]
 
-        if (
-            module_name not in kernel.loaded_modules
-            and module_name not in kernel.system_modules
-        ):
+        def find_module_case_insensitive(name: str):
+            name_lower = name.lower()
+            for key in kernel.loaded_modules:
+                if key.lower() == name_lower:
+                    return key, "loaded"
+            for key in kernel.system_modules:
+                if key.lower() == name_lower:
+                    return key, "system"
+            return None, None
+
+        actual_name, _ = find_module_case_insensitive(module_name)
+        if actual_name is None:
             await edit_with_emoji(
                 event,
                 t(
@@ -1801,6 +1813,8 @@ def register(kernel):
                 ),
             )
             return
+
+        module_name = actual_name
 
         instance = kernel.loaded_modules.get(module_name)
         if instance and getattr(instance, "_hikka_compat", False):
@@ -1847,10 +1861,18 @@ def register(kernel):
 
         module_name = args[1]
 
-        if (
-            module_name not in kernel.loaded_modules
-            and module_name not in kernel.system_modules
-        ):
+        def find_module_case_insensitive(name: str):
+            name_lower = name.lower()
+            for key in kernel.loaded_modules:
+                if key.lower() == name_lower:
+                    return key, "loaded"
+            for key in kernel.system_modules:
+                if key.lower() == name_lower:
+                    return key, "system"
+            return None, None
+
+        actual_name, _ = find_module_case_insensitive(module_name)
+        if actual_name is None:
             await edit_with_emoji(
                 event,
                 t(
@@ -1860,6 +1882,8 @@ def register(kernel):
                 ),
             )
             return
+
+        module_name = actual_name
 
         file_path = None
         if module_name in kernel.system_modules:
@@ -1997,10 +2021,18 @@ def register(kernel):
 
         module_name = args[1]
 
-        if (
-            module_name not in kernel.loaded_modules
-            and module_name not in kernel.system_modules
-        ):
+        def find_module_case_insensitive(name: str):
+            name_lower = name.lower()
+            for key in kernel.loaded_modules:
+                if key.lower() == name_lower:
+                    return key, "loaded"
+            for key in kernel.system_modules:
+                if key.lower() == name_lower:
+                    return key, "system"
+            return None, None
+
+        actual_name, _ = find_module_case_insensitive(module_name)
+        if actual_name is None:
             await edit_with_emoji(
                 event,
                 t(
@@ -2010,6 +2042,8 @@ def register(kernel):
                 ),
             )
             return
+
+        module_name = actual_name
 
         if module_name in kernel.system_modules:
             file_path = os.path.join(kernel.MODULES_DIR, f"{module_name}.py")

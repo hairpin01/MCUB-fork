@@ -435,8 +435,8 @@ class InlineHandlers:
                 error_traceback = "".join(
                     traceback.format_exception(type(e), e, e.__traceback__)
                 )
-                kernel.logger.error(f"Inline query error: {e}")
-                kernel.logger.error(f"Full traceback: {error_traceback}")
+                self.kernel.logger.error(f"Inline query error: {e}")
+                self.kernel.logger.error(f"Full traceback: {error_traceback}")
                 thumb = InputWebDocument(
                     url="https://kappa.lol/qNFKBT",
                     size=0,
@@ -493,7 +493,7 @@ class InlineHandlers:
                 error_traceback = "".join(
                     traceback.format_exception(type(e), e, e.__traceback__)
                 )
-                kernel.logger.error(f"Error callback_handlers: {error_traceback}")
+                self.kernel.logger.error(f"Error callback_handlers: {error_traceback}")
                 await event.answer(f"error: {e}")
 
     async def _handle_show_traceback(self, event):
@@ -527,5 +527,5 @@ class InlineHandlers:
             error_traceback = "".join(
                 traceback.format_exception(type(e), e, e.__traceback__)
             )
-            kernel.logger.error(f"Error _handle_show_traceback: {error_traceback}")
+            self.kernel.logger.error(f"Error _handle_show_traceback: {error_traceback}")
             await event.answer(f"Критическая ошибка: {e}", alert=True)

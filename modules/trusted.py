@@ -1,5 +1,5 @@
 # author: @Hairpin01
-# version: 1.0.0-beta
+# version: 1.1.0-beta
 # description: Trusted users can execute owner commands
 
 import json
@@ -21,6 +21,8 @@ def register(kernel):
             "trustlist_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Trusted list is empty.',
             "trustlist_title": '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> Trusted users:',
             "usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.trust</code> / <code>.untrust</code> (reply or @username)',
+            "watchers_title": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Active watchers:</b>',
+            "watchers_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No active watchers.',
         },
         "ru": {
             "not_owner": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Только владелец может использовать эту команду.',
@@ -31,6 +33,8 @@ def register(kernel):
             "trustlist_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Список доверенных пуст.',
             "trustlist_title": '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> Доверенные пользователи:',
             "usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Использование: <code>.trust</code> / <code>.untrust</code> (реплай или @username)',
+            "watchers_title": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Активные смотрители:</b>',
+            "watchers_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Активных смотрителей нет.',
         },
     }
 
@@ -132,6 +136,37 @@ def register(kernel):
                 lines.append(f"• <code>{uid}</code>")
 
         await event.edit("\n".join(lines), parse_mode="html")
+
+    @kernel.register.command("watchers")
+    # list watchers
+    async def watchers_handler(event):
+        try:
+            watchers = kernel.register.get_watchers()
+
+            if not watchers:
+                await event.edit(lang_strings["watchers_empty"], parse_mode="html")
+                return
+
+            lines = [lang_strings["watchers_title"] + "<blockquote expandable>"]
+            for i, (wrapper, event_obj, _) in enumerate(watchers, 1):
+                func_name = getattr(wrapper, "__name__", str(wrapper))
+                module_name = getattr(wrapper, "__module__", "unknown")
+
+                direction = ""
+                if getattr(event_obj, "incoming", False):
+                    direction = " [in]"
+                elif getattr(event_obj, "out", False):
+                    direction = " [out]"
+
+                lines.append(
+                    f"<code>{i}.</code> <b>{func_name}</b>{direction} — <i>{module_name}</i>"
+                )
+
+            lines.append("</blockquote>")
+            await event.edit("\n".join(lines), parse_mode="html")
+
+        except Exception as e:
+            await kernel.handle_error(e, source="watchers", event=event)
 
     @kernel.register.watcher(out=False, incoming=True)
     async def trusted_watcher(event):

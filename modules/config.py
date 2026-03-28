@@ -13,6 +13,7 @@ import asyncio
 from telethon import Button, events, types
 from telethon.tl.types import InputWebDocument, DocumentAttributeImageSize
 from core.lib.loader.module_config import ModuleConfig, ValidationError
+
 CUSTOM_EMOJI = {
     "📁": '<tg-emoji emoji-id="5433653135799228968">📁</tg-emoji>',
     "📝": '<tg-emoji emoji-id="5334882760735598374">📝</tg-emoji>',
@@ -69,11 +70,11 @@ class InlineMessageManager:
     def save_message(self, inline_msg_id, chat_id, message_id, key_id, user_id):
         """Сохраняет информацию о inline-сообщении"""
         self.messages[inline_msg_id] = {
-            'chat_id': chat_id,
-            'message_id': message_id,
-            'key_id': key_id,
-            'user_id': user_id,
-            'timestamp': time.time()
+            "chat_id": chat_id,
+            "message_id": message_id,
+            "key_id": key_id,
+            "user_id": user_id,
+            "timestamp": time.time(),
         }
         # Сохраняем в БД для persistence
         asyncio.create_task(self.save_to_db())
@@ -82,9 +83,7 @@ class InlineMessageManager:
         """Сохраняет messages в БД"""
         try:
             await self.kernel.db_set(
-                'cfg_messages',
-                'inline_messages',
-                json.dumps(self.messages)
+                "cfg_messages", "inline_messages", json.dumps(self.messages)
             )
         except Exception as e:
             self.kernel.logger.error(f"Error saving inline messages: {e}")
@@ -92,7 +91,7 @@ class InlineMessageManager:
     async def load_from_db(self):
         """Загружает messages из БД"""
         try:
-            data = await self.kernel.db_get('cfg_messages', 'inline_messages')
+            data = await self.kernel.db_get("cfg_messages", "inline_messages")
             if data:
                 self.messages = json.loads(data)
         except Exception as e:
@@ -112,9 +111,9 @@ class InlineMessageManager:
 async def init_module_config(kernel):
     """Инициализация конфигурации модуля config"""
     default_config = {
-        'use_premium_emoji': True,  # Использовать ли премиум эмодзи
-        'items_per_page': 16,  # Количество элементов на странице в Kernel Config
-        'modules_per_page': 12,  # Количество модулей на странице в Modules Config
+        "use_premium_emoji": True,  # Использовать ли премиум эмодзи
+        "items_per_page": 16,  # Количество элементов на странице в Kernel Config
+        "modules_per_page": 12,  # Количество модулей на странице в Modules Config
     }
 
     # Загружаем существующую конфигурацию (без default, чтобы понять есть ли конфиг)
@@ -153,7 +152,7 @@ class EmojiProvider:
         """Обновляет кеш настроек"""
         try:
             config = await self.kernel.get_module_config("config", {})
-            self._use_premium = config.get('use_premium_emoji', True)
+            self._use_premium = config.get("use_premium_emoji", True)
         except Exception:
             self._use_premium = True
 
@@ -163,6 +162,7 @@ class EmojiProvider:
         if self._should_update_cache():
             try:
                 import asyncio
+
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
                     # Планируем обновление асинхронно
@@ -204,8 +204,8 @@ class ConfigSettings:
         """Обновляет кеш настроек"""
         try:
             config = await self.kernel.get_module_config("config", {})
-            self._items_per_page = config.get('items_per_page', ITEMS_PER_PAGE)
-            self._modules_per_page = config.get('modules_per_page', MODULES_PER_PAGE)
+            self._items_per_page = config.get("items_per_page", ITEMS_PER_PAGE)
+            self._modules_per_page = config.get("modules_per_page", MODULES_PER_PAGE)
         except Exception:
             self._items_per_page = ITEMS_PER_PAGE
             self._modules_per_page = MODULES_PER_PAGE
@@ -216,6 +216,7 @@ class ConfigSettings:
         if self._should_update_cache():
             try:
                 import asyncio
+
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
                     asyncio.create_task(self._update_cache())
@@ -229,6 +230,7 @@ class ConfigSettings:
         if self._should_update_cache():
             try:
                 import asyncio
+
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
                     asyncio.create_task(self._update_cache())
@@ -238,113 +240,117 @@ class ConfigSettings:
 
 
 def register(kernel):
-    language = kernel.config.get('language', 'en')
+    language = kernel.config.get("language", "en")
 
     # Создаем провайдер эмодзи и настроек
     emoji_provider = EmojiProvider(kernel, CUSTOM_EMOJI)
     config_settings = ConfigSettings(kernel)
 
     # Флаг инициализации конфига
-    config_initialized = {'value': False}
+    config_initialized = {"value": False}
 
     # Функция для ленивой инициализации конфига
     async def ensure_config_initialized():
-        if not config_initialized['value']:
+        if not config_initialized["value"]:
             try:
                 config = await init_module_config(kernel)
-                emoji_provider._use_premium = config.get('use_premium_emoji', True)
-                config_settings._items_per_page = config.get('items_per_page', ITEMS_PER_PAGE)
-                config_settings._modules_per_page = config.get('modules_per_page', MODULES_PER_PAGE)
-                config_initialized['value'] = True
+                emoji_provider._use_premium = config.get("use_premium_emoji", True)
+                config_settings._items_per_page = config.get(
+                    "items_per_page", ITEMS_PER_PAGE
+                )
+                config_settings._modules_per_page = config.get(
+                    "modules_per_page", MODULES_PER_PAGE
+                )
+                config_initialized["value"] = True
             except Exception as e:
                 kernel.logger.error(f"Error initializing config module config: {e}")
 
     strings = {
-        'en': {
-            'config_menu_text': '{menu_emoji} <b>Config Menu</b>\nChoose configuration section:',
-            'btn_kernel_config': '🪄 Kernel Config',
-            'btn_modules_config': '🚂 Modules Config',
-            'kernel_config_title': '{pencil} <b>Kernel Config</b>\n{page_emoji} Page <b>{page}/{total_pages}</b> ({total_keys} keys)',
-            'modules_config_title': '{puzzle} <b>Modules Config</b>\n{page_emoji} Page <b>{page}/{total_pages}</b> ({total_modules} modules)',
-            'module_config_title': '{puzzle} <b>Module:</b> <code>{module_name}</code>\n{page_emoji} Page <b>{page}/{total_pages}</b> ({total_items} keys)',
-            'key_view': '{note} <b>{key}</b> ({type_emoji} {value_type})\n{display_value}',
-            'btn_back': '⬅️',
-            'btn_next': '➡️',
-            'btn_menu': '🔙 Menu',
-            'btn_modules': '🔙 Modules',
-            'btn_back_simple': '🔙 Back',
-            'expired': '❌ Expired',
-            'invalid_type': '❌ Invalid config type',
-            'not_found': '❌ Not found',
-            'no_config': '❌ Module has no config',
-            'not_boolean': '❌ Not boolean',
-            'changed_to': '✅ Changed to {value}',
-            'error': '❌ Error: {error}',
-            'cfg_usage': '{gear} <b>Config</b>: Use inline or <code>.cfg [key]</code> or <code>.cfg [now/hide/unhide] [key]</code>',
-            'hidden_key': '{briefcase} <b>Hidden</b>: <code>{key}</code>',
-            'key_not_found': '{ballot} <b>Not found</b>: <code>{key}</code>',
-            'system_key': '{paperclip} <b>System key</b>',
-            'visible_key': '{book} <b>Visible</b>: <code>{key}</code>',
-            'fcfg_usage': '{gear} <code>.fcfg [set/del/add/dict/list] -m [modules]</code>',
-            'specify_module': '{cross} Specify module name after -m',
-            'not_enough_args': '{cross} Not enough arguments',
-            'protected_key': '{cross} <b>Protected</b>',
-            'set_success': '{check} <b>Set</b> <code>{key}</code> = <code>{value}</code>',
-            'set_module_success': '{check} <b>Set</b> module <code>{module}</code> key <code>{key}</code> = <code>{value}</code>',
-            'delete_success': '{ballot} <b>Deleted</b> <code>{key}</code>',
-            'delete_module_success': '{ballot} <b>Deleted</b> module <code>{module}</code> key <code>{key}</code>',
-            'not_found_in_module': '{cross} Not found in module config',
-            'key_exists': '{cross} Exists',
-            'add_success': '{check} <b>Added</b> <code>{key}</code>',
-            'add_module_success': '{check} <b>Added</b> module <code>{module}</code> key <code>{key}</code>',
-            'not_dict': '{cross} Key is not a dict',
-            'dict_success': '{check} <b>Dict</b> <code>{key}[{subkey}]</code> updated',
-            'dict_module_success': '{check} <b>Dict</b> module <code>{module}</code> key <code>{key}[{subkey}]</code> updated',
-            'not_list': '{cross} Key is not a list',
-            'list_success': '{check} <b>List</b> <code>{key}</code> appended',
-            'list_module_success': '{check} <b>List</b> module <code>{module}</code> key <code>{key}</code> appended',
-            'toggle_false': '❌ Set false',
-            'toggle_true': '✅ Set true',
-            'invalid_format': '❌ Invalid format',
-            'btn_edit': '✏️ Edit',
-            'btn_delete': '🗑️ Delete',
-            'btn_reveal': '👁️ Reveal',
-            'btn_list_add': '📝 Add to list',
-            'btn_list_del': '🗑️ Remove from list',
-            'btn_list_set': '✏️ Edit list element',
-            'btn_dict_add': '🔑 Add to dict',
-            'btn_dict_del': '🗑️ Remove dict key',
-            'btn_dict_set': '✏️ Edit dict value',
-            'fcfg_inline_usage': 'Usage: fcfg set <key_id> <value> | fcfg list/dict <add/del/set> <key_id> [value] | fcfg module <module> ...',
-            'fcfg_inline_only_set': '❌ Only set action is supported in inline mode',
-            'fcfg_inline_no_module': '❌ Invalid module/key combination',
-            'fcfg_inline_success': '✅ Key {key} changed to {value}',
-            'fcfg_inline_id_not_found': '❌ Key ID not found or expired',
-            'fcfg_inline_protected': '❌ This key is protected',
-            'fcfg_confirm_title': '✅ Confirm Value',
-            'fcfg_confirm_text': 'Value will be passed to config',
-            'fcfg_confirm_success': '✅ Config key {key} updated to {value}',
-            'fcfg_confirm_error': '❌ Error updating config: {error}',
-            'fcfg_confirm_expired': '❌ Confirmation expired or already used',
-            'key_deleted': '🗑️ Key deleted',
-            'value_inserted': '✅ Value inserted',
-            'list_empty': '📭 List is empty',
-            'dict_empty': '📭 Dictionary is empty',
-            'list_add_confirm': '➕ Append: {value}',
-            'list_remove_confirm': '🗑️ Remove element {index}: {value}',
-            'list_set_confirm': '✏️ Replace element {index}: {old} → {new}',
-            'dict_add_confirm': '🔑 Add key: {key} = {value}',
-            'dict_remove_confirm': '🗑️ Remove key: {key}',
-            'dict_set_confirm': '✏️ Set key {key}: {old} → {new}',
-            'operation_success': '✅ Operation successful',
-            'operation_failed': '❌ Operation failed: {error}',
-            'btn_close': '❌ Close',
-            'kernel_config_title_short': 'Kernel Config - {page}',
-            'modules_config_title_short': 'Modules Config - {page}',
+        "en": {
+            "config_menu_text": "{menu_emoji} <b>Config Menu</b>\nChoose configuration section:",
+            "btn_kernel_config": "🪄 Kernel Config",
+            "btn_modules_config": "🚂 Modules Config",
+            "kernel_config_title": "{pencil} <b>Kernel Config</b>\n{page_emoji} Page <b>{page}/{total_pages}</b> ({total_keys} keys)",
+            "modules_config_title": "{puzzle} <b>Modules Config</b>\n{page_emoji} Page <b>{page}/{total_pages}</b> ({total_modules} modules)",
+            "module_config_title": "{puzzle} <b>Module:</b> <code>{module_name}</code>\n{page_emoji} Page <b>{page}/{total_pages}</b> ({total_items} keys)",
+            "key_view": "{note} <b>{key}</b> ({type_emoji} {value_type})\n{display_value}",
+            "btn_back": "⬅️",
+            "btn_next": "➡️",
+            "btn_menu": "🔙 Menu",
+            "btn_modules": "🔙 Modules",
+            "btn_back_simple": "🔙 Back",
+            "expired": "❌ Expired",
+            "invalid_type": "❌ Invalid config type",
+            "not_found": "❌ Not found",
+            "no_config": "❌ Module has no config",
+            "not_boolean": "❌ Not boolean",
+            "changed_to": "✅ Changed to {value}",
+            "error": "❌ Error: {error}",
+            "cfg_usage": "{gear} <b>Config</b>: Use inline or <code>.cfg [key]</code> or <code>.cfg [now/hide/unhide] [key]</code>",
+            "hidden_key": "{briefcase} <b>Hidden</b>: <code>{key}</code>",
+            "key_not_found": "{ballot} <b>Not found</b>: <code>{key}</code>",
+            "system_key": "{paperclip} <b>System key</b>",
+            "visible_key": "{book} <b>Visible</b>: <code>{key}</code>",
+            "fcfg_usage": "{gear} <code>.fcfg [set/del/add/dict/list] -m [modules]</code>",
+            "specify_module": "{cross} Specify module name after -m",
+            "not_enough_args": "{cross} Not enough arguments",
+            "protected_key": "{cross} <b>Protected</b>",
+            "set_success": "{check} <b>Set</b> <code>{key}</code> = <code>{value}</code>",
+            "set_module_success": "{check} <b>Set</b> module <code>{module}</code> key <code>{key}</code> = <code>{value}</code>",
+            "delete_success": "{ballot} <b>Deleted</b> <code>{key}</code>",
+            "delete_module_success": "{ballot} <b>Deleted</b> module <code>{module}</code> key <code>{key}</code>",
+            "not_found_in_module": "{cross} Not found in module config",
+            "key_exists": "{cross} Exists",
+            "add_success": "{check} <b>Added</b> <code>{key}</code>",
+            "add_module_success": "{check} <b>Added</b> module <code>{module}</code> key <code>{key}</code>",
+            "not_dict": "{cross} Key is not a dict",
+            "dict_success": "{check} <b>Dict</b> <code>{key}[{subkey}]</code> updated",
+            "dict_module_success": "{check} <b>Dict</b> module <code>{module}</code> key <code>{key}[{subkey}]</code> updated",
+            "not_list": "{cross} Key is not a list",
+            "list_success": "{check} <b>List</b> <code>{key}</code> appended",
+            "list_module_success": "{check} <b>List</b> module <code>{module}</code> key <code>{key}</code> appended",
+            "toggle_false": "❌ Set false",
+            "toggle_true": "✅ Set true",
+            "invalid_format": "❌ Invalid format",
+            "btn_edit": "✏️ Edit",
+            "btn_delete": "🗑️ Delete",
+            "btn_reveal": "👁️ Reveal",
+            "btn_list_add": "📝 Add to list",
+            "btn_list_del": "🗑️ Remove from list",
+            "btn_list_set": "✏️ Edit list element",
+            "btn_dict_add": "🔑 Add to dict",
+            "btn_dict_del": "🗑️ Remove dict key",
+            "btn_dict_set": "✏️ Edit dict value",
+            "fcfg_inline_usage": "Usage: fcfg set <key_id> <value> | fcfg list/dict <add/del/set> <key_id> [value] | fcfg module <module> ...",
+            "fcfg_inline_only_set": "❌ Only set action is supported in inline mode",
+            "fcfg_inline_no_module": "❌ Invalid module/key combination",
+            "fcfg_inline_success": "✅ Key {key} changed to {value}",
+            "fcfg_inline_id_not_found": "❌ Key ID not found or expired",
+            "fcfg_inline_protected": "❌ This key is protected",
+            "fcfg_confirm_title": "✅ Confirm Value",
+            "fcfg_confirm_text": "Value will be passed to config",
+            "fcfg_confirm_success": "✅ Config key {key} updated to {value}",
+            "fcfg_confirm_error": "❌ Error updating config: {error}",
+            "fcfg_confirm_expired": "❌ Confirmation expired or already used",
+            "key_deleted": "🗑️ Key deleted",
+            "value_inserted": "✅ Value inserted",
+            "list_empty": "📭 List is empty",
+            "dict_empty": "📭 Dictionary is empty",
+            "list_add_confirm": "➕ Append: {value}",
+            "list_remove_confirm": "🗑️ Remove element {index}: {value}",
+            "list_set_confirm": "✏️ Replace element {index}: {old} → {new}",
+            "dict_add_confirm": "🔑 Add key: {key} = {value}",
+            "dict_remove_confirm": "🗑️ Remove key: {key}",
+            "dict_set_confirm": "✏️ Set key {key}: {old} → {new}",
+            "operation_success": "✅ Operation successful",
+            "operation_failed": "❌ Operation failed: {error}",
+            "btn_close": "❌ Close",
+            "kernel_config_title_short": "Kernel Config - {page}",
+            "modules_config_title_short": "Modules Config - {page}",
         }
     }
 
-    lang_strings = strings.get(language, strings['en'])
+    lang_strings = strings.get(language, strings["en"])
 
     def t(string_key, **kwargs):
         if string_key not in lang_strings:
@@ -439,14 +445,26 @@ def register(kernel):
         value_str = html.unescape(value_str)
         # Убираем Markdown-форматирование (bold, italic, underline, strikethrough, code, spoiler)
         # Порядок важен: сначала длинные паттерны
-        value_str = re.sub(r'\|\|(.+?)\|\|', r'\1', value_str, flags=re.DOTALL)  # ||spoiler||
-        value_str = re.sub(r'```(?:\w+\n)?(.*?)```', r'\1', value_str, flags=re.DOTALL)  # ```code```
-        value_str = re.sub(r'`(.+?)`', r'\1', value_str, flags=re.DOTALL)          # `code`
-        value_str = re.sub(r'\*\*(.+?)\*\*', r'\1', value_str, flags=re.DOTALL)    # **bold**
-        value_str = re.sub(r'__(.+?)__', r'\1', value_str, flags=re.DOTALL)        # __underline__
-        value_str = re.sub(r'~~(.+?)~~', r'\1', value_str, flags=re.DOTALL)        # ~~strikethrough~~
-        value_str = re.sub(r'\*(.+?)\*', r'\1', value_str, flags=re.DOTALL)        # *italic*
-        value_str = re.sub(r'(?<!\w)_(.+?)_(?!\w)', r'\1', value_str, flags=re.DOTALL)  # _italic_
+        value_str = re.sub(
+            r"\|\|(.+?)\|\|", r"\1", value_str, flags=re.DOTALL
+        )  # ||spoiler||
+        value_str = re.sub(
+            r"```(?:\w+\n)?(.*?)```", r"\1", value_str, flags=re.DOTALL
+        )  # ```code```
+        value_str = re.sub(r"`(.+?)`", r"\1", value_str, flags=re.DOTALL)  # `code`
+        value_str = re.sub(
+            r"\*\*(.+?)\*\*", r"\1", value_str, flags=re.DOTALL
+        )  # **bold**
+        value_str = re.sub(
+            r"__(.+?)__", r"\1", value_str, flags=re.DOTALL
+        )  # __underline__
+        value_str = re.sub(
+            r"~~(.+?)~~", r"\1", value_str, flags=re.DOTALL
+        )  # ~~strikethrough~~
+        value_str = re.sub(r"\*(.+?)\*", r"\1", value_str, flags=re.DOTALL)  # *italic*
+        value_str = re.sub(
+            r"(?<!\w)_(.+?)_(?!\w)", r"\1", value_str, flags=re.DOTALL
+        )  # _italic_
         return value_str
 
     def is_key_hidden(key):
@@ -497,7 +515,9 @@ def register(kernel):
             elif value is None:
                 display_value = "<code>null</code>"
             elif isinstance(value, bool):
-                display_value = "✔️ <code>true</code>" if value else "✖️ <code>false</code>"
+                display_value = (
+                    "✔️ <code>true</code>" if value else "✖️ <code>false</code>"
+                )
             elif isinstance(value, str):
                 escaped_value = html.escape(value)
                 escaped_value = escaped_value.replace("\n", "<br>")
@@ -505,27 +525,29 @@ def register(kernel):
             else:
                 display_value = f"<code>{html.escape(str(value))}</code>"
 
-        text = t('key_view',
-                note=emoji_provider['📝'],
-                key=key,
-                type_emoji=type_emoji,
-                value_type=value_type,
-                display_value=display_value)
+        text = t(
+            "key_view",
+            note=emoji_provider["📝"],
+            key=key,
+            type_emoji=type_emoji,
+            value_type=value_type,
+            display_value=display_value,
+        )
         return text
 
     async def show_key_view(event, key_id, reveal=False):
         cached = kernel.cache.get(f"cfg_view_{key_id}")
         if not cached:
-            await event.answer(t('expired'), alert=True)
+            await event.answer(t("expired"), alert=True)
             return None, None, None, None, None
 
         key, page, config_type = cached
         if config_type != "kernel":
-            await event.answer(t('invalid_type'), alert=True)
+            await event.answer(t("invalid_type"), alert=True)
             return None, None, None, None, None
 
         if key not in kernel.config:
-            await event.answer(t('not_found'), alert=True)
+            await event.answer(t("not_found"), alert=True)
             return None, None, None, None, None
 
         value = kernel.config[key]
@@ -548,16 +570,19 @@ def register(kernel):
         nav_buttons = []
         if page > 0:
             nav_buttons.append(
-                Button.inline(t('btn_back'), data=f"config_kernel_page_{page - 1}".encode())
+                Button.inline(
+                    t("btn_back"), data=f"config_kernel_page_{page - 1}".encode()
+                )
             )
         if page < total_pages - 1:
             nav_buttons.append(
-                Button.inline(t('btn_next'), data=f"config_kernel_page_{page + 1}".encode())
+                Button.inline(
+                    t("btn_next"), data=f"config_kernel_page_{page + 1}".encode()
+                )
             )
-        nav_buttons.append(Button.inline(t('btn_menu'), data="config_menu".encode()))
+        nav_buttons.append(Button.inline(t("btn_menu"), data="config_menu".encode()))
         if nav_buttons:
             buttons.append(nav_buttons)
-
 
         buttons.append([Button.inline("❌ Close", data=b"cfg_close", style="danger")])
 
@@ -581,16 +606,19 @@ def register(kernel):
         nav_buttons = []
         if page > 0:
             nav_buttons.append(
-                Button.inline(t('btn_back'), data=f"config_modules_page_{page - 1}".encode())
+                Button.inline(
+                    t("btn_back"), data=f"config_modules_page_{page - 1}".encode()
+                )
             )
         if page < total_pages - 1:
             nav_buttons.append(
-                Button.inline(t('btn_next'), data=f"config_modules_page_{page + 1}".encode())
+                Button.inline(
+                    t("btn_next"), data=f"config_modules_page_{page + 1}".encode()
+                )
             )
-        nav_buttons.append(Button.inline(t('btn_menu'), data="config_menu".encode()))
+        nav_buttons.append(Button.inline(t("btn_menu"), data="config_menu".encode()))
         if nav_buttons:
             buttons.append(nav_buttons)
-
 
         buttons.append([Button.inline("❌ Close", data=b"cfg_close", style="danger")])
 
@@ -617,21 +645,22 @@ def register(kernel):
         if page > 0:
             nav_buttons.append(
                 Button.inline(
-                    t('btn_back'), data=f"module_cfg_page_{module_name}__{page - 1}".encode()
+                    t("btn_back"),
+                    data=f"module_cfg_page_{module_name}__{page - 1}".encode(),
                 )
             )
         if page < total_pages - 1:
             nav_buttons.append(
                 Button.inline(
-                    t('btn_next'), data=f"module_cfg_page_{module_name}__{page + 1}".encode()
+                    t("btn_next"),
+                    data=f"module_cfg_page_{module_name}__{page + 1}".encode(),
                 )
             )
         nav_buttons.append(
-            Button.inline(t('btn_modules'), data="config_modules_page_0".encode())
+            Button.inline(t("btn_modules"), data="config_modules_page_0".encode())
         )
         if nav_buttons:
             buttons.append(nav_buttons)
-
 
         buttons.append([Button.inline("❌ Close", data=b"cfg_close", style="danger")])
 
@@ -639,26 +668,35 @@ def register(kernel):
 
     async def config_menu_handler(event):
         await ensure_config_initialized()
-        text = t('config_menu_text', menu_emoji=emoji_provider['📋'])
+        text = t("config_menu_text", menu_emoji=emoji_provider["📋"])
 
         buttons = [
             [
-                Button.inline(t('btn_kernel_config'), data=b"config_kernel_page_0", style="primary"),
-                Button.inline(t('btn_modules_config'), data=b"config_modules_page_0", style="primary")
+                Button.inline(
+                    t("btn_kernel_config"),
+                    data=b"config_kernel_page_0",
+                    style="primary",
+                ),
+                Button.inline(
+                    t("btn_modules_config"),
+                    data=b"config_modules_page_0",
+                    style="primary",
+                ),
             ],
-            [
-                Button.inline("❌ Close", data=b"cfg_close", style="danger")
-            ],
+            [Button.inline("❌ Close", data=b"cfg_close", style="danger")],
         ]
         thumb = InputWebDocument(
-            url='https://kappa.lol/GaFZ9I',
+            url="https://kappa.lol/GaFZ9I",
             size=0,
-            mime_type='image/jpeg',
-            attributes=[DocumentAttributeImageSize(w=0, h=0)]
+            mime_type="image/jpeg",
+            attributes=[DocumentAttributeImageSize(w=0, h=0)],
         )
         builder = event.builder.article(
-            title="Config Menu", text=text, buttons=buttons, parse_mode="html",
-            thumb=thumb
+            title="Config Menu",
+            text=text,
+            buttons=buttons,
+            parse_mode="html",
+            thumb=thumb,
         )
         await event.answer([builder])
 
@@ -679,7 +717,10 @@ def register(kernel):
                 page = 0
 
         total_pages = (
-            (total_keys + config_settings.items_per_page - 1) // config_settings.items_per_page if total_keys > 0 else 1
+            (total_keys + config_settings.items_per_page - 1)
+            // config_settings.items_per_page
+            if total_keys > 0
+            else 1
         )
         if page < 0:
             page = 0
@@ -690,12 +731,14 @@ def register(kernel):
         end_idx = start_idx + config_settings.items_per_page
         page_keys = visible_keys[start_idx:end_idx]
 
-        text = t('kernel_config_title',
-                pencil=emoji_provider['✏️'],
-                page_emoji=emoji_provider['📰'],
-                page=page + 1,
-                total_pages=total_pages,
-                total_keys=total_keys)
+        text = t(
+            "kernel_config_title",
+            pencil=emoji_provider["✏️"],
+            page_emoji=emoji_provider["📰"],
+            page=page + 1,
+            total_pages=total_pages,
+            total_keys=total_keys,
+        )
 
         buttons = create_kernel_buttons_grid(page_keys, page, total_pages)
         builder = event.builder.article(
@@ -711,7 +754,10 @@ def register(kernel):
         visible_keys = get_visible_keys()
         total_keys = len(visible_keys)
         total_pages = (
-            (total_keys + config_settings.items_per_page - 1) // config_settings.items_per_page if total_keys > 0 else 1
+            (total_keys + config_settings.items_per_page - 1)
+            // config_settings.items_per_page
+            if total_keys > 0
+            else 1
         )
         if page < 0:
             page = 0
@@ -722,12 +768,14 @@ def register(kernel):
         end_idx = start_idx + config_settings.items_per_page
         page_keys = visible_keys[start_idx:end_idx]
 
-        text = t('kernel_config_title',
-                pencil=emoji_provider['✏️'],
-                page_emoji=emoji_provider['📰'],
-                page=page + 1,
-                total_pages=total_pages,
-                total_keys=total_keys)
+        text = t(
+            "kernel_config_title",
+            pencil=emoji_provider["✏️"],
+            page_emoji=emoji_provider["📰"],
+            page=page + 1,
+            total_pages=total_pages,
+            total_keys=total_keys,
+        )
 
         buttons = create_kernel_buttons_grid(page_keys, page, total_pages)
         try:
@@ -755,7 +803,8 @@ def register(kernel):
 
         total_modules = len(all_modules)
         total_pages = (
-            (total_modules + config_settings.modules_per_page - 1) // config_settings.modules_per_page
+            (total_modules + config_settings.modules_per_page - 1)
+            // config_settings.modules_per_page
             if total_modules > 0
             else 1
         )
@@ -768,26 +817,28 @@ def register(kernel):
         end_idx = start_idx + config_settings.modules_per_page
         page_modules = all_modules[start_idx:end_idx]
 
-        text = t('modules_config_title',
-                puzzle=emoji_provider['🧩'],
-                page_emoji=emoji_provider['📰'],
-                page=page + 1,
-                total_pages=total_pages,
-                total_modules=total_modules)
+        text = t(
+            "modules_config_title",
+            puzzle=emoji_provider["🧩"],
+            page_emoji=emoji_provider["📰"],
+            page=page + 1,
+            total_pages=total_pages,
+            total_modules=total_modules,
+        )
 
         buttons = create_modules_buttons_grid(page_modules, page, total_pages)
         thumb = InputWebDocument(
-            url='https://kappa.lol/GaFZ9I',
+            url="https://kappa.lol/GaFZ9I",
             size=0,
-            mime_type='image/jpeg',
-            attributes=[DocumentAttributeImageSize(w=0, h=0)]
+            mime_type="image/jpeg",
+            attributes=[DocumentAttributeImageSize(w=0, h=0)],
         )
         builder = event.builder.article(
             title=f"Modules Config - {page + 1}",
             text=text,
             buttons=buttons,
             parse_mode="html",
-            thumb=thumb
+            thumb=thumb,
         )
         await event.answer([builder])
 
@@ -795,7 +846,7 @@ def register(kernel):
         try:
             module_config = await kernel.get_module_config(module_name, None)
             if module_config is None:
-                await event.answer(t('no_config'), alert=True)
+                await event.answer(t("no_config"), alert=True)
                 return
 
             if isinstance(module_config, ModuleConfig):
@@ -806,7 +857,8 @@ def register(kernel):
 
             total_items = len(items)
             total_pages = (
-                (total_items + config_settings.items_per_page - 1) // config_settings.items_per_page
+                (total_items + config_settings.items_per_page - 1)
+                // config_settings.items_per_page
                 if total_items > 0
                 else 1
             )
@@ -820,13 +872,15 @@ def register(kernel):
             end_idx = start_idx + config_settings.items_per_page
             page_keys = items[start_idx:end_idx]
 
-            text = t('module_config_title',
-                    puzzle=emoji_provider['🧩'],
-                    module_name=module_name,
-                    page_emoji=emoji_provider['📰'],
-                    page=page + 1,
-                    total_pages=total_pages,
-                    total_items=total_items)
+            text = t(
+                "module_config_title",
+                puzzle=emoji_provider["🧩"],
+                module_name=module_name,
+                page_emoji=emoji_provider["📰"],
+                page=page + 1,
+                total_pages=total_pages,
+                total_items=total_items,
+            )
 
             buttons = create_module_config_buttons(
                 module_name, page_keys, page, total_pages
@@ -834,7 +888,7 @@ def register(kernel):
             await event.edit(text, buttons=buttons, parse_mode="html")
 
         except Exception as e:
-            await event.answer(t('error', error=str(e)[:50]), alert=True)
+            await event.answer(t("error", error=str(e)[:50]), alert=True)
 
     async def show_module_key_view(event, module_name, key, page):
         try:
@@ -843,17 +897,19 @@ def register(kernel):
 
             if is_new_format:
                 if key not in module_config.keys():
-                    await event.answer(t('not_found'), alert=True)
+                    await event.answer(t("not_found"), alert=True)
                     return
                 value = module_config[key]
                 # Get config value metadata
                 config_value = module_config._values.get(key)
                 is_hidden = config_value.hidden if config_value else False
-                is_secret = hasattr(config_value.validator, 'secret') if config_value else False
+                is_secret = (
+                    hasattr(config_value.validator, "secret") if config_value else False
+                )
             else:
                 # Old format - plain dict
                 if key not in module_config:
-                    await event.answer(t('not_found'), alert=True)
+                    await event.answer(t("not_found"), alert=True)
                     return
                 value = module_config[key]
                 is_hidden = False
@@ -881,18 +937,20 @@ def register(kernel):
             else:
                 display_value = f"<code>{html.escape(str(value))}</code>"
 
-            text = t('key_view',
-                    note=emoji_provider['📝'],
-                    key=key,
-                    type_emoji=type_emoji,
-                    value_type=value_type,
-                    display_value=display_value)
+            text = t(
+                "key_view",
+                note=emoji_provider["📝"],
+                key=key,
+                type_emoji=type_emoji,
+                value_type=value_type,
+                display_value=display_value,
+            )
 
             buttons = []
 
             # Bool toggle button
             if value_type == "bool":
-                toggle_text = t('toggle_false') if value else t('toggle_true')
+                toggle_text = t("toggle_false") if value else t("toggle_true")
                 toggle_style = "danger" if value else "success"
                 toggle_style = "danger" if value else "success"
                 buttons.append(
@@ -900,7 +958,7 @@ def register(kernel):
                         Button.inline(
                             toggle_text,
                             data=f"cfg_modules_bool_{module_name}__{key}__{page}".encode(),
-                            style=toggle_style
+                            style=toggle_style,
                         )
                     ]
                 )
@@ -908,114 +966,141 @@ def register(kernel):
                 # Edit button for non-bool values (if not hidden/secret)
                 if not is_hidden and not is_secret:
                     # Create key_id for inline editing
-                    key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
-                    kernel.cache.set(f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400)
+                    key_id = generate_key_id(
+                        f"{module_name}__{key}", page, "module_cfg"
+                    )
+                    kernel.cache.set(
+                        f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400
+                    )
 
-                    buttons.append([
-                        Button.switch_inline(
-                            text=t('btn_edit'),
-                            query=f"fcfg module {module_name} set {key_id} ",
-                            same_peer=True,
-                            style="primary"
-                        )
-                    ])
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_edit"),
+                                query=f"fcfg module {module_name} set {key_id} ",
+                                same_peer=True,
+                                style="primary",
+                            )
+                        ]
+                    )
 
             # List/Dict operation buttons
             if value_type == "list" and not is_hidden and not is_secret:
                 key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
-                kernel.cache.set(f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400)
+                kernel.cache.set(
+                    f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400
+                )
 
-                buttons.append([
-                    Button.switch_inline(
-                        text=t('btn_list_add'),
-                        query=f"fcfg module {module_name} list add {key_id} ",
-                        same_peer=True,
-                        style="success"
-                    )
-                ])
-                buttons.append([
-                    Button.switch_inline(
-                        text=t('btn_list_del'),
-                        query=f"fcfg module {module_name} list del {key_id}",
-                        same_peer=True,
-                        style="danger"
-                    )
-                ])
-                buttons.append([
-                    Button.switch_inline(
-                        text=t('btn_list_set'),
-                        query=f"fcfg module {module_name} list set {key_id} ",
-                        same_peer=True,
-                        style="primary"
-                    )
-                ])
+                buttons.append(
+                    [
+                        Button.switch_inline(
+                            text=t("btn_list_add"),
+                            query=f"fcfg module {module_name} list add {key_id} ",
+                            same_peer=True,
+                            style="success",
+                        )
+                    ]
+                )
+                buttons.append(
+                    [
+                        Button.switch_inline(
+                            text=t("btn_list_del"),
+                            query=f"fcfg module {module_name} list del {key_id}",
+                            same_peer=True,
+                            style="danger",
+                        )
+                    ]
+                )
+                buttons.append(
+                    [
+                        Button.switch_inline(
+                            text=t("btn_list_set"),
+                            query=f"fcfg module {module_name} list set {key_id} ",
+                            same_peer=True,
+                            style="primary",
+                        )
+                    ]
+                )
             elif value_type == "dict" and not is_hidden and not is_secret:
                 key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
-                kernel.cache.set(f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400)
+                kernel.cache.set(
+                    f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400
+                )
 
-                buttons.append([
-                    Button.switch_inline(
-                        text=t('btn_dict_add'),
-                        query=f"fcfg module {module_name} dict add {key_id} ",
-                        same_peer=True,
-                        style="success"
-                    )
-                ])
-                buttons.append([
-                    Button.switch_inline(
-                        text=t('btn_dict_del'),
-                        query=f"fcfg module {module_name} dict del {key_id}",
-                        same_peer=True,
-                        style="danger"
-                    )
-                ])
-                buttons.append([
-                    Button.switch_inline(
-                        text=t('btn_dict_set'),
-                        query=f"fcfg module {module_name} dict set {key_id} ",
-                        same_peer=True,
-                        style="primary"
-                    )
-                ])
+                buttons.append(
+                    [
+                        Button.switch_inline(
+                            text=t("btn_dict_add"),
+                            query=f"fcfg module {module_name} dict add {key_id} ",
+                            same_peer=True,
+                            style="success",
+                        )
+                    ]
+                )
+                buttons.append(
+                    [
+                        Button.switch_inline(
+                            text=t("btn_dict_del"),
+                            query=f"fcfg module {module_name} dict del {key_id}",
+                            same_peer=True,
+                            style="danger",
+                        )
+                    ]
+                )
+                buttons.append(
+                    [
+                        Button.switch_inline(
+                            text=t("btn_dict_set"),
+                            query=f"fcfg module {module_name} dict set {key_id} ",
+                            same_peer=True,
+                            style="primary",
+                        )
+                    ]
+                )
 
             # Reveal button for hidden/secret values
-            if (is_hidden or is_secret):
+            if is_hidden or is_secret:
                 key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
-                kernel.cache.set(f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400)
-                buttons.append([
-                    Button.inline(
-                        t('btn_reveal'),
-                        data=f"cfg_module_reveal_{key_id}".encode()
-                    ,
-                        style="primary"
-                    )
-                ])
+                kernel.cache.set(
+                    f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400
+                )
+                buttons.append(
+                    [
+                        Button.inline(
+                            t("btn_reveal"),
+                            data=f"cfg_module_reveal_{key_id}".encode(),
+                            style="primary",
+                        )
+                    ]
+                )
 
             # Create key_id for refresh button
             key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
-            kernel.cache.set(f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400)
+            kernel.cache.set(
+                f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400
+            )
 
             # Navigation buttons
             nav_buttons = [
                 Button.inline(
-                    t('btn_back_simple'),
+                    t("btn_back_simple"),
                     data=f"module_cfg_page_{module_name}__{page}".encode(),
                 ),
                 Button.inline(
                     "🔄",
                     data=f"module_cfg_view_{key_id}".encode(),
-                )
+                ),
             ]
             buttons.append(nav_buttons)
 
-            buttons.append([
-                Button.inline("❌ Close", data=b"cfg_close", style="danger")
-            ])
+            buttons.append(
+                [Button.inline("❌ Close", data=b"cfg_close", style="danger")]
+            )
 
             await event.edit(text, buttons=buttons, parse_mode="html")
 
         except Exception as e:
-            await event.answer(t('error', error=str(e)[:50]), alert=True)
+            await event.answer(t("error", error=str(e)[:50]), alert=True)
 
     async def toggle_module_bool_key(event, module_name, key, page):
         try:
@@ -1027,11 +1112,11 @@ def register(kernel):
 
             if is_new_format:
                 if key not in module_config.keys():
-                    await event.answer(t('not_found'), alert=True)
+                    await event.answer(t("not_found"), alert=True)
                     return
                 value = module_config[key]
                 if not isinstance(value, bool):
-                    await event.answer(t('not_boolean'), alert=True)
+                    await event.answer(t("not_boolean"), alert=True)
                     return
                 # Update value
                 module_config[key] = not value
@@ -1040,11 +1125,11 @@ def register(kernel):
             else:
                 # Old format - plain dict
                 if key not in module_config:
-                    await event.answer(t('not_found'), alert=True)
+                    await event.answer(t("not_found"), alert=True)
                     return
                 value = module_config[key]
                 if not isinstance(value, bool):
-                    await event.answer(t('not_boolean'), alert=True)
+                    await event.answer(t("not_boolean"), alert=True)
                     return
                 module_config[key] = not value
                 await kernel.save_module_config(module_name, module_config)
@@ -1056,79 +1141,119 @@ def register(kernel):
                 new_value = module_config[key]
             else:
                 new_value = module_config[key]
-            await event.answer(t('changed_to', value=new_value), alert=False)
+            await event.answer(t("changed_to", value=new_value), alert=False)
 
         except Exception as e:
-            await event.answer(t('error', error=str(e)[:50]), alert=True)
+            await event.answer(t("error", error=str(e)[:50]), alert=True)
 
-    async def generate_simple_set_article(event, key_id, key, value_str, scope="kernel", module_name=None, expected_type=None):
+    async def generate_simple_set_article(
+        event,
+        key_id,
+        key,
+        value_str,
+        scope="kernel",
+        module_name=None,
+        expected_type=None,
+    ):
         """Генерация статьи для обычного set"""
         try:
             value = parse_value(value_str, expected_type)
             confirm_id = str(uuid.uuid4())[:8]
 
             cache_key = f"fcfg_confirm_{confirm_id}"
-            kernel.cache.set(cache_key, {
-                "action": "set",
-                "scope": scope,
-                "module_name": module_name,
-                "cache_scope": "module_cfg_view" if scope == "module" else "cfg_view",
-                "key_id": key_id,
-                "key": key,
-                "value": value,
-                "user_id": event.sender_id,
-                "value_str": value_str[:50]
-            }, ttl=300)
+            kernel.cache.set(
+                cache_key,
+                {
+                    "action": "set",
+                    "scope": scope,
+                    "module_name": module_name,
+                    "cache_scope": (
+                        "module_cfg_view" if scope == "module" else "cfg_view"
+                    ),
+                    "key_id": key_id,
+                    "key": key,
+                    "value": value,
+                    "user_id": event.sender.id,
+                    "value_str": value_str[:50],
+                },
+                ttl=300,
+            )
 
-            scope_prefix = f"[{module_name}] " if scope == "module" and module_name else ""
+            scope_prefix = (
+                f"[{module_name}] " if scope == "module" and module_name else ""
+            )
             builder = event.builder.article(
                 id=confirm_id,
                 title=f"✅ Set: {scope_prefix}{key} = {value_str[:50]}",
                 description=f"✅ Set: {scope_prefix}{key} = {value_str[:50]}",
-                text=t('fcfg_confirm_text'),
-                parse_mode="html"
+                text=t("fcfg_confirm_text"),
+                parse_mode="html",
             )
 
             await event.answer([builder])
         except Exception as e:
-            await event.answer([], switch_pm=f"❌ Ошибка: {str(e)[:50]}", switch_pm_param="start")
+            await event.answer(
+                [event.builder.article("Error", text=f"❌ Ошибка: {str(e)[:50]}")]
+            )
 
-    async def generate_add_articles(event, data_type, key_id, key, current_value, value_str, scope="kernel", module_name=None):
+    async def generate_add_articles(
+        event,
+        data_type,
+        key_id,
+        key,
+        current_value,
+        value_str,
+        scope="kernel",
+        module_name=None,
+    ):
         """Генерация статей для операции добавления"""
         try:
-            if data_type == 'list':
+            if data_type == "list":
                 # Для списка просто добавляем элемент
                 value = parse_value(value_str)
                 confirm_id = str(uuid.uuid4())[:8]
 
                 cache_key = f"fcfg_confirm_{confirm_id}"
-                kernel.cache.set(cache_key, {
-                    "action": "list_add",
-                    "scope": scope,
-                    "module_name": module_name,
-                    "cache_scope": "module_cfg_view" if scope == "module" else "cfg_view",
-                    "key_id": key_id,
-                    "key": key,
-                    "value": value,
-                    "user_id": event.sender_id,
-                    "value_str": value_str[:50]
-                }, ttl=300)
+                kernel.cache.set(
+                    cache_key,
+                    {
+                        "action": "list_add",
+                        "scope": scope,
+                        "module_name": module_name,
+                        "cache_scope": (
+                            "module_cfg_view" if scope == "module" else "cfg_view"
+                        ),
+                        "key_id": key_id,
+                        "key": key,
+                        "value": value,
+                        "user_id": event.sender.id,
+                        "value_str": value_str[:50],
+                    },
+                    ttl=300,
+                )
 
                 builder = event.builder.article(
                     id=confirm_id,
-                    title=t('list_add_confirm', value=value_str[:50]),
-                    description=t('list_add_confirm', value=value_str[:50]),
-                    text=t('fcfg_confirm_text'),
-                    parse_mode="html"
+                    title=t("list_add_confirm", value=value_str[:50]),
+                    description=t("list_add_confirm", value=value_str[:50]),
+                    text=t("fcfg_confirm_text"),
+                    parse_mode="html",
                 )
 
                 await event.answer([builder])
 
-            elif data_type == 'dict':
+            elif data_type == "dict":
                 # Для словаря нужен ключ и значение: fcfg dict add <key_id> <subkey> <value>
                 subkey_parts = value_str.split(maxsplit=1)
                 if len(subkey_parts) < 2:
-                    await event.answer([], switch_pm="❌ Укажите ключ и значение: fcfg dict add <key_id> <subkey> <value>", switch_pm_param="start")
+                    await event.answer(
+                        [
+                            event.builder.article(
+                                "Error",
+                                text="❌ Укажите ключ и значение: fcfg dict add <key_id> <subkey> <value>",
+                            )
+                        ],
+                    )
                     return
 
                 subkey, dict_value_str = subkey_parts[0], subkey_parts[1]
@@ -1136,147 +1261,206 @@ def register(kernel):
 
                 confirm_id = str(uuid.uuid4())[:8]
                 cache_key = f"fcfg_confirm_{confirm_id}"
-                kernel.cache.set(cache_key, {
-                    "action": "dict_add",
-                    "scope": scope,
-                    "module_name": module_name,
-                    "cache_scope": "module_cfg_view" if scope == "module" else "cfg_view",
-                    "key_id": key_id,
-                    "key": key,
-                    "subkey": subkey,
-                    "value": dict_value,
-                    "user_id": event.sender_id,
-                    "value_str": f"{subkey}: {dict_value_str[:50]}"
-                }, ttl=300)
+                kernel.cache.set(
+                    cache_key,
+                    {
+                        "action": "dict_add",
+                        "scope": scope,
+                        "module_name": module_name,
+                        "cache_scope": (
+                            "module_cfg_view" if scope == "module" else "cfg_view"
+                        ),
+                        "key_id": key_id,
+                        "key": key,
+                        "subkey": subkey,
+                        "value": dict_value,
+                        "user_id": event.sender.id,
+                        "value_str": f"{subkey}: {dict_value_str[:50]}",
+                    },
+                    ttl=300,
+                )
 
                 builder = event.builder.article(
                     id=confirm_id,
-                    title=t('dict_add_confirm', key=subkey, value=dict_value_str[:30]),
-                    description=t('dict_add_confirm', key=subkey, value=dict_value_str[:30]),
-                    text=t('fcfg_confirm_text'),
-                    parse_mode="html"
+                    title=t("dict_add_confirm", key=subkey, value=dict_value_str[:30]),
+                    description=t(
+                        "dict_add_confirm", key=subkey, value=dict_value_str[:30]
+                    ),
+                    text=t("fcfg_confirm_text"),
+                    parse_mode="html",
                 )
 
                 await event.answer([builder])
 
         except Exception as e:
-            await event.answer([], switch_pm=f"❌ Ошибка: {str(e)[:50]}", switch_pm_param="start")
+            await event.answer(
+                [event.builder.article("Error", text=f"❌ Ошибка: {str(e)[:50]}")]
+            )
 
-    async def generate_del_articles(event, data_type, key_id, key, current_value, scope="kernel", module_name=None):
+    async def generate_del_articles(
+        event, data_type, key_id, key, current_value, scope="kernel", module_name=None
+    ):
         """Генерация статей для операции удаления"""
         builders = []
 
-        if data_type == 'list':
+        if data_type == "list":
             # Для списка: статьи для каждого элемента
             if not current_value:
-                await event.answer([], switch_pm=t('list_empty'), switch_pm_param="start")
+                await event.answer(
+                    [event.builder.article("Empty", text=t("list_empty"))]
+                )
                 return
 
             for index, item in enumerate(current_value):
                 confirm_id = str(uuid.uuid4())[:8]
                 cache_key = f"fcfg_confirm_{confirm_id}"
 
-                kernel.cache.set(cache_key, {
-                    "action": "list_del",
-                    "scope": scope,
-                    "module_name": module_name,
-                    "cache_scope": "module_cfg_view" if scope == "module" else "cfg_view",
-                    "key_id": key_id,
-                    "key": key,
-                    "index": index,
-                    "user_id": event.sender_id,
-                    "value_str": f"Индекс {index}: {str(item)[:30]}"
-                }, ttl=300)
+                kernel.cache.set(
+                    cache_key,
+                    {
+                        "action": "list_del",
+                        "scope": scope,
+                        "module_name": module_name,
+                        "cache_scope": (
+                            "module_cfg_view" if scope == "module" else "cfg_view"
+                        ),
+                        "key_id": key_id,
+                        "key": key,
+                        "index": index,
+                        "user_id": event.sender.id,
+                        "value_str": f"Индекс {index}: {str(item)[:30]}",
+                    },
+                    ttl=300,
+                )
 
                 builder = event.builder.article(
                     id=confirm_id,
-                    title=t('list_remove_confirm', index=index, value=str(item)[:50]),
-                    description=t('list_remove_confirm', index=index, value=str(item)[:50]),
-                    text=t('fcfg_confirm_text'),
-                    parse_mode="html"
+                    title=t("list_remove_confirm", index=index, value=str(item)[:50]),
+                    description=t(
+                        "list_remove_confirm", index=index, value=str(item)[:50]
+                    ),
+                    text=t("fcfg_confirm_text"),
+                    parse_mode="html",
                 )
                 builders.append(builder)
 
-        elif data_type == 'dict':
+        elif data_type == "dict":
             # Для словаря: статьи для каждого ключа
             if not current_value:
-                await event.answer([], switch_pm=t('dict_empty'), switch_pm_param="start")
+                await event.answer(
+                    [event.builder.article("Empty", text=t("dict_empty"))]
+                )
                 return
 
             for subkey in current_value.keys():
                 confirm_id = str(uuid.uuid4())[:8]
                 cache_key = f"fcfg_confirm_{confirm_id}"
 
-                kernel.cache.set(cache_key, {
-                    "action": "dict_del",
-                    "scope": scope,
-                    "module_name": module_name,
-                    "cache_scope": "module_cfg_view" if scope == "module" else "cfg_view",
-                    "key_id": key_id,
-                    "key": key,
-                    "subkey": subkey,
-                    "user_id": event.sender_id,
-                    "value_str": f"Ключ: {subkey}"
-                }, ttl=300)
+                kernel.cache.set(
+                    cache_key,
+                    {
+                        "action": "dict_del",
+                        "scope": scope,
+                        "module_name": module_name,
+                        "cache_scope": (
+                            "module_cfg_view" if scope == "module" else "cfg_view"
+                        ),
+                        "key_id": key_id,
+                        "key": key,
+                        "subkey": subkey,
+                        "user_id": event.sender.id,
+                        "value_str": f"Ключ: {subkey}",
+                    },
+                    ttl=300,
+                )
 
                 value = current_value[subkey]
                 builder = event.builder.article(
                     id=confirm_id,
-                    title=t('dict_remove_confirm', key=subkey),
+                    title=t("dict_remove_confirm", key=subkey),
                     description=f"Значение: {str(value)[:50]}...",
-                    text=t('fcfg_confirm_text'),
-                    parse_mode="html"
+                    text=t("fcfg_confirm_text"),
+                    parse_mode="html",
                 )
                 builders.append(builder)
 
         if builders:
             await event.answer(builders)
         else:
-            await event.answer([], switch_pm=t('list_empty'), switch_pm_param="start")
+            await event.answer([event.builder.article("Empty", text=t("list_empty"))])
 
-    async def generate_set_articles(event, data_type, key_id, key, current_value, value_str, scope="kernel", module_name=None):
+    async def generate_set_articles(
+        event,
+        data_type,
+        key_id,
+        key,
+        current_value,
+        value_str,
+        scope="kernel",
+        module_name=None,
+    ):
         """Генерация статей для операции изменения"""
         try:
             new_value = parse_value(value_str)
             builders = []
 
-            if data_type == 'list':
+            if data_type == "list":
                 # Для списка: статьи для замены каждого элемента
                 if not current_value:
-                    await event.answer([], switch_pm=t('list_empty'), switch_pm_param="start")
+                    await event.answer(
+                        [event.builder.article("Empty", text=t("list_empty"))]
+                    )
                     return
 
                 for index, item in enumerate(current_value):
                     confirm_id = str(uuid.uuid4())[:8]
                     cache_key = f"fcfg_confirm_{confirm_id}"
 
-                    kernel.cache.set(cache_key, {
-                        "action": "list_set",
-                        "scope": scope,
-                        "module_name": module_name,
-                        "cache_scope": "module_cfg_view" if scope == "module" else "cfg_view",
-                        "key_id": key_id,
-                        "key": key,
-                        "index": index,
-                        "value": new_value,
-                        "user_id": event.sender_id,
-                        "old_value": item,
-                        "value_str": f"Заменить '{str(item)[:30]}' на '{value_str[:30]}'"
-                    }, ttl=300)
+                    kernel.cache.set(
+                        cache_key,
+                        {
+                            "action": "list_set",
+                            "scope": scope,
+                            "module_name": module_name,
+                            "cache_scope": (
+                                "module_cfg_view" if scope == "module" else "cfg_view"
+                            ),
+                            "key_id": key_id,
+                            "key": key,
+                            "index": index,
+                            "value": new_value,
+                            "user_id": event.sender.id,
+                            "old_value": item,
+                            "value_str": f"Заменить '{str(item)[:30]}' на '{value_str[:30]}'",
+                        },
+                        ttl=300,
+                    )
 
                     builder = event.builder.article(
                         id=confirm_id,
-                        title=t('list_set_confirm', index=index, old=str(item)[:30], new=value_str[:30]),
-                        description=t('list_set_confirm', index=index, old=str(item)[:30], new=value_str[:30]),
-                        text=t('fcfg_confirm_text'),
-                        parse_mode="html"
+                        title=t(
+                            "list_set_confirm",
+                            index=index,
+                            old=str(item)[:30],
+                            new=value_str[:30],
+                        ),
+                        description=t(
+                            "list_set_confirm",
+                            index=index,
+                            old=str(item)[:30],
+                            new=value_str[:30],
+                        ),
+                        text=t("fcfg_confirm_text"),
+                        parse_mode="html",
                     )
                     builders.append(builder)
 
-            elif data_type == 'dict':
+            elif data_type == "dict":
                 # Для словаря: статьи для изменения значения по каждому ключу
                 if not current_value:
-                    await event.answer([], switch_pm=t('dict_empty'), switch_pm_param="start")
+                    await event.answer(
+                        [event.builder.article("Empty", text=t("dict_empty"))]
+                    )
                     return
 
                 for subkey in current_value.keys():
@@ -1284,36 +1468,56 @@ def register(kernel):
                     cache_key = f"fcfg_confirm_{confirm_id}"
 
                     old_value = current_value[subkey]
-                    kernel.cache.set(cache_key, {
-                        "action": "dict_set",
-                        "scope": scope,
-                        "module_name": module_name,
-                        "cache_scope": "module_cfg_view" if scope == "module" else "cfg_view",
-                        "key_id": key_id,
-                        "key": key,
-                        "subkey": subkey,
-                        "value": new_value,
-                        "user_id": event.sender_id,
-                        "old_value": old_value,
-                        "value_str": f"Ключ {subkey}: '{str(old_value)[:30]}' → '{value_str[:30]}'"
-                    }, ttl=300)
+                    kernel.cache.set(
+                        cache_key,
+                        {
+                            "action": "dict_set",
+                            "scope": scope,
+                            "module_name": module_name,
+                            "cache_scope": (
+                                "module_cfg_view" if scope == "module" else "cfg_view"
+                            ),
+                            "key_id": key_id,
+                            "key": key,
+                            "subkey": subkey,
+                            "value": new_value,
+                            "user_id": event.sender.id,
+                            "old_value": old_value,
+                            "value_str": f"Ключ {subkey}: '{str(old_value)[:30]}' → '{value_str[:30]}'",
+                        },
+                        ttl=300,
+                    )
 
                     builder = event.builder.article(
                         id=confirm_id,
-                        title=t('dict_set_confirm', key=subkey, old=str(old_value)[:30], new=value_str[:30]),
-                        description=t('dict_set_confirm', key=subkey, old=str(old_value)[:30], new=value_str[:30]),
-                        text=t('fcfg_confirm_text'),
-                        parse_mode="html"
+                        title=t(
+                            "dict_set_confirm",
+                            key=subkey,
+                            old=str(old_value)[:30],
+                            new=value_str[:30],
+                        ),
+                        description=t(
+                            "dict_set_confirm",
+                            key=subkey,
+                            old=str(old_value)[:30],
+                            new=value_str[:30],
+                        ),
+                        text=t("fcfg_confirm_text"),
+                        parse_mode="html",
                     )
                     builders.append(builder)
 
             if builders:
                 await event.answer(builders)
             else:
-                await event.answer([], switch_pm=t('list_empty'), switch_pm_param="start")
+                await event.answer(
+                    [event.builder.article("Empty", text=t("list_empty"))]
+                )
 
         except Exception as e:
-            await event.answer([], switch_pm=f"❌ Ошибка: {str(e)[:50]}", switch_pm_param="start")
+            await event.answer(
+                [event.builder.article("Error", text=f"❌ Ошибка: {str(e)[:50]}")]
+            )
 
     async def chosen_result_handler(event):
         result_id = event.id
@@ -1323,12 +1527,14 @@ def register(kernel):
         confirm_data = kernel.cache.get(cache_key)
 
         if not confirm_data:
-            if hasattr(event, 'answer'):
-                await event.answer(t('fcfg_confirm_expired'), alert=True)
+            if hasattr(event, "answer"):
+                await event.answer(t("fcfg_confirm_expired"), alert=True)
             return
 
         if confirm_data["user_id"] != user_id:
-            kernel.logger.warning(f"FCFG confirm user mismatch: {user_id} != {confirm_data['user_id']}")
+            kernel.logger.warning(
+                f"FCFG confirm user mismatch: {user_id} != {confirm_data['user_id']}"
+            )
             return
 
         action = confirm_data.get("action", "set")
@@ -1367,10 +1573,18 @@ def register(kernel):
 
                 # Strictly prevent cross-scope writes after confirmation
                 if expected_scope == "module" and scope != "module":
-                    raise ValueError("Refusing to write kernel config for module-scoped confirm")
+                    raise ValueError(
+                        "Refusing to write kernel config for module-scoped confirm"
+                    )
                 if expected_scope == "kernel" and scope != "kernel":
-                    raise ValueError("Refusing to write module config for kernel-scoped confirm")
-                if expected_scope == "module" and expected_module_name and module_name != expected_module_name:
+                    raise ValueError(
+                        "Refusing to write module config for kernel-scoped confirm"
+                    )
+                if (
+                    expected_scope == "module"
+                    and expected_module_name
+                    and module_name != expected_module_name
+                ):
                     raise ValueError("Module mismatch in confirmation mapping")
 
             is_module_scope = scope == "module"
@@ -1398,7 +1612,9 @@ def register(kernel):
                 value = confirm_data["value"]
                 set_value(key, value)
                 success = True
-                message = t('fcfg_confirm_success', key=key, value=html.escape(str(value)))
+                message = t(
+                    "fcfg_confirm_success", key=key, value=html.escape(str(value))
+                )
 
             elif action == "list_add":
                 value = confirm_data["value"]
@@ -1407,7 +1623,7 @@ def register(kernel):
                     current_list.append(value)
                     set_value(key, current_list)
                     success = True
-                    message = t('list_add_confirm', value=html.escape(str(value)))
+                    message = t("list_add_confirm", value=html.escape(str(value)))
                 else:
                     message = f"❌ Ключ {key} не является списком"
 
@@ -1419,7 +1635,11 @@ def register(kernel):
                         removed = current_list.pop(index)
                         set_value(key, current_list)
                         success = True
-                        message = t('list_remove_confirm', index=index, value=html.escape(str(removed)))
+                        message = t(
+                            "list_remove_confirm",
+                            index=index,
+                            value=html.escape(str(removed)),
+                        )
                     else:
                         message = f"❌ Индекс {index} вне диапазона"
                 else:
@@ -1435,7 +1655,12 @@ def register(kernel):
                         current_list[index] = value
                         set_value(key, current_list)
                         success = True
-                        message = t('list_set_confirm', index=index, old=html.escape(str(old_value)), new=html.escape(str(value)))
+                        message = t(
+                            "list_set_confirm",
+                            index=index,
+                            old=html.escape(str(old_value)),
+                            new=html.escape(str(value)),
+                        )
                     else:
                         message = f"❌ Индекс {index} вне диапазона"
                 else:
@@ -1449,7 +1674,9 @@ def register(kernel):
                     current_dict[subkey] = value
                     set_value(key, current_dict)
                     success = True
-                    message = t('dict_add_confirm', key=subkey, value=html.escape(str(value)))
+                    message = t(
+                        "dict_add_confirm", key=subkey, value=html.escape(str(value))
+                    )
                 else:
                     message = f"❌ Ключ {key} не является словарем"
 
@@ -1461,7 +1688,7 @@ def register(kernel):
                         current_dict.pop(subkey)
                         set_value(key, current_dict)
                         success = True
-                        message = t('dict_remove_confirm', key=subkey)
+                        message = t("dict_remove_confirm", key=subkey)
                     else:
                         message = f"❌ Ключ {subkey} не найден в словаре"
                 else:
@@ -1477,7 +1704,12 @@ def register(kernel):
                         current_dict[subkey] = value
                         set_value(key, current_dict)
                         success = True
-                        message = t('dict_set_confirm', key=subkey, old=html.escape(str(old_value)), new=html.escape(str(value)))
+                        message = t(
+                            "dict_set_confirm",
+                            key=subkey,
+                            old=html.escape(str(old_value)),
+                            new=html.escape(str(value)),
+                        )
                     else:
                         message = f"❌ Ключ {subkey} не найден в словаре"
                 else:
@@ -1486,36 +1718,48 @@ def register(kernel):
             if success:
                 if is_module_scope:
                     if is_new_format:
-                        await kernel.save_module_config(module_name, target_config.to_dict())
+                        await kernel.save_module_config(
+                            module_name, target_config.to_dict()
+                        )
                     else:
                         await kernel.save_module_config(module_name, target_config)
-                    kernel.logger.info(f"Module config updated via inline fcfg: {module_name}.{key} = {confirm_data.get('value', 'N/A')}")
+                    kernel.logger.info(
+                        f"Module config updated via inline fcfg: {module_name}.{key} = {confirm_data.get('value', 'N/A')}"
+                    )
                 else:
                     await save_config()
-                    kernel.logger.info(f"Config updated via inline fcfg: {key} = {confirm_data.get('value', 'N/A')}")
+                    kernel.logger.info(
+                        f"Config updated via inline fcfg: {key} = {confirm_data.get('value', 'N/A')}"
+                    )
 
                 kernel.cache.set(cache_key, None, ttl=1)
 
                 try:
-                    if hasattr(event, 'query') and hasattr(event.query, 'inline_message_id'):
+                    if hasattr(event, "query") and hasattr(
+                        event.query, "inline_message_id"
+                    ):
                         inline_msg_id = event.query.inline_message_id
 
                         if is_module_scope:
                             if has_key(key):
-                                new_text = format_key_value(key, get_value(key), reveal=True)
+                                new_text = format_key_value(
+                                    key, get_value(key), reveal=True
+                                )
                             else:
                                 new_text = message
                         else:
                             if is_key_hidden(key):
-                                new_text = t('value_inserted')
+                                new_text = t("value_inserted")
                             else:
-                                new_text = format_key_value(key, kernel.config[key], reveal=True)
+                                new_text = format_key_value(
+                                    key, kernel.config[key], reveal=True
+                                )
 
                         if kernel.is_bot_available():
                             await kernel.bot_client.edit_message(
                                 inline_message_id=inline_msg_id,
                                 text=new_text,
-                                parse_mode="html"
+                                parse_mode="html",
                             )
 
                 except Exception as e:
@@ -1524,9 +1768,7 @@ def register(kernel):
                 if kernel.is_bot_available():
                     try:
                         await kernel.bot_client.send_message(
-                            user_id,
-                            message,
-                            parse_mode="html"
+                            user_id, message, parse_mode="html"
                         )
                     except Exception as e:
                         kernel.logger.error(f"Failed to send confirmation message: {e}")
@@ -1534,9 +1776,7 @@ def register(kernel):
                 if kernel.is_bot_available():
                     try:
                         await kernel.bot_client.send_message(
-                            user_id,
-                            message,
-                            parse_mode="html"
+                            user_id, message, parse_mode="html"
                         )
                     except Exception as e:
                         kernel.logger.error(f"Failed to send error message: {e}")
@@ -1548,8 +1788,8 @@ def register(kernel):
                 if kernel.is_bot_available():
                     await kernel.bot_client.send_message(
                         user_id,
-                        t('fcfg_confirm_error', error=str(e)),
-                        parse_mode="html"
+                        t("fcfg_confirm_error", error=str(e)),
+                        parse_mode="html",
                     )
             except Exception:
                 pass
@@ -1560,14 +1800,18 @@ def register(kernel):
         parts = query.split()
 
         if len(parts) < 3:
-            await event.answer([], switch_pm=t('fcfg_inline_usage'), switch_pm_param="start")
+            await event.answer(
+                [event.builder.article("Usage", text=t("fcfg_inline_usage"))]
+            )
             return
 
         module_mode = len(parts) >= 4 and parts[1].lower() == "module"
         module_name = parts[2] if module_mode else None
 
         if module_mode and len(parts) < 5:
-            await event.answer([], switch_pm=t('fcfg_inline_usage'), switch_pm_param="start")
+            await event.answer(
+                [event.builder.article("Usage", text=t("fcfg_inline_usage"))]
+            )
             return
 
         action_type = parts[3].lower() if module_mode else parts[1].lower()
@@ -1576,12 +1820,20 @@ def register(kernel):
             if module_mode:
                 cached = kernel.cache.get(f"module_cfg_view_{key_id}")
                 if not cached:
-                    await event.answer([], switch_pm=t('fcfg_inline_id_not_found'), switch_pm_param="start")
+                    await event.answer(
+                        [],
+                    )
                     return None, None, None
 
                 cached_module_name, key, page = cached
                 if cached_module_name != module_name:
-                    await event.answer([], switch_pm=t('fcfg_inline_id_not_found'), switch_pm_param="start")
+                    await event.answer(
+                        [
+                            event.builder.article(
+                                "Error", text=t("fcfg_inline_id_not_found")
+                            )
+                        ],
+                    )
                     return None, None, None
 
                 module_config = await kernel.get_module_config(module_name, {})
@@ -1589,12 +1841,16 @@ def register(kernel):
 
                 if is_new_format:
                     if key not in module_config.keys():
-                        await event.answer([], switch_pm=t('not_found'), switch_pm_param="start")
+                        await event.answer(
+                            [event.builder.article("Not found", text=t("not_found"))]
+                        )
                         return None, None, None
                     value = module_config[key]
                 else:
                     if key not in module_config:
-                        await event.answer([], switch_pm=t('not_found'), switch_pm_param="start")
+                        await event.answer(
+                            [event.builder.article("Not found", text=t("not_found"))]
+                        )
                         return None, None, None
                     value = module_config[key]
 
@@ -1602,20 +1858,36 @@ def register(kernel):
 
             cached = kernel.cache.get(f"cfg_view_{key_id}")
             if not cached:
-                await event.answer([], switch_pm=t('fcfg_inline_id_not_found'), switch_pm_param="start")
+                await event.answer(
+                    [
+                        event.builder.article(
+                            "Not found", text=t("fcfg_inline_id_not_found")
+                        )
+                    ]
+                )
                 return None, None, None
 
             key, page, config_type = cached
             if config_type != "kernel":
-                await event.answer([], switch_pm=t('fcfg_inline_no_module'), switch_pm_param="start")
+                await event.answer(
+                    [event.builder.article("Error", text=t("fcfg_inline_id_not_found"))]
+                )
                 return None, None, None
 
             if key in SENSITIVE_KEYS:
-                await event.answer([], switch_pm=t('fcfg_inline_protected'), switch_pm_param="start")
+                await event.answer(
+                    [
+                        event.builder.article(
+                            "Protected", text=t("fcfg_inline_protected")
+                        )
+                    ]
+                )
                 return None, None, None
 
             if key not in kernel.config:
-                await event.answer([], switch_pm=t('not_found'), switch_pm_param="start")
+                await event.answer(
+                    [event.builder.article("Not found", text=t("not_found"))]
+                )
                 return None, None, None
 
             value = kernel.config[key]
@@ -1627,14 +1899,26 @@ def register(kernel):
             if module_mode:
                 parts_set = query.split(None, 5)
                 if len(parts_set) < 6:
-                    await event.answer([], switch_pm="❌ Укажите key_id и значение", switch_pm_param="start")
+                    await event.answer(
+                        [
+                            event.builder.article(
+                                "Usage", text="❌ Укажите key_id и значение"
+                            )
+                        ],
+                    )
                     return
                 key_id = parts_set[4]
                 value_str = strip_formatting(parts_set[5])
             else:
                 parts_set = query.split(None, 3)
                 if len(parts_set) < 4:
-                    await event.answer([], switch_pm="❌ Укажите key_id и значение", switch_pm_param="start")
+                    await event.answer(
+                        [
+                            event.builder.article(
+                                "Usage", text="❌ Укажите key_id и значение"
+                            )
+                        ],
+                    )
                     return
                 key_id = parts_set[2]
                 value_str = strip_formatting(parts_set[3])
@@ -1659,7 +1943,9 @@ def register(kernel):
             if module_mode:
                 parts_op = query.split(None, 6)
                 if len(parts_op) < 6:
-                    await event.answer([], switch_pm=t('fcfg_inline_usage'), switch_pm_param="start")
+                    await event.answer(
+                        [event.builder.article("Usage", text=t("fcfg_inline_usage"))]
+                    )
                     return
                 action = parts_op[4].lower()
                 key_id = parts_op[5]
@@ -1667,7 +1953,9 @@ def register(kernel):
             else:
                 parts_op = query.split(None, 4)
                 if len(parts_op) < 4:
-                    await event.answer([], switch_pm=t('fcfg_inline_usage'), switch_pm_param="start")
+                    await event.answer(
+                        [event.builder.article("Usage", text=t("fcfg_inline_usage"))]
+                    )
                     return
                 action = parts_op[2].lower()
                 key_id = parts_op[3]
@@ -1677,16 +1965,22 @@ def register(kernel):
             if key is None:
                 return
 
-            if data_type == 'list' and not isinstance(current_value, list):
-                await event.answer([], switch_pm=f"❌ Ключ {key} не является списком", switch_pm_param="start")
+            if data_type == "list" and not isinstance(current_value, list):
+                await event.answer(
+                    [],
+                )
                 return
-            if data_type == 'dict' and not isinstance(current_value, dict):
-                await event.answer([], switch_pm=f"❌ Ключ {key} не является словарем", switch_pm_param="start")
+            if data_type == "dict" and not isinstance(current_value, dict):
+                await event.answer(
+                    [],
+                )
                 return
 
-            if action == 'add':
+            if action == "add":
                 if not value_str:
-                    await event.answer([], switch_pm="❌ Укажите значение для добавления", switch_pm_param="start")
+                    await event.answer(
+                        [],
+                    )
                     return
                 await generate_add_articles(
                     event,
@@ -1699,7 +1993,7 @@ def register(kernel):
                     module_name=module_name,
                 )
 
-            elif action == 'del':
+            elif action == "del":
                 await generate_del_articles(
                     event,
                     data_type,
@@ -1710,9 +2004,11 @@ def register(kernel):
                     module_name=module_name,
                 )
 
-            elif action == 'set':
+            elif action == "set":
                 if not value_str:
-                    await event.answer([], switch_pm="❌ Укажите новое значение", switch_pm_param="start")
+                    await event.answer(
+                        [],
+                    )
                     return
                 await generate_set_articles(
                     event,
@@ -1726,10 +2022,14 @@ def register(kernel):
                 )
 
             else:
-                await event.answer([], switch_pm=f"❌ Неизвестное действие: {action}", switch_pm_param="start")
+                await event.answer(
+                    [],
+                )
 
         else:
-            await event.answer([], switch_pm=f"❌ Неизвестный тип действия: {action_type}", switch_pm_param="start")
+            await event.answer(
+                [],
+            )
 
     async def config_callback_handler(event):
         data = event.data.decode()
@@ -1747,16 +2047,25 @@ def register(kernel):
             return
 
         if data == "config_menu":
-            text = t('config_menu_text', menu_emoji='<tg-emoji emoji-id="5404451992456156919">🧬</tg-emoji>')
+            text = t(
+                "config_menu_text",
+                menu_emoji='<tg-emoji emoji-id="5404451992456156919">🧬</tg-emoji>',
+            )
             buttons = [
-                    [
-                        Button.inline(t('btn_kernel_config'), data=b"config_kernel_page_0", style="primary"),
-                        Button.inline(t('btn_modules_config'), data=b"config_modules_page_0", style="primary")
-                    ],
-                    [
-                        Button.inline("❌ Close", data=b"cfg_close", style="danger")
-                    ],
-                ]
+                [
+                    Button.inline(
+                        t("btn_kernel_config"),
+                        data=b"config_kernel_page_0",
+                        style="primary",
+                    ),
+                    Button.inline(
+                        t("btn_modules_config"),
+                        data=b"config_modules_page_0",
+                        style="primary",
+                    ),
+                ],
+                [Button.inline("❌ Close", data=b"cfg_close", style="danger")],
+            ]
             try:
                 await event.edit(text, buttons=buttons, parse_mode="html")
             except Exception as e:
@@ -1779,7 +2088,8 @@ def register(kernel):
 
                 total_modules = len(all_modules)
                 total_pages = (
-                    (total_modules + config_settings.modules_per_page - 1) // config_settings.modules_per_page
+                    (total_modules + config_settings.modules_per_page - 1)
+                    // config_settings.modules_per_page
                     if total_modules > 0
                     else 1
                 )
@@ -1792,12 +2102,14 @@ def register(kernel):
                 end_idx = start_idx + config_settings.modules_per_page
                 page_modules = all_modules[start_idx:end_idx]
 
-                text = t('modules_config_title',
-                        puzzle=emoji_provider['🧩'],
-                        page_emoji=emoji_provider['📰'],
-                        page=page + 1,
-                        total_pages=total_pages,
-                        total_modules=total_modules)
+                text = t(
+                    "modules_config_title",
+                    puzzle=emoji_provider["🧩"],
+                    page_emoji=emoji_provider["📰"],
+                    page=page + 1,
+                    total_pages=total_pages,
+                    total_modules=total_modules,
+                )
                 buttons = create_modules_buttons_grid(page_modules, page, total_pages)
                 await event.edit(text, buttons=buttons, parse_mode="html")
             except Exception as e:
@@ -1808,7 +2120,7 @@ def register(kernel):
                 key_id = data[14:]
                 cached = kernel.cache.get(f"module_select_{key_id}")
                 if not cached:
-                    await event.answer(t('expired'), alert=True)
+                    await event.answer(t("expired"), alert=True)
                     return
 
                 module_name, page = cached
@@ -1829,7 +2141,7 @@ def register(kernel):
                         page = int(page_part)
                         module_name = "_".join(parts[3:-1])
                     else:
-                        await event.answer(t('invalid_format'), alert=True)
+                        await event.answer(t("invalid_format"), alert=True)
                         return
 
                 await show_module_config_view(event, module_name, page)
@@ -1841,7 +2153,7 @@ def register(kernel):
                 key_id = data[16:]
                 cached = kernel.cache.get(f"module_cfg_view_{key_id}")
                 if not cached:
-                    await event.answer(t('expired'), alert=True)
+                    await event.answer(t("expired"), alert=True)
                     return
 
                 module_name, key, page = cached
@@ -1859,7 +2171,7 @@ def register(kernel):
                         key = parts[1]
                         page = int(parts[2])
                     else:
-                        await event.answer(t('invalid_format'), alert=True)
+                        await event.answer(t("invalid_format"), alert=True)
                         return
                 else:
                     rest = data.replace("module_cfg_bool_", "")
@@ -1869,7 +2181,7 @@ def register(kernel):
                         module_name = parts[0]
                         key = "_".join(parts[1:-1])
                     else:
-                        await event.answer(t('invalid_format'), alert=True)
+                        await event.answer(t("invalid_format"), alert=True)
                         return
 
                 await toggle_module_bool_key(event, module_name, key, page)
@@ -1885,13 +2197,16 @@ def register(kernel):
                 text, key, page, config_type, key_id = result
 
                 # Сохраняем inline_message_id если есть
-                if hasattr(event.query, 'inline_message_id') and event.query.inline_message_id:
+                if (
+                    hasattr(event.query, "inline_message_id")
+                    and event.query.inline_message_id
+                ):
                     msg_manager.save_message(
                         inline_msg_id=event.query.inline_message_id,
                         chat_id=event.chat_id,
                         message_id=event.id,
                         key_id=key_id,
-                        user_id=event.sender_id
+                        user_id=event.sender.id,
                     )
 
                 buttons = []
@@ -1901,121 +2216,132 @@ def register(kernel):
                 value_type = type(value).__name__ if value is not None else "NoneType"
 
                 if value_type == "bool":
-                    toggle_text = t('toggle_false') if value else t('toggle_true')
+                    toggle_text = t("toggle_false") if value else t("toggle_true")
                     toggle_style = "danger" if value else "success"
                     toggle_style = "danger" if value else "success"
                     buttons.append(
                         [
                             Button.inline(
-                                toggle_text, data=f"cfg_bool_toggle_{key_id}".encode(),
-                                style=toggle_style
+                                toggle_text,
+                                data=f"cfg_bool_toggle_{key_id}".encode(),
+                                style=toggle_style,
                             )
                         ]
                     )
                 else:
-
                     if not is_key_hidden(key) or key not in SENSITIVE_KEYS:
-                        buttons.append([
-                            Button.switch_inline(
-                                text=t('btn_edit'),
-                                query=f"fcfg set {key_id} ",
-                                same_peer=True,
-                                style="primary"
-                            )
-                        ])
+                        buttons.append(
+                            [
+                                Button.switch_inline(
+                                    text=t("btn_edit"),
+                                    query=f"fcfg set {key_id} ",
+                                    same_peer=True,
+                                    style="primary",
+                                )
+                            ]
+                        )
 
                 # Кнопки для списков и словарей
                 if value_type == "list":
                     # Кнопки для работы со списками
-                    buttons.append([
-                        Button.switch_inline(
-                            text=t('btn_list_add'),
-                            query=f"fcfg list add {key_id} ",
-                            same_peer=True,
-                            style="success"
-                        )
-                    ])
-                    buttons.append([
-                        Button.switch_inline(
-                            text=t('btn_list_del'),
-                            query=f"fcfg list del {key_id}",
-                            same_peer=True,
-                            style="danger"
-                        )
-                    ])
-                    buttons.append([
-                        Button.switch_inline(
-                            text=t('btn_list_set'),
-                            query=f"fcfg list set {key_id} ",
-                            same_peer=True,
-                            style="primary"
-                        )
-                    ])
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_list_add"),
+                                query=f"fcfg list add {key_id} ",
+                                same_peer=True,
+                                style="success",
+                            )
+                        ]
+                    )
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_list_del"),
+                                query=f"fcfg list del {key_id}",
+                                same_peer=True,
+                                style="danger",
+                            )
+                        ]
+                    )
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_list_set"),
+                                query=f"fcfg list set {key_id} ",
+                                same_peer=True,
+                                style="primary",
+                            )
+                        ]
+                    )
 
                 elif value_type == "dict":
                     # Кнопки для работы со словарями
-                    buttons.append([
-                        Button.switch_inline(
-                            text=t('btn_dict_add'),
-                            query=f"fcfg dict add {key_id} ",
-                            same_peer=True,
-                            style="success"
-                        )
-                    ])
-                    buttons.append([
-                        Button.switch_inline(
-                            text=t('btn_dict_del'),
-                            query=f"fcfg dict del {key_id}",
-                            same_peer=True,
-                            style="danger"
-                        )
-                    ])
-                    buttons.append([
-                        Button.switch_inline(
-                            text=t('btn_dict_set'),
-                            query=f"fcfg dict set {key_id} ",
-                            same_peer=True,
-                            style="primary"
-                        )
-                    ])
-
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_dict_add"),
+                                query=f"fcfg dict add {key_id} ",
+                                same_peer=True,
+                                style="success",
+                            )
+                        ]
+                    )
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_dict_del"),
+                                query=f"fcfg dict del {key_id}",
+                                same_peer=True,
+                                style="danger",
+                            )
+                        ]
+                    )
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_dict_set"),
+                                query=f"fcfg dict set {key_id} ",
+                                same_peer=True,
+                                style="primary",
+                            )
+                        ]
+                    )
 
                 if key not in SENSITIVE_KEYS:
-                    buttons.append([
-                        Button.inline(
-                            t('btn_delete'),
-                            data=f"cfg_delete_{key_id}".encode()
-                        ,
-                            style="danger"
-                        )
-                    ])
-
+                    buttons.append(
+                        [
+                            Button.inline(
+                                t("btn_delete"),
+                                data=f"cfg_delete_{key_id}".encode(),
+                                style="danger",
+                            )
+                        ]
+                    )
 
                 if is_key_hidden(key) and key not in SENSITIVE_KEYS:
-                    buttons.append([
-                        Button.inline(
-                            t('btn_reveal'),
-                            data=f"cfg_reveal_{key_id}".encode()
-                        ,
-                            style="primary"
-                        )
-                    ])
+                    buttons.append(
+                        [
+                            Button.inline(
+                                t("btn_reveal"),
+                                data=f"cfg_reveal_{key_id}".encode(),
+                                style="primary",
+                            )
+                        ]
+                    )
 
                 # Кнопки навигации
                 nav_buttons = [
                     Button.inline(
-                        t('btn_back_simple'), data=f"config_kernel_page_{page}".encode()
+                        t("btn_back_simple"), data=f"config_kernel_page_{page}".encode()
                     ),
-                    Button.inline(
-                        "🔄", data=f"cfg_view_{key_id}".encode()
-                    )
+                    Button.inline("🔄", data=f"cfg_view_{key_id}".encode()),
                 ]
                 buttons.append(nav_buttons)
 
-
-                buttons.append([
-                    Button.inline("❌ Close", data=b"cfg_close", style="danger")
-                ])
+                buttons.append(
+                    [Button.inline("❌ Close", data=b"cfg_close", style="danger")]
+                )
 
                 await event.edit(text, buttons=buttons, parse_mode="html")
             except Exception as e:
@@ -2026,17 +2352,17 @@ def register(kernel):
                 key_id = data[16:]
                 cached = kernel.cache.get(f"cfg_view_{key_id}")
                 if not cached:
-                    await event.answer(t('expired'), alert=True)
+                    await event.answer(t("expired"), alert=True)
                     return
 
                 key, page, config_type = cached
                 if key not in kernel.config:
-                    await event.answer(t('not_found'), alert=True)
+                    await event.answer(t("not_found"), alert=True)
                     return
 
                 value = kernel.config[key]
                 if not isinstance(value, bool):
-                    await event.answer(t('not_boolean'), alert=True)
+                    await event.answer(t("not_boolean"), alert=True)
                     return
 
                 kernel.config[key] = not value
@@ -2048,34 +2374,34 @@ def register(kernel):
                 text, key, page, config_type, key_id = result
 
                 new_value = kernel.config[key]
-                toggle_text = t('toggle_false') if new_value else t('toggle_true')
+                toggle_text = t("toggle_false") if new_value else t("toggle_true")
                 toggle_style = "danger" if new_value else "success"
                 toggle_style = "danger" if new_value else "success"
                 buttons = [
                     [
                         Button.inline(
-                            toggle_text, data=f"cfg_bool_toggle_{key_id}".encode(),
-                            style=toggle_style
-                        )
-                    ],
-
-                    [
-                        Button.inline(
-                            t('btn_delete'),
-                            data=f"cfg_delete_{key_id}".encode()
-                        ,
-                            style="danger"
+                            toggle_text,
+                            data=f"cfg_bool_toggle_{key_id}".encode(),
+                            style=toggle_style,
                         )
                     ],
                     [
                         Button.inline(
-                            t('btn_back_simple'), data=f"config_kernel_page_{page}".encode()
+                            t("btn_delete"),
+                            data=f"cfg_delete_{key_id}".encode(),
+                            style="danger",
+                        )
+                    ],
+                    [
+                        Button.inline(
+                            t("btn_back_simple"),
+                            data=f"config_kernel_page_{page}".encode(),
                         )
                     ],
                 ]
 
                 await event.edit(text, buttons=buttons, parse_mode="html")
-                await event.answer(t('changed_to', value=new_value), alert=False)
+                await event.answer(t("changed_to", value=new_value), alert=False)
             except Exception as e:
                 await event.answer(str(e)[:50], alert=True)
 
@@ -2084,25 +2410,25 @@ def register(kernel):
                 key_id = data[11:]
                 cached = kernel.cache.get(f"cfg_view_{key_id}")
                 if not cached:
-                    await event.answer(t('expired'), alert=True)
+                    await event.answer(t("expired"), alert=True)
                     return
 
                 key, page, config_type = cached
 
                 if key in SENSITIVE_KEYS:
-                    await event.answer(t('fcfg_inline_protected'), alert=True)
+                    await event.answer(t("fcfg_inline_protected"), alert=True)
                     return
 
                 # Удаляем ключ
                 if key in kernel.config:
                     kernel.config.pop(key)
                     await save_config()
-                    await event.answer(t('key_deleted'), alert=True)
+                    await event.answer(t("key_deleted"), alert=True)
 
                     # Возвращаемся на предыдущую страницу
                     await config_kernel_page(event, page)
                 else:
-                    await event.answer(t('not_found'), alert=True)
+                    await event.answer(t("not_found"), alert=True)
 
             except Exception as e:
                 await event.answer(str(e)[:50], alert=True)
@@ -2117,7 +2443,9 @@ def register(kernel):
                 text, key, page, config_type, key_id = result
 
                 # Обновляем кеш
-                kernel.cache.set(f"cfg_view_{key_id}", (key, page, config_type), ttl=86400)
+                kernel.cache.set(
+                    f"cfg_view_{key_id}", (key, page, config_type), ttl=86400
+                )
 
                 # Получаем значение для проверки типа
                 value = kernel.config.get(key)
@@ -2126,85 +2454,114 @@ def register(kernel):
                 # Формируем кнопки
                 buttons = []
                 if value_type == "bool":
-                    toggle_text = t('toggle_false') if value else t('toggle_true')
+                    toggle_text = t("toggle_false") if value else t("toggle_true")
                     toggle_style = "danger" if value else "success"
                     toggle_style = "danger" if value else "success"
-                    buttons.append([
-                        Button.inline(toggle_text, data=f"cfg_bool_toggle_{key_id}".encode())
-                    ])
+                    buttons.append(
+                        [
+                            Button.inline(
+                                toggle_text, data=f"cfg_bool_toggle_{key_id}".encode()
+                            )
+                        ]
+                    )
                 elif not is_key_hidden(key) or key not in SENSITIVE_KEYS:
-                    buttons.append([
-                        Button.switch_inline(t('btn_edit'), query=f"fcfg set {key_id} ", style="primary")
-                    ])
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                t("btn_edit"),
+                                query=f"fcfg set {key_id} ",
+                                style="primary",
+                            )
+                        ]
+                    )
 
                 # Кнопки для списков и словарей
                 if value_type == "list":
-                    buttons.append([
-                        Button.switch_inline(
-                            text=t('btn_list_add'),
-                            query=f"fcfg list add {key_id} ",
-                            same_peer=True,
-                            style="success"
-                        )
-                    ])
-                    buttons.append([
-                        Button.switch_inline(
-                            text=t('btn_list_del'),
-                            query=f"fcfg list del {key_id}",
-                            same_peer=True,
-                            style="danger"
-                        )
-                    ])
-                    buttons.append([
-                        Button.switch_inline(
-                            text=t('btn_list_set'),
-                            query=f"fcfg list set {key_id} ",
-                            same_peer=True,
-                            style="primary"
-                        )
-                    ])
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_list_add"),
+                                query=f"fcfg list add {key_id} ",
+                                same_peer=True,
+                                style="success",
+                            )
+                        ]
+                    )
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_list_del"),
+                                query=f"fcfg list del {key_id}",
+                                same_peer=True,
+                                style="danger",
+                            )
+                        ]
+                    )
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_list_set"),
+                                query=f"fcfg list set {key_id} ",
+                                same_peer=True,
+                                style="primary",
+                            )
+                        ]
+                    )
 
                 elif value_type == "dict":
-                    buttons.append([
-                        Button.switch_inline(
-                            text=t('btn_dict_add'),
-                            query=f"fcfg dict add {key_id} ",
-                            same_peer=True,
-                            style="success"
-                        )
-                    ])
-                    buttons.append([
-                        Button.switch_inline(
-                            text=t('btn_dict_del'),
-                            query=f"fcfg dict del {key_id}",
-                            same_peer=True,
-                            style="danger"
-                        )
-                    ])
-                    buttons.append([
-                        Button.switch_inline(
-                            text=t('btn_dict_set'),
-                            query=f"fcfg dict set {key_id} ",
-                            same_peer=True,
-                            style="primary"
-                        )
-                    ])
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_dict_add"),
+                                query=f"fcfg dict add {key_id} ",
+                                same_peer=True,
+                                style="success",
+                            )
+                        ]
+                    )
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_dict_del"),
+                                query=f"fcfg dict del {key_id}",
+                                same_peer=True,
+                                style="danger",
+                            )
+                        ]
+                    )
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_dict_set"),
+                                query=f"fcfg dict set {key_id} ",
+                                same_peer=True,
+                                style="primary",
+                            )
+                        ]
+                    )
 
-                buttons.append([
-                    Button.inline(t('btn_delete'), data=f"cfg_delete_{key_id}".encode(), style="danger")
-                ])
+                buttons.append(
+                    [
+                        Button.inline(
+                            t("btn_delete"),
+                            data=f"cfg_delete_{key_id}".encode(),
+                            style="danger",
+                        )
+                    ]
+                )
 
                 # Кнопки навигации
                 nav_buttons = [
-                    Button.inline(t('btn_back_simple'), data=f"config_kernel_page_{page}".encode()),
-                    Button.inline("🔄", data=f"cfg_reveal_{key_id}".encode())
+                    Button.inline(
+                        t("btn_back_simple"), data=f"config_kernel_page_{page}".encode()
+                    ),
+                    Button.inline("🔄", data=f"cfg_reveal_{key_id}".encode()),
                 ]
                 buttons.append(nav_buttons)
 
-
-                buttons.append([
-                    Button.inline("❌ Close", data=b"cfg_close", style="danger")
-                ])
+                buttons.append(
+                    [Button.inline("❌ Close", data=b"cfg_close", style="danger")]
+                )
 
                 await event.edit(text, buttons=buttons, parse_mode="html")
                 await event.answer("👁️ Значение раскрыто", alert=False)
@@ -2217,7 +2574,7 @@ def register(kernel):
                 key_id = data[18:]
                 cached = kernel.cache.get(f"module_cfg_view_{key_id}")
                 if not cached:
-                    await event.answer(t('expired'), alert=True)
+                    await event.answer(t("expired"), alert=True)
                     return
 
                 module_name, key, page = cached
@@ -2229,12 +2586,12 @@ def register(kernel):
 
                 if is_new_format:
                     if key not in module_config.keys():
-                        await event.answer(t('not_found'), alert=True)
+                        await event.answer(t("not_found"), alert=True)
                         return
                     value = module_config[key]
                 else:
                     if key not in module_config:
-                        await event.answer(t('not_found'), alert=True)
+                        await event.answer(t("not_found"), alert=True)
                         return
                     value = module_config[key]
 
@@ -2258,18 +2615,20 @@ def register(kernel):
                 else:
                     display_value = f"<code>{html.escape(str(value))}</code>"
 
-                text = t('key_view',
-                        note=emoji_provider['📝'],
-                        key=key,
-                        type_emoji=type_emoji,
-                        value_type=value_type,
-                        display_value=display_value)
+                text = t(
+                    "key_view",
+                    note=emoji_provider["📝"],
+                    key=key,
+                    type_emoji=type_emoji,
+                    value_type=value_type,
+                    display_value=display_value,
+                )
 
                 buttons = []
 
                 # Bool toggle button
                 if value_type == "bool":
-                    toggle_text = t('toggle_false') if value else t('toggle_true')
+                    toggle_text = t("toggle_false") if value else t("toggle_true")
                     toggle_style = "danger" if value else "success"
                     toggle_style = "danger" if value else "success"
                     buttons.append(
@@ -2277,89 +2636,103 @@ def register(kernel):
                             Button.inline(
                                 toggle_text,
                                 data=f"cfg_modules_bool_{module_name}__{key}__{page}".encode(),
-                                style=toggle_style
+                                style=toggle_style,
                             )
                         ]
                     )
                 else:
                     # Edit button
-                    buttons.append([
-                        Button.switch_inline(
-                            text=t('btn_edit'),
-                            query=f"fcfg module {module_name} set {key_id} ",
-                            same_peer=True,
-                            style="primary"
-                        )
-                    ])
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_edit"),
+                                query=f"fcfg module {module_name} set {key_id} ",
+                                same_peer=True,
+                                style="primary",
+                            )
+                        ]
+                    )
 
                 # List/Dict operation buttons
                 if value_type == "list":
-                    buttons.append([
-                        Button.switch_inline(
-                            text=t('btn_list_add'),
-                            query=f"fcfg module {module_name} list add {key_id} ",
-                            same_peer=True,
-                            style="success"
-                        )
-                    ])
-                    buttons.append([
-                        Button.switch_inline(
-                            text=t('btn_list_del'),
-                            query=f"fcfg module {module_name} list del {key_id}",
-                            same_peer=True,
-                            style="danger"
-                        )
-                    ])
-                    buttons.append([
-                        Button.switch_inline(
-                            text=t('btn_list_set'),
-                            query=f"fcfg module {module_name} list set {key_id} ",
-                            same_peer=True,
-                            style="primary"
-                        )
-                    ])
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_list_add"),
+                                query=f"fcfg module {module_name} list add {key_id} ",
+                                same_peer=True,
+                                style="success",
+                            )
+                        ]
+                    )
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_list_del"),
+                                query=f"fcfg module {module_name} list del {key_id}",
+                                same_peer=True,
+                                style="danger",
+                            )
+                        ]
+                    )
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_list_set"),
+                                query=f"fcfg module {module_name} list set {key_id} ",
+                                same_peer=True,
+                                style="primary",
+                            )
+                        ]
+                    )
                 elif value_type == "dict":
-                    buttons.append([
-                        Button.switch_inline(
-                            text=t('btn_dict_add'),
-                            query=f"fcfg module {module_name} dict add {key_id} ",
-                            same_peer=True,
-                            style="success"
-                        )
-                    ])
-                    buttons.append([
-                        Button.switch_inline(
-                            text=t('btn_dict_del'),
-                            query=f"fcfg module {module_name} dict del {key_id}",
-                            same_peer=True,
-                            style="danger"
-                        )
-                    ])
-                    buttons.append([
-                        Button.switch_inline(
-                            text=t('btn_dict_set'),
-                            query=f"fcfg module {module_name} dict set {key_id} ",
-                            same_peer=True,
-                            style="primary"
-                        )
-                    ])
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_dict_add"),
+                                query=f"fcfg module {module_name} dict add {key_id} ",
+                                same_peer=True,
+                                style="success",
+                            )
+                        ]
+                    )
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_dict_del"),
+                                query=f"fcfg module {module_name} dict del {key_id}",
+                                same_peer=True,
+                                style="danger",
+                            )
+                        ]
+                    )
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_dict_set"),
+                                query=f"fcfg module {module_name} dict set {key_id} ",
+                                same_peer=True,
+                                style="primary",
+                            )
+                        ]
+                    )
 
                 # Navigation buttons
                 nav_buttons = [
                     Button.inline(
-                        t('btn_back_simple'),
+                        t("btn_back_simple"),
                         data=f"module_cfg_page_{module_name}__{page}".encode(),
                     ),
                     Button.inline(
                         "🔄",
                         data=f"cfg_module_reveal_{key_id}".encode(),
-                    )
+                    ),
                 ]
                 buttons.append(nav_buttons)
 
-                buttons.append([
-                    Button.inline("❌ Close", data=b"cfg_close", style="danger")
-                ])
+                buttons.append(
+                    [Button.inline("❌ Close", data=b"cfg_close", style="danger")]
+                )
 
                 await event.edit(text, buttons=buttons, parse_mode="html")
                 await event.answer("👁️ Значение раскрыто", alert=False)
@@ -2367,7 +2740,7 @@ def register(kernel):
             except Exception as e:
                 await event.answer(str(e)[:50], alert=True)
 
-    @kernel.register.command('cfg')
+    @kernel.register.command("cfg")
     # <subcommand/None> <key>
     async def cfg_handler(event):
         await ensure_config_initialized()
@@ -2380,9 +2753,7 @@ def register(kernel):
                 ):
                     try:
                         bot_username = kernel.config.get("inline_bot_username")
-                        results = await kernel.client.inline_query(
-                            bot_username, "cfg"
-                        )
+                        results = await kernel.client.inline_query(bot_username, "cfg")
                         if results:
                             await results[0].click(
                                 event.chat_id, reply_to=event.reply_to_msg_id
@@ -2392,7 +2763,7 @@ def register(kernel):
                     except:
                         pass
                 await event.edit(
-                    t('cfg_usage', gear=emoji_provider['⚙️']),
+                    t("cfg_usage", gear=emoji_provider["⚙️"]),
                     parse_mode="html",
                 )
 
@@ -2402,13 +2773,13 @@ def register(kernel):
 
                 if is_key_hidden(key):
                     await event.edit(
-                        t('hidden_key', briefcase=emoji_provider['💼'], key=key),
+                        t("hidden_key", briefcase=emoji_provider["💼"], key=key),
                         parse_mode="html",
                     )
                     return
                 if key not in kernel.config:
                     await event.edit(
-                        t('key_not_found', ballot=emoji_provider['🗳'], key=key),
+                        t("key_not_found", ballot=emoji_provider["🗳"], key=key),
                         parse_mode="html",
                     )
                     return
@@ -2425,12 +2796,14 @@ def register(kernel):
                     display_value = f"<code>{html.escape(str(value))}</code>"
 
                 await event.edit(
-                    t('key_view',
-                      note=emoji_provider['📝'],
-                      key=key,
-                      type_emoji=get_type_emoji(value_type),
-                      value_type=value_type,
-                      display_value=display_value),
+                    t(
+                        "key_view",
+                        note=emoji_provider["📝"],
+                        key=key,
+                        type_emoji=get_type_emoji(value_type),
+                        value_type=value_type,
+                        display_value=display_value,
+                    ),
                     parse_mode="html",
                 )
 
@@ -2441,13 +2814,13 @@ def register(kernel):
                 if subcommand == "now":
                     if is_key_hidden(key):
                         await event.edit(
-                            t('hidden_key', briefcase=emoji_provider['💼'], key=key),
+                            t("hidden_key", briefcase=emoji_provider["💼"], key=key),
                             parse_mode="html",
                         )
                         return
                     if key not in kernel.config:
                         await event.edit(
-                            t('key_not_found', ballot=emoji_provider['🗳'], key=key),
+                            t("key_not_found", ballot=emoji_provider["🗳"], key=key),
                             parse_mode="html",
                         )
                         return
@@ -2464,19 +2837,22 @@ def register(kernel):
                         display_value = f"<code>{html.escape(str(value))}</code>"
 
                     await event.edit(
-                        t('key_view',
-                          note=emoji_provider['📝'],
-                          key=key,
-                          type_emoji=get_type_emoji(value_type),
-                          value_type=value_type,
-                          display_value=display_value),
+                        t(
+                            "key_view",
+                            note=emoji_provider["📝"],
+                            key=key,
+                            type_emoji=get_type_emoji(value_type),
+                            value_type=value_type,
+                            display_value=display_value,
+                        ),
                         parse_mode="html",
                     )
 
                 elif subcommand == "hide":
                     if key in SENSITIVE_KEYS:
                         await event.edit(
-                            t('system_key', paperclip=emoji_provider['📎']), parse_mode="html"
+                            t("system_key", paperclip=emoji_provider["📎"]),
+                            parse_mode="html",
                         )
                         return
                     hidden = kernel.config.get("hidden_keys", [])
@@ -2485,7 +2861,7 @@ def register(kernel):
                         kernel.config["hidden_keys"] = hidden
                         await save_config()
                     await event.edit(
-                        t('hidden_key', briefcase=emoji_provider['💼'], key=key),
+                        t("hidden_key", briefcase=emoji_provider["💼"], key=key),
                         parse_mode="html",
                     )
 
@@ -2496,28 +2872,27 @@ def register(kernel):
                         kernel.config["hidden_keys"] = hidden
                         await save_config()
                     await event.edit(
-                        t('visible_key', book=emoji_provider['📖'], key=key),
+                        t("visible_key", book=emoji_provider["📖"], key=key),
                         parse_mode="html",
                     )
                 else:
                     # Неизвестная субкоманда
                     await event.edit(
-                        t('cfg_usage', gear=emoji_provider['⚙️']),
+                        t("cfg_usage", gear=emoji_provider["⚙️"]),
                         parse_mode="html",
                     )
         except Exception as e:
             await kernel.handle_error(e, source="cfg", event=event)
 
-    @kernel.register.command('fcfg')
+    @kernel.register.command("fcfg")
     # <list/dict/set/add> <key/subkey> <key/None>
     async def fcfg_handler(event):
         await ensure_config_initialized()
         try:
-
             args = event.text.split()
             if len(args) < 2:
                 await event.edit(
-                    t('fcfg_usage', gear=emoji_provider['⚙️']),
+                    t("fcfg_usage", gear=emoji_provider["⚙️"]),
                     parse_mode="html",
                 )
                 return
@@ -2531,7 +2906,7 @@ def register(kernel):
             if action == "module":
                 if len(args) < 4:
                     await event.edit(
-                        t('fcfg_module_usage', cross=emoji_provider['❌']),
+                        t("fcfg_module_usage", cross=emoji_provider["❌"]),
                         parse_mode="html",
                     )
                     return
@@ -2547,7 +2922,7 @@ def register(kernel):
                 m_index = args.index("-m")
                 if len(args) <= m_index + 1:
                     await event.edit(
-                        t('specify_module', cross=emoji_provider['❌']),
+                        t("specify_module", cross=emoji_provider["❌"]),
                         parse_mode="html",
                     )
                     return
@@ -2565,7 +2940,8 @@ def register(kernel):
             if action == "set":
                 if len(args) < 4:
                     await event.edit(
-                        t('not_enough_args', cross=emoji_provider['❌']), parse_mode="html"
+                        t("not_enough_args", cross=emoji_provider["❌"]),
+                        parse_mode="html",
                     )
                     return
 
@@ -2573,7 +2949,7 @@ def register(kernel):
                 _raw = event.text
                 _key_pos = _raw.find(key, _raw.find(args[1]))
                 if _key_pos != -1:
-                    _after_key = _raw[_key_pos + len(key):].lstrip(' \t')
+                    _after_key = _raw[_key_pos + len(key) :].lstrip(" \t")
                     value_str = strip_formatting(_after_key.strip())
                 else:
                     value_str = strip_formatting(" ".join(args[3:]).strip())
@@ -2594,7 +2970,9 @@ def register(kernel):
 
                             try:
                                 module_config[key] = value  # This will validate
-                                await kernel.save_module_config(module_name, module_config.to_dict())
+                                await kernel.save_module_config(
+                                    module_name, module_config.to_dict()
+                                )
                             except ValidationError as ve:
                                 await event.edit(
                                     f"{emoji_provider['❌']} Validation error: {html.escape(str(ve))}",
@@ -2616,11 +2994,13 @@ def register(kernel):
                         if isinstance(value, str):
                             display_value = value.replace("\n", "\\n")
                         await event.edit(
-                            t('set_module_success',
-                              check=emoji_provider['✅'],
-                              module=module_name,
-                              key=key,
-                              value=html.escape(str(display_value))),
+                            t(
+                                "set_module_success",
+                                check=emoji_provider["✅"],
+                                module=module_name,
+                                key=key,
+                                value=html.escape(str(display_value)),
+                            ),
                             parse_mode="html",
                         )
                     except Exception as e:
@@ -2631,7 +3011,8 @@ def register(kernel):
                 else:
                     if key in SENSITIVE_KEYS:
                         await event.edit(
-                            t('protected_key', cross=emoji_provider['❌']), parse_mode="html"
+                            t("protected_key", cross=emoji_provider["❌"]),
+                            parse_mode="html",
                         )
                         return
                     try:
@@ -2647,10 +3028,12 @@ def register(kernel):
                         if isinstance(value, str):
                             display_value = value.replace("\n", "\\n")
                         await event.edit(
-                            t('set_success',
-                              check=emoji_provider['✅'],
-                              key=key,
-                              value=html.escape(str(display_value))),
+                            t(
+                                "set_success",
+                                check=emoji_provider["✅"],
+                                key=key,
+                                value=html.escape(str(display_value)),
+                            ),
                             parse_mode="html",
                         )
                     except Exception as e:
@@ -2662,7 +3045,8 @@ def register(kernel):
             elif action == "del":
                 if len(args) < 3:
                     await event.edit(
-                        t('not_enough_args', cross=emoji_provider['❌']), parse_mode="html"
+                        t("not_enough_args", cross=emoji_provider["❌"]),
+                        parse_mode="html",
                     )
                     return
 
@@ -2674,21 +3058,24 @@ def register(kernel):
                         module_config.pop(key)
                         await kernel.save_module_config(module_name, module_config)
                         await event.edit(
-                            t('delete_module_success',
-                              ballot=emoji_provider['🗳'],
-                              module=module_name,
-                              key=key),
+                            t(
+                                "delete_module_success",
+                                ballot=emoji_provider["🗳"],
+                                module=module_name,
+                                key=key,
+                            ),
                             parse_mode="html",
                         )
                     else:
                         await event.edit(
-                            t('not_found_in_module', cross=emoji_provider['❌']),
+                            t("not_found_in_module", cross=emoji_provider["❌"]),
                             parse_mode="html",
                         )
                 else:
                     if key in SENSITIVE_KEYS:
                         await event.edit(
-                            t('protected_key', cross=emoji_provider['❌']), parse_mode="html"
+                            t("protected_key", cross=emoji_provider["❌"]),
+                            parse_mode="html",
                         )
                         return
                     if key in kernel.config:
@@ -2697,20 +3084,20 @@ def register(kernel):
                             kernel.config["hidden_keys"].remove(key)
                         await save_config()
                         await event.edit(
-                            t('delete_success',
-                              ballot=emoji_provider['🗳'],
-                              key=key),
+                            t("delete_success", ballot=emoji_provider["🗳"], key=key),
                             parse_mode="html",
                         )
                     else:
                         await event.edit(
-                            t('not_found', cross=emoji_provider['❌']), parse_mode="html"
+                            t("not_found", cross=emoji_provider["❌"]),
+                            parse_mode="html",
                         )
 
             elif action == "add":
                 if len(args) < 4:
                     await event.edit(
-                        t('not_enough_args', cross=emoji_provider['❌']), parse_mode="html"
+                        t("not_enough_args", cross=emoji_provider["❌"]),
+                        parse_mode="html",
                     )
                     return
 
@@ -2718,7 +3105,7 @@ def register(kernel):
                 _raw = event.text
                 _key_pos = _raw.find(key, _raw.find(args[1]))
                 if _key_pos != -1:
-                    _after_key = _raw[_key_pos + len(key):].lstrip(' \t')
+                    _after_key = _raw[_key_pos + len(key) :].lstrip(" \t")
                     value_str = strip_formatting(_after_key.strip())
                 else:
                     value_str = strip_formatting(" ".join(args[3:]).strip())
@@ -2727,7 +3114,7 @@ def register(kernel):
                     module_config = await kernel.get_module_config(module_name, {})
                     if key in module_config:
                         await event.edit(
-                            t('key_exists', cross=emoji_provider['❌']),
+                            t("key_exists", cross=emoji_provider["❌"]),
                             parse_mode="html",
                         )
                         return
@@ -2736,10 +3123,12 @@ def register(kernel):
                         module_config[key] = value
                         await kernel.save_module_config(module_name, module_config)
                         await event.edit(
-                            t('add_module_success',
-                              check=emoji_provider['✅'],
-                              module=module_name,
-                              key=key),
+                            t(
+                                "add_module_success",
+                                check=emoji_provider["✅"],
+                                module=module_name,
+                                key=key,
+                            ),
                             parse_mode="html",
                         )
                     except Exception as e:
@@ -2750,7 +3139,8 @@ def register(kernel):
                 else:
                     if key in kernel.config:
                         await event.edit(
-                            t('key_exists', cross=emoji_provider['❌']), parse_mode="html"
+                            t("key_exists", cross=emoji_provider["❌"]),
+                            parse_mode="html",
                         )
                         return
                     try:
@@ -2758,9 +3148,7 @@ def register(kernel):
                         kernel.config[key] = value
                         await save_config()
                         await event.edit(
-                            t('add_success',
-                              check=emoji_provider['✅'],
-                              key=key),
+                            t("add_success", check=emoji_provider["✅"], key=key),
                             parse_mode="html",
                         )
                     except Exception as e:
@@ -2772,7 +3160,8 @@ def register(kernel):
             elif action == "dict":
                 if len(args) < 5:
                     await event.edit(
-                        t('not_enough_args', cross=emoji_provider['❌']), parse_mode="html"
+                        t("not_enough_args", cross=emoji_provider["❌"]),
+                        parse_mode="html",
                     )
                     return
 
@@ -2780,7 +3169,7 @@ def register(kernel):
                 _raw = event.text
                 _subkey_pos = _raw.find(subkey, _raw.find(key))
                 if _subkey_pos != -1:
-                    _after_subkey = _raw[_subkey_pos + len(subkey):].lstrip(' \t')
+                    _after_subkey = _raw[_subkey_pos + len(subkey) :].lstrip(" \t")
                     value_str = strip_formatting(_after_subkey.strip())
                 else:
                     value_str = strip_formatting(" ".join(args[4:]).strip())
@@ -2795,23 +3184,27 @@ def register(kernel):
 
                         if is_new_format:
                             if key not in module_config.keys():
-                                module_config._values[key] = ModuleConfig.ConfigValue(key, {})
+                                module_config._values[key] = ModuleConfig.ConfigValue(
+                                    key, {}
+                                )
                             current_value = module_config[key]
                             if not isinstance(current_value, dict):
                                 await event.edit(
-                                    t('not_dict', cross=emoji_provider['❌']),
+                                    t("not_dict", cross=emoji_provider["❌"]),
                                     parse_mode="html",
                                 )
                                 return
                             current_value[subkey] = parse_value(value_str)
                             module_config[key] = current_value
-                            await kernel.save_module_config(module_name, module_config.to_dict())
+                            await kernel.save_module_config(
+                                module_name, module_config.to_dict()
+                            )
                         else:
                             if key not in module_config:
                                 module_config[key] = {}
                             if not isinstance(module_config[key], dict):
                                 await event.edit(
-                                    t('not_dict', cross=emoji_provider['❌']),
+                                    t("not_dict", cross=emoji_provider["❌"]),
                                     parse_mode="html",
                                 )
                                 return
@@ -2819,11 +3212,13 @@ def register(kernel):
                             await kernel.save_module_config(module_name, module_config)
 
                         await event.edit(
-                            t('dict_module_success',
-                              check=emoji_provider['✅'],
-                              module=module_name,
-                              key=key,
-                              subkey=subkey),
+                            t(
+                                "dict_module_success",
+                                check=emoji_provider["✅"],
+                                module=module_name,
+                                key=key,
+                                subkey=subkey,
+                            ),
                             parse_mode="html",
                         )
                     except Exception as e:
@@ -2837,17 +3232,19 @@ def register(kernel):
                             kernel.config[key] = {}
                         if not isinstance(kernel.config[key], dict):
                             await event.edit(
-                                t('not_dict', cross=emoji_provider['❌']),
+                                t("not_dict", cross=emoji_provider["❌"]),
                                 parse_mode="html",
                             )
                             return
                         kernel.config[key][subkey] = parse_value(value_str)
                         await save_config()
                         await event.edit(
-                            t('dict_success',
-                              check=emoji_provider['✅'],
-                              key=key,
-                              subkey=subkey),
+                            t(
+                                "dict_success",
+                                check=emoji_provider["✅"],
+                                key=key,
+                                subkey=subkey,
+                            ),
                             parse_mode="html",
                         )
                     except Exception as e:
@@ -2859,7 +3256,8 @@ def register(kernel):
             elif action == "list":
                 if len(args) < 4:
                     await event.edit(
-                        t('not_enough_args', cross=emoji_provider['❌']), parse_mode="html"
+                        t("not_enough_args", cross=emoji_provider["❌"]),
+                        parse_mode="html",
                     )
                     return
 
@@ -2867,7 +3265,7 @@ def register(kernel):
                 _raw = event.text
                 _key_pos2 = _raw.find(key, _raw.find(args[1]))
                 if _key_pos2 != -1:
-                    _after_key2 = _raw[_key_pos2 + len(key):].lstrip(' \t')
+                    _after_key2 = _raw[_key_pos2 + len(key) :].lstrip(" \t")
                     value_str = strip_formatting(_after_key2.strip())
                 else:
                     value_str = strip_formatting(" ".join(args[3:]).strip())
@@ -2883,23 +3281,26 @@ def register(kernel):
                         if is_new_format:
                             if key not in module_config.keys():
                                 from core.lib.module_config import ConfigValue
+
                                 module_config._values[key] = ConfigValue(key, [])
                             current_value = module_config[key]
                             if not isinstance(current_value, list):
                                 await event.edit(
-                                    t('not_list', cross=emoji_provider['❌']),
+                                    t("not_list", cross=emoji_provider["❌"]),
                                     parse_mode="html",
                                 )
                                 return
                             current_value.append(parse_value(value_str))
                             module_config[key] = current_value
-                            await kernel.save_module_config(module_name, module_config.to_dict())
+                            await kernel.save_module_config(
+                                module_name, module_config.to_dict()
+                            )
                         else:
                             if key not in module_config:
                                 module_config[key] = []
                             if not isinstance(module_config[key], list):
                                 await event.edit(
-                                    t('not_list', cross=emoji_provider['❌']),
+                                    t("not_list", cross=emoji_provider["❌"]),
                                     parse_mode="html",
                                 )
                                 return
@@ -2907,10 +3308,12 @@ def register(kernel):
                             await kernel.save_module_config(module_name, module_config)
 
                         await event.edit(
-                            t('list_module_success',
-                              check=emoji_provider['✅'],
-                              module=module_name,
-                              key=key),
+                            t(
+                                "list_module_success",
+                                check=emoji_provider["✅"],
+                                module=module_name,
+                                key=key,
+                            ),
                             parse_mode="html",
                         )
                     except Exception as e:
@@ -2924,16 +3327,14 @@ def register(kernel):
                             kernel.config[key] = []
                         if not isinstance(kernel.config[key], list):
                             await event.edit(
-                                t('not_list', cross=emoji_provider['❌']),
+                                t("not_list", cross=emoji_provider["❌"]),
                                 parse_mode="html",
                             )
                             return
                         kernel.config[key].append(parse_value(value_str))
                         await save_config()
                         await event.edit(
-                            t('list_success',
-                              check=emoji_provider['✅'],
-                              key=key),
+                            t("list_success", check=emoji_provider["✅"], key=key),
                             parse_mode="html",
                         )
                     except Exception as e:
@@ -2964,7 +3365,8 @@ def register(kernel):
     kernel.register_callback_handler("cfg_module_reveal_", config_callback_handler)
     kernel.register_callback_handler("cfg_close", config_callback_handler)
 
-    if hasattr(kernel, 'bot_client') and kernel.bot_client:
+    if hasattr(kernel, "bot_client") and kernel.bot_client:
+
         @kernel.bot_client.on(events.Raw(types.UpdateBotInlineSend))
         async def handle_chosen_result(event):
             await chosen_result_handler(event)

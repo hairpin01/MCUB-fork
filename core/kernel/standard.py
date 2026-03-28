@@ -830,7 +830,13 @@ class Kernel:
             return await self.process_command(event, depth + 1)
 
         if cmd in self.command_handlers:
-            await self.command_handlers[cmd](event)
+            handler = self.command_handlers[cmd]
+            if not callable(handler):
+                self.logger.warning(
+                    f"Command handler for '{cmd}' is not callable, skipping"
+                )
+                return False
+            await handler(event)
             return True
 
         return False

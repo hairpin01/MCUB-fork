@@ -2388,10 +2388,11 @@ class Module:
     def __init__(self):
         pass
 
-    def _mcub_bind(self, kernel) -> None:
+    def _mcub_bind(self, kernel, module_type: str = "native") -> None:
         from .client import FakeClient
 
         self._kernel = kernel
+        self._module_type = module_type
 
         if not hasattr(kernel, "_hikka_compat_inline_proxy"):
             inline_proxy = InlineProxy(kernel)
@@ -2401,7 +2402,8 @@ class Module:
 
         inline_proxy._bind_module(self)
 
-        self.client = FakeClient(kernel.client, inline_proxy)
+        is_hikka = module_type == "hikka"
+        self.client = FakeClient(kernel.client, inline_proxy, is_hikka=is_hikka)
         self._client = self.client
 
         if getattr(self._client._client, "dispatcher", None) is None:

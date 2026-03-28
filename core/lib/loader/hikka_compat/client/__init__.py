@@ -2,20 +2,19 @@ import typing
 
 
 class FakeClient:
-    """Wrapper for TelegramClient to add default parse_mode='html' for hikka modules."""
+    """Wrapper for TelegramClient.
 
-    def __init__(self, client, inline_proxy=None):
+    For hikka modules: injects parse_mode='html' per-call without touching the
+    underlying client object (so native mcub modules that share the same
+    kernel.client are not affected).
+    """
+
+    def __init__(self, client, inline_proxy=None, is_hikka: bool = False):
         self._client = client
         self._inline_proxy = inline_proxy
-        self._patched = getattr(client, "_hikka_compat_patched", False)
-        if not self._patched:
-            self._patch()
-
-    def _patch(self):
-        client = self._client
-        client.parse_mode = "html"
-        client._hikka_compat_patched = True
-        self._patched = True
+        self._is_hikka = is_hikka
+        # per-instance default; never written to the real Telethon client
+        self._default_parse_mode: typing.Optional[str] = "html" if is_hikka else None
 
     async def send_message(
         self,
@@ -24,8 +23,8 @@ class FakeClient:
         *args,
         **kwargs,
     ) -> typing.Any:
-        if "parse_mode" not in kwargs:
-            kwargs["parse_mode"] = "html"
+        if self._default_parse_mode is not None and "parse_mode" not in kwargs:
+            kwargs["parse_mode"] = self._default_parse_mode
         return await self._client.send_message(entity, message, *args, **kwargs)
 
     async def send_file(
@@ -35,8 +34,8 @@ class FakeClient:
         *args,
         **kwargs,
     ) -> typing.Any:
-        if "parse_mode" not in kwargs:
-            kwargs["parse_mode"] = "html"
+        if self._default_parse_mode is not None and "parse_mode" not in kwargs:
+            kwargs["parse_mode"] = self._default_parse_mode
         return await self._client.send_file(entity, file, *args, **kwargs)
 
     async def edit_message(
@@ -46,8 +45,8 @@ class FakeClient:
         *args,
         **kwargs,
     ) -> typing.Any:
-        if "parse_mode" not in kwargs:
-            kwargs["parse_mode"] = "html"
+        if self._default_parse_mode is not None and "parse_mode" not in kwargs:
+            kwargs["parse_mode"] = self._default_parse_mode
         return await self._client.edit_message(entity, message, *args, **kwargs)
 
     async def forward_messages(

@@ -1674,7 +1674,7 @@ async def load_hikka_module(
         del sys.modules[child_pkg]
         return False, f"Error instantiating {cls.__name__}: {e}", {}
 
-    instance._mcub_bind(kernel)
+    instance._mcub_bind(kernel, module_type)
 
     db_proxy = getattr(instance, "db", None)
     if db_proxy is not None and getattr(kernel, "db_manager", None):

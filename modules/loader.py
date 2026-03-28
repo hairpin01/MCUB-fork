@@ -2035,32 +2035,6 @@ def register(kernel):
                 msg, t("reload_error", warning=CUSTOM_EMOJI["warning"])
             )
 
-    @kernel.register.command("modules")
-    async def modules_list_handler(event):
-        """list lodules"""
-        await log_to_bot("🔷 Просмотр списка модулей")
-
-        if not kernel.loaded_modules and not kernel.system_modules:
-            await edit_with_emoji(event, t("no_modules", folder=CUSTOM_EMOJI["folder"]))
-            return
-
-        msg = t("loaded_modules", crystal=CUSTOM_EMOJI["crystal"])
-
-        if kernel.system_modules:
-            msg += t("system_modules", shield=CUSTOM_EMOJI["shield"])
-            for name in sorted(kernel.system_modules.keys()):
-                commands, _, _ = get_module_commands(name, kernel)
-                msg += t("module_line", name=name, count=len(commands))
-            msg += "\n"
-
-        if kernel.loaded_modules:
-            msg += t("user_modules", sparkle=CUSTOM_EMOJI["sparkle"])
-            for name in sorted(kernel.loaded_modules.keys()):
-                commands, _, _ = get_module_commands(name, kernel)
-                msg += t("module_line", name=name, count=len(commands))
-
-        await edit_with_emoji(event, msg)
-
     @kernel.register.command("addrepo")
     # <URL> добавить репо
     async def add_repo_handler(event):

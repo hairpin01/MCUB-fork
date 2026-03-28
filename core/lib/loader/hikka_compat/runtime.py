@@ -2392,8 +2392,15 @@ class Module:
         from .client import FakeClient
 
         self._kernel = kernel
-        inline_proxy = InlineProxy(kernel)
+
+        if not hasattr(kernel, "_hikka_compat_inline_proxy"):
+            inline_proxy = InlineProxy(kernel)
+            setattr(kernel, "_hikka_compat_inline_proxy", inline_proxy)
+        else:
+            inline_proxy = kernel._hikka_compat_inline_proxy
+
         inline_proxy._bind_module(self)
+
         self.client = FakeClient(kernel.client, inline_proxy)
         self._client = self.client
 

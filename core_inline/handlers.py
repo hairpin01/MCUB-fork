@@ -427,16 +427,7 @@ class InlineHandlers:
                     return
 
                 else:
-                    # Route to a registered inline handler or echo the query
-                    for pattern, handler in self.kernel.inline_handlers.items():
-                        if query.startswith(pattern):
-                            await handler(event)
-                            return
-
-                    builder = event.builder.article(
-                        "Message", text=query, parse_mode="html"
-                    )
-                    await event.answer([builder])
+                    pass
 
             except Exception as e:
                 error_traceback = "".join(

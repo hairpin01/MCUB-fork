@@ -8,6 +8,44 @@ if typing.TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+class CompatMessage:
+    """Wrapper for Telethon Message to add HTML formatting support for hikka modules."""
+
+    def __init__(self, message):
+        self._message = message
+
+    def __getattr__(self, name: str):
+        return getattr(self._message, name)
+
+    @property
+    def text(self):
+        raw_text = getattr(self._message, "raw_text", None) or ""
+        entities = getattr(self._message, "entities", None) or []
+        try:
+            from telethon.extensions import html as telethon_html
+            import html
+
+            text = telethon_html.parse(raw_text, entities)
+            return html.unescape(text)
+        except Exception:
+            return raw_text
+
+    async def edit(self, *args, **kwargs):
+        if "parse_mode" not in kwargs:
+            kwargs["parse_mode"] = "html"
+        return await self._message.edit(*args, **kwargs)
+
+    async def respond(self, *args, **kwargs):
+        if "parse_mode" not in kwargs:
+            kwargs["parse_mode"] = "html"
+        return await self._message.respond(*args, **kwargs)
+
+    async def reply(self, *args, **kwargs):
+        if "parse_mode" not in kwargs:
+            kwargs["parse_mode"] = "html"
+        return await self._message.reply(*args, **kwargs)
+
+
 def _resolve_inline_manager(inline_proxy):
     if inline_proxy is None:
         return None
@@ -348,24 +386,52 @@ class InlineQuery:
 
     def __init__(
         self,
-        query_id: str,
-        query: str,
-        offset: str,
-        user_id: int,
-        inline_proxy: "_InlineProxy",
+        query_id: str = None,
+        query: str = "",
+        offset: str = "",
+        user_id: int = None,
+        inline_proxy: "_InlineProxy" = None,
+        original_event=None,
+        inline_query=None,
     ):
-        self.query_id = query_id
-        self.query = query
-        self.offset = offset
-        self.from_user = types.SimpleNamespace(id=user_id, username="")
-        self._inline_proxy = inline_proxy
+        if inline_query is not None:
+            self.query_id = getattr(inline_query, "query_id", None) or getattr(
+                inline_query, "id", None
+            )
+            self.query = getattr(inline_query, "query", "") or getattr(
+                inline_query, "text", ""
+            )
+            self.offset = getattr(inline_query, "offset", "") or ""
+            from_user = getattr(inline_query, "from_user", None)
+            self.from_user = (
+                from_user
+                if from_user
+                else types.SimpleNamespace(id=user_id or 0, username="")
+            )
+            self._original_event = inline_query
+            self._inline_proxy = inline_proxy
+        else:
+            self.query_id = query_id
+            self.query = query
+            self.offset = offset
+            self.from_user = (
+                types.SimpleNamespace(id=user_id, username="")
+                if user_id
+                else types.SimpleNamespace(id=0, username="")
+            )
+            self._original_event = original_event
+            self._inline_proxy = inline_proxy
+
         self.args: str = ""
         self.inline_query = types.SimpleNamespace(
-            query_id=query_id, query=query, offset=offset, from_user=self.from_user
+            query_id=self.query_id,
+            query=self.query,
+            offset=self.offset,
+            from_user=self.from_user,
         )
 
-        if query:
-            parts = query.split(maxsplit=1)
+        if self.query:
+            parts = self.query.split(maxsplit=1)
             if len(parts) > 1:
                 self.args = parts[1]
 
@@ -373,12 +439,64 @@ class InlineQuery:
     def id(self) -> str:
         return self.query_id
 
+    @property
+    def text(self) -> str:
+        return self.query
+
+    @text.setter
+    def text(self, value: str) -> None:
+        self.query = value
+
+    @property
+    def builder(self):
+        return _InlineQueryBuilder(self)
+
     async def answer(
         self,
-        results: typing.List[dict],
+        results: typing.List[dict] = None,
         cache_time: int = 300,
     ) -> None:
-        pass
+        if results is None:
+            results = []
+
+        processed_results = []
+        for result in results:
+            if isinstance(result, dict):
+                processed_results.append(result)
+            elif hasattr(result, "__iter__"):
+                processed_results.extend(result)
+
+        if self._original_event is not None:
+            try:
+                await self._original_event.answer(
+                    processed_results, cache_time=cache_time
+                )
+            except Exception:
+                pass
+
+
+class _InlineQueryBuilder:
+    def __init__(self, inline_query: InlineQuery):
+        self._inline_query = inline_query
+
+    def article(
+        self,
+        title: str,
+        text: str = "",
+        description: str = None,
+        thumb: str = None,
+        **kwargs,
+    ):
+        result = {
+            "title": title,
+            "message": text,
+        }
+        if description:
+            result["description"] = description
+        if thumb:
+            result["thumb_url"] = thumb
+        result.update(kwargs)
+        return result
 
     async def e400(self) -> None:
         await self.answer(

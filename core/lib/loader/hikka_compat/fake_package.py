@@ -355,32 +355,6 @@ def _create_types_stub(parent_pkg_name: str) -> types.ModuleType:
         "get_callback_handlers": get_callback_handlers,
         "get_watchers": get_watchers,
     }
-    try:
-        import html
-        from telethon.tl.types import Message as _Message
-        from telethon.extensions import html as telethon_html
-
-        _original_edit = _Message.edit
-
-        async def _wrapped_edit(self, *args, **kwargs):
-            if "parse_mode" not in kwargs:
-                kwargs["parse_mode"] = "html"
-            return await _original_edit(self, *args, **kwargs)
-
-        def _get_html_text(self):
-            raw_text = getattr(self, "raw_text", None) or ""
-            entities = getattr(self, "entities", None) or []
-            try:
-                text = telethon_html.parse(raw_text, entities)
-            except Exception:
-                text = raw_text
-            return html.unescape(text)
-
-        _Message.edit = _wrapped_edit
-        _Message.text = property(_get_html_text)
-        exported["Message"] = _Message
-    except Exception:
-        pass
     for k, v in exported.items():
         setattr(types_mod, k, v)
     try:
@@ -1781,7 +1755,12 @@ async def load_hikka_module(
                 @kernel.client.on(event_type)
                 async def _on_wrapper(event, _m=method):
                     try:
-                        await _m(event)
+                        from .inline_types import CompatMessage
+
+                        wrapped_event = (
+                            CompatMessage(event) if hasattr(event, "edit") else event
+                        )
+                        await _m(wrapped_event)
                     except Exception as _e:
                         kernel.logger.error(
                             f"[hikka_compat] @on handler error in {module_name}: {_e}"
@@ -1798,7 +1777,18 @@ async def load_hikka_module(
             continue
 
         try:
-            kernel.register_command(cmd_name, method)
+            from .inline_types import CompatMessage
+
+            async def _wrapped_handler(event):
+                from .inline_types import CompatMessage
+
+                wrapped_event = (
+                    CompatMessage(event) if hasattr(event, "edit") else event
+                )
+                return await _maybe_await(method(wrapped_event))
+
+            _wrapped_handler._original = method
+            kernel.register_command(cmd_name, _wrapped_handler)
             registered_cmds.append(cmd_name)
             alias = getattr(method, "alias", None)
             if alias:
@@ -1879,6 +1869,12 @@ async def load_hikka_module(
 
             for _handler in _handlers:
                 try:
+                    from .inline_types import CompatMessage
+
+                    if hasattr(call_obj, "message") and call_obj.message is not None:
+                        orig_msg = getattr(call_obj.message, "_message", None)
+                        if orig_msg is not None:
+                            call_obj.message = CompatMessage(orig_msg)
                     await _maybe_await(_handler(call_obj))
                 except Exception as _e:
                     kernel.logger.error(
@@ -1906,7 +1902,12 @@ async def load_hikka_module(
                 if not _watcher_passes_filters(event, _tags, kernel):
                     return
                 try:
-                    await _maybe_await(_wm(event))
+                    from .inline_types import CompatMessage
+
+                    wrapped_event = (
+                        CompatMessage(event) if hasattr(event, "edit") else event
+                    )
+                    await _maybe_await(_wm(wrapped_event))
                 except Exception as _e:
                     kernel.logger.error(f"[hikka_compat] watcher error in {_mn}: {_e}")
 

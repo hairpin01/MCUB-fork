@@ -1,3 +1,4 @@
+import asyncio
 import html
 import json
 import time
@@ -315,6 +316,24 @@ class InlineHandlers:
                             "Message", text=text, parse_mode="html"
                         )
 
+                # Check for user-defined inline handlers
+                query_cmd = query.lower().split()[0] if query.strip() else ""
+                if query_cmd in self.kernel.inline_handlers:
+                    try:
+                        handler = self.kernel.inline_handlers[query_cmd]
+                        result = await handler(event)
+                        if result:
+                            if asyncio.iscoroutine(result):
+                                result = await result
+                            await event.answer(result)
+                            return
+                    except Exception as e:
+                        import traceback
+
+                        self.kernel.logger.error(
+                            f"User inline handler error for {query_cmd}: {traceback.format_exc()}"
+                        )
+
                 elif query.startswith("form_"):
                     form_data = self.get_inline_form(query)
                     if form_data:
@@ -426,17 +445,40 @@ class InlineHandlers:
                         )
                     return
 
-                else:
-                    # Route to a registered inline handler or echo the query
-                    for pattern, handler in self.kernel.inline_handlers.items():
-                        if query.startswith(pattern):
-                            await handler(event)
-                            return
+                # Check for user-defined inline handlers
+                query_lower = query.lower().split()[0] if query.strip() else ""
+                if query_lower in self.kernel.inline_handlers:
+                    try:
+                        handler = self.kernel.inline_handlers[query_lower]
+                        from core.lib.loader.hikka_compat.inline_types import (
+                            InlineQuery as _HikkaInlineQuery,
+                        )
 
-                    builder = event.builder.article(
-                        "Message", text=query, parse_mode="html"
-                    )
-                    await event.answer([builder])
+                        inline_proxy = getattr(
+                            self.kernel, "_hikka_compat_inline_proxy", None
+                        )
+                        iq_obj = _HikkaInlineQuery(
+                            query_id=event.query.query_id,
+                            query=query,
+                            offset=event.query.offset or "",
+                            user_id=event.sender_id,
+                            inline_proxy=inline_proxy,
+                            original_event=event,
+                        )
+
+                        result = await handler(iq_obj)
+                        if result:
+                            await event.answer(result)
+                            return
+                    except Exception as e:
+                        import traceback
+
+                        self.kernel.logger.error(
+                            f"User inline handler error: {traceback.format_exc()}"
+                        )
+
+                else:
+                    await event.answer()
 
             except Exception as e:
                 error_traceback = "".join(

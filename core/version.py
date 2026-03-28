@@ -10,12 +10,11 @@ import shutil
 
 
 # version kenrel MCUB
-__version__ = "1.0.5-hikka-compat"
+__version__ = "1.0.5"
 VERSION = __version__
 
 
 class VersionManager:
-
     def __init__(self, kernel):
         self.kernel = kernel
         self.logger = kernel.logger
@@ -26,11 +25,13 @@ class VersionManager:
         """
         Преобразует строку версии '1.0.2.1' в кортеж целых чисел.
         Нечисловые части заменяются на 0.
+        Извлекает числовую часть из строк типа '5-hikka-compat'.
         """
         parts = []
         for part in version_str.split("."):
+            num_part = part.split("-")[0]
             try:
-                parts.append(int(part))
+                parts.append(int(num_part))
             except ValueError:
                 parts.append(0)
         return tuple(parts)
@@ -156,7 +157,6 @@ class VersionManager:
         branch = await self.detect_branch()
         base_url = self.get_update_base_url()
         if not base_url.endswith(branch + "/"):
-
             parts = base_url.split("/")
             if parts[-1] == "":
                 parts = parts[:-1]

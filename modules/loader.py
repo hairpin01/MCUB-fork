@@ -372,9 +372,9 @@ def register(kernel):
         elif hasattr(kernel, "send_log_message"):
             await kernel.send_log_message(f"{CUSTOM_EMOJI['crystal']} {text}")
 
-    async def edit_with_emoji(message, text, **kwargs):
+    async def edit_with_emoji(message, text, parse_mode="html", **kwargs):
         try:
-            await message.edit(text, parse_mode="html", **kwargs)
+            await message.edit(text, parse_mode=parse_mode, **kwargs)
             return True
         except Exception as e:
             return False

@@ -391,25 +391,23 @@ def register(kernel):
         else:
             await event.edit(lang_strings["backup_failed"])
 
-    @kernel.register.command("restore")
-    async def restore_handler(event):
-        if not event.is_reply:
-            await event.edit(lang_strings["reply_to_backup"])
-            return
+    async def _restore_from_backup_message(backup_message, status_event):
+        if (
+            not backup_message
+            or not getattr(backup_message, "document", None)
+            or not getattr(getattr(backup_message, "file", None), "name", "").endswith(
+                ".zip"
+            )
+        ):
+            await status_event.edit(lang_strings["not_backup_file"])
+            return False
 
-        reply = await event.get_reply_message()
-
-        if not reply.document or not reply.file.name.endswith(".zip"):
-            await event.edit(lang_strings["not_backup_file"])
-            return
-
-        await event.edit(lang_strings["restoring"])
-
+        await status_event.edit(lang_strings["restoring"])
         temp_dir = tempfile.mkdtemp(prefix="restore_")
         zip_path = Path(temp_dir) / "backup.zip"
 
         try:
-            await reply.download_media(zip_path)
+            await backup_message.download_media(zip_path)
 
             extract_dir = Path(temp_dir) / "extracted"
             with zipfile.ZipFile(zip_path, "r") as zipf:
@@ -441,14 +439,32 @@ def register(kernel):
             shutil.rmtree(temp_dir, ignore_errors=True)
 
             if restored:
-                await event.edit(f"{lang_strings['restored']}\n" + "\n".join(restored))
-                cmd = await event.reply(f"{kernel.custom_prefix}restart")
+                await status_event.edit(
+                    f"{lang_strings['restored']}\n" + "\n".join(restored)
+                )
+                cmd = await kernel.client.send_message(
+                    status_event.chat_id, f"{kernel.custom_prefix}restart"
+                )
                 await kernel.process_command(cmd)
-            else:
-                await event.edit(lang_strings["no_files"])
+                return True
+
+            await status_event.edit(lang_strings["no_files"])
+            return False
         except Exception as e:
-            await kernel.handle_error(e, source="restore_handler", event=event)
-            await event.edit(f"{lang_strings['restore_error']} {e!s}")
+            await kernel.handle_error(e, source="restore_handler", event=status_event)
+            await status_event.edit(f"{lang_strings['restore_error']} {e!s}")
+            return False
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+    @kernel.register.command("restore")
+    async def restore_handler(event):
+        if not event.is_reply:
+            await event.edit(lang_strings["reply_to_backup"])
+            return
+
+        reply = await event.get_reply_message()
+        await _restore_from_backup_message(reply, event)
 
     @kernel.register.command("backupsettings")
     async def backup_settings_handler(event):
@@ -569,11 +585,8 @@ def register(kernel):
     async def restore_callback(event):
         try:
             await event.answer(lang_strings["processing"], alert=False)
-
-            restart_cmd = await kernel.client.send_message(
-                event.chat_id, f"{kernel.custom_prefix}restart"
-            )
-            await kernel.process_command(restart_cmd)
+            backup_message = await event.get_message()
+            await _restore_from_backup_message(backup_message, event)
 
         except Exception as e:
             await kernel.handle_error(e, source="restore_callback", event=event)

@@ -40,6 +40,7 @@ _LOG_DIR = "logs"
 _LOG_FILE = f"{_LOG_DIR}/kernel.log"
 _LOG_MAX_BYTES = 10 * 1024 * 1024
 _LOG_BACKUP_COUNT = 5
+_CONSOLE_LOG_LEVEL = logging.WARNING
 _DEDUP_TTL = 60
 _TRACE_CACHE_TTL = 300
 _AUTHORIZATION_CACHE_TTL = 10
@@ -169,6 +170,13 @@ class _NoiseFilter(logging.Filter):
             return True
         msg = record.getMessage()
         return "Failed to fetch updates" not in msg and "Sleep" not in msg
+
+
+class _WarningConsoleFilter(logging.Filter):
+    """Allow only warning-and-above records to the terminal."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return record.levelno >= _CONSOLE_LOG_LEVEL
 
 
 _LINE_RE = re.compile(r'  File "(.*?)", line ([0-9]+), in (.+)')
@@ -315,26 +323,59 @@ def setup_logging() -> logging.Logger:
     """Create and configure the rotating file logger for the kernel."""
     os.makedirs(_LOG_DIR, exist_ok=True)
 
-    logger = logging.getLogger("kernel")
-    logger.setLevel(logging.INFO)
+    root_logger = logging.getLogger()
+    kernel_logger = logging.getLogger("kernel")
+    mcub_logger = logging.getLogger("mcub")
 
-    handler = RotatingFileHandler(
-        _LOG_FILE,
-        maxBytes=_LOG_MAX_BYTES,
-        backupCount=_LOG_BACKUP_COUNT,
-        encoding="utf-8",
-    )
-    handler.setFormatter(
-        logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-    )
-    handler.addFilter(_NoiseFilter())
-    logger.addHandler(handler)
+    root_logger.setLevel(logging.DEBUG)
+    kernel_logger.setLevel(logging.DEBUG)
+    mcub_logger.setLevel(logging.DEBUG)
+
+    log_path = os.path.abspath(_LOG_FILE)
+    handler = None
+    for existing in root_logger.handlers:
+        if (
+            isinstance(existing, RotatingFileHandler)
+            and os.path.abspath(getattr(existing, "baseFilename", "")) == log_path
+        ):
+            handler = existing
+            break
+
+    if handler is None:
+        handler = RotatingFileHandler(
+            _LOG_FILE,
+            maxBytes=_LOG_MAX_BYTES,
+            backupCount=_LOG_BACKUP_COUNT,
+            encoding="utf-8",
+        )
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+        )
+        handler.addFilter(_NoiseFilter())
+        root_logger.addHandler(handler)
+
+    console_handler = None
+    for existing in root_logger.handlers:
+        if getattr(existing, "_mcub_console_handler", False):
+            console_handler = existing
+            break
+
+    if console_handler is None:
+        console_handler = logging.StreamHandler(sys.stderr)
+        console_handler._mcub_console_handler = True
+        console_handler.setLevel(_CONSOLE_LOG_LEVEL)
+        console_handler.setFormatter(
+            logging.Formatter("[%(levelname)s] %(name)s: %(message)s")
+        )
+        console_handler.addFilter(_NoiseFilter())
+        console_handler.addFilter(_WarningConsoleFilter())
+        root_logger.addHandler(console_handler)
 
     telethon_logger = logging.getLogger("telethon")
     telethon_logger.setLevel(logging.WARNING)
     telethon_logger.addFilter(_NoiseFilter())
 
-    return logger
+    return kernel_logger
 
 
 class _SyncToAsyncBridge(logging.Handler):

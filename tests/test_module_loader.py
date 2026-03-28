@@ -35,8 +35,8 @@ class TestDetectModuleType:
         module = MagicMock()
         module.register = MagicMock()
         module.register.__dict__ = {
-            'setup': lambda k: None,
-            'configure': lambda k: None,
+            "setup": lambda k: None,
+            "configure": lambda k: None,
         }
 
         result = await loader.detect_module_type(module)
@@ -54,7 +54,7 @@ class TestDetectModuleType:
             pass
 
         module = MagicMock(spec=[])
-        object.__setattr__(module, 'register', register_new)
+        object.__setattr__(module, "register", register_new)
 
         result = await loader.detect_module_type(module)
         assert result == "new", f"Expected 'new', got '{result}'"
@@ -71,7 +71,7 @@ class TestDetectModuleType:
             pass
 
         module = MagicMock(spec=[])
-        object.__setattr__(module, 'register', register_old)
+        object.__setattr__(module, "register", register_old)
 
         result = await loader.detect_module_type(module)
         assert result == "old", f"Expected 'old', got '{result}'"
@@ -93,6 +93,7 @@ class TestDetectModuleType:
     @pytest.mark.asyncio
     async def test_detect_with_inspect_signature(self):
         """Verify that Parameter.name comparison works correctly"""
+
         async def register_with_kernel(kernel):
             pass
 
@@ -107,7 +108,8 @@ class TestDetectModuleType:
 class TestUninstallCallback:
     """Test uninstall callback handling - Bug fix for asyncio.get_event_loop()"""
 
-    def test_uninstall_sync_function(self):
+    @pytest.mark.asyncio
+    async def test_uninstall_sync_function(self):
         """Test that sync uninstall functions work"""
         from core.lib.loader.loader import ModuleLoader
 
@@ -129,9 +131,10 @@ class TestUninstallCallback:
 
         loader = ModuleLoader(kernel)
 
-        loader.unregister_module_commands("test_module")
+        await loader.unregister_module_commands("test_module")
 
-    def test_uninstall_no_callback(self):
+    @pytest.mark.asyncio
+    async def test_uninstall_no_callback(self):
         """Test when no uninstall callback exists"""
         from core.lib.loader.loader import ModuleLoader
 
@@ -152,7 +155,75 @@ class TestUninstallCallback:
 
         loader = ModuleLoader(kernel)
 
-        loader.unregister_module_commands("test_module")
+        await loader.unregister_module_commands("test_module")
+
+    @pytest.mark.asyncio
+    async def test_uninstall_removes_handlers_with_specific_event(self):
+        """Test that unload removes only the tracked watcher/event bindings."""
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel = MagicMock()
+        kernel.loaded_modules = {"test_module": MagicMock()}
+        kernel.system_modules = {}
+        kernel.command_handlers = {}
+        kernel.command_owners = {}
+        kernel.aliases = {}
+        kernel.inline_handlers = {}
+        kernel.inline_handlers_owners = {}
+        kernel.command_metadata = {}
+        kernel.unregister_module_inline_handlers = MagicMock()
+        kernel.logger = MagicMock()
+
+        client = MagicMock()
+        watcher = MagicMock()
+        watcher_event = MagicMock()
+        event_handler = MagicMock()
+        event_obj = MagicMock()
+
+        test_module = kernel.loaded_modules["test_module"]
+        test_module.register = MagicMock()
+        test_module.register.__loops__ = []
+        test_module.register.__watchers__ = [(watcher, watcher_event, client)]
+        test_module.register.__event_handlers__ = [(event_handler, event_obj, client)]
+
+        loader = ModuleLoader(kernel)
+
+        await loader.unregister_module_commands("test_module")
+
+        client.remove_event_handler.assert_any_call(watcher, watcher_event)
+        client.remove_event_handler.assert_any_call(event_handler, event_obj)
+
+    @pytest.mark.asyncio
+    async def test_uninstall_removes_aliases_for_module_commands(self):
+        """Test that unload removes aliases pointing at the module's commands."""
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel = MagicMock()
+        kernel.loaded_modules = {"test_module": MagicMock()}
+        kernel.system_modules = {}
+        kernel.command_handlers = {"ping": MagicMock(), "other": MagicMock()}
+        kernel.command_owners = {"ping": "test_module", "other": "other_module"}
+        kernel.aliases = {"p": "ping", "o": "other"}
+        kernel.inline_handlers = {}
+        kernel.inline_handlers_owners = {}
+        kernel.command_metadata = {}
+        kernel.unregister_module_inline_handlers = MagicMock()
+        kernel.logger = MagicMock()
+
+        test_module = kernel.loaded_modules["test_module"]
+        test_module.register = MagicMock()
+        test_module.register.__loops__ = []
+        test_module.register.__watchers__ = []
+        test_module.register.__event_handlers__ = []
+
+        loader = ModuleLoader(kernel)
+
+        await loader.unregister_module_commands("test_module")
+
+        assert "ping" not in kernel.command_handlers
+        assert "ping" not in kernel.command_owners
+        assert "p" not in kernel.aliases
+        assert kernel.aliases["o"] == "other"
 
 
 class TestGetCommandDescription:
@@ -187,7 +258,9 @@ class TestInstallFromUrl:
         kernel = MagicMock()
         kernel.MODULES_LOADED_DIR = "/tmp/nonexistent_mcub_dir/modules_loaded"
         kernel.version_manager = MagicMock()
-        kernel.version_manager.check_module_compatibility = AsyncMock(return_value=(True, "ok"))
+        kernel.version_manager.check_module_compatibility = AsyncMock(
+            return_value=(True, "ok")
+        )
 
         loader = ModuleLoader(kernel)
 
@@ -195,13 +268,14 @@ class TestInstallFromUrl:
             result = await loader.install_from_url(
                 "https://example.com/test_module.py",
                 "test_module",
-                auto_dependencies=False
+                auto_dependencies=False,
             )
         except Exception:
             pass
 
         finally:
             import shutil
+
             if os.path.exists("/tmp/nonexistent_mcub_dir"):
                 shutil.rmtree("/tmp/nonexistent_mcub_dir")
 
@@ -281,9 +355,9 @@ class TestIsInVirtualEnv:
         kernel = MagicMock()
         loader = ModuleLoader(kernel)
 
-        with patch.object(sys, 'base_prefix', '/usr'):
-            with patch.object(sys, 'prefix', '/usr'):
+        with patch.object(sys, "base_prefix", "/usr"):
+            with patch.object(sys, "prefix", "/usr"):
                 assert loader.is_in_virtualenv() is False
 
-            with patch.object(sys, 'prefix', '/home/user/venv'):
+            with patch.object(sys, "prefix", "/home/user/venv"):
                 assert loader.is_in_virtualenv() is True

@@ -199,6 +199,17 @@ class Register:
         self._methods: Dict[str, Callable] = {}
         self._method_modules: Dict[str, Any] = {}
 
+    def _get_disabled_watchers(self) -> set:
+        disabled = getattr(self.kernel, "_disabled_watchers", None)
+        if not isinstance(disabled, set):
+            disabled = set()
+            setattr(self.kernel, "_disabled_watchers", disabled)
+        return disabled
+
+    @staticmethod
+    def _watcher_key(module_name: str, watcher_name: str) -> tuple[str, str]:
+        return (module_name, watcher_name)
+
     @staticmethod
     def _get_or_create_register(module: Any) -> Any:
         if not hasattr(module, "register"):
@@ -369,6 +380,14 @@ class Register:
             if cmd.endswith("$"):
                 cmd = cmd[:-1]
 
+            self.kernel.logger.debug(
+                "[register.command] pattern=%r normalized=%r module=%r aliases=%r",
+                pattern,
+                cmd,
+                self.kernel.current_loading_module,
+                kwargs.get("alias"),
+            )
+
             if self.kernel.current_loading_module is None:
                 raise ValueError(
                     "No current module set for command registration. "
@@ -383,6 +402,13 @@ class Register:
 
             self.kernel.command_handlers[cmd] = func
             self.kernel.command_owners[cmd] = self.kernel.current_loading_module
+            self.kernel.logger.debug(
+                "[register.command] registered cmd=%r owner=%r handler=%r total=%d",
+                cmd,
+                self.kernel.current_loading_module,
+                getattr(func, "__name__", repr(func)),
+                len(self.kernel.command_handlers),
+            )
 
             alias = kwargs.get("alias")
             if alias:
@@ -390,11 +416,23 @@ class Register:
                     if alias in self.kernel.command_handlers:
                         raise ValueError(f"Alias '{alias}' already registered")
                     self.kernel.aliases[alias] = cmd
+                    self.kernel.logger.debug(
+                        "[register.command] alias=%r -> %r owner=%r",
+                        alias,
+                        cmd,
+                        self.kernel.current_loading_module,
+                    )
                 elif isinstance(alias, list):
                     for a in alias:
                         if a in self.kernel.command_handlers:
                             raise ValueError(f"Alias '{a}' already registered")
                         self.kernel.aliases[a] = cmd
+                        self.kernel.logger.debug(
+                            "[register.command] alias=%r -> %r owner=%r",
+                            a,
+                            cmd,
+                            self.kernel.current_loading_module,
+                        )
 
             more = kwargs.get("more")
             if more:
@@ -488,17 +526,69 @@ class Register:
 
         def decorator(f: Callable) -> Callable:
             _tags = dict(tags)
+            frame = inspect.stack()[1][0]
+            module = inspect.getmodule(frame)
+            module_name = getattr(
+                module,
+                "__name__",
+                self.kernel.current_loading_module or "unknown",
+            )
+            watcher_name = f.__name__
+            watcher_key = self._watcher_key(module_name, watcher_name)
+            self.kernel.logger.debug(
+                "[register.watcher] module=%r watcher=%r bot_client=%s tags=%r",
+                module_name,
+                watcher_name,
+                _use_bot_client,
+                _tags,
+            )
 
             async def _wrapper(event: Any) -> None:
+                event_text = getattr(getattr(event, "message", event), "text", None)
+                self.kernel.logger.debug(
+                    "[watcher] enter module=%r watcher=%r chat_id=%r sender_id=%r text=%r",
+                    module_name,
+                    watcher_name,
+                    getattr(event, "chat_id", None),
+                    getattr(event, "sender_id", None),
+                    event_text,
+                )
+                if watcher_key in self._get_disabled_watchers():
+                    self.kernel.logger.debug(
+                        "[watcher] skipped-disabled module=%r watcher=%r",
+                        module_name,
+                        watcher_name,
+                    )
+                    return
                 if not _watcher_passes_filters(event, _tags):
+                    self.kernel.logger.debug(
+                        "[watcher] skipped-filters module=%r watcher=%r tags=%r",
+                        module_name,
+                        watcher_name,
+                        _tags,
+                    )
                     return
                 try:
+                    self.kernel.logger.debug(
+                        "[watcher] dispatch module=%r watcher=%r",
+                        module_name,
+                        watcher_name,
+                    )
                     await f(event)
+                    self.kernel.logger.debug(
+                        "[watcher] done module=%r watcher=%r",
+                        module_name,
+                        watcher_name,
+                    )
                 except Exception as exc:
                     self.kernel.logger.error(f"Watcher '{f.__name__}' raised: {exc}")
 
             _wrapper.__name__ = f"watcher:{f.__name__}"
+            _wrapper.__module__ = module_name
             _wrapper.__watcher_original__ = f
+            _wrapper.__watcher_module__ = module_name
+            _wrapper.__watcher_name__ = watcher_name
+            _wrapper.__watcher_key__ = watcher_key
 
             event_obj = events.NewMessage()
 
@@ -512,15 +602,32 @@ class Register:
                 tg_client = self.kernel.client
 
             tg_client.add_event_handler(_wrapper, event_obj)
+            self.kernel.logger.debug(
+                "[register.watcher] bound module=%r watcher=%r client=%r event=%r",
+                module_name,
+                watcher_name,
+                type(tg_client).__name__,
+                type(event_obj).__name__,
+            )
 
-            frame = inspect.stack()[1][0]
-            module = inspect.getmodule(frame)
             if module:
                 reg = self._get_or_create_register(module)
                 wlist: List[Tuple[Callable, Any, Any]] = self._ensure_list(
                     reg, "__watchers__"
                 )
-                wlist.append((_wrapper, event_obj, tg_client))
+                wlist.append(
+                    (
+                        _wrapper,
+                        event_obj,
+                        tg_client,
+                        {
+                            "module": module_name,
+                            "method": watcher_name,
+                            "tags": dict(_tags),
+                            "bot_client": _use_bot_client,
+                        },
+                    )
+                )
 
             return f
 
@@ -685,22 +792,90 @@ class Register:
         """
         return self.kernel.bot_command_handlers.copy()
 
-    def get_watchers(self) -> List[Tuple[Callable, Any, Any]]:
+    def get_watchers(self) -> List[Dict[str, Any]]:
         """
         Get all registered watchers from all modules.
 
         Returns:
-            List of (wrapper_func, event_obj, client) tuples.
+            List of watcher metadata dictionaries.
         """
         watchers = []
+        disabled = self._get_disabled_watchers()
         for module_name, module in {
             **self.kernel.loaded_modules,
             **self.kernel.system_modules,
         }.items():
             reg = getattr(module, "register", None)
             if reg and hasattr(reg, "__watchers__"):
-                watchers.extend(reg.__watchers__)
+                for entry in reg.__watchers__:
+                    wrapper, event_obj = entry[0], entry[1]
+                    client = entry[2] if len(entry) > 2 else self.kernel.client
+                    meta = (
+                        entry[3]
+                        if len(entry) > 3 and isinstance(entry[3], dict)
+                        else {}
+                    )
+                    watcher_module = meta.get(
+                        "module",
+                        getattr(wrapper, "__watcher_module__", module_name),
+                    )
+                    watcher_name = meta.get(
+                        "method",
+                        getattr(
+                            wrapper,
+                            "__watcher_name__",
+                            getattr(wrapper, "__name__", "unknown"),
+                        ),
+                    )
+                    watcher_key = self._watcher_key(watcher_module, watcher_name)
+                    watchers.append(
+                        {
+                            "module": watcher_module,
+                            "method": watcher_name,
+                            "enabled": watcher_key not in disabled,
+                            "tags": dict(meta.get("tags", {})),
+                            "bot_client": bool(meta.get("bot_client", False)),
+                            "wrapper": wrapper,
+                            "event": event_obj,
+                            "client": client,
+                        }
+                    )
         return watchers
+
+    def disable_watcher(self, module_name: str, watcher_name: str) -> bool:
+        for watcher in self.get_watchers():
+            if watcher["module"] == module_name and watcher["method"] == watcher_name:
+                self._get_disabled_watchers().add(
+                    self._watcher_key(module_name, watcher_name)
+                )
+                self.kernel.logger.debug(
+                    "[watcher.toggle] disabled module=%r watcher=%r",
+                    module_name,
+                    watcher_name,
+                )
+                return True
+        return False
+
+    def enable_watcher(self, module_name: str, watcher_name: str) -> bool:
+        key = self._watcher_key(module_name, watcher_name)
+        if key in self._get_disabled_watchers():
+            self._get_disabled_watchers().discard(key)
+            self.kernel.logger.debug(
+                "[watcher.toggle] enabled module=%r watcher=%r",
+                module_name,
+                watcher_name,
+            )
+            return True
+
+        for watcher in self.get_watchers():
+            if watcher["module"] == module_name and watcher["method"] == watcher_name:
+                self.kernel.logger.debug(
+                    "[watcher.toggle] already-enabled module=%r watcher=%r",
+                    module_name,
+                    watcher_name,
+                )
+                return True
+        return False
 
     def get_events(self) -> List[Tuple[Callable, Any, Any]]:
         """

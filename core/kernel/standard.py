@@ -366,6 +366,21 @@ class Kernel:
         """Return True if *user_id* matches the authorized admin."""
         return hasattr(self, "ADMIN_ID") and user_id == self.ADMIN_ID
 
+    def should_process_command_event(self, event) -> bool:
+        """Accept own command messages even when Telethon loses the out flag."""
+        msg = getattr(event, "message", event)
+        if getattr(msg, "out", False):
+            return True
+        return self.is_admin(getattr(event, "sender_id", None))
+
+    def _is_command_event_processed(self, event) -> bool:
+        msg = getattr(event, "message", event)
+        return bool(getattr(msg, "_mcub_command_processed", False))
+
+    def _mark_command_event_processed(self, event) -> None:
+        msg = getattr(event, "message", event)
+        setattr(msg, "_mcub_command_processed", True)
+
     def is_bot_available(self) -> bool:
         """Return True if the inline bot client is connected and ready."""
         return (
@@ -531,9 +546,219 @@ class Kernel:
         """Load all modules from the user modules directory."""
         await self._loader.load_user_modules()
 
-    def unregister_module_commands(self, module_name: str) -> None:
+    async def unregister_module_commands(self, module_name: str) -> None:
         """Stop loops/handlers and unregister all commands for a module."""
-        self._loader.unregister_module_commands(module_name)
+        await self._loader.unregister_module_commands(module_name)
+
+    def _debug_event_builders_snapshot(self) -> list[str]:
+        builders = getattr(self.client, "_event_builders", []) or []
+        snapshot = []
+        for event_obj, callback in builders:
+            snapshot.append(
+                f"{type(event_obj).__name__}:{getattr(callback, '__name__', repr(callback))}"
+            )
+        return snapshot
+
+    def _event_builder_signature(self, event_obj, callback) -> tuple:
+        return (
+            type(event_obj).__name__,
+            getattr(callback, "__module__", None),
+            getattr(callback, "__name__", repr(callback)),
+            getattr(event_obj, "pattern", None),
+            getattr(event_obj, "data", None),
+            getattr(event_obj, "chats", None),
+            getattr(event_obj, "incoming", None),
+            getattr(event_obj, "outgoing", None),
+            getattr(event_obj, "from_users", None),
+            getattr(event_obj, "forwards", None),
+        )
+
+    def dedupe_event_builders(self, reason: str = "manual") -> list[str]:
+        """Remove duplicate Telethon bindings while keeping the newest one."""
+        if not getattr(self, "client", None):
+            return []
+
+        builders = list(getattr(self.client, "_event_builders", []) or [])
+        before_count = len(builders)
+        seen = set()
+        removed = []
+        dedupe_types = {"NewMessage", "MessageEdited"}
+
+        for event_obj, callback in reversed(builders):
+            event_type = type(event_obj).__name__
+            if event_type not in dedupe_types:
+                continue
+            signature = self._event_builder_signature(event_obj, callback)
+            if signature in seen:
+                self.client.remove_event_handler(callback, event_obj)
+                removed.append(
+                    f"{event_type}:{getattr(callback, '__module__', None)}:{getattr(callback, '__name__', repr(callback))}"
+                )
+                continue
+            seen.add(signature)
+
+        if removed:
+            removed.reverse()
+            self.logger.warning(
+                "[event_builders] deduped reason=%r before=%d after=%d removed=%r builders=%r",
+                reason,
+                before_count,
+                len(getattr(self.client, "_event_builders", []) or []),
+                removed,
+                self._debug_event_builders_snapshot(),
+            )
+        else:
+            self.logger.debug(
+                "[event_builders] no-duplicates reason=%r count=%d",
+                reason,
+                before_count,
+            )
+
+        return removed
+
+    def ensure_core_message_handlers(self, reason: str = "manual") -> None:
+        """Re-register core outgoing command handlers if they disappeared."""
+        if not getattr(self, "client", None):
+            return
+
+        if not hasattr(self, "_core_message_handler"):
+            self.logger.debug(
+                "[core_handlers] skip reason=%r missing=_core_message_handler",
+                reason,
+            )
+            return
+
+        builders = getattr(self.client, "_event_builders", []) or []
+        has_new = any(
+            cb == self._core_message_handler and type(ev).__name__ == "NewMessage"
+            for ev, cb in builders
+        )
+        has_fallback = any(
+            cb == getattr(self, "_core_fallback_message_handler", None)
+            and type(ev).__name__ == "NewMessage"
+            for ev, cb in builders
+        )
+        has_edit = any(
+            cb == self._core_message_handler and type(ev).__name__ == "MessageEdited"
+            for ev, cb in builders
+        )
+
+        self.logger.debug(
+            "[core_handlers] ensure reason=%r has_new=%s has_fallback=%s has_edit=%s builders=%r",
+            reason,
+            has_new,
+            has_fallback,
+            has_edit,
+            self._debug_event_builders_snapshot(),
+        )
+
+        force_rebind = reason.startswith("reload_")
+        if force_rebind:
+            self.client.remove_event_handler(
+                self._core_message_handler, events.NewMessage()
+            )
+            if hasattr(self, "_core_fallback_message_handler"):
+                self.client.remove_event_handler(
+                    self._core_fallback_message_handler, events.NewMessage()
+                )
+            self.client.remove_event_handler(
+                self._core_message_handler, events.MessageEdited()
+            )
+            self.client.add_event_handler(
+                self._core_message_handler, events.NewMessage()
+            )
+            if hasattr(self, "_core_fallback_message_handler"):
+                self.client.add_event_handler(
+                    self._core_fallback_message_handler, events.NewMessage()
+                )
+            self.client.add_event_handler(
+                self._core_message_handler, events.MessageEdited()
+            )
+            self.logger.warning(
+                "[core_handlers] rebound handlers reason=%r builders=%r",
+                reason,
+                self._debug_event_builders_snapshot(),
+            )
+            return
+
+        if not has_new:
+            self.client.add_event_handler(
+                self._core_message_handler, events.NewMessage()
+            )
+            self.logger.warning(
+                "[core_handlers] restored outgoing NewMessage handler reason=%r",
+                reason,
+            )
+
+        if hasattr(self, "_core_fallback_message_handler") and not has_fallback:
+            self.client.add_event_handler(
+                self._core_fallback_message_handler, events.NewMessage()
+            )
+            self.logger.warning(
+                "[core_handlers] restored fallback NewMessage handler reason=%r",
+                reason,
+            )
+
+        if not has_edit:
+            self.client.add_event_handler(
+                self._core_message_handler, events.MessageEdited()
+            )
+            self.logger.warning(
+                "[core_handlers] restored outgoing MessageEdited handler reason=%r",
+                reason,
+            )
+
+    def ensure_registered_module_handlers(self, reason: str = "manual") -> None:
+        """Re-bind tracked module watchers/events if Telethon lost them."""
+        if not getattr(self, "client", None):
+            return
+
+        builders = getattr(self.client, "_event_builders", []) or []
+
+        def _has_binding(callback, event_obj) -> bool:
+            event_type = type(event_obj)
+            return any(
+                cb == callback and isinstance(ev, event_type) for ev, cb in builders
+            )
+
+        restored = []
+        for module_name, module in {
+            **self.loaded_modules,
+            **self.system_modules,
+        }.items():
+            reg = getattr(module, "register", None)
+            if reg is None:
+                continue
+
+            for entry in getattr(reg, "__watchers__", []):
+                wrapper, event_obj = entry[0], entry[1]
+                client = entry[2] if len(entry) > 2 else self.client
+                if client is not self.client or _has_binding(wrapper, event_obj):
+                    continue
+                client.add_event_handler(wrapper, event_obj)
+                restored.append(
+                    f"watcher:{module_name}:{getattr(wrapper, '__name__', repr(wrapper))}"
+                )
+
+            for entry in getattr(reg, "__event_handlers__", []):
+                handler, event_obj = entry[0], entry[1]
+                client = entry[2] if len(entry) > 2 else self.client
+                if client is not self.client or _has_binding(handler, event_obj):
+                    continue
+                client.add_event_handler(handler, event_obj)
+                restored.append(
+                    f"event:{module_name}:{getattr(handler, '__name__', repr(handler))}"
+                )
+
+        if restored:
+            self.logger.warning(
+                "[module_handlers] restored reason=%r handlers=%r builders=%r",
+                reason,
+                restored,
+                self._debug_event_builders_snapshot(),
+            )
+        else:
+            self.logger.debug("[module_handlers] ok reason=%r", reason)
 
     async def _run_module_post_load(
         self, module, module_name: str, is_install: bool = False
@@ -807,7 +1032,21 @@ class Kernel:
             return False
 
         text = event.text
+        self.logger.debug(
+            "[process_command] depth=%d text=%r sender=%r chat=%r handlers=%d aliases=%d",
+            depth,
+            text,
+            getattr(event, "sender_id", None),
+            getattr(event, "chat_id", None),
+            len(self.command_handlers),
+            len(self.aliases),
+        )
         if not text or not text.startswith(self.custom_prefix):
+            self.logger.debug(
+                "[process_command] ignored text=%r reason=no_prefix prefix=%r",
+                text,
+                self.custom_prefix,
+            )
             return False
 
         cmd = (
@@ -818,7 +1057,18 @@ class Kernel:
 
         if cmd in self.aliases:
             alias = self.aliases[cmd]
+            self.logger.debug(
+                "[process_command] alias-hit cmd=%r target=%r text=%r",
+                cmd,
+                alias,
+                text,
+            )
             if alias in self.command_handlers:
+                self.logger.debug(
+                    "[process_command] alias-direct-dispatch target=%r owner=%r",
+                    alias,
+                    self.command_owners.get(alias),
+                )
                 await self.command_handlers[alias](event)
                 return True
             args = text[len(self.custom_prefix) + len(cmd) :]
@@ -831,6 +1081,12 @@ class Kernel:
 
         if cmd in self.command_handlers:
             handler = self.command_handlers[cmd]
+            self.logger.debug(
+                "[process_command] dispatch cmd=%r owner=%r handler=%r",
+                cmd,
+                self.command_owners.get(cmd),
+                getattr(handler, "__name__", repr(handler)),
+            )
             if not callable(handler):
                 self.logger.warning(
                     f"Command handler for '{cmd}' is not callable, skipping"
@@ -839,6 +1095,11 @@ class Kernel:
             await handler(event)
             return True
 
+        self.logger.debug(
+            "[process_command] miss cmd=%r known=%r",
+            cmd,
+            sorted(self.command_handlers.keys()),
+        )
         return False
 
     async def process_bot_command(self, event) -> bool:
@@ -1103,7 +1364,7 @@ class Kernel:
             if not self.first_time_setup():
                 self.logger.error("Setup failed")
                 return
-        logging.basicConfig(level=logging.WARNING)
+        logging.basicConfig(level=logging.DEBUG)
 
         self.load_repositories()
         await self.init_scheduler()
@@ -1140,6 +1401,16 @@ class Kernel:
         self._telegram_handler = telegram_handler
         self._kernel_logger = kernel_logger
 
+        # try:
+        #     from core.console.shell import Shell
+        #
+        #     self.shell = Shell(kernel=self)
+        #     #self.shell.attach_logging(logging.getLogger())
+        #     asyncio.create_task(self.shell.run())
+        #     self.logger.debug("[shell] interactive shell task started")
+        # except Exception as e:
+        #     self.logger.error(f"[shell] failed to start interactive shell: {e}")
+
         async def _monitor_connection():
             """Monitor connection state and log events."""
             reconnect_count = 0
@@ -1162,12 +1433,32 @@ class Kernel:
 
         self._connection_monitor = asyncio.create_task(_monitor_connection())
 
-        @self.client.on(events.NewMessage(outgoing=True))
-        @self.client.on(events.MessageEdited(outgoing=True))
         async def message_handler(event):
             _tele = '<tg-emoji emoji-id="5429283852684124412">🔭</tg-emoji>'
             _note = '<tg-emoji emoji-id="5334882760735598374">📝</tg-emoji>'
+            msg = getattr(event, "message", event)
 
+            if not self.should_process_command_event(event):
+                self.logger.debug(
+                    "[core_handlers] skip-nonoutgoing handler=message_handler text=%r sender=%r chat=%r out=%r admin=%r",
+                    getattr(msg, "text", None),
+                    getattr(event, "sender_id", None),
+                    getattr(event, "chat_id", None),
+                    getattr(msg, "out", False),
+                    self.is_admin(getattr(event, "sender_id", None)),
+                )
+                return
+
+            if self._is_command_event_processed(event):
+                self.logger.debug(
+                    "[core_handlers] skip-duplicate handler=message_handler text=%r sender=%r chat=%r",
+                    getattr(msg, "text", None),
+                    getattr(event, "sender_id", None),
+                    getattr(event, "chat_id", None),
+                )
+                return
+
+            self._mark_command_event_processed(event)
             try:
                 await self.process_command(event)
             except Exception as e:
@@ -1202,6 +1493,33 @@ class Kernel:
                     )
                 except Exception as edit_err:
                     self.logger.error(f"Could not edit error message: {edit_err}")
+
+        async def fallback_message_handler(event):
+            msg = getattr(event, "message", event)
+            if not self.should_process_command_event(event):
+                return
+            if self._is_command_event_processed(event):
+                return
+            self.logger.warning(
+                "[core_handlers] fallback-dispatch handler=fallback_message_handler text=%r sender=%r chat=%r out=%r admin=%r",
+                getattr(msg, "text", None),
+                getattr(event, "sender_id", None),
+                getattr(event, "chat_id", None),
+                getattr(msg, "out", False),
+                self.is_admin(getattr(event, "sender_id", None)),
+            )
+            self._mark_command_event_processed(event)
+            await self.process_command(event)
+
+        self._core_message_handler = message_handler
+        self._core_fallback_message_handler = fallback_message_handler
+        self.client.add_event_handler(message_handler, events.NewMessage())
+        self.client.add_event_handler(message_handler, events.MessageEdited())
+        self.client.add_event_handler(fallback_message_handler, events.NewMessage())
+        self.logger.debug(
+            "[core_handlers] registered outgoing handlers builders=%r",
+            self._debug_event_builders_snapshot(),
+        )
 
         restart_time = None
         if os.path.exists(self.RESTART_FILE):
@@ -1402,6 +1720,7 @@ class Kernel:
             chat_id = int(data[0])
             msg_id = int(data[1])
             restart_time = float(data[2])
+            thread_id = int(data[3]) if len(data) >= 4 else None
 
             os.remove(self.RESTART_FILE)
 
@@ -1463,7 +1782,10 @@ class Kernel:
                         parse_mode="html",
                     )
                 except Exception:
-                    await self.client.send_message(chat_id, msg_text, parse_mode="html")
+                    send_kwargs = {"parse_mode": "html"}
+                    if thread_id:
+                        send_kwargs["reply_to"] = thread_id
+                    await self.client.send_message(chat_id, msg_text, **send_kwargs)
             except Exception as e:
                 self.logger.error(f"Could not send restart notification: {e}")
                 await self.handle_error(e, source="restart")

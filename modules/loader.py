@@ -1,17 +1,18 @@
 # author: @Hairpin00
 # version: 1.1.5
 # description: loader modules
+import asyncio
+import html
+import inspect
 import logging
 import os
-import re
-import sys
-import subprocess
-import asyncio
-import inspect
-import aiohttp
-from datetime import datetime
-import html
 import random
+import re
+import subprocess
+import sys
+from datetime import datetime
+
+import aiohttp
 from telethon import Button
 from telethon.types import InputMediaWebPage
 
@@ -776,162 +777,9 @@ def register(kernel):
                 )
                 await install_dependencies_async(dependencies, add_log, msg)
 
-                if is_update:
-                    add_log(t("log_removing_old", module_name=module_name))
-                    kernel.unregister_module_commands(module_name)
-
-                ok, err, extra = await load_hikka_module(kernel, file_path, module_name)
-                extra = extra or {}
-                conflicts = extra.get("conflicts", [])
-                if ok:
-                    commands, aliases_info, descriptions = get_module_commands(
-                        module_name, kernel
-                    )
-                    emoji = random.choice(RANDOM_EMOJIS)
-                    commands_list = ""
-                    for cmd in commands:
-                        cmd_desc = (
-                            descriptions.get(cmd)
-                            or metadata["commands"].get(cmd)
-                            or t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
-                        )
-                        command_line = t(
-                            "command_line",
-                            crystal=CUSTOM_EMOJI["crystal"],
-                            prefix=kernel.custom_prefix,
-                            cmd=cmd,
-                            desc=cmd_desc,
-                        )
-                        commands_list += command_line + "\n"
-
-                    inline_commands = kernel.get_module_inline_commands(module_name)
-                    if inline_commands:
-                        inline_emoji = (
-                            '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
-                        )
-                        for cmd, desc in inline_commands:
-                            if desc:
-                                commands_list += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>\n"
-                            else:
-                                commands_list += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code>\n"
-
-                    conflict_text = ""
-                    if conflicts:
-                        conflict_text = (
-                            f"⚠️ <b>Command conflicts ({len(conflicts)}):</b>\n"
-                        )
-                        for cf in conflicts:
-                            owner = cf.get("owner") or "unknown"
-                            conflict_text += f"<code>{cf['command']}</code> — registered by <code>{owner}</code>\n"
-
-                    kernel.logger.info(f"Hikka модуль {module_name} установлен")
-
-                    banner_url = metadata.get("banner_url")
-                    if banner_url and banner_url.startswith(("http://", "https://")):
-                        try:
-                            media = InputMediaWebPage(banner_url, optional=True)
-                            await msg.edit(
-                                t(
-                                    "module_loaded",
-                                    success=CUSTOM_EMOJI["success"],
-                                    module_name=module_name,
-                                    emoji=emoji,
-                                    idea=CUSTOM_EMOJI["idea"],
-                                    description=metadata["description"],
-                                    version=metadata["version"],
-                                    author=metadata.get("author", "unknown"),
-                                    emoji_author=CUSTOM_EMOJI["author"],
-                                    commands_list=commands_list + conflict_text,
-                                ),
-                                file=media,
-                                parse_mode="html",
-                                invert_media=True,
-                            )
-                        except Exception as e:
-                            kernel.logger.error(f"Banner edit error: {e}")
-                            await edit_with_emoji(
-                                msg,
-                                t(
-                                    "module_loaded",
-                                    success=CUSTOM_EMOJI["success"],
-                                    module_name=module_name,
-                                    emoji=emoji,
-                                    idea=CUSTOM_EMOJI["idea"],
-                                    description=metadata["description"],
-                                    version=metadata["version"],
-                                    author=metadata.get("author", "unknown"),
-                                    emoji_author=CUSTOM_EMOJI["author"],
-                                    commands_list=commands_list + conflict_text,
-                                ),
-                            )
-                    else:
-                        await edit_with_emoji(
-                            msg,
-                            t(
-                                "module_loaded",
-                                success=CUSTOM_EMOJI["success"],
-                                module_name=module_name,
-                                emoji=emoji,
-                                idea=CUSTOM_EMOJI["idea"],
-                                description=metadata["description"],
-                                version=metadata["version"],
-                                author=metadata.get("author", "unknown"),
-                                emoji_author=CUSTOM_EMOJI["author"],
-                                commands_list=commands_list + conflict_text,
-                            ),
-                        )
-                else:
-                    add_log(t("log_install_error", error=err))
-                    log_text = "\n".join(install_log)
-                    await edit_with_emoji(
-                        msg,
-                        t(
-                            "install_failed",
-                            blocked=CUSTOM_EMOJI["blocked"],
-                            idea=CUSTOM_EMOJI["idea"],
-                            log=html.escape(log_text),
-                        ),
-                    )
-                    if os.path.exists(file_path):
-                        os.remove(file_path)
-                return
-            add_log(t("log_compatible"))
-
-            dependencies = []
-            add_log(t("log_checking_deps"))
-            if "requires" in code:
-                reqs = re.findall(r"# requires: (.+)", code)
-                if reqs:
-                    raw = reqs[0]
-                    parts = []
-                    for part in raw.split(","):
-                        part = part.strip()
-                        if not part:
-                            continue
-                        if " " in part:
-                            parts.extend(part.split())
-                        else:
-                            parts.append(part)
-                    dependencies = [p.strip() for p in parts if p.strip()]
-                    add_log(t("log_deps_found", deps=", ".join(dependencies)))
-
-            if dependencies:
-                deps_with_emoji = "\n".join(
-                    f"{CUSTOM_EMOJI['lib']} {dep}" for dep in dependencies
-                )
-                await edit_with_emoji(
-                    msg,
-                    t(
-                        "installing_deps",
-                        dependencies=CUSTOM_EMOJI["dependencies"],
-                        deps_list=deps_with_emoji,
-                    ),
-                )
-                await install_dependencies_async(dependencies, add_log, msg)
-
             if is_update:
                 add_log(t("log_removing_old", module_name=module_name))
-                kernel.unregister_module_commands(module_name)
+                await kernel.unregister_module_commands(module_name)
 
             add_log(t("log_loading_module", module_name=module_name))
             success, message_text = await kernel.load_module_from_file(
@@ -1484,7 +1332,7 @@ def register(kernel):
 
             if is_update:
                 add_log(t("log_removing_old", module_name=module_name))
-                kernel.unregister_module_commands(module_name)
+                await kernel.unregister_module_commands(module_name)
 
             add_log(t("log_saving_file", file_path=file_path))
             with open(file_path, "w", encoding="utf-8") as f:
@@ -1831,7 +1679,7 @@ def register(kernel):
 
             asyncio.ensure_future(unload_hikka_module(kernel, module_name))
         else:
-            kernel.unregister_module_commands(module_name)
+            await kernel.unregister_module_commands(module_name)
 
         file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
         if os.path.exists(file_path):
@@ -1932,6 +1780,15 @@ def register(kernel):
     # <modules> reload modules
     async def reload_module_handler(event):
         args = event.text.split()
+        kernel.dedupe_event_builders(reason="reload_command_start_precheck")
+        kernel.ensure_core_message_handlers(reason="reload_command_start")
+        kernel.ensure_registered_module_handlers(reason="reload_command_start")
+        kernel.logger.debug(
+            "[reload] request text=%r loaded=%r system=%r",
+            event.text,
+            list(kernel.loaded_modules.keys()),
+            list(kernel.system_modules.keys()),
+        )
 
         if len(args) < 2:
             modules_to_reload = list(kernel.loaded_modules.keys())
@@ -1953,6 +1810,9 @@ def register(kernel):
             for module_name in modules_to_reload:
                 if module_name in kernel.system_modules:
                     continue
+                kernel.logger.debug(
+                    "[reload] reloading-from-bulk module=%r", module_name
+                )
 
                 file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
 
@@ -1963,13 +1823,33 @@ def register(kernel):
                 if module_name in sys.modules:
                     del sys.modules[module_name]
 
-                kernel.unregister_module_commands(module_name)
+                await kernel.unregister_module_commands(module_name)
+                kernel.logger.debug(
+                    "[reload] after-unregister module=%r commands=%r aliases=%r",
+                    module_name,
+                    list(kernel.command_handlers.keys()),
+                    dict(kernel.aliases),
+                )
 
                 if module_name in kernel.loaded_modules:
                     del kernel.loaded_modules[module_name]
 
                 success, _ = await kernel.load_module_from_file(
                     file_path, module_name, False
+                )
+                kernel.dedupe_event_builders(reason=f"reload_bulk_after_{module_name}")
+                kernel.ensure_core_message_handlers(
+                    reason=f"reload_bulk_after_{module_name}"
+                )
+                kernel.ensure_registered_module_handlers(
+                    reason=f"reload_bulk_after_{module_name}"
+                )
+                kernel.logger.debug(
+                    "[reload] bulk-result module=%r success=%s commands=%r aliases=%r",
+                    module_name,
+                    success,
+                    list(kernel.command_handlers.keys()),
+                    dict(kernel.aliases),
                 )
 
                 if success:
@@ -2029,6 +1909,9 @@ def register(kernel):
                             count=f"✓ {success_count}",
                         ),
                     )
+            kernel.dedupe_event_builders(reason="reload_bulk_complete")
+            kernel.ensure_core_message_handlers(reason="reload_bulk_complete")
+            kernel.ensure_registered_module_handlers(reason="reload_bulk_complete")
             return
 
         module_name = args[1]
@@ -2074,11 +1957,31 @@ def register(kernel):
             t("reloading", reload=CUSTOM_EMOJI["reload"], module_name=module_name),
             parse_mode="html",
         )
+        kernel.logger.debug(
+            "[reload] single-start module=%r system=%s file=%r",
+            module_name,
+            is_system,
+            file_path,
+        )
+
+        instance = kernel.loaded_modules.get(module_name) or kernel.system_modules.get(
+            module_name
+        )
+        if instance and getattr(instance, "_hikka_compat", False):
+            if HIKKA_COMPAT:
+                await unload_hikka_module(kernel, module_name)
+                await asyncio.sleep(0)
+        else:
+            await kernel.unregister_module_commands(module_name)
+            kernel.logger.debug(
+                "[reload] single-after-unregister module=%r commands=%r aliases=%r",
+                module_name,
+                list(kernel.command_handlers.keys()),
+                dict(kernel.aliases),
+            )
 
         if module_name in sys.modules:
             del sys.modules[module_name]
-
-        kernel.unregister_module_commands(module_name)
 
         if is_system:
             if module_name in kernel.system_modules:
@@ -2089,6 +1992,19 @@ def register(kernel):
 
         success, message_text = await kernel.load_module_from_file(
             file_path, module_name, is_system
+        )
+        kernel.dedupe_event_builders(reason=f"reload_single_after_{module_name}")
+        kernel.ensure_core_message_handlers(reason=f"reload_single_after_{module_name}")
+        kernel.ensure_registered_module_handlers(
+            reason=f"reload_single_after_{module_name}"
+        )
+        kernel.logger.debug(
+            "[reload] single-result module=%r success=%s message=%r commands=%r aliases=%r",
+            module_name,
+            success,
+            message_text,
+            list(kernel.command_handlers.keys()),
+            dict(kernel.aliases),
         )
 
         if success:

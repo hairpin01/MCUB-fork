@@ -96,7 +96,6 @@ def register(kernel):
             f"{PREMIUM_EMOJI['telescope']} <i>{lang_strings['restarting'].format(mcub=await mcub_handler())}</i>",
             parse_mode="html",
         )
-
         await restart_kernel(
             kernel,
             chat_id=event.chat_id,

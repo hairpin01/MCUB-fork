@@ -1832,6 +1832,9 @@ def register(kernel):
         if module_name in kernel.loaded_modules:
             del kernel.loaded_modules[module_name]
 
+        if module_name in kernel.system_modules:
+            del kernel.system_modules[module_name]
+
         await log_to_bot(f"Модуль {module_name} удалён")
         await edit_with_emoji(
             event,

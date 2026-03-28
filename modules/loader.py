@@ -6,6 +6,7 @@ import os
 import re
 import sys
 import subprocess
+import asyncio
 import inspect
 import aiohttp
 from datetime import datetime
@@ -409,6 +410,37 @@ def register(kernel):
             kernel.logger.error(f"Ошибка загрузки модуля {module_name}: {e}")
             return False, f"Ошибка загрузки: {str(e)}"
 
+    async def install_dependencies_async(dependencies, add_log_func, msg):
+        async def install_one(dep):
+            add_log_func(f"=- Устанавливаю зависимость: {dep}")
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    dep,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await proc.communicate()
+                if proc.returncode == 0:
+                    add_log_func(f"=> Зависимость {dep} установлена успешно")
+                    return True, dep, None
+                else:
+                    err = stderr.decode() if stderr else "unknown error"
+                    add_log_func(f"=X Ошибка установки {dep}: {err[:200]}")
+                    return False, dep, err[:200]
+            except Exception as e:
+                add_log_func(f"=X Ошибка установки {dep}: {str(e)}")
+                return False, dep, str(e)
+
+        if not dependencies:
+            return
+
+        tasks = [install_one(dep) for dep in dependencies]
+        await asyncio.gather(*tasks)
+
     def detect_module_type(module):
         register = getattr(module, "register", None)
         if register is None:
@@ -737,19 +769,7 @@ def register(kernel):
                             deps_list="\n".join(dependencies),
                         ),
                     )
-                    for dep in dependencies:
-                        add_log(t("log_installing_dep", dep=dep))
-                        result = subprocess.run(
-                            [sys.executable, "-m", "pip", "install", dep],
-                            capture_output=True,
-                            text=True,
-                        )
-                        if result.returncode == 0:
-                            add_log(t("log_dep_installed", dep=dep))
-                        else:
-                            add_log(
-                                t("log_dep_error", dep=dep, error=result.stderr[:200])
-                            )
+                    await install_dependencies_async(dependencies, add_log, msg)
 
                 if is_update:
                     add_log(t("log_removing_old", module_name=module_name))
@@ -899,18 +919,7 @@ def register(kernel):
                         deps_list="\n".join(dependencies),
                     ),
                 )
-
-                for dep in dependencies:
-                    add_log(t("log_installing_dep", dep=dep))
-                    result = subprocess.run(
-                        [sys.executable, "-m", "pip", "install", dep],
-                        capture_output=True,
-                        text=True,
-                    )
-                    if result.returncode == 0:
-                        add_log(t("log_dep_installed", dep=dep))
-                    else:
-                        add_log(t("log_dep_error", dep=dep, error=result.stderr[:200]))
+                await install_dependencies_async(dependencies, add_log, msg)
 
             if is_update:
                 add_log(t("log_removing_old", module_name=module_name))
@@ -1460,18 +1469,7 @@ def register(kernel):
                         deps_list="\n".join(dependencies),
                     ),
                 )
-
-                for dep in dependencies:
-                    add_log(t("log_installing_dep", dep=dep))
-                    result = subprocess.run(
-                        [sys.executable, "-m", "pip", "install", dep],
-                        capture_output=True,
-                        text=True,
-                    )
-                    if result.returncode == 0:
-                        add_log(t("log_dep_installed", dep=dep))
-                    else:
-                        add_log(t("log_dep_error", dep=dep, error=result.stderr[:200]))
+                await install_dependencies_async(dependencies, add_log, msg)
 
             if is_update:
                 add_log(t("log_removing_old", module_name=module_name))

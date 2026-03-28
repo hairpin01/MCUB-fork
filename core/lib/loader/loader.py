@@ -561,10 +561,24 @@ class ModuleLoader:
             ]
             for pat in incompatible:
                 if pat in code:
-                    return (
-                        False,
-                        "Incompatible module (Heroku/hikka style not supported)",
-                    )
+                    try:
+                        from core.lib.loader.hikka_compat import (
+                            load_hikka_module,
+                        )
+                        import os as _os
+
+                        abs_path = (
+                            file_path
+                            if _os.path.isabs(file_path)
+                            else _os.path.abspath(file_path)
+                        )
+                        ok, err, _ = await load_hikka_module(k, abs_path, module_name)
+                        return ok, err
+                    except ImportError:
+                        return (
+                            False,
+                            "Incompatible module (Heroku/hikka style not supported)",
+                        )
 
             sys.modules.pop(module_name, None)
 
@@ -932,6 +946,13 @@ class ModuleLoader:
             if cmd in k.command_owners:
                 del k.command_owners[cmd]
             k.logger.debug(f"Unregistered command: {cmd}")
+
+        aliases_to_remove = [
+            alias for alias, owner in k.aliases.items() if owner == module_name
+        ]
+        for alias in aliases_to_remove:
+            del k.aliases[alias]
+            k.logger.debug(f"Unregistered alias: {alias}")
 
         k.unregister_module_inline_handlers(module_name)
 

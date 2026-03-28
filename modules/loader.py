@@ -688,6 +688,7 @@ def register(kernel):
 
             add_log(t("log_getting_metadata"))
             metadata = await kernel.get_module_metadata(code)
+            dependencies = []
             add_log(t("log_author", author=metadata["author"]))
             add_log(t("log_version", version=metadata["version"]))
             add_log(t("log_description", description=metadata["description"]))

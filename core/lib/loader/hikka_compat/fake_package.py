@@ -1739,7 +1739,7 @@ async def load_hikka_module(
 
     for attr_name in dir(cls):
         method = getattr(instance, attr_name, None)
-        if not callable(method):
+        if isinstance(method, dict) or not callable(method):
             continue
 
         if attr_name.endswith("cmd"):
@@ -1779,13 +1779,13 @@ async def load_hikka_module(
         try:
             from .inline_types import CompatMessage
 
-            async def _wrapped_handler(event):
+            async def _wrapped_handler(event, _method=method):
                 from .inline_types import CompatMessage
 
                 wrapped_event = (
                     CompatMessage(event) if hasattr(event, "edit") else event
                 )
-                return await _maybe_await(method(wrapped_event))
+                return await _maybe_await(_method(wrapped_event))
 
             _wrapped_handler._original = method
             kernel.register_command(cmd_name, _wrapped_handler)

@@ -15,6 +15,11 @@ from telethon.tl.types import (
 
 from .lib import InlineManager
 from .strings import get_strings
+from .api import (
+    build_inline_result_text,
+    build_inline_result_media,
+    add_inline_keyboard_to_result,
+)
 
 
 class InlineHandlers:
@@ -342,94 +347,50 @@ class InlineHandlers:
                         buttons = form_data.get("buttons")
                         text = form_data["text"]
 
+                        _bot_token = self.kernel.config.get("inline_bot_token")
+
+                        if not _bot_token:
+                            builder = event.builder.article(
+                                "Inline Form",
+                                text=text,
+                                buttons=buttons,
+                                parse_mode="html",
+                            )
+                            await event.answer([builder])
+                            return
+
                         if media:
-                            _rid = str(uuid.uuid4())
-                            _mime_map = {
-                                "video": "video/mp4",
-                                "gif": "video/mp4",
-                                "document": "application/octet-stream",
-                                "photo": "image/jpeg",
-                            }
-                            _type_map = {
-                                "video": "video",
-                                "gif": "mpeg4_gif",
-                                "document": "document",
-                                "photo": "photo",
-                            }
-                            _bot_token = self.kernel.config.get("inline_bot_token")
-                            if _bot_token:
-                                _result_obj = {
-                                    "type": _type_map.get(mtype, "video"),
-                                    "id": _rid,
-                                    _type_map.get(mtype, "video") + "_url": media,
-                                    "thumb_url": (
-                                        "https://kappa.lol/KSKoOu"
-                                        if mtype in ("video", "gif", "document")
-                                        else media
-                                    ),
-                                    "mime_type": _mime_map.get(mtype, "video/mp4"),
-                                    "title": "Media",
-                                    "caption": text,
-                                    "parse_mode": "HTML",
-                                }
-                                if buttons:
-                                    _kbd_rows = []
-                                    for row in buttons:
-                                        if not isinstance(row, list):
-                                            row = [row]
-                                        _kbd_rows.append([])
-                                        for _btn in row:
-                                            if isinstance(_btn, KeyboardButtonCallback):
-                                                _kbd_rows[-1].append(
-                                                    {
-                                                        "text": _btn.text,
-                                                        "callback_data": (
-                                                            _btn.data.decode()
-                                                            if isinstance(
-                                                                _btn.data, bytes
-                                                            )
-                                                            else str(_btn.data)
-                                                        ),
-                                                    }
-                                                )
-                                            elif isinstance(_btn, KeyboardButtonUrl):
-                                                _kbd_rows[-1].append(
-                                                    {"text": _btn.text, "url": _btn.url}
-                                                )
-                                            else:
-                                                _kbd_rows[-1].append(
-                                                    {"text": str(_btn)}
-                                                )
-                                    _result_obj["reply_markup"] = {
-                                        "inline_keyboard": _kbd_rows
-                                    }
+                            _result_obj = build_inline_result_media(
+                                media_url=media,
+                                media_type=mtype,
+                                text=text,
+                                title="Media",
+                            )
+                        else:
+                            _result_obj = build_inline_result_text(
+                                title="Inline Form",
+                                text=text,
+                            )
 
-                                async with self.kernel.session.post(
-                                    f"https://api.telegram.org/bot{_bot_token}/answerInlineQuery",
-                                    json={
-                                        "inline_query_id": str(event.query.query_id),
-                                        "results": [_result_obj],
-                                        "cache_time": 0,
-                                    },
-                                ) as _resp:
-                                    _data = await _resp.json()
-                                    if not _data.get("ok"):
-                                        self.kernel.logger.error(
-                                            f"Bot API answerInlineQuery error: {_data}"
-                                        )
-                                return
-                            else:
-                                self.kernel.logger.warning(
-                                    "bot_token not in config, falling back to article"
+                        if buttons:
+                            _result_obj = add_inline_keyboard_to_result(
+                                _result_obj, buttons
+                            )
+
+                        async with self.kernel.session.post(
+                            f"https://api.telegram.org/bot{_bot_token}/answerInlineQuery",
+                            json={
+                                "inline_query_id": str(event.query.query_id),
+                                "results": [_result_obj],
+                                "cache_time": 0,
+                            },
+                        ) as _resp:
+                            _data = await _resp.json()
+                            if not _data.get("ok"):
+                                self.kernel.logger.error(
+                                    f"Bot API answerInlineQuery error: {_data}"
                                 )
-
-                        builder = event.builder.article(
-                            "Inline Form",
-                            text=text,
-                            buttons=buttons,
-                            parse_mode="html",
-                        )
-                        await event.answer([builder])
+                        return
                     else:
                         await event.answer(
                             [

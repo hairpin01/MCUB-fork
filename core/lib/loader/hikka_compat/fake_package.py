@@ -356,9 +356,7 @@ def _create_types_stub(parent_pkg_name: str) -> types.ModuleType:
         "get_watchers": get_watchers,
     }
     try:
-        import html
         from telethon.tl.types import Message as _Message
-        from telethon.extensions import html as telethon_html
 
         _original_edit = _Message.edit
 
@@ -367,17 +365,7 @@ def _create_types_stub(parent_pkg_name: str) -> types.ModuleType:
                 kwargs["parse_mode"] = "html"
             return await _original_edit(self, *args, **kwargs)
 
-        def _get_html_text(self):
-            raw_text = getattr(self, "raw_text", None) or ""
-            entities = getattr(self, "entities", None) or []
-            try:
-                text = telethon_html.parse(raw_text, entities)
-            except Exception:
-                text = raw_text
-            return html.unescape(text)
-
         _Message.edit = _wrapped_edit
-        _Message.text = property(_get_html_text)
         exported["Message"] = _Message
     except Exception:
         pass

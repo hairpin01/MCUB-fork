@@ -78,6 +78,7 @@ CUSTOM_EMOJI = {
     "download": '<tg-emoji emoji-id="5469785308386041323">⬇️</tg-emoji>',
     "no_cmd": '<tg-emoji emoji-id="5429428837895141860">🫨</tg-emoji>',
     "author": '<tg-emoji emoji-id="5332630862137685609">💖</tg-emoji>',
+    "lib": '<tg-emoji emoji-id="5359785904535774578">💼</tg-emoji>',
 }
 
 # Случайные эмодзи для завершения
@@ -133,7 +134,7 @@ def register(kernel):
             "log_description": "Description: {description}",
             "log_checking_deps": "=- Checking dependencies...",
             "log_deps_found": "=> Found dependencies: {deps}",
-            "installing_deps": "{dependencies} <b>installing dependencies:</b>\n<code>{deps_list}</code>",
+            "installing_deps": "{dependencies} <b>installing dependencies:</b>\n<blockquote expandable><code>{deps_list}</code></blockquote>",
             "log_installing_dep": "=- Installing dependency: {dep}",
             "log_dep_installed": "=> Dependency {dep} installed successfully",
             "log_dep_error": "=X Error installing {dep}: {error}",
@@ -250,7 +251,7 @@ def register(kernel):
             "log_description": "Описание: {description}",
             "log_checking_deps": "=- Проверяю зависимости...",
             "log_deps_found": "=> Найдены зависимости: {deps}",
-            "installing_deps": "{dependencies} <b>ставлю зависимости:</b>\n<code>{deps_list}</code>",
+            "installing_deps": "{dependencies} <b>ставлю зависимости:</b>\n<blockquote expandable><code>{deps_list}</code></blockquote>",
             "log_installing_dep": "=- Устанавливаю зависимость: {dep}",
             "log_dep_installed": "=> Зависимость {dep} установлена успешно",
             "log_dep_error": "=X Ошибка установки {dep}: {error}",
@@ -760,16 +761,19 @@ def register(kernel):
                                 parts.append(part)
                         dependencies = [p.strip() for p in parts if p.strip()]
                         add_log(t("log_deps_found", deps=", ".join(dependencies)))
-                if dependencies:
-                    await edit_with_emoji(
-                        msg,
-                        t(
-                            "installing_deps",
-                            dependencies=CUSTOM_EMOJI["dependencies"],
-                            deps_list="\n".join(dependencies),
-                        ),
-                    )
-                    await install_dependencies_async(dependencies, add_log, msg)
+            if dependencies:
+                deps_with_emoji = "\n".join(
+                    f"{CUSTOM_EMOJI['lib']} {dep}" for dep in dependencies
+                )
+                await edit_with_emoji(
+                    msg,
+                    t(
+                        "installing_deps",
+                        dependencies=CUSTOM_EMOJI["dependencies"],
+                        deps_list=deps_with_emoji,
+                    ),
+                )
+                await install_dependencies_async(dependencies, add_log, msg)
 
                 if is_update:
                     add_log(t("log_removing_old", module_name=module_name))
@@ -911,12 +915,15 @@ def register(kernel):
                     add_log(t("log_deps_found", deps=", ".join(dependencies)))
 
             if dependencies:
+                deps_with_emoji = "\n".join(
+                    f"{CUSTOM_EMOJI['lib']} {dep}" for dep in dependencies
+                )
                 await edit_with_emoji(
                     msg,
                     t(
                         "installing_deps",
                         dependencies=CUSTOM_EMOJI["dependencies"],
-                        deps_list="\n".join(dependencies),
+                        deps_list=deps_with_emoji,
                     ),
                 )
                 await install_dependencies_async(dependencies, add_log, msg)
@@ -1461,12 +1468,15 @@ def register(kernel):
                     add_log(t("log_deps_found", deps=", ".join(dependencies)))
 
             if dependencies:
+                deps_with_emoji = "\n".join(
+                    f"{CUSTOM_EMOJI['lib']} {dep}" for dep in dependencies
+                )
                 await edit_with_emoji(
                     msg,
                     t(
                         "installing_deps",
                         dependencies=CUSTOM_EMOJI["dependencies"],
-                        deps_list="\n".join(dependencies),
+                        deps_list=deps_with_emoji,
                     ),
                 )
                 await install_dependencies_async(dependencies, add_log, msg)

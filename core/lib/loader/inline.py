@@ -3,6 +3,7 @@ import time
 from dataclasses import dataclass
 from html import escape as html_escape
 from typing import TYPE_CHECKING, Any, Mapping, Sequence
+import traceback
 
 from telethon import Button, events
 
@@ -456,6 +457,7 @@ class InlineManager:
         buttons: list | None = None,
         silent: bool = False,
         reply_to: int | None = None,
+        form_sms: Message | None = None,
         **kwargs,
     ):
         """Perform an inline query and automatically click the specified result.
@@ -498,11 +500,21 @@ class InlineManager:
             click_kwargs.update(kwargs)
 
             message = await results[result_index].click(chat_id, **click_kwargs)
+            if form_sms:
+                await form_sms.delete()
             k.logger.info(f"Inline query OK: {query[:50]}...")
             return True, message
 
         except Exception as e:
             await k.handle_error(e, source="inline_query_and_click")
+            raw_tb = "".join(
+                traceback.format_exception(exc_type, exc_value, tb)
+            ).replace("Traceback (most recent call last):\n", "")
+            if form_sms:
+                await form_sms.edit(
+                    f'<tg-emoji emoji-id="5465665476971471368">❌</tg-emoji> <i><b>Open the inline form, failed!</b></i>\n<pre>{raw_tb}</pre>',
+                    parse_mode="html",
+                )
             return False, None
 
     async def inline_form(
@@ -553,13 +565,30 @@ class InlineManager:
             )
 
             if auto_send:
+                try:
+                    form_sms = await k.client.send_message(
+                        chat_id,
+                        '<tg-emoji emoji-id="5204110240752110921">🕳️</tg-emoji> <i><b>Open inline form</b></i>',
+                        parse_mode="html",
+                    )
+                except Exception:
+                    form_sms = None
                 return await self.inline_query_and_click(
-                    chat_id=chat_id, query=form_id, **kwargs
+                    chat_id=chat_id, query=form_id, form_sms=form_sms, **kwargs
                 )
             return form_id
 
         except Exception as e:
             await k.handle_error(e, source="inline_form")
+            raw_tb = "".join(
+                traceback.format_exception(exc_type, exc_value, tb)
+            ).replace("Traceback (most recent call last):\n", "")
+            if auto_send:
+                if form_sms:
+                    await form_sms.edit(
+                        f'<tg-emoji emoji-id="5465665476971471368">❌</tg-emoji> <i><b>Open the inline form, failed!</b></i>\n<pre>{raw_tb}</pre>',
+                        parse_mode="html",
+                    )
             return (False, None) if auto_send else None
 
     async def gallery(

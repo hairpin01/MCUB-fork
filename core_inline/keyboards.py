@@ -1,9 +1,12 @@
 from telethon import Button
 
+from .strings import get_strings
+
 
 class InlineKeyboards:
     def __init__(self, kernel):
         self.kernel = kernel
+        self.lang = get_strings(kernel)
 
     async def handle_confirm_yes(self, event):
 
@@ -15,15 +18,15 @@ class InlineKeyboards:
             saved_command = self.kernel.pending_confirmations[confirm_key]
             del self.kernel.pending_confirmations[confirm_key]
 
-            await event.answer("✅ Подтверждено")
+            await event.answer(f"✅ {self.lang['confirm_yes']}")
             await event.edit(
-                f"✅ **Команда подтверждена**\n\nВыполняю: `{saved_command}`"
+                f"✅ **{self.lang['command_confirmed']}**\n\n{self.lang['executing']}: `{saved_command}`"
             )
 
             await self.kernel.client.send_message(chat_id, saved_command)
         else:
-            await event.answer("❌ Команда не найдена")
-            await event.edit("❌ Команда не найдена или уже выполнена")
+            await event.answer(f"❌ {self.lang['command_not_found']}")
+            await event.edit(f"❌ {self.lang['command_not_found_or_executed']}")
 
     async def handle_confirm_no(self, event):
 
@@ -33,29 +36,29 @@ class InlineKeyboards:
 
         if confirm_key in self.kernel.pending_confirmations:
             del self.kernel.pending_confirmations[confirm_key]
-            await event.answer("❌ Отменено")
-            await event.edit("❌ Команда отменена")
+            await event.answer(f"❌ {self.lang['confirm_no']}")
+            await event.edit(f"❌ {self.lang['command_cancelled']}")
         else:
-            await event.answer("❌ Нечего отменять")
-            await event.edit("❌ Нечего отменять")
+            await event.answer(f"❌ {self.lang['nothing_to_cancel']}")
+            await event.edit(f"❌ {self.lang['nothing_to_cancel']}")
 
     async def handle_catalog_page(self, event):
         try:
             data_str = event.data.decode("utf-8")
         except Exception:
-            await event.answer("⚠️ Ошибка данных", alert=True)
+            await event.answer(f"⚠️ {self.lang['data_error']}", alert=True)
             return
 
         try:
             page = int(data_str.split("_")[1])
         except (IndexError, ValueError):
-            await event.answer("⚠️ Неверный формат данных", alert=True)
+            await event.answer(f"⚠️ {self.lang['invalid_format']}", alert=True)
             return
 
         await event.answer()
 
         if not hasattr(self.kernel, "catalog_cache") or not self.kernel.catalog_cache:
-            await event.edit("❌ Каталог не загружен")
+            await event.edit(f"❌ {self.lang['catalog_not_loaded']}")
             return
 
         catalog = self.kernel.catalog_cache
@@ -72,24 +75,30 @@ class InlineKeyboards:
         end_idx = start_idx + per_page
         page_modules = modules_list[start_idx:end_idx]
 
-        msg = f"📚 <b>Каталог модулей</b> (Стр. {page}/{total_pages})\n\n"
+        msg = f"📚 <b>{self.lang['catalog_title']}</b> ({self.lang['page']}. {page}/{total_pages})\n\n"
         for module_name, info in page_modules:
             msg += f"• <b>{module_name}</b>\n"
-            msg += f'  {info.get("description", "Описание отсутствует")}\n'
+            msg += f"  {info.get('description', self.lang['no_description'])}\n"
             if "author" in info:
-                msg += f'  👤 Автор: @{info["author"]}\n'
+                msg += f"  👤 {self.lang['author']}: @{info['author']}\n"
             if "commands" in info:
-                msg += f'  Команды: {", ".join(info["commands"])}\n'
+                msg += f"  {self.lang['commands']}: {', '.join(info['commands'])}\n"
             msg += "\n"
 
-        msg += f"\nИспользуйте: <code>{self.kernel.custom_prefix}dlm название</code>"
+        msg += f"\n{self.lang['use_dlm']}: <code>{self.kernel.custom_prefix}dlm название</code>"
 
         buttons = []
         nav_buttons = []
         if page > 1:
-            nav_buttons.append(Button.inline("⬅️ Назад", f"dlml_{page-1}".encode()))
+            nav_buttons.append(
+                Button.inline(f"⬅️ {self.lang['nav_back']}", f"dlml_{page - 1}".encode())
+            )
         if page < total_pages:
-            nav_buttons.append(Button.inline("➡️ Вперёд", f"dlml_{page+1}".encode()))
+            nav_buttons.append(
+                Button.inline(
+                    f"➡️ {self.lang['nav_forward']}", f"dlml_{page + 1}".encode()
+                )
+            )
 
         if nav_buttons:
             buttons.append(nav_buttons)

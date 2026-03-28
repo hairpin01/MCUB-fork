@@ -6,6 +6,7 @@ import os
 import re
 import sys
 import subprocess
+import asyncio
 import inspect
 import aiohttp
 from datetime import datetime
@@ -409,6 +410,37 @@ def register(kernel):
             kernel.logger.error(f"Ошибка загрузки модуля {module_name}: {e}")
             return False, f"Ошибка загрузки: {str(e)}"
 
+    async def install_dependencies_async(dependencies, add_log_func, msg):
+        async def install_one(dep):
+            add_log_func(f"=- Устанавливаю зависимость: {dep}")
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    dep,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await proc.communicate()
+                if proc.returncode == 0:
+                    add_log_func(f"=> Зависимость {dep} установлена успешно")
+                    return True, dep, None
+                else:
+                    err = stderr.decode() if stderr else "unknown error"
+                    add_log_func(f"=X Ошибка установки {dep}: {err[:200]}")
+                    return False, dep, err[:200]
+            except Exception as e:
+                add_log_func(f"=X Ошибка установки {dep}: {str(e)}")
+                return False, dep, str(e)
+
+        if not dependencies:
+            return
+
+        tasks = [install_one(dep) for dep in dependencies]
+        await asyncio.gather(*tasks)
+
     def detect_module_type(module):
         register = getattr(module, "register", None)
         if register is None:
@@ -737,19 +769,7 @@ def register(kernel):
                             deps_list="\n".join(dependencies),
                         ),
                     )
-                    for dep in dependencies:
-                        add_log(t("log_installing_dep", dep=dep))
-                        result = subprocess.run(
-                            [sys.executable, "-m", "pip", "install", dep],
-                            capture_output=True,
-                            text=True,
-                        )
-                        if result.returncode == 0:
-                            add_log(t("log_dep_installed", dep=dep))
-                        else:
-                            add_log(
-                                t("log_dep_error", dep=dep, error=result.stderr[:200])
-                            )
+                    await install_dependencies_async(dependencies, add_log, msg)
 
                 if is_update:
                     add_log(t("log_removing_old", module_name=module_name))
@@ -814,6 +834,8 @@ def register(kernel):
                                     idea=CUSTOM_EMOJI["idea"],
                                     description=metadata["description"],
                                     version=metadata["version"],
+                                    author=metadata.get("author", "unknown"),
+                                    emoji_author=CUSTOM_EMOJI["author"],
                                     commands_list=commands_list + conflict_text,
                                 ),
                                 file=media,
@@ -832,6 +854,8 @@ def register(kernel):
                                     idea=CUSTOM_EMOJI["idea"],
                                     description=metadata["description"],
                                     version=metadata["version"],
+                                    author=metadata.get("author", "unknown"),
+                                    emoji_author=CUSTOM_EMOJI["author"],
                                     commands_list=commands_list + conflict_text,
                                 ),
                             )
@@ -895,18 +919,7 @@ def register(kernel):
                         deps_list="\n".join(dependencies),
                     ),
                 )
-
-                for dep in dependencies:
-                    add_log(t("log_installing_dep", dep=dep))
-                    result = subprocess.run(
-                        [sys.executable, "-m", "pip", "install", dep],
-                        capture_output=True,
-                        text=True,
-                    )
-                    if result.returncode == 0:
-                        add_log(t("log_dep_installed", dep=dep))
-                    else:
-                        add_log(t("log_dep_error", dep=dep, error=result.stderr[:200]))
+                await install_dependencies_async(dependencies, add_log, msg)
 
             if is_update:
                 add_log(t("log_removing_old", module_name=module_name))
@@ -1456,18 +1469,7 @@ def register(kernel):
                         deps_list="\n".join(dependencies),
                     ),
                 )
-
-                for dep in dependencies:
-                    add_log(t("log_installing_dep", dep=dep))
-                    result = subprocess.run(
-                        [sys.executable, "-m", "pip", "install", dep],
-                        capture_output=True,
-                        text=True,
-                    )
-                    if result.returncode == 0:
-                        add_log(t("log_dep_installed", dep=dep))
-                    else:
-                        add_log(t("log_dep_error", dep=dep, error=result.stderr[:200]))
+                await install_dependencies_async(dependencies, add_log, msg)
 
             if is_update:
                 add_log(t("log_removing_old", module_name=module_name))
@@ -1788,10 +1790,18 @@ def register(kernel):
 
         module_name = args[1]
 
-        if (
-            module_name not in kernel.loaded_modules
-            and module_name not in kernel.system_modules
-        ):
+        def find_module_case_insensitive(name: str):
+            name_lower = name.lower()
+            for key in kernel.loaded_modules:
+                if key.lower() == name_lower:
+                    return key, "loaded"
+            for key in kernel.system_modules:
+                if key.lower() == name_lower:
+                    return key, "system"
+            return None, None
+
+        actual_name, _ = find_module_case_insensitive(module_name)
+        if actual_name is None:
             await edit_with_emoji(
                 event,
                 t(
@@ -1801,6 +1811,8 @@ def register(kernel):
                 ),
             )
             return
+
+        module_name = actual_name
 
         instance = kernel.loaded_modules.get(module_name)
         if instance and getattr(instance, "_hikka_compat", False):
@@ -1819,6 +1831,9 @@ def register(kernel):
 
         if module_name in kernel.loaded_modules:
             del kernel.loaded_modules[module_name]
+
+        if module_name in kernel.system_modules:
+            del kernel.system_modules[module_name]
 
         await log_to_bot(f"Модуль {module_name} удалён")
         await edit_with_emoji(
@@ -1847,10 +1862,18 @@ def register(kernel):
 
         module_name = args[1]
 
-        if (
-            module_name not in kernel.loaded_modules
-            and module_name not in kernel.system_modules
-        ):
+        def find_module_case_insensitive(name: str):
+            name_lower = name.lower()
+            for key in kernel.loaded_modules:
+                if key.lower() == name_lower:
+                    return key, "loaded"
+            for key in kernel.system_modules:
+                if key.lower() == name_lower:
+                    return key, "system"
+            return None, None
+
+        actual_name, _ = find_module_case_insensitive(module_name)
+        if actual_name is None:
             await edit_with_emoji(
                 event,
                 t(
@@ -1860,6 +1883,8 @@ def register(kernel):
                 ),
             )
             return
+
+        module_name = actual_name
 
         file_path = None
         if module_name in kernel.system_modules:
@@ -1997,10 +2022,18 @@ def register(kernel):
 
         module_name = args[1]
 
-        if (
-            module_name not in kernel.loaded_modules
-            and module_name not in kernel.system_modules
-        ):
+        def find_module_case_insensitive(name: str):
+            name_lower = name.lower()
+            for key in kernel.loaded_modules:
+                if key.lower() == name_lower:
+                    return key, "loaded"
+            for key in kernel.system_modules:
+                if key.lower() == name_lower:
+                    return key, "system"
+            return None, None
+
+        actual_name, _ = find_module_case_insensitive(module_name)
+        if actual_name is None:
             await edit_with_emoji(
                 event,
                 t(
@@ -2010,6 +2043,8 @@ def register(kernel):
                 ),
             )
             return
+
+        module_name = actual_name
 
         if module_name in kernel.system_modules:
             file_path = os.path.join(kernel.MODULES_DIR, f"{module_name}.py")

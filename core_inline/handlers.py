@@ -1,12 +1,19 @@
-import aiohttp
-import json
 import html
+import json
 import time
 import traceback
-from telethon import events, Button
-from telethon.tl.types import InputWebDocument
+import uuid
+
+import aiohttp
+from telethon import Button, events
+from telethon.tl.types import (
+    InputWebDocument,
+    KeyboardButtonCallback,
+    KeyboardButtonUrl,
+)
 
 from .lib import InlineManager
+from .strings import get_strings
 
 
 class InlineHandlers:
@@ -28,13 +35,14 @@ class InlineHandlers:
 
         self._form_counter = 0
         self._inline_manager = InlineManager(kernel)
+        self.lang = get_strings(kernel)
 
     async def close(self) -> None:
         """Close aiohttp session on bot shutdown."""
         if hasattr(self.kernel, "session") and self.kernel.session is not None:
             if not self.kernel.session.closed:
                 await self.kernel.session.close()
-            self.kernel.session = None
+            self.kernel.session = Non
 
     def create_inline_form(
         self, text, buttons=None, ttl=3600, media=None, media_type="photo"
@@ -82,23 +90,20 @@ class InlineHandlers:
 
     def _normalize_buttons(self, buttons):
         """Приводит кнопки к единому формату (список рядов)."""
-        if not buttons:
-            return None
-        if not isinstance(buttons, list):
-            return None
-        if len(buttons) == 0:
+        # Consolidate the three redundant falsy checks into one
+        if not buttons or not isinstance(buttons, list):
             return None
 
-        # Если передан список словарей (одноуровневый)
+        # Список словарей (одноуровневый) → каждый в отдельный ряд
         if isinstance(buttons[0], dict):
-            parsed = []
-            for btn_dict in buttons:
-                btn = self._dict_to_button(btn_dict)
-                if btn:
-                    parsed.append([btn])
-            return parsed if parsed else None
+            parsed = [
+                [btn]
+                for item in buttons
+                if (btn := self._dict_to_button(item)) is not None
+            ]
+            return parsed or None
 
-        # Если передан список рядов
+        # Список рядов
         if isinstance(buttons[0], list):
             parsed = []
             for row in buttons:
@@ -114,7 +119,7 @@ class InlineHandlers:
                         parsed_row.append(item)
                 if parsed_row:
                     parsed.append(parsed_row)
-            return parsed if parsed else None
+            return parsed or None
 
         return None
 
@@ -122,7 +127,7 @@ class InlineHandlers:
         if not isinstance(btn_dict, dict):
             return None
 
-        text = btn_dict.get("text", "Кнопка")
+        text = btn_dict.get("text", self.lang["btn_default"])
         b_type = btn_dict.get("type", "callback").lower()
 
         if b_type == "callback":
@@ -130,10 +135,10 @@ class InlineHandlers:
             if isinstance(data, str):
                 data = data.encode()
             return Button.inline(text, data)
-        elif b_type == "url":
+        if b_type == "url":
             url = btn_dict.get("url", btn_dict.get("data", ""))
             return Button.url(text, url)
-        elif b_type == "switch":
+        if b_type == "switch":
             query = btn_dict.get("query", "")
             hint = btn_dict.get("hint", "")
             return Button.switch_inline(text, query, hint)
@@ -146,15 +151,15 @@ class InlineHandlers:
             markup = []
 
             def make_btn(btn_dict):
-                text = btn_dict.get("text", "Кнопка")
+                text = btn_dict.get("text", self.lang["btn_default"])
                 b_type = btn_dict.get("type", "callback").lower()
                 if b_type == "callback":
                     return Button.inline(text, btn_dict.get("data", "").encode())
-                elif b_type == "url":
+                if b_type == "url":
                     return Button.url(
                         text, btn_dict.get("url", btn_dict.get("data", ""))
                     )
-                elif b_type == "switch":
+                if b_type == "switch":
                     return Button.switch_inline(
                         text, btn_dict.get("query", ""), btn_dict.get("hint", "")
                     )
@@ -174,8 +179,10 @@ class InlineHandlers:
                 if btn:
                     markup.append([btn])
             return markup
-        except (json.JSONDecodeError, Exception) as e:
-            self.kernel.logger.debug(f"Ошибка парсинга JSON кнопок: {e}")
+        except Exception as e:
+            # json.JSONDecodeError is a subclass of ValueError which is a
+            # subclass of Exception — no need to list it separately
+            self.kernel.logger.warning(f"{self.lang['json_parsing_error']}: {e}")
             return []
 
     async def check_admin(self, event):
@@ -198,16 +205,117 @@ class InlineHandlers:
                     await event.answer(
                         [
                             event.builder.article(
-                                "Нет доступа",
-                                text=f"{self.EMOJI_BLOCK} У вас нет доступа к inline MCUB bot\n"
-                                f"<blockquote>{self.EMOJI_SHIELD} ID: {event.sender_id}</blockquote>",
+                                self.lang["no_access"],
+                                text=(
+                                    f"{self.EMOJI_BLOCK} {self.lang['no_access']}\n"
+                                    f"<blockquote>{self.EMOJI_SHIELD} {self.lang['no_access_id']}: {event.sender_id}</blockquote>"
+                                ),
                                 parse_mode="html",
                             )
                         ]
                     )
                     return
 
-                if query.startswith("form_"):
+                if not query.strip():
+                    results = []
+                    modules_count = len(self.kernel.loaded_modules) + len(
+                        self.kernel.system_modules
+                    )
+
+                    info_text = (
+                        f"{self.EMOJI_CRYSTAL} <b>{self.lang['mcub_bot_title']}</b>\n"
+                        f"<blockquote>{self.EMOJI_SHIELD} {self.lang['version']}: {self.kernel.VERSION}</blockquote>\n"
+                        f"<blockquote>{self.EMOJI_TOT} {self.lang['modules']}: {modules_count}</blockquote>\n"
+                    )
+
+                    thumb = InputWebDocument(
+                        url="https://kappa.lol/KSKoOu",
+                        size=0,
+                        mime_type="image/jpeg",
+                        attributes=[],
+                    )
+
+                    results.append(
+                        event.builder.article(
+                            "MCUB Info",
+                            text=info_text,
+                            description=self.lang["info_description"],
+                            parse_mode="html",
+                            thumb=thumb,
+                        )
+                    )
+
+                    for pattern, handler in self.kernel.inline_handlers.items():
+                        if len(results) >= 50:
+                            break
+                        docstring = getattr(handler, "__doc__", None) or "команда"
+                        cmd_text = (
+                            f"{self.EMOJI_TELESCOPE} <b>{self.lang['command']}:</b>"
+                            f" <code>{html.escape(pattern)}</code>\n\n"
+                        )
+                        thumb_cmd = InputWebDocument(
+                            url="https://kappa.lol/EKhGKM",
+                            size=0,
+                            mime_type="image/jpeg",
+                            attributes=[],
+                        )
+                        results.append(
+                            event.builder.article(
+                                f"{self.lang['command']}: {pattern[:20]}",
+                                text=cmd_text,
+                                parse_mode="html",
+                                thumb=thumb_cmd,
+                                description=html.escape(docstring.strip()),
+                                buttons=[
+                                    [
+                                        Button.switch_inline(
+                                            f"🏄‍♀️ {self.lang['execute']}: {pattern}",
+                                            query=pattern,
+                                            same_peer=True,
+                                        )
+                                    ]
+                                ],
+                            )
+                        )
+
+                    if len(results) == 1:
+                        no_cmds_text = (
+                            f"{self.EMOJI_CRYSTAL} <b>{self.lang['mcub_bot_title']}</b>\n\n"
+                            f"{self.EMOJI_BLOCK} <i>{self.lang['no_commands']}</i>\n\n"
+                        )
+                        results.append(
+                            event.builder.article(
+                                self.lang["no_commands"],
+                                text=no_cmds_text,
+                                parse_mode="html",
+                            )
+                        )
+
+                    await event.answer(results)
+                    return
+
+                #  text | {keyboards}
+                if "|" in query:
+                    try:
+                        parts = query.split("|", 1)
+                        text = parts[0].strip().strip("\"'")
+                        json_str = parts[1].strip() if len(parts) > 1 else ""
+                        buttons = self._parse_json_buttons(json_str) if json_str else []
+
+                        builder = event.builder.article(
+                            "Message",
+                            text=text,
+                            buttons=buttons or None,
+                            parse_mode="html",
+                        )
+                    except Exception as e:
+                        self.kernel.logger.debug(f"Ошибка обработки JSON формы: {e}")
+                        text = query.split("|")[0].strip().strip("\"'")
+                        builder = event.builder.article(
+                            "Message", text=text, parse_mode="html"
+                        )
+
+                elif query.startswith("form_"):
                     form_data = self.get_inline_form(query)
                     if form_data:
                         media = form_data.get("media")
@@ -216,8 +324,6 @@ class InlineHandlers:
                         text = form_data["text"]
 
                         if media:
-                            import uuid
-
                             _rid = str(uuid.uuid4())
                             _mime_map = {
                                 "video": "video/mp4",
@@ -254,11 +360,6 @@ class InlineHandlers:
                                             row = [row]
                                         _kbd_rows.append([])
                                         for _btn in row:
-                                            from telethon.tl.types import (
-                                                KeyboardButtonCallback,
-                                                KeyboardButtonUrl,
-                                            )
-
                                             if isinstance(_btn, KeyboardButtonCallback):
                                                 _kbd_rows[-1].append(
                                                     {
@@ -309,209 +410,208 @@ class InlineHandlers:
                             buttons=buttons,
                             parse_mode="html",
                         )
-
                         await event.answer([builder])
                     else:
                         await event.answer(
                             [
                                 event.builder.article(
-                                    "Форма не найдена",
-                                    text=f"{self.EMOJI_BLOCK} <b>Форма не найдена или истекла</b>\n"
-                                    f"<i>ID: <code>{html.escape(query)}</code></i>",
+                                    self.lang["form_not_found"],
+                                    text=(
+                                        f"{self.EMOJI_BLOCK} <b>{self.lang['form_expired']}</b>\n"
+                                        f"<i>{self.lang['form_id']}: <code>{html.escape(query)}</code></i>"
+                                    ),
                                     parse_mode="html",
                                 )
                             ]
                         )
                     return
 
-                for pattern, handler in self.kernel.inline_handlers.items():
-                    if query.startswith(pattern):
-                        await handler(event)
-                        return
-
-                if not query.strip():
-                    results = []
-                    modules_count = len(self.kernel.loaded_modules) + len(
-                        self.kernel.system_modules
-                    )
-                    _inline_cmd_count = len(self.kernel.inline_handlers)
-
-                    info_text = (
-                        f"{self.EMOJI_CRYSTAL} <b>MCUB Bot</b>\n"
-                        f"<blockquote>{self.EMOJI_SHIELD} Version: {self.kernel.VERSION}</blockquote>\n"
-                        f"<blockquote>{self.EMOJI_TOT} Modules: {modules_count}</blockquote>\n"
-                    )
-
-                    thumb = InputWebDocument(
-                        url="https://kappa.lol/KSKoOu",
-                        size=0,
-                        mime_type="image/jpeg",
-                        attributes=[],
-                    )
-
-                    info_article = event.builder.article(
-                        "MCUB Info",
-                        text=info_text,
-                        description="Info userbot",
-                        parse_mode="html",
-                        thumb=thumb,
-                    )
-                    results.append(info_article)
-
-                    for pattern, handler in self.kernel.inline_handlers.items():
-                        if len(results) >= 50:
-                            break
-                        docstring = getattr(handler, "__doc__", None) or "команда"
-                        cmd_text = f"{self.EMOJI_TELESCOPE} <b>Команда:</b> <code>{html.escape(pattern)}</code>\n\n"
-                        thumb_cmd = InputWebDocument(
-                            url="https://kappa.lol/EKhGKM",
-                            size=0,
-                            mime_type="image/jpeg",
-                            attributes=[],
-                        )
-                        cmd_article = event.builder.article(
-                            f"Команда: {pattern[:20]}",
-                            text=cmd_text,
-                            parse_mode="html",
-                            thumb=thumb_cmd,
-                            description=html.escape(docstring.strip()),
-                            buttons=[
-                                [
-                                    Button.switch_inline(
-                                        f"🏄‍♀️ Выполнить: {pattern}",
-                                        query=pattern,
-                                        same_peer=True,
-                                    )
-                                ]
-                            ],
-                        )
-                        results.append(cmd_article)
-
-                    if len(results) == 1:
-                        no_cmds_text = (
-                            f"{self.EMOJI_CRYSTAL} <b>MCUB Bot</b>\n\n"
-                            f"{self.EMOJI_BLOCK} <i>Нет зарегистрированных inline-команд</i>\n\n"
-                        )
-                        no_cmds_article = event.builder.article(
-                            "Нет команд", text=no_cmds_text, parse_mode="html"
-                        )
-                        results.append(no_cmds_article)
-
-                    await event.answer(results)
-                    return
-
-                #  text | {keyboards}
-                elif "|" in query:
-                    try:
-                        parts = query.split("|", 1)
-                        text = parts[0].strip().strip("\"'")
-                        if len(parts) > 1:
-                            json_str = parts[1].strip()
-                            buttons = self._parse_json_buttons(json_str)
-                        else:
-                            buttons = []
-
-                        builder = event.builder.article(
-                            "Message",
-                            text=text,
-                            buttons=buttons if buttons else None,
-                            parse_mode="html",
-                        )
-                    except Exception as e:
-                        self.kernel.logger.debug(f"Ошибка обработки JSON формы: {e}")
-                        text = query.split("|")[0].strip().strip("\"'")
-                        builder = event.builder.article(
-                            "Message", text=text, parse_mode="html"
-                        )
                 else:
-                    text = query
-                    builder = event.builder.article(
-                        "Message", text=text, parse_mode="html"
-                    )
+                    # Route to a registered inline handler or echo the query
+                    for pattern, handler in self.kernel.inline_handlers.items():
+                        if query.startswith(pattern):
+                            await handler(event)
+                            return
 
-                await event.answer([builder] if builder else [])
+                    builder = event.builder.article(
+                        "Message", text=query, parse_mode="html"
+                    )
+                    await event.answer([builder])
 
             except Exception as e:
                 error_traceback = "".join(
                     traceback.format_exception(type(e), e, e.__traceback__)
                 )
-
+                self.kernel.logger.error(f"{self.lang['error']}: {e}")
+                self.kernel.logger.error(f"Full traceback: {error_traceback}")
                 thumb = InputWebDocument(
                     url="https://kappa.lol/qNFKBT",
                     size=0,
                     mime_type="image/jpeg",
                     attributes=[],
                 )
-
-                error = event.builder.article(
-                    "Error",
-                    text=f"🃏 Inline query error:\n <pre>{error_traceback}</pre>",
-                    description=f"E: {str(e)[:50]}",
-                    parse_mode="html",
-                    thumb=thumb,
+                await event.answer(
+                    [
+                        event.builder.article(
+                            "Error",
+                            text=f"🃏 {self.lang['error']}:\n <pre>{html.escape(error_traceback)}</pre>",
+                            description=f"{self.lang['error_description']}: {str(e)[:50]}",
+                            parse_mode="html",
+                            thumb=thumb,
+                        )
+                    ]
                 )
-                await event.answer([error])
 
         @self.bot_client.on(events.CallbackQuery)
         async def callback_query_handler(event):
-            if not event.data:
-                return
-            data_str = (
-                event.data.decode("utf-8")
-                if isinstance(event.data, bytes)
-                else str(event.data)
-            )
+            try:
+                if not event.data:
+                    return
 
-            if not await self.check_admin(event) and (
-                not hasattr(self.kernel, "callback_permissions")
-                or not self.kernel.callback_permissions.is_allowed(
-                    event.sender_id, data_str
+                data_str = (
+                    event.data.decode("utf-8")
+                    if isinstance(event.data, bytes)
+                    else str(event.data)
                 )
-            ):
-                return await event.answer("Нет доступа", alert=False)
 
-            if data_str.startswith("show_tb"):
-                await self._handle_show_traceback(event)
-            elif data_str.startswith("confirm_"):
-                from .keyboards import InlineKeyboards
+                if not await self.check_admin(event) and (
+                    not hasattr(self.kernel, "callback_permissions")
+                    or not self.kernel.callback_permissions.is_allowed(
+                        event.sender_id, data_str
+                    )
+                ):
+                    return await event.answer(self.lang["no_access"], alert=False)
 
-                kb = InlineKeyboards(self.kernel)
-                if "yes" in data_str:
-                    await kb.handle_confirm_yes(event)
-                else:
-                    await kb.handle_confirm_no(event)
+                if data_str.startswith("show_tb:"):
+                    await self._handle_show_traceback(event, data_str)
+                elif data_str.startswith("find_similar:"):
+                    await self._handle_find_similar(event, data_str)
+                elif data_str.startswith("mute_err:"):
+                    await self._handle_mute_error(event, data_str)
+                elif data_str.startswith("confirm_"):
+                    from .keyboards import InlineKeyboards
 
-            for pattern, handler in list(self.kernel.callback_handlers.items()):
-                p_str = pattern.decode() if isinstance(pattern, bytes) else str(pattern)
-                if data_str.startswith(p_str):
-                    await handler(event)
+                    kb = InlineKeyboards(self.kernel)
+                    if "yes" in data_str:
+                        await kb.handle_confirm_yes(event)
+                    else:
+                        await kb.handle_confirm_no(event)
 
-    async def _handle_show_traceback(self, event):
+                for pattern, handler in list(self.kernel.callback_handlers.items()):
+                    p_str = (
+                        pattern.decode() if isinstance(pattern, bytes) else str(pattern)
+                    )
+                    if data_str.startswith(p_str):
+                        await handler(event)
+
+            except Exception as e:
+                error_traceback = "".join(
+                    traceback.format_exception(type(e), e, e.__traceback__)
+                )
+                self.kernel.logger.error(f"Error callback_handlers: {error_traceback}")
+                await event.answer(f"error: {e}")
+
+    async def _handle_show_traceback(self, event, data_str: str) -> None:
+        """Show the stored traceback for a given error ID."""
         try:
-            data_str = (
-                event.data.decode("utf-8")
-                if isinstance(event.data, bytes)
-                else str(event.data)
-            )
-            sep = ":" if ":" in data_str else "_"
-            parts = data_str.split(sep)
-
-            if len(parts) < 2:
-                return await event.answer("⚠️ Неверный ID ошибки", alert=True)
+            # Format is always "show_tb:{error_id}"
+            parts = data_str.split(":", 1)
+            if len(parts) < 2 or not parts[1]:
+                return await event.answer(
+                    f"⚠️ {self.lang['traceback_invalid_id']}", alert=True
+                )
 
             error_id = parts[1]
             traceback_text = self.kernel.cache.get(f"tb_{error_id}")
 
             if not traceback_text:
-                return await event.answer("⚠️ Трейсбэк истек в кэше", alert=True)
+                return await event.answer(
+                    f"⚠️ {self.lang['traceback_expired']}", alert=True
+                )
 
+            # traceback_text is already HTML-formatted by ErrorFormatter
             if len(traceback_text) > 3800:
-                traceback_text = traceback_text[:3800] + "\n... [truncated]"
+                traceback_text = (
+                    traceback_text[:3800] + "\n<code>... [truncated]</code>"
+                )
 
             await event.edit(
-                f"<b>Full Traceback:</b>\n{traceback_text}",
+                f"<b>{self.lang['full_traceback']}:</b>\n{traceback_text}",
                 parse_mode="html",
                 buttons=None,
             )
         except Exception as e:
-            await event.answer(f"Критическая ошибка: {e}", alert=True)
+            self.kernel.logger.error(
+                "Error _handle_show_traceback: %s",
+                "".join(traceback.format_exception(type(e), e, e.__traceback__)),
+            )
+            await event.answer(f"{self.lang['critical_error']}: {e}", alert=True)
+
+    async def _handle_find_similar(self, event, data_str: str) -> None:
+        """Show inline buttons for all recorded errors from the same source function."""
+        try:
+            parts = data_str.split(":", 1)
+            if len(parts) < 2 or not parts[1]:
+                return await event.answer(
+                    f"⚠️ {self.lang['invalid_request']}", alert=True
+                )
+
+            func_hash = parts[1]
+
+            # KernelLogger may be exposed under various attribute names
+            klogger = getattr(self.kernel, "klogger", None) or getattr(
+                self.kernel, "kernel_logger", None
+            )
+            if klogger is not None:
+                similar_ids = klogger.get_similar_errors_by_hash(func_hash)
+            else:
+                # Fallback: access cache directly
+                raw = self.kernel.cache.get(f"similar:{func_hash}")
+                similar_ids = list(raw) if raw else []
+
+            if not similar_ids:
+                return await event.answer(
+                    f"📋 {self.lang['no_similar_errors']}", alert=True
+                )
+
+            buttons = [
+                [Button.inline(f"🔍 {eid}", data=f"show_tb:{eid}")]
+                for eid in similar_ids
+            ]
+            await event.edit(
+                f"📋 <b>{self.lang['similar_errors']} ({len(similar_ids)}):</b>",
+                parse_mode="html",
+                buttons=buttons,
+            )
+        except Exception as e:
+            self.kernel.logger.error(f"Error _handle_find_similar: {e}")
+            await event.answer(f"{self.lang['critical_error']}: {e}", alert=True)
+
+    async def _handle_mute_error(self, event, data_str: str) -> None:
+        """Mute a specific error type+source for one hour."""
+        try:
+            # Format: "mute_err:{error_type}:{source}"
+            parts = data_str.split(":", 2)
+            if len(parts) < 3:
+                return await event.answer(
+                    f"⚠️ {self.lang['invalid_format']}", alert=True
+                )
+
+            error_type, source = parts[1], parts[2]
+
+            klogger = getattr(self.kernel, "klogger", None) or getattr(
+                self.kernel, "kernel_logger", None
+            )
+            if klogger is not None:
+                klogger.mute_error(error_type, source)
+            else:
+                # Fallback: write directly to cache
+                self.kernel.cache.set(f"mute:{error_type}:{source}", True, ttl=3600)
+
+            await event.answer(
+                f"🔕 {self.lang('muted_for_hour', error_type=html.escape(error_type), source=html.escape(source))}",
+                alert=True,
+            )
+        except Exception as e:
+            self.kernel.logger.error(f"Error _handle_mute_error: {e}")
+            await event.answer(f"{self.lang['critical_error']}: {e}", alert=True)

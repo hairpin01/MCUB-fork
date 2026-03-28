@@ -1,5 +1,7 @@
 from typing import Any, Callable, Optional
 
+from .validators import ValidationError
+
 
 class ConfigValue:
     def __init__(
@@ -18,22 +20,46 @@ class ConfigValue:
         self.on_change = on_change
         self._value: Any = None
 
+        if validator is not None and default is not None:
+            self.default = validator.validate(default)
+
+    def _apply_value(
+        self, value: Any, *, soft: bool = False, mark: bool = True
+    ) -> None:
+        old = self.value
+
+        try:
+            if self.validator is not None and value is not None:
+                value = self.validator.validate(value)
+        except ValidationError:
+            if not soft:
+                raise
+            value = self.default
+
+        self._value = value
+
+        if old != self.value:
+            if mark:
+                self._save_marker = True
+            if self.on_change:
+                self._run_on_change()
+
     @property
-    def doc(self) -> str:
+    def doc(self) -> Any:
         raw = self._doc_raw
         if callable(raw):
             try:
                 return raw()
             except Exception:
                 return "No description"
-        return str(raw) if raw is not None else "No description"
+        return raw if raw is not None else "No description"
 
     @doc.setter
     def doc(self, value: Any) -> None:
         self._doc_raw = value
 
     @property
-    def description(self) -> str:
+    def description(self) -> Any:
         return self.doc
 
     @description.setter
@@ -42,34 +68,25 @@ class ConfigValue:
 
     @property
     def value(self) -> Any:
-        return self._value if self._value is not None else self.default
+        return self.default if self._value is None else self._value
 
     @value.setter
-    def value(self, v: Any) -> None:
-        if self.validator and v is not None:
-            try:
-                v = self.validator.validate(v)
-            except Exception:
-                v = self.default
-        old = self._value
-        self._value = v
-        if self.on_change and old != v:
-            try:
-                import asyncio as _asyncio
-                if _asyncio.iscoroutinefunction(self.on_change):
-                    _asyncio.ensure_future(self.on_change())
-                else:
-                    self.on_change()
-            except Exception:
-                pass
+    def value(self, value: Any) -> None:
+        self._apply_value(value)
 
-    def set_no_raise(self, value: Any) -> None:
-        if self.validator and value is not None:
-            try:
-                value = self.validator.validate(value)
-            except Exception:
-                value = self.default
-        self._value = value
+    def _run_on_change(self) -> None:
+        try:
+            import asyncio
+
+            if asyncio.iscoroutinefunction(self.on_change):
+                asyncio.ensure_future(self.on_change())
+            else:
+                self.on_change()
+        except Exception:
+            pass
+
+    def set_no_raise(self, value: Any, *, mark: bool = True) -> None:
+        self._apply_value(value, soft=True, mark=mark)
 
     @property
     def is_secret(self) -> bool:
@@ -78,36 +95,37 @@ class ConfigValue:
 
 class ModuleConfig(dict):
     def __init__(self, *entries):
-        if entries and all(isinstance(e, ConfigValue) for e in entries):
-            self._config: dict[str, ConfigValue] = {cv.option: cv for cv in entries}
+        if entries and all(isinstance(entry, ConfigValue) for entry in entries):
+            self._config = {entry.option: entry for entry in entries}
         else:
             keys, defaults, docs = [], [], []
-            for i, entry in enumerate(entries):
-                if i % 3 == 0:
+            for index, entry in enumerate(entries):
+                if index % 3 == 0:
                     keys.append(entry)
-                elif i % 3 == 1:
+                elif index % 3 == 1:
                     defaults.append(entry)
                 else:
                     docs.append(entry)
+
             self._config = {
                 key: ConfigValue(option=key, default=default, doc=doc)
                 for key, default, doc in zip(keys, defaults, docs)
             }
 
         super().__init__(
-            {option: cv.value for option, cv in self._config.items()}
+            {option: config.value for option, config in self._config.items()}
         )
 
     def __getitem__(self, key: str) -> Any:
-        try:
-            return self._config[key].value
-        except KeyError:
+        if key not in self._config:
             return None
+        return self._config[key].value
 
     def __setitem__(self, key: str, value: Any) -> None:
-        if key in self._config:
-            self._config[key].value = value
-        super().__setitem__(key, value)
+        if key not in self._config:
+            raise KeyError(key)
+        self._config[key].value = value
+        super().__setitem__(key, self._config[key].value)
 
     def __contains__(self, key: object) -> bool:
         return key in self._config
@@ -118,70 +136,69 @@ class ModuleConfig(dict):
     def __len__(self) -> int:
         return len(self._config)
 
-    def __repr__(self) -> str:
-        return f"ModuleConfig({dict(self._config)!r})"
-
     def get(self, key: str, default: Any = None) -> Any:
-        if key in self._config:
-            v = self._config[key].value
-            return v if v is not None else default
-        return default
+        if key not in self._config:
+            return default
+        value = self._config[key].value
+        return default if value is None else value
 
     def keys(self):
         return self._config.keys()
 
     def values(self):
-        return [cv.value for cv in self._config.values()]
+        return [config.value for config in self._config.values()]
 
     def items(self):
-        return [(k, cv.value) for k, cv in self._config.items()]
+        return [(key, config.value) for key, config in self._config.items()]
 
-    def getdoc(self, key: str, message=None) -> str:
+    def getdoc(self, key: str, message=None) -> Any:
         if key not in self._config:
             return ""
-        ret = self._config[key].doc
-        if callable(ret):
+        result = self._config[key].doc
+        if callable(result):
             try:
-                ret = ret(message)
-            except Exception:
-                ret = ret()
-        return ret or ""
+                result = result(message)
+            except TypeError:
+                result = result()
+        return result or ""
 
     def getdef(self, key: str) -> Any:
         return self._config[key].default if key in self._config else None
 
-    def set_no_raise(self, key: str, value: Any) -> None:
-        if key in self._config:
-            self._config[key].set_no_raise(value)
-            super().__setitem__(key, self._config[key].value)
+    def set_no_raise(self, key: str, value: Any, *, mark: bool = True) -> None:
+        if key not in self._config:
+            return
+        self._config[key].set_no_raise(value, mark=mark)
+        super().__setitem__(key, self._config[key].value)
 
     def reload(self) -> None:
-        for key, cv in self._config.items():
-            super().__setitem__(key, cv.value)
+        for key, config in self._config.items():
+            super().__setitem__(key, config.value)
 
     def change_validator(self, key: str, validator) -> None:
         if key in self._config:
             self._config[key].validator = validator
 
     def to_dict(self) -> dict:
-        return {k: cv.value for k, cv in self._config.items()}
+        return {key: config.value for key, config in self._config.items()}
 
     def load_from_dict(self, data: dict) -> None:
-        for k, v in data.items():
-            self[k] = v
+        for key, value in data.items():
+            if key not in self._config:
+                continue
+            self.set_no_raise(key, value, mark=False)
 
     @property
     def schema(self) -> list[dict]:
         return [
             {
-                "key": cv.option,
-                "default": cv.default,
-                "description": cv.doc,
-                "secret": cv.is_secret,
-                "type": type(cv.validator).__name__.lstrip("_").lower()
-                if cv.validator else "string",
+                "key": config.option,
+                "default": config.default,
+                "description": config.doc,
+                "secret": config.is_secret,
+                "type": getattr(config.validator, "internal_id", "String").lower(),
             }
-            for cv in self._config.values()
+            for config in self._config.values()
         ]
 
 

@@ -1006,6 +1006,65 @@ class InlineProxy:
         self._bot_wrapper = _BotProxy(self)
         self.init_complete = bool(getattr(kernel, "bot_client", None))
 
+        self._register_callback_handler()
+
+    def _register_callback_handler(self):
+        kernel = self._kernel
+        client = getattr(kernel, "client", None)
+        if not client:
+            return
+
+        try:
+            from telethon import events
+
+            @client.on(events.CallbackQuery())
+            async def _hikka_compat_callback_handler(event):
+                data = event.data
+                if not data:
+                    return
+
+                data_str = data.decode() if isinstance(data, bytes) else str(data)
+                custom_payload = self._custom_map.get(data_str)
+
+                if custom_payload:
+                    from .inline_types import InlineCall, BotInlineCall
+
+                    is_bot_message = getattr(event, "message", None) is not None
+                    inline_proxy = self
+
+                    call_obj = (
+                        BotInlineCall(
+                            event,
+                            inline_proxy=inline_proxy,
+                            unit_id=custom_payload.get("unit_id", ""),
+                        )
+                        if is_bot_message
+                        else InlineCall(
+                            data_str,
+                            unit_id=custom_payload.get("unit_id", ""),
+                            inline_proxy=inline_proxy,
+                            original_call=event,
+                            inline_message_id=getattr(event, "inline_message_id", None),
+                            chat_id=getattr(event, "chat_instance", None),
+                            message_id=getattr(event, "message_id", None),
+                            from_user_id=getattr(
+                                getattr(event, "from_user", None), "id", None
+                            ),
+                        )
+                    )
+
+                    handler = custom_payload.get("handler")
+                    if handler:
+                        try:
+                            await handler(call_obj)
+                        except Exception as e:
+                            kernel.logger.error(f"[hikka_compat] callback error: {e}")
+
+        except Exception as e:
+            kernel.logger.warning(
+                f"[hikka_compat] failed to register callback handler: {e}"
+            )
+
     def _bind_module(self, module) -> None:
         self._module = module
         raw = type(module).__dict__.get("strings", {})
@@ -2330,20 +2389,26 @@ class Module:
         pass
 
     def _mcub_bind(self, kernel) -> None:
+        from .client import FakeClient
+
         self._kernel = kernel
-        self.client = kernel.client
-        self._client = kernel.client
-        if getattr(self._client, "dispatcher", None) is None:
-            self._client.dispatcher = types.SimpleNamespace()
-        if getattr(self._client.dispatcher, "security", None) is None:
-            self._client.dispatcher.security = _CompatSecurityManager(self._client)
+        inline_proxy = InlineProxy(kernel)
+        inline_proxy._bind_module(self)
+        self.client = FakeClient(kernel.client, inline_proxy)
+        self._client = self.client
+
+        if getattr(self._client._client, "dispatcher", None) is None:
+            self._client._client.dispatcher = types.SimpleNamespace()
+        if getattr(self._client._client.dispatcher, "security", None) is None:
+            self._client._client.dispatcher.security = _CompatSecurityManager(
+                self._client
+            )
         _raw_strings = type(self).__dict__.get("strings", {"name": type(self).__name__})
         self._db_owner = _raw_strings.get("name") or type(self).__name__
         self.name = _raw_strings.get("name", self._db_owner)
         self.db = DbProxy(kernel, self._db_owner)
         self._db = self.db
-        self.inline = InlineProxy(kernel)
-        self.inline._bind_module(self)
+        self.inline = self.client._inline_proxy
         self.tg_id = getattr(kernel, "ADMIN_ID", None)
         self._tg_id = self.tg_id
         self.allmodules = _AllModulesStub(kernel)

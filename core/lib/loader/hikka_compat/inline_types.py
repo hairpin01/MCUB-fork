@@ -47,6 +47,7 @@ class InlineMessage:
         self.inline_manager = _resolve_inline_manager(inline_proxy)
         self._units = getattr(self.inline_manager, "_units", {})
         self.form = {}
+        self._default_parse_mode: typing.Optional[str] = "html"
         if unit_id and unit_id in self._units:
             unit = dict(self._units[unit_id])
             unit.setdefault("uid", unit_id)
@@ -55,11 +56,22 @@ class InlineMessage:
             unit.setdefault("top_msg_id", message_id)
             self.form = unit
 
+    @property
+    def default_parse_mode(self) -> typing.Optional[str]:
+        return self._default_parse_mode
+
+    @default_parse_mode.setter
+    def default_parse_mode(self, value: typing.Optional[str]) -> None:
+        self._default_parse_mode = value
+
     async def edit(self, *args, **kwargs) -> "InlineMessage":
         kwargs.pop("unit_id", None)
         kwargs.pop("inline_message_id", None)
         kwargs.pop("chat_id", None)
         kwargs.pop("message_id", None)
+
+        if "parse_mode" not in kwargs and self._default_parse_mode is not None:
+            kwargs["parse_mode"] = self._default_parse_mode
 
         manager = self.inline_manager
         edit_unit = getattr(manager, "_edit_unit", None) if manager else None
@@ -129,6 +141,7 @@ class BotMessage:
         self.inline_manager = _resolve_inline_manager(inline_proxy)
         self._units = getattr(self.inline_manager, "_units", {})
         self.form = {}
+        self._default_parse_mode: typing.Optional[str] = "html"
         if unit_id and unit_id in self._units:
             unit = dict(self._units[unit_id])
             unit.setdefault("uid", unit_id)
@@ -137,10 +150,21 @@ class BotMessage:
             unit.setdefault("top_msg_id", message_id)
             self.form = unit
 
+    @property
+    def default_parse_mode(self) -> typing.Optional[str]:
+        return self._default_parse_mode
+
+    @default_parse_mode.setter
+    def default_parse_mode(self, value: typing.Optional[str]) -> None:
+        self._default_parse_mode = value
+
     async def edit(self, *args, **kwargs) -> "BotMessage":
         kwargs.pop("unit_id", None)
         kwargs.pop("chat_id", None)
         kwargs.pop("message_id", None)
+
+        if "parse_mode" not in kwargs and self._default_parse_mode is not None:
+            kwargs["parse_mode"] = self._default_parse_mode
 
         manager = self.inline_manager
         edit_unit = getattr(manager, "_edit_unit", None) if manager else None
@@ -282,7 +306,29 @@ class InlineCall:
 class BotInlineCall(InlineCall):
     """Stub for bot callback queries"""
 
-    pass
+    def __init__(
+        self,
+        event,
+        *,
+        inline_proxy: "_InlineProxy",
+        unit_id: str,
+    ):
+        self._event = event
+        chat = getattr(getattr(event, "message", None), "chat", None)
+        message = getattr(event, "message", None)
+
+        super().__init__(
+            call_data=(
+                getattr(event, "data", b"").decode() if hasattr(event, "data") else ""
+            ),
+            unit_id=unit_id,
+            inline_proxy=inline_proxy,
+            original_call=event,
+            inline_message_id=getattr(event, "inline_message_id", None),
+            chat_id=getattr(chat, "id", None) if chat else None,
+            message_id=getattr(message, "id", None) if message else None,
+            from_user_id=getattr(getattr(event, "from_user", None), "id", None),
+        )
 
 
 class BotInlineMessage(BotMessage):

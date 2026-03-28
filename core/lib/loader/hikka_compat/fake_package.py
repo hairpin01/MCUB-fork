@@ -107,6 +107,8 @@ _HIKKA_INDICATORS = (
     "@loader.watcher",
     "loader.Library",
     "loader.LibraryConfig",
+    "hikka_only",
+    "from .. import",
 )
 
 
@@ -119,6 +121,7 @@ _GEEKG_INDICATORS = (
 _NATIVE_MCUB_INDICATORS = (
     "def register(kernel",
     "from core.lib.loader import",
+    "mcub_only",
 )
 
 
@@ -127,13 +130,13 @@ def _detect_module_type(source_code: str) -> str:
     hikka_score = sum(ind in source_code for ind in _HIKKA_INDICATORS)
     geek_score = sum(ind in source_code for ind in _GEEKG_INDICATORS)
 
-    if native_score >= 1:
-        return "native"
-    if geek_score >= 1:
-        return "geek"
     if hikka_score >= 1:
         return "hikka"
-    return "native"
+    if geek_score >= 1:
+        return "geek"
+    if native_score >= 1:
+        return "native"
+    return "hikka"
 
 
 class ScamDetectionError(Exception):
@@ -353,8 +356,28 @@ def _create_types_stub(parent_pkg_name: str) -> types.ModuleType:
         "get_watchers": get_watchers,
     }
     try:
+        import html
         from telethon.tl.types import Message as _Message
+        from telethon.extensions import html as telethon_html
 
+        _original_edit = _Message.edit
+
+        async def _wrapped_edit(self, *args, **kwargs):
+            if "parse_mode" not in kwargs:
+                kwargs["parse_mode"] = "html"
+            return await _original_edit(self, *args, **kwargs)
+
+        def _get_html_text(self):
+            raw_text = getattr(self, "raw_text", None) or ""
+            entities = getattr(self, "entities", None) or []
+            try:
+                text = telethon_html.parse(raw_text, entities)
+            except Exception:
+                text = raw_text
+            return html.unescape(text)
+
+        _Message.edit = _wrapped_edit
+        _Message.text = property(_get_html_text)
         exported["Message"] = _Message
     except Exception:
         pass
@@ -880,13 +903,236 @@ def _ensure_fake_package() -> str:
         _session_access_hashes.update(map(str, values or []))
         return True
 
-    loader_mod = types.ModuleType(f"{_FAKE_PKG_NAME}.loader")
-    loader_mod.Module = Module
-    loader_mod.Library = Library
-    loader_mod.ModuleConfig = ModuleConfig
-    loader_mod.LibraryConfig = LibraryConfig
-    loader_mod.ConfigValue = ConfigValue
-    loader_mod.validators = validators
+    try:
+        from core.lib.loader.module_config import (
+            ModuleConfig as _MCUBModuleConfig,
+            ConfigValue as _MCUBConfigValue,
+            Validator as _MCUBValidator,
+        )
+
+        class _HikkaCompatibleConfigValue:
+            def __init__(
+                self,
+                option: str,
+                default=None,
+                doc: Any = None,
+                description: Any = None,
+                validator: Any = None,
+                on_change: Any = None,
+            ):
+                self.option = option
+                self.default = default
+                self._doc_raw = doc if doc is not None else description
+                self.validator = validator or _MCUBValidator()
+                self.on_change = on_change
+                self._value = None
+                self._config_value = _MCUBConfigValue(
+                    key=option,
+                    default=default,
+                    validator=self.validator,
+                    description=doc or description or "",
+                    on_change=on_change,
+                )
+
+            @property
+            def value(self):
+                return self._config_value.get_value()
+
+            @value.setter
+            def value(self, val):
+                self._config_value.set_value(val)
+
+            @property
+            def doc(self):
+                return self._config_value.description
+
+            @property
+            def is_secret(self):
+                return getattr(self.validator, "secret", False)
+
+            def set_no_raise(self, value, *, mark=True):
+                self._config_value.set_value(value)
+
+        class _HikkaCompatibleModuleConfig(dict):
+            def __init__(self, *entries, db=None, module_name=None):
+                self._config = {}
+                self._db = db
+                self._module_name = module_name
+
+                if entries and all(
+                    isinstance(entry, (_HikkaCompatibleConfigValue, ConfigValue))
+                    for entry in entries
+                ):
+                    for entry in entries:
+                        if isinstance(entry, ConfigValue) and not isinstance(
+                            entry, _HikkaCompatibleConfigValue
+                        ):
+                            entry = self._convert_config_value(entry)
+                        self._config[entry.option] = entry
+                else:
+                    keys, defaults, docs = [], [], []
+                    for index, entry in enumerate(entries):
+                        if index % 3 == 0:
+                            keys.append(entry)
+                        elif index % 3 == 1:
+                            defaults.append(entry)
+                        else:
+                            docs.append(entry)
+
+                    for key, default, doc in zip(keys, defaults, docs):
+                        cv = _HikkaCompatibleConfigValue(
+                            option=key,
+                            default=default,
+                            doc=doc,
+                        )
+                        self._config[key] = cv
+
+                super().__init__(
+                    {option: config.value for option, config in self._config.items()}
+                )
+
+            def _convert_config_value(
+                self, cv: ConfigValue
+            ) -> _HikkaCompatibleConfigValue:
+                return _HikkaCompatibleConfigValue(
+                    option=cv.option,
+                    default=cv.default,
+                    doc=cv._doc_raw,
+                    description=cv._doc_raw,
+                    validator=cv.validator,
+                    on_change=cv.on_change,
+                )
+
+            def __getitem__(self, key: str) -> Any:
+                if key not in self._config:
+                    return None
+                return self._config[key].value
+
+            def __setitem__(self, key: str, value: Any) -> None:
+                if key not in self._config:
+                    raise KeyError(key)
+                self._config[key].value = value
+                super().__setitem__(key, self._config[key].value)
+                if self._db and self._module_name:
+                    self._save_config()
+
+            def __contains__(self, key: object) -> bool:
+                return key in self._config
+
+            def __iter__(self):
+                return iter(self._config)
+
+            def __len__(self) -> int:
+                return len(self._config)
+
+            def get(self, key: str, default: Any = None) -> Any:
+                if key not in self._config:
+                    return default
+                value = self._config[key].value
+                return default if value is None else value
+
+            def keys(self):
+                return self._config.keys()
+
+            def values(self):
+                return [config.value for config in self._config.values()]
+
+            def items(self):
+                return [(key, config.value) for key, config in self._config.items()]
+
+            def getdoc(self, key: str, message=None) -> Any:
+                if key not in self._config:
+                    return ""
+                result = self._config[key].doc
+                if callable(result):
+                    try:
+                        result = result(message)
+                    except TypeError:
+                        result = result()
+                return result or ""
+
+            def getdef(self, key: str) -> Any:
+                return self._config[key].default if key in self._config else None
+
+            def set_no_raise(self, key: str, value: Any, *, mark: bool = True) -> None:
+                if key not in self._config:
+                    return
+                self._config[key].set_no_raise(value, mark=mark)
+                super().__setitem__(key, self._config[key].value)
+                if self._db and self._module_name:
+                    self._save_config()
+
+            def _save_config(self):
+                if not self._db or not self._module_name:
+                    return
+                try:
+                    import asyncio
+
+                    data = {
+                        key: cv._config_value.to_storage()
+                        for key, cv in self._config.items()
+                    }
+
+                    async def _save():
+                        await self._db.set(self._module_name, "__config__", data)
+
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            asyncio.ensure_future(_save())
+                        else:
+                            loop.run_until_complete(_save())
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+
+            def reload(self) -> None:
+                for key, config in self._config.items():
+                    super().__setitem__(key, config.value)
+
+            def to_dict(self) -> dict:
+                return {key: config.value for key, config in self._config.items()}
+
+            def load_from_dict(self, data: dict) -> None:
+                for key, value in data.items():
+                    if key not in self._config:
+                        continue
+                    self.set_no_raise(key, value, mark=False)
+
+            @property
+            def schema(self) -> list[dict]:
+                return [
+                    {
+                        "key": config.option,
+                        "default": config.default,
+                        "description": config.doc,
+                        "secret": config.is_secret,
+                        "type": getattr(
+                            config.validator, "internal_id", "string"
+                        ).lower(),
+                    }
+                    for config in self._config.values()
+                ]
+
+        loader_mod = types.ModuleType(f"{_FAKE_PKG_NAME}.loader")
+        loader_mod.Module = Module
+        loader_mod.Library = Library
+        loader_mod.ModuleConfig = _HikkaCompatibleModuleConfig
+        loader_mod.LibraryConfig = _HikkaCompatibleModuleConfig
+        loader_mod.ConfigValue = _HikkaCompatibleConfigValue
+
+        from core.lib.loader import validators as _mcub_validators
+
+        loader_mod.validators = _mcub_validators
+    except Exception:
+        loader_mod = types.ModuleType(f"{_FAKE_PKG_NAME}.loader")
+        loader_mod.Module = Module
+        loader_mod.Library = Library
+        loader_mod.ModuleConfig = ModuleConfig
+        loader_mod.LibraryConfig = LibraryConfig
+        loader_mod.ConfigValue = ConfigValue
+        loader_mod.validators = validators
     loader_mod.tds = tds
     loader_mod.tag = tag
     loader_mod.command = command
@@ -1285,9 +1531,19 @@ async def load_hikka_module(
     module_name: str,
 ) -> tuple[bool, str, dict]:
     from . import geek as _geek_compat
+    from . import inline_types
 
     pkg_name = _ensure_fake_package()
     child_pkg = f"{pkg_name}.{module_name}"
+
+    inline_mod = types.ModuleType("inline")
+    inline_types_mod = types.ModuleType("inline.types")
+    for _name in ("InlineCall", "BotInlineCall", "InlineMessage", "BotMessage"):
+        if hasattr(inline_types, _name):
+            setattr(inline_types_mod, _name, getattr(inline_types, _name))
+    inline_mod.types = inline_types_mod
+    sys.modules["inline"] = inline_mod
+    sys.modules["inline.types"] = inline_types_mod
 
     try:
         source = Path(file_path).read_text(encoding="utf-8")
@@ -1475,6 +1731,11 @@ async def load_hikka_module(
             )
             if saved:
                 instance.config.load_from_dict(saved)
+
+            if hasattr(instance.config, "_save_config"):
+                db_proxy = getattr(instance, "db", None)
+                instance.config._db = db_proxy
+                instance.config._module_name = module_name
         except Exception:
             pass
 
@@ -1590,9 +1851,35 @@ async def load_hikka_module(
         ):
             if not getattr(instance, "_hikka_compat_ready", False):
                 return
+
+            from .inline_types import InlineCall, BotInlineCall
+
+            inline_proxy = getattr(instance, "inline", None)
+            is_bot_message = (
+                getattr(getattr(event, "message", None), "chat", None) is not None
+            )
+            call_obj = (
+                BotInlineCall(
+                    event,
+                    inline_proxy=inline_proxy,
+                    unit_id="",
+                )
+                if is_bot_message
+                else InlineCall(
+                    event.data.decode() if event.data else "",
+                    unit_id="",
+                    inline_proxy=inline_proxy,
+                    original_call=event,
+                    inline_message_id=getattr(event, "inline_message_id", None),
+                    chat_id=getattr(event, "chat_instance", None),
+                    message_id=getattr(event, "message_id", None),
+                    from_user_id=getattr(getattr(event, "from_user", None), "id", None),
+                )
+            )
+
             for _handler in _handlers:
                 try:
-                    await _maybe_await(_handler(event))
+                    await _maybe_await(_handler(call_obj))
                 except Exception as _e:
                     kernel.logger.error(
                         f"[hikka_compat] callback handler error in {_mn}: {_e}"

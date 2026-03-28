@@ -1,12 +1,15 @@
 import asyncio
+import hashlib
 import html
 import inspect
+import io
 import logging
 import os
 import re
 import sys
 import traceback
 import uuid
+from collections import deque
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
@@ -33,7 +36,6 @@ class CacheProtocol(Protocol):
     def set(self, key: str, value: object, ttl: int = ...) -> None: ...
 
 
-# Configuration constants
 _LOG_DIR = "logs"
 _LOG_FILE = f"{_LOG_DIR}/kernel.log"
 _LOG_MAX_BYTES = 10 * 1024 * 1024
@@ -47,13 +49,27 @@ _MAX_MESSAGE_INFO_LEN = 300
 _MAX_EVENT_TEXT_LEN = 200
 _MAX_RETRIES = 2
 
+# Mute / lifetime / similar
+_MUTE_TTL = 3600  # seconds — default "Mute 1h"
+_FIRST_SEEN_TTL = 86400  # 24 h — how long we remember first occurrence
+_SIMILAR_MAX = 5  # max error IDs stored per source-function slot
+_LOG_TAIL_LINES = 50  # lines to attach when an error is critical
+_CRITICAL_REPEAT_THRESHOLD = 5  # attach log file after this many repeats
+
 # Telegram log handler settings
 _TELEGRAM_LOG_BATCH_SIZE = 5
 _TELEGRAM_LOG_BATCH_INTERVAL = 2.0
 _TELEGRAM_LOG_RATE_LIMIT = 10
 _TELEGRAM_LOG_RATE_WINDOW = 60
 
-# Regex patterns for sensitive data masking
+_NETWORK_ERRORS = (
+    TimedOutError,
+    NetworkMigrateError,
+    ServerError,
+    ConnectionError,
+    OSError,
+)
+
 _EMOJI_ID_RE = re.compile(r'emoji-id=["\'](\d+)["\']', re.IGNORECASE)
 _TOKEN_RE = re.compile(
     r"""token(?:['"\s:=]|&#x27;|&quot;)+(?:['"\s]|&#x27;|&quot;)?([A-Za-z0-9_\-:,.]+)""",
@@ -106,12 +122,9 @@ def mask_sensitive_data(text: str) -> str:
         return key
 
     protected = _EMOJI_ID_RE.sub(_stash, text)
-
-    masked = protected
-    masked = _LONG_NUMBERS_RE.sub(_mask_long_numbers, masked)
+    masked = _LONG_NUMBERS_RE.sub(_mask_long_numbers, protected)
     for pattern, replacement in SENSITIVE_PATTERNS:
         masked = pattern.sub(replacement, masked)
-
     for key, original in placeholders.items():
         masked = masked.replace(key, original)
 
@@ -126,21 +139,36 @@ def strip_html(text: str) -> str:
     return _HTML_TAG_RE.sub("", text)
 
 
+def _sig_hash(text: str) -> str:
+    """Short, stable MD5 hex digest used as a compact cache key."""
+    return hashlib.md5(text.encode()).hexdigest()[:16]
+
+
 def override_text(exception: Exception) -> str | None:
     """Return a user-friendly HTML string for well-known error types."""
-    exc_type_name = type(exception).__name__
-    if exc_type_name in ("TimedOutError", "NetworkMigrateError"):
+    # Use isinstance — faster and robust against subclassing
+    if isinstance(exception, (TimedOutError, NetworkMigrateError)):
         return "✈️ <b>Connection problems on the server.</b>"
-    if exc_type_name == "ServerError":
+    if isinstance(exception, ServerError):
         return "📡 <b>Telegram servers are currently experiencing issues.</b>"
-    if exc_type_name == "FloodWaitError":
+    if isinstance(exception, FloodWaitError):
         seconds = getattr(exception, "seconds", 0)
         return f"✋ <b>Flood wait triggered — retry in {seconds}s.</b>"
-    if exc_type_name == "ModuleNotFoundError":
+    if isinstance(exception, ModuleNotFoundError):
         detail = traceback.format_exception_only(type(exception), exception)[0]
         detail = detail.split(":", 1)[-1].strip()
         return f"📦 <b>Missing module:</b> <code>{html.escape(detail)}</code>"
     return None
+
+
+class _NoiseFilter(logging.Filter):
+    """Suppress noisy telethon messages below ERROR level."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.levelno >= logging.ERROR:
+            return True
+        msg = record.getMessage()
+        return "Failed to fetch updates" not in msg and "Sleep" not in msg
 
 
 _LINE_RE = re.compile(r'  File "(.*?)", line ([0-9]+), in (.+)')
@@ -181,12 +209,11 @@ class ErrorFormatter:
         cls, raw_tb: str
     ) -> tuple[str | None, str | None, str | None]:
         """Find deepest file reference for the Source: line."""
-        result: tuple[str | None, str | None, str | None] = (None, None, None)
         for line in reversed(raw_tb.splitlines()):
             m = _LINE_RE.search(line)
             if m:
                 return cast(tuple[str | None, str | None, str | None], m.groups())
-        return result
+        return (None, None, None)
 
     @classmethod
     def find_caller_info(cls) -> str:
@@ -196,7 +223,8 @@ class ErrorFormatter:
             func = frame_info.function
             if fn and func not in _LOGGER_FRAMES:
                 return (
-                    f'<blockquote><tg-emoji emoji-id="5426900601101374618">🧿</tg-emoji> <b>Cause:</b> <code>{html.escape(func)}</code>'
+                    f'<blockquote><tg-emoji emoji-id="5426900601101374618">🧿</tg-emoji>'
+                    f" <b>Cause:</b> <code>{html.escape(func)}</code>"
                     f" of <code>{html.escape(type(fn).__name__)}</code></blockquote>\n"
                 )
         return ""
@@ -206,7 +234,7 @@ class ErrorFormatter:
         cls,
         exc_type: type,
         exc_value: Exception,
-        tb,
+        tb: TracebackType | None,
         comment: str | None = None,
     ) -> tuple[str, str]:
         """Format exception to HTML message and masked traceback."""
@@ -220,11 +248,15 @@ class ErrorFormatter:
 
         caller_info = cls.find_caller_info()
         override = override_text(exc_value)
+
         if override:
             comment_part = ""
             if comment:
                 safe_comment = mask_sensitive_data(str(comment))
-                comment_part = f'\n<blockquote><tg-emoji emoji-id="5465300082628763143">💬</tg-emoji> <b>Message:</b> <code>{html.escape(safe_comment)}</code></blockquote>'
+                comment_part = (
+                    f'\n<blockquote><tg-emoji emoji-id="5465300082628763143">💬</tg-emoji>'
+                    f" <b>Message:</b> <code>{html.escape(safe_comment)}</code></blockquote>"
+                )
             message = f"{caller_info}{override}{comment_part}"
         else:
             err_only = html.escape(
@@ -235,7 +267,8 @@ class ErrorFormatter:
                 )
             )
             src_part = (
-                f'<blockquote><tg-emoji emoji-id="5379679518740978720">🎯</tg-emoji> <b>Source:</b> <code>{html.escape(filename or "")}:{lineno or ""}</code>'
+                f'<blockquote><tg-emoji emoji-id="5379679518740978720">🎯</tg-emoji>'
+                f' <b>Source:</b> <code>{html.escape(filename or "")}:{lineno or ""}</code>'
                 f" <b>in</b> <code>{html.escape(name or '')}</code></blockquote>\n"
                 if filename
                 else ""
@@ -243,10 +276,14 @@ class ErrorFormatter:
             comment_part = ""
             if comment:
                 safe_comment = mask_sensitive_data(str(comment))
-                comment_part = f'\n<blockquote><tg-emoji emoji-id="5465300082628763143">💬</tg-emoji> <b>Message:</b> <code>{html.escape(safe_comment)}</code></blockquote>'
+                comment_part = (
+                    f'\n<blockquote><tg-emoji emoji-id="5465300082628763143">💬</tg-emoji>'
+                    f" <b>Message:</b> <code>{html.escape(safe_comment)}</code></blockquote>"
+                )
             message = (
                 f"{caller_info}{src_part}"
-                f'<tg-emoji emoji-id="5469903029144657419">❓</tg-emoji> <u><b>Error:</b></u> <pre><code class="language-python">{err_only}</code></pre>'
+                f'<tg-emoji emoji-id="5469903029144657419">❓</tg-emoji>'
+                f' <u><b>Error:</b></u> <pre><code class="language-python">{err_only}</code></pre>'
                 f"{comment_part}"
             )
 
@@ -265,7 +302,7 @@ class RichException:
         cls,
         exc_type: type,
         exc_value: Exception,
-        tb,
+        tb: TracebackType | None,
         comment: str | None = None,
     ) -> "RichException":
         message, full_stack = ErrorFormatter.format_exception(
@@ -280,13 +317,6 @@ def setup_logging() -> logging.Logger:
 
     logger = logging.getLogger("kernel")
     logger.setLevel(logging.INFO)
-
-    class _NoiseFilter(logging.Filter):
-        def filter(self, record: logging.LogRecord) -> bool:
-            if record.levelno >= logging.ERROR:
-                return True
-            msg = record.getMessage()
-            return "Failed to fetch updates" not in msg and "Sleep" not in msg
 
     handler = RotatingFileHandler(
         _LOG_FILE,
@@ -339,7 +369,6 @@ def setup_telegram_logging(
         rate_limit=rate_limit,
         rate_window=rate_window,
     )
-
     bridge = _SyncToAsyncBridge(handler)
     bridge.setFormatter(
         logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
@@ -395,9 +424,82 @@ class KernelLogger:
             return cast(CacheProtocol, self._cache)
         return cast(CacheProtocol | None, getattr(self.k, "cache", None))
 
-    def _has_cache(self) -> bool:
-        """Check if cache is available."""
-        return self.cache is not None and isinstance(self.cache, CacheProtocol)
+    def _is_duplicate(self, signature: str, ttl: int = _DEDUP_TTL) -> bool:
+        """Return True if this signature was seen recently; register it if not."""
+        cache = self.cache
+        if not cache:
+            return False
+        if cache.get(signature):
+            return True
+        cache.set(signature, True, ttl=ttl)
+        return False
+
+    def _is_muted(self, error_type: str, source: str) -> bool:
+        """Return True if this error type+source is currently muted."""
+        cache = self.cache
+        return bool(cache and cache.get(f"mute:{error_type}:{source}"))
+
+    def mute_error(self, error_type: str, source: str, ttl: int = _MUTE_TTL) -> None:
+        """Suppress a specific error type+source for *ttl* seconds."""
+        cache = self.cache
+        if cache:
+            cache.set(f"mute:{error_type}:{source}", True, ttl=ttl)
+
+    def _get_lifetime_info(self, sig_key: str) -> str:
+        """Return an HTML blockquote showing first-seen time and occurrence count.
+
+        Side effect: increments the counter stored in the cache.
+        Returns an empty string if this is the first occurrence.
+        """
+        cache = self.cache
+        if not cache:
+            return ""
+
+        now = datetime.now().timestamp()
+        first_key = f"first_seen:{sig_key}"
+        count_key = f"err_count:{sig_key}"
+
+        first_seen = cache.get(first_key)
+        raw_count = cache.get(count_key)
+        count = int(raw_count) + 1 if raw_count else 1  # type: ignore[arg-type]
+        cache.set(count_key, count, ttl=_FIRST_SEEN_TTL)
+
+        if first_seen is None:
+            cache.set(first_key, now, ttl=_FIRST_SEEN_TTL)
+            return ""
+
+        elapsed = int(now - float(first_seen))  # type: ignore[arg-type]
+        if elapsed < 60:
+            human = f"{elapsed}s"
+        elif elapsed < 3600:
+            human = f"{elapsed // 60}m"
+        else:
+            human = f"{elapsed // 3600}h {(elapsed % 3600) // 60}m"
+
+        return (
+            f"<blockquote>⏱️ <b>First seen:</b> {human} ago"
+            f" <b>(×{count})</b></blockquote>\n"
+        )
+
+    def _track_similar(self, source_func: str, error_id: str) -> int:
+        """Record *error_id* under *source_func* and return the total stored count."""
+        cache = self.cache
+        if not cache:
+            return 0
+        key = f"similar:{_sig_hash(source_func)}"
+        existing: list[str] = list(cache.get(key) or [])  # type: ignore[arg-type]
+        if error_id not in existing:
+            existing.append(error_id)
+        existing = existing[-_SIMILAR_MAX:]
+        cache.set(key, existing, ttl=_TRACE_CACHE_TTL)
+        return len(existing)
+
+    def get_similar_errors_by_hash(self, func_hash: str) -> list[str]:
+        """Return recent error_ids for a source function identified by *func_hash*."""
+        cache = self.cache
+        if not cache:
+            return []
+        return list(cache.get(f"similar:{func_hash}") or [])  # type: ignore[arg-type]
 
     async def _get_client(self) -> "TelegramClient":
         """Pick bot_client when available and authorised, else fall back to user client."""
@@ -416,7 +518,7 @@ class KernelLogger:
                 if await bc.is_user_authorized():
                     self._auth_cache = (True, now)
                     return bc
-            except (TimedOutError, NetworkMigrateError, ServerError) as e:
+            except _NETWORK_ERRORS as e:
                 self.k.logger.debug(f"Temporary error checking bot auth: {e}")
                 return self.client
             except Exception:
@@ -432,29 +534,13 @@ class KernelLogger:
         *,
         max_attempts: int = _MAX_RETRIES,
     ) -> bool:
-        """Execute coro_factory() with automatic FloodWait retry."""
-        _NETWORK_ERRORS = (
-            TimedOutError,
-            NetworkMigrateError,
-            ServerError,
-            ConnectionError,
-            OSError,
-        )
-        _NETWORK_ERROR_NAMES = frozenset(e.__name__ for e in _NETWORK_ERRORS) | {
-            "ConnectionError",
-            "OSError",
-        }
-
+        """Execute *coro_factory()* with automatic FloodWait / network retry."""
         for attempt in range(max_attempts + 1):
             try:
                 await coro_factory()
                 return True
             except Exception as e:
-                exc_type_name = type(e).__name__
-                is_flood_wait = exc_type_name == "FloodWaitError"
-                is_network_error = exc_type_name in _NETWORK_ERROR_NAMES
-
-                if is_flood_wait:
+                if isinstance(e, FloodWaitError):
                     if attempt < max_attempts:
                         await asyncio.sleep(getattr(e, "seconds", 0))
                     else:
@@ -462,7 +548,7 @@ class KernelLogger:
                             f"Flood wait exceeded retries: {getattr(e, 'seconds', 0)}s"
                         )
                         return False
-                elif is_network_error:
+                elif isinstance(e, _NETWORK_ERRORS):
                     if attempt < max_attempts:
                         self._auth_cache = None
                         await asyncio.sleep(2**attempt)
@@ -474,7 +560,6 @@ class KernelLogger:
                 else:
                     self.k.logger.error(f"Log message send failed: {e}")
                     return False
-
         return False
 
     async def send_log_message(self, text: str, file: IO | str | None = None) -> bool:
@@ -482,6 +567,7 @@ class KernelLogger:
         if not self.log_chat_id:
             return False
 
+        # Resolve client BEFORE the lock — authorisation check may be a network call
         client = await self._get_client()
         if not client or not client.is_connected():
             return False
@@ -489,7 +575,7 @@ class KernelLogger:
         safe_text = mask_sensitive_data(text)
         async with self._send_lock:
 
-            async def _do_send():
+            async def _do_send() -> None:
                 if file:
                     await client.send_file(
                         self.log_chat_id, file, caption=safe_text, parse_mode="html"
@@ -510,23 +596,49 @@ class KernelLogger:
         masked_traceback: str,
         *,
         error_id: str | None = None,
+        error_type: str | None = None,
+        source: str | None = None,
+        source_func: str | None = None,
     ) -> bool:
-        """Send error message with optional traceback button."""
+        """Send an error message with Traceback / Similar / Mute buttons."""
         if not self.log_chat_id:
             return False
 
         if error_id and self.cache:
             self.cache.set(f"tb_{error_id}", masked_traceback, ttl=_TRACE_CACHE_TTL)
 
-        safe_body = mask_sensitive_data(body)
-        async with self._send_lock:
-            client = await self._get_client()
+        buttons: list[Button] = []
 
-            async def _do_send():
+        if error_id:
+            buttons.append(Button.inline("🔍 Traceback", data=f"show_tb:{error_id}"))
+
+        if source_func and error_id:
+            count = self._track_similar(source_func, error_id)
+            if count > 1:
+                buttons.append(
+                    Button.inline(
+                        f"📋 Similar ({count})",
+                        data=f"find_similar:{_sig_hash(source_func)}",
+                    )
+                )
+
+        if error_type and source:
+            buttons.append(
+                Button.inline("🔕 Mute 1h", data=f"mute_err:{error_type}:{source}")
+            )
+
+        safe_body = mask_sensitive_data(body)
+
+        # Resolve client BEFORE acquiring the lock
+        client = await self._get_client()
+
+        async with self._send_lock:
+
+            async def _do_send() -> None:
                 await client.send_message(
                     self.log_chat_id,
                     safe_body,
-                    buttons=[Button.inline("🔍 Traceback", data=f"show_tb:{error_id}")],
+                    buttons=[buttons] if buttons else None,
                     parse_mode="html",
                 )
 
@@ -537,6 +649,26 @@ class KernelLogger:
                     "Original traceback: %s", strip_html(masked_traceback[:500])
                 )
             return success
+
+    async def _maybe_attach_log_file(self, source: str, repeat_count: int) -> None:
+        """Attach the tail of kernel.log once an error crosses the repeat threshold."""
+        if repeat_count < _CRITICAL_REPEAT_THRESHOLD:
+            return
+        if not os.path.exists(_LOG_FILE):
+            return
+        try:
+            with open(_LOG_FILE, encoding="utf-8", errors="replace") as fh:
+                lines = fh.readlines()
+            tail = "".join(lines[-_LOG_TAIL_LINES:])
+            caption = (
+                f"📎 <b>Log tail</b> (last {_LOG_TAIL_LINES} lines) "
+                f"<blockquote> <code>{html.escape(mask_sensitive_data(source))}</code></blockquote>"
+            )
+            file_obj = io.BytesIO(tail.encode("utf-8"))
+            file_obj.name = "kernel_tail.log"
+            await self.send_log_message(caption, file=file_obj)
+        except Exception as exc:
+            self.k.logger.warning(f"Could not attach log file: {exc}")
 
     async def send_error_log(
         self,
@@ -550,8 +682,7 @@ class KernelLogger:
             return
 
         safe_error = mask_sensitive_data(error_text[:_MAX_ERROR_TEXT_LEN])
-        safe_source = mask_sensitive_data(source_file)
-        safe_source_esc = html.escape(safe_source)
+        safe_source = html.escape(mask_sensitive_data(source_file))
 
         error_id: str | None = None
         masked_tb = ""
@@ -561,8 +692,10 @@ class KernelLogger:
             masked_tb = mask_sensitive_data(raw_tb)
 
         body = (
-            f'<blockquote><tg-emoji emoji-id="5379679518740978720">🎯</tg-emoji> <b>Source:</b> <code>{safe_source_esc}</code>\n'
-            f'<blockquote><tg-emoji emoji-id="5426900601101374618">🧿</tg-emoji> <b>Error:</b> <code>{html.escape(safe_error)}</code></blockquote>'
+            f'<blockquote><tg-emoji emoji-id="5379679518740978720">🎯</tg-emoji>'
+            f" <b>Source:</b> <code>{safe_source}</code>\n"
+            f'<blockquote><tg-emoji emoji-id="5426900601101374618">🧿</tg-emoji>'
+            f" <b>Error:</b> <code>{html.escape(safe_error)}</code></blockquote>"
             f"</blockquote>"
         )
         if message_info:
@@ -578,25 +711,39 @@ class KernelLogger:
             await self.send_log_message(body)
 
     async def handle_error(
-        self, error: Exception, source: str = "unknown", event=None
+        self,
+        error: Exception,
+        source: str = "unknown",
+        event=None,
     ) -> None:
         """Log an error to file and send a formatted report to the log chat."""
         if not self.log_chat_id:
             return
 
-        cache = self.cache
-        signature = f"error:{source}:{type(error).__name__}:{error}"
-        if cache and cache.get(signature):
+        error_type = type(error).__name__
+
+        if self._is_muted(error_type, source):
+            self.k.logger.debug(f"Muted error suppressed: {error_type} in {source}")
             return
-        if cache:
-            cache.set(signature, True, ttl=_DEDUP_TTL)
+
+        signature = f"error:{source}:{error_type}:{error}"
+        sig_key = _sig_hash(signature)
+        if self._is_duplicate(signature):
+            return
 
         error_id = f"err_{uuid.uuid4().hex[:8]}"
+        lifetime_html = self._get_lifetime_info(sig_key)
+
         exc_info = (type(error), error, error.__traceback__)
         rich = RichException.from_exc_info(*exc_info)
+        _, _, source_func = ErrorFormatter.find_source_location(rich.full_stack)
 
-        src_esc = html.escape(source or "unknown", quote=False)
-        body = f'<blockquote><tg-emoji emoji-id="5372846474881146350">🔭</tg-emoji> <b>Source Message:</b> <code>{src_esc}</code></blockquote>\n{rich.message}'
+        src_esc = html.escape(mask_sensitive_data(source or "unknown"), quote=False)
+        body = (
+            f'<blockquote><tg-emoji emoji-id="5372846474881146350">🔭</tg-emoji>'
+            f" <b>Source Message:</b> <code>{src_esc}</code></blockquote>\n"
+            f"{lifetime_html}{rich.message}"
+        )
 
         if event:
             try:
@@ -610,7 +757,8 @@ class KernelLogger:
                 safe_user_info = mask_sensitive_data(str(user_info))
                 safe_chat_title = mask_sensitive_data(str(chat_title))
                 body += (
-                    f'\n<tg-emoji emoji-id="5298499667569425533">🃏</tg-emoji> <b>Message info:</b>\n'
+                    f'\n<tg-emoji emoji-id="5298499667569425533">🃏</tg-emoji>'
+                    f" <b>Message info:</b>\n"
                     f"<blockquote>🪬 <b>User:</b> {html.escape(safe_user_info)}\n"
                     f"⌨️ <b>Text:</b> <code>{html.escape(txt)}</code>\n"
                     f"📬 <b>Chat:</b> {html.escape(safe_chat_title)}</blockquote>"
@@ -621,10 +769,23 @@ class KernelLogger:
         safe_stack = strip_html(mask_sensitive_data(rich.full_stack[:500]))
         self.k.logger.error("Error in %s:\n%s", source, safe_stack)
 
-        await self._send_error_with_traceback(body, rich.full_stack, error_id=error_id)
+        # Read repeat count BEFORE _get_lifetime_info increments it again
+        raw_count = self.cache.get(f"err_count:{sig_key}") if self.cache else 0
+        repeat_count = int(raw_count or 0)
+
+        await self._send_error_with_traceback(
+            body,
+            rich.full_stack,
+            error_id=error_id,
+            error_type=error_type,
+            source=source,
+            source_func=source_func,
+        )
+        await self._maybe_attach_log_file(source, repeat_count)
 
     async def log(self, message: str, emoji: str = "ℹ️") -> None:  # noqa: RUF001
         """Send an event to the log chat and write it to the rotating log file."""
+        # mask_sensitive_data is called once here; send_log_message does NOT mask again
         safe_message = mask_sensitive_data(message)
         success = await self.send_log_message(f"{emoji} {safe_message}")
         if success:
@@ -646,36 +807,52 @@ class KernelLogger:
 
     async def log_error_from_exc(self, source: str = "unknown") -> None:
         """Send an error to the log chat using RichException for beautiful formatting."""
-        exc_info = sys.exc_info()
-        exc_type, exc_value, tb = exc_info
+        exc_type, exc_value, tb = sys.exc_info()
         if exc_type is None or exc_value is None:
             return
         if not self.log_chat_id:
             return
 
-        cache = self.cache
-        signature = f"error:{source}:{exc_type.__name__}:{exc_value}"
-        if cache and cache.get(signature):
+        error_type = exc_type.__name__
+
+        if self._is_muted(error_type, source):
+            self.k.logger.debug(f"Muted error suppressed: {error_type} in {source}")
             return
-        if cache:
-            cache.set(signature, True, ttl=_DEDUP_TTL)
+
+        signature = f"error:{source}:{error_type}:{exc_value}"
+        sig_key = _sig_hash(signature)
+        if self._is_duplicate(signature):
+            return
 
         rich = RichException.from_exc_info(exc_type, cast(Exception, exc_value), tb)
         error_id = f"err_{uuid.uuid4().hex[:8]}"
+        lifetime_html = self._get_lifetime_info(sig_key)
+        _, _, source_func = ErrorFormatter.find_source_location(rich.full_stack)
+
+        body = f"{lifetime_html}{rich.message}"
 
         safe_stack = strip_html(mask_sensitive_data(rich.full_stack[:500]))
         self.k.logger.error("Error in %s:\n%s", source, safe_stack)
 
+        raw_count = self.cache.get(f"err_count:{sig_key}") if self.cache else 0
+        repeat_count = int(raw_count or 0)
+
         await self._send_error_with_traceback(
-            rich.message, rich.full_stack, error_id=error_id
+            body,
+            rich.full_stack,
+            error_id=error_id,
+            error_type=error_type,
+            source=source,
+            source_func=source_func,
         )
+        await self._maybe_attach_log_file(source, repeat_count)
 
 
 _RAW_LOG_RE = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} \[")
 
 
 class TelegramLogHandler:
-    """Async handler that sends ERROR logs to Telegram with flood protection."""
+    """Async handler that sends WARNING/ERROR logs to Telegram with flood protection."""
 
     def __init__(
         self,
@@ -698,7 +875,8 @@ class TelegramLogHandler:
         self._task: asyncio.Task[None] | None = None
         self._shutdown = False
 
-        self._rate_timestamps: list[float] = []
+        # deque for O(1) left-pop vs list's O(n)
+        self._rate_timestamps: deque[float] = deque()
 
     async def start(self) -> None:
         """Start the background worker task."""
@@ -707,7 +885,7 @@ class TelegramLogHandler:
             self._task = asyncio.create_task(self._worker())
 
     async def stop(self) -> None:
-        """Stop the handler gracefully."""
+        """Stop the handler gracefully, flushing any remaining messages."""
         self._shutdown = True
         if self._task:
             self._task.cancel()
@@ -716,6 +894,7 @@ class TelegramLogHandler:
             except asyncio.CancelledError:
                 pass
             self._task = None
+        # Drain queue
         while not self._queue.empty():
             try:
                 self._queue.get_nowait()
@@ -723,33 +902,31 @@ class TelegramLogHandler:
                 break
 
     def emit(self, message: str) -> None:
-        """Queue a log message for sending (thread-safe)."""
+        """Queue a log message for sending (safe to call from sync code)."""
         if self._shutdown:
             return
         try:
             self._queue.put_nowait(message)
-        except asyncio.QueueFull:
-            pass
         except Exception:
             pass
 
     def queue_size(self) -> int:
-        """Get current queue size for debugging."""
+        """Return current queue depth (useful for debugging)."""
         return self._queue.qsize()
 
     def _clean_rate_timestamps(self, now: float) -> None:
-        """Remove timestamps outside the rate window."""
+        """Evict timestamps outside the current rate window."""
         cutoff = now - self._rate_window
         while self._rate_timestamps and self._rate_timestamps[0] < cutoff:
-            self._rate_timestamps.pop(0)
+            self._rate_timestamps.popleft()  # O(1) with deque
 
     def _is_rate_limited(self, now: float) -> bool:
-        """Check if rate limit is exceeded."""
+        """Return True when the rate limit has been reached."""
         self._clean_rate_timestamps(now)
         return len(self._rate_timestamps) >= self._rate_limit
 
     async def _worker(self) -> None:
-        """Background worker that processes queued messages."""
+        """Background task: collect messages into batches and flush them."""
         batch: list[str] = []
 
         while not self._shutdown:
@@ -760,9 +937,14 @@ class TelegramLogHandler:
                     )
                     batch.append(message)
 
+                    # Greedily drain whatever is already in the queue
+                    while not self._queue.empty() and len(batch) < self._batch_size:
+                        batch.append(self._queue.get_nowait())
+
                     if len(batch) >= self._batch_size:
                         await self._flush_batch(batch)
                         batch = []
+
                 except TimeoutError:
                     if batch:
                         await self._flush_batch(batch)
@@ -776,7 +958,7 @@ class TelegramLogHandler:
                 pass
 
     async def _flush_batch(self, batch: list[str]) -> None:
-        """Send accumulated messages to Telegram with deduplication."""
+        """Deduplicate, rate-check, and send a batch of messages to Telegram."""
         if not batch:
             return
 
@@ -789,17 +971,14 @@ class TelegramLogHandler:
             if not safe_msg.strip():
                 continue
 
-            sig = f"tlog:{safe_msg}"
-
-            if cache and cache.get(sig):
-                continue
-
+            sig = f"tlog:{_sig_hash(safe_msg)}"
             if sig in seen:
+                continue
+            if cache and cache.get(sig):
                 continue
 
             seen.add(sig)
             unique_messages.append(safe_msg)
-
             if cache:
                 cache.set(sig, True, ttl=self._dedup_ttl)
 
@@ -807,16 +986,17 @@ class TelegramLogHandler:
             return
 
         now = datetime.now().timestamp()
-        self._clean_rate_timestamps(now)
-
-        if len(self._rate_timestamps) >= self._rate_limit:
+        if self._is_rate_limited(now):
             return
 
-        if unique_messages:
-            self._rate_timestamps.append(now)
+        self._rate_timestamps.append(now)
 
         if len(unique_messages) == 1:
-            text = f"<blockquote expandable><code>{html.escape(unique_messages[0])}</code></blockquote>"
+            text = (
+                f"<blockquote expandable>"
+                f"<code>{html.escape(unique_messages[0])}</code>"
+                f"</blockquote>"
+            )
         else:
             lines = [html.escape(line) for line in unique_messages[: self._batch_size]]
             text = (
@@ -824,7 +1004,8 @@ class TelegramLogHandler:
                 + "\n".join(lines)
                 + "\n</code></blockquote>"
             )
-            if len(unique_messages) > self._batch_size:
-                text += f"\n<blockquote><code>... and {len(unique_messages) - self._batch_size} more errors</code></blockquote>"
+            overflow = len(unique_messages) - self._batch_size
+            if overflow > 0:
+                text += f"\n<blockquote><code>... and {overflow} more errors</code></blockquote>"
 
         await self._kernel_logger.send_log_message(text)

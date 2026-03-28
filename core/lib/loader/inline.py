@@ -1,5 +1,6 @@
 import uuid
 import time
+import sys
 from dataclasses import dataclass
 from html import escape as html_escape
 from typing import TYPE_CHECKING, Any, Mapping, Sequence
@@ -9,6 +10,7 @@ from telethon import Button, events
 
 if TYPE_CHECKING:
     from kernel import Kernel
+    from telethon.types import Message
 
 
 @dataclass(slots=True)
@@ -399,18 +401,29 @@ class InlineManager:
             if isinstance(spec, Mapping):
                 t = str(spec.get("type", "callback")).lower()
                 text = self._as_text(spec.get("text", "Button"))
+                icon = spec.get("icon")
+                style = spec.get("style")
                 if t == "callback":
-                    return Button.inline(text, self._as_bytes(spec.get("data", b"")))
+                    return Button.inline(
+                        text,
+                        self._as_bytes(spec.get("data", b"")),
+                        icon=icon,
+                        style=style,
+                    )
                 if t == "url":
                     url = self._as_text(spec.get("url", spec.get("data", "")))
-                    return Button.url(text, url)
+                    return Button.url(text, url, icon=icon, style=style)
                 if t == "switch":
                     return Button.switch_inline(
                         text,
                         self._as_text(spec.get("query", "")),
                         self._as_text(spec.get("hint", "")),
+                        icon=icon,
+                        style=style,
                     )
-                return Button.inline(text, self._as_bytes(spec.get("data", b"")))
+                return Button.inline(
+                    text, self._as_bytes(spec.get("data", b"")), icon=icon, style=style
+                )
 
             if isinstance(spec, (list, tuple)) and len(spec) >= 2:
                 text = self._as_text(spec[0])
@@ -457,7 +470,7 @@ class InlineManager:
         buttons: list | None = None,
         silent: bool = False,
         reply_to: int | None = None,
-        form_sms: Message | None = None,
+        form_sms: "Message | None" = None,
         **kwargs,
     ):
         """Perform an inline query and automatically click the specified result.
@@ -507,9 +520,9 @@ class InlineManager:
 
         except Exception as e:
             await k.handle_error(e, source="inline_query_and_click")
-            raw_tb = "".join(
-                traceback.format_exception(exc_type, exc_value, tb)
-            ).replace("Traceback (most recent call last):\n", "")
+            raw_tb = "".join(traceback.format_exception(*sys.exc_info())).replace(
+                "Traceback (most recent call last):\n", ""
+            )
             if form_sms:
                 await form_sms.edit(
                     f'<tg-emoji emoji-id="5465665476971471368">❌</tg-emoji> <i><b>Open the inline form, failed!</b></i>\n<pre>{raw_tb}</pre>',
@@ -580,9 +593,9 @@ class InlineManager:
 
         except Exception as e:
             await k.handle_error(e, source="inline_form")
-            raw_tb = "".join(
-                traceback.format_exception(exc_type, exc_value, tb)
-            ).replace("Traceback (most recent call last):\n", "")
+            raw_tb = "".join(traceback.format_exception(*sys.exc_info())).replace(
+                "Traceback (most recent call last):\n", ""
+            )
             if auto_send:
                 if form_sms:
                     await form_sms.edit(

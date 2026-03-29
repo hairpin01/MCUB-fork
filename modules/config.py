@@ -47,6 +47,7 @@ CUSTOM_EMOJI = {
 
 ITEMS_PER_PAGE = 16
 MODULES_PER_PAGE = 12
+INLINE_RESULTS_LIMIT = 50
 
 TYPE_EMOJIS = {
     "str": "📝",
@@ -1157,6 +1158,10 @@ def register(kernel):
     ):
         """Генерация статьи для обычного set"""
         try:
+            user_id = getattr(event, "sender_id", None)
+            if user_id is None and getattr(event, "sender", None):
+                user_id = event.sender.id
+
             value = parse_value(value_str, expected_type)
             confirm_id = str(uuid.uuid4())[:8]
 
@@ -1173,7 +1178,7 @@ def register(kernel):
                     "key_id": key_id,
                     "key": key,
                     "value": value,
-                    "user_id": event.sender.id,
+                    "user_id": user_id,
                     "value_str": value_str[:50],
                 },
                 ttl=300,
@@ -1208,6 +1213,10 @@ def register(kernel):
     ):
         """Генерация статей для операции добавления"""
         try:
+            user_id = getattr(event, "sender_id", None)
+            if user_id is None and getattr(event, "sender", None):
+                user_id = event.sender.id
+
             if data_type == "list":
                 # Для списка просто добавляем элемент
                 value = parse_value(value_str)
@@ -1226,7 +1235,7 @@ def register(kernel):
                         "key_id": key_id,
                         "key": key,
                         "value": value,
-                        "user_id": event.sender.id,
+                        "user_id": user_id,
                         "value_str": value_str[:50],
                     },
                     ttl=300,
@@ -1274,7 +1283,7 @@ def register(kernel):
                         "key": key,
                         "subkey": subkey,
                         "value": dict_value,
-                        "user_id": event.sender.id,
+                        "user_id": user_id,
                         "value_str": f"{subkey}: {dict_value_str[:50]}",
                     },
                     ttl=300,
@@ -1302,6 +1311,9 @@ def register(kernel):
     ):
         """Генерация статей для операции удаления"""
         builders = []
+        user_id = getattr(event, "sender_id", None)
+        if user_id is None and getattr(event, "sender", None):
+            user_id = event.sender.id
 
         if data_type == "list":
             # Для списка: статьи для каждого элемента
@@ -1327,7 +1339,7 @@ def register(kernel):
                         "key_id": key_id,
                         "key": key,
                         "index": index,
-                        "user_id": event.sender.id,
+                        "user_id": user_id,
                         "value_str": f"Индекс {index}: {str(item)[:30]}",
                     },
                     ttl=300,
@@ -1368,7 +1380,7 @@ def register(kernel):
                         "key_id": key_id,
                         "key": key,
                         "subkey": subkey,
-                        "user_id": event.sender.id,
+                        "user_id": user_id,
                         "value_str": f"Ключ: {subkey}",
                     },
                     ttl=300,
@@ -1385,7 +1397,7 @@ def register(kernel):
                 builders.append(builder)
 
         if builders:
-            await event.answer(builders)
+            await event.answer(builders[:INLINE_RESULTS_LIMIT])
         else:
             await event.answer([event.builder.article("Empty", text=t("list_empty"))])
 
@@ -1401,6 +1413,10 @@ def register(kernel):
     ):
         """Генерация статей для операции изменения"""
         try:
+            user_id = getattr(event, "sender_id", None)
+            if user_id is None and getattr(event, "sender", None):
+                user_id = event.sender.id
+
             new_value = parse_value(value_str)
             builders = []
 
@@ -1429,7 +1445,7 @@ def register(kernel):
                             "key": key,
                             "index": index,
                             "value": new_value,
-                            "user_id": event.sender.id,
+                            "user_id": user_id,
                             "old_value": item,
                             "value_str": f"Заменить '{str(item)[:30]}' на '{value_str[:30]}'",
                         },
@@ -1481,7 +1497,7 @@ def register(kernel):
                             "key": key,
                             "subkey": subkey,
                             "value": new_value,
-                            "user_id": event.sender.id,
+                            "user_id": user_id,
                             "old_value": old_value,
                             "value_str": f"Ключ {subkey}: '{str(old_value)[:30]}' → '{value_str[:30]}'",
                         },
@@ -1508,7 +1524,7 @@ def register(kernel):
                     builders.append(builder)
 
             if builders:
-                await event.answer(builders)
+                await event.answer(builders[:INLINE_RESULTS_LIMIT])
             else:
                 await event.answer(
                     [event.builder.article("Empty", text=t("list_empty"))]

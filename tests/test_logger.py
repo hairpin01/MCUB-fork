@@ -542,9 +542,10 @@ class TestTelegramLogHandler(unittest.TestCase):
         kl = KernelLogger(k)
         handler = TelegramLogHandler(kl, rate_window=30)
         import time
+        from collections import deque
 
         now = time.time()
-        handler._rate_timestamps = [now - 100, now - 50, now - 10]
+        handler._rate_timestamps = deque([now - 100, now - 50, now - 10])
         handler._clean_rate_timestamps(now)
         self.assertEqual(len(handler._rate_timestamps), 1)
 

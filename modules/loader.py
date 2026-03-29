@@ -81,6 +81,8 @@ CUSTOM_EMOJI = {
     "no_cmd": '<tg-emoji emoji-id="5429428837895141860">🫨</tg-emoji>',
     "author": '<tg-emoji emoji-id="5332630862137685609">💖</tg-emoji>',
     "lib": '<tg-emoji emoji-id="5359785904535774578">💼</tg-emoji>',
+    "wait": '<tg-emoji emoji-id="5326015457155620929">🧳</tg-emoji>',
+    "warning": '<tg-emoji emoji-id="4904687665158292410">🗿</tg-emoji>',
 }
 
 # Случайные эмодзи для завершения
@@ -115,6 +117,7 @@ def register(kernel):
     # Локализованные строки
     strings = {
         "en": {
+            "wait": "{wait} <b>Please wait...</b>",
             "reply_to_py": "{warning} <b>Reply to a .py file</b>",
             "not_py_file": "{warning} <b>This is not a .py file</b>",
             "system_module_update_attempt": "{confused} <b>Oops, looks like you tried to update a system module</b> <code>{module_name}</code>\n<blockquote><i>{blocked} Unfortunately, you cannot update system modules using <code>loadera</code></i></blockquote>",
@@ -181,7 +184,7 @@ def register(kernel):
             "log_not_found_in_repo": "=X Module not found in specified repository",
             "log_checking_repo": "=- Checking repository {index}: {repo}",
             "log_repo_error": "=X Error checking repository {repo}: {error}",
-            "module_not_found_repos": "{warning} <b>Module {module_name} not found in repositories</b>",
+            "module_not_found_repos": "{warning} <b>Module<code> {module_name} </code>not found in repositories</b>",
             "log_saving_for_send": "Saving file for sending",
             "sending_module": "{upload} <b>Sending module {module_name}...</b>",
             "file_sent_caption": "<blockquote expandable>{file} <b>Module:</b> <code>{module_name}.py</code>\n{idea} <b>description:</b> <i>{description}</i>\n{crystal} <b>version:</b> <code>{version}</code>\n{angel} <b>author:</b> <i>{author}</i>\n{folder} <b>Size:</b> <code>{size} bytes</code></blockquote>",
@@ -239,6 +242,7 @@ def register(kernel):
             "and_more": "• <code>+{count} more</code>",
         },
         "ru": {
+            "wait": "{wait} <b>Пожалуйста подождите...</b>",
             "reply_to_py": "{warning} <b>Ответьте на .py файл</b>",
             "not_py_file": "{warning} <b>Это не .py файл</b>",
             "system_module_update_attempt": "{confused} <b>Ой, кажется ты попытался обновить системный модуль</b> <code>{module_name}</code>\n<blockquote><i>{blocked} К сожалению нельзя обновлять системные модули с помощью <code>loadera</code></i></blockquote>",
@@ -305,7 +309,7 @@ def register(kernel):
             "log_not_found_in_repo": "=X Модуль не найден в указанном репозитории",
             "log_checking_repo": "=- Проверяю репозиторий {index}: {repo}",
             "log_repo_error": "=X Ошибка проверки репозитория {repo}: {error}",
-            "module_not_found_repos": "{warning} <b>Модуль {module_name} не найден в репозиториях</b>",
+            "module_not_found_repos": "{warning} <b>Модуль<code> {module_name} </code>не найден в репозиториях</b>",
             "log_saving_for_send": "Сохраняю файл для отправки",
             "sending_module": "{upload} <b>Отправляю модуль {module_name}...</b>",
             "file_sent_caption": "<blockquote expandable>{file} <b>Модуль:</b> <code>{module_name}.py</code>\n{idea} <b>описание:</b> <i>{description}</i>\n{crystal} <b>версия:</b> <code>{version}</code>\n{angel} <b>автор:</b> <i>{author}</i>\n{folder} <b>Размер:</b> <code>{size} байт</code></blockquote>",
@@ -936,7 +940,6 @@ def register(kernel):
                             continue
 
             if not code:
-                add_log(t("module_not_found_repos", module_name=module_name))
                 await edit_with_emoji(
                     event,
                     t(
@@ -1726,6 +1729,14 @@ def register(kernel):
                 ),
             )
             return
+
+        await edit_with_emoji(
+            event,
+            t(
+                "wait",
+                wait=CUSTOM_EMOJI["wait"],
+            ),
+        )
 
         if args[1] == "-list":
             if len(args) == 2:

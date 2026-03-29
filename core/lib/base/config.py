@@ -24,6 +24,9 @@ class ConfigManager:
         """
         k = self.k
         if not os.path.exists(k.CONFIG_FILE):
+            logger = getattr(k, "logger", None)
+            if logger:
+                logger.debug("Config file not found: %s", k.CONFIG_FILE)
             return False
 
         # Tighten permissions on every load (covers files created before this
@@ -32,9 +35,18 @@ class ConfigManager:
 
         with open(k.CONFIG_FILE, "r", encoding="utf-8") as f:
             k.config = json.load(f)
+        logger = getattr(k, "logger", None)
+        if logger:
+            logger.debug(
+                "Config loaded file=%s keys=%s",
+                k.CONFIG_FILE,
+                sorted(k.config.keys()),
+            )
 
         required = ("api_id", "api_hash", "phone")
         if all(k.config.get(field) for field in required):
+            if logger:
+                logger.debug("Config contains required fields: %s", required)
             self.setup()
             return True
 
@@ -63,6 +75,13 @@ class ConfigManager:
             k.API_ID = int(k.config["api_id"])
             k.API_HASH = str(k.config["api_hash"])
             k.PHONE = str(k.config["phone"])
+            k.logger.debug(
+                "Config applied prefix=%r aliases=%d power_save=%s language=%r",
+                k.custom_prefix,
+                len(k.aliases),
+                k.power_save_mode,
+                k.config.get("language"),
+            )
             return True
         except (KeyError, ValueError, TypeError) as e:
             print(f"{Colors.RED}❌ Config error: {e}{Colors.RESET}")
@@ -152,6 +171,12 @@ class ConfigManager:
         k = self.k
         try:
             raw = await k.db_get("module_configs", module_name)
+            k.logger.debug(
+                "Loaded module config module=%r found=%s bytes=%d",
+                module_name,
+                bool(raw),
+                len(raw) if raw else 0,
+            )
             return json.loads(raw) if raw else (default if default is not None else {})
         except Exception as e:
             k.logger.error(f"Error loading config for {module_name}: {e}")
@@ -165,11 +190,17 @@ class ConfigManager:
         """
         k = self.k
         try:
+            k.logger.debug(
+                "Saving module config module=%r keys=%s",
+                module_name,
+                sorted(config_data.keys()),
+            )
             await k.db_set(
                 "module_configs",
                 module_name,
                 json.dumps(config_data, ensure_ascii=False, indent=2),
             )
+            k.logger.debug("Module config saved module=%r", module_name)
             return True
         except Exception as e:
             k.logger.error(f"Error saving config for {module_name}: {e}")
@@ -183,7 +214,9 @@ class ConfigManager:
         """
         k = self.k
         try:
+            k.logger.debug("Deleting module config module=%r", module_name)
             await k.db_delete("module_configs", module_name)
+            k.logger.debug("Module config deleted module=%r", module_name)
             return True
         except Exception as e:
             k.logger.error(f"Error deleting config for {module_name}: {e}")
@@ -201,6 +234,12 @@ class ConfigManager:
             The stored value or *default*.
         """
         config = await self.get_module_config(module_name, {})
+        self.k.logger.debug(
+            "Config key lookup module=%r key=%r hit=%s",
+            module_name,
+            key,
+            key in config,
+        )
         return config.get(key, default)
 
     async def set_key(self, module_name: str, key: str, value: Any) -> bool:
@@ -211,6 +250,7 @@ class ConfigManager:
         """
         config = await self.get_module_config(module_name, {})
         config[key] = value
+        self.k.logger.debug("Config key set module=%r key=%r", module_name, key)
         return await self.save_module_config(module_name, config)
 
     async def delete_key(self, module_name: str, key: str) -> bool:
@@ -221,8 +261,14 @@ class ConfigManager:
         """
         config = await self.get_module_config(module_name, {})
         if key not in config:
+            self.k.logger.debug(
+                "Config key delete skipped module=%r key=%r reason=missing",
+                module_name,
+                key,
+            )
             return False
         del config[key]
+        self.k.logger.debug("Config key deleted module=%r key=%r", module_name, key)
         return await self.save_module_config(module_name, config)
 
     async def update(self, module_name: str, updates: dict) -> bool:
@@ -233,6 +279,11 @@ class ConfigManager:
         """
         config = await self.get_module_config(module_name, {})
         config.update(updates)
+        self.k.logger.debug(
+            "Config updated module=%r updated_keys=%s",
+            module_name,
+            sorted(updates.keys()),
+        )
         return await self.save_module_config(module_name, config)
 
     async def get_all_module_names_with_config(self) -> list[str]:
@@ -243,7 +294,9 @@ class ConfigManager:
         """
         k = self.k
         try:
-            return await k.db_get_config_modules()
+            result = await k.db_get_config_modules()
+            k.logger.debug("Loaded module config names count=%d", len(result))
+            return result
         except Exception as e:
             k.logger.error(f"Error getting module configs list: {e}")
             return []

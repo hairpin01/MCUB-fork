@@ -2046,6 +2046,7 @@ def register(kernel):
         if len(args) < 2:
             modules_to_reload = list(kernel.loaded_modules.keys())
             if not modules_to_reload:
+                kernel.logger.debug("[reload] no-loaded-modules")
                 await edit_with_emoji(
                     event,
                     t("no_modules", folder=CUSTOM_EMOJI["folder"]),
@@ -2070,10 +2071,18 @@ def register(kernel):
                 file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
 
                 if not os.path.exists(file_path):
+                    kernel.logger.debug(
+                        "[reload] missing-file bulk module=%r file=%r",
+                        module_name,
+                        file_path,
+                    )
                     failed.append(module_name)
                     continue
 
                 if module_name in sys.modules:
+                    kernel.logger.debug(
+                        "[reload] removing-sys-module module=%r", module_name
+                    )
                     del sys.modules[module_name]
 
                 await kernel.unregister_module_commands(module_name)
@@ -2085,10 +2094,19 @@ def register(kernel):
                 )
 
                 if module_name in kernel.loaded_modules:
+                    kernel.logger.debug(
+                        "[reload] dropping-loaded-module module=%r", module_name
+                    )
                     del kernel.loaded_modules[module_name]
 
                 success, _ = await kernel.load_module_from_file(
                     file_path, module_name, False
+                )
+                kernel.logger.debug(
+                    "[reload] post-load bulk module=%r success=%s loaded=%s",
+                    module_name,
+                    success,
+                    module_name in kernel.loaded_modules,
                 )
                 kernel.dedupe_event_builders(reason=f"reload_bulk_after_{module_name}")
                 kernel.ensure_core_message_handlers(
@@ -2181,6 +2199,12 @@ def register(kernel):
 
         actual_name, _ = find_module_case_insensitive(module_name)
         if actual_name is None:
+            kernel.logger.debug(
+                "[reload] module-not-found requested=%r loaded=%r system=%r",
+                module_name,
+                list(kernel.loaded_modules.keys()),
+                list(kernel.system_modules.keys()),
+            )
             await edit_with_emoji(
                 event,
                 t(
@@ -2201,6 +2225,12 @@ def register(kernel):
             is_system = False
 
         if not os.path.exists(file_path):
+            kernel.logger.debug(
+                "[reload] single-missing-file module=%r file=%r system=%s",
+                module_name,
+                file_path,
+                is_system,
+            )
             await edit_with_emoji(
                 event, t("module_file_not_found", warning=CUSTOM_EMOJI["warning"])
             )
@@ -2221,6 +2251,7 @@ def register(kernel):
             module_name
         )
         if instance and getattr(instance, "_hikka_compat", False):
+            kernel.logger.debug("[reload] single-hikka-compat module=%r", module_name)
             if HIKKA_COMPAT:
                 await unload_hikka_module(kernel, module_name)
                 await asyncio.sleep(0)
@@ -2234,17 +2265,43 @@ def register(kernel):
             )
 
         if module_name in sys.modules:
+            kernel.logger.debug(
+                "[reload] single-remove-sys-module module=%r", module_name
+            )
             del sys.modules[module_name]
 
         if is_system:
             if module_name in kernel.system_modules:
+                kernel.logger.debug(
+                    "[reload] single-drop-system-module module=%r", module_name
+                )
                 del kernel.system_modules[module_name]
+            else:
+                kernel.logger.debug(
+                    "[reload] single-system-module-already-absent module=%r",
+                    module_name,
+                )
         else:
             if module_name in kernel.loaded_modules:
+                kernel.logger.debug(
+                    "[reload] single-drop-loaded-module module=%r", module_name
+                )
                 del kernel.loaded_modules[module_name]
+            else:
+                kernel.logger.debug(
+                    "[reload] single-loaded-module-already-absent module=%r",
+                    module_name,
+                )
 
         success, message_text = await kernel.load_module_from_file(
             file_path, module_name, is_system
+        )
+        kernel.logger.debug(
+            "[reload] single-post-load module=%r success=%s loaded=%s system=%s",
+            module_name,
+            success,
+            module_name in kernel.loaded_modules,
+            module_name in kernel.system_modules,
         )
         kernel.dedupe_event_builders(reason=f"reload_single_after_{module_name}")
         kernel.ensure_core_message_handlers(reason=f"reload_single_after_{module_name}")

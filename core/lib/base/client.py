@@ -29,9 +29,18 @@ class ClientManager:
 
         k = self.k
         platform = PlatformDetector()
+        detected_platform = platform.detect()
+        proxy_enabled = bool(k.config.get("proxy"))
         k.logger.info(
             f"Initializing MCUB on {get_platform_name()} "
             f"(Python {sys.version_info.major}.{sys.version_info.minor})..."
+        )
+        k.logger.debug(
+            "Preparing Telegram client session=%r platform=%r proxy_enabled=%s version=%s",
+            "user_session",
+            detected_platform,
+            proxy_enabled,
+            k.VERSION,
         )
 
         k.client = TelegramClient(
@@ -42,7 +51,7 @@ class ClientManager:
             connection_retries=999999,
             request_retries=3,
             flood_sleep_threshold=30,
-            device_model=f"MCUB-{platform.detect()}",
+            device_model=f"MCUB-{detected_platform}",
             system_version=f"Python {sys.version}",
             app_version=f"MCUB {k.VERSION}",
             lang_code="en",
@@ -53,12 +62,15 @@ class ClientManager:
         )
 
         try:
+            k.logger.debug("Starting Telegram client authorization phone=%r", k.PHONE)
             await k.client.start(phone=k.PHONE, max_attempts=3)
 
             # Lock the session file right after Telethon creates/writes it
             ensure_locked_after_write("user_session.session", k.logger)
 
-            if not await k.client.is_user_authorized():
+            authorized = await k.client.is_user_authorized()
+            k.logger.debug("Telegram client authorized=%s", authorized)
+            if not authorized:
                 k.logger.error("Authorization failed")
                 return False
 
@@ -68,6 +80,11 @@ class ClientManager:
                 return False
 
             k.ADMIN_ID = me.id
+            k.logger.debug(
+                "Telegram client ready admin_id=%s first_name=%r",
+                me.id,
+                getattr(me, "first_name", None),
+            )
             k.logger.info(f"Authorized as: {me.first_name} (ID: {me.id})")
             return True
 
@@ -93,11 +110,17 @@ class ClientManager:
             return False
 
         k.logger.info("Starting inline bot...")
+        k.logger.debug(
+            "Preparing inline bot session=%r token_present=%s",
+            "inline_bot_session",
+            True,
+        )
         k.bot_client = TelegramClient(
             "inline_bot_session", k.API_ID, k.API_HASH, timeout=30
         )
 
         try:
+            k.logger.debug("Authorizing inline bot client")
             await k.bot_client.start(bot_token=token)
 
             # Lock the bot session file right after creation
@@ -105,20 +128,31 @@ class ClientManager:
 
             bot_me = await k.bot_client.get_me()
             k.config["inline_bot_username"] = bot_me.username
+            k.logger.debug(
+                "Inline bot authorized username=%r id=%r",
+                getattr(bot_me, "username", None),
+                getattr(bot_me, "id", None),
+            )
 
             with open(k.CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(k.config, f, ensure_ascii=False, indent=2)
             ensure_locked_after_write(k.CONFIG_FILE, k.logger)
+            k.logger.debug("Inline bot config persisted file=%r", k.CONFIG_FILE)
 
             from core_inline.handlers import InlineHandlers
 
             handlers = InlineHandlers(k, k.bot_client)
             await handlers.register_handlers()
+            k.logger.debug("Inline bot handlers registered")
 
             task = asyncio.create_task(k.bot_client.run_until_disconnected())
             if not hasattr(k, "_background_tasks"):
                 k._background_tasks = []
             k._background_tasks.append(task)
+            k.logger.debug(
+                "Inline bot background task added total_tasks=%d",
+                len(k._background_tasks),
+            )
 
             k.logger.info(f"Inline bot started: @{bot_me.username}")
             return True
@@ -142,16 +176,30 @@ class ClientManager:
 
         while infinite or k.reconnect_attempts < k.max_reconnect_attempts:
             if k.shutdown_flag:
+                k.logger.debug("safe_connect aborted: shutdown flag is set")
                 return False
             try:
                 if k.client.is_connected():
+                    k.logger.debug("safe_connect skipped: client already connected")
                     return True
+                k.logger.debug(
+                    "safe_connect attempt=%d max_attempts=%s",
+                    k.reconnect_attempts + 1,
+                    "infinite" if infinite else k.max_reconnect_attempts,
+                )
                 await k.client.connect()
-                if await k.client.is_user_authorized():
+                authorized = await k.client.is_user_authorized()
+                k.logger.debug(
+                    "safe_connect post-connect connected=%s authorized=%s",
+                    k.client.is_connected(),
+                    authorized,
+                )
+                if authorized:
                     k.reconnect_attempts = 0
                     if hasattr(k, "_log") and k._log:
                         await k._log.log_network("Client reconnected successfully")
                     return True
+                k.logger.debug("safe_connect connected but authorization missing")
             except Exception as e:
                 k.reconnect_attempts += 1
                 if hasattr(k, "_log") and k._log:
@@ -164,5 +212,16 @@ class ClientManager:
                             "⚠️ Connection unstable - reconnection attempts will continue silently (logged every 10 attempts)"
                         )
                 delay = k.reconnect_delay * min(k.reconnect_attempts, 10)
+                k.logger.debug(
+                    "safe_connect failed attempt=%d error=%s delay=%s",
+                    k.reconnect_attempts,
+                    type(e).__name__,
+                    delay,
+                )
                 await asyncio.sleep(delay)
+        k.logger.debug(
+            "safe_connect exhausted attempts total_attempts=%d max_attempts=%s",
+            k.reconnect_attempts,
+            "infinite" if infinite else k.max_reconnect_attempts,
+        )
         return False

@@ -198,9 +198,9 @@ class Kernel:
         # Setup dirs & config early (logger depends on them)
         self.setup_directories()
         self.check_dependencies()
+        self.logger = setup_logging()
         self._cfg = ConfigManager(self)
         self.load_or_create_config()
-        self.logger = setup_logging()
 
         # Subsystem managers (delegate objects)
         self._loader = ModuleLoader(self)
@@ -576,6 +576,7 @@ class Kernel:
     def dedupe_event_builders(self, reason: str = "manual") -> list[str]:
         """Remove duplicate Telethon bindings while keeping the newest one."""
         if not getattr(self, "client", None):
+            self.logger.debug("[event_builders] skip reason=%r missing-client", reason)
             return []
 
         builders = list(getattr(self.client, "_event_builders", []) or [])
@@ -619,6 +620,7 @@ class Kernel:
     def ensure_core_message_handlers(self, reason: str = "manual") -> None:
         """Re-register core outgoing command handlers if they disappeared."""
         if not getattr(self, "client", None):
+            self.logger.debug("[core_handlers] skip reason=%r missing-client", reason)
             return
 
         if not hasattr(self, "_core_message_handler"):
@@ -654,6 +656,15 @@ class Kernel:
 
         force_rebind = reason.startswith("reload_")
         if force_rebind:
+            before_rebind = self._debug_event_builders_snapshot()
+            self.logger.debug(
+                "[core_handlers] force-rebind-start reason=%r has_new=%s has_fallback=%s has_edit=%s builders=%r",
+                reason,
+                has_new,
+                has_fallback,
+                has_edit,
+                before_rebind,
+            )
             self.client.remove_event_handler(
                 self._core_message_handler, events.NewMessage()
             )
@@ -674,9 +685,10 @@ class Kernel:
             self.client.add_event_handler(
                 self._core_message_handler, events.MessageEdited()
             )
-            self.logger.warning(
-                "[core_handlers] rebound handlers reason=%r builders=%r",
+            self.logger.debug(
+                "[core_handlers] force-rebind-done reason=%r builders_before=%r builders_after=%r",
                 reason,
+                before_rebind,
                 self._debug_event_builders_snapshot(),
             )
             return
@@ -733,9 +745,33 @@ class Kernel:
             for entry in getattr(reg, "__watchers__", []):
                 wrapper, event_obj = entry[0], entry[1]
                 client = entry[2] if len(entry) > 2 else self.client
-                if client is not self.client or _has_binding(wrapper, event_obj):
+                if client is not self.client:
+                    self.logger.debug(
+                        "[module_handlers] skip-foreign-client reason=%r module=%r watcher=%r event=%r client=%r",
+                        reason,
+                        module_name,
+                        getattr(wrapper, "__name__", repr(wrapper)),
+                        type(event_obj).__name__,
+                        type(client).__name__,
+                    )
+                    continue
+                if _has_binding(wrapper, event_obj):
+                    self.logger.debug(
+                        "[module_handlers] watcher-present reason=%r module=%r watcher=%r event=%r",
+                        reason,
+                        module_name,
+                        getattr(wrapper, "__name__", repr(wrapper)),
+                        type(event_obj).__name__,
+                    )
                     continue
                 client.add_event_handler(wrapper, event_obj)
+                self.logger.debug(
+                    "[module_handlers] restored-watcher reason=%r module=%r watcher=%r event=%r",
+                    reason,
+                    module_name,
+                    getattr(wrapper, "__name__", repr(wrapper)),
+                    type(event_obj).__name__,
+                )
                 restored.append(
                     f"watcher:{module_name}:{getattr(wrapper, '__name__', repr(wrapper))}"
                 )
@@ -743,9 +779,33 @@ class Kernel:
             for entry in getattr(reg, "__event_handlers__", []):
                 handler, event_obj = entry[0], entry[1]
                 client = entry[2] if len(entry) > 2 else self.client
-                if client is not self.client or _has_binding(handler, event_obj):
+                if client is not self.client:
+                    self.logger.debug(
+                        "[module_handlers] skip-foreign-client reason=%r module=%r handler=%r event=%r client=%r",
+                        reason,
+                        module_name,
+                        getattr(handler, "__name__", repr(handler)),
+                        type(event_obj).__name__,
+                        type(client).__name__,
+                    )
+                    continue
+                if _has_binding(handler, event_obj):
+                    self.logger.debug(
+                        "[module_handlers] event-present reason=%r module=%r handler=%r event=%r",
+                        reason,
+                        module_name,
+                        getattr(handler, "__name__", repr(handler)),
+                        type(event_obj).__name__,
+                    )
                     continue
                 client.add_event_handler(handler, event_obj)
+                self.logger.debug(
+                    "[module_handlers] restored-event reason=%r module=%r handler=%r event=%r",
+                    reason,
+                    module_name,
+                    getattr(handler, "__name__", repr(handler)),
+                    type(event_obj).__name__,
+                )
                 restored.append(
                     f"event:{module_name}:{getattr(handler, '__name__', repr(handler))}"
                 )

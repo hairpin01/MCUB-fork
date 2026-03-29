@@ -951,8 +951,14 @@ class ModuleLoader:
             },
         )
 
+        reg = getattr(module, "register", None) if module is not None else None
         if module is not None:
-            reg = getattr(module, "register", None)
+            if reg is None:
+                k.logger.debug(
+                    "[loader.unregister] no-register module=%r type=%r",
+                    module_name,
+                    type(module).__name__,
+                )
 
             for loop in getattr(reg, "__loops__", []):
                 try:
@@ -1008,9 +1014,23 @@ class ModuleLoader:
                         loop = asyncio.get_running_loop()
                         asyncio.ensure_future(result)
                     except RuntimeError:
+                        k.logger.debug(
+                            "[loader.unregister] uninstall-asyncio-run module=%r",
+                            module_name,
+                        )
                         asyncio.run(result)
             except Exception as e:
                 k.logger.error(f"Error in uninstall callback of {module_name}: {e}")
+        else:
+            if module is None:
+                k.logger.debug(
+                    "[loader.unregister] missing-module module=%r", module_name
+                )
+            else:
+                k.logger.debug(
+                    "[loader.unregister] no-uninstall module=%r",
+                    module_name,
+                )
 
         to_remove = [
             cmd for cmd, owner in k.command_owners.items() if owner == module_name
@@ -1036,6 +1056,12 @@ class ModuleLoader:
         for alias in aliases_to_remove:
             del k.aliases[alias]
             k.logger.debug(f"Unregistered alias: {alias}")
+
+        if not to_remove and not aliases_to_remove:
+            k.logger.debug(
+                "[loader.unregister] nothing-to-remove module=%r",
+                module_name,
+            )
 
         k.unregister_module_inline_handlers(module_name)
         k.logger.debug(

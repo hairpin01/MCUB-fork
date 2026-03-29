@@ -1,5 +1,5 @@
 # author: @Hairpin01
-# version: 1.0.0-beta
+# version: 1.1.0-beta
 # description: Trusted users can execute owner commands
 
 import json
@@ -21,6 +21,14 @@ def register(kernel):
             "trustlist_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Trusted list is empty.',
             "trustlist_title": '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> Trusted users:',
             "usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.trust</code> / <code>.untrust</code> (reply or @username)',
+            "watchers_title": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Active watchers:</b>',
+            "watchers_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No active watchers.',
+            "watchers_debug_title": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Watchers debug:</b>',
+            "watchers_debug_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No watchers matched.',
+            "watcher_usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.watcher module watcher</code>',
+            "watcher_disabled": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Watcher disabled:</b> <code>{module}.{watcher}</code>',
+            "watcher_enabled": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Watcher enabled:</b> <code>{module}.{watcher}</code>',
+            "watcher_not_found": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Watcher not found: <code>{module}.{watcher}</code>',
         },
         "ru": {
             "not_owner": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Только владелец может использовать эту команду.',
@@ -31,6 +39,14 @@ def register(kernel):
             "trustlist_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Список доверенных пуст.',
             "trustlist_title": '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> Доверенные пользователи:',
             "usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Использование: <code>.trust</code> / <code>.untrust</code> (реплай или @username)',
+            "watchers_title": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Активные смотрители:</b>',
+            "watchers_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Активных смотрителей нет.',
+            "watchers_debug_title": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Отладка watchers:</b>',
+            "watchers_debug_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Подходящих watchers нет.',
+            "watcher_usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Использование: <code>.watcher модуль watcher</code>',
+            "watcher_disabled": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Watcher отключен:</b> <code>{module}.{watcher}</code>',
+            "watcher_enabled": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Watcher включен:</b> <code>{module}.{watcher}</code>',
+            "watcher_not_found": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Watcher не найден: <code>{module}.{watcher}</code>',
         },
     }
 
@@ -132,6 +148,154 @@ def register(kernel):
                 lines.append(f"• <code>{uid}</code>")
 
         await event.edit("\n".join(lines), parse_mode="html")
+
+    @kernel.register.command("watchers")
+    # list watchers
+    async def watchers_handler(event):
+        try:
+            watchers = kernel.register.get_watchers()
+
+            if not watchers:
+                await event.edit(lang_strings["watchers_empty"], parse_mode="html")
+                return
+
+            lines = [lang_strings["watchers_title"] + "<blockquote expandable>"]
+            for i, watcher in enumerate(watchers, 1):
+                event_obj = watcher["event"]
+                func_name = watcher["method"]
+                module_name = watcher["module"]
+                status = "on" if watcher["enabled"] else "off"
+
+                direction = ""
+                if getattr(event_obj, "incoming", False):
+                    direction = " [in]"
+                elif getattr(event_obj, "out", False):
+                    direction = " [out]"
+
+                lines.append(
+                    f"<code>{i}.</code> <b>{module_name}.{func_name}</b>{direction} — <i>{status}</i>"
+                )
+
+            lines.append("</blockquote>")
+            await event.edit("\n".join(lines), parse_mode="html")
+
+        except Exception as e:
+            await kernel.handle_error(e, source="watchers", event=event)
+
+    @kernel.register.command("watchersdebug")
+    async def watchers_debug_handler(event):
+        try:
+            args = event.text.split(maxsplit=1)
+            filter_text = args[1].lower() if len(args) > 1 else ""
+            watchers = kernel.register.get_watchers()
+            builder_snapshot = []
+            if hasattr(kernel, "_debug_event_builders_snapshot"):
+                builder_snapshot = kernel._debug_event_builders_snapshot()
+
+            lines = [lang_strings["watchers_debug_title"] + "<blockquote expandable>"]
+            matched = 0
+
+            for watcher in watchers:
+                module_name = watcher["module"]
+                watcher_name = watcher["method"]
+                full_name = f"{module_name}.{watcher_name}"
+                if filter_text and filter_text not in full_name.lower():
+                    continue
+
+                wrapper_name = getattr(watcher["wrapper"], "__name__", watcher_name)
+                builder_marker = f"{type(watcher['event']).__name__}:{wrapper_name}"
+                in_builders = builder_marker in builder_snapshot
+                direction = []
+                if watcher["tags"].get("incoming"):
+                    direction.append("incoming")
+                if watcher["tags"].get("out"):
+                    direction.append("out")
+                if not direction:
+                    direction.append("any")
+
+                lines.append(
+                    f"<b>{full_name}</b> — "
+                    f"<code>enabled={watcher['enabled']}</code> "
+                    f"<code>bound={in_builders}</code> "
+                    f"<code>dir={','.join(direction)}</code>"
+                )
+                matched += 1
+
+            if not matched:
+                await event.edit(
+                    lang_strings["watchers_debug_empty"], parse_mode="html"
+                )
+                return
+
+            lines.append("</blockquote>")
+            if builder_snapshot:
+                lines.append("<blockquote expandable>")
+                for item in builder_snapshot[:40]:
+                    lines.append(f"<code>{item}</code>")
+                if len(builder_snapshot) > 40:
+                    lines.append(f"<i>... +{len(builder_snapshot) - 40}</i>")
+                lines.append("</blockquote>")
+
+            await event.edit("\n".join(lines), parse_mode="html")
+        except Exception as e:
+            await kernel.handle_error(e, source="watchersdebug", event=event)
+
+    async def toggle_watcher_handler(event):
+        if event.sender_id != kernel.ADMIN_ID:
+            await event.edit(lang_strings["not_owner"], parse_mode="html")
+            return
+
+        args = event.text.split(maxsplit=2)
+        if len(args) < 3:
+            await event.edit(lang_strings["watcher_usage"], parse_mode="html")
+            return
+
+        module_name = args[1]
+        watcher_name = args[2]
+        watchers = kernel.register.get_watchers()
+        watcher_info = next(
+            (
+                watcher
+                for watcher in watchers
+                if watcher["module"] == module_name
+                and watcher["method"] == watcher_name
+            ),
+            None,
+        )
+
+        if watcher_info is None:
+            await event.edit(
+                lang_strings["watcher_not_found"].format(
+                    module=module_name, watcher=watcher_name
+                ),
+                parse_mode="html",
+            )
+            return
+
+        if watcher_info["enabled"]:
+            ok = kernel.register.disable_watcher(module_name, watcher_name)
+            key = "watcher_disabled"
+        else:
+            ok = kernel.register.enable_watcher(module_name, watcher_name)
+            key = "watcher_enabled"
+
+        if not ok:
+            await event.edit(
+                lang_strings["watcher_not_found"].format(
+                    module=module_name, watcher=watcher_name
+                ),
+                parse_mode="html",
+            )
+            return
+
+        await event.edit(
+            lang_strings[key].format(module=module_name, watcher=watcher_name),
+            parse_mode="html",
+        )
+
+    @kernel.register.command("watcher")
+    async def watcher_toggle_handler(event):
+        await toggle_watcher_handler(event)
 
     @kernel.register.watcher(out=False, incoming=True)
     async def trusted_watcher(event):

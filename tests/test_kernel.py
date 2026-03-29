@@ -211,6 +211,101 @@ class TestKernelCommands:
 
         assert isinstance(kernel.bot_command_handlers, dict)
 
+    @patch("core.kernel.standard.setup_logging")
+    @patch("core.kernel.standard.ConfigManager")
+    @patch("core.kernel.standard.DatabaseManager")
+    async def test_should_process_command_event_accepts_outgoing(
+        self, mock_db, mock_cfg, mock_log
+    ):
+        """Outgoing messages should always be accepted."""
+        from core.kernel import Kernel
+
+        kernel = Kernel()
+        kernel.ADMIN_ID = 123
+        event = MagicMock(sender_id=999)
+        event.message = MagicMock(out=True)
+
+        assert kernel.should_process_command_event(event) is True
+
+    @patch("core.kernel.standard.setup_logging")
+    @patch("core.kernel.standard.ConfigManager")
+    @patch("core.kernel.standard.DatabaseManager")
+    async def test_should_process_command_event_accepts_admin_without_out_flag(
+        self, mock_db, mock_cfg, mock_log
+    ):
+        """Admin messages should still dispatch if Telethon drops out=True."""
+        from core.kernel import Kernel
+
+        kernel = Kernel()
+        kernel.ADMIN_ID = 123
+        event = MagicMock(sender_id=123)
+        event.message = MagicMock(out=False)
+
+        assert kernel.should_process_command_event(event) is True
+
+    @patch("core.kernel.standard.setup_logging")
+    @patch("core.kernel.standard.ConfigManager")
+    @patch("core.kernel.standard.DatabaseManager")
+    async def test_should_process_command_event_rejects_foreign_nonoutgoing(
+        self, mock_db, mock_cfg, mock_log
+    ):
+        """Foreign incoming messages must not be treated as commands."""
+        from core.kernel import Kernel
+
+        kernel = Kernel()
+        kernel.ADMIN_ID = 123
+        event = MagicMock(sender_id=999)
+        event.message = MagicMock(out=False)
+
+        assert kernel.should_process_command_event(event) is False
+
+    @patch("core.kernel.standard.setup_logging")
+    @patch("core.kernel.standard.ConfigManager")
+    @patch("core.kernel.standard.DatabaseManager")
+    async def test_dedupe_event_builders_keeps_latest_duplicate(
+        self, mock_db, mock_cfg, mock_log
+    ):
+        """Duplicate Telethon bindings should be collapsed to one."""
+        from core.kernel import Kernel
+
+        kernel = Kernel()
+
+        class DummyClient:
+            def __init__(self):
+                self._event_builders = []
+
+            def remove_event_handler(self, callback, event_obj=None):
+                self._event_builders = [
+                    (ev, cb)
+                    for ev, cb in self._event_builders
+                    if not (cb == callback and (event_obj is None or ev == event_obj))
+                ]
+
+        DummyEvent = type(
+            "NewMessage",
+            (),
+            {
+                "pattern": None,
+                "incoming": None,
+                "outgoing": True,
+                "from_users": None,
+                "forwards": None,
+            },
+        )
+
+        async def cb(_event):
+            return None
+
+        kernel.client = DummyClient()
+        ev1 = DummyEvent()
+        ev2 = DummyEvent()
+        kernel.client._event_builders = [(ev1, cb), (ev2, cb)]
+
+        removed = kernel.dedupe_event_builders("test")
+
+        assert len(removed) == 1
+        assert len(kernel.client._event_builders) == 1
+
 
 class TestKernelInline:
     """Test inline functionality"""
@@ -251,7 +346,9 @@ class TestKernelTelethonMcubIntegration:
     @patch("core.kernel.standard.setup_logging")
     @patch("core.kernel.standard.ConfigManager")
     @patch("core.kernel.standard.DatabaseManager")
-    async def test_init_client_binds_pending_middlewares(self, mock_db, mock_cfg, mock_log):
+    async def test_init_client_binds_pending_middlewares(
+        self, mock_db, mock_cfg, mock_log
+    ):
         """Pending middleware should be registered once the client is ready."""
         from core.kernel import Kernel
 
@@ -279,7 +376,9 @@ class TestKernelTelethonMcubIntegration:
     @patch("core.kernel.standard.setup_logging")
     @patch("core.kernel.standard.ConfigManager")
     @patch("core.kernel.standard.DatabaseManager")
-    async def test_process_with_middleware_uses_client_pipeline(self, mock_db, mock_cfg, mock_log):
+    async def test_process_with_middleware_uses_client_pipeline(
+        self, mock_db, mock_cfg, mock_log
+    ):
         """Kernel middleware processing should delegate to Telethon-MCUB pipeline."""
         from core.kernel import Kernel
 
@@ -298,7 +397,9 @@ class TestKernelTelethonMcubIntegration:
     @patch("core.kernel.standard.setup_logging")
     @patch("core.kernel.standard.ConfigManager")
     @patch("core.kernel.standard.DatabaseManager")
-    async def test_get_thread_id_reads_nested_reply_metadata(self, mock_db, mock_cfg, mock_log):
+    async def test_get_thread_id_reads_nested_reply_metadata(
+        self, mock_db, mock_cfg, mock_log
+    ):
         """Nested message.reply_to metadata should resolve the forum thread id."""
         from core.kernel import Kernel
 
@@ -314,7 +415,9 @@ class TestKernelTelethonMcubIntegration:
     @patch("core.kernel.standard.setup_logging")
     @patch("core.kernel.standard.ConfigManager")
     @patch("core.kernel.standard.DatabaseManager")
-    async def test_send_with_emoji_uses_topic_helpers(self, mock_db, mock_cfg, mock_log):
+    async def test_send_with_emoji_uses_topic_helpers(
+        self, mock_db, mock_cfg, mock_log
+    ):
         """Topic-aware sends should route through Telethon-MCUB forum helpers."""
         from core.kernel import Kernel
 
@@ -326,7 +429,9 @@ class TestKernelTelethonMcubIntegration:
         kernel.client.send_message = AsyncMock()
 
         result = await kernel.send_with_emoji(100, "hello", topic=9)
-        file_result = await kernel.send_with_emoji(100, "hello", topic=9, file="demo.bin", silent=True)
+        file_result = await kernel.send_with_emoji(
+            100, "hello", topic=9, file="demo.bin", silent=True
+        )
 
         assert result == "topic-message"
         assert file_result == "topic-file"

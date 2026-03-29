@@ -3,6 +3,8 @@
 # description: settings
 
 import json
+import os
+import shutil
 from telethon import Button
 
 # <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji>
@@ -56,6 +58,21 @@ def register(kernel):
 <b>Ответственность на пользователе</b> — за действия бота, нарушающие правила Telegram, отвечает владелец аккаунта
 <b>Риск для основного аккаунта</b> — рекомендуется использовать отдельный аккаунт для юзербота</blockquote>""",
             "mcubinfo_error": "🌩️ <b>error, check logs</b>\nЛог:<pre>{e}<pre>",
+            "danger_inline_not_set": "❌ Инлайн бот не настроен\nПодтверждение недоступно",
+            "btn_confirm": "✅ Подтвердить",
+            "btn_cancel": "✖ Отмена",
+            "cleardb_confirm": "⚠️ <b>Удалить базу данных?</b>\n<blockquote>Это просто удалит файл базы данных.</blockquote>",
+            "cleardb_done": "✅ База данных удалена: <code>{path}</code>",
+            "cleardb_missing": "✅ База данных уже отсутствует: <code>{path}</code>",
+            "cleardb_error": "❌ Не удалось удалить базу данных: <code>{error}</code>",
+            "clearmodules_confirm": "⚠️ <b>Удалить все загруженные модули?</b>\n<blockquote>Будут удалены все файлы из <code>{path}</code>.</blockquote>",
+            "clearmodules_done": "✅ Очищено модулей: <code>{count}</code>",
+            "clearmodules_missing": "✅ Каталог <code>{path}</code> уже пуст или отсутствует",
+            "clearmodules_error": "❌ Не удалось очистить modules_loaded: <code>{error}</code>",
+            "clearcache_confirm": "⚠️ <b>Очистить кэш?</b>\n<blockquote>Ядро и модули могут хранить некоторые вещи в кэше. После очистки часть данных будет пересоздана заново.</blockquote>",
+            "clearcache_done": "✅ Кэш очищен",
+            "clearcache_error": "❌ Не удалось очистить кэш: <code>{error}</code>",
+            "danger_cancelled": "❄️ Действие отменено",
         },
         "en": {
             "prefix_usage": "❌ Usage: {prefix}prefix [symbol]",
@@ -111,6 +128,21 @@ def register(kernel):
             "btn_kernel_version": "Kernel version: {version}",
             "api_protection_status": "API protection {status}",
             "2fa_status": "2FA {status}",
+            "danger_inline_not_set": "❌ Inline bot is not configured\nConfirmation is unavailable",
+            "btn_confirm": "✅ Confirm",
+            "btn_cancel": "✖ Cancel",
+            "cleardb_confirm": "⚠️ <b>Delete the database?</b>\n<blockquote>This will simply delete the database file.</blockquote>",
+            "cleardb_done": "✅ Database deleted: <code>{path}</code>",
+            "cleardb_missing": "✅ Database file is already missing: <code>{path}</code>",
+            "cleardb_error": "❌ Failed to delete database: <code>{error}</code>",
+            "clearmodules_confirm": "⚠️ <b>Delete all loaded modules?</b>\n<blockquote>All files from <code>{path}</code> will be removed.</blockquote>",
+            "clearmodules_done": "✅ Removed modules: <code>{count}</code>",
+            "clearmodules_missing": "✅ Directory <code>{path}</code> is already empty or missing",
+            "clearmodules_error": "❌ Failed to clear modules_loaded: <code>{error}</code>",
+            "clearcache_confirm": "⚠️ <b>Clear cache?</b>\n<blockquote>Kernel and modules may store some things in cache. After cleanup, part of the data will be recreated again.</blockquote>",
+            "clearcache_done": "✅ Cache cleared",
+            "clearcache_error": "❌ Failed to clear cache: <code>{error}</code>",
+            "danger_cancelled": "❄️ Action cancelled",
         },
     }
 
@@ -229,6 +261,96 @@ def register(kernel):
                 event.chat_id, _("inline_error", error=str(e)[:100])
             )
 
+    async def _show_danger_confirm(event, action: str, text: str):
+        bot_username = kernel.config.get("inline_bot_username")
+        if not bot_username:
+            await event.edit(_("danger_inline_not_set"), parse_mode="html")
+            return
+
+        success, form_message = await kernel.inline_form(
+            event.chat_id,
+            text,
+            buttons=[
+                [
+                    Button.inline(
+                        _("btn_confirm"),
+                        f"settings_danger:confirm:{action}".encode(),
+                        style="danger",
+                    ),
+                    Button.inline(
+                        _("btn_cancel"),
+                        b"settings_danger:cancel",
+                        style="primary",
+                    ),
+                ]
+            ],
+        )
+        if success:
+            await event.delete()
+
+    def _resolve_db_path() -> str:
+        db_manager = getattr(kernel, "db_manager", None)
+        if db_manager and hasattr(db_manager, "_resolve_db_file"):
+            return os.path.abspath(db_manager._resolve_db_file())
+        return os.path.abspath("userbot.db")
+
+    async def _clear_db():
+        db_path = _resolve_db_path()
+        conn = getattr(kernel, "db_conn", None)
+        if conn:
+            await conn.close()
+            if getattr(kernel, "db_manager", None):
+                kernel.db_manager.conn = None
+
+        if not os.path.exists(db_path):
+            return _("cleardb_missing", path=db_path)
+
+        os.remove(db_path)
+        return _("cleardb_done", path=db_path)
+
+    async def _clear_modules_dir():
+        modules_dir = getattr(kernel, "MODULES_LOADED_DIR", "modules_loaded")
+        modules_dir = os.path.abspath(modules_dir)
+        if not os.path.isdir(modules_dir):
+            return _("clearmodules_missing", path=modules_dir)
+
+        deleted = 0
+        for name in os.listdir(modules_dir):
+            target = os.path.join(modules_dir, name)
+            if os.path.isdir(target) and not os.path.islink(target):
+                shutil.rmtree(target)
+            else:
+                os.remove(target)
+            deleted += 1
+
+        if deleted == 0:
+            return _("clearmodules_missing", path=modules_dir)
+        return _("clearmodules_done", count=deleted)
+
+    async def _clear_cache():
+        if getattr(kernel, "cache", None):
+            kernel.cache.clear()
+        return _("clearcache_done")
+
+    @kernel.register.command("cleardb")
+    async def cleardb_handler(event):
+        """delete db file with inline confirmation"""
+        await _show_danger_confirm(event, "db", _("cleardb_confirm"))
+
+    @kernel.register.command("clearmodules")
+    async def clearmodules_handler(event):
+        """delete all files from modules_loaded with inline confirmation"""
+        await _show_danger_confirm(
+            event,
+            "modules",
+            _("clearmodules_confirm", path=os.path.abspath(kernel.MODULES_LOADED_DIR)),
+        )
+
+    @kernel.register.command("clearcache")
+    async def clearcache_handler(event):
+        """clear kernel cache with inline confirmation"""
+        await _show_danger_confirm(event, "cache", _("clearcache_confirm"))
+
     async def settings_inline_handler(event):
         api_protection = kernel.config.get("api_protection", False)
         power_save = kernel.config.get("power_save_mode", False)
@@ -330,6 +452,39 @@ def register(kernel):
             await event.edit(_("lang_changed", lang=lang), parse_mode="html")
         await event.answer()
 
+    async def settings_danger_callback_handler(event):
+        data = event.data.decode()
+
+        if data == "settings_danger:cancel":
+            await event.edit(_("danger_cancelled"), parse_mode="html", buttons=None)
+            await event.answer()
+            return
+
+        if not data.startswith("settings_danger:confirm:"):
+            return
+
+        action = data.rsplit(":", 1)[-1]
+        try:
+            if action == "db":
+                text = await _clear_db()
+            elif action == "modules":
+                text = await _clear_modules_dir()
+            elif action == "cache":
+                text = await _clear_cache()
+            else:
+                await event.answer("Unknown action", alert=True)
+                return
+        except Exception as e:
+            if action == "db":
+                text = _("cleardb_error", error=str(e)[:200])
+            elif action == "modules":
+                text = _("clearmodules_error", error=str(e)[:200])
+            else:
+                text = _("clearcache_error", error=str(e)[:200])
+
+        await event.edit(text, parse_mode="html", buttons=None)
+        await event.answer()
+
     @kernel.register.command("mcubinfo")
     async def mcubinfo_cmd(event):
         """FAO, 'why userbot'"""
@@ -347,3 +502,9 @@ def register(kernel):
     kernel.register_inline_handler("settings", settings_inline_handler)
     kernel.register_callback_handler("settings_", settings_callback_handler)
     kernel.register_callback_handler("lang:", lang_callback_handler)
+    kernel.register_callback_handler(
+        "settings_danger:confirm:", settings_danger_callback_handler
+    )
+    kernel.register_callback_handler(
+        "settings_danger:cancel", settings_danger_callback_handler
+    )

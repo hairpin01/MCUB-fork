@@ -4,6 +4,7 @@ Tests for Register class
 
 import pytest
 import asyncio
+import sys
 from unittest.mock import MagicMock
 
 
@@ -131,7 +132,7 @@ class TestGetOrCreateRegister:
 
         reg = Register._get_or_create_register(module)
 
-        assert hasattr(module, 'register')
+        assert hasattr(module, "register")
 
     def test_returns_existing_register(self):
         """Test that existing register is returned"""
@@ -156,7 +157,7 @@ class TestEnsureList:
         reg = MagicMock()
         del reg.test_list
 
-        result = Register._ensure_list(reg, 'test_list')
+        result = Register._ensure_list(reg, "test_list")
 
         assert isinstance(result, list)
 
@@ -164,11 +165,11 @@ class TestEnsureList:
         """Test that existing list is returned"""
         from core.lib.loader.register import Register
 
-        existing = ['item1', 'item2']
+        existing = ["item1", "item2"]
         reg = MagicMock()
         reg.test_list = existing
 
-        result = Register._ensure_list(reg, 'test_list')
+        result = Register._ensure_list(reg, "test_list")
 
         assert result is existing
 
@@ -429,3 +430,86 @@ class TestGetRegisteredMethods:
 
         assert "method1" in result
         assert result is not register._methods
+
+
+class TestWatcherManagement:
+    """Test watcher metadata and enable/disable helpers."""
+
+    def test_get_watchers_returns_module_and_method(self):
+        kernel = MagicMock()
+        kernel.client = MagicMock()
+        kernel.command_handlers = {}
+        kernel.command_owners = {}
+        kernel.aliases = {}
+        kernel.loaded_modules = {}
+        kernel.system_modules = {}
+        kernel.current_loading_module = __name__
+
+        from core.lib.loader.register import Register
+
+        register = Register(kernel)
+        module_obj = sys.modules[__name__]
+        previous_register = getattr(module_obj, "register", None)
+        kernel.loaded_modules[__name__] = module_obj
+
+        try:
+
+            @register.watcher(incoming=True)
+            async def sample_watcher(event):
+                pass
+
+            watchers = register.get_watchers()
+
+            assert watchers
+            assert watchers[0]["module"] == __name__
+            assert watchers[0]["method"] == "sample_watcher"
+            assert watchers[0]["enabled"] is True
+        finally:
+            if previous_register is None:
+                delattr(module_obj, "register")
+            else:
+                module_obj.register = previous_register
+
+    def test_disable_and_enable_watcher(self):
+        kernel = MagicMock()
+        kernel.client = MagicMock()
+        kernel.command_handlers = {}
+        kernel.command_owners = {}
+        kernel.aliases = {}
+        kernel.loaded_modules = {}
+        kernel.system_modules = {}
+        kernel.current_loading_module = __name__
+
+        from core.lib.loader.register import Register
+
+        register = Register(kernel)
+        module_obj = sys.modules[__name__]
+        previous_register = getattr(module_obj, "register", None)
+        kernel.loaded_modules[__name__] = module_obj
+
+        try:
+
+            @register.watcher()
+            async def managed_watcher(event):
+                pass
+
+            assert register.disable_watcher(__name__, "managed_watcher") is True
+            watcher = next(
+                item
+                for item in register.get_watchers()
+                if item["method"] == "managed_watcher"
+            )
+            assert watcher["enabled"] is False
+
+            assert register.enable_watcher(__name__, "managed_watcher") is True
+            watcher = next(
+                item
+                for item in register.get_watchers()
+                if item["method"] == "managed_watcher"
+            )
+            assert watcher["enabled"] is True
+        finally:
+            if previous_register is None:
+                delattr(module_obj, "register")
+            else:
+                module_obj.register = previous_register

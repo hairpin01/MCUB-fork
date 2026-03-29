@@ -4,6 +4,8 @@ import time
 import getpass
 import socket
 import subprocess
+import tempfile
+import re
 from datetime import datetime
 
 try:
@@ -12,6 +14,7 @@ except ImportError:
     _psutil = None
 from telethon.tl.types import InputMediaWebPage
 from telethon import functions
+from telethon import Button
 from copy import copy
 from utils import get_args
 
@@ -55,6 +58,8 @@ CUSTOM_EMOJI = {
 def register(kernel):
     client = kernel.client
     language = kernel.config.get("language", "en")
+    log_level_pattern = re.compile(r"^\d{4}-\d{2}-\d{2} .* \[([A-Z]+)\] ")
+    log_level_labels = ["debug", "info", "warning", "error", "critical", "all"]
 
     # Локализованные строки
     strings = {
@@ -79,9 +84,15 @@ def register(kernel):
             "minutes": "m",
             "seconds": "s",
             "branch": "Branch",
-            "logs_not_fount_args": "<b>Available argument:</b> <code>clear</code>",
+            "logs_not_fount_args": "<b>Available arguments:</b> <code>clear</code>, <code>debug</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code>, <code>all</code>",
             "logs_clear": "<b>Cleared kernel logs</b>",
             "file_empty": "<b>Is logs empty</b>",
+            "logs_level_invalid": "<b>Available levels:</b> <code>debug</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code>, <code>all</code>",
+            "logs_choose_level": "{paper} <b>Choose log level</b>",
+            "logs_choose_desc": "Send only selected records from <code>kernel.log</code>.",
+            "logs_level_warning": "{snowflake} <b>Warning</b>\n<blockquote>Logs with level <code>{level}</code> may contain personal information, tokens, chat IDs, message text, and other sensitive data.</blockquote>\n<b>Send anyway?</b>",
+            "logs_send_cancelled": "{snowflake} <b>Log sending cancelled</b>",
+            "logs_level_caption": '{logs_title} <b>{logs}</b> {mcub}\n<blockquote>{pen} <b>{kernel_version}</b> {version}#<a href="{commit_url}">{commit_sha}</a>\n{satellite} <b>{branch_label}:</b> {branch}\n{printer} <b>Level:</b> <code>{level}</code></blockquote>',
         },
         "ru": {
             "error_logs": "{snowflake} <b>Ошибка, смотри логи</b>",
@@ -104,9 +115,15 @@ def register(kernel):
             "minutes": "м",
             "seconds": "с",
             "branch": "Ветка",
-            "logs_not_fount_args": "<b>Доступный аргумент: </b><code>clear</code>",
+            "logs_not_fount_args": "<b>Доступные аргументы: </b><code>clear</code>, <code>debug</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code>, <code>all</code>",
             "logs_clear": "<b>Логи очишены</b>",
             "file_empty": "<b>Логи пустые</b>",
+            "logs_level_invalid": "<b>Доступные уровни:</b> <code>debug</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code>, <code>all</code>",
+            "logs_choose_level": "{paper} <b>Выбери уровень логов</b>",
+            "logs_choose_desc": "Отправлю только записи выбранного уровня из <code>kernel.log</code>.",
+            "logs_level_warning": "{snowflake} <b>Предупреждение</b>\n<blockquote>Логи уровня <code>{level}</code> могут содержать личную информацию, токены, chat id, текст сообщений и другие чувствительные данные.</blockquote>\n<b>Все равно отправить?</b>",
+            "logs_send_cancelled": "{snowflake} <b>Отправка логов отменена</b>",
+            "logs_level_caption": '{logs_title} <b>{logs}</b> {mcub}\n<blockquote>{pen} <b>{kernel_version}</b> {version}#<a href="{commit_url}">{commit_sha}</a>\n{satellite} <b>{branch_label}:</b> {branch}\n{printer} <b>Уровень:</b> <code>{level}</code></blockquote>',
         },
     }
 
@@ -118,6 +135,106 @@ def register(kernel):
         if key not in lang_strings:
             return key
         return lang_strings[key].format(**kwargs)
+
+    def _normalize_log_level(value):
+        if not value:
+            return None
+        value = value.strip().lower()
+        return value if value in log_level_labels else None
+
+    def _build_filtered_log(level, kernel_log_path):
+        if level == "all":
+            return kernel_log_path
+
+        temp_path = os.path.join(tempfile.gettempdir(), f"kernel.{level}.log")
+        temp = open(temp_path, "w", encoding="utf-8")
+        keep_block = False
+        wrote = False
+        try:
+            with open(kernel_log_path, "r", encoding="utf-8", errors="ignore") as src:
+                for line in src:
+                    match = log_level_pattern.match(line)
+                    if match:
+                        keep_block = match.group(1).lower() == level
+                    if keep_block:
+                        temp.write(line)
+                        wrote = True
+            temp.close()
+            if not wrote:
+                os.unlink(temp_path)
+                return None
+            return temp_path
+        except Exception:
+            try:
+                temp.close()
+                os.unlink(temp_path)
+            except Exception:
+                pass
+            raise
+
+    async def _resolve_version_info():
+        _version_info = kernel.cache.get("tester:version_info")
+        if _version_info is None:
+            branch = await kernel.version_manager.detect_branch()
+            commit_sha = await kernel.version_manager.get_commit_sha()
+            commit_url = await kernel.version_manager.get_github_commit_url()
+            kernel.cache.set(
+                "tester:version_info", (branch, commit_sha, commit_url), ttl=600
+            )
+        else:
+            branch, commit_sha, commit_url = _version_info
+        return branch, commit_sha, commit_url
+
+    async def _send_logs(target, level):
+        kernel_log_path = os.path.join(kernel.LOGS_DIR, "kernel.log")
+        if not os.path.exists(kernel_log_path):
+            await target.edit(
+                t("logs_not_found", file=CUSTOM_EMOJI["📁"]), parse_mode="html"
+            )
+            return
+
+        if os.path.getsize(kernel_log_path) == 0:
+            await target.edit(
+                f"{CUSTOM_EMOJI['🗳']} {t('file_empty')}", parse_mode="html"
+            )
+            return
+
+        selected_path = _build_filtered_log(level, kernel_log_path)
+        if selected_path is None:
+            await target.edit(
+                f"{CUSTOM_EMOJI['🗳']} {t('file_empty')}", parse_mode="html"
+            )
+            return
+
+        temporary_file = selected_path != kernel_log_path
+        try:
+            branch, commit_sha, commit_url = await _resolve_version_info()
+            await target.edit(
+                t(
+                    "logs_level_caption",
+                    logs_title=CUSTOM_EMOJI["📝"],
+                    logs=t("logs"),
+                    mcub=await mcub_handler(),
+                    pen=CUSTOM_EMOJI["✏️"],
+                    kernel_version=t("kernel_version"),
+                    version=kernel.VERSION,
+                    commit_url=commit_url,
+                    commit_sha=commit_sha,
+                    satellite=CUSTOM_EMOJI["🛰"],
+                    branch_label=t("branch"),
+                    branch=branch,
+                    printer=CUSTOM_EMOJI["🖨"],
+                    level=level.upper(),
+                ),
+                file=selected_path,
+                parse_mode="html",
+            )
+        finally:
+            if temporary_file:
+                try:
+                    os.unlink(selected_path)
+                except OSError:
+                    pass
 
     branch = _detect_branch_sync()
 
@@ -457,7 +574,8 @@ def register(kernel):
 
             args = get_args(event)
             if args:
-                if args[0] in "clear":
+                normalized_arg = _normalize_log_level(args[0])
+                if args[0] == "clear":
                     if size_kernel_log == 0:
                         await event.edit(f"{CUSTOM_EMOJI['🗳']} {t('file_empty')}")
                         return
@@ -469,41 +587,158 @@ def register(kernel):
                         f"{CUSTOM_EMOJI['🗳']} {t('logs_clear')}", parse_mode="html"
                     )
                     return
-                else:
+                if not normalized_arg:
                     await event.edit(
                         f"{CUSTOM_EMOJI['🧊']} {t('logs_not_fount_args')}",
                         parse_mode="html",
                     )
                     return
 
-            await event.edit(
-                t("logs_sending", printer=CUSTOM_EMOJI["🖨"]), parse_mode="html"
-            )
-            _version_info = kernel.cache.get("tester:version_info")
-            if _version_info is None:
-                branch = await kernel.version_manager.detect_branch()
-                commit_sha = await kernel.version_manager.get_commit_sha()
-                commit_url = await kernel.version_manager.get_github_commit_url()
-                kernel.cache.set(
-                    "tester:version_info", (branch, commit_sha, commit_url), ttl=600
+                await event.edit(
+                    t("logs_sending", printer=CUSTOM_EMOJI["🖨"]), parse_mode="html"
                 )
-            else:
-                branch, commit_sha, commit_url = _version_info
+                await _send_logs(event, normalized_arg)
+                return
 
-            await event.edit(
-                f'{CUSTOM_EMOJI["📝"]} <b>{t("logs")}</b> {await mcub_handler()}\n'
-                f'<blockquote>{CUSTOM_EMOJI["✏️"]} <b>{t("kernel_version")}</b> {kernel.VERSION}#<a href="{commit_url}">{commit_sha}</a>\n'
-                f"{CUSTOM_EMOJI['🛰']} <b>{t('branch')}:</b> {branch}</blockquote>",
-                file=kernel_log_path,
-                parse_mode="html",
+            success, _ = await kernel.inline_form(
+                event.chat_id,
+                f"{t('logs_choose_level', paper=CUSTOM_EMOJI['📰'])}\n{t('logs_choose_desc')}",
+                buttons=[
+                    [
+                        {
+                            "text": "DEBUG",
+                            "type": "callback",
+                            "data": "tester_logs:level:debug",
+                        },
+                        {
+                            "text": "INFO",
+                            "type": "callback",
+                            "data": "tester_logs:level:info",
+                        },
+                    ],
+                    [
+                        {
+                            "text": "WARNING",
+                            "type": "callback",
+                            "data": "tester_logs:level:warning",
+                        },
+                        {
+                            "text": "ERROR",
+                            "type": "callback",
+                            "data": "tester_logs:level:error",
+                        },
+                    ],
+                    [
+                        {
+                            "text": "CRITICAL",
+                            "type": "callback",
+                            "data": "tester_logs:level:critical",
+                        },
+                        {
+                            "text": "ALL",
+                            "type": "callback",
+                            "data": "tester_logs:level:all",
+                        },
+                    ],
+                    [{"text": "✖", "type": "callback", "data": "tester_logs:cancel"}],
+                ],
             )
-            # await event.delete()
+            if success:
+                await event.delete()
 
         except Exception as e:
             await event.edit(
                 t("error_logs", snowflake=CUSTOM_EMOJI["❄️"]), parse_mode="html"
             )
             await kernel.handle_error(e, source="logs", event=event)
+
+    async def tester_logs_callback(event):
+        try:
+            data = (
+                event.data.decode()
+                if isinstance(event.data, bytes)
+                else str(event.data)
+            )
+            if data == "tester_logs:cancel":
+                await event.edit(
+                    t("logs_send_cancelled", snowflake=CUSTOM_EMOJI["❄️"]),
+                    parse_mode="html",
+                    buttons=None,
+                )
+                return
+
+            if data.startswith("tester_logs:confirm:"):
+                level = _normalize_log_level(data.rsplit(":", 1)[-1])
+                if not level:
+                    await event.answer("Unknown level", alert=True)
+                    return
+                await _send_logs(event, level)
+                return
+
+            if not data.startswith("tester_logs:level:"):
+                return
+
+            level = _normalize_log_level(data.rsplit(":", 1)[-1])
+            if not level:
+                await event.answer("Unknown level", alert=True)
+                return
+
+            if level in {"debug", "all"}:
+                await event.edit(
+                    t(
+                        "logs_level_warning",
+                        snowflake=CUSTOM_EMOJI["❄️"],
+                        level=level.upper(),
+                    ),
+                    parse_mode="html",
+                    buttons=[
+                        [
+                            Button.inline(
+                                "✅ Send" if language == "en" else "✅ Отправить",
+                                f"tester_logs:confirm:{level}".encode(),
+                            ),
+                            Button.inline("↩", b"tester_logs:back"),
+                        ],
+                        [Button.inline("✖", b"tester_logs:cancel")],
+                    ],
+                )
+                return
+
+            await _send_logs(event, level)
+
+        except Exception as e:
+            await kernel.handle_error(e, source="tester_logs_callback", event=event)
+
+    async def tester_logs_back_callback(event):
+        try:
+            await event.edit(
+                f"{t('logs_choose_level', paper=CUSTOM_EMOJI['📰'])}\n{t('logs_choose_desc')}",
+                parse_mode="html",
+                buttons=[
+                    [
+                        Button.inline("DEBUG", b"tester_logs:level:debug"),
+                        Button.inline("INFO", b"tester_logs:level:info"),
+                    ],
+                    [
+                        Button.inline("WARNING", b"tester_logs:level:warning"),
+                        Button.inline("ERROR", b"tester_logs:level:error"),
+                    ],
+                    [
+                        Button.inline("CRITICAL", b"tester_logs:level:critical"),
+                        Button.inline("ALL", b"tester_logs:level:all"),
+                    ],
+                    [Button.inline("✖", b"tester_logs:cancel")],
+                ],
+            )
+        except Exception as e:
+            await kernel.handle_error(
+                e, source="tester_logs_back_callback", event=event
+            )
+
+    kernel.register_callback_handler("tester_logs:level:", tester_logs_callback)
+    kernel.register_callback_handler("tester_logs:confirm:", tester_logs_callback)
+    kernel.register_callback_handler("tester_logs:cancel", tester_logs_callback)
+    kernel.register_callback_handler("tester_logs:back", tester_logs_back_callback)
 
     @kernel.register.command("freezing")
     async def freezing_handler(event):

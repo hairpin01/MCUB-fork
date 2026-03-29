@@ -421,6 +421,12 @@ class ModuleLoader:
         """
         k = self.k
         try:
+            k.logger.debug(
+                "[loader.register_module] module=%r type=%r register=%r",
+                module_name,
+                module_type,
+                getattr(module, "register", None),
+            )
             if module_type == "method":
                 methods = self._iter_register_methods(getattr(module, "register", None))
                 if not methods:
@@ -469,6 +475,14 @@ class ModuleLoader:
         """
         k = self.k
         reg = getattr(module, "register", None)
+        k.logger.debug(
+            "[loader.post_load] module=%r install=%s loops=%d watchers=%d events=%d",
+            module_name,
+            is_install,
+            len(getattr(reg, "__loops__", [])),
+            len(getattr(reg, "__watchers__", [])),
+            len(getattr(reg, "__event_handlers__", [])),
+        )
 
         for loop in getattr(reg, "__loops__", []):
             loop._kernel = k
@@ -527,6 +541,13 @@ class ModuleLoader:
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 code = f.read()
+            k.logger.debug(
+                "[loader.load] start module=%r path=%r system=%s size=%d",
+                module_name,
+                file_path,
+                is_system,
+                len(code),
+            )
 
             try:
                 from core.lib.loader.hikka_compat import (
@@ -606,6 +627,12 @@ class ModuleLoader:
                 )
 
             mod_type = await self.detect_module_type(module)
+            k.logger.debug(
+                "[loader.load] detected module=%r mod_type=%r register=%r",
+                module_name,
+                mod_type,
+                hasattr(module, "register"),
+            )
             if not await self.register_module(module, mod_type, module_name):
                 return False, "Module registration failed"
 
@@ -617,6 +644,21 @@ class ModuleLoader:
                 k.logger.info(f"User module loaded: {module_name}")
 
             await self.run_post_load(module, module_name, is_install=True)
+            k.logger.debug(
+                "[loader.load] finished module=%r commands=%r aliases=%r",
+                module_name,
+                [
+                    cmd
+                    for cmd, owner in k.command_owners.items()
+                    if owner == module_name
+                ],
+                {
+                    alias: target
+                    for alias, target in k.aliases.items()
+                    if target in k.command_handlers
+                    and k.command_owners.get(target) == module_name
+                },
+            )
 
             if hasattr(module, "init") and callable(module.init):
                 try:
@@ -888,7 +930,7 @@ class ModuleLoader:
         except Exception as e:
             return False, f"Install from URL failed: {e}"
 
-    def unregister_module_commands(self, module_name: str) -> None:
+    async def unregister_module_commands(self, module_name: str) -> None:
         """Stop loops, remove event handlers, and unregister all commands for a module.
 
         Args:
@@ -896,12 +938,29 @@ class ModuleLoader:
         """
         k = self.k
         module = k.loaded_modules.get(module_name) or k.system_modules.get(module_name)
+        k.logger.debug(
+            "[loader.unregister] start module=%r loaded=%s system=%s commands=%r aliases=%r",
+            module_name,
+            module_name in k.loaded_modules,
+            module_name in k.system_modules,
+            [cmd for cmd, owner in k.command_owners.items() if owner == module_name],
+            {
+                alias: target
+                for alias, target in k.aliases.items()
+                if k.command_owners.get(target) == module_name
+            },
+        )
 
         if module is not None:
             reg = getattr(module, "register", None)
 
             for loop in getattr(reg, "__loops__", []):
                 try:
+                    k.logger.debug(
+                        "[loader.unregister] stopping loop module=%r loop=%r",
+                        module_name,
+                        getattr(getattr(loop, "func", None), "__name__", repr(loop)),
+                    )
                     loop.stop()
                 except Exception as e:
                     k.logger.error(f"Error stopping loop in {module_name}: {e}")
@@ -910,14 +969,30 @@ class ModuleLoader:
                 wrapper, event_obj = entry[0], entry[1]
                 client = entry[2] if len(entry) > 2 else k.client
                 try:
+                    k.logger.debug(
+                        "[loader.unregister] removing watcher module=%r wrapper=%r event=%r client=%r",
+                        module_name,
+                        getattr(wrapper, "__name__", repr(wrapper)),
+                        type(event_obj).__name__,
+                        type(client).__name__,
+                    )
                     client.remove_event_handler(wrapper, event_obj)
                 except Exception as e:
                     k.logger.error(f"Error removing watcher in {module_name}: {e}")
+
+            await asyncio.sleep(0)
 
             for entry in getattr(reg, "__event_handlers__", []):
                 handler, event_obj = entry[0], entry[1]
                 client = entry[2] if len(entry) > 2 else k.client
                 try:
+                    k.logger.debug(
+                        "[loader.unregister] removing event module=%r handler=%r event=%r client=%r",
+                        module_name,
+                        getattr(handler, "__name__", repr(handler)),
+                        type(event_obj).__name__,
+                        type(client).__name__,
+                    )
                     client.remove_event_handler(handler, event_obj)
                 except Exception as e:
                     k.logger.error(
@@ -940,6 +1015,11 @@ class ModuleLoader:
         to_remove = [
             cmd for cmd, owner in k.command_owners.items() if owner == module_name
         ]
+        k.logger.debug(
+            "[loader.unregister] command-removal module=%r to_remove=%r",
+            module_name,
+            to_remove,
+        )
         for cmd in to_remove:
             if cmd in k.command_handlers:
                 del k.command_handlers[cmd]
@@ -948,13 +1028,22 @@ class ModuleLoader:
             k.logger.debug(f"Unregistered command: {cmd}")
 
         aliases_to_remove = [
-            alias for alias, owner in k.aliases.items() if owner == module_name
+            alias
+            for alias, target_cmd in k.aliases.items()
+            if k.command_owners.get(target_cmd) == module_name
+            or target_cmd in to_remove
         ]
         for alias in aliases_to_remove:
             del k.aliases[alias]
             k.logger.debug(f"Unregistered alias: {alias}")
 
         k.unregister_module_inline_handlers(module_name)
+        k.logger.debug(
+            "[loader.unregister] done module=%r remaining_commands=%r remaining_aliases=%r",
+            module_name,
+            list(k.command_handlers.keys()),
+            dict(k.aliases),
+        )
 
     async def get_module_version_from_file(self, file_path: str) -> str:
         try:

@@ -17,7 +17,267 @@ from telethon.tl.functions.channels import (
 )
 
 
+class BackupModule:
+    def __init__(self, kernel):
+        self.kernel = kernel
+        self.client = kernel.client
+        self.config = {}
+        self.backup_task = None
+
+    async def initialize(self):
+        self.config = await self.kernel.get_module_config(
+            __name__,
+            {
+                "backup_chat_id": None,
+                "backup_interval_hours": 12,
+                "last_backup_time": None,
+                "backup_count": 0,
+                "enable_auto_backup": True,
+            },
+        )
+
+        await self.schedule_backups()
+
+    async def schedule_backups(self):
+        if self.backup_task:
+            self.backup_task.cancel()
+
+        if not self.config["enable_auto_backup"]:
+            return
+
+        interval = self.config["backup_interval_hours"] * 3600
+
+        async def backup_loop():
+            while True:
+                try:
+                    await asyncio.sleep(interval)
+                    if self.config["enable_auto_backup"]:
+                        await self.send_backup(manual=False)
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    await self.kernel.handle_error(e, source="backup_loop", event=None)
+                    await asyncio.sleep(60)
+
+        self.backup_task = asyncio.create_task(backup_loop())
+
+    async def ensure_backup_chat(self):
+        if self.config["backup_chat_id"]:
+            try:
+                chat = await self.client.get_entity(int(self.config["backup_chat_id"]))
+
+                if self.kernel.is_bot_available():
+                    try:
+                        bot_me = await self.kernel.bot_client.get_me()
+                        try:
+                            await self.kernel.bot_client.get_permissions(
+                                chat.id, bot_me.id
+                            )
+                        except Exception:
+                            await self.client(
+                                InviteToChannelRequest(
+                                    channel=chat.id, users=[bot_me.id]
+                                )
+                            )
+                            await asyncio.sleep(2)
+                    except Exception as e:
+                        await self.kernel.handle_error(
+                            e, source="check_bot_in_chat", event=None
+                        )
+                else:
+                    await self.kernel.log_warning(
+                        f"Bot not available for chat {chat.id}"
+                    )
+
+                return chat
+            except Exception:
+                self.config["backup_chat_id"] = None
+
+        async for dialog in self.client.iter_dialogs(limit=500):
+            if hasattr(dialog.entity, "title") and dialog.entity.title:
+                if "backup" in dialog.entity.title.lower():
+                    self.config["backup_chat_id"] = dialog.entity.id
+                    await self.save_config()
+
+                    if self.kernel.is_bot_available():
+                        try:
+                            bot_me = await self.kernel.bot_client.get_me()
+                            await self.client(
+                                InviteToChannelRequest(
+                                    channel=dialog.entity.id, users=[bot_me.id]
+                                )
+                            )
+                        except Exception as e:
+                            await self.kernel.handle_error(
+                                e, source="add_bot_to_existing", event=None
+                            )
+
+                    return dialog.entity
+
+        try:
+            result = await self.client(
+                CreateChannelRequest(
+                    title="MCUB Backups",
+                    about="Automatic MCUB backups storage",
+                    megagroup=True,
+                )
+            )
+
+            chat_id = result.chats[0].id
+            self.config["backup_chat_id"] = chat_id
+            await self.save_config()
+
+            if self.kernel.is_bot_available():
+                try:
+                    bot_me = await self.kernel.bot_client.get_me()
+                    await self.client(
+                        InviteToChannelRequest(channel=chat_id, users=[bot_me.id])
+                    )
+                except Exception as e:
+                    await self.kernel.handle_error(
+                        e, source="add_bot_to_new", event=None
+                    )
+
+            chat = await self.client.get_entity(chat_id)
+            await self.client.send_message(chat_id, lang_strings["group_created"])
+
+            await self.set_group_photo(chat_id, "https://x0.at/4Bjx.jpg")
+
+            return chat
+        except ChannelsTooMuchError:
+            await self.kernel.log_warning(
+                "ChannelsTooMuchError: cannot create backup group because the account "
+                "has joined the maximum number of channels/supergroups. "
+                "Leave some channels or run `.backupsettings chat <id>` to use an existing group."
+            )
+            return None
+        except Exception as e:
+            await self.kernel.handle_error(e, source="ensure_backup_chat", event=None)
+            return None
+
+    async def create_backup_archive(self):
+        temp_dir = tempfile.mkdtemp(prefix="mcub_backup_")
+        backup_dir = Path(temp_dir) / "MCUB_backup"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+
+        current_dir = Path.cwd()
+
+        config_file = current_dir / "config.json"
+        if config_file.exists():
+            shutil.copy2(config_file, backup_dir / "config.json")
+
+        db_file = current_dir / "userbot.db"
+        if db_file.exists():
+            shutil.copy2(db_file, backup_dir / "userbot.db")
+
+        modules_dir = current_dir / "modules_loaded"
+        if modules_dir.exists():
+            shutil.copytree(modules_dir, backup_dir / "modules_loaded")
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        zip_path = Path(temp_dir) / f"MCUB_backup_{timestamp}.zip"
+
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+            for root, _dirs, files in os.walk(backup_dir):
+                for file in files:
+                    file_path = Path(root) / file
+                    arcname = file_path.relative_to(backup_dir)
+                    zipf.write(file_path, arcname)
+
+        shutil.rmtree(backup_dir)
+
+        zip_size = os.path.getsize(zip_path)
+        return zip_path, timestamp, zip_size
+
+    async def send_backup(self, manual=False):
+        try:
+            chat = await self.ensure_backup_chat()
+            if not chat:
+                return False
+
+            zip_path, timestamp, _zip_size = await self.create_backup_archive()
+
+            if self.kernel.is_bot_available():
+                try:
+                    await self.kernel.bot_client.send_file(
+                        chat.id,
+                        zip_path,
+                        caption=lang_strings["tip_restore"].format(
+                            prefix=self.kernel.custom_prefix
+                        ),
+                        buttons=Button.inline(
+                            lang_strings["btn_restore"], f"restore:{timestamp}"
+                        ),
+                        parse_mode="html",
+                    )
+                except Exception as e:
+                    self.kernel.log_warning(
+                        f"Failed to send backup via bot: {e}, trying via main client"
+                    )
+                    await self.client.send_file(
+                        chat.id,
+                        zip_path,
+                        caption=lang_strings["tip_restore"].format(
+                            prefix=self.kernel.custom_prefix
+                        ),
+                        parse_mode="html",
+                    )
+            else:
+                await self.client.send_file(
+                    chat.id,
+                    zip_path,
+                    caption=lang_strings["tip_restore"].format(
+                        prefix=self.kernel.custom_prefix
+                    ),
+                    parse_mode="html",
+                )
+
+            self.config["last_backup_time"] = datetime.now().isoformat()
+            self.config["backup_count"] = self.config.get("backup_count", 0) + 1
+            await self.save_config()
+
+            os.remove(zip_path)
+            return True
+        except Exception as e:
+            await self.kernel.handle_error(e, source="send_backup", event=None)
+            return False
+
+    async def save_config(self):
+        await self.kernel.save_module_config(__name__, self.config)
+
+    async def set_group_photo(self, chat_id, photo_url):
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(photo_url) as resp:
+                    if resp.status == 200:
+                        photo_data = await resp.read()
+
+                        content_type = resp.headers.get("Content-Type", "image/jpeg")
+                        ext_map = {
+                            "image/jpeg": "photo.jpg",
+                            "image/jpg": "photo.jpg",
+                            "image/png": "photo.png",
+                            "image/webp": "photo.jpg",
+                            "image/gif": "photo.gif",
+                        }
+                        filename = ext_map.get(
+                            content_type.split(";")[0].strip(), "photo.jpg"
+                        )
+                        import io as _io
+
+                        buf = _io.BytesIO(photo_data)
+                        buf.name = filename
+
+                        input_file = await self.client.upload_file(buf)
+                        await self.client(
+                            EditPhotoRequest(channel=chat_id, photo=input_file)
+                        )
+        except Exception as e:
+            await self.kernel.handle_error(e, source="set_group_photo", event=None)
+
+
 def register(kernel):
+    global lang_strings
     language = kernel.config.get("language", "en")
 
     strings = {
@@ -115,271 +375,7 @@ def register(kernel):
 
     lang_strings = strings.get(language, strings["en"])
 
-    class BackupModule:
-        def __init__(self):
-            self.kernel = kernel
-            self.client = kernel.client
-            self.config = {}
-            self.backup_task = None
-
-        async def initialize(self):
-            self.config = await kernel.get_module_config(
-                __name__,
-                {
-                    "backup_chat_id": None,
-                    "backup_interval_hours": 12,
-                    "last_backup_time": None,
-                    "backup_count": 0,
-                    "enable_auto_backup": True,
-                },
-            )
-
-            await self.schedule_backups()
-
-        async def schedule_backups(self):
-            if self.backup_task:
-                self.backup_task.cancel()
-
-            if not self.config["enable_auto_backup"]:
-                return
-
-            interval = self.config["backup_interval_hours"] * 3600
-
-            async def backup_loop():
-                while True:
-                    try:
-                        await asyncio.sleep(interval)
-                        if self.config["enable_auto_backup"]:
-                            await self.send_backup(manual=False)
-                    except asyncio.CancelledError:
-                        break
-                    except Exception as e:
-                        await kernel.handle_error(e, source="backup_loop", event=None)
-                        await asyncio.sleep(60)
-
-            self.backup_task = asyncio.create_task(backup_loop())
-
-        async def ensure_backup_chat(self):
-            if self.config["backup_chat_id"]:
-                try:
-                    chat = await self.client.get_entity(
-                        int(self.config["backup_chat_id"])
-                    )
-
-                    if kernel.is_bot_available():
-                        try:
-                            bot_me = await kernel.bot_client.get_me()
-                            try:
-                                await kernel.bot_client.get_permissions(
-                                    chat.id, bot_me.id
-                                )
-                            except Exception:
-                                await self.client(
-                                    InviteToChannelRequest(
-                                        channel=chat.id, users=[bot_me.id]
-                                    )
-                                )
-                                await asyncio.sleep(2)
-                        except Exception as e:
-                            await kernel.handle_error(
-                                e, source="check_bot_in_chat", event=None
-                            )
-                    else:
-                        await kernel.log_warning(
-                            f"Bot not available for chat {chat.id}"
-                        )
-
-                    return chat
-                except Exception:
-                    self.config["backup_chat_id"] = None
-
-            async for dialog in self.client.iter_dialogs(limit=500):
-                if hasattr(dialog.entity, "title") and dialog.entity.title:
-                    if "backup" in dialog.entity.title.lower():
-                        self.config["backup_chat_id"] = dialog.entity.id
-                        await self.save_config()
-
-                        if kernel.is_bot_available():
-                            try:
-                                bot_me = await kernel.bot_client.get_me()
-                                await self.client(
-                                    InviteToChannelRequest(
-                                        channel=dialog.entity.id, users=[bot_me.id]
-                                    )
-                                )
-                            except Exception as e:
-                                await kernel.handle_error(
-                                    e, source="add_bot_to_existing", event=None
-                                )
-
-                        return dialog.entity
-
-            try:
-                result = await self.client(
-                    CreateChannelRequest(
-                        title="MCUB Backups",
-                        about="Automatic MCUB backups storage",
-                        megagroup=True,
-                    )
-                )
-
-                chat_id = result.chats[0].id
-                self.config["backup_chat_id"] = chat_id
-                await self.save_config()
-
-                if kernel.is_bot_available():
-                    try:
-                        bot_me = await kernel.bot_client.get_me()
-                        await self.client(
-                            InviteToChannelRequest(channel=chat_id, users=[bot_me.id])
-                        )
-                    except Exception as e:
-                        await kernel.handle_error(
-                            e, source="add_bot_to_new", event=None
-                        )
-
-                chat = await self.client.get_entity(chat_id)
-                await self.client.send_message(chat_id, lang_strings["group_created"])
-
-                await self.set_group_photo(chat_id, "https://x0.at/4Bjx.jpg")
-
-                return chat
-            except ChannelsTooMuchError:
-                await kernel.log_warning(
-                    "ChannelsTooMuchError: cannot create backup group because the account "
-                    "has joined the maximum number of channels/supergroups. "
-                    "Leave some channels or run `.backupsettings chat <id>` to use an existing group."
-                )
-                return None
-            except Exception as e:
-                await kernel.handle_error(e, source="ensure_backup_chat", event=None)
-                return None
-
-        async def create_backup_archive(self):
-            temp_dir = tempfile.mkdtemp(prefix="mcub_backup_")
-            backup_dir = Path(temp_dir) / "MCUB_backup"
-            backup_dir.mkdir(parents=True, exist_ok=True)
-
-            current_dir = Path.cwd()
-
-            config_file = current_dir / "config.json"
-            if config_file.exists():
-                shutil.copy2(config_file, backup_dir / "config.json")
-
-            db_file = current_dir / "userbot.db"
-            if db_file.exists():
-                shutil.copy2(db_file, backup_dir / "userbot.db")
-
-            modules_dir = current_dir / "modules_loaded"
-            if modules_dir.exists():
-                shutil.copytree(modules_dir, backup_dir / "modules_loaded")
-
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            zip_path = Path(temp_dir) / f"MCUB_backup_{timestamp}.zip"
-
-            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
-                for root, _dirs, files in os.walk(backup_dir):
-                    for file in files:
-                        file_path = Path(root) / file
-                        arcname = file_path.relative_to(backup_dir)
-                        zipf.write(file_path, arcname)
-
-            shutil.rmtree(backup_dir)
-
-            zip_size = os.path.getsize(zip_path)
-            return zip_path, timestamp, zip_size
-
-        async def send_backup(self, manual=False):
-            try:
-                chat = await self.ensure_backup_chat()
-                if not chat:
-                    return False
-
-                zip_path, timestamp, _zip_size = await self.create_backup_archive()
-
-                if kernel.is_bot_available():
-                    try:
-                        await kernel.bot_client.send_file(
-                            chat.id,
-                            zip_path,
-                            caption=lang_strings["tip_restore"].format(
-                                prefix=kernel.custom_prefix
-                            ),
-                            buttons=Button.inline(
-                                lang_strings["btn_restore"], f"restore:{timestamp}"
-                            ),
-                            parse_mode="html",
-                        )
-                    except Exception as e:
-                        kernel.log_warning(
-                            f"Failed to send backup via bot: {e}, trying via main client"
-                        )
-                        await self.client.send_file(
-                            chat.id,
-                            zip_path,
-                            caption=lang_strings["tip_restore"].format(
-                                prefix=kernel.custom_prefix
-                            ),
-                            parse_mode="html",
-                        )
-                else:
-                    await self.client.send_file(
-                        chat.id,
-                        zip_path,
-                        caption=lang_strings["tip_restore"].format(
-                            prefix=kernel.custom_prefix
-                        ),
-                        parse_mode="html",
-                    )
-
-                self.config["last_backup_time"] = datetime.now().isoformat()
-                self.config["backup_count"] = self.config.get("backup_count", 0) + 1
-                await self.save_config()
-
-                os.remove(zip_path)
-                return True
-            except Exception as e:
-                await kernel.handle_error(e, source="send_backup", event=None)
-                return False
-
-        async def save_config(self):
-            await kernel.save_module_config(__name__, self.config)
-
-        async def set_group_photo(self, chat_id, photo_url):
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(photo_url) as resp:
-                        if resp.status == 200:
-                            photo_data = await resp.read()
-
-                            # Determine extension from Content-Type header;
-                            # fall back to .jpg — Telegram requires a known image ext.
-                            content_type = resp.headers.get(
-                                "Content-Type", "image/jpeg"
-                            )
-                            ext_map = {
-                                "image/jpeg": "photo.jpg",
-                                "image/jpg": "photo.jpg",
-                                "image/png": "photo.png",
-                                "image/webp": "photo.jpg",
-                                "image/gif": "photo.gif",
-                            }
-                            filename = ext_map.get(
-                                content_type.split(";")[0].strip(), "photo.jpg"
-                            )
-                            import io as _io
-
-                            buf = _io.BytesIO(photo_data)
-                            buf.name = filename
-
-                            input_file = await self.client.upload_file(buf)
-                            await self.client(
-                                EditPhotoRequest(channel=chat_id, photo=input_file)
-                            )
-            except Exception as e:
-                await kernel.handle_error(e, source="set_group_photo", event=None)
-
-    backup_module = BackupModule()
+    backup_module = BackupModule(kernel)
     _task = asyncio.create_task(backup_module.initialize())  # noqa: RUF006
 
     @kernel.register.command("backup")

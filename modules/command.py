@@ -411,9 +411,7 @@ def register(kernel):
                 userbot_backup = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(userbot_backup)
                 BackupModule = userbot_backup.BackupModule
-                backup_module = BackupModule()
-                backup_module.kernel = kernel
-                backup_module.client = kernel.client
+                backup_module = BackupModule(kernel)
                 backup_module.config = {
                     "backup_chat_id": None,
                     "backup_interval_hours": interval,

@@ -18,9 +18,9 @@ from telethon.tl.functions.channels import (
 
 
 class BackupModule:
-    def __init__(self, kernel):
-        self.kernel = kernel
-        self.client = kernel.client
+    def __init__(self, k):
+        self.kernel = k
+        self.client = k.client
         self.config = {}
         self.backup_task = None
 
@@ -139,7 +139,7 @@ class BackupModule:
                     )
 
             chat = await self.client.get_entity(chat_id)
-            await self.client.send_message(chat_id, lang_strings["group_created"])
+            await self.client.send_message(chat_id, self.lang_strings["group_created"])
 
             await self.set_group_photo(chat_id, "https://x0.at/4Bjx.jpg")
 
@@ -202,11 +202,11 @@ class BackupModule:
                     await self.kernel.bot_client.send_file(
                         chat.id,
                         zip_path,
-                        caption=lang_strings["tip_restore"].format(
+                        caption=self.lang_strings["tip_restore"].format(
                             prefix=self.kernel.custom_prefix
                         ),
                         buttons=Button.inline(
-                            lang_strings["btn_restore"], f"restore:{timestamp}"
+                            self.lang_strings["btn_restore"], f"restore:{timestamp}"
                         ),
                         parse_mode="html",
                     )
@@ -217,7 +217,7 @@ class BackupModule:
                     await self.client.send_file(
                         chat.id,
                         zip_path,
-                        caption=lang_strings["tip_restore"].format(
+                        caption=self.lang_strings["tip_restore"].format(
                             prefix=self.kernel.custom_prefix
                         ),
                         parse_mode="html",
@@ -226,7 +226,7 @@ class BackupModule:
                 await self.client.send_file(
                     chat.id,
                     zip_path,
-                    caption=lang_strings["tip_restore"].format(
+                    caption=self.lang_strings["tip_restore"].format(
                         prefix=self.kernel.custom_prefix
                     ),
                     parse_mode="html",
@@ -277,7 +277,6 @@ class BackupModule:
 
 
 def register(kernel):
-    global lang_strings
     language = kernel.config.get("language", "en")
 
     strings = {
@@ -325,6 +324,7 @@ def register(kernel):
             "enabled": "Включен",
             "disabled": "Выключен",
             "invalid_interval": "❌ Неверный интервал",
+            "error_processing": "❌ Ошибка обработки",
         },
         "en": {
             "creating_backup": "⌛ Creating backup...",
@@ -370,22 +370,15 @@ def register(kernel):
             "enabled": "Enabled",
             "disabled": "Disabled",
             "invalid_interval": "❌ Invalid interval",
+            "error_processing": "❌ Error processing",
         },
     }
 
     lang_strings = strings.get(language, strings["en"])
 
     backup_module = BackupModule(kernel)
-    _task = asyncio.create_task(backup_module.initialize())  # noqa: RUF006
-
-    @kernel.register.command("backup")
-    async def backup_handler(event):
-        await event.edit(lang_strings["creating_backup"])
-
-        if await backup_module.send_backup(manual=True):
-            await event.edit(lang_strings["backup_created"])
-        else:
-            await event.edit(lang_strings["backup_failed"])
+    backup_module.lang_strings = lang_strings
+    _task = asyncio.create_task(backup_module.initialize())
 
     async def _restore_from_backup_message(backup_message, status_event):
         if (
@@ -452,6 +445,15 @@ def register(kernel):
             return False
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
+
+    @kernel.register.command("backup")
+    async def backup_handler(event):
+        await event.edit(lang_strings["creating_backup"])
+
+        if await backup_module.send_backup(manual=True):
+            await event.edit(lang_strings["backup_created"])
+        else:
+            await event.edit(lang_strings["backup_failed"])
 
     @kernel.register.command("restore")
     async def restore_handler(event):

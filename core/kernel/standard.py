@@ -137,7 +137,6 @@ class Kernel:
         self.VERSION = VERSION
         self.DB_VERSION = 2
         self.start_time = time.time()
-        self.logger.debug("[Kernel] __init__ start")
 
         # Module registries
         self.loaded_modules: dict = {}
@@ -204,6 +203,7 @@ class Kernel:
         self.setup_directories()
         self.check_dependencies()
         self.logger = setup_logging()
+
         self._cfg = ConfigManager(self)
         self.load_or_create_config()
 
@@ -229,6 +229,8 @@ class Kernel:
         except ImportError:
             self.emoji_parser = None
             self.logger.error("=X Emoji parser not loaded")
+
+        self.logger.debug("[Kernel] __init__ start")
 
     def _init_html_parser(self) -> None:
         if self.HTML_PARSER_AVAILABLE:

@@ -1637,9 +1637,9 @@ def register(kernel):
                         )
                     except Exception as e:
                         kernel.logger.error(f"Banner edit error: {e}")
-                        await edit_with_emoji(target_message(), final_msg)
+                        await edit_with_emoji(msg, final_msg)
                 else:
-                    await edit_with_emoji(target_message(), final_msg)
+                    await edit_with_emoji(msg, final_msg)
 
             else:
                 add_log(t("log_install_error", error=message_text))

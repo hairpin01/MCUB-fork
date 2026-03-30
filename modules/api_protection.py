@@ -13,6 +13,16 @@ from collections import deque, defaultdict
 from telethon import Button
 from telethon.tl import TLRequest
 
+from core.lib.loader.module_config import (
+    ModuleConfig,
+    ConfigValue,
+    String,
+    Boolean,
+    Integer,
+    Float,
+    Choice,
+)
+
 DEFAULT_CONFIG = {
     "time_sample": 30,
     "threshold": 200,
@@ -515,24 +525,129 @@ def register(kernel):
 
     lang = strings.get(language, strings["en"])
 
-    raw_config = kernel.config.get("api_protection", DEFAULT_CONFIG.copy())
-    if isinstance(raw_config, bool):
-        api_config = DEFAULT_CONFIG.copy()
-        api_config["enable_protection"] = raw_config
-        kernel.logger.info(
-            "Converted old api_protection config (bool) to new dict format"
-        )
-    else:
-        api_config = raw_config
-        for k, v in DEFAULT_CONFIG.items():
-            if k not in api_config:
-                api_config[k] = v
+    config = ModuleConfig(
+        ConfigValue(
+            "time_sample",
+            30,
+            description="Time window for sample (seconds)",
+            validator=Integer(default=30, min=1),
+        ),
+        ConfigValue(
+            "threshold",
+            200,
+            description="API request threshold",
+            validator=Integer(default=200, min=1),
+        ),
+        ConfigValue(
+            "local_floodwait",
+            30,
+            description="Local floodwait duration (seconds)",
+            validator=Integer(default=30, min=1),
+        ),
+        ConfigValue(
+            "ignore_methods",
+            ["GetMessagesRequest"],
+            description="Methods to ignore",
+            validator=String(default='["GetMessagesRequest"]'),
+        ),
+        ConfigValue(
+            "enable_protection",
+            True,
+            description="Enable API protection",
+            validator=Boolean(default=True),
+        ),
+        ConfigValue(
+            "mcub_mode",
+            "safe",
+            description="MCUB protection mode",
+            validator=Choice(
+                choices=["off", "safe", "strict", "custom"], default="safe"
+            ),
+        ),
+        ConfigValue(
+            "mcub_dry_run",
+            False,
+            description="Observe violations without blocking",
+            validator=Boolean(default=False),
+        ),
+        ConfigValue(
+            "mcub_allowlist",
+            [],
+            description="Methods excluded in custom mode",
+            validator=String(default="[]"),
+        ),
+        ConfigValue(
+            "enable_analytics",
+            True,
+            description="Enable analytics",
+            validator=Boolean(default=True),
+        ),
+        ConfigValue(
+            "zscore_threshold",
+            3.0,
+            description="Z-score anomaly threshold",
+            validator=Float(default=3.0, min=0.0),
+        ),
+        ConfigValue(
+            "warn_percent",
+            90,
+            description="Warning threshold percentage",
+            validator=Integer(default=90, min=0, max=100),
+        ),
+        ConfigValue(
+            "predict_window",
+            10,
+            description="Prediction window",
+            validator=Integer(default=10, min=1),
+        ),
+        ConfigValue(
+            "baseline_window",
+            300,
+            description="Baseline window (seconds)",
+            validator=Integer(default=300, min=10),
+        ),
+        ConfigValue(
+            "profile_min_samples",
+            50,
+            description="Minimum samples for profile",
+            validator=Integer(default=50, min=1),
+        ),
+        ConfigValue(
+            "predict_alert_cooldown",
+            10,
+            description="Predict alert cooldown (seconds)",
+            validator=Integer(default=10, min=1),
+        ),
+        ConfigValue(
+            "warn_alert_cooldown",
+            30,
+            description="Warn alert cooldown (seconds)",
+            validator=Integer(default=30, min=1),
+        ),
+    )
 
-    kernel.config["api_protection"] = api_config
+    def get_config():
+        live_cfg = getattr(kernel, "_live_module_configs", {}).get(__name__)
+        if live_cfg:
+            return live_cfg
+        return config
+
+    async def startup():
+        config_dict = await kernel.get_module_config(__name__, DEFAULT_CONFIG.copy())
+        config.from_dict(config_dict)
+        config_dict_clean = {k: v for k, v in config.to_dict().items() if v is not None}
+        if config_dict_clean:
+            await kernel.save_module_config(__name__, config_dict_clean)
+        kernel.store_module_config_schema(__name__, config)
+
+    asyncio.create_task(startup())
+
+    api_config = config
 
     def persist_api_config():
-        kernel.config["api_protection"] = api_config
-        kernel.save_config()
+        cfg = get_config()
+        if cfg:
+            asyncio.create_task(kernel.save_module_config(__name__, cfg.to_dict()))
 
     protection_enabled = api_config["enable_protection"]
     blocked_until = 0.0

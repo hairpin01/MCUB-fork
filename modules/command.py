@@ -441,17 +441,26 @@ def register(kernel):
                 spec.loader.exec_module(userbot_backup)
                 BackupModule = userbot_backup.BackupModule
                 backup_module = BackupModule(kernel)
-                backup_module.config = {
-                    "backup_chat_id": None,
-                    "backup_interval_hours": interval,
-                    "last_backup_time": None,
-                    "backup_count": 0,
-                    "enable_auto_backup": True,
-                }
 
-                await kernel.save_module_config(
-                    "modules.userbot-backup", backup_module.config
+                live_cfg = getattr(kernel, "_live_module_configs", {}).get(
+                    "modules.userbot-backup"
                 )
+                if live_cfg:
+                    live_cfg["backup_interval_hours"] = interval
+                    await kernel.save_module_config(
+                        "modules.userbot-backup", live_cfg.to_dict()
+                    )
+                else:
+                    backup_module.config = {
+                        "backup_chat_id": None,
+                        "backup_interval_hours": interval,
+                        "last_backup_time": None,
+                        "backup_count": 0,
+                        "enable_auto_backup": True,
+                    }
+                    await kernel.save_module_config(
+                        "modules.userbot-backup", backup_module.config
+                    )
 
                 chat = await backup_module.ensure_backup_chat()
 

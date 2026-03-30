@@ -9,6 +9,13 @@ from urllib.parse import quote
 from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
 
+from core.lib.loader.module_config import (
+    ModuleConfig,
+    ConfigValue,
+    String,
+    Choice,
+)
+
 
 def register(kernel):
     language = kernel.config.get("language", "en")
@@ -46,9 +53,49 @@ def register(kernel):
     EMOJI_SUCCESS = '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji>'
     EMOJI_ERROR = '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji>'
 
-    if "tr_lang" not in kernel.config:
-        kernel.config["tr_lang"] = "ru"
-        kernel.save_config()
+    config = ModuleConfig(
+        ConfigValue(
+            "tr_lang",
+            "ru",
+            description="Default translation language (e.g., ru, en, es)",
+            validator=Choice(
+                choices=[
+                    "ru",
+                    "en",
+                    "es",
+                    "fr",
+                    "de",
+                    "it",
+                    "pt",
+                    "uk",
+                    "zh",
+                    "ja",
+                    "ko",
+                    "ar",
+                ],
+                default="ru",
+            ),
+        ),
+    )
+
+    def get_config():
+        live_cfg = getattr(kernel, "_live_module_configs", {}).get(__name__)
+        if live_cfg:
+            return live_cfg
+        return config
+
+    async def startup():
+        config_dict = await kernel.get_module_config(
+            __name__,
+            {"tr_lang": "ru"},
+        )
+        config.from_dict(config_dict)
+        config_dict_clean = {k: v for k, v in config.to_dict().items() if v is not None}
+        if config_dict_clean:
+            await kernel.save_module_config(__name__, config_dict_clean)
+        kernel.store_module_config_schema(__name__, config)
+
+    asyncio.create_task(startup())
 
     async def translate_text(text: str, dest: str = "ru") -> str:
         try:
@@ -114,7 +161,8 @@ def register(kernel):
 
             args = event.text.split(maxsplit=2)
 
-            target_lang = kernel.config.get("tr_lang", "ru")
+            cfg = get_config()
+            target_lang = cfg.get("tr_lang", "ru") if cfg else "ru"
             text_to_translate = None
 
             if quote_text:

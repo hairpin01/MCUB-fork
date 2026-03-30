@@ -1065,17 +1065,18 @@ class ModuleLoader:
                 del k.command_owners[cmd]
             k.logger.debug(f"Unregistered command: {cmd}")
 
-        aliases_to_remove = [
-            alias
-            for alias, target_cmd in k.aliases.items()
-            if k.command_owners.get(target_cmd) == module_name
-            or target_cmd in to_remove
-        ]
-        for alias in aliases_to_remove:
-            del k.aliases[alias]
-            k.logger.debug(f"Unregistered alias: {alias}")
+        # Don't remove aliases on unregister - they persist across reloads
+        # aliases_to_remove = [
+        #     alias
+        #     for alias, target_cmd in k.aliases.items()
+        #     if k.command_owners.get(target_cmd) == module_name
+        #     or target_cmd in to_remove
+        # ]
+        # for alias in aliases_to_remove:
+        #     del k.aliases[alias]
+        #     k.logger.debug(f"Unregistered alias: {alias}")
 
-        if not to_remove and not aliases_to_remove:
+        if not to_remove:
             k.logger.debug(
                 "[loader.unregister] nothing-to-remove module=%r",
                 module_name,

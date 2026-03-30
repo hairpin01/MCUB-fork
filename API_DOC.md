@@ -815,6 +815,47 @@ schema = config.schema  # Returns list of dicts with key, type, default, descrip
 1. **Always call `config.to_dict()` before saving** — this adds the `__mcub_config__` marker required for the module to appear in **Modules Config** UI
 2. **Define defaults twice** — in `ConfigValue` and in the dict for `get_module_config`
 3. **Load order**: Create `ModuleConfig` → Call `from_dict()` → Call `to_dict()` and `save_module_config()`
+4. **Use startup function for async initialization** — recommended pattern for loading config:
+   ```python
+   async def startup():
+       config_dict = await kernel.get_module_config(__name__, {"my_setting": "default"})
+       config.from_dict(config_dict)
+       # Filter out None values before saving
+       config_dict_clean = {k: v for k, v in config.to_dict().items() if v is not None}
+       if config_dict_clean:
+           await kernel.save_module_config(__name__, config_dict_clean)
+       kernel.store_module_config_schema(__name__, config)
+
+   asyncio.create_task(startup())
+   ```
+5. **Use get_config() helper for live reading** — always read from live config, never cache values:
+   ```python
+   def get_config():
+       live_cfg = getattr(kernel, "_live_module_configs", {}).get(__name__)
+       if live_cfg:
+           return live_cfg
+       return config
+
+   # In handler:
+   cfg = get_config()
+   value = cfg.get("my_setting") if cfg else "default"
+   ```
+6. **Use Choice instead of String for enums** — provides dropdown UI:
+   ```python
+   # Good
+   validator=Choice(choices=["off", "safe", "strict"], default="safe")
+   # Bad (no dropdown)
+   validator=String(default="safe")
+   ```
+7. **Don't use typing.List for lists** — use String with JSON:
+   ```python
+   # Good - store as JSON string
+   validator=String(default='["item1", "item2"]')
+   # Bad - will cause TypeError
+   from typing import List
+   validator=List(default=[])
+   ```
+8. **None values preserve defaults** — when loading config, if a value in DB is `None`, the default value is preserved (not overwritten)
 
 ---
 

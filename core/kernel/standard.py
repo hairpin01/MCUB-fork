@@ -432,9 +432,25 @@ class Kernel:
         self.logger.debug(
             f"[Kernel] save_module_config module={module_name} data={config_data}"
         )
-        result = await self._cfg.save_module_config(module_name, config_data)
-        self.logger.debug(f"[Kernel] save_module_config result={result}")
-        return result
+        try:
+            result = await self._cfg.save_module_config(module_name, config_data)
+
+            # Update live config schema
+            live_cfg = self._live_module_configs.get(module_name)
+            if (
+                live_cfg
+                and hasattr(live_cfg, "_values")
+                and isinstance(config_data, dict)
+            ):
+                for key, value in config_data.items():
+                    if key != "__mcub_config__":
+                        live_cfg[key] = value
+
+            self.logger.debug(f"[Kernel] save_module_config result={result}")
+            return result
+        except Exception as e:
+            self.logger.error(f"[Kernel] save_module_config error: {e}")
+            raise
 
     def store_module_config_schema(self, module_name: str, config) -> None:
         """Store a live ModuleConfig schema for UI display."""

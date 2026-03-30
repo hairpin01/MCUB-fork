@@ -434,10 +434,11 @@ class Register:
                         raise ValueError(f"Alias '{alias}' already registered")
                     self.kernel.aliases[alias] = cmd
                     self.kernel.logger.debug(
-                        "[register.command] alias=%r -> %r owner=%r",
+                        "[register.command] alias=%r -> %r owner=%r total_aliases=%d",
                         alias,
                         cmd,
                         self.kernel.current_loading_module,
+                        len(self.kernel.aliases),
                     )
                 elif isinstance(alias, list):
                     for a in alias:
@@ -445,10 +446,11 @@ class Register:
                             raise ValueError(f"Alias '{a}' already registered")
                         self.kernel.aliases[a] = cmd
                         self.kernel.logger.debug(
-                            "[register.command] alias=%r -> %r owner=%r",
+                            "[register.command] alias=%r -> %r owner=%r total_aliases=%d",
                             a,
                             cmd,
                             self.kernel.current_loading_module,
+                            len(self.kernel.aliases),
                         )
 
             more = kwargs.get("more")

@@ -16,42 +16,46 @@ from telethon.tl.functions.channels import (
     InviteToChannelRequest,
 )
 
+from core.lib.loader.module_config import (
+    ModuleConfig,
+    ConfigValue,
+    Boolean,
+    Integer,
+    String,
+)
+
 
 class BackupModule:
     def __init__(self, k):
         self.kernel = k
         self.client = k.client
-        self.config = {}
         self.backup_task = None
 
-    async def initialize(self):
-        self.config = await self.kernel.get_module_config(
-            __name__,
-            {
-                "backup_chat_id": None,
-                "backup_interval_hours": 12,
-                "last_backup_time": None,
-                "backup_count": 0,
-                "enable_auto_backup": True,
-            },
-        )
+    def get_config(self):
+        live_cfg = getattr(self.kernel, "_live_module_configs", {}).get(__name__)
+        if live_cfg:
+            return live_cfg
+        return None
 
+    async def initialize(self):
         await self.schedule_backups()
 
     async def schedule_backups(self):
         if self.backup_task:
             self.backup_task.cancel()
 
-        if not self.config["enable_auto_backup"]:
+        cfg = self.get_config()
+        if not cfg or not cfg.get("enable_auto_backup", True):
             return
 
-        interval = self.config["backup_interval_hours"] * 3600
+        interval = cfg.get("backup_interval_hours", 12) * 3600
 
         async def backup_loop():
             while True:
                 try:
                     await asyncio.sleep(interval)
-                    if self.config["enable_auto_backup"]:
+                    cfg_check = self.get_config()
+                    if cfg_check and cfg_check.get("enable_auto_backup", True):
                         await self.send_backup(manual=False)
                 except asyncio.CancelledError:
                     break
@@ -62,9 +66,12 @@ class BackupModule:
         self.backup_task = asyncio.create_task(backup_loop())
 
     async def ensure_backup_chat(self):
-        if self.config["backup_chat_id"]:
+        cfg = self.get_config()
+        backup_chat_id = cfg.get("backup_chat_id") if cfg else None
+
+        if backup_chat_id:
             try:
-                chat = await self.client.get_entity(int(self.config["backup_chat_id"]))
+                chat = await self.client.get_entity(int(backup_chat_id))
 
                 if self.kernel.is_bot_available():
                     try:
@@ -91,13 +98,17 @@ class BackupModule:
 
                 return chat
             except Exception:
-                self.config["backup_chat_id"] = None
+                cfg = self.get_config()
+                if cfg:
+                    cfg["backup_chat_id"] = None
 
         async for dialog in self.client.iter_dialogs(limit=500):
             if hasattr(dialog.entity, "title") and dialog.entity.title:
                 if "backup" in dialog.entity.title.lower():
-                    self.config["backup_chat_id"] = dialog.entity.id
-                    await self.save_config()
+                    cfg = self.get_config()
+                    if cfg:
+                        cfg["backup_chat_id"] = dialog.entity.id
+                        await self.save_config()
 
                     if self.kernel.is_bot_available():
                         try:
@@ -124,8 +135,10 @@ class BackupModule:
             )
 
             chat_id = result.chats[0].id
-            self.config["backup_chat_id"] = chat_id
-            await self.save_config()
+            cfg = self.get_config()
+            if cfg:
+                cfg["backup_chat_id"] = chat_id
+                await self.save_config()
 
             if self.kernel.is_bot_available():
                 try:
@@ -232,9 +245,11 @@ class BackupModule:
                     parse_mode="html",
                 )
 
-            self.config["last_backup_time"] = datetime.now().isoformat()
-            self.config["backup_count"] = self.config.get("backup_count", 0) + 1
-            await self.save_config()
+            cfg = self.get_config()
+            if cfg:
+                cfg["last_backup_time"] = datetime.now().isoformat()
+                cfg["backup_count"] = cfg.get("backup_count", 0) + 1
+                await self.save_config()
 
             os.remove(zip_path)
             return True
@@ -243,7 +258,12 @@ class BackupModule:
             return False
 
     async def save_config(self):
-        await self.kernel.save_module_config(__name__, self.config)
+        cfg = self.get_config()
+        if cfg:
+            if hasattr(cfg, "to_dict"):
+                await self.kernel.save_module_config(__name__, cfg.to_dict())
+            else:
+                await self.kernel.save_module_config(__name__, cfg)
 
     async def set_group_photo(self, chat_id, photo_url):
         try:
@@ -376,9 +396,67 @@ def register(kernel):
 
     lang_strings = strings.get(language, strings["en"])
 
+    config = ModuleConfig(
+        ConfigValue(
+            "backup_chat_id",
+            None,
+            description="Chat ID for storing backups",
+            validator=Integer(default=None),
+        ),
+        ConfigValue(
+            "backup_interval_hours",
+            12,
+            description="Backup interval in hours (1-24)",
+            validator=Integer(default=12, min=1, max=24),
+        ),
+        ConfigValue(
+            "last_backup_time",
+            None,
+            description="Last backup timestamp",
+            validator=String(default=None),
+        ),
+        ConfigValue(
+            "backup_count",
+            0,
+            description="Total number of backups created",
+            validator=Integer(default=0, min=0),
+        ),
+        ConfigValue(
+            "enable_auto_backup",
+            True,
+            description="Enable automatic backups",
+            validator=Boolean(default=True),
+        ),
+    )
+
+    def get_config():
+        live_cfg = getattr(kernel, "_live_module_configs", {}).get(__name__)
+        if live_cfg:
+            return live_cfg
+        return config
+
     backup_module = BackupModule(kernel)
     backup_module.lang_strings = lang_strings
-    _task = asyncio.create_task(backup_module.initialize())
+
+    async def startup():
+        config_dict = await kernel.get_module_config(
+            __name__,
+            {
+                "backup_chat_id": None,
+                "backup_interval_hours": 12,
+                "last_backup_time": None,
+                "backup_count": 0,
+                "enable_auto_backup": True,
+            },
+        )
+        config.from_dict(config_dict)
+        config_dict_clean = {k: v for k, v in config.to_dict().items() if v is not None}
+        if config_dict_clean:
+            await kernel.save_module_config(__name__, config_dict_clean)
+        kernel.store_module_config_schema(__name__, config)
+        await backup_module.initialize()
+
+    asyncio.create_task(startup())
 
     async def _restore_from_backup_message(backup_message, status_event):
         if (
@@ -469,9 +547,9 @@ def register(kernel):
         args = event.text.split()
 
         if len(args) == 1:
-            config = backup_module.config
+            cfg = get_config()
 
-            last_backup = config["last_backup_time"]
+            last_backup = cfg.get("last_backup_time")
             if last_backup:
                 last_backup = datetime.fromisoformat(last_backup).strftime(
                     "%Y-%m-%d %H:%M"
@@ -481,11 +559,11 @@ def register(kernel):
 
             settings_text = f"""⚙️ **{lang_strings["backup_settings"]}**
 
-**{lang_strings["chat_id"]}** `{config["backup_chat_id"] or lang_strings["not_set"]}`
-**{lang_strings["interval"]}** `{config["backup_interval_hours"]} {lang_strings["hours"]}`
-**{lang_strings["auto_backup"]}** `{lang_strings["enabled"] if config["enable_auto_backup"] else lang_strings["disabled"]}`
+**{lang_strings["chat_id"]}** `{cfg.get("backup_chat_id") or lang_strings["not_set"]}`
+**{lang_strings["interval"]}** `{cfg.get("backup_interval_hours")} {lang_strings["hours"]}`
+**{lang_strings["auto_backup"]}** `{lang_strings["enabled"] if cfg.get("enable_auto_backup") else lang_strings["disabled"]}`
 **{lang_strings["last_backup"]}** `{last_backup}`
-**{lang_strings["total_backups"]}** `{config["backup_count"]}`
+**{lang_strings["total_backups"]}** `{cfg.get("backup_count")}`
 
 **{lang_strings["commands"]}**
 `.backupsettings interval <hours>` - {lang_strings["set_interval"]}
@@ -496,12 +574,13 @@ def register(kernel):
             return
 
         cmd = args[1].lower()
+        cfg = get_config()
 
         if cmd == "interval" and len(args) > 2:
             try:
                 hours = int(args[2])
                 if 1 <= hours <= 24:
-                    backup_module.config["backup_interval_hours"] = hours
+                    cfg["backup_interval_hours"] = hours
                     await backup_module.save_config()
                     await backup_module.schedule_backups()
                     await event.edit(lang_strings["interval_set"].format(hours=hours))
@@ -513,12 +592,12 @@ def register(kernel):
         elif cmd == "auto" and len(args) > 2:
             state = args[2].lower()
             if state in ["on", "true", "1", "yes"]:
-                backup_module.config["enable_auto_backup"] = True
+                cfg["enable_auto_backup"] = True
                 await backup_module.save_config()
                 await backup_module.schedule_backups()
                 await event.edit(lang_strings["auto_enabled"])
             elif state in ["off", "false", "0", "no"]:
-                backup_module.config["enable_auto_backup"] = False
+                cfg["enable_auto_backup"] = False
                 await backup_module.save_config()
                 await backup_module.schedule_backups()
                 await event.edit(lang_strings["auto_disabled"])
@@ -528,7 +607,7 @@ def register(kernel):
         elif cmd == "chat" and len(args) > 2:
             try:
                 chat_id = int(args[2])
-                backup_module.config["backup_chat_id"] = chat_id
+                cfg["backup_chat_id"] = chat_id
                 await backup_module.save_config()
                 await event.edit(lang_strings["chat_set"].format(chat_id=chat_id))
             except ValueError:
@@ -581,7 +660,8 @@ def register(kernel):
             interval = int(event.data.decode().split(":")[1])
 
             if 1 <= interval <= 24:
-                backup_module.config["backup_interval_hours"] = interval
+                cfg = get_config()
+                cfg["backup_interval_hours"] = interval
                 await backup_module.save_config()
                 await backup_module.schedule_backups()
 

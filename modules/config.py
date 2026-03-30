@@ -14,6 +14,20 @@ from telethon import Button, events, types
 from telethon.tl.types import InputWebDocument, DocumentAttributeImageSize
 from core.lib.loader.module_config import ModuleConfig, ValidationError
 
+
+def update_live_config_schema(kernel, module_name, key=None, value=None):
+    """Update live ModuleConfig schema after config change."""
+    try:
+        live_cfg = kernel._live_module_configs.get(module_name)
+        if live_cfg and hasattr(live_cfg, "_values"):
+            if key is not None and value is not None:
+                live_cfg[key] = value
+            return live_cfg
+    except Exception:
+        pass
+    return None
+
+
 CUSTOM_EMOJI = {
     "📁": '<tg-emoji emoji-id="5433653135799228968">📁</tg-emoji>',
     "📝": '<tg-emoji emoji-id="5334882760735598374">📝</tg-emoji>',
@@ -249,6 +263,38 @@ def register(kernel):
 
     # Флаг инициализации конфига
     config_initialized = {"value": False}
+
+    MODULES_WITH_CONFIG_CACHE_TTL = 600  # 10 minutes
+
+    def get_modules_with_config(force_refresh=False):
+        """Get list of modules that have config (from live configs or cache)"""
+        cache_key = "modules_with_config_list"
+        cached = kernel.cache.get(cache_key)
+
+        # Always include live configs - they are always up to date
+        live_configs = getattr(kernel, "_live_module_configs", {})
+        modules_with_config = set(live_configs.keys())
+
+        # Add cached modules that might not be in live configs anymore
+        if cached and not force_refresh:
+            modules_with_config.update(cached)
+            return sorted(list(modules_with_config))
+
+        # Cache miss or refresh - rebuild from live configs
+        result = sorted(list(modules_with_config))
+        kernel.cache.set(cache_key, result, ttl=MODULES_WITH_CONFIG_CACHE_TTL)
+        return result
+
+    def add_module_to_config_cache(module_name):
+        """Add a module to the config cache (called when config is saved)"""
+        cache_key = "modules_with_config_list"
+        cached = kernel.cache.get(cache_key)
+        if cached is None:
+            cached = []
+        if module_name not in cached:
+            cached.append(module_name)
+            cached = sorted(cached)
+            kernel.cache.set(cache_key, cached, ttl=MODULES_WITH_CONFIG_CACHE_TTL)
 
     # Функция для ленивой инициализации конфига
     async def ensure_config_initialized():
@@ -1201,6 +1247,21 @@ def register(kernel):
                         )
                     ]
                 )
+                # Edit button for secret values (even when hidden)
+                if is_secret and not is_hidden:
+                    key_id = generate_key_id(
+                        f"{module_name}__{key}", page, "module_cfg"
+                    )
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_edit"),
+                                query=f"fcfg module {module_name} set {key_id} ",
+                                same_peer=True,
+                                style="primary",
+                            )
+                        ]
+                    )
 
             # Create key_id for refresh button
             key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
@@ -1252,7 +1313,14 @@ def register(kernel):
                     await event.answer(t("not_boolean"), alert=True)
                     return
                 module_config[key] = not value
-                await kernel.save_module_config(module_name, module_config.to_dict())
+                await kernel.save_module_config(
+                    module_name,
+                    (
+                        module_config.to_dict()
+                        if hasattr(module_config, "to_dict")
+                        else module_config
+                    ),
+                )
             elif is_dict_config:
                 if key not in module_config or key == "__mcub_config__":
                     await event.answer(t("not_found"), alert=True)
@@ -1263,6 +1331,7 @@ def register(kernel):
                     return
                 module_config[key] = not value
                 await kernel.save_module_config(module_name, module_config)
+                add_module_to_config_cache(module_name)
             else:
                 # Old format - plain dict
                 if key not in module_config:
@@ -1274,6 +1343,7 @@ def register(kernel):
                     return
                 module_config[key] = not value
                 await kernel.save_module_config(module_name, module_config)
+                add_module_to_config_cache(module_name)
 
             await show_module_key_view(event, module_name, key, page)
             module_config = await kernel.get_module_config(module_name, {})
@@ -1876,10 +1946,16 @@ def register(kernel):
                 if is_module_scope:
                     if is_module_config:
                         await kernel.save_module_config(
-                            module_name, target_config.to_dict()
+                            module_name,
+                            (
+                                target_config.to_dict()
+                                if hasattr(target_config, "to_dict")
+                                else target_config
+                            ),
                         )
                     else:
                         await kernel.save_module_config(module_name, target_config)
+                    add_module_to_config_cache(module_name)
                     kernel.logger.info(
                         f"Module config updated via inline fcfg: {module_name}.{key} = {confirm_data.get('value', 'N/A')}"
                     )
@@ -2241,10 +2317,8 @@ def register(kernel):
         elif data.startswith("config_modules_page_"):
             try:
                 page = int(data.split("_")[3])
-                all_modules = list(kernel.system_modules.keys()) + list(
-                    kernel.loaded_modules.keys()
-                )
-                all_modules = sorted(list(set(all_modules)))
+                # Use only modules that have config
+                all_modules = get_modules_with_config()
 
                 total_modules = len(all_modules)
                 total_pages = (
@@ -3195,7 +3269,12 @@ def register(kernel):
                             try:
                                 module_config[key] = value  # This will validate
                                 await kernel.save_module_config(
-                                    module_name, module_config.to_dict()
+                                    module_name,
+                                    (
+                                        module_config.to_dict()
+                                        if hasattr(module_config, "to_dict")
+                                        else module_config
+                                    ),
                                 )
                             except ValidationError as ve:
                                 await event.edit(
@@ -3213,6 +3292,7 @@ def register(kernel):
                             value = parse_value(value_str, current_type)
                             module_config[key] = value
                             await kernel.save_module_config(module_name, module_config)
+                            add_module_to_config_cache(module_name)
 
                         display_value = value
                         if isinstance(value, str):
@@ -3281,6 +3361,7 @@ def register(kernel):
                     if key in module_config:
                         module_config.pop(key)
                         await kernel.save_module_config(module_name, module_config)
+                        add_module_to_config_cache(module_name)
                         await event.edit(
                             t(
                                 "delete_module_success",
@@ -3346,6 +3427,7 @@ def register(kernel):
                         value = parse_value(value_str)
                         module_config[key] = value
                         await kernel.save_module_config(module_name, module_config)
+                        add_module_to_config_cache(module_name)
                         await event.edit(
                             t(
                                 "add_module_success",
@@ -3424,7 +3506,12 @@ def register(kernel):
                             current_value[subkey] = parse_value(value_str)
                             module_config[key] = current_value
                             await kernel.save_module_config(
-                                module_name, module_config.to_dict()
+                                module_name,
+                                (
+                                    module_config.to_dict()
+                                    if hasattr(module_config, "to_dict")
+                                    else module_config
+                                ),
                             )
                         else:
                             if key not in module_config:
@@ -3437,6 +3524,7 @@ def register(kernel):
                                 return
                             module_config[key][subkey] = parse_value(value_str)
                             await kernel.save_module_config(module_name, module_config)
+                            add_module_to_config_cache(module_name)
 
                         await event.edit(
                             t(
@@ -3523,7 +3611,12 @@ def register(kernel):
                             current_value.append(parse_value(value_str))
                             module_config[key] = current_value
                             await kernel.save_module_config(
-                                module_name, module_config.to_dict()
+                                module_name,
+                                (
+                                    module_config.to_dict()
+                                    if hasattr(module_config, "to_dict")
+                                    else module_config
+                                ),
                             )
                         else:
                             if key not in module_config:
@@ -3536,6 +3629,7 @@ def register(kernel):
                                 return
                             module_config[key].append(parse_value(value_str))
                             await kernel.save_module_config(module_name, module_config)
+                            add_module_to_config_cache(module_name)
 
                         await event.edit(
                             t(

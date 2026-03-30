@@ -406,7 +406,16 @@ class Kernel:
         return await self._cfg.get_module_config(module_name, default)
 
     async def save_module_config(self, module_name: str, config_data: dict) -> bool:
-        return await self._cfg.save_module_config(module_name, config_data)
+        result = await self._cfg.save_module_config(module_name, config_data)
+
+        # Update live config schema
+        live_cfg = self._live_module_configs.get(module_name)
+        if live_cfg and hasattr(live_cfg, "_values"):
+            for key, value in config_data.items():
+                if key != "__mcub_config__":
+                    live_cfg[key] = value
+
+        return result
 
     def store_module_config_schema(self, module_name: str, config) -> None:
         """Store a live ModuleConfig schema for UI display."""

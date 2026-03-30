@@ -14,6 +14,13 @@ from telethon import functions
 from pathlib import Path
 from copy import copy
 
+from core.lib.loader.module_config import (
+    ModuleConfig,
+    ConfigValue,
+    String,
+    Boolean,
+)
+
 
 def _detect_branch_sync():
     try:
@@ -112,18 +119,72 @@ def register(kernel):
 
     branch = _detect_branch_sync()
 
-    kernel.config.setdefault("info_quote_media", False)
-    kernel.config.setdefault(
-        "info_banner_url",
-        f"https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/{branch}/img/info.png",
+    config = ModuleConfig(
+        ConfigValue(
+            "info_quote_media",
+            False,
+            description="Send media in quotes",
+            validator=Boolean(default=False),
+        ),
+        ConfigValue(
+            "info_banner_url",
+            f"https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/{branch}/img/info.png",
+            description="Banner image URL",
+            validator=String(default=""),
+        ),
+        ConfigValue(
+            "info_invert_media",
+            False,
+            description="Invert media colors",
+            validator=Boolean(default=False),
+        ),
+        ConfigValue(
+            "info_custom_text",
+            None,
+            description="""Custom text for .info. Available placeholders: {kernel_version}, {core_name}, {ping_time}, {uptime_str}, {distro_name}, {distro_emoji}, {platform_type}, {cpu_usage}, {ram_usage}, {system_user}, {hostname}, {update_emoji}, {update_text}, {update_needed}, {branch}, {commit_sha}, {commit_url}, {mcub_emoji}, {user_id}, {me_first_name}, {me_username}, {now_date}, {now_time}, {now_day}, {now_month}, {now_month_name}, {now_year}, {now_weekday}, {now_hour}, {now_minute}, {now_second}""",
+            validator=String(default=None),
+        ),
+        ConfigValue(
+            "info_start_emoji",
+            CUSTOM_EMOJI["load"],
+            description="Emoji for .info start",
+            validator=String(default=CUSTOM_EMOJI["load"]),
+        ),
     )
-    kernel.config.setdefault("info_invert_media", False)
-    kernel.config.setdefault("info_custom_text", None)
-    kernel.config.setdefault("info_start_emoji", CUSTOM_EMOJI["load"])
+
+    def get_config():
+        live_cfg = getattr(kernel, "_live_module_configs", {}).get(__name__)
+        if live_cfg:
+            return live_cfg
+        return config
+
+    async def startup():
+        config_dict = await kernel.get_module_config(
+            __name__,
+            {
+                "info_quote_media": False,
+                "info_banner_url": f"https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/{branch}/img/info.png",
+                "info_invert_media": False,
+                "info_custom_text": None,
+                "info_start_emoji": CUSTOM_EMOJI["load"],
+            },
+        )
+        config.from_dict(config_dict)
+        config_dict_clean = {k: v for k, v in config.to_dict().items() if v is not None}
+        if config_dict_clean:
+            await kernel.save_module_config(__name__, config_dict_clean)
+        kernel.store_module_config_schema(__name__, config)
+
+    asyncio.create_task(startup())
 
     def resolve_info_start_emoji() -> str:
         """Resolve configurable start emoji for .info with sensible fallbacks."""
-        raw = kernel.config.get("info_start_emoji", CUSTOM_EMOJI["load"])
+        cfg = get_config()
+        raw = (
+            cfg.get("info_start_emoji", CUSTOM_EMOJI["load"])
+            if cfg
+            else CUSTOM_EMOJI["load"]
+        )
         if not isinstance(raw, str):
             return CUSTOM_EMOJI["load"]
         value = raw.strip()
@@ -240,7 +301,8 @@ def register(kernel):
 
             uptime_str = format_uptime(time.time() - kernel.start_time)
 
-            custom_text = kernel.config.get("info_custom_text")
+            cfg = get_config()
+            custom_text = cfg.get("info_custom_text") if cfg else None
 
             if custom_text:
 
@@ -624,9 +686,10 @@ def register(kernel):
 <blockquote>{CUSTOM_EMOJI["🔷"]} <b>CPU:</b> <i>~{cpu_usage}</i>
 {CUSTOM_EMOJI["🔶"]} <b>RAM:</b> <i>~{ram_usage}</i></blockquote>"""
 
-            banner_url = kernel.config.get("info_banner_url")
-            quote_media = kernel.config.get("info_quote_media", False)
-            invert_media = kernel.config.get("info_invert_media", False)
+            cfg = get_config()
+            banner_url = cfg.get("info_banner_url") if cfg else ""
+            quote_media = cfg.get("info_quote_media", False) if cfg else False
+            invert_media = cfg.get("info_invert_media", False) if cfg else False
 
             if (
                 quote_media

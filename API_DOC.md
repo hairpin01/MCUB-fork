@@ -565,7 +565,13 @@ await kernel.db_delete('mymodule', 'last_run')
 
 ## Module Config API
 
-A structured per-module configuration system backed by the database. Stores and retrieves JSON-serialisable config objects automatically.
+MCUB provides two ways to configure modules: a simple dict-based API and a structured **ModuleConfig** system (recommended). Both are backed by the database and persist across restarts.
+
+---
+
+### Simple Dict API
+
+A straightforward key-value store for module configuration.
 
 `kernel.get_module_config(module_name, default=None)`
 ---
@@ -635,30 +641,142 @@ Delete the entire config for a module.
 await kernel.delete_module_config('mymodule')
 ```
 
-**Full example:**
+---
+
+### ModuleConfig (Recommended)
+
+The recommended way to create module configuration. Provides:
+- Declarative parameter definitions with validation
+- Automatic display in **Modules Config** UI
+- Typed values with Boolean, Integer, Float, String, Choice, MultiChoice, Secret support
+
+#### Import
+
 ```python
-MODULE = 'myplugin'
+from core.lib.loader.module_config import ModuleConfig, ConfigValue, Boolean, Integer, Float, String, Choice, MultiChoice, Secret
+```
+
+#### Available Validators
+
+| Validator | Description |
+|-----------|-------------|
+| `Boolean(default=...)` | Boolean value (True/False) |
+| `Integer(default=..., min=..., max=...)` | Integer number |
+| `Float(default=..., min=..., max=...)` | Floating point number |
+| `String(default=..., min_len=..., max_len=...)` | String value |
+| `Choice(choices=[...], default=...)` | One of a list of choices |
+| `MultiChoice(choices=[...], default=[...])` | List of choices |
+| `Secret(default=...)` | Secret value (hidden in UI) |
+
+#### Creating Configuration
+
+```python
+from core.lib.loader.module_config import ModuleConfig, ConfigValue, Boolean, String, Choice
 
 def register(kernel):
+    class MyModule:
+        async def init(self):
+            # Define configuration structure
+            config = ModuleConfig(
+                ConfigValue(
+                    "enabled",
+                    True,
+                    description="Enable module",
+                    validator=Boolean(default=True)
+                ),
+                ConfigValue(
+                    "api_key",
+                    "",
+                    description="API Key",
+                    validator=String(default="")
+                ),
+                ConfigValue(
+                    "mode",
+                    "default",
+                    description="Operation mode",
+                    validator=Choice(choices=["default", "fast", "safe"], default="default")
+                )
+            )
 
-    @kernel.register.on_load()
-    async def setup(k):
-        # Set defaults on first load
-        cfg = await k.get_module_config(MODULE)
-        if not cfg:
-            await k.save_module_config(MODULE, {'enabled': True, 'limit': 10})
+            # Load saved values from DB
+            config_dict = await kernel.get_module_config(__name__, {
+                "enabled": True,
+                "api_key": "",
+                "mode": "default"
+            })
+            config.from_dict(config_dict)
 
-    @kernel.register.command('cfg')
-    async def cfg_handler(event):
-        args = event.text.split()
-        if len(args) == 3:
-            _, key, value = args
-            await kernel.set_module_config_key(MODULE, key, value)
-            await event.edit(f"Set {key} = {value}")
-        else:
-            cfg = await kernel.get_module_config(MODULE)
-            await event.edit(str(cfg))
+            # Save in new format (with UI marker)
+            await kernel.save_module_config(__name__, config.to_dict())
+
+            # Use it
+            if config["enabled"]:
+                await self.do_something(config["api_key"], config["mode"])
+
+            # Change value
+            config["enabled"] = False
+            await kernel.save_module_config(__name__, config.to_dict())
 ```
+
+#### ConfigValue Parameters
+
+```python
+ConfigValue(
+    key,                    # str: Parameter name (required)
+    default,                # Default value
+    description="",         # str: Description for UI
+    validator=None,         # Validator (Boolean, String, Choice, etc.)
+    hidden=False,           # bool: Hide in UI
+    on_change=None          # callable: Function on change (on_change(old, new))
+)
+```
+
+#### Example with on_change Callback
+
+```python
+def register(kernel):
+    class MyModule:
+        async def init(self):
+            config = ModuleConfig(
+                ConfigValue(
+                    "token",
+                    "",
+                    description="Bot Token",
+                    validator=String(default=""),
+                    on_change=self._on_token_change
+                )
+            )
+            # ... load and save config
+
+        def _on_token_change(self, old, new):
+            if new and new != old:
+                kernel.logger.info("Token changed, reinitializing...")
+                # Logic when token changes
+```
+
+#### Accessing Values
+
+```python
+# Reading
+value = config["key_name"]
+value = config.get("key_name", "default")
+
+# Writing
+config["key_name"] = new_value
+
+# Iteration
+for key, value in config.items():
+    print(f"{key}: {value}")
+
+# Get schema (for UI)
+schema = config.schema  # Returns list of dicts with key, type, default, description
+```
+
+#### Important Notes
+
+1. **Always call `config.to_dict()` before saving** — this adds the `__mcub_config__` marker required for the module to appear in **Modules Config** UI
+2. **Define defaults twice** — in `ConfigValue` and in the dict for `get_module_config`
+3. **Load order**: Create `ModuleConfig` → Call `from_dict()` → Call `to_dict()` and `save_module_config()`
 
 ---
 

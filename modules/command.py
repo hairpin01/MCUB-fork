@@ -7,6 +7,7 @@ from telethon import events, Button
 
 
 def register(kernel):
+    kernel.logger.debug("[Command] register start")
     bot_client = getattr(kernel, "bot_client", None)
 
     if bot_client is None:
@@ -15,6 +16,9 @@ def register(kernel):
         )
         return
 
+    kernel.logger.debug(
+        f"[Command] bot_client available, lang={kernel.config.get('language', 'en')}"
+    )
     language = kernel.config.get("language", "en")
 
     strings = {
@@ -152,6 +156,9 @@ def register(kernel):
 
     @kernel.register.event("newmessage", pattern="/start", bot_client=True)
     async def start_handler(event):
+        kernel.logger.debug(
+            f"[Command] start_handler chat_id={getattr(event, 'chat_id', None)}"
+        )
         try:
             await event.reply(
                 file="https://x0.at/ZXNS.mp4",
@@ -185,6 +192,9 @@ def register(kernel):
 
     @kernel.register.event("newmessage", pattern="/profile", bot_client=True)
     async def profile_handler(event):
+        kernel.logger.debug(
+            f"[Command] profile_handler user_id={getattr(event, 'sender_id', None)}"
+        )
         try:
             user = event.sender
 
@@ -279,12 +289,16 @@ def register(kernel):
         "callbackquery", pattern=r"start_lang_(ru|en)", bot_client=True
     )
     async def language_handler(event):
+        kernel.logger.debug(
+            f"[Command] language_handler user_id={getattr(event, 'sender_id', None)}"
+        )
         try:
             lang = (
                 event.pattern_match.group(1).decode()
                 if isinstance(event.pattern_match.group(1), bytes)
                 else event.pattern_match.group(1)
             )
+            kernel.logger.debug(f"[Command] language_handler setting lang={lang}")
             await kernel.db_set("kernel", "language", lang)
             kernel.config["language"] = lang
             kernel.save_config()

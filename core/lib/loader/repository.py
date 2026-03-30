@@ -24,9 +24,11 @@ class RepositoryManager:
 
     def __init__(self, kernel: "Kernel") -> None:
         self.k = kernel
+        self.k.logger.debug("[RepoManager] __init__")
 
     def _validate_url(self, url: str) -> tuple[bool, str]:
         """Validate URL for SSRF protection."""
+        self.k.logger.debug(f"[RepoManager] _validate_url url={url}")
         try:
             parsed = urlparse(url)
 
@@ -57,6 +59,7 @@ class RepositoryManager:
 
     def load(self) -> None:
         """Load repository list from config into kernel.repositories."""
+        self.k.logger.debug("[RepoManager] load start")
         self.k.repositories = self.k.config.get("repositories", [])
 
         validated_repos = []
@@ -68,7 +71,7 @@ class RepositoryManager:
                 self.k.logger.warning(f"Repository blocked by SSRF protection: {repo}")
 
         self.k.repositories = validated_repos
-        self.k.logger.debug(f"Loaded repositories: {self.k.repositories}")
+        self.k.logger.debug(f"[RepoManager] Loaded repositories: {self.k.repositories}")
 
     async def save(self) -> None:
         """Persist the current repository list to config.json."""

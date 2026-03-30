@@ -111,8 +111,10 @@ except ImportError:
 
 
 def register(kernel):
+    kernel.logger.debug("[LoaderModule] register start")
     client = kernel.client
     language = kernel.config.get("language", "en")
+    kernel.logger.debug(f"[LoaderModule] register language={language}")
 
     # Локализованные строки
     strings = {

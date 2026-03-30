@@ -14,8 +14,10 @@ class InlineBot:
         self.bot_client = None
         self.token = None
         self.username = None
+        self.kernel.logger.debug("[InlineBot] __init__")
 
     async def setup(self):
+        self.kernel.logger.debug("[InlineBot] setup start")
         self.token = self.kernel.config.get("inline_bot_token")
         self.username = self.kernel.config.get("inline_bot_username")
 
@@ -23,6 +25,7 @@ class InlineBot:
             await self.create_bot()
         else:
             await self.start_bot()
+        self.kernel.logger.debug("[InlineBot] setup done")
 
     async def stop_bot(self):
         if self.bot_client and self.bot_client.is_connected():

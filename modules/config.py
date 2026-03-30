@@ -87,7 +87,7 @@ class InlineMessageManager:
                 "cfg_messages", "inline_messages", json.dumps(self.messages)
             )
         except Exception as e:
-            self.kernel.logger.error(f"Error saving inline messages: {e}")
+            self.kernel.logger.debug(f"Error saving inline messages: {e}")
 
     async def load_from_db(self):
         """Загружает messages из БД"""
@@ -96,7 +96,7 @@ class InlineMessageManager:
             if data:
                 self.messages = json.loads(data)
         except Exception as e:
-            self.kernel.logger.error(f"Error loading inline messages: {e}")
+            self.kernel.logger.debug(f"Error loading inline messages: {e}")
 
     def get_message_info(self, inline_msg_id):
         """Получает информацию о сообщении по inline_msg_id"""
@@ -264,7 +264,7 @@ def register(kernel):
                 )
                 config_initialized["value"] = True
             except Exception as e:
-                kernel.logger.error(f"Error initializing config module config: {e}")
+                kernel.logger.debug(f"Error initializing config module config: {e}")
 
     strings = {
         "en": {
@@ -644,17 +644,21 @@ def register(kernel):
             buttons.append(row)
         nav_buttons = []
         if page > 0:
+            nav_id = generate_key_id(module_name, page - 1, "module_nav")
+            kernel.cache.set(f"module_nav_{nav_id}", (module_name, page - 1), ttl=86400)
             nav_buttons.append(
                 Button.inline(
                     t("btn_back"),
-                    data=f"module_cfg_page_{module_name}__{page - 1}".encode(),
+                    data=f"module_cfg_page_nav_{nav_id}".encode(),
                 )
             )
         if page < total_pages - 1:
+            nav_id = generate_key_id(module_name, page + 1, "module_nav")
+            kernel.cache.set(f"module_nav_{nav_id}", (module_name, page + 1), ttl=86400)
             nav_buttons.append(
                 Button.inline(
                     t("btn_next"),
-                    data=f"module_cfg_page_{module_name}__{page + 1}".encode(),
+                    data=f"module_cfg_page_nav_{nav_id}".encode(),
                 )
             )
         nav_buttons.append(
@@ -922,6 +926,7 @@ def register(kernel):
                 value = module_config[key]
                 is_hidden = False
                 is_secret = False
+                config_value = None
             else:
                 # Old format - plain dict
                 if key not in module_config:
@@ -930,6 +935,36 @@ def register(kernel):
                 value = module_config[key]
                 is_hidden = False
                 is_secret = False
+                config_value = None
+
+            # Even when stored config is a plain dict, the live ModuleConfig schema
+            # (with description, choices, validators) lives in the module instance.
+            # Try to get it from there so we can display metadata.
+            if config_value is None:
+                try:
+                    live_cfg = getattr(kernel, "_live_module_configs", {}).get(
+                        module_name
+                    )
+                    if live_cfg is None:
+                        live_mod = kernel.loaded_modules.get(
+                            module_name
+                        ) or kernel.system_modules.get(module_name)
+                        if live_mod is not None:
+                            live_cfg = getattr(live_mod, "config", None)
+                    if isinstance(live_cfg, ModuleConfig):
+                        config_value = live_cfg._values.get(key)
+                        if config_value is not None:
+                            is_hidden = is_hidden or config_value.hidden
+                            is_secret = is_secret or hasattr(
+                                config_value.validator, "secret"
+                            )
+                            # Also extract choices if available
+                            if choices is None:
+                                choices = getattr(
+                                    config_value.validator, "choices", None
+                                )
+                except Exception:
+                    pass
 
             value_type = type(value).__name__
             type_emoji = get_type_emoji(value_type)
@@ -962,25 +997,74 @@ def register(kernel):
                 display_value=display_value,
             )
 
+            # Append ModuleConfig metadata if available (works for both live and dict-stored configs)
+            choices = None
+            # Final fallback - try to get choices from live config directly
+            if choices is None:
+                try:
+                    live_cfg = getattr(kernel, "_live_module_configs", {}).get(
+                        module_name
+                    )
+                    if live_cfg is None:
+                        live_mod = kernel.loaded_modules.get(
+                            module_name
+                        ) or kernel.system_modules.get(module_name)
+                        if live_mod is not None:
+                            live_cfg = getattr(live_mod, "config", None)
+                    if isinstance(live_cfg, ModuleConfig):
+                        cv = live_cfg._values.get(key)
+                        if cv and hasattr(cv, "validator"):
+                            choices = getattr(cv.validator, "choices", None)
+                except Exception:
+                    pass
+
+            if config_value:
+                validator = config_value.validator
+                description = config_value.description
+                if description:
+                    text += f"\n\n{emoji_provider['📖']} <i>{html.escape(str(description))}</i>"
+                choices = getattr(validator, "choices", None)
+                v_min = getattr(validator, "min", None)
+                v_max = getattr(validator, "max", None)
+                if v_min is not None or v_max is not None:
+                    range_parts = []
+                    if v_min is not None:
+                        range_parts.append(f"min: <code>{v_min}</code>")
+                    if v_max is not None:
+                        range_parts.append(f"max: <code>{v_max}</code>")
+                    text += f"\n{emoji_provider['🔢']} <b>Range:</b> {', '.join(range_parts)}"
+                min_len = getattr(validator, "min_len", None)
+                max_len = getattr(validator, "max_len", None)
+                if min_len is not None or max_len is not None:
+                    len_parts = []
+                    if min_len is not None:
+                        len_parts.append(f"min length: <code>{min_len}</code>")
+                    if max_len is not None:
+                        len_parts.append(f"max length: <code>{max_len}</code>")
+                    text += f"\n{emoji_provider['📝']} <b>Length:</b> {', '.join(len_parts)}"
+
             buttons = []
 
             # Bool toggle button
             if value_type == "bool":
                 toggle_text = t("toggle_false") if value else t("toggle_true")
                 toggle_style = "danger" if value else "success"
-                toggle_style = "danger" if value else "success"
+                bool_id = generate_key_id(f"{module_name}__{key}", page, "bool")
+                kernel.cache.set(
+                    f"module_bool_{bool_id}", (module_name, key, page), ttl=86400
+                )
                 buttons.append(
                     [
                         Button.inline(
                             toggle_text,
-                            data=f"cfg_modules_bool_{module_name}__{key}__{page}".encode(),
+                            data=f"cfg_modules_bool_{bool_id}".encode(),
                             style=toggle_style,
                         )
                     ]
                 )
             else:
-                # Edit button for non-bool values (if not hidden/secret)
-                if not is_hidden and not is_secret:
+                # Edit button for non-bool values (if not hidden/secret and no choices)
+                if not is_hidden and not is_secret and not choices:
                     # Create key_id for inline editing
                     key_id = generate_key_id(
                         f"{module_name}__{key}", page, "module_cfg"
@@ -999,6 +1083,34 @@ def register(kernel):
                             )
                         ]
                     )
+
+            # Choice buttons - replace edit button with inline choice buttons
+            if choices and not is_hidden and not is_secret:
+                choice_id = generate_key_id(f"{module_name}__{key}", page, "choice")
+                cache_key = f"module_choice_{choice_id}"
+                kernel.cache.set(
+                    cache_key,
+                    (module_name, key, page, list(choices)),
+                    ttl=86400,
+                )
+                choice_buttons = []
+                row = []
+                for i, choice in enumerate(choices):
+                    is_selected = choice == value
+                    btn_text = f"{'☑️' if is_selected else '🔘'} {choice}"
+                    row.append(
+                        Button.inline(
+                            btn_text,
+                            data=f"cfg_module_choice_{choice_id}-{i}".encode(),
+                        )
+                    )
+                    if len(row) == 3:
+                        choice_buttons.append(row)
+                        row = []
+                if row:
+                    choice_buttons.append(row)
+                for row in choice_buttons:
+                    buttons.append(row)
 
             # List/Dict operation buttons
             if value_type == "list" and not is_hidden and not is_secret:
@@ -1097,10 +1209,14 @@ def register(kernel):
             )
 
             # Navigation buttons
+            back_nav_id = generate_key_id(module_name, page, "module_nav")
+            kernel.cache.set(
+                f"module_nav_{back_nav_id}", (module_name, page), ttl=86400
+            )
             nav_buttons = [
                 Button.inline(
                     t("btn_back_simple"),
-                    data=f"module_cfg_page_{module_name}__{page}".encode(),
+                    data=f"module_cfg_page_nav_{back_nav_id}".encode(),
                 ),
                 Button.inline(
                     "🔄",
@@ -1804,7 +1920,7 @@ def register(kernel):
                             )
 
                 except Exception as e:
-                    kernel.logger.error(f"Failed to edit inline message: {e}")
+                    kernel.logger.debug(f"Failed to edit inline message: {e}")
 
                 if kernel.is_bot_available():
                     try:
@@ -1812,7 +1928,7 @@ def register(kernel):
                             user_id, message, parse_mode="html"
                         )
                     except Exception as e:
-                        kernel.logger.error(f"Failed to send confirmation message: {e}")
+                        kernel.logger.debug(f"Failed to send confirmation message: {e}")
             else:
                 if kernel.is_bot_available():
                     try:
@@ -1820,10 +1936,10 @@ def register(kernel):
                             user_id, message, parse_mode="html"
                         )
                     except Exception as e:
-                        kernel.logger.error(f"Failed to send error message: {e}")
+                        kernel.logger.debug(f"Failed to send error message: {e}")
 
         except Exception as e:
-            kernel.logger.error(f"FCFG confirm error: {e}")
+            kernel.logger.debug(f"FCFG confirm error: {e}")
             # Отправляем сообщение об ошибке
             try:
                 if kernel.is_bot_available():
@@ -2083,7 +2199,7 @@ def register(kernel):
             try:
                 await kernel.client.delete_messages(event.chat_id, [event.message_id])
             except Exception as e:
-                kernel.logger.error(e)
+                kernel.logger.debug(e)
                 try:
                     await event.edit("❌ Closed")
                 except Exception:
@@ -2174,7 +2290,16 @@ def register(kernel):
 
         elif data.startswith("module_cfg_page_"):
             try:
-                if "__" in data:
+                if data.startswith("module_cfg_page_nav_"):
+                    # New ID-based format — module_name encoded in cache
+                    nav_id = data[20:]
+                    cached = kernel.cache.get(f"module_nav_{nav_id}")
+                    if not cached:
+                        await event.answer(t("expired"), alert=True)
+                        return
+                    module_name, page = cached
+                elif "__" in data:
+                    # Legacy format: module_cfg_page_{module_name}__{page}
                     parts = data.split("__")
                     module_name = parts[0].replace("module_cfg_page_", "")
                     page = int(parts[1])
@@ -2207,8 +2332,13 @@ def register(kernel):
 
         elif data.startswith("cfg_modules_bool_"):
             try:
-                if "__" in data:
-                    rest = data.replace("cfg_modules_bool_", "")
+                rest = data[17:]  # after "cfg_modules_bool_"
+                # New ID-based format: rest is an 8-char hex ID with no "__"
+                cached = kernel.cache.get(f"module_bool_{rest}")
+                if cached:
+                    module_name, key, page = cached
+                elif "__" in rest:
+                    # Legacy format: {module_name}__{key}__{page}
                     parts = rest.split("__")
                     if len(parts) >= 3:
                         module_name = parts[0]
@@ -2218,18 +2348,62 @@ def register(kernel):
                         await event.answer(t("invalid_format"), alert=True)
                         return
                 else:
-                    rest = data.replace("module_cfg_bool_", "")
-                    parts = rest.split("_")
-                    if parts[-1].isdigit():
-                        page = int(parts[-1])
-                        module_name = parts[0]
-                        key = "_".join(parts[1:-1])
-                    else:
-                        await event.answer(t("invalid_format"), alert=True)
-                        return
+                    await event.answer(t("expired"), alert=True)
+                    return
 
                 await toggle_module_bool_key(event, module_name, key, page)
             except Exception as e:
+                await event.answer(str(e)[:50], alert=True)
+
+        elif data.startswith("cfg_module_choice_"):
+            try:
+                kernel.logger.debug(f"DEBUG choice: data={data}")
+                rest = data[17:]  # after "cfg_module_choice_"
+                kernel.logger.debug(f"DEBUG choice: rest={rest}")
+                idx = rest.rfind("-")
+                kernel.logger.debug(f"DEBUG choice: idx={idx}")
+                if idx == -1:
+                    await event.answer(t("invalid_format"), alert=True)
+                    return
+                choice_id = rest[:idx]
+                if choice_id.startswith("_"):
+                    choice_id = choice_id[1:]
+                choice_idx = int(rest[idx + 1 :])
+                kernel.logger.debug(
+                    f"DEBUG choice: choice_id={choice_id}, choice_idx={choice_idx}"
+                )
+                cached = kernel.cache.get(f"module_choice_{choice_id}")
+                kernel.logger.debug(f"DEBUG choice: cached={cached is not None}")
+                if not cached:
+                    await event.answer(t("expired"), alert=True)
+                    return
+                module_name, key, page, choices = cached
+                kernel.logger.debug(
+                    f"Choice selected: {module_name}, {key}={choices[choice_idx]}, choices={choices}"
+                )
+                if choice_idx >= len(choices):
+                    await event.answer(t("invalid_format"), alert=True)
+                    return
+                new_value = choices[choice_idx]
+                module_config = await kernel.get_module_config(module_name, {})
+                if isinstance(module_config, dict):
+                    module_config[key] = new_value
+                elif hasattr(module_config, "__setitem__"):
+                    module_config[key] = new_value
+                await kernel.save_module_config(
+                    module_name,
+                    (
+                        module_config
+                        if isinstance(module_config, dict)
+                        else module_config.to_dict()
+                    ),
+                )
+                await event.answer(t("changed_to", value=new_value), alert=False)
+                await show_module_key_view(event, module_name, key, page)
+            except Exception as e:
+                import traceback
+
+                kernel.logger.debug(f"Choice error: {e}\n{traceback.format_exc()}")
                 await event.answer(str(e)[:50], alert=True)
 
         elif data.startswith("cfg_view_"):
@@ -3419,6 +3593,7 @@ def register(kernel):
     kernel.register_callback_handler("cfg_delete_", config_callback_handler)
     kernel.register_callback_handler("cfg_reveal_", config_callback_handler)
     kernel.register_callback_handler("cfg_module_reveal_", config_callback_handler)
+    kernel.register_callback_handler("cfg_module_choice_", config_callback_handler)
     kernel.register_callback_handler("cfg_close", config_callback_handler)
 
     if hasattr(kernel, "bot_client") and kernel.bot_client:

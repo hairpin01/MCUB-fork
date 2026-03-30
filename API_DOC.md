@@ -641,6 +641,35 @@ Delete the entire config for a module.
 await kernel.delete_module_config('mymodule')
 ```
 
+`kernel.store_module_config_schema(module_name, config)`
+---
+> ⚠️ **WARNING: This method is REQUIRED for proper Modules Config UI functionality!**
+
+Store a live ModuleConfig schema for the UI. This enables:
+- Inline choice buttons for `Choice` validator fields
+- Display of config metadata (descriptions, choices, validators)
+- Proper UI rendering of module config
+
+**Parameters:**
+- `module_name` (str): Module identifier (use `__name__`)
+- `config` (ModuleConfig): Live ModuleConfig instance
+
+**Usage:**
+```python
+# After creating and saving ModuleConfig:
+config = ModuleConfig(...)
+config.from_dict(config_dict)
+await kernel.save_module_config(__name__, config.to_dict())
+kernel.store_module_config_schema(__name__, config)  # REQUIRED!
+self.config = config
+```
+
+**Without this call:**
+- ❌ Choice fields won't have inline selection buttons
+- ❌ Config descriptions won't be displayed
+- ❌ Validators (min/max, choices) won't be shown in UI
+- ❌ User experience will be significantly degraded
+
 ---
 
 ### ModuleConfig (Recommended)
@@ -708,6 +737,15 @@ def register(kernel):
 
             # Save in new format (with UI marker)
             await kernel.save_module_config(__name__, config.to_dict())
+
+            # ⚠️ IMPORTANT: Store the live ModuleConfig schema for UI features
+            # Without this call, the Modules Config UI will NOT work properly:
+            # - Choice values will NOT show inline buttons
+            # - Config metadata (descriptions, validators) will NOT be displayed
+            # - User experience will be significantly degraded
+            #
+            # This is NOT optional - it is REQUIRED for proper module config UI!
+            kernel.store_module_config_schema(__name__, config)
 
             # Use it
             if config["enabled"]:
@@ -972,6 +1010,85 @@ def register(kernel):
     async def handler2(event):
         await event.edit("Command 2")
 ```
+
+### Owner-Only Commands
+
+```python
+@kernel.register.command('admincmd')
+@kernel.register.owner(only_admin=True)
+async def admin_only_handler(event):
+    await event.edit("Admin only!")
+
+@kernel.register.command('trustedcmd')
+@kernel.register.owner()
+async def trusted_handler(event):
+    await event.edit("Admin or trusted user!")
+```
+
+`kernel.register.owner(only_admin=False)`
+---
+Decorator to restrict a handler to the bot owner (admin) or trusted users.
+
+**Parameters:**
+- `only_admin` (bool): If True, only admin can use the command. If False (default), trusted users with `no_owner()` method returning False can also use it.
+
+**Usage:**
+
+```python
+@kernel.register.owner()
+async def owner_or_trusted(event):
+    await event.reply("Hello, owner!")
+
+@kernel.register.owner(only_admin=True)
+async def admin_only(event):
+    await event.reply("Admin only!")
+```
+
+### Command Aliases Management
+
+```python
+@kernel.register.command('mycmd')
+async def mycmd_handler(event):
+    await event.edit("Command executed!")
+
+aliases = kernel.register.get_all_aliases()
+print(aliases)  # {'ex': 'example', 'p': 'ping'}
+
+cmd_alias = kernel.register.get_command_alias('ping')
+print(cmd_alias)  # 'p' or None
+```
+
+`kernel.register.get_all_aliases()`
+---
+Get all registered command aliases.
+
+**Returns:** Dict mapping alias names to command names.
+
+`kernel.register.get_command_alias(command)`
+---
+Get the alias for a specific command.
+
+**Parameters:**
+- `command` (str): Command name to find alias for.
+
+**Returns:** str or None - The alias if found.
+
+### Inline Bot Information
+
+```python
+bot_info = kernel.register.get_use_bot()
+print(bot_info)
+# {'available': True, 'connected': True, 'username': 'MCUB_bot'}
+```
+
+`kernel.register.get_use_bot()`
+---
+Get information about inline bot usage.
+
+**Returns:** Dict with keys:
+- `available` (bool): Whether bot_client is configured
+- `connected` (bool): Whether bot is connected
+- `username` (str): Bot username if connected
 
 ---
 

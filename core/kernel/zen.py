@@ -177,6 +177,7 @@ class Kernel:
         self.Colors = Colors
 
         self.loaded_modules: dict = {}
+        self._live_module_configs: dict = {}
         self.system_modules: dict = {}
         self.command_handlers: dict = {}
         self.command_owners: dict = {}
@@ -406,6 +407,10 @@ class Kernel:
 
     async def save_module_config(self, module_name: str, config_data: dict) -> bool:
         return await self._cfg.save_module_config(module_name, config_data)
+
+    def store_module_config_schema(self, module_name: str, config) -> None:
+        """Store a live ModuleConfig schema for UI display."""
+        self._live_module_configs[module_name] = config
 
     async def delete_module_config(self, module_name: str) -> bool:
         return await self._cfg.delete_module_config(module_name)

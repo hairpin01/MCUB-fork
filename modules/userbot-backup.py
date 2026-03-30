@@ -541,10 +541,26 @@ def register(kernel):
         user_id = event.sender_id
 
         buttons = [
-            [Button.inline(lang_strings["btn_1_hour"], "backup_interval:1")],
-            [Button.inline(lang_strings["btn_6_hours"], "backup_interval:6")],
-            [Button.inline(lang_strings["btn_12_hours"], "backup_interval:12")],
-            [Button.inline(lang_strings["btn_24_hours"], "backup_interval:24")],
+            [
+                Button.inline(
+                    lang_strings["btn_1_hour"], "backup_interval:1", style="primary"
+                )
+            ],
+            [
+                Button.inline(
+                    lang_strings["btn_6_hours"], "backup_interval:6", style="primary"
+                )
+            ],
+            [
+                Button.inline(
+                    lang_strings["btn_12_hours"], "backup_interval:12", style="primary"
+                )
+            ],
+            [
+                Button.inline(
+                    lang_strings["btn_24_hours"], "backup_interval:24", style="primary"
+                )
+            ],
         ]
 
         try:

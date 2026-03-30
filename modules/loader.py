@@ -569,14 +569,18 @@ def register(kernel):
             if page > 1:
                 nav_buttons.append(
                     Button.inline(
-                        t("btn_back"), f"catalog_{repo_index}_{page - 1}".encode()
+                        t("btn_back"),
+                        f"catalog_{repo_index}_{page - 1}".encode(),
+                        style="primary",
                     )
                 )
 
             if page < total_pages:
                 nav_buttons.append(
                     Button.inline(
-                        t("btn_next"), f"catalog_{repo_index}_{page + 1}".encode()
+                        t("btn_next"),
+                        f"catalog_{repo_index}_{page + 1}".encode(),
+                        style="primary",
                     )
                 )
 
@@ -587,7 +591,9 @@ def register(kernel):
                 repo_buttons = []
                 for i in range(len(repos)):
                     repo_buttons.append(
-                        Button.inline(f"{i + 1}", f"catalog_{i}_1".encode())
+                        Button.inline(
+                            f"{i + 1}", f"catalog_{i}_1".encode(), style="primary"
+                        )
                     )
                 buttons.append(repo_buttons)
 

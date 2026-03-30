@@ -177,11 +177,9 @@ def register(kernel):
         return None
 
     @kernel.register.command("trust", alias=["addowner"])
-    # add trust users with inline confirmation form
+    @kernel.register.owner(only_admin=True)
     async def trust_handler(event):
-        if event.sender_id != kernel.ADMIN_ID:
-            await event.edit(s["not_owner"], parse_mode="html")
-            return
+        """add trust users with inline confirmation form"""
 
         user_id = await get_user_id(event)
         if not user_id:
@@ -204,8 +202,12 @@ def register(kernel):
         )
         buttons = [
             [
-                Button.inline(s["btn_confirm"], f"trust_confirm_{user_id}".encode()),
-                Button.inline(s["btn_cancel"], b"trust_cancel"),
+                Button.inline(
+                    s["btn_confirm"],
+                    f"trust_confirm_{user_id}".encode(),
+                    style="success",
+                ),
+                Button.inline(s["btn_cancel"], b"trust_cancel", style="primary"),
             ]
         ]
         await kernel.inline_form(event.chat_id, text, buttons=buttons)
@@ -243,14 +245,18 @@ def register(kernel):
             buttons = [
                 [
                     Button.inline(
-                        s["btn_nonick_yes"], f"trust_nonick_yes_{user_id}".encode()
+                        s["btn_nonick_yes"],
+                        f"trust_nonick_yes_{user_id}".encode(),
+                        style="success",
                     ),
                     Button.inline(
-                        s["btn_nonick_no"], f"trust_nonick_no_{user_id}".encode()
+                        s["btn_nonick_no"],
+                        f"trust_nonick_no_{user_id}".encode(),
+                        style="danger",
                     ),
                 ]
             ]
-            await event.edit(text, buttons=buttons, parse_mode="html")
+            await event.edit(text, buttons=buttons, parse_mode="html")  # noqe: MCUB001
             return
 
         for prefix, nonick in (
@@ -562,7 +568,12 @@ def register(kernel):
             cmd_text += " " + " ".join(rest)
 
         if actual_cmd not in kernel.command_handlers:
-            return
+            all_aliases = kernel.register.get_all_aliases()
+            if actual_cmd not in all_aliases:
+                return
+            actual_cmd = all_aliases.get(actual_cmd, actual_cmd)
+            if actual_cmd not in kernel.command_handlers:
+                return
 
         cmd = await kernel.client.send_message(
             event.chat_id, cmd_text, reply_to=event.reply_to_msg_id
@@ -596,6 +607,9 @@ def register(kernel):
 
             async def get_reply_message(self):
                 return await self._msg.get_reply_message()
+
+            def no_owner(self):
+                return True
 
         await kernel.process_command(_MessageEventProxy(cmd))
 

@@ -850,8 +850,8 @@ def register(kernel):
         if len(args) == 1:
             buttons = [
                 [
-                    Button.inline(lang["yes"], b"api_protection_yes"),
-                    Button.inline(lang["no"], b"api_protection_no"),
+                    Button.inline(lang["yes"], b"api_protection_yes", style="success"),
+                    Button.inline(lang["no"], b"api_protection_no", style="danger"),
                 ],
             ]
             await kernel.inline_form(
@@ -1003,24 +1003,28 @@ def register(kernel):
                         Button.inline(
                             "🥽 safe",
                             b"api_prot_mode_safe",
+                            style="primary",
                         )
                     ],
                     [
                         Button.inline(
                             "🔬 strict",
                             b"api_prot_mode_strict",
+                            style="primary",
                         )
                     ],
                     [
                         Button.inline(
                             "🤧 off",
                             b"api_prot_mode_off",
+                            style="primary",
                         )
                     ],
                     [
                         Button.inline(
                             lang["mcub_mode_default"].format(mode=current_mode),
                             b"api_prot_mode_default",
+                            style="primary",
                         )
                     ],
                 ]

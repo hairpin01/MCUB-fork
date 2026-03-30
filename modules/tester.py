@@ -468,8 +468,8 @@ def register(kernel):
                     )
                     response = t("custom_text_error", error=str(e))
             else:
-                response = f"""<blockquote>{CUSTOM_EMOJI['❄️']} <b>{lang_strings['ping']}:</b> {ping_time} {lang_strings['ms']}</blockquote>
-<blockquote>{CUSTOM_EMOJI['❄️']} <b>{lang_strings['uptime']}:</b> {uptime}</blockquote>"""
+                response = f"""<blockquote>{CUSTOM_EMOJI["❄️"]} <b>{lang_strings["ping"]}:</b> {ping_time} {lang_strings["ms"]}</blockquote>
+<blockquote>{CUSTOM_EMOJI["❄️"]} <b>{lang_strings["uptime"]}:</b> {uptime}</blockquote>"""
 
             banner_url = kernel.config.get("ping_banner_url")
             quote_media = kernel.config.get("ping_quote_media", False)
@@ -508,7 +508,6 @@ def register(kernel):
                     await kernel.handle_error(e, source="ping:quote_mode", event=event)
 
             if banner_url:
-
                 banner_sent = False
 
                 chat = await event.get_chat()
@@ -556,7 +555,6 @@ def register(kernel):
     async def logs_handler(event):
         """[clear] - cleared logs kernel"""
         try:
-
             kernel_log_path = os.path.join(kernel.LOGS_DIR, "kernel.log")
 
             if not os.path.exists(kernel_log_path):
@@ -605,42 +603,28 @@ def register(kernel):
                 f"{t('logs_choose_level', paper=CUSTOM_EMOJI['📰'])}\n{t('logs_choose_desc')}",
                 buttons=[
                     [
-                        {
-                            "text": "DEBUG",
-                            "type": "callback",
-                            "data": "tester_logs:level:debug",
-                        },
-                        {
-                            "text": "INFO",
-                            "type": "callback",
-                            "data": "tester_logs:level:info",
-                        },
+                        Button.inline(
+                            "DEBUG", b"tester_logs:level:debug", style="primary"
+                        ),
+                        Button.inline(
+                            "INFO", b"tester_logs:level:info", style="primary"
+                        ),
                     ],
                     [
-                        {
-                            "text": "WARNING",
-                            "type": "callback",
-                            "data": "tester_logs:level:warning",
-                        },
-                        {
-                            "text": "ERROR",
-                            "type": "callback",
-                            "data": "tester_logs:level:error",
-                        },
+                        Button.inline(
+                            "WARNING", b"tester_logs:level:warning", style="primary"
+                        ),
+                        Button.inline(
+                            "ERROR", b"tester_logs:level:error", style="primary"
+                        ),
                     ],
                     [
-                        {
-                            "text": "CRITICAL",
-                            "type": "callback",
-                            "data": "tester_logs:level:critical",
-                        },
-                        {
-                            "text": "ALL",
-                            "type": "callback",
-                            "data": "tester_logs:level:all",
-                        },
+                        Button.inline(
+                            "CRITICAL", b"tester_logs:level:critical", style="primary"
+                        ),
+                        Button.inline("ALL", b"tester_logs:level:all", style="primary"),
                     ],
-                    [{"text": "✖", "type": "callback", "data": "tester_logs:cancel"}],
+                    [Button.inline("✖", b"tester_logs:cancel", style="danger")],
                 ],
             )
             if success:
@@ -696,10 +680,11 @@ def register(kernel):
                             Button.inline(
                                 "✅ Send" if language == "en" else "✅ Отправить",
                                 f"tester_logs:confirm:{level}".encode(),
+                                style="success",
                             ),
-                            Button.inline("↩", b"tester_logs:back"),
+                            Button.inline("↩", b"tester_logs:back", style="primary"),
                         ],
-                        [Button.inline("✖", b"tester_logs:cancel")],
+                        [Button.inline("✖", b"tester_logs:cancel", style="danger")],
                     ],
                 )
                 return
@@ -716,18 +701,28 @@ def register(kernel):
                 parse_mode="html",
                 buttons=[
                     [
-                        Button.inline("DEBUG", b"tester_logs:level:debug"),
-                        Button.inline("INFO", b"tester_logs:level:info"),
+                        Button.inline(
+                            "DEBUG", b"tester_logs:level:debug", style="primary"
+                        ),
+                        Button.inline(
+                            "INFO", b"tester_logs:level:info", style="primary"
+                        ),
                     ],
                     [
-                        Button.inline("WARNING", b"tester_logs:level:warning"),
-                        Button.inline("ERROR", b"tester_logs:level:error"),
+                        Button.inline(
+                            "WARNING", b"tester_logs:level:warning", style="primary"
+                        ),
+                        Button.inline(
+                            "ERROR", b"tester_logs:level:error", style="primary"
+                        ),
                     ],
                     [
-                        Button.inline("CRITICAL", b"tester_logs:level:critical"),
-                        Button.inline("ALL", b"tester_logs:level:all"),
+                        Button.inline(
+                            "CRITICAL", b"tester_logs:level:critical", style="primary"
+                        ),
+                        Button.inline("ALL", b"tester_logs:level:all", style="primary"),
                     ],
-                    [Button.inline("✖", b"tester_logs:cancel")],
+                    [Button.inline("✖", b"tester_logs:cancel", style="danger")],
                 ],
             )
         except Exception as e:

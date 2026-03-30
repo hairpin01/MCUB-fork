@@ -264,7 +264,9 @@ def register(kernel):
             )
 
         text = header + "\n\n" + "\n".join(commit_lines)
-        btn = Button.inline(lang_strings["new_commits_btn"], data=b"do_update")
+        btn = Button.inline(
+            lang_strings["new_commits_btn"], data=b"do_update", style="primary"
+        )
 
         update_image_path = None
         for candidate in [
@@ -301,10 +303,10 @@ def register(kernel):
         except Exception as e:
             kernel.logger.error(f"notify_new_commits error: {e}")
 
-    kernel.config.setdefault("update_check_interval", 60)
+    update_check_interval = 60
 
     @kernel.register.loop(
-        interval=kernel.config.get("update_check_interval", 60),
+        interval=update_check_interval,
         wait_before=True,
     )
     async def update_check_loop(kernel):

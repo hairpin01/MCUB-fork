@@ -1,3 +1,4 @@
+from __future__ import annotations
 import json
 import ipaddress
 from typing import TYPE_CHECKING
@@ -30,7 +31,10 @@ class RepositoryManager:
             parsed = urlparse(url)
 
             if parsed.scheme not in self.ALLOWED_PROTOCOLS:
-                return False, f"Only {', '.join(self.ALLOWED_PROTOCOLS)} protocols allowed"
+                return (
+                    False,
+                    f"Only {', '.join(self.ALLOWED_PROTOCOLS)} protocols allowed",
+                )
 
             host = parsed.hostname
             if not host:

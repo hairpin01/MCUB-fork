@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 import hashlib
 import html
@@ -873,7 +874,6 @@ class KernelLogger:
         body = f"{lifetime_html}{rich.message}"
 
         safe_stack = strip_html(mask_sensitive_data(rich.full_stack[:500]))
-        self.k.logger.error("Error in %s:\n%s", source, safe_stack)
 
         raw_count = self.cache.get(f"err_count:{sig_key}") if self.cache else 0
         repeat_count = int(raw_count or 0)

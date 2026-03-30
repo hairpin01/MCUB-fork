@@ -1,7 +1,7 @@
 import os
 import stat
 import sys
-from typing import Iterable
+from typing import Iterable, Optional
 
 
 # Files that must never be readable by group/other
@@ -38,7 +38,7 @@ def lock_file(path: str) -> bool:
 
 
 def lock_sensitive_files(
-    extra: Iterable[str] | None = None,
+    extra: Optional[Iterable[str]] = None,
     logger=None,
 ) -> None:
     """Lock all known sensitive files + any *extra* paths.
@@ -47,6 +47,7 @@ def lock_sensitive_files(
         extra:  Additional paths to lock (e.g. custom session names).
         logger: Optional logger; falls back to print() if not provided.
     """
+
     def _log(msg: str) -> None:
         if logger:
             logger.debug(msg)

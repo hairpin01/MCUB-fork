@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # ---- meta data ------ kernel ----------------------
 # author: @Hairpin00
 # description: kernel core — zen edition

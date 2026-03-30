@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # author: @Hairpin00
 # version: 2.1.0-beta
 # description: Advanced API protection with deep request analytics + MCUB native protection

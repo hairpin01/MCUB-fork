@@ -200,10 +200,9 @@ class Kernel:
         self.callback_permissions = CallbackPermissionManager()
 
         # Setup dirs & config early (logger depends on them)
+        self.logger = setup_logging()
         self.setup_directories()
         self.check_dependencies()
-        self.logger = setup_logging()
-
         self._cfg = ConfigManager(self)
         self.load_or_create_config()
 

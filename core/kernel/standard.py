@@ -30,11 +30,13 @@ except Exception as e:
     sys.exit(104)
 try:
     from telethon import _check_mcub_installation
+    from telethon import install_uvloop
 
+    install_uvloop()
     _check_mcub_installation()
 except Exception:
     raise McubTelethonError(
-        "YOU is not install telethon-mcub, please run: 'pip install telethon-mcub' and 'pip uninstall telethon -y'! (or update telethon-mcub)"
+        "YOU is not install telethon-mcub, please run: 'pip -U install telethon-mcub' and 'pip uninstall telethon -y'! (or update telethon-mcub)"
     ) from None
 
 try:

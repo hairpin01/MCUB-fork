@@ -7,13 +7,19 @@ from telethon import events, Button
 
 
 def register(kernel):
-    bot_client = kernel.bot_client
+    bot_client = getattr(kernel, "bot_client", None)
+
+    if bot_client is None:
+        kernel.logger.debug(
+            "command.py: bot_client not available, skipping bot handler registration"
+        )
+        return
 
     language = kernel.config.get("language", "en")
 
     strings = {
         "ru": {
-            "hello": "<tg-emoji emoji-id=\"6012620675829734836\">❤️</tg-emoji> Привет! Я бот от MCUB-fork",
+            "hello": '<tg-emoji emoji-id="6012620675829734836">❤️</tg-emoji> Привет! Я бот от MCUB-fork',
             "developers": "Developers:",
             "fork": "fork:",
             "original": "Original:",
@@ -24,11 +30,11 @@ def register(kernel):
             "name": "Name:",
             "prefix": "Prefix:",
             "kernel_version": "Kernel version:",
-            "profile_error": "<tg-emoji emoji-id=\"6010399722471168034\">❔</tg-emoji> Не удалось получить информацию о профиле.",
-            "goodbye": "<tg-emoji emoji-id=\"6012610604131424315\">🥺</tg-emoji> Прощайте!",
+            "profile_error": '<tg-emoji emoji-id="6010399722471168034">❔</tg-emoji> Не удалось получить информацию о профиле.',
+            "goodbye": '<tg-emoji emoji-id="6012610604131424315">🥺</tg-emoji> Прощайте!',
             "bot_removed": "Бот удален из чата",
             "delete_error": "Не удалось удалить бота из чата.",
-            "hello_installed": "<tg-emoji emoji-id=\"6012620675829734836\">❤️</tg-emoji> Привет, MCUB установлен!",
+            "hello_installed": '<tg-emoji emoji-id="6012620675829734836">❤️</tg-emoji> Привет, MCUB установлен!',
             "mini_guide": "Мини гайд:",
             "prefix_cmd": "Префикс:",
             "logs": "Логи:",
@@ -38,28 +44,28 @@ def register(kernel):
             "load": "Загрузить:",
             "remove": "Удалить:",
             "list_modules": "Список:",
-            "choose_language": "<tg-emoji emoji-id=\"6010399722471168034\">❔</tg-emoji> Choose a language / Выберите язык",
-            "setup_completed": "<tg-emoji emoji-id=\"6012423240478103267\">🥰</tg-emoji> Настройка завершена!",
+            "choose_language": '<tg-emoji emoji-id="6010399722471168034">❔</tg-emoji> Choose a language / Выберите язык',
+            "setup_completed": '<tg-emoji emoji-id="6012423240478103267">🥰</tg-emoji> Настройка завершена!',
             "callback_error": "Ошибка Callback:",
             "pong": "Понг!",
             "start_init_error": "Ошибка start_init:",
             "start_error": "Ошибка /start:",
             "init_error": "Ошибка /init:",
             "backup_setup": "Auto-backup setup / Настройка авто-бэкапа",
-            "backup_enable": "<tg-emoji emoji-id=\"6012610604131424315\">🥺</tg-emoji> Enable auto-backup? / Включить авто-бэкап?",
+            "backup_enable": '<tg-emoji emoji-id="6012610604131424315">🥺</tg-emoji> Enable auto-backup? / Включить авто-бэкап?',
             "backup_interval": "Select interval: / Выберите интервал:",
             "backup_created": "MCUB-backup group created! / Группа MCUB-backup создана!",
             "backup_skip": "Skip / Пропустить",
             "backup_yes": "Yes / Да",
             "backup_no": "No / Нет",
-            "backup_enabled": "<tg-emoji emoji-id=\"6012423240478103267\">🥰</tg-emoji> Auto-backup enabled / Авто-бэкап включен",
+            "backup_enabled": '<tg-emoji emoji-id="6012423240478103267">🥰</tg-emoji> Auto-backup enabled / Авто-бэкап включен',
             "backup_disabled": "Auto-backup disabled / Авто-бэкап выключен",
             "btn_ru": "RU",
             "btn_en": "EN",
             "backup_not_found": "Backup module not found",
         },
         "en": {
-            "hello": "<tg-emoji emoji-id=\"6012620675829734836\">❤️</tg-emoji> Hello! I am a bot from MCUB-fork",
+            "hello": '<tg-emoji emoji-id="6012620675829734836">❤️</tg-emoji> Hello! I am a bot from MCUB-fork',
             "developers": "Developers:",
             "fork": "fork:",
             "original": "Original:",
@@ -70,11 +76,11 @@ def register(kernel):
             "name": "Name:",
             "prefix": "Prefix:",
             "kernel_version": "Kernel version:",
-            "profile_error": "<tg-emoji emoji-id=\"6010399722471168034\">❔</tg-emoji> Failed to get profile information.",
-            "goodbye": "<tg-emoji emoji-id=\"6012610604131424315\">🥺</tg-emoji> Goodbye!",
+            "profile_error": '<tg-emoji emoji-id="6010399722471168034">❔</tg-emoji> Failed to get profile information.',
+            "goodbye": '<tg-emoji emoji-id="6012610604131424315">🥺</tg-emoji> Goodbye!',
             "bot_removed": "Bot removed from chat",
             "delete_error": "Failed to remove bot from chat.",
-            "hello_installed": "<tg-emoji emoji-id=\"6012620675829734836\">❤️</tg-emoji> Hello, MCUB installed!",
+            "hello_installed": '<tg-emoji emoji-id="6012620675829734836">❤️</tg-emoji> Hello, MCUB installed!',
             "mini_guide": "Mini guide:",
             "main_commands": "Main commands:",
             "prefix_cmd": "Prefix:",
@@ -85,7 +91,7 @@ def register(kernel):
             "load": "Load:",
             "remove": "Remove:",
             "list_modules": "List repo modules:",
-            "choose_language": "<tg-emoji emoji-id=\"6010399722471168034\">❔</tg-emoji> Choose a language / Выберите язык",
+            "choose_language": '<tg-emoji emoji-id="6010399722471168034">❔</tg-emoji> Choose a language / Выберите язык',
             "setup_completed": "Setup completed!",
             "callback_error": "Callback error:",
             "pong": "Pong!",
@@ -93,13 +99,13 @@ def register(kernel):
             "start_error": "Error /start:",
             "init_error": "Error /init:",
             "backup_setup": "Auto-backup setup / Настройка авто-бэкапа",
-            "backup_enable": "<tg-emoji emoji-id=\"6012610604131424315\">🥺</tg-emoji> Enable auto-backup? / Включить авто-бэкап?",
+            "backup_enable": '<tg-emoji emoji-id="6012610604131424315">🥺</tg-emoji> Enable auto-backup? / Включить авто-бэкап?',
             "backup_interval": "Select interval: / Выберите интервал:",
             "backup_created": "MCUB-backup group created! / Группа MCUB-backup создана!",
             "backup_skip": "Skip / Пропустить",
             "backup_yes": "Yes / Да",
             "backup_no": "No / Нет",
-            "backup_enabled": "<tg-emoji emoji-id=\"6012423240478103267\">🥰</tg-emoji> Auto-backup enabled / Авто-бэкап включен",
+            "backup_enabled": '<tg-emoji emoji-id="6012423240478103267">🥰</tg-emoji> Auto-backup enabled / Авто-бэкап включен',
             "backup_disabled": "Auto-backup disabled / Авто-бэкап выключен",
             "btn_ru": "RU",
             "btn_en": "EN",
@@ -128,6 +134,9 @@ def register(kernel):
 
     async def start_init(kernel):
         try:
+            if not hasattr(kernel, "bot_client") or kernel.bot_client is None:
+                return
+
             hello_bot = await kernel.db_get("kernel", "HELLO_BOT")
             username = (await kernel.bot_client.get_me()).username
 
@@ -201,13 +210,17 @@ def register(kernel):
             )
         except Exception as e:
             kernel.logger.error(f"{lang_strings['profile_error']}: {e}")
-            await event.reply(lang_strings["profile_error"], parse_mode='html')
+            await event.reply(lang_strings["profile_error"], parse_mode="html")
 
     @bot_client.on(events.NewMessage(pattern=r"/init$"))
     @private_only
     async def init_handler(event):
         try:
-            if not hasattr(kernel, "ADMIN_ID") or kernel.ADMIN_ID is None or int(event.sender_id) != int(kernel.ADMIN_ID):
+            if (
+                not hasattr(kernel, "ADMIN_ID")
+                or kernel.ADMIN_ID is None
+                or int(event.sender_id) != int(kernel.ADMIN_ID)
+            ):
                 return
 
             hello_bot = await kernel.db_get("kernel", "HELLO_BOT")
@@ -222,7 +235,7 @@ def register(kernel):
                         Button.inline(lang_strings["btn_en"], b"start_lang_en"),
                     ]
                 ],
-                parse_mode='html'
+                parse_mode="html",
             )
             try:
                 await event.delete()
@@ -257,7 +270,7 @@ def register(kernel):
 
         except Exception as e:
             kernel.logger.error(f"{lang_strings['delete_error']}: {e}")
-            await event.reply(f"{lang_strings['delete_error']} {e}", parse_mode='html')
+            await event.reply(f"{lang_strings['delete_error']} {e}", parse_mode="html")
 
     @bot_client.on(events.CallbackQuery(pattern=r"start_lang_(ru|en)"))
     async def language_handler(event):
@@ -335,9 +348,15 @@ def register(kernel):
     @bot_client.on(events.CallbackQuery(pattern=r"backup_setup_(yes|no)"))
     async def backup_enable_handler(event):
         try:
-            enable = event.pattern_match.group(1).decode() == "yes" if isinstance(event.pattern_match.group(1), bytes) else event.pattern_match.group(1) == "yes"
+            enable = (
+                event.pattern_match.group(1).decode() == "yes"
+                if isinstance(event.pattern_match.group(1), bytes)
+                else event.pattern_match.group(1) == "yes"
+            )
 
-            strings_current = strings.get(kernel.config.get("language", "en"), strings["en"])
+            strings_current = strings.get(
+                kernel.config.get("language", "en"), strings["en"]
+            )
 
             if enable:
                 interval_buttons = [
@@ -351,8 +370,10 @@ def register(kernel):
                         Button.inline("24h", b"backup_interval:24"),
                     ],
                     [
-                        Button.inline(strings_current["backup_skip"], b"backup_interval_skip"),
-                    ]
+                        Button.inline(
+                            strings_current["backup_skip"], b"backup_interval_skip"
+                        ),
+                    ],
                 ]
 
                 await event.edit(
@@ -373,11 +394,18 @@ def register(kernel):
     @bot_client.on(events.CallbackQuery(pattern=r"backup_interval:(\d+)"))
     async def backup_interval_handler(event):
         try:
-            interval = int(event.pattern_match.group(1).decode() if isinstance(event.pattern_match.group(1), bytes) else event.pattern_match.group(1))
+            interval = int(
+                event.pattern_match.group(1).decode()
+                if isinstance(event.pattern_match.group(1), bytes)
+                else event.pattern_match.group(1)
+            )
 
-            strings_current = strings.get(kernel.config.get("language", "en"), strings["en"])
+            strings_current = strings.get(
+                kernel.config.get("language", "en"), strings["en"]
+            )
 
             import importlib.util
+
             spec = importlib.util.find_spec("modules.userbot-backup")
             if spec:
                 userbot_backup = importlib.util.module_from_spec(spec)
@@ -394,7 +422,9 @@ def register(kernel):
                     "enable_auto_backup": True,
                 }
 
-                await kernel.save_module_config("modules.userbot-backup", backup_module.config)
+                await kernel.save_module_config(
+                    "modules.userbot-backup", backup_module.config
+                )
 
                 chat = await backup_module.ensure_backup_chat()
 
@@ -409,9 +439,11 @@ def register(kernel):
                         parse_mode="html",
                     )
 
-                await event.answer(f"{strings_current['backup_enabled']} ({interval}h)", alert=True)
+                await event.answer(
+                    f"{strings_current['backup_enabled']} ({interval}h)", alert=True
+                )
             else:
-                await event.edit(lang_strings["backup_not_found"], parse_mode='html')
+                await event.edit(lang_strings["backup_not_found"], parse_mode="html")
 
         except Exception as e:
             kernel.logger.error(f"{lang_strings['callback_error']}: {e}")
@@ -419,7 +451,9 @@ def register(kernel):
     @bot_client.on(events.CallbackQuery(pattern=r"backup_interval_skip"))
     async def backup_skip_handler(event):
         try:
-            strings_current = strings.get(kernel.config.get("language", "en"), strings["en"])
+            strings_current = strings.get(
+                kernel.config.get("language", "en"), strings["en"]
+            )
 
             await event.edit(
                 f"<b>{strings_current['backup_setup']}</b>\n\n{strings_current['backup_disabled']}",
@@ -433,7 +467,8 @@ def register(kernel):
     @bot_client.on(events.NewMessage(pattern=r"^(/ping|пинг$)"))
     async def ping_bot_handler(event):
         await event.reply(
-            f"<blockquote><tg-emoji emoji-id=\"6010179991944305029\">☺️</tg-emoji> {lang_strings['pong']}</blockquote>", parse_mode="html"
+            f'<blockquote><tg-emoji emoji-id="6010179991944305029">☺️</tg-emoji> {lang_strings["pong"]}</blockquote>',
+            parse_mode="html",
         )
 
     kernel.client.loop.create_task(start_init(kernel))

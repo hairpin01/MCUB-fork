@@ -390,6 +390,8 @@ delete_mcub_bot - удалить из чата бота
             handlers = InlineHandlers(self.kernel, self.bot_client)
             await handlers.register_handlers()
 
+            self.kernel.bot_client = self.bot_client
+
             await self._register_module_commands()
 
             self.kernel.logger.info(f"Инлайн-бот запущен @{self.username}")

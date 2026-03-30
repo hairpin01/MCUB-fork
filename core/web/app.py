@@ -21,6 +21,7 @@ def create_app(kernel=None, setup_event=None) -> web.Application:
         kernel:      Kernel instance (None during the setup wizard).
         setup_event: asyncio.Event that gets set when the wizard completes.
     """
+    logger.debug("[Web] create_app start")
     app = web.Application()
     app["kernel"] = kernel
     app["setup_event"] = setup_event
@@ -35,14 +36,17 @@ def create_app(kernel=None, setup_event=None) -> web.Application:
         loader=jinja2.FileSystemLoader("core/web/templates"),
     )
 
+    logger.debug("[Web] Setting up routes")
     setup_routes(app)
 
+    logger.debug("[Web] Creating plugin manager")
     plugin_manager = PluginManager(app, kernel)
     if kernel is not None:
         logger.debug("Loading web plugins for configured kernel")
         plugin_manager.load_plugins()
     app["plugin_manager"] = plugin_manager
 
+    logger.debug("[Web] Setting up auth middleware")
     auth_middleware = AuthMiddleware(app)
     app["auth_middleware"] = auth_middleware
     logger.debug(

@@ -42,6 +42,7 @@ class InlineHandlers:
         self._form_counter = 0
         self._inline_manager = InlineManager(kernel)
         self.lang = get_strings(kernel)
+        self.kernel.logger.debug("[InlineHandlers] __init__")
 
     async def close(self) -> None:
         """Close aiohttp session on bot shutdown."""
@@ -69,6 +70,7 @@ class InlineHandlers:
         Returns:
             str: ID формы для использования в inline query
         """
+        self.kernel.logger.debug(f"[InlineHandlers] create_inline_form ttl={ttl}")
         self._form_counter += 1
         form_id = self._make_form_id()
 
@@ -86,6 +88,9 @@ class InlineHandlers:
         }
 
         self.kernel.cache.set(form_id, form_data, ttl=ttl)
+        self.kernel.logger.debug(
+            f"[InlineHandlers] create_inline_form done id={form_id}"
+        )
         return form_id
 
     def get_inline_form(self, form_id):

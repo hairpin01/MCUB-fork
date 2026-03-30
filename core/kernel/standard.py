@@ -200,9 +200,9 @@ class Kernel:
         self.callback_permissions = CallbackPermissionManager()
 
         # Setup dirs & config early (logger depends on them)
+        self.logger = setup_logging()
         self.setup_directories()
         self.check_dependencies()
-        self.logger = setup_logging()
         self._cfg = ConfigManager(self)
         self.load_or_create_config()
 
@@ -228,6 +228,8 @@ class Kernel:
         except ImportError:
             self.emoji_parser = None
             self.logger.error("=X Emoji parser not loaded")
+
+        self.logger.debug("[Kernel] __init__ start")
 
     def _init_html_parser(self) -> None:
         if self.HTML_PARSER_AVAILABLE:
@@ -259,6 +261,7 @@ class Kernel:
 
     def setup_directories(self) -> None:
         """Create required directories if they don't exist."""
+        self.logger.debug("[Kernel] setup_directories start")
         for d in (
             self.MODULES_DIR,
             self.MODULES_LOADED_DIR,
@@ -266,7 +269,9 @@ class Kernel:
             self.LOGS_DIR,
         ):
             if not os.path.exists(d):
+                self.logger.debug(f"[Kernel] Creating directory: {d}")
                 os.makedirs(d)
+        self.logger.debug("[Kernel] setup_directories done")
 
     def check_dependencies(self) -> None:
         """Check and install missing dependencies."""
@@ -368,7 +373,9 @@ class Kernel:
 
     def is_admin(self, user_id: int) -> bool:
         """Return True if *user_id* matches the authorized admin."""
-        return hasattr(self, "ADMIN_ID") and user_id == self.ADMIN_ID
+        result = hasattr(self, "ADMIN_ID") and user_id == self.ADMIN_ID
+        self.logger.debug(f"[Kernel] is_admin user_id={user_id} result={result}")
+        return result
 
     def should_process_command_event(self, event) -> bool:
         """Accept own command messages even when Telethon loses the out flag."""
@@ -387,11 +394,12 @@ class Kernel:
 
     def is_bot_available(self) -> bool:
         """Return True if the inline bot client is connected and ready."""
-        return (
-            hasattr(self, "bot_client")
-            and self.bot_client is not None
-            and self.bot_client.is_connected()
+        has_bot = hasattr(self, "bot_client") and self.bot_client is not None
+        is_connected = has_bot and self.bot_client.is_connected()
+        self.logger.debug(
+            f"[Kernel] is_bot_available has_bot={has_bot} connected={is_connected}"
         )
+        return is_connected
 
     def load_or_create_config(self) -> bool:
         """Load config.json or skip if it doesn't exist yet."""
@@ -411,11 +419,21 @@ class Kernel:
 
     async def get_module_config(self, module_name: str, default=None):
         """Load a module's config from the database."""
-        return await self._cfg.get_module_config(module_name, default)
+        self.logger.debug(f"[Kernel] get_module_config module={module_name}")
+        result = await self._cfg.get_module_config(module_name, default)
+        self.logger.debug(
+            f"[Kernel] get_module_config result keys={list(result.keys()) if isinstance(result, dict) else result}"
+        )
+        return result
 
     async def save_module_config(self, module_name: str, config_data: dict) -> bool:
         """Save a module's config to the database."""
-        return await self._cfg.save_module_config(module_name, config_data)
+        self.logger.debug(
+            f"[Kernel] save_module_config module={module_name} data={config_data}"
+        )
+        result = await self._cfg.save_module_config(module_name, config_data)
+        self.logger.debug(f"[Kernel] save_module_config result={result}")
+        return result
 
     async def delete_module_config(self, module_name: str) -> bool:
         """Delete a module's config from the database."""
@@ -485,7 +503,11 @@ class Kernel:
 
     def load_repositories(self) -> None:
         """Load repository list from config."""
+        self.logger.debug("[Kernel] load_repositories start")
         self._repo.load()
+        self.logger.debug(
+            f"[Kernel] load_repositories done repos={len(self.repositories)}"
+        )
 
     async def save_repositories(self) -> None:
         """Save repository list to config."""
@@ -493,7 +515,10 @@ class Kernel:
 
     async def add_repository(self, url: str) -> tuple:
         """Add a repository URL."""
-        return await self._repo.add(url)
+        self.logger.debug(f"[Kernel] add_repository url={url}")
+        result = await self._repo.add(url)
+        self.logger.debug(f"[Kernel] add_repository result={result}")
+        return result
 
     async def remove_repository(self, index) -> tuple:
         """Remove a repository by 1-based index."""
@@ -505,7 +530,10 @@ class Kernel:
 
     async def get_repo_modules_list(self, repo_url: str) -> list:
         """Fetch the list of modules from a repository."""
-        return await self._repo.get_modules_list(repo_url)
+        self.logger.debug(f"[Kernel] get_repo_modules_list url={repo_url}")
+        result = await self._repo.get_modules_list(repo_url)
+        self.logger.debug(f"[Kernel] get_repo_modules_list count={len(result)}")
+        return result
 
     async def download_module_from_repo(
         self, repo_url: str, module_name: str

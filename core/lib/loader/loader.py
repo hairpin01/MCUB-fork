@@ -129,12 +129,16 @@ class ModuleLoader:
 
     def _build_module(self, spec, file_path: str, module_name: str):
         """Create a module object preloaded with kernel context."""
+        self.k.logger.debug(
+            f"[Loader] _build_module name={module_name} path={file_path}"
+        )
         module = importlib.util.module_from_spec(spec)
         module.kernel = self.k
         module.client = self.k.client
         module.custom_prefix = self.k.custom_prefix
         module.__file__ = file_path
         module.__name__ = module_name
+        self.k.logger.debug(f"[Loader] _build_module done name={module_name}")
         return module
 
     def _iter_register_methods(self, register) -> list:
@@ -400,18 +404,28 @@ class ModuleLoader:
         Returns:
             'method' | 'new' | 'old' | 'none'
         """
+        self.k.logger.debug(
+            f"[Loader] detect_module_type start module={getattr(module, '__name__', 'unknown')}"
+        )
         if not hasattr(module, "register"):
+            self.k.logger.debug(
+                "[Loader] detect_module_type result=none (no register attr)"
+            )
             return "none"
 
         if self._iter_register_methods(module.register):
+            self.k.logger.debug("[Loader] detect_module_type result=method")
             return "method"
 
         param_name = self._get_register_param_name(module.register)
         if param_name == "kernel":
+            self.k.logger.debug("[Loader] detect_module_type result=new")
             return "new"
         if param_name is not None:
+            self.k.logger.debug("[Loader] detect_module_type result=old")
             return "old"
 
+        self.k.logger.debug("[Loader] detect_module_type result=none")
         return "none"
 
     async def register_module(self, module, module_type: str, module_name: str) -> bool:
@@ -844,6 +858,9 @@ class ModuleLoader:
         from urllib.parse import urlparse
 
         k = self.k
+        k.logger.debug(
+            f"[Loader] install_from_url start url={url} module_name={module_name}"
+        )
 
         TRUSTED_DOMAINS = [
             "raw.githubusercontent.com",

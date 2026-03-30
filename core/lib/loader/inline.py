@@ -25,10 +25,12 @@ class InlineManager:
 
     def __init__(self, kernel: "Kernel") -> None:
         self.k = kernel
+        self.k.logger.debug("[InlineManager] __init__ start")
         # Temporary storage for callback-driven UI (gallery/list and one-off views).
         # Keys are strings (uuid or namespaced keys like "gallery:<uuid>").
         self._sessions: dict[str, _Session] = {}
         self._setup_temp_callback_handler()
+        self.k.logger.debug("[InlineManager] __init__ done")
 
     def _purge_expired_sessions(self) -> None:
         now = time.monotonic()
@@ -37,19 +39,24 @@ class InlineManager:
             self._sessions.pop(k, None)
 
     def _session_put(self, key: str, data: dict[str, Any], ttl: int) -> None:
+        self.k.logger.debug(f"[InlineManager] _session_put key={key} ttl={ttl}")
         self._purge_expired_sessions()
         self._sessions[key] = _Session(
             expires_at=time.monotonic() + max(int(ttl), 1),
             data=data,
         )
+        self.k.logger.debug(f"[InlineManager] _session_put done key={key}")
 
     def _session_get(self, key: str, *, pop: bool = False) -> dict[str, Any] | None:
+        self.k.logger.debug(f"[InlineManager] _session_get key={key} pop={pop}")
         self._purge_expired_sessions()
         session = self._sessions.get(key)
         if not session:
+            self.k.logger.debug(f"[InlineManager] _session_get miss key={key}")
             return None
         if pop:
             self._sessions.pop(key, None)
+            self.k.logger.debug(f"[InlineManager] _session_get pop key={key}")
         return session.data
 
     @staticmethod
@@ -338,9 +345,15 @@ class InlineManager:
             handler: Async callable to handle matching queries.
         """
         k = self.k
+        k.logger.debug(
+            f"[InlineManager] register_inline_handler pattern={pattern} module={k.current_loading_module}"
+        )
         k.inline_handlers[pattern] = handler
         if k.current_loading_module:
             k.inline_handlers_owners[pattern] = k.current_loading_module
+        k.logger.debug(
+            f"[InlineManager] register_inline_handler done total_handlers={len(k.inline_handlers)}"
+        )
 
     def unregister_module_inline_handlers(self, module_name: str) -> None:
         """Remove all inline handlers registered by *module_name*.
@@ -367,11 +380,15 @@ class InlineManager:
             handler: Async callable.
         """
         k = self.k
+        k.logger.debug(f"[InlineManager] register_callback_handler pattern={pattern}")
         try:
             # Telethon: `data=` is exact bytes match; `pattern=` uses `re.match` against bytes.
             # Most callbacks here are prefix-based ("gallery_<id>_next"), so use `pattern=`.
             pattern_bytes = pattern.encode() if isinstance(pattern, str) else pattern
             k.callback_handlers[pattern_bytes] = handler
+            k.logger.debug(
+                f"[InlineManager] register_callback_handler added total={len(k.callback_handlers)}"
+            )
 
             if k.client:
 

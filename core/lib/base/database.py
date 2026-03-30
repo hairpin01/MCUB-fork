@@ -79,13 +79,16 @@ class DatabaseManager:
 
     async def init_db(self):
         """Initialize the database connection."""
+        self.logger.debug("[DB] init_db start")
         try:
             db_file = self._resolve_db_file()
+            self.logger.debug(f"[DB] init_db connecting to {db_file}")
             self.conn = await aiosqlite.connect(db_file)
             await self._create_tables()
             # Lock the DB file right after creation/open
             ensure_locked_after_write(db_file, self.logger)
             self.logger.info(f"=> Database initialized: {db_file}")
+            self.logger.debug("[DB] init_db done")
             return True
         except Exception as e:
             self.logger.error(f"=X Database initialization error: {e}")
@@ -115,6 +118,7 @@ class DatabaseManager:
 
     async def db_set(self, module: str, key: str, value: Any):
         """Save value for a module key."""
+        self.logger.debug(f"[DB] db_set module={module} key={key}")
         if not self.conn:
             raise RuntimeError("Database is not initialized")
 
@@ -128,9 +132,11 @@ class DatabaseManager:
             (module, key, str(value)),
         )
         await self.conn.commit()
+        self.logger.debug(f"[DB] db_set done")
 
     async def db_get(self, module: str, key: str) -> str | None:
         """Get value for a module key."""
+        self.logger.debug(f"[DB] db_get module={module} key={key}")
         if not self.conn:
             raise RuntimeError("Database is not initialized")
 
@@ -144,7 +150,9 @@ class DatabaseManager:
         )
         row = await cursor.fetchone()
         await cursor.close()
-        return row[0] if row else None
+        result = row[0] if row else None
+        self.logger.debug(f"[DB] db_get result={'found' if result else 'none'}")
+        return result
 
     async def db_delete(self, module: str, key: str):
         """Delete key from module storage."""

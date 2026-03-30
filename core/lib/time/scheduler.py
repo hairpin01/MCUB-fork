@@ -31,10 +31,14 @@ class TaskScheduler:
         self.kernel = kernel
         self.tasks: List[asyncio.Task] = []
         self.running = False
+        if hasattr(kernel, "logger"):
+            kernel.logger.debug("[Scheduler] __init__")
 
     async def start(self) -> None:
         """Start the task scheduler and mark it as running."""
         self.running = True
+        if hasattr(self.kernel, "logger"):
+            self.kernel.logger.debug("[Scheduler] start")
 
     async def stop(self) -> None:
         """
@@ -43,6 +47,8 @@ class TaskScheduler:
         This method cancels all running tasks and waits for them to complete
         cancellation. It should be called before application shutdown.
         """
+        if hasattr(self.kernel, "logger"):
+            self.kernel.logger.debug("[Scheduler] stop start")
         self.running = False
 
         # Cancel all tasks
@@ -55,6 +61,8 @@ class TaskScheduler:
             await asyncio.gather(*self.tasks, return_exceptions=True)
 
         self.tasks.clear()
+        if hasattr(self.kernel, "logger"):
+            self.kernel.logger.debug("[Scheduler] stop done")
 
     async def add_interval_task(
         self, func: Callable[[], Any], interval_seconds: float

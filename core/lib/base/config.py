@@ -23,8 +23,11 @@ class ConfigManager:
             True if config was loaded and is valid.
         """
         k = self.k
+        logger = getattr(k, "logger", None)
+        if logger:
+            logger.debug("[Config] load_or_create start")
+
         if not os.path.exists(k.CONFIG_FILE):
-            logger = getattr(k, "logger", None)
             if logger:
                 logger.debug("Config file not found: %s", k.CONFIG_FILE)
             return False
@@ -35,7 +38,6 @@ class ConfigManager:
 
         with open(k.CONFIG_FILE, "r", encoding="utf-8") as f:
             k.config = json.load(f)
-        logger = getattr(k, "logger", None)
         if logger:
             logger.debug(
                 "Config loaded file=%s keys=%s",
@@ -48,9 +50,13 @@ class ConfigManager:
             if logger:
                 logger.debug("Config contains required fields: %s", required)
             self.setup()
+            if logger:
+                logger.debug("[Config] load_or_create success")
             return True
 
         print(f"{Colors.RED}❌ Config is damaged or incomplete{Colors.RESET}")
+        if logger:
+            logger.debug("[Config] load_or_create failed - incomplete config")
         return False
 
     def save(self) -> None:

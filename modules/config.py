@@ -852,6 +852,12 @@ def register(kernel):
 
             if isinstance(module_config, ModuleConfig):
                 items = list(module_config.items())
+            elif isinstance(module_config, dict) and module_config.get(
+                "__mcub_config__"
+            ):
+                items = [
+                    (k, v) for k, v in module_config.items() if k != "__mcub_config__"
+                ]
             else:
                 # Old format - plain dict
                 items = list(module_config.items())
@@ -894,19 +900,28 @@ def register(kernel):
     async def show_module_key_view(event, module_name, key, page):
         try:
             module_config = await kernel.get_module_config(module_name, {})
-            is_new_format = isinstance(module_config, ModuleConfig)
+            is_module_config = isinstance(module_config, ModuleConfig)
+            is_dict_config = isinstance(module_config, dict) and module_config.get(
+                "__mcub_config__"
+            )
 
-            if is_new_format:
+            if is_module_config:
                 if key not in module_config.keys():
                     await event.answer(t("not_found"), alert=True)
                     return
                 value = module_config[key]
-                # Get config value metadata
                 config_value = module_config._values.get(key)
                 is_hidden = config_value.hidden if config_value else False
                 is_secret = (
                     hasattr(config_value.validator, "secret") if config_value else False
                 )
+            elif is_dict_config:
+                if key not in module_config or key == "__mcub_config__":
+                    await event.answer(t("not_found"), alert=True)
+                    return
+                value = module_config[key]
+                is_hidden = False
+                is_secret = False
             else:
                 # Old format - plain dict
                 if key not in module_config:
@@ -1107,11 +1122,12 @@ def register(kernel):
         try:
             module_config = await kernel.get_module_config(module_name, {})
 
-            # Check if it's the new ModuleConfig format
+            is_module_config = isinstance(module_config, ModuleConfig)
+            is_dict_config = isinstance(module_config, dict) and module_config.get(
+                "__mcub_config__"
+            )
 
-            is_new_format = isinstance(module_config, ModuleConfig)
-
-            if is_new_format:
+            if is_module_config:
                 if key not in module_config.keys():
                     await event.answer(t("not_found"), alert=True)
                     return
@@ -1119,10 +1135,18 @@ def register(kernel):
                 if not isinstance(value, bool):
                     await event.answer(t("not_boolean"), alert=True)
                     return
-                # Update value
                 module_config[key] = not value
-                # Save back to DB as dict
                 await kernel.save_module_config(module_name, module_config.to_dict())
+            elif is_dict_config:
+                if key not in module_config or key == "__mcub_config__":
+                    await event.answer(t("not_found"), alert=True)
+                    return
+                value = module_config[key]
+                if not isinstance(value, bool):
+                    await event.answer(t("not_boolean"), alert=True)
+                    return
+                module_config[key] = not value
+                await kernel.save_module_config(module_name, module_config)
             else:
                 # Old format - plain dict
                 if key not in module_config:
@@ -1136,12 +1160,8 @@ def register(kernel):
                 await kernel.save_module_config(module_name, module_config)
 
             await show_module_key_view(event, module_name, key, page)
-            # Get new value for display
             module_config = await kernel.get_module_config(module_name, {})
-            if is_new_format:
-                new_value = module_config[key]
-            else:
-                new_value = module_config[key]
+            new_value = module_config[key]
             await event.answer(t("changed_to", value=new_value), alert=False)
 
         except Exception as e:
@@ -1611,11 +1631,16 @@ def register(kernel):
                 if not module_name:
                     raise ValueError("Module name is not specified")
                 target_config = await kernel.get_module_config(module_name, {})
-                is_new_format = isinstance(target_config, ModuleConfig)
+                is_module_config = isinstance(target_config, ModuleConfig)
+                is_dict_config = isinstance(target_config, dict) and target_config.get(
+                    "__mcub_config__"
+                )
 
             def has_key(cfg_key):
-                if is_module_scope and is_new_format:
-                    return cfg_key in target_config.keys()
+                if is_module_scope and (is_module_config or is_dict_config):
+                    if is_module_config:
+                        return cfg_key in target_config.keys()
+                    return cfg_key in target_config and cfg_key != "__mcub_config__"
                 return cfg_key in target_config
 
             def get_value(cfg_key):
@@ -1733,7 +1758,7 @@ def register(kernel):
 
             if success:
                 if is_module_scope:
-                    if is_new_format:
+                    if is_module_config:
                         await kernel.save_module_config(
                             module_name, target_config.to_dict()
                         )
@@ -1853,7 +1878,10 @@ def register(kernel):
                     return None, None, None
 
                 module_config = await kernel.get_module_config(module_name, {})
-                is_new_format = isinstance(module_config, ModuleConfig)
+                is_new_format = isinstance(module_config, ModuleConfig) or (
+                    isinstance(module_config, dict)
+                    and module_config.get("__mcub_config__")
+                )
 
                 if is_new_format:
                     if key not in module_config.keys():
@@ -2598,7 +2626,10 @@ def register(kernel):
 
                 # Check if it's the new ModuleConfig format
 
-                is_new_format = isinstance(module_config, ModuleConfig)
+                is_new_format = isinstance(module_config, ModuleConfig) or (
+                    isinstance(module_config, dict)
+                    and module_config.get("__mcub_config__")
+                )
 
                 if is_new_format:
                     if key not in module_config.keys():
@@ -2973,7 +3004,10 @@ def register(kernel):
                 if module_mode:
                     try:
                         module_config = await kernel.get_module_config(module_name, {})
-                        is_new_format = isinstance(module_config, ModuleConfig)
+                        is_new_format = isinstance(module_config, ModuleConfig) or (
+                            isinstance(module_config, dict)
+                            and module_config.get("__mcub_config__")
+                        )
 
                         if is_new_format:
                             # New format - use ModuleConfig with validation
@@ -3196,7 +3230,10 @@ def register(kernel):
 
                         # Check if it's the new ModuleConfig format
 
-                        is_new_format = isinstance(module_config, ModuleConfig)
+                        is_new_format = isinstance(module_config, ModuleConfig) or (
+                            isinstance(module_config, dict)
+                            and module_config.get("__mcub_config__")
+                        )
 
                         if is_new_format:
                             if key not in module_config.keys():
@@ -3292,7 +3329,10 @@ def register(kernel):
 
                         # Check if it's the new ModuleConfig format
 
-                        is_new_format = isinstance(module_config, ModuleConfig)
+                        is_new_format = isinstance(module_config, ModuleConfig) or (
+                            isinstance(module_config, dict)
+                            and module_config.get("__mcub_config__")
+                        )
 
                         if is_new_format:
                             if key not in module_config.keys():

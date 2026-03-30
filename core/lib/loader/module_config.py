@@ -9,11 +9,13 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 class ValidationError(Exception):
     """Raised when a config value fails validation."""
+
     pass
 
 
 class Validator:
     """Base validator class."""
+
     def __init__(self, default: Any = None):
         self.default = default
 
@@ -35,9 +37,9 @@ class Boolean(Validator):
         if isinstance(value, bool):
             return value
         if isinstance(value, str):
-            if value.lower() in ('true', '1', 'yes', 'on'):
+            if value.lower() in ("true", "1", "yes", "on"):
                 return True
-            if value.lower() in ('false', '0', 'no', 'off'):
+            if value.lower() in ("false", "0", "no", "off"):
                 return False
         if isinstance(value, (int, float)):
             return bool(value)
@@ -45,7 +47,9 @@ class Boolean(Validator):
 
 
 class Integer(Validator):
-    def __init__(self, default: Any = None, min: Optional[int] = None, max: Optional[int] = None):
+    def __init__(
+        self, default: Any = None, min: Optional[int] = None, max: Optional[int] = None
+    ):
         super().__init__(default)
         self.min = min
         self.max = max
@@ -63,7 +67,12 @@ class Integer(Validator):
 
 
 class Float(Validator):
-    def __init__(self, default: Any = None, min: Optional[float] = None, max: Optional[float] = None):
+    def __init__(
+        self,
+        default: Any = None,
+        min: Optional[float] = None,
+        max: Optional[float] = None,
+    ):
         super().__init__(default)
         self.min = min
         self.max = max
@@ -81,7 +90,12 @@ class Float(Validator):
 
 
 class String(Validator):
-    def __init__(self, default: Any = None, min_len: Optional[int] = None, max_len: Optional[int] = None):
+    def __init__(
+        self,
+        default: Any = None,
+        min_len: Optional[int] = None,
+        max_len: Optional[int] = None,
+    ):
         super().__init__(default)
         self.min_len = min_len
         self.max_len = max_len
@@ -106,7 +120,9 @@ class Choice(Validator):
 
     def validate(self, value: Any) -> Any:
         if value not in self.choices:
-            raise ValidationError(f"Value must be one of: {', '.join(map(str, self.choices))}")
+            raise ValidationError(
+                f"Value must be one of: {', '.join(map(str, self.choices))}"
+            )
         return value
 
 
@@ -126,6 +142,7 @@ class MultiChoice(Validator):
 
 class Secret(Validator):
     """Validator for sensitive values (like tokens) – they will be hidden in UI."""
+
     def __init__(self, default: Any = None):
         super().__init__(default)
         self.secret = True
@@ -143,6 +160,7 @@ class ConfigValue:
     """
     Represents a single configuration option for a module.
     """
+
     def __init__(
         self,
         key: str,
@@ -167,7 +185,11 @@ class ConfigValue:
 
     @property
     def description(self):
-        return self._description() if callable(self._description) else self._description or ""
+        return (
+            self._description()
+            if callable(self._description)
+            else self._description or ""
+        )
 
     def set_value(self, value: Any):
         """Validate and set the value."""
@@ -197,6 +219,7 @@ class ModuleConfig:
     Container for module configuration.
     Provides dictionary-like access to config values.
     """
+
     def __init__(self, *config_values: ConfigValue):
         self._values: Dict[str, ConfigValue] = {}
         for cv in config_values:
@@ -237,7 +260,9 @@ class ModuleConfig:
 
     def to_dict(self) -> Dict[str, Any]:
         """Return current config as plain dict (for saving)."""
-        return {key: cv.to_storage() for key, cv in self._values.items()}
+        data = {key: cv.to_storage() for key, cv in self._values.items()}
+        data["__mcub_config__"] = True
+        return data
 
     def from_dict(self, data: Dict[str, Any]):
         """Load config from dict (e.g., from database)."""
@@ -256,10 +281,10 @@ class ModuleConfig:
                 "type": cv.validator.__class__.__name__.lower(),
                 "default": cv.default,
                 "description": cv.description,
-                "hidden": cv.hidden or getattr(cv.validator, 'secret', False),
-                "choices": getattr(cv.validator, 'choices', None),
-                "min": getattr(cv.validator, 'min', None),
-                "max": getattr(cv.validator, 'max', None),
+                "hidden": cv.hidden or getattr(cv.validator, "secret", False),
+                "choices": getattr(cv.validator, "choices", None),
+                "min": getattr(cv.validator, "min", None),
+                "max": getattr(cv.validator, "max", None),
             }
             for cv in self._values.values()
         ]

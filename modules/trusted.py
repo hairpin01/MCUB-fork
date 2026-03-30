@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # author: @Hairpin01
 # version: 1.2.0-beta
 # description: Trusted users can execute owner commands with alias and NoNick support

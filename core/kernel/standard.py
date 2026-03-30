@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # ---- meta data ------ kernel ----------------------
 # author: @Hairpin00
 # description: kernel core — main Kernel class
@@ -1431,9 +1433,6 @@ class Kernel:
 
         if not await self.init_client():
             return
-
-        await self.log_network("Client connected")
-
         try:
             await self.init_db()
         except ImportError:

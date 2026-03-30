@@ -261,9 +261,11 @@ class Register:
 
         Args:
             event_type: ``newmessage`` | ``messageedited`` | ``messagedeleted``
-                        | ``userupdate`` | ``inlinequery`` | ``callbackquery``
-                        | ``raw`` (and short aliases like ``message``,
-                        ``edited``, ``callback`` …).
+                        | ``messageread`` | ``userupdate`` | ``chataction``
+                        | ``joinrequest`` | ``album`` | ``inlinequery``
+                        | ``callbackquery`` | ``raw`` (and short aliases like
+                        ``message``, ``edited``, ``read``, ``action``,
+                        ``request``, ``callback`` …).
             bot_client: If True, register on bot_client instead of client.
             *args / **kwargs: Forwarded to the Telethon event constructor.
 
@@ -271,6 +273,14 @@ class Register:
             >>> @kernel.register.event("newmessage", pattern=r"hello")
             >>> async def hello(event):
             >>>     await event.reply("Hi!")
+
+            >>> @kernel.register.event("messageread", inbox=True)
+            >>> async def on_read(event):
+            >>>     pass
+
+            >>> @kernel.register.event("chataction", incoming=True)
+            >>> async def on_join(event):
+            >>>     pass
 
             >>> @kernel.register.event("newmessage", bot_client=True, pattern=r"/start")
             >>> async def start(event):
@@ -283,8 +293,15 @@ class Register:
             "edited": events.MessageEdited,
             "messagedeleted": events.MessageDeleted,
             "deleted": events.MessageDeleted,
+            "messageread": events.MessageRead,
+            "read": events.MessageRead,
             "userupdate": events.UserUpdate,
             "user": events.UserUpdate,
+            "chataction": events.ChatAction,
+            "action": events.ChatAction,
+            "joinrequest": events.JoinRequest,
+            "request": events.JoinRequest,
+            "album": events.Album,
             "inlinequery": events.InlineQuery,
             "inline": events.InlineQuery,
             "callbackquery": events.CallbackQuery,

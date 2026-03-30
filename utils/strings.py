@@ -3,6 +3,7 @@
 # description: Localization helper for MCUB modules
 
 from __future__ import annotations
+from typing import Optional
 
 __all__ = ["Strings"]
 
@@ -11,15 +12,15 @@ _FALLBACK = "ru"
 
 class _MissingKey(str):
     """Returned for missing keys instead of raising, so modules don't crash."""
+
     def format_map(self, _mapping):
         return self
+
     def format(self, *a, **kw):
         return self
 
 
 class Strings:
-
-
     def __init__(
         self,
         kernel_or_lang,
@@ -41,15 +42,15 @@ class Strings:
         else:
             # kernel object
             try:
-                self._locale = kernel_or_lang.config.get("language", fallback) or fallback
+                self._locale = (
+                    kernel_or_lang.config.get("language", fallback) or fallback
+                )
             except Exception:
                 self._locale = fallback
 
         # Resolve active locale dict with fallback chain
         self._active: dict[str, str] = (
-            data.get(self._locale)
-            or data.get(fallback)
-            or next(iter(data.values()))
+            data.get(self._locale) or data.get(fallback) or next(iter(data.values()))
         )
 
     @property
@@ -78,7 +79,7 @@ class Strings:
     def __call__(self, key: str, **kwargs) -> str:
         return self._lookup(key).format_map(kwargs)
 
-    def get(self, key: str, default: str | None = None) -> str | None:
+    def get(self, key: str, default: Optional[str] = None) -> Optional[str]:
         value = self._active.get(key)
         if value is not None:
             return value
@@ -94,7 +95,6 @@ class Strings:
     def keys(self) -> set[str]:
         fallback_keys = set(self._data.get(self._fallback, {}).keys())
         return set(self._active.keys()) | fallback_keys
-
 
     @classmethod
     def validate(cls, data: dict[str, dict[str, str]]) -> list[str]:
@@ -122,7 +122,6 @@ class Strings:
                 )
 
         return problems
-
 
     def __repr__(self) -> str:
         return (

@@ -132,24 +132,25 @@ def register(kernel):
 
         return wrapper
 
-    async def start_init(kernel):
+    @kernel.register.on_load()
+    async def start_init(k):
         try:
-            if not hasattr(kernel, "bot_client") or kernel.bot_client is None:
+            if not hasattr(k, "bot_client") or k.bot_client is None:
                 return
 
-            hello_bot = await kernel.db_get("kernel", "HELLO_BOT")
-            username = (await kernel.bot_client.get_me()).username
+            hello_bot = await k.db_get("kernel", "HELLO_BOT")
+            username = (await k.bot_client.get_me()).username
 
             if hello_bot != "True":
-                start_sms = await kernel.client.send_message(username, "/init")
-                kernel.logger.info("Initialization completed via start_init")
+                start_sms = await k.client.send_message(username, "/init")
+                k.logger.info("Initialization completed via start_init")
                 await start_sms.delete()
-                await kernel.db_set("kernel", "HELLO_BOT", "True")
+                await k.db_set("kernel", "HELLO_BOT", "True")
 
         except Exception as e:
-            kernel.logger.error(f"{lang_strings['start_init_error']}: {e}")
+            k.logger.error(f"{lang_strings['start_init_error']}: {e}")
 
-    @bot_client.on(events.NewMessage(pattern="/start"))
+    @kernel.register.event("newmessage", pattern="/start", bot_client=True)
     async def start_handler(event):
         try:
             await event.reply(
@@ -182,7 +183,7 @@ def register(kernel):
         except Exception as e:
             kernel.logger.error(f"{lang_strings['start_error']}: {e}")
 
-    @bot_client.on(events.NewMessage(pattern="/profile"))
+    @kernel.register.event("newmessage", pattern="/profile", bot_client=True)
     async def profile_handler(event):
         try:
             user = event.sender
@@ -212,7 +213,7 @@ def register(kernel):
             kernel.logger.error(f"{lang_strings['profile_error']}: {e}")
             await event.reply(lang_strings["profile_error"], parse_mode="html")
 
-    @bot_client.on(events.NewMessage(pattern=r"/init$"))
+    @kernel.register.event("newmessage", pattern=r"/init$", bot_client=True)
     @private_only
     async def init_handler(event):
         try:
@@ -225,7 +226,9 @@ def register(kernel):
 
             hello_bot = await kernel.db_get("kernel", "HELLO_BOT")
 
-            await bot_client.send_file(event.chat_id, file="https://x0.at/Y4ie.mp4")
+            await kernel.bot_client.send_file(
+                event.chat_id, file="https://x0.at/Y4ie.mp4"
+            )
 
             gif_message = await event.respond(
                 message=lang_strings["choose_language"],
@@ -248,7 +251,7 @@ def register(kernel):
         except Exception as e:
             kernel.logger.error(f"{lang_strings['init_error']}: {e}")
 
-    @bot_client.on(events.NewMessage(pattern="/delete_mcub_bot"))
+    @kernel.register.event("newmessage", pattern="/delete_mcub_bot", bot_client=True)
     async def delete_bot_handler(event):
         try:
             if not event.is_group and not event.is_channel:
@@ -262,7 +265,7 @@ def register(kernel):
                 parse_mode="html",
             )
 
-            await bot_client.delete_dialog(event.chat_id)
+            await kernel.bot_client.delete_dialog(event.chat_id)
 
             kernel.logger.info(
                 f"{lang_strings['bot_removed']} {event.chat_id} пользователем {event.sender_id}"
@@ -272,7 +275,9 @@ def register(kernel):
             kernel.logger.error(f"{lang_strings['delete_error']}: {e}")
             await event.reply(f"{lang_strings['delete_error']} {e}", parse_mode="html")
 
-    @bot_client.on(events.CallbackQuery(pattern=r"start_lang_(ru|en)"))
+    @kernel.register.event(
+        "callbackquery", pattern=r"start_lang_(ru|en)", bot_client=True
+    )
     async def language_handler(event):
         try:
             lang = (
@@ -335,7 +340,7 @@ def register(kernel):
                 ]
             ]
 
-            await bot_client.send_message(
+            await kernel.bot_client.send_message(
                 event.sender_id,
                 f"<b>{strings_current['backup_setup']}</b>\n\n{strings_current['backup_enable']}",
                 parse_mode="html",
@@ -345,7 +350,9 @@ def register(kernel):
         except Exception as e:
             kernel.logger.error(f"{lang_strings['callback_error']}: {e}")
 
-    @bot_client.on(events.CallbackQuery(pattern=r"backup_setup_(yes|no)"))
+    @kernel.register.event(
+        "callbackquery", pattern=r"backup_setup_(yes|no)", bot_client=True
+    )
     async def backup_enable_handler(event):
         try:
             enable = (
@@ -391,7 +398,9 @@ def register(kernel):
         except Exception as e:
             kernel.logger.error(f"{lang_strings['callback_error']}: {e}")
 
-    @bot_client.on(events.CallbackQuery(pattern=r"backup_interval:(\d+)"))
+    @kernel.register.event(
+        "callbackquery", pattern=r"backup_interval:(\d+)", bot_client=True
+    )
     async def backup_interval_handler(event):
         try:
             interval = int(
@@ -411,9 +420,7 @@ def register(kernel):
                 userbot_backup = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(userbot_backup)
                 BackupModule = userbot_backup.BackupModule
-                backup_module = BackupModule()
-                backup_module.kernel = kernel
-                backup_module.client = kernel.client
+                backup_module = BackupModule(kernel)
                 backup_module.config = {
                     "backup_chat_id": None,
                     "backup_interval_hours": interval,
@@ -448,7 +455,9 @@ def register(kernel):
         except Exception as e:
             kernel.logger.error(f"{lang_strings['callback_error']}: {e}")
 
-    @bot_client.on(events.CallbackQuery(pattern=r"backup_interval_skip"))
+    @kernel.register.event(
+        "callbackquery", pattern=r"backup_interval_skip", bot_client=True
+    )
     async def backup_skip_handler(event):
         try:
             strings_current = strings.get(
@@ -464,11 +473,9 @@ def register(kernel):
         except Exception as e:
             kernel.logger.error(f"{lang_strings['callback_error']}: {e}")
 
-    @bot_client.on(events.NewMessage(pattern=r"^(/ping|пинг$)"))
+    @kernel.register.event("newmessage", pattern=r"^(/ping|пинг$)", bot_client=True)
     async def ping_bot_handler(event):
         await event.reply(
             f'<blockquote><tg-emoji emoji-id="6010179991944305029">☺️</tg-emoji> {lang_strings["pong"]}</blockquote>',
             parse_mode="html",
         )
-
-    kernel.client.loop.create_task(start_init(kernel))

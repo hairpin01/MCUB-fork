@@ -64,6 +64,7 @@ CUSTOM_EMOJI = {
     "process": '<tg-emoji emoji-id="5426958067763804056">⏳</tg-emoji>',
     "blocked": '<tg-emoji emoji-id="5431895003821513760">🚫</tg-emoji>',
     "warning": '<tg-emoji emoji-id="5409235172979672859">⚠️</tg-emoji>',
+    "stone": '<tg-emoji emoji-id="4904687665158292410">🗿</tg-emoji>',
     "idea": '<tg-emoji emoji-id="5411134407517964108">💡</tg-emoji>',
     "success": '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji>',
     "test": '<tg-emoji emoji-id="5134183530313548836">🧪</tg-emoji>',
@@ -82,7 +83,6 @@ CUSTOM_EMOJI = {
     "author": '<tg-emoji emoji-id="5332630862137685609">💖</tg-emoji>',
     "lib": '<tg-emoji emoji-id="5359785904535774578">💼</tg-emoji>',
     "wait": '<tg-emoji emoji-id="5326015457155620929">🧳</tg-emoji>',
-    "warning": '<tg-emoji emoji-id="4904687665158292410">🗿</tg-emoji>',
 }
 
 # Случайные эмодзи для завершения
@@ -249,7 +249,7 @@ def register(kernel):
             "not_py_file": "{warning} <b>Это не .py файл</b>",
             "system_module_update_attempt": "{confused} <b>Ой, кажется ты попытался обновить системный модуль</b> <code>{module_name}</code>\n<blockquote><i>{blocked} К сожалению нельзя обновлять системные модули с помощью <code>loadera</code></i></blockquote>",
             "starting_install": "{action} <b>модуль</b>",
-            "installing": "{test} </b>Устанавливаю</b>",
+            "installing": "{test} <b>Устанавливаю</b>",
             "updating": "{reload} <b>Oбновляю</b>",
             "updating_version": "{reload} <b>Oбновляю до v</b><code>{old_version}</code> <b>→ v</b><code>{new_version}</code>",
             "log_start": "=- Начинаю {action} модуля {module_name}",
@@ -976,7 +976,7 @@ def register(kernel):
                     else:
                         action = t("updating", reload=CUSTOM_EMOJI["reload"])
                 else:
-                    action = t("installing", test=CUSTOM_EMOJI["reload"])
+                    action = t("installing", test=CUSTOM_EMOJI["loading"])
 
             msg = await event.edit(
                 t("starting_install", action=action, module_name=module_name),
@@ -1402,15 +1402,20 @@ def register(kernel):
             return
 
         reply = await event.get_reply_message()
-        if not reply.document or not reply.document.attributes[0].file_name.endswith(
-            ".py"
-        ):
+        file_name = next(
+            (
+                getattr(attr, "file_name", None)
+                for attr in (reply.document.attributes if reply.document else [])
+                if hasattr(attr, "file_name")
+            ),
+            None,
+        )
+        if not reply.document or not file_name or not file_name.endswith(".py"):
             await edit_with_emoji(
                 event, t("not_py_file", warning=CUSTOM_EMOJI["warning"])
             )
             return
 
-        file_name = reply.document.attributes[0].file_name
         module_name = file_name[:-3]
 
         install_log = []
@@ -1497,6 +1502,25 @@ def register(kernel):
 
             mcub = await mcub_handler()
             add_log(t("log_checking_compatibility"))
+
+            # Parse dependencies for ALL module types
+            dependencies = []
+            if "requires" in code:
+                reqs = re.findall(r"# requires: (.+)", code)
+                if reqs:
+                    raw = reqs[0]
+                    parts = []
+                    for part in raw.split(","):
+                        part = part.strip()
+                        if not part:
+                            continue
+                        if " " in part:
+                            parts.extend(part.split())
+                        else:
+                            parts.append(part)
+                    dependencies = [p.strip() for p in parts if p.strip()]
+                    add_log(t("log_deps_found", deps=", ".join(dependencies)))
+
             if is_hikka_module(code):
                 add_log(t("log_hikka_detected"))
                 if not HIKKA_COMPAT:
@@ -1514,26 +1538,6 @@ def register(kernel):
                         action=t("installing", test=CUSTOM_EMOJI["loading"]),
                     ),
                 )
-
-                # Install deps before compat load
-                dependencies = []
-                if "requires" in code:
-                    reqs = re.findall(r"# requires: (.+)", code)
-                    if reqs:
-                        raw = reqs[0]
-                        # Split by comma first, then by whitespace for space-separated deps
-                        parts = []
-                        for part in raw.split(","):
-                            part = part.strip()
-                            if not part:
-                                continue
-                            # If part contains spaces without commas, split by whitespace
-                            if " " in part:
-                                parts.extend(part.split())
-                            else:
-                                parts.append(part)
-                        dependencies = [p.strip() for p in parts if p.strip()]
-                        add_log(t("log_deps_found", deps=", ".join(dependencies)))
             if dependencies:
                 deps_with_emoji = "\n".join(
                     f"{CUSTOM_EMOJI['lib']} {dep}" for dep in dependencies

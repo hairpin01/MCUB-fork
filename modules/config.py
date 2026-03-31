@@ -1,4 +1,4 @@
-# requires: json, telethon>=1.24, hashlib, uuid, time, asyncio
+# requires: json, hashlib, uuid, time, asyncio
 # author: @Hairpin00
 # version: 1.3.0
 # description: config Kernel
@@ -567,7 +567,6 @@ def register(kernel):
                 )
             elif isinstance(value, str):
                 escaped_value = html.escape(value)
-                escaped_value = escaped_value.replace("\n", "<br>")
                 display_value = f"<code>{escaped_value}</code>"
             else:
                 display_value = f"<code>{html.escape(str(value))}</code>"
@@ -1029,7 +1028,6 @@ def register(kernel):
                 )
             elif isinstance(value, str):
                 escaped_value = html.escape(value)
-                escaped_value = escaped_value.replace("\n", "<br>")
                 display_value = f"<code>{escaped_value}</code>"
             else:
                 display_value = f"<code>{html.escape(str(value))}</code>"
@@ -2905,7 +2903,6 @@ def register(kernel):
                     )
                 elif isinstance(value, str):
                     escaped_value = html.escape(value)
-                    escaped_value = escaped_value.replace("\n", "<br>")
                     display_value = f"<code>{escaped_value}</code>"
                 else:
                     display_value = f"<code>{html.escape(str(value))}</code>"
@@ -3085,7 +3082,6 @@ def register(kernel):
                     display_value = f"<pre>{html.escape(json.dumps(value, ensure_ascii=False, indent=2))}</pre>"
                 elif isinstance(value, str):
                     escaped_value = html.escape(value)
-                    escaped_value = escaped_value.replace("\n", "<br>")
                     display_value = f"<code>{escaped_value}</code>"
                 else:
                     display_value = f"<code>{html.escape(str(value))}</code>"
@@ -3126,7 +3122,6 @@ def register(kernel):
                         display_value = f"<pre>{html.escape(json.dumps(value, ensure_ascii=False, indent=2))}</pre>"
                     elif isinstance(value, str):
                         escaped_value = html.escape(value)
-                        escaped_value = escaped_value.replace("\n", "<br>")
                         display_value = f"<code>{escaped_value}</code>"
                     else:
                         display_value = f"<code>{html.escape(str(value))}</code>"

@@ -17,6 +17,12 @@ import aiohttp
 from telethon import Button
 from telethon.types import InputMediaWebPage
 
+from core.lib.loader.module_config import (
+    ModuleConfig,
+    ConfigValue,
+    Boolean,
+)
+
 try:
     from core.lib.loader.hikka_compat import (
         is_hikka_module,
@@ -115,6 +121,48 @@ def register(kernel):
     client = kernel.client
     language = kernel.config.get("language", "en")
     kernel.logger.debug(f"[LoaderModule] register language={language}")
+
+    config = ModuleConfig(
+        ConfigValue(
+            "loader_protect_system",
+            True,
+            description="Protect system modules from being overwritten",
+            validator=Boolean(default=True),
+        ),
+        ConfigValue(
+            "loader_show_banners",
+            True,
+            description="Show module banners in loaded modules list",
+            validator=Boolean(default=True),
+        ),
+    )
+
+    def get_config():
+        live_cfg = getattr(kernel, "_live_module_configs", {}).get(__name__)
+        if live_cfg:
+            return live_cfg
+        return config
+
+    def get_module_path(module_name):
+        if module_name in kernel.system_modules:
+            return os.path.join(kernel.MODULES_DIR, f"{module_name}.py")
+        return os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
+
+    async def startup():
+        config_dict = await kernel.get_module_config(
+            __name__,
+            {
+                "loader_protect_system": True,
+                "loader_show_banners": True,
+            },
+        )
+        config.from_dict(config_dict)
+        config_dict_clean = {k: v for k, v in config.to_dict().items() if v is not None}
+        if config_dict_clean:
+            await kernel.save_module_config(__name__, config_dict_clean)
+        kernel.store_module_config_schema(__name__, config)
+
+    asyncio.create_task(startup())
 
     # Локализованные строки
     strings = {
@@ -831,23 +879,34 @@ def register(kernel):
         else:
             module_name = module_or_url
 
-        if module_name in kernel.system_modules:
-            await edit_with_emoji(
-                event,
-                t(
-                    "system_module_install_attempt",
-                    confused=CUSTOM_EMOJI["confused"],
-                    module_name=module_name,
-                    blocked=CUSTOM_EMOJI["blocked"],
-                ),
-            )
-            return
+        cfg = get_config()
+        if cfg and cfg.get("loader_protect_system", True):
+            if module_name in kernel.system_modules:
+                await edit_with_emoji(
+                    event,
+                    t(
+                        "system_module_install_attempt",
+                        confused=CUSTOM_EMOJI["confused"],
+                        module_name=module_name,
+                        blocked=CUSTOM_EMOJI["blocked"],
+                    ),
+                )
+                return
 
-        is_update = module_name in kernel.loaded_modules
+        is_update = (
+            module_name in kernel.loaded_modules or module_name in kernel.system_modules
+        )
 
         old_version = None
         if is_update:
-            old_file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
+            old_file_path = os.path.join(
+                (
+                    kernel.MODULES_DIR
+                    if module_name in kernel.system_modules
+                    else kernel.MODULES_LOADED_DIR
+                ),
+                f"{module_name}.py",
+            )
             old_version = await kernel._loader.get_module_version_from_file(
                 old_file_path
             )
@@ -989,7 +1048,14 @@ def register(kernel):
                 parse_mode="html",
             )
 
-            file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
+            file_path = os.path.join(
+                (
+                    kernel.MODULES_DIR
+                    if module_name in kernel.system_modules
+                    else kernel.MODULES_LOADED_DIR
+                ),
+                f"{module_name}.py",
+            )
 
             if send_mode:
                 add_log(t("log_saving_for_send"))
@@ -1138,7 +1204,15 @@ def register(kernel):
                     kernel.logger.info(f"Hikka модуль {module_name} установлен")
 
                     banner_url = metadata.get("banner_url")
-                    if banner_url and banner_url.startswith(("http://", "https://")):
+                    cfg = get_config()
+                    show_banners = (
+                        cfg.get("loader_show_banners", False) if cfg else False
+                    )
+                    if (
+                        show_banners
+                        and banner_url
+                        and banner_url.startswith(("http://", "https://"))
+                    ):
                         try:
                             media = InputMediaWebPage(banner_url, optional=True)
                             await msg.edit(
@@ -1284,7 +1358,13 @@ def register(kernel):
                 kernel.logger.info(f"Модуль {module_name} скачан")
 
                 banner_url = metadata.get("banner_url")
-                if banner_url and banner_url.startswith(("http://", "https://")):
+                cfg = get_config()
+                show_banners = cfg.get("loader_show_banners", False) if cfg else False
+                if (
+                    show_banners
+                    and banner_url
+                    and banner_url.startswith(("http://", "https://"))
+                ):
                     try:
                         media = InputMediaWebPage(banner_url, optional=True)
                         await msg.edit(
@@ -1335,7 +1415,7 @@ def register(kernel):
                     ),
                 )
 
-            file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
+            file_path = get_module_path(module_name)
             if os.path.exists(file_path):
                 add_log(t("log_deleting_due_conflict"))
                 os.remove(file_path)
@@ -1357,7 +1437,7 @@ def register(kernel):
                 ),
             )
 
-            file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
+            file_path = get_module_path(module_name)
             if os.path.exists(file_path):
                 add_log(t("log_deleting_due_error"))
                 os.remove(file_path)
@@ -1432,17 +1512,19 @@ def register(kernel):
             install_log.append(log_entry)
             kernel.logger.debug(log_entry)
 
-        if module_name in kernel.system_modules:
-            await edit_with_emoji(
-                event,
-                t(
-                    "system_module_update_attempt",
-                    confused=CUSTOM_EMOJI["confused"],
-                    module_name=module_name,
-                    blocked=CUSTOM_EMOJI["blocked"],
-                ),
-            )
-            return
+        cfg = get_config()
+        if cfg and cfg.get("loader_protect_system", True):
+            if module_name in kernel.system_modules:
+                await edit_with_emoji(
+                    event,
+                    t(
+                        "system_module_update_attempt",
+                        confused=CUSTOM_EMOJI["confused"],
+                        module_name=module_name,
+                        blocked=CUSTOM_EMOJI["blocked"],
+                    ),
+                )
+                return
 
         is_update = (
             module_name in kernel.loaded_modules or module_name in kernel.system_modules
@@ -1450,7 +1532,7 @@ def register(kernel):
 
         old_version = None
         if is_update:
-            old_file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
+            old_file_path = get_module_path(module_name)
             old_version = await kernel._loader.get_module_version_from_file(
                 old_file_path
             )
@@ -1458,7 +1540,7 @@ def register(kernel):
                 f"[loader] BEFORE download - old_file={old_file_path} old_version={old_version}"
             )
 
-        file_path = os.path.join(kernel.MODULES_LOADED_DIR, file_name)
+        file_path = get_module_path(module_name)
 
         try:
             add_log(t("log_downloading", file_path=file_path))
@@ -1641,7 +1723,13 @@ def register(kernel):
                 kernel.logger.info(f"Модуль {module_name} установлен")
 
                 banner_url = metadata.get("banner_url")
-                if banner_url and banner_url.startswith(("http://", "https://")):
+                cfg = get_config()
+                show_banners = cfg.get("loader_show_banners", False) if cfg else False
+                if (
+                    show_banners
+                    and banner_url
+                    and banner_url.startswith(("http://", "https://"))
+                ):
                     try:
                         media = InputMediaWebPage(banner_url, optional=True)
                         await msg.edit(
@@ -1946,7 +2034,7 @@ def register(kernel):
         else:
             await kernel.unregister_module_commands(module_name)
 
-        file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
+        file_path = get_module_path(module_name)
         if os.path.exists(file_path):
             os.remove(file_path)
 
@@ -2010,11 +2098,7 @@ def register(kernel):
 
         module_name = actual_name
 
-        file_path = None
-        if module_name in kernel.system_modules:
-            file_path = os.path.join(kernel.MODULES_DIR, f"{module_name}.py")
-        else:
-            file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
+        file_path = get_module_path(module_name)
 
         if not os.path.exists(file_path):
             await edit_with_emoji(
@@ -2074,13 +2158,22 @@ def register(kernel):
             failed = []
 
             for module_name in modules_to_reload:
-                if module_name in kernel.system_modules:
-                    continue
+                cfg = get_config()
+                if cfg and cfg.get("loader_protect_system", True):
+                    if module_name in kernel.system_modules:
+                        continue
                 kernel.logger.debug(
                     "[reload] reloading-from-bulk module=%r", module_name
                 )
 
-                file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
+                file_path = os.path.join(
+                    (
+                        kernel.MODULES_DIR
+                        if module_name in kernel.system_modules
+                        else kernel.MODULES_LOADED_DIR
+                    ),
+                    f"{module_name}.py",
+                )
 
                 if not os.path.exists(file_path):
                     kernel.logger.debug(
@@ -2229,12 +2322,8 @@ def register(kernel):
 
         module_name = actual_name
 
-        if module_name in kernel.system_modules:
-            file_path = os.path.join(kernel.MODULES_DIR, f"{module_name}.py")
-            is_system = True
-        else:
-            file_path = os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
-            is_system = False
+        file_path = get_module_path(module_name)
+        is_system = module_name in kernel.system_modules
 
         if not os.path.exists(file_path):
             kernel.logger.debug(
@@ -2283,16 +2372,18 @@ def register(kernel):
             del sys.modules[module_name]
 
         if is_system:
-            if module_name in kernel.system_modules:
-                kernel.logger.debug(
-                    "[reload] single-drop-system-module module=%r", module_name
-                )
-                del kernel.system_modules[module_name]
-            else:
-                kernel.logger.debug(
-                    "[reload] single-system-module-already-absent module=%r",
-                    module_name,
-                )
+            cfg = get_config()
+            if cfg and cfg.get("loader_protect_system", True):
+                if module_name in kernel.system_modules:
+                    kernel.logger.debug(
+                        "[reload] single-drop-system-module module=%r", module_name
+                    )
+                    del kernel.system_modules[module_name]
+                else:
+                    kernel.logger.debug(
+                        "[reload] single-system-module-already-absent module=%r",
+                        module_name,
+                    )
         else:
             if module_name in kernel.loaded_modules:
                 kernel.logger.debug(

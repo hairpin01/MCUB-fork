@@ -1,4 +1,4 @@
-# requires: telethon>=1.24
+# requires:
 # author: @Hairpin00
 # version: 1.0.3
 # description: Python code execution
@@ -20,28 +20,28 @@ CUSTOM_EMOJI = {
 def register(kernel):
     client = kernel.client
 
-    language = kernel.config.get('language', 'en')
+    language = kernel.config.get("language", "en")
 
     strings = {
-        'ru': {
-            'code': 'Код',
-            'result': 'Результат',
-            'result_file': 'Результат отправлен файлом',
-            'result_in_message': 'Результат в сообщении',
-            'executed_in': 'Выполнено за',
-            'ms': 'мс',
+        "ru": {
+            "code": "Код",
+            "result": "Результат",
+            "result_file": "Результат отправлен файлом",
+            "result_in_message": "Результат в сообщении",
+            "executed_in": "Выполнено за",
+            "ms": "мс",
         },
-        'en': {
-            'code': 'Code',
-            'result': 'Result',
-            'result_file': 'Result sent as file',
-            'result_in_message': 'Result in message',
-            'executed_in': 'Executed in',
-            'ms': 'ms',
-        }
+        "en": {
+            "code": "Code",
+            "result": "Result",
+            "result_file": "Result sent as file",
+            "result_in_message": "Result in message",
+            "executed_in": "Executed in",
+            "ms": "ms",
+        },
     }
 
-    lang_strings = strings.get(language, strings['en'])
+    lang_strings = strings.get(language, strings["en"])
 
     @kernel.register.command("py")
     async def python_exec_handler(event):
@@ -81,7 +81,7 @@ def register(kernel):
             exec(
                 "async def __exec():\n    " + "\n    ".join(code.split("\n")),
                 local_vars,
-            ) # noqa: S102
+            )  # noqa: S102
             result = await local_vars["__exec"]()
             complete = output.getvalue()
             if result is not None:

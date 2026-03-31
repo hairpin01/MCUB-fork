@@ -1,4 +1,4 @@
-# requires: telethon>=1.24
+# requires:
 # author: @Hairpin00
 # version: 1.0.7
 # description: Terminal commands
@@ -42,48 +42,48 @@ CUSTOM_EMOJI = {
 def register(kernel):
     client = kernel.client
 
-    language = kernel.config.get('language', 'en')
+    language = kernel.config.get("language", "en")
 
     strings = {
-        'ru': {
-            'empty': 'пусто',
-            'command_already_running': 'Уже выполняется команда',
-            'system_command': 'системная команда:',
-            'executing': 'выполняется...',
-            'launch_error': 'Ошибка запуска:',
-            'already_completed': 'Команда уже завершена',
-            'running_time': 'выполняется:',
-            'seconds': 'сек.',
-            'exit_code': 'код выхода:',
-            'completed_in': 'выполнено за',
-            'command_stopped': 'Команда остановлена',
-            'stop_error': 'Ошибка остановки:',
-            'no_running_commands': 'Нет выполняющихся команд',
-            'stdout': 'stdout:',
-            'stderr': 'stderr:',
-            'command_not_specified': 'Команда не указана',
+        "ru": {
+            "empty": "пусто",
+            "command_already_running": "Уже выполняется команда",
+            "system_command": "системная команда:",
+            "executing": "выполняется...",
+            "launch_error": "Ошибка запуска:",
+            "already_completed": "Команда уже завершена",
+            "running_time": "выполняется:",
+            "seconds": "сек.",
+            "exit_code": "код выхода:",
+            "completed_in": "выполнено за",
+            "command_stopped": "Команда остановлена",
+            "stop_error": "Ошибка остановки:",
+            "no_running_commands": "Нет выполняющихся команд",
+            "stdout": "stdout:",
+            "stderr": "stderr:",
+            "command_not_specified": "Команда не указана",
         },
-        'en': {
-            'empty': 'empty',
-            'command_already_running': 'Command already running',
-            'system_command': 'system command:',
-            'executing': 'executing...',
-            'launch_error': 'Launch error:',
-            'already_completed': 'Command already completed',
-            'running_time': 'running:',
-            'seconds': 'sec.',
-            'exit_code': 'exit code:',
-            'completed_in': 'completed in',
-            'command_stopped': 'Command stopped',
-            'stop_error': 'Stop error:',
-            'no_running_commands': 'No running commands',
-            'stdout': 'stdout:',
-            'stderr': 'stderr:',
-            'command_not_specified': 'Command not specified',
-        }
+        "en": {
+            "empty": "empty",
+            "command_already_running": "Command already running",
+            "system_command": "system command:",
+            "executing": "executing...",
+            "launch_error": "Launch error:",
+            "already_completed": "Command already completed",
+            "running_time": "running:",
+            "seconds": "sec.",
+            "exit_code": "exit code:",
+            "completed_in": "completed in",
+            "command_stopped": "Command stopped",
+            "stop_error": "Stop error:",
+            "no_running_commands": "No running commands",
+            "stdout": "stdout:",
+            "stderr": "stderr:",
+            "command_not_specified": "Command not specified",
+        },
     }
 
-    lang_strings = strings.get(language, strings['en'])
+    lang_strings = strings.get(language, strings["en"])
 
     class TerminalModule:
         def __init__(self):
@@ -94,7 +94,7 @@ def register(kernel):
 
         def format_output(self, text, max_length=2000):
             if not text:
-                return lang_strings['empty']
+                return lang_strings["empty"]
             text = str(text)
             if len(text) > max_length:
                 text = text[:max_length] + "..."
@@ -126,8 +126,8 @@ def register(kernel):
                     command,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
-                    preexec_fn=os.setsid if os.name != 'nt' else None,
-                ) # noqa: S602, S607, B606
+                    preexec_fn=os.setsid if os.name != "nt" else None,
+                )  # noqa: S602, S607, B606
 
                 cmd_data["process"] = process
                 start_time = time.time()
@@ -153,7 +153,9 @@ def register(kernel):
             except Exception as e:
                 error_msg = f"{CUSTOM_EMOJI['🗯']} <i>{lang_strings['launch_error']}</i> <code>{html.escape(str(e))}</code>"
                 if message_id:
-                    await client.edit_message(chat_id, message_id, error_msg, parse_mode="html")
+                    await client.edit_message(
+                        chat_id, message_id, error_msg, parse_mode="html"
+                    )
                 else:
                     await client.send_message(chat_id, error_msg, parse_mode="html")
                 if chat_id in self.running_commands:
@@ -185,7 +187,7 @@ def register(kernel):
             try:
                 await asyncio.gather(
                     read_stream(process.stdout, False),
-                    read_stream(process.stderr, True)
+                    read_stream(process.stderr, True),
                 )
 
                 await process.wait()
@@ -274,9 +276,13 @@ def register(kernel):
 
         async def kill_command(self, chat_id, message_id=None):
             if chat_id not in self.running_commands:
-                msg_text = f"{CUSTOM_EMOJI['🗯']} <i>{lang_strings['no_running_commands']}</i>"
+                msg_text = (
+                    f"{CUSTOM_EMOJI['🗯']} <i>{lang_strings['no_running_commands']}</i>"
+                )
                 if message_id:
-                    await client.edit_message(chat_id, message_id, msg_text, parse_mode="html")
+                    await client.edit_message(
+                        chat_id, message_id, msg_text, parse_mode="html"
+                    )
                 else:
                     await client.send_message(chat_id, msg_text, parse_mode="html")
                 return
@@ -284,9 +290,13 @@ def register(kernel):
             cmd_data = self.running_commands[chat_id]
 
             if cmd_data["completed"]:
-                msg_text = f"{CUSTOM_EMOJI['💬']} <i>{lang_strings['already_completed']}</i>"
+                msg_text = (
+                    f"{CUSTOM_EMOJI['💬']} <i>{lang_strings['already_completed']}</i>"
+                )
                 if message_id:
-                    await client.edit_message(chat_id, message_id, msg_text, parse_mode="html")
+                    await client.edit_message(
+                        chat_id, message_id, msg_text, parse_mode="html"
+                    )
                 else:
                     await client.send_message(chat_id, msg_text, parse_mode="html")
                 return
@@ -295,7 +305,7 @@ def register(kernel):
                 process = cmd_data["process"]
                 if process and process.returncode is None:
                     # Для Windows и Unix-подобных систем
-                    if os.name == 'nt':
+                    if os.name == "nt":
                         # Windows
                         process.terminate()
                         await asyncio.sleep(1)
@@ -318,7 +328,7 @@ def register(kernel):
                         pass
 
                 cmd_data["completed"] = True
-                cmd_data["return_code"] = -9 if os.name != 'nt' else -1
+                cmd_data["return_code"] = -9 if os.name != "nt" else -1
 
                 await self.send_final_output(chat_id)
 
@@ -338,13 +348,15 @@ def register(kernel):
                         chat_id,
                         message_id,
                         f"{CUSTOM_EMOJI['☑️']} <i>{lang_strings['command_stopped']}</i>",
-                        parse_mode="html"
+                        parse_mode="html",
                     )
 
             except Exception as e:
                 error_msg = f"{CUSTOM_EMOJI['🗯']} <i>{lang_strings['stop_error']}</i> <pre>{html.escape(str(e))}</pre>"
                 if message_id:
-                    await client.edit_message(chat_id, message_id, error_msg, parse_mode="html")
+                    await client.edit_message(
+                        chat_id, message_id, error_msg, parse_mode="html"
+                    )
                 else:
                     await client.send_message(chat_id, error_msg, parse_mode="html")
 
@@ -354,7 +366,10 @@ def register(kernel):
     async def terminal_handler(event):
         args = event.text.split(maxsplit=1)
         if len(args) < 2:
-            await event.edit(f"{CUSTOM_EMOJI['🗯']} <i>{lang_strings['command_not_specified']}</i>", parse_mode="html")
+            await event.edit(
+                f"{CUSTOM_EMOJI['🗯']} <i>{lang_strings['command_not_specified']}</i>",
+                parse_mode="html",
+            )
             return
         command = args[1]
 

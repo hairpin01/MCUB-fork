@@ -2,10 +2,17 @@
 # version: 1.0.4
 # description: settings
 
+import asyncio
 import json
 import os
 import shutil
 from telethon import Button
+
+from core.lib.loader.module_config import (
+    ModuleConfig,
+    ConfigValue,
+    Boolean,
+)
 
 # <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji>
 # <tg-emoji emoji-id="5904692292324692386">⚠️</tg-emoji>
@@ -20,10 +27,16 @@ def register(kernel):
     # Локализованные строки
     strings = {
         "ru": {
-            "prefix_usage": "❌ Использование: {prefix}prefix [символ]",
-            "prefix_changed": '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji><b> Префикс изменен на </b><code>{prefix}</code>\n <i>чтобы вернуть</i><pre>{prefix}prefix {prefix_old}</pre>',
-            "alias_usage": "❌ Использование: `{prefix}alias алиас = команда`",
+            "prefix_usage": "❌ Использование: {prefix}setprefix [символ]",
+            "prefix_one_char": "❌ <b>Префикс должен быть ровно 1 символом</b>",
+            "prefix_changed": '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji><b> Префикс изменен на </b><code>{prefix}</code>, <b>чтобы вернуть, напишите:</b>\n<pre>{prefix}setprefix {prefix_old}</pre>',
+            "alias_usage": "❌ Использование: `{prefix}addalias алиас = команда`",
             "alias_created": '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Алиас создан: <code>{prefix}{alias}</code> → <code>{prefix}{command}</code>',
+            "alias_target_not_found": "❌ Команда <code>{command}</code> не найдена. Проверьте имя команды.",
+            "delalias_usage": "❌ Использование: `{prefix}delalias алиас`",
+            "delalias_done": '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Алиас удалён: <code>{prefix}{alias}</code>',
+            "delalias_not_found": "❌ Алиас <code>{alias}</code> не найден.",
+            "aliases_empty": "📋 Алиасы отсутствуют.",
             "2fa_enabled": '🔐 Двухфакторная аутентификация <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> включена (инлайн-подтверждение)',
             "2fa_disabled": "🔐 Двухфакторная аутентификация ❌ выключена",
             "powersave_enabled": "🔋 включен",
@@ -75,10 +88,16 @@ def register(kernel):
             "danger_cancelled": "❄️ Действие отменено",
         },
         "en": {
-            "prefix_usage": "❌ Usage: {prefix}prefix [symbol]",
-            "prefix_changed": '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> <b>Prefix changed to </b><code>{prefix}</code>\n<pre>{prefix}prefix {prefix_old}</pre>',
-            "alias_usage": "❌ Usage: `{prefix}alias alias = command`",
+            "prefix_usage": "❌ Usage: {prefix}setprefix [symbol]",
+            "prefix_one_char": "❌ <b>Prefix must be exactly 1 character</b>",
+            "prefix_changed": '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> <b>Prefix changed to </b><code>{prefix}</code>, <b>to restore, type:</b>\n<pre>{prefix}setprefix {prefix_old}</pre>',
+            "alias_usage": "❌ Usage: `{prefix}addalias alias = command`",
             "alias_created": '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Alias created: <code>{prefix}{alias}</code> → <code>{prefix}{command}</code>',
+            "alias_target_not_found": "❌ Command <code>{command}</code> not found. Check the command name.",
+            "delalias_usage": "❌ Usage: `{prefix}delalias alias`",
+            "delalias_done": '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Alias deleted: <code>{prefix}{alias}</code>',
+            "delalias_not_found": "❌ Alias <code>{alias}</code> not found.",
+            "aliases_empty": "📋 No aliases found.",
             "2fa_enabled": '🔐 Two-factor authentication <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> enabled (inline confirmation)',
             "2fa_disabled": "🔐 Two-factor authentication ❌ disabled",
             "powersave_enabled": "🔋 enabled",
@@ -146,16 +165,42 @@ def register(kernel):
         },
     }
 
-    # Вспомогательная функция для получения локализованной строки
     def _(key, **kwargs):
-
-        language = kernel.config.get("language", "ru")
-        lang_strings = strings.get(language, strings["ru"])
-        text = lang_strings.get(key, key)
+        text = strings.get(kernel.config.get("language", "en"), strings["en"]).get(
+            key, key
+        )
         return text.format(**kwargs) if kwargs else text
 
-    @kernel.register.command("prefix")
-    async def prefix_handler(event):
+    config = ModuleConfig(
+        ConfigValue(
+            "settings_any_prefix",
+            False,
+            description="Allow multi-character prefixes (bypass 1-char restriction)",
+            validator=Boolean(default=False),
+        ),
+    )
+
+    def get_config():
+        live_cfg = getattr(kernel, "_live_module_configs", {}).get(__name__)
+        if live_cfg:
+            return live_cfg
+        return config
+
+    async def startup():
+        config_dict = await kernel.get_module_config(
+            __name__,
+            {"settings_any_prefix": False},
+        )
+        config.from_dict(config_dict)
+        config_dict_clean = {k: v for k, v in config.to_dict().items() if v is not None}
+        if config_dict_clean:
+            await kernel.save_module_config(__name__, config_dict_clean)
+        kernel.store_module_config_schema(__name__, config)
+
+    asyncio.create_task(startup())
+
+    @kernel.register.command("setprefix")
+    async def setprefix_handler(event):
         """[prefix] - switch prefix userbot"""
         args = event.text.split()
         if len(args) < 2:
@@ -163,8 +208,13 @@ def register(kernel):
                 _("prefix_usage", prefix=kernel.custom_prefix), parse_mode="html"
             )
             return
-        prefix_old = kernel.custom_prefix
         new_prefix = args[1]
+        cfg = get_config()
+        any_prefix = cfg.get("settings_any_prefix", False) if cfg else False
+        if not any_prefix and len(new_prefix) != 1:
+            await event.edit(_("prefix_one_char"), parse_mode="html")
+            return
+        prefix_old = kernel.custom_prefix
         kernel.custom_prefix = new_prefix
         kernel.config["command_prefix"] = new_prefix
 
@@ -176,10 +226,10 @@ def register(kernel):
             parse_mode="html",
         )
 
-    @kernel.register.command("alias")
+    @kernel.register.command("addalias")
     async def alias_handler(event):
-        """[alias] = [command] [args]"""
-        args = event.text[len(kernel.custom_prefix) + 6 :].strip()
+        """[alias] = [command]"""
+        args = event.text[len(kernel.custom_prefix) + 9 :].strip()
         if "=" not in args:
             await event.edit(_("alias_usage", prefix=kernel.custom_prefix))
             return
@@ -191,6 +241,18 @@ def register(kernel):
 
         alias = parts[0].strip()
         command = parts[1].strip()
+
+        if not alias or not command:
+            await event.edit(_("alias_usage", prefix=kernel.custom_prefix))
+            return
+
+        command_base = command.split()[0]
+        if command_base not in kernel.command_handlers:
+            await event.edit(
+                _("alias_target_not_found", command=command_base),
+                parse_mode="html",
+            )
+            return
 
         kernel.aliases[alias] = command
         kernel.config["aliases"] = kernel.aliases
@@ -206,6 +268,54 @@ def register(kernel):
                 command=command,
             ),
             parse_mode="html",
+        )
+
+    @kernel.register.command("delalias")
+    async def delalias_handler(event):
+        """[alias] del alias"""
+        args = event.text[len(kernel.custom_prefix) + 8 :].strip()
+        if not args:
+            await event.edit(_("delalias_usage", prefix=kernel.custom_prefix))
+            return
+
+        if args not in kernel.aliases:
+            await event.edit(
+                _("delalias_not_found", alias=args),
+                parse_mode="html",
+            )
+            return
+
+        del kernel.aliases[args]
+        kernel.config["aliases"] = kernel.aliases
+
+        with open(kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(kernel.config, f, ensure_ascii=False, indent=2)
+
+        await event.edit(
+            _(
+                "delalias_done",
+                prefix=kernel.custom_prefix,
+                alias=args,
+            ),
+            parse_mode="html",
+        )
+
+    @kernel.register.command("aliases")
+    async def aliases_handler(event):
+        """list all aliases"""
+        if not kernel.aliases:
+            await event.edit(_("aliases_empty"))
+            return
+
+        lines = []
+        for alias, target in sorted(kernel.aliases.items()):
+            lines.append(
+                f"<code>{kernel.custom_prefix}{alias} </code>-><code> {kernel.custom_prefix}{target}</code>"
+            )
+
+        text = "\n".join(lines)
+        await event.edit(
+            f"<blockquote expandable>{text}</blockquote>", parse_mode="html"
         )
 
     @kernel.register.command("lang")
@@ -242,7 +352,7 @@ def register(kernel):
 
     @kernel.register.command("settings")
     async def settings_handler(event):
-        """settings userbot for inline"""
+        """settings userbot"""
         bot_username = kernel.config.get("inline_bot_username")
         if not bot_username:
             await event.edit(_("inline_bot_not_set"))
@@ -339,7 +449,7 @@ def register(kernel):
 
     @kernel.register.command("clearmodules")
     async def clearmodules_handler(event):
-        """delete all files from modules_loaded with inline confirmation"""
+        """delete all files from modules_loaded"""
         await _show_danger_confirm(
             event,
             "modules",
@@ -348,99 +458,8 @@ def register(kernel):
 
     @kernel.register.command("clearcache")
     async def clearcache_handler(event):
-        """clear kernel cache with inline confirmation"""
+        """clear kernel cache"""
         await _show_danger_confirm(event, "cache", _("clearcache_confirm"))
-
-    async def settings_inline_handler(event):
-        api_protection = kernel.config.get("api_protection", False)
-        power_save = kernel.config.get("power_save_mode", False)
-        two_fa = kernel.config.get("2fa_enabled", False)
-
-        buttons = [
-            [
-                Button.inline(_("btn_reset_prefix"), b"settings_reset_prefix"),
-                Button.inline(_("btn_reset_alias"), b"settings_reset_alias"),
-                Button.inline(
-                    _("btn_api_protection", status="✅" if api_protection else "❌"),
-                    b"settings_toggle_api",
-                ),
-            ],
-            [
-                Button.inline(
-                    _("btn_powersave", status="✅" if power_save else "❌"),
-                    b"settings_toggle_powersave",
-                )
-            ],
-            [Button.inline(_("btn_mcubinfo"), b"settings_mcubinfo")],
-            [
-                Button.inline(
-                    _("btn_kernel_version", version=kernel.VERSION), b"settings_version"
-                )
-            ],
-        ]
-
-        result = event.builder.article(
-            title=_("settings_inline_title"),
-            description=_("settings_inline_description"),
-            text=_("settings_title"),
-            buttons=buttons,
-            parse_mode="html",
-        )
-        await event.answer([result])
-
-    async def settings_callback_handler(event):
-        data = event.data.decode()
-
-        if data == "settings_reset_prefix":
-            kernel.custom_prefix = "."
-            kernel.config["command_prefix"] = "."
-            with open(kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
-                json.dump(kernel.config, f, ensure_ascii=False, indent=2)
-            await event.edit(_("prefix_reset"), parse_mode="html")
-
-        elif data == "settings_reset_alias":
-            kernel.aliases = {}
-            kernel.config["aliases"] = {}
-            with open(kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
-                json.dump(kernel.config, f, ensure_ascii=False, indent=2)
-            await event.edit(_("aliases_cleared"), parse_mode="html")
-
-        elif data == "settings_toggle_api":
-            current = kernel.config.get("api_protection", False)
-            kernel.config["api_protection"] = not current
-            with open(kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
-                json.dump(kernel.config, f, ensure_ascii=False, indent=2)
-            status = _("api_enabled") if not current else _("api_disabled")
-            await event.edit(
-                _("api_protection_status", status=status), parse_mode="html"
-            )
-
-        elif data == "settings_toggle_powersave":
-            current = kernel.config.get("power_save_mode", False)
-            kernel.config["power_save_mode"] = not current
-            kernel.power_save_mode = not current
-            with open(kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
-                json.dump(kernel.config, f, ensure_ascii=False, indent=2)
-            status = _("powersave_enabled") if not current else _("powersave_disabled")
-            await event.edit(
-                _("api_protection_status", status=status), parse_mode="html"
-            )
-
-        elif data == "settings_mcubinfo":
-            info_text = (
-                _("mcubinfo_title")
-                + _("mcubinfo_description")
-                + _("mcubinfo_advantages")
-                + _("mcubinfo_risks")
-            )
-            await event.edit(info_text)
-
-        elif data == "settings_version":
-            await event.answer(
-                _("btn_kernel_version", version=kernel.VERSION), alert=True
-            )
-
-        await event.answer()
 
     async def lang_callback_handler(event):
         data = event.data.decode()
@@ -454,11 +473,6 @@ def register(kernel):
 
     async def settings_danger_callback_handler(event):
         data = event.data.decode()
-
-        if data == "settings_danger:cancel":
-            await event.edit(_("danger_cancelled"), parse_mode="html", buttons=None)
-            await event.answer()
-            return
 
         if not data.startswith("settings_danger:confirm:"):
             return
@@ -499,12 +513,5 @@ def register(kernel):
             await kernel.handle_error(e, source="mcubinfo_cmd", event=event)
             await event.edit(_("mcubinfo_error"), parse_mode="html")
 
-    kernel.register_inline_handler("settings", settings_inline_handler)
-    kernel.register_callback_handler("settings_", settings_callback_handler)
+    kernel.register_callback_handler("settings_", settings_danger_callback_handler)
     kernel.register_callback_handler("lang:", lang_callback_handler)
-    kernel.register_callback_handler(
-        "settings_danger:confirm:", settings_danger_callback_handler
-    )
-    kernel.register_callback_handler(
-        "settings_danger:cancel", settings_danger_callback_handler
-    )

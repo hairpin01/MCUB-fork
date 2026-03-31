@@ -143,11 +143,6 @@ def register(kernel):
             return live_cfg
         return config
 
-    def get_module_path(module_name):
-        if module_name in kernel.system_modules:
-            return os.path.join(kernel.MODULES_DIR, f"{module_name}.py")
-        return os.path.join(kernel.MODULES_LOADED_DIR, f"{module_name}.py")
-
     async def startup():
         config_dict = await kernel.get_module_config(
             __name__,
@@ -469,9 +464,6 @@ def register(kernel):
             fallback_text = re.sub(r"<[^>]+>", "", fallback_text)
             return await client.send_message(chat_id, fallback_text, **kwargs)
 
-    def get_module_commands(module_name, kernel):
-        return kernel._loader.get_module_commands(module_name)
-
     async def load_module_from_file(file_path, module_name, is_system=False):
         try:
             return await kernel.load_module_from_file(file_path, module_name, is_system)
@@ -480,37 +472,6 @@ def register(kernel):
         except Exception as e:
             kernel.logger.error(f"Ошибка загрузки модуля {module_name}: {e}")
             return False, f"Ошибка загрузки: {str(e)}"
-
-    async def install_dependencies_async(dependencies, add_log_func, msg):
-        async def install_one(dep):
-            add_log_func(f"=- Устанавливаю зависимость: {dep}")
-            try:
-                proc = await asyncio.create_subprocess_exec(
-                    sys.executable,
-                    "-m",
-                    "pip",
-                    "install",
-                    dep,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                stdout, stderr = await proc.communicate()
-                if proc.returncode == 0:
-                    add_log_func(f"=> Зависимость {dep} установлена успешно")
-                    return True, dep, None
-                else:
-                    err = stderr.decode() if stderr else "unknown error"
-                    add_log_func(f"=X Ошибка установки {dep}: {err[:200]}")
-                    return False, dep, err[:200]
-            except Exception as e:
-                add_log_func(f"=X Ошибка установки {dep}: {str(e)}")
-                return False, dep, str(e)
-
-        if not dependencies:
-            return
-
-        tasks = [install_one(dep) for dep in dependencies]
-        await asyncio.gather(*tasks)
 
     def detect_module_type(module):
         register = getattr(module, "register", None)
@@ -1095,22 +1056,9 @@ def register(kernel):
 
             add_log(t("log_install_mode"))
 
-            dependencies = []
-            if "requires" in code:
-                reqs = re.findall(r"# requires: (.+)", code)
-                if reqs:
-                    raw = reqs[0]
-                    parts = []
-                    for part in raw.split(","):
-                        part = part.strip()
-                        if not part:
-                            continue
-                        if " " in part:
-                            parts.extend(part.split())
-                        else:
-                            parts.append(part)
-                    dependencies = [p.strip() for p in parts if p.strip()]
-                    add_log(t("log_deps_found", deps=", ".join(dependencies)))
+            dependencies = kernel._loader.parse_requires(code)
+            if dependencies:
+                add_log(t("log_deps_found", deps=", ".join(dependencies)))
 
             if dependencies:
                 deps_with_emoji = "\n".join(
@@ -1124,7 +1072,9 @@ def register(kernel):
                         deps_list=deps_with_emoji,
                     ),
                 )
-                await install_dependencies_async(dependencies, add_log, msg)
+                await kernel._loader.install_dependencies_batch(
+                    dependencies, log_fn=add_log
+                )
 
             if is_update:
                 add_log(t("log_removing_old", module_name=module_name))
@@ -1159,8 +1109,8 @@ def register(kernel):
                 conflicts = extra.get("conflicts", [])
                 if ok:
                     add_log(t("log_module_loaded_kernel"))
-                    commands, aliases_info, descriptions = get_module_commands(
-                        module_name, kernel
+                    commands, aliases_info, descriptions = (
+                        kernel._loader.get_module_commands(module_name)
                     )
                     emoji = random.choice(RANDOM_EMOJIS)
                     commands_list = ""
@@ -1287,8 +1237,8 @@ def register(kernel):
 
             if success:
                 add_log(t("log_module_loaded_kernel"))
-                commands, aliases_info, descriptions = get_module_commands(
-                    module_name, kernel
+                commands, aliases_info, descriptions = (
+                    kernel._loader.get_module_commands(module_name)
                 )
                 emoji = random.choice(RANDOM_EMOJIS)
 
@@ -1415,7 +1365,7 @@ def register(kernel):
                     ),
                 )
 
-            file_path = get_module_path(module_name)
+            file_path = kernel._loader.get_module_path(module_name)
             if os.path.exists(file_path):
                 add_log(t("log_deleting_due_conflict"))
                 os.remove(file_path)
@@ -1437,7 +1387,7 @@ def register(kernel):
                 ),
             )
 
-            file_path = get_module_path(module_name)
+            file_path = kernel._loader.get_module_path(module_name)
             if os.path.exists(file_path):
                 add_log(t("log_deleting_due_error"))
                 os.remove(file_path)
@@ -1532,7 +1482,7 @@ def register(kernel):
 
         old_version = None
         if is_update:
-            old_file_path = get_module_path(module_name)
+            old_file_path = kernel._loader.get_module_path(module_name)
             old_version = await kernel._loader.get_module_version_from_file(
                 old_file_path
             )
@@ -1540,7 +1490,7 @@ def register(kernel):
                 f"[loader] BEFORE download - old_file={old_file_path} old_version={old_version}"
             )
 
-        file_path = get_module_path(module_name)
+        file_path = kernel._loader.get_module_path(module_name)
 
         try:
             add_log(t("log_downloading", file_path=file_path))
@@ -1591,23 +1541,9 @@ def register(kernel):
             mcub = await mcub_handler()
             add_log(t("log_checking_compatibility"))
 
-            # Parse dependencies for ALL module types
-            dependencies = []
-            if "requires" in code:
-                reqs = re.findall(r"# requires: (.+)", code)
-                if reqs:
-                    raw = reqs[0]
-                    parts = []
-                    for part in raw.split(","):
-                        part = part.strip()
-                        if not part:
-                            continue
-                        if " " in part:
-                            parts.extend(part.split())
-                        else:
-                            parts.append(part)
-                    dependencies = [p.strip() for p in parts if p.strip()]
-                    add_log(t("log_deps_found", deps=", ".join(dependencies)))
+            dependencies = kernel._loader.parse_requires(code)
+            if dependencies:
+                add_log(t("log_deps_found", deps=", ".join(dependencies)))
 
             if is_hikka_module(code):
                 add_log(t("log_hikka_detected"))
@@ -1638,7 +1574,9 @@ def register(kernel):
                         deps_list=deps_with_emoji,
                     ),
                 )
-                await install_dependencies_async(dependencies, add_log, msg)
+                await kernel._loader.install_dependencies_batch(
+                    dependencies, log_fn=add_log
+                )
 
             if is_update:
                 add_log(t("log_removing_old", module_name=module_name))
@@ -1651,8 +1589,8 @@ def register(kernel):
 
             if success:
                 add_log(t("log_module_loaded"))
-                commands, aliases_info, descriptions = get_module_commands(
-                    module_name, kernel
+                commands, aliases_info, descriptions = (
+                    kernel._loader.get_module_commands(module_name)
                 )
 
                 emoji = random.choice(RANDOM_EMOJIS)
@@ -2002,17 +1940,7 @@ def register(kernel):
 
         module_name = args[1]
 
-        def find_module_case_insensitive(name: str):
-            name_lower = name.lower()
-            for key in kernel.loaded_modules:
-                if key.lower() == name_lower:
-                    return key, "loaded"
-            for key in kernel.system_modules:
-                if key.lower() == name_lower:
-                    return key, "system"
-            return None, None
-
-        actual_name, _ = find_module_case_insensitive(module_name)
+        actual_name, _ = kernel._loader.find_module_case_insensitive(module_name)
         if actual_name is None:
             await edit_with_emoji(
                 event,
@@ -2034,7 +1962,7 @@ def register(kernel):
         else:
             await kernel.unregister_module_commands(module_name)
 
-        file_path = get_module_path(module_name)
+        file_path = kernel._loader.get_module_path(module_name)
         if os.path.exists(file_path):
             os.remove(file_path)
 
@@ -2074,17 +2002,7 @@ def register(kernel):
 
         module_name = args[1]
 
-        def find_module_case_insensitive(name: str):
-            name_lower = name.lower()
-            for key in kernel.loaded_modules:
-                if key.lower() == name_lower:
-                    return key, "loaded"
-            for key in kernel.system_modules:
-                if key.lower() == name_lower:
-                    return key, "system"
-            return None, None
-
-        actual_name, _ = find_module_case_insensitive(module_name)
+        actual_name, _ = kernel._loader.find_module_case_insensitive(module_name)
         if actual_name is None:
             await edit_with_emoji(
                 event,
@@ -2098,7 +2016,7 @@ def register(kernel):
 
         module_name = actual_name
 
-        file_path = get_module_path(module_name)
+        file_path = kernel._loader.get_module_path(module_name)
 
         if not os.path.exists(file_path):
             await edit_with_emoji(
@@ -2292,17 +2210,7 @@ def register(kernel):
 
         module_name = args[1]
 
-        def find_module_case_insensitive(name: str):
-            name_lower = name.lower()
-            for key in kernel.loaded_modules:
-                if key.lower() == name_lower:
-                    return key, "loaded"
-            for key in kernel.system_modules:
-                if key.lower() == name_lower:
-                    return key, "system"
-            return None, None
-
-        actual_name, _ = find_module_case_insensitive(module_name)
+        actual_name, _ = kernel._loader.find_module_case_insensitive(module_name)
         if actual_name is None:
             kernel.logger.debug(
                 "[reload] module-not-found requested=%r loaded=%r system=%r",
@@ -2322,7 +2230,7 @@ def register(kernel):
 
         module_name = actual_name
 
-        file_path = get_module_path(module_name)
+        file_path = kernel._loader.get_module_path(module_name)
         is_system = module_name in kernel.system_modules
 
         if not os.path.exists(file_path):
@@ -2421,7 +2329,7 @@ def register(kernel):
         )
 
         if success:
-            commands, _, _ = get_module_commands(module_name, kernel)
+            commands, _, _ = kernel._loader.get_module_commands(module_name)
             cmd_text = (
                 f"{CUSTOM_EMOJI['crystal']} {', '.join([f'<code>{kernel.custom_prefix}{cmd}</code>' for cmd in commands])}"
                 if commands

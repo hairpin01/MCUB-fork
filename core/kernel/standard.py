@@ -1176,6 +1176,15 @@ class Kernel:
                 alias,
                 text,
             )
+            if alias not in self.command_handlers and alias not in self.aliases:
+                self.logger.warning(
+                    f"Alias '{cmd}' points to non-existent target '{alias}', "
+                    f"executing '{cmd}' directly"
+                )
+                if cmd in self.command_handlers:
+                    await self.command_handlers[cmd](event)
+                    return True
+                return False
             if alias in self.command_handlers:
                 self.logger.debug(
                     "[process_command] alias-direct-dispatch target=%r owner=%r",
@@ -1420,7 +1429,11 @@ class Kernel:
         needs_setup = not os.path.exists(self.CONFIG_FILE)
         if not needs_setup:
             # Check if session exists
-            session_exists = os.path.exists("user_session.session")
+            from utils.security import session_exists
+
+            api_id = getattr(self, "API_ID", None)
+            api_hash = getattr(self, "API_HASH", None)
+            session_exists = session_exists(api_id, api_hash)
             needs_setup = not session_exists
 
         # If config.json doesn't exist or session is missing, start the setup wizard
@@ -1467,7 +1480,11 @@ class Kernel:
         if not no_web:
             web_via_env = os.environ.get("MCUB_WEB", "0") == "1"
             web_via_config = self.config.get("web_panel_enabled", False)
-            no_session = not os.path.exists("user_session.session")
+            from utils.security import session_exists
+
+            api_id = getattr(self, "API_ID", None)
+            api_hash = getattr(self, "API_HASH", None)
+            no_session = not session_exists(api_id, api_hash)
             no_config = not os.path.exists(self.CONFIG_FILE)
 
             if web_via_env or web_via_config or no_session or no_config:

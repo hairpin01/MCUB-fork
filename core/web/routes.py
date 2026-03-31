@@ -67,29 +67,36 @@ async def index(request: web.Request) -> web.Response:
     import json
 
     config_path = "config.json"
-    session_path = "user_session.session"
 
     has_config = os.path.exists(config_path)
-    has_session = os.path.exists(session_path)
 
-    # Check if config has valid credentials
     config_valid = False
+    api_id = None
+    api_hash = None
     if has_config:
         try:
             with open(config_path, "r") as f:
                 cfg = json.load(f)
-            if cfg.get("api_id") and cfg.get("api_hash") and cfg.get("phone"):
+            api_id = cfg.get("api_id")
+            api_hash = cfg.get("api_hash")
+            if api_id and api_hash and cfg.get("phone"):
                 config_valid = True
         except (json.JSONDecodeError, IOError):
             pass
 
-    # If config and session exist - MCUB is already configured
+    from utils.security import session_exists
+
+    has_session = False
+    if api_id and api_hash:
+        has_session = session_exists(api_id, api_hash)
+    else:
+        has_session = os.path.exists("user_session.session")
+
     if has_config and config_valid and has_session:
         return aiohttp_jinja2.render_template(
             "setup.html", request, {"already_configured": True}
         )
 
-    # If config exists with valid credentials but no session - show re-auth page
     if has_config and config_valid and not has_session:
         return aiohttp_jinja2.render_template(
             "setup.html", request, {"reauth": True, "show_reauth": True}
@@ -99,6 +106,45 @@ async def index(request: web.Request) -> web.Response:
 
 
 async def status(request: web.Request) -> web.Response:
+    import os
+    import json
+
+    s = request.app.get("setup_state") or {}
+
+    config_path = "config.json"
+
+    api_id = None
+    api_hash = None
+    needs_reauth = False
+
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r") as f:
+                cfg = json.load(f)
+            api_id = cfg.get("api_id")
+            api_hash = cfg.get("api_hash")
+            if api_id and api_hash and cfg.get("phone"):
+                from utils.security import session_exists
+
+                if not session_exists(api_id, api_hash):
+                    needs_reauth = True
+        except (json.JSONDecodeError, IOError):
+            pass
+    else:
+        needs_reauth = os.path.exists(config_path) and not os.path.exists(
+            "user_session.session"
+        )
+
+    return web.json_response(
+        {
+            "has_session": "client" in s,
+            "awaiting_code": s.get("awaiting_code", False),
+            "awaiting_2fa": s.get("awaiting_2fa", False),
+            "done": s.get("done", False),
+            "needs_reauth": needs_reauth,
+        }
+    )
+
     auth_middleware = request.app.get("auth_middleware")
 
     if auth_middleware and auth_middleware.auth_enabled:
@@ -132,19 +178,29 @@ async def api_setup_state(request: web.Request) -> web.Response:
 
     s = request.app.get("setup_state") or {}
 
-    # Check if config exists but session is missing
     config_path = "config.json"
-    session_path = "user_session.session"
 
+    api_id = None
+    api_hash = None
     needs_reauth = False
-    if os.path.exists(config_path) and not os.path.exists(session_path):
+
+    if os.path.exists(config_path):
         try:
             with open(config_path, "r") as f:
                 cfg = json.load(f)
-            if cfg.get("api_id") and cfg.get("api_hash") and cfg.get("phone"):
-                needs_reauth = True
+            api_id = cfg.get("api_id")
+            api_hash = cfg.get("api_hash")
+            if api_id and api_hash and cfg.get("phone"):
+                from utils.security import session_exists
+
+                if not session_exists(api_id, api_hash):
+                    needs_reauth = True
         except (json.JSONDecodeError, IOError):
             pass
+    else:
+        needs_reauth = os.path.exists(config_path) and not os.path.exists(
+            "user_session.session"
+        )
 
     return web.json_response(
         {
@@ -196,8 +252,13 @@ async def api_send_code(request: web.Request) -> web.Response:
         return _err("telethon is not installed — run: pip install telethon")
 
     log.debug("[setup] Creating TelegramClient for send_code")
+
+    from utils.security import get_session_path
+
+    session_path = get_session_path(_SETUP_SESSION, api_id, api_hash)
+
     client = TelegramClient(
-        _SETUP_SESSION,
+        session_path,
         api_id,
         api_hash,
         connection_retries=5,
@@ -271,8 +332,13 @@ async def api_qr_login(request: web.Request) -> web.Response:
         return _err("telethon is not installed — run: pip install telethon")
 
     log.debug("[setup] Creating TelegramClient for QR login")
+
+    from utils.security import get_session_path
+
+    session_path = get_session_path(_SETUP_SESSION, api_id, api_hash)
+
     client = TelegramClient(
-        _SETUP_SESSION,
+        session_path,
         api_id,
         api_hash,
         connection_retries=5,
@@ -605,10 +671,26 @@ async def setup_reset(request: web.Request) -> web.Response:
 
     if os.path.exists(config_path):
         try:
-            os.remove(config_path)
-            removed.append(config_path)
+            import json
+
+            with open(config_path, "r") as f:
+                cfg = json.load(f)
+            api_id = cfg.get("api_id")
+            api_hash = cfg.get("api_hash")
+            if api_id and api_hash:
+                from utils.security import get_sessions_dir
+
+                sessions_dir = get_sessions_dir(api_id, api_hash)
+                for sf in session_files:
+                    sf_path = os.path.join(sessions_dir, sf)
+                    if os.path.exists(sf_path):
+                        try:
+                            os.remove(sf_path)
+                            removed.append(sf_path)
+                        except Exception as e:
+                            errors.append(f"Failed to remove {sf_path}: {e}")
         except Exception as e:
-            errors.append(f"Failed to remove {config_path}: {e}")
+            errors.append(f"Failed to read config: {e}")
 
     for sf in session_files:
         if os.path.exists(sf):
@@ -667,8 +749,31 @@ def _remove_session_files(name: str) -> None:
 
 
 def _rename_session(src: str, dst: str) -> None:
+    import json
+
+    config_path = "config.json"
+
+    api_id = None
+    api_hash = None
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r") as f:
+                cfg = json.load(f)
+            api_id = cfg.get("api_id")
+            api_hash = cfg.get("api_hash")
+        except:
+            pass
+
+    from utils.security import get_sessions_dir, get_session_path
+
     for ext in (".session", ".session-journal"):
-        s, d = src + ext, dst + ext
+        if api_id and api_hash:
+            sessions_dir = get_sessions_dir(api_id, api_hash)
+            s = os.path.join(sessions_dir, src + ext)
+            d = os.path.join(sessions_dir, dst + ext)
+        else:
+            s, d = src + ext, dst + ext
+
         if os.path.exists(s):
             if os.path.exists(d):
                 os.remove(d)

@@ -179,8 +179,19 @@ class BackupModule:
         if config_file.exists():
             shutil.copy2(config_file, backup_dir / "config.json")
 
-        db_file = current_dir / "userbot.db"
-        if db_file.exists():
+        db_file = None
+        api_id = getattr(self.kernel, "API_ID", None)
+        api_hash = getattr(self.kernel, "API_HASH", None)
+
+        if api_id and api_hash:
+            from utils.security import get_db_path
+
+            db_path = get_db_path(api_id, api_hash)
+            db_file = Path(db_path)
+        else:
+            db_file = current_dir / "userbot.db"
+
+        if db_file and db_file.exists():
             shutil.copy2(db_file, backup_dir / "userbot.db")
 
         modules_dir = current_dir / "modules_loaded"
@@ -487,8 +498,22 @@ def register(kernel):
             current_dir = Path.cwd()
             restored = []
 
+            api_id = getattr(kernel, "API_ID", None)
+            api_hash = getattr(kernel, "API_HASH", None)
+
+            if api_id and api_hash:
+                from utils.security import get_db_path, get_mcub_dir
+
+                mcub_dir = Path(get_mcub_dir(api_id, api_hash))
+                mcub_dir.mkdir(parents=True, exist_ok=True)
+            else:
+                mcub_dir = current_dir
+
             for item in backup_dir.iterdir():
-                target = current_dir / item.name
+                if item.name == "userbot.db" and api_id and api_hash:
+                    target = Path(get_db_path(api_id, api_hash))
+                else:
+                    target = current_dir / item.name
 
                 if target.exists():
                     backup_time = datetime.now().strftime("%Y%m%d_%H%M%S")

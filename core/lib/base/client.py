@@ -16,6 +16,18 @@ class ClientManager:
     def __init__(self, kernel: "Kernel") -> None:
         self.k = kernel
 
+    def _get_session_path(self, name: str) -> str:
+        """Get session path in ~/.MCUB/{hash}/sessions/."""
+        from utils.security import get_sessions_dir
+
+        api_id = getattr(self.k, "API_ID", None)
+        api_hash = getattr(self.k, "API_HASH", None)
+
+        if api_id and api_hash:
+            sessions_dir = get_sessions_dir(api_id, api_hash)
+            return f"{sessions_dir}/{name}"
+        return name
+
     async def init_client(self) -> bool:
         """Create, configure, and authorize the main TelegramClient.
 
@@ -25,9 +37,18 @@ class ClientManager:
         from telethon.sessions import SQLiteSession
 
         from utils.platform import PlatformDetector, get_platform_name
-        from utils.security import ensure_locked_after_write
+        from utils.security import ensure_locked_after_write, migrate_sessions_and_db
 
         k = self.k
+
+        api_id = getattr(k, "API_ID", None)
+        api_hash = getattr(k, "API_HASH", None)
+
+        if api_id and api_hash:
+            migrated = migrate_sessions_and_db(api_id, api_hash, k.logger)
+            if migrated:
+                k.logger.info("Migrated sessions/DB to ~/.MCUB/")
+
         platform = PlatformDetector()
         detected_platform = platform.detect()
         proxy_enabled = bool(k.config.get("proxy"))
@@ -43,8 +64,10 @@ class ClientManager:
             k.VERSION,
         )
 
+        session_path = self._get_session_path("user_session")
+
         k.client = TelegramClient(
-            SQLiteSession("user_session"),
+            SQLiteSession(session_path),
             k.API_ID,
             k.API_HASH,
             proxy=k.config.get("proxy"),
@@ -65,8 +88,8 @@ class ClientManager:
             k.logger.debug("Starting Telegram client authorization phone=%r", k.PHONE)
             await k.client.start(phone=k.PHONE, max_attempts=3)
 
-            # Lock the session file right after Telethon creates/writes it
-            ensure_locked_after_write("user_session.session", k.logger)
+            session_file = f"{session_path}.session"
+            ensure_locked_after_write(session_file, k.logger)
 
             authorized = await k.client.is_user_authorized()
             k.logger.debug("Telegram client authorized=%s", authorized)
@@ -115,16 +138,16 @@ class ClientManager:
             "inline_bot_session",
             True,
         )
-        k.bot_client = TelegramClient(
-            "inline_bot_session", k.API_ID, k.API_HASH, timeout=30
-        )
+
+        session_path = self._get_session_path("inline_bot_session")
+        k.bot_client = TelegramClient(session_path, k.API_ID, k.API_HASH, timeout=30)
 
         try:
             k.logger.debug("Authorizing inline bot client")
             await k.bot_client.start(bot_token=token)
 
-            # Lock the bot session file right after creation
-            ensure_locked_after_write("inline_bot_session.session", k.logger)
+            session_file = f"{session_path}.session"
+            ensure_locked_after_write(session_file, k.logger)
 
             bot_me = await k.bot_client.get_me()
             k.config["inline_bot_username"] = bot_me.username

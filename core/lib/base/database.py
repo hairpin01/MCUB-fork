@@ -57,6 +57,14 @@ class DatabaseManager:
             if normalized_config_file:
                 return normalized_config_file
 
+        api_id = getattr(self.kernel, "API_ID", None)
+        api_hash = getattr(self.kernel, "API_HASH", None)
+        if api_id and api_hash:
+            from utils.security import get_mcub_dir
+
+            mcub_dir = get_mcub_dir(api_id, api_hash)
+            return os.path.join(mcub_dir, self.DEFAULT_DB_FILE)
+
         return self.DEFAULT_DB_FILE
 
     def _validate_query(self, query: str) -> bool:

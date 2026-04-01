@@ -1,9 +1,10 @@
-# requires: telethon>=1.24, re, math
+# requires: re, math
 # author: @Hairpin00
 # version: 1.1.0
 # description: Module manager
 from telethon import Button
 import re
+import asyncio
 from html import escape
 import math
 import json
@@ -11,6 +12,13 @@ from telethon.tl.types import (
     InputWebDocument,
     DocumentAttributeImageSize,
     InputMediaWebPage,
+)
+
+from core.lib.loader.module_config import (
+    ModuleConfig,
+    ConfigValue,
+    String,
+    Boolean,
 )
 
 CUSTOM_EMOJI = {
@@ -316,12 +324,12 @@ def register(kernel):
             "page_error": "Error",
             "search_error": "Search Error",
             "search_error_desc": "An error occurred",
-            "module_hidden": f'{CUSTOM_EMOJI["eye_off"]} <b>Модуль скрыт из списка.</b>',
-            "module_already_hidden": f'{CUSTOM_EMOJI["blocked"]} Модуль уже скрыт.',
+            "module_hidden": f"{CUSTOM_EMOJI['eye_off']} <b>Модуль скрыт из списка.</b>",
+            "module_already_hidden": f"{CUSTOM_EMOJI['blocked']} Модуль уже скрыт.",
             "module_unhidden": f"✅ <b>Модуль убран из скрытых.</b>",
-            "module_not_hidden": f'{CUSTOM_EMOJI["blocked"]} Этот модуль не скрыт.',
-            "manhide_usage": f'{CUSTOM_EMOJI["confused"]} Использование: <code>.manhide [модуль]</code>',
-            "manunhide_usage": f'{CUSTOM_EMOJI["confused"]} Использование: <code>.manunhide [модуль]</code>',
+            "module_not_hidden": f"{CUSTOM_EMOJI['blocked']} Этот модуль не скрыт.",
+            "manhide_usage": f"{CUSTOM_EMOJI['confused']} Использование: <code>.manhide [модуль]</code>",
+            "manunhide_usage": f"{CUSTOM_EMOJI['confused']} Использование: <code>.manunhide [модуль]</code>",
         },
         "en": {
             "help_not_command": "Did you mean ",
@@ -353,24 +361,65 @@ def register(kernel):
             "page_error": "Error",
             "search_error": "Search Error",
             "search_error_desc": "An error occurred",
-            "module_hidden": f'{CUSTOM_EMOJI["eye_off"]} <b>Module hidden from list.</b>',
-            "module_already_hidden": f'{CUSTOM_EMOJI["blocked"]} Module is already hidden.',
+            "module_hidden": f"{CUSTOM_EMOJI['eye_off']} <b>Module hidden from list.</b>",
+            "module_already_hidden": f"{CUSTOM_EMOJI['blocked']} Module is already hidden.",
             "module_unhidden": f"✅ <b>Module removed from hidden.</b>",
-            "module_not_hidden": f'{CUSTOM_EMOJI["blocked"]} This module is not hidden.',
-            "manhide_usage": f'{CUSTOM_EMOJI["confused"]} Usage: <code>.manhide [module]</code>',
-            "manunhide_usage": f'{CUSTOM_EMOJI["confused"]} Usage: <code>.manunhide [module]</code>',
+            "module_not_hidden": f"{CUSTOM_EMOJI['blocked']} This module is not hidden.",
+            "manhide_usage": f"{CUSTOM_EMOJI['confused']} Usage: <code>.manhide [module]</code>",
+            "manunhide_usage": f"{CUSTOM_EMOJI['confused']} Usage: <code>.manunhide [module]</code>",
         },
     }
 
     lang_strings = strings.get(language, strings["en"])
 
-    kernel.config.setdefault("man_quote_media", True)
-    kernel.config.setdefault("man_banner_url", "")
-    kernel.config.setdefault("man_invert_media", False)
+    config = ModuleConfig(
+        ConfigValue(
+            "man_quote_media",
+            True,
+            description="Send media in quotes",
+            validator=Boolean(default=True),
+        ),
+        ConfigValue(
+            "man_banner_url",
+            "",
+            description="Banner image URL for inline preview",
+            validator=String(default=""),
+        ),
+        ConfigValue(
+            "man_invert_media",
+            False,
+            description="Invert media colors",
+            validator=Boolean(default=False),
+        ),
+    )
+
+    def get_config():
+        live_cfg = getattr(kernel, "_live_module_configs", {}).get(__name__)
+        if live_cfg:
+            return live_cfg
+        return config
+
+    async def startup():
+        config_dict = await kernel.get_module_config(
+            __name__,
+            {
+                "man_quote_media": True,
+                "man_banner_url": "",
+                "man_invert_media": False,
+            },
+        )
+        config.from_dict(config_dict)
+        config_dict_clean = {k: v for k, v in config.to_dict().items() if v is not None}
+        if config_dict_clean:
+            await kernel.save_module_config(__name__, config_dict_clean)
+        kernel.store_module_config_schema(__name__, config)
+
+    asyncio.create_task(startup())
 
     def add_inline_banner_preview(message_html):
-        banner_url = kernel.config.get("man_banner_url")
-        quote_media = kernel.config.get("man_quote_media", False)
+        cfg = get_config()
+        banner_url = cfg.get("man_banner_url") if cfg else ""
+        quote_media = cfg.get("man_quote_media", False) if cfg else False
         if not (
             quote_media
             and isinstance(banner_url, str)
@@ -632,7 +681,11 @@ def register(kernel):
                 msg, buttons = get_paginated_data(
                     kernel, page, lang_strings, hidden_list=hidden
                 )
-                invert_media = kernel.config.get("man_invert_media", False)
+                invert_media = (
+                    get_config().get("man_invert_media", False)
+                    if get_config()
+                    else False
+                )
                 try:
                     await event.edit(
                         add_inline_banner_preview(msg),
@@ -679,7 +732,7 @@ def register(kernel):
                             event.chat_id, reply_to=event.reply_to_msg_id
                         )
 
-                        if kernel.config.get("man_invert_media", False):
+                        if get_config().get("man_invert_media", False):
                             try:
                                 hidden = await get_hidden_modules(kernel)
                                 page_msg, page_buttons = get_paginated_data(

@@ -13,17 +13,28 @@ from collections import deque, defaultdict
 from telethon import Button
 from telethon.tl import TLRequest
 
+from core.lib.loader.module_config import (
+    ModuleConfig,
+    ConfigValue,
+    String,
+    Boolean,
+    Integer,
+    Float,
+    Choice,
+)
+
 DEFAULT_CONFIG = {
     "time_sample": 30,
-    "threshold": 200,
+    "limit_profile": "normal",
+    "custom_threshold": 200,
     "local_floodwait": 30,
     "ignore_methods": ["GetMessagesRequest"],
     "enable_protection": True,
-    # --- Telethon-MCUB native protection ---
+    # Telethon-MCUB native protection
     # mode: 'off' | 'safe' | 'strict' | 'custom'
     "mcub_mode": "safe",
-    "mcub_dry_run": False,  # наблюдать нарушения без блокировки
-    "mcub_allowlist": [],  # методы-исключения в custom-режиме
+    "mcub_dry_run": False,
+    "mcub_allowlist": [],
     # анализ
     "enable_analytics": True,
     "zscore_threshold": 3.0,
@@ -33,6 +44,12 @@ DEFAULT_CONFIG = {
     "profile_min_samples": 50,
     "predict_alert_cooldown": 10,
     "warn_alert_cooldown": 30,
+}
+
+LIMIT_PROFILES = {
+    "conservative": 100,
+    "normal": 200,
+    "aggressive": 350,
 }
 
 
@@ -515,24 +532,138 @@ def register(kernel):
 
     lang = strings.get(language, strings["en"])
 
-    raw_config = kernel.config.get("api_protection", DEFAULT_CONFIG.copy())
-    if isinstance(raw_config, bool):
-        api_config = DEFAULT_CONFIG.copy()
-        api_config["enable_protection"] = raw_config
-        kernel.logger.info(
-            "Converted old api_protection config (bool) to new dict format"
-        )
-    else:
-        api_config = raw_config
-        for k, v in DEFAULT_CONFIG.items():
-            if k not in api_config:
-                api_config[k] = v
+    config = ModuleConfig(
+        ConfigValue(
+            "time_sample",
+            30,
+            description="Time window for sample (seconds)",
+            validator=Integer(default=30, min=1),
+        ),
+        ConfigValue(
+            "limit_profile",
+            "normal",
+            description="API limit profile: conservative (100/30s), normal (200/30s), aggressive (350/30s), custom",
+            validator=Choice(
+                choices=["conservative", "normal", "aggressive", "custom"],
+                default="normal",
+            ),
+        ),
+        ConfigValue(
+            "custom_threshold",
+            200,
+            description="Custom threshold (req/30s) - used when profile is 'custom'",
+            validator=Integer(default=200, min=1),
+        ),
+        ConfigValue(
+            "local_floodwait",
+            30,
+            description="Local floodwait duration (seconds)",
+            validator=Integer(default=30, min=1),
+        ),
+        ConfigValue(
+            "ignore_methods",
+            ["GetMessagesRequest"],
+            description="Methods to ignore",
+            validator=String(default='["GetMessagesRequest"]'),
+        ),
+        ConfigValue(
+            "enable_protection",
+            True,
+            description="Enable API protection",
+            validator=Boolean(default=True),
+        ),
+        ConfigValue(
+            "mcub_mode",
+            "safe",
+            description="MCUB protection mode",
+            validator=Choice(
+                choices=["off", "safe", "strict", "custom"], default="safe"
+            ),
+        ),
+        ConfigValue(
+            "mcub_dry_run",
+            False,
+            description="Observe violations without blocking",
+            validator=Boolean(default=False),
+        ),
+        ConfigValue(
+            "mcub_allowlist",
+            [],
+            description="Methods excluded in custom mode",
+            validator=String(default="[]"),
+        ),
+        ConfigValue(
+            "enable_analytics",
+            True,
+            description="Enable analytics",
+            validator=Boolean(default=True),
+        ),
+        ConfigValue(
+            "zscore_threshold",
+            3.0,
+            description="Z-score anomaly threshold",
+            validator=Float(default=3.0, min=0.0),
+        ),
+        ConfigValue(
+            "warn_percent",
+            90,
+            description="Warning threshold percentage",
+            validator=Integer(default=90, min=0, max=100),
+        ),
+        ConfigValue(
+            "predict_window",
+            10,
+            description="Prediction window",
+            validator=Integer(default=10, min=1),
+        ),
+        ConfigValue(
+            "baseline_window",
+            300,
+            description="Baseline window (seconds)",
+            validator=Integer(default=300, min=10),
+        ),
+        ConfigValue(
+            "profile_min_samples",
+            50,
+            description="Minimum samples for profile",
+            validator=Integer(default=50, min=1),
+        ),
+        ConfigValue(
+            "predict_alert_cooldown",
+            10,
+            description="Predict alert cooldown (seconds)",
+            validator=Integer(default=10, min=1),
+        ),
+        ConfigValue(
+            "warn_alert_cooldown",
+            30,
+            description="Warn alert cooldown (seconds)",
+            validator=Integer(default=30, min=1),
+        ),
+    )
 
-    kernel.config["api_protection"] = api_config
+    def get_config():
+        live_cfg = getattr(kernel, "_live_module_configs", {}).get(__name__)
+        if live_cfg:
+            return live_cfg
+        return config
+
+    async def startup():
+        config_dict = await kernel.get_module_config(__name__, DEFAULT_CONFIG.copy())
+        config.from_dict(config_dict)
+        config_dict_clean = {k: v for k, v in config.to_dict().items() if v is not None}
+        if config_dict_clean:
+            await kernel.save_module_config(__name__, config_dict_clean)
+        kernel.store_module_config_schema(__name__, config)
+
+    asyncio.create_task(startup())
+
+    api_config = config
 
     def persist_api_config():
-        kernel.config["api_protection"] = api_config
-        kernel.save_config()
+        cfg = get_config()
+        if cfg:
+            asyncio.create_task(kernel.save_module_config(__name__, cfg.to_dict()))
 
     protection_enabled = api_config["enable_protection"]
     blocked_until = 0.0
@@ -644,7 +775,11 @@ def register(kernel):
 
         interval = api_config["time_sample"]
         ignore_set = set(api_config["ignore_methods"])
-        threshold = api_config["threshold"]
+        profile = api_config.get("limit_profile", "normal")
+        if profile == "custom":
+            threshold = api_config.get("custom_threshold", 200)
+        else:
+            threshold = LIMIT_PROFILES.get(profile, 200)
         cutoff = now - interval
         total_relevant = sum(
             1 for m, ts in request_log if ts > cutoff and m not in ignore_set
@@ -850,8 +985,8 @@ def register(kernel):
         if len(args) == 1:
             buttons = [
                 [
-                    Button.inline(lang["yes"], b"api_protection_yes"),
-                    Button.inline(lang["no"], b"api_protection_no"),
+                    Button.inline(lang["yes"], b"api_protection_yes", style="success"),
+                    Button.inline(lang["no"], b"api_protection_no", style="danger"),
                 ],
             ]
             await kernel.inline_form(
@@ -919,77 +1054,6 @@ def register(kernel):
         blocked_until = time.time() + seconds
         await event.edit(lang["api_suspend"].format(seconds=seconds), parse_mode="html")
 
-    @kernel.register.command("api_ignore")
-    async def api_ignore_handler(event):
-        args = event.text.split()
-        if len(args) < 2:
-            await event.edit(lang["api_ignore_usage"], parse_mode="html")
-            return
-
-        subcmd = args[1].lower()
-
-        if subcmd == "list":
-            methods = api_config["ignore_methods"]
-            if not methods:
-                await event.edit(lang["api_ignore_list_empty"], parse_mode="html")
-            else:
-                methods_str = "\n".join(f"  • `{m}`" for m in methods)
-                await event.edit(
-                    lang["api_ignore_list"].format(methods=methods_str),
-                    parse_mode="html",
-                )
-
-        elif subcmd == "add" and len(args) >= 3:
-            method = args[2]
-            if method not in api_config["ignore_methods"]:
-                api_config["ignore_methods"].append(method)
-                persist_api_config()
-            await event.edit(
-                lang["api_ignore_added"].format(method=method), parse_mode="html"
-            )
-
-        elif subcmd == "remove" and len(args) >= 3:
-            method = args[2]
-            if method in api_config["ignore_methods"]:
-                api_config["ignore_methods"].remove(method)
-                persist_api_config()
-                await event.edit(lang["api_ignore_removed"].format(method=method))
-            else:
-                await event.edit(lang["api_ignore_not_found"].format(method=method))
-
-        elif subcmd == "clear":
-            api_config["ignore_methods"] = []
-            persist_api_config()
-            await event.edit(lang["api_ignore_cleared"], parse_mode="html")
-
-        else:
-            await event.edit(lang["api_ignore_usage"], parse_mode="html")
-
-    @kernel.register.command("api_status")
-    async def api_status_handler(event):
-        """Show current MCUB protection status."""
-        if not _mcub_available:
-            await event.edit(lang["mcub_not_supported"])
-            return
-
-        mode = api_config.get("mcub_mode", "safe")
-        dry_run = api_config.get("mcub_dry_run", False)
-        allowlist = api_config.get("mcub_allowlist", [])
-        al_str = ", ".join(f"`{m}`" for m in allowlist) if allowlist else "—"
-
-        await event.edit(
-            lang["mcub_status"].format(
-                mode=mode,
-                dry=(
-                    '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji>'
-                    if dry_run
-                    else '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji>'
-                ),
-                allowlist=al_str,
-            ),
-            parse_mode="html",
-        )
-
     async def api_protection_callback_handler(event):
         nonlocal protection_enabled
         data = event.data
@@ -1003,24 +1067,28 @@ def register(kernel):
                         Button.inline(
                             "🥽 safe",
                             b"api_prot_mode_safe",
+                            style="primary",
                         )
                     ],
                     [
                         Button.inline(
                             "🔬 strict",
                             b"api_prot_mode_strict",
+                            style="primary",
                         )
                     ],
                     [
                         Button.inline(
                             "🤧 off",
                             b"api_prot_mode_off",
+                            style="primary",
                         )
                     ],
                     [
                         Button.inline(
                             lang["mcub_mode_default"].format(mode=current_mode),
                             b"api_prot_mode_default",
+                            style="primary",
                         )
                     ],
                 ]

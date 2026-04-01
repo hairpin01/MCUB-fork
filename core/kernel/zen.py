@@ -177,6 +177,7 @@ class Kernel:
         self.Colors = Colors
 
         self.loaded_modules: dict = {}
+        self._live_module_configs: dict = {}
         self.system_modules: dict = {}
         self.command_handlers: dict = {}
         self.command_owners: dict = {}
@@ -405,7 +406,20 @@ class Kernel:
         return await self._cfg.get_module_config(module_name, default)
 
     async def save_module_config(self, module_name: str, config_data: dict) -> bool:
-        return await self._cfg.save_module_config(module_name, config_data)
+        result = await self._cfg.save_module_config(module_name, config_data)
+
+        # Update live config schema
+        live_cfg = self._live_module_configs.get(module_name)
+        if live_cfg and hasattr(live_cfg, "_values"):
+            for key, value in config_data.items():
+                if key != "__mcub_config__":
+                    live_cfg[key] = value
+
+        return result
+
+    def store_module_config_schema(self, module_name: str, config) -> None:
+        """Store a live ModuleConfig schema for UI display."""
+        self._live_module_configs[module_name] = config
 
     async def delete_module_config(self, module_name: str) -> bool:
         return await self._cfg.delete_module_config(module_name)
@@ -945,6 +959,15 @@ class Kernel:
                 alias,
                 text,
             )
+            if alias not in self.command_handlers and alias not in self.aliases:
+                self.logger.warning(
+                    f"Alias '{cmd}' points to non-existent target '{alias}', "
+                    f"executing '{cmd}' directly"
+                )
+                if cmd in self.command_handlers:
+                    await self.command_handlers[cmd](event)
+                    return True
+                return False
             event.text = new_text
             if hasattr(event, "message"):
                 event.message.message = new_text
@@ -1080,7 +1103,11 @@ class Kernel:
 
         needs_setup = not os.path.exists(self.CONFIG_FILE)
         if not needs_setup:
-            session_exists = os.path.exists("user_session.session")
+            from utils.security import session_exists
+
+            api_id = getattr(self, "API_ID", None)
+            api_hash = getattr(self, "API_HASH", None)
+            session_exists = session_exists(api_id, api_hash)
             needs_setup = not session_exists
 
         if needs_setup:
@@ -1119,7 +1146,11 @@ class Kernel:
         if not no_web:
             web_via_env = os.environ.get("MCUB_WEB", "0") == "1"
             web_via_config = self.config.get("web_panel_enabled", False)
-            no_session = not os.path.exists("user_session.session")
+            from utils.security import session_exists
+
+            api_id = getattr(self, "API_ID", None)
+            api_hash = getattr(self, "API_HASH", None)
+            no_session = not session_exists(api_id, api_hash)
             no_config = not os.path.exists(self.CONFIG_FILE)
 
             # запускаем панель если: явно включено ИЛИ нет сессии ИЛИ нет конфига

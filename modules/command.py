@@ -244,8 +244,12 @@ def register(kernel):
                 message=lang_strings["choose_language"],
                 buttons=[
                     [
-                        Button.inline(lang_strings["btn_ru"], b"start_lang_ru"),
-                        Button.inline(lang_strings["btn_en"], b"start_lang_en"),
+                        Button.inline(
+                            lang_strings["btn_ru"], b"start_lang_ru", style="primary"
+                        ),
+                        Button.inline(
+                            lang_strings["btn_en"], b"start_lang_en", style="primary"
+                        ),
                     ]
                 ],
                 parse_mode="html",
@@ -349,8 +353,8 @@ def register(kernel):
 
             backup_buttons = [
                 [
-                    Button.inline("Yes / Да", b"backup_setup_yes"),
-                    Button.inline("No / Нет", b"backup_setup_no"),
+                    Button.inline("Yes / Да", b"backup_setup_yes", style="success"),
+                    Button.inline("No / Нет", b"backup_setup_no", style="danger"),
                 ]
             ]
 
@@ -382,17 +386,19 @@ def register(kernel):
             if enable:
                 interval_buttons = [
                     [
-                        Button.inline("2h", b"backup_interval:2"),
-                        Button.inline("4h", b"backup_interval:4"),
-                        Button.inline("6h", b"backup_interval:6"),
+                        Button.inline("2h", b"backup_interval:2", style="primary"),
+                        Button.inline("4h", b"backup_interval:4", style="primary"),
+                        Button.inline("6h", b"backup_interval:6", style="primary"),
                     ],
                     [
-                        Button.inline("12h", b"backup_interval:12"),
-                        Button.inline("24h", b"backup_interval:24"),
+                        Button.inline("12h", b"backup_interval:12", style="primary"),
+                        Button.inline("24h", b"backup_interval:24", style="primary"),
                     ],
                     [
                         Button.inline(
-                            strings_current["backup_skip"], b"backup_interval_skip"
+                            strings_current["backup_skip"],
+                            b"backup_interval_skip",
+                            style="primary",
                         ),
                     ],
                 ]
@@ -435,17 +441,26 @@ def register(kernel):
                 spec.loader.exec_module(userbot_backup)
                 BackupModule = userbot_backup.BackupModule
                 backup_module = BackupModule(kernel)
-                backup_module.config = {
-                    "backup_chat_id": None,
-                    "backup_interval_hours": interval,
-                    "last_backup_time": None,
-                    "backup_count": 0,
-                    "enable_auto_backup": True,
-                }
 
-                await kernel.save_module_config(
-                    "modules.userbot-backup", backup_module.config
+                live_cfg = getattr(kernel, "_live_module_configs", {}).get(
+                    "modules.userbot-backup"
                 )
+                if live_cfg:
+                    live_cfg["backup_interval_hours"] = interval
+                    await kernel.save_module_config(
+                        "modules.userbot-backup", live_cfg.to_dict()
+                    )
+                else:
+                    backup_module.config = {
+                        "backup_chat_id": None,
+                        "backup_interval_hours": interval,
+                        "last_backup_time": None,
+                        "backup_count": 0,
+                        "enable_auto_backup": True,
+                    }
+                    await kernel.save_module_config(
+                        "modules.userbot-backup", backup_module.config
+                    )
 
                 chat = await backup_module.ensure_backup_chat()
 

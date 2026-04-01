@@ -195,7 +195,7 @@ class TestUninstallCallback:
 
     @pytest.mark.asyncio
     async def test_uninstall_removes_aliases_for_module_commands(self):
-        """Test that unload removes aliases pointing at the module's commands."""
+        """Test that remove_module_aliases removes aliases pointing at the module's commands."""
         from core.lib.loader.loader import ModuleLoader
 
         kernel = MagicMock()
@@ -203,7 +203,8 @@ class TestUninstallCallback:
         kernel.system_modules = {}
         kernel.command_handlers = {"ping": MagicMock(), "other": MagicMock()}
         kernel.command_owners = {"ping": "test_module", "other": "other_module"}
-        kernel.aliases = {"p": "ping", "o": "other"}
+        aliases_real = {"p": "ping", "o": "other"}
+        kernel.aliases = aliases_real
         kernel.inline_handlers = {}
         kernel.inline_handlers_owners = {}
         kernel.command_metadata = {}
@@ -218,10 +219,15 @@ class TestUninstallCallback:
 
         loader = ModuleLoader(kernel)
 
+        commands_removed = ["ping"]
         await loader.unregister_module_commands("test_module")
 
         assert "ping" not in kernel.command_handlers
         assert "ping" not in kernel.command_owners
+        assert "p" in kernel.aliases
+
+        loader.remove_module_aliases("test_module", commands_removed)
+
         assert "p" not in kernel.aliases
         assert kernel.aliases["o"] == "other"
 
@@ -361,3 +367,168 @@ class TestIsInVirtualEnv:
 
             with patch.object(sys, "prefix", "/home/user/venv"):
                 assert loader.is_in_virtualenv() is True
+
+
+class TestHikkaModuleUnload:
+    """Test Hikka module unload - commands should be fully removed"""
+
+    @pytest.mark.asyncio
+    async def test_unload_hikka_module_removes_commands(self):
+        """Test that unload_hikka_module properly removes commands and aliases"""
+        from core.lib.loader.hikka_compat.fake_package import unload_hikka_module
+
+        kernel = MagicMock()
+        kernel.command_handlers = {"testcmd": MagicMock()}
+        kernel.command_owners = {"testcmd": "hikka_module"}
+        kernel.aliases = {"tc": "testcmd"}
+        kernel.inline_handlers = {}
+        kernel.inline_handlers_owners = {}
+        kernel.loaded_modules = {
+            "hikka_module": MagicMock(
+                _hikka_compat=True,
+                _registered_cmds=["testcmd"],
+                _registered_aliases=["tc"],
+                _inline_patterns=[],
+                _loop_handles=[],
+                _callback_event_handles=[],
+                _watcher_handles=[],
+                _raw_handles=[],
+                _event_handles=[],
+            )
+        }
+        kernel.logger = MagicMock()
+        kernel.client = MagicMock()
+
+        result = await unload_hikka_module(kernel, "hikka_module")
+
+        assert result is True
+        assert "testcmd" not in kernel.command_handlers
+        assert "testcmd" not in kernel.command_owners
+        assert "tc" not in kernel.aliases
+        assert "hikka_module" not in kernel.loaded_modules
+
+    @pytest.mark.asyncio
+    async def test_unload_hikka_module_removes_inline_handlers(self):
+        """Test that unload_hikka_module removes inline handlers"""
+        from core.lib.loader.hikka_compat.fake_package import unload_hikka_module
+
+        kernel = MagicMock()
+        kernel.command_handlers = {}
+        kernel.command_owners = {}
+        kernel.aliases = {}
+        kernel.inline_handlers = {"testinline": MagicMock()}
+        kernel.inline_handlers_owners = {"testinline": "hikka_module"}
+        kernel.loaded_modules = {
+            "hikka_module": MagicMock(
+                _hikka_compat=True,
+                _registered_cmds=[],
+                _registered_aliases=[],
+                _inline_patterns=["testinline"],
+                _loop_handles=[],
+                _callback_event_handles=[],
+                _watcher_handles=[],
+                _raw_handles=[],
+                _event_handles=[],
+            )
+        }
+        kernel.logger = MagicMock()
+        kernel.client = MagicMock()
+
+        result = await unload_hikka_module(kernel, "hikka_module")
+
+        assert result is True
+        assert "testinline" not in kernel.inline_handlers
+        assert "testinline" not in kernel.inline_handlers_owners
+
+    @pytest.mark.asyncio
+    async def test_unload_hikka_module_nonexistent(self):
+        """Test that unload_hikka_module returns False for non-existent module"""
+        from core.lib.loader.hikka_compat.fake_package import unload_hikka_module
+
+        kernel = MagicMock()
+        kernel.loaded_modules = {}
+        kernel.logger = MagicMock()
+
+        result = await unload_hikka_module(kernel, "nonexistent_module")
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_unload_non_hikka_module_returns_false(self):
+        """Test that unload_hikka_module returns False for non-hikka modules"""
+        from core.lib.loader.hikka_compat.fake_package import unload_hikka_module
+
+        kernel = MagicMock()
+        kernel.loaded_modules = {
+            "regular_module": MagicMock(
+                _hikka_compat=False,
+            )
+        }
+        kernel.logger = MagicMock()
+
+        result = await unload_hikka_module(kernel, "regular_module")
+
+        assert result is False
+
+
+class TestHikkaModuleConfigSchema:
+    """Test Hikka module config schema storage"""
+
+    @pytest.mark.asyncio
+    async def test_hikka_module_config_stores_schema(self):
+        """Test that Hikka module config schema is stored for UI"""
+        from core.lib.loader.hikka_compat.fake_package import _ensure_fake_package
+
+        _ensure_fake_package()
+        import sys
+
+        loader_mod = sys.modules.get("__hikka_mcub_compat__.loader")
+        assert loader_mod is not None
+
+        ConfigValue = loader_mod.ConfigValue
+        ModuleConfig = loader_mod.ModuleConfig
+
+        config = ModuleConfig(
+            ConfigValue(
+                "test_option",
+                default=True,
+                description="Test option",
+                validator=None,
+            ),
+        )
+
+        schema = config.schema
+        assert len(schema) == 1
+        assert schema[0]["key"] == "test_option"
+        assert schema[0]["default"] is True
+        assert schema[0]["description"] == "Test option"
+
+    @pytest.mark.asyncio
+    async def test_hikka_module_config_secret_flag(self):
+        """Test that Hikka module config properly marks secret values"""
+        from core.lib.loader.hikka_compat.fake_package import _ensure_fake_package
+        from core.lib.loader.hikka_compat.validators import Hidden
+
+        _ensure_fake_package()
+        import sys
+
+        loader_mod = sys.modules.get("__hikka_mcub_compat__.loader")
+        assert loader_mod is not None
+
+        ConfigValue = loader_mod.ConfigValue
+        ModuleConfig = loader_mod.ModuleConfig
+
+        hidden_validator = Hidden()
+
+        config = ModuleConfig(
+            ConfigValue(
+                "api_token",
+                default="",
+                description="API Token",
+                validator=hidden_validator,
+            ),
+        )
+
+        schema = config.schema
+        assert len(schema) == 1
+        assert schema[0]["secret"] is True

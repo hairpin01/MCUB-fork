@@ -434,10 +434,11 @@ class Register:
                         raise ValueError(f"Alias '{alias}' already registered")
                     self.kernel.aliases[alias] = cmd
                     self.kernel.logger.debug(
-                        "[register.command] alias=%r -> %r owner=%r",
+                        "[register.command] alias=%r -> %r owner=%r total_aliases=%d",
                         alias,
                         cmd,
                         self.kernel.current_loading_module,
+                        len(self.kernel.aliases),
                     )
                 elif isinstance(alias, list):
                     for a in alias:
@@ -445,10 +446,11 @@ class Register:
                             raise ValueError(f"Alias '{a}' already registered")
                         self.kernel.aliases[a] = cmd
                         self.kernel.logger.debug(
-                            "[register.command] alias=%r -> %r owner=%r",
+                            "[register.command] alias=%r -> %r owner=%r total_aliases=%d",
                             a,
                             cmd,
                             self.kernel.current_loading_module,
+                            len(self.kernel.aliases),
                         )
 
             more = kwargs.get("more")
@@ -964,3 +966,113 @@ class Register:
             self.kernel.bot_command_owners.pop(cmd, None)
             return True
         return False
+
+    def get_all_aliases(self) -> Dict[str, str]:
+        """
+        Get all registered command aliases.
+
+        Returns:
+            Dict mapping alias names to command names.
+        """
+        return self.kernel.aliases.copy()
+
+    def get_command_alias(self, command: str) -> Optional[str]:
+        """
+        Get the alias for a specific command.
+
+        Args:
+            command: Command name to find alias for.
+
+        Returns:
+            The alias if found, None otherwise.
+        """
+        for alias, cmd in self.kernel.aliases.items():
+            if cmd == command:
+                return alias
+        return None
+
+    def get_use_bot(self) -> Dict[str, Any]:
+        """
+        Get information about inline bot usage.
+
+        Returns:
+            Dict with bot availability and connection status.
+        """
+        has_bot = (
+            hasattr(self.kernel, "bot_client") and self.kernel.bot_client is not None
+        )
+        is_connected = False
+        bot_username = None
+
+        if has_bot:
+            try:
+                is_connected = self.kernel.bot_client.is_connected()
+                if is_connected:
+                    bot_username = self.kernel.bot_client.session.username
+            except Exception:
+                pass
+
+        return {
+            "available": has_bot,
+            "connected": is_connected,
+            "username": bot_username,
+        }
+
+    def owner(
+        self, func: Optional[Callable] = None, only_admin: bool = False
+    ) -> Callable:
+        """
+        Decorator to restrict a handler to the bot owner (admin) or trusted users.
+
+        Args:
+            only_admin: If True, only admin can use the command (ignores no_owner).
+                       If False (default), trusted users with no_owner=False can also use it.
+
+        The handler will only execute if:
+        - The message is sent by the admin (ADMIN_ID), OR
+        - (only_admin=False) The message has a `no_owner()` method that returns False (trusted user)
+
+        If `no_owner()` returns True, the message is from a non-owner user and
+        the handler will NOT execute.
+
+        Example:
+            >>> @kernel.register.owner()
+            >>> async def owner_only_cmd(event):
+            >>>     await event.reply("Hello, owner!")
+
+            >>> @kernel.register.owner(only_admin=True)
+            >>> async def admin_only_cmd(event):
+            >>>     await event.reply("Admin only!")
+        """
+
+        def decorator(f: Callable) -> Callable:
+            async def wrapper(event: Any) -> None:
+                admin_id = getattr(self.kernel, "ADMIN_ID", None)
+                sender_id = getattr(event, "sender_id", None)
+
+                if admin_id is None or sender_id is None:
+                    return
+
+                is_admin = int(sender_id) == int(admin_id)
+
+                if only_admin:
+                    if not is_admin:
+                        return
+                else:
+                    no_owner_method = getattr(event, "no_owner", None)
+                    if no_owner_method is not None:
+                        is_no_owner = no_owner_method()
+                        if is_no_owner:
+                            return
+
+                    if not is_admin:
+                        return
+
+                await f(event)
+
+            wrapper.__name__ = f"owner:{f.__name__}"
+            return wrapper
+
+        if func is not None and callable(func):
+            return decorator(func)
+        return decorator

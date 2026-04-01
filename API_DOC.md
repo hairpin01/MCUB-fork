@@ -641,6 +641,35 @@ Delete the entire config for a module.
 await kernel.delete_module_config('mymodule')
 ```
 
+`kernel.store_module_config_schema(module_name, config)`
+---
+> ⚠️ **WARNING: This method is REQUIRED for proper Modules Config UI functionality!**
+
+Store a live ModuleConfig schema for the UI. This enables:
+- Inline choice buttons for `Choice` validator fields
+- Display of config metadata (descriptions, choices, validators)
+- Proper UI rendering of module config
+
+**Parameters:**
+- `module_name` (str): Module identifier (use `__name__`)
+- `config` (ModuleConfig): Live ModuleConfig instance
+
+**Usage:**
+```python
+# After creating and saving ModuleConfig:
+config = ModuleConfig(...)
+config.from_dict(config_dict)
+await kernel.save_module_config(__name__, config.to_dict())
+kernel.store_module_config_schema(__name__, config)  # REQUIRED!
+self.config = config
+```
+
+**Without this call:**
+- ❌ Choice fields won't have inline selection buttons
+- ❌ Config descriptions won't be displayed
+- ❌ Validators (min/max, choices) won't be shown in UI
+- ❌ User experience will be significantly degraded
+
 ---
 
 ### ModuleConfig (Recommended)
@@ -708,6 +737,15 @@ def register(kernel):
 
             # Save in new format (with UI marker)
             await kernel.save_module_config(__name__, config.to_dict())
+
+            # ⚠️ IMPORTANT: Store the live ModuleConfig schema for UI features
+            # Without this call, the Modules Config UI will NOT work properly:
+            # - Choice values will NOT show inline buttons
+            # - Config metadata (descriptions, validators) will NOT be displayed
+            # - User experience will be significantly degraded
+            #
+            # This is NOT optional - it is REQUIRED for proper module config UI!
+            kernel.store_module_config_schema(__name__, config)
 
             # Use it
             if config["enabled"]:
@@ -777,6 +815,47 @@ schema = config.schema  # Returns list of dicts with key, type, default, descrip
 1. **Always call `config.to_dict()` before saving** — this adds the `__mcub_config__` marker required for the module to appear in **Modules Config** UI
 2. **Define defaults twice** — in `ConfigValue` and in the dict for `get_module_config`
 3. **Load order**: Create `ModuleConfig` → Call `from_dict()` → Call `to_dict()` and `save_module_config()`
+4. **Use startup function for async initialization** — recommended pattern for loading config:
+   ```python
+   async def startup():
+       config_dict = await kernel.get_module_config(__name__, {"my_setting": "default"})
+       config.from_dict(config_dict)
+       # Filter out None values before saving
+       config_dict_clean = {k: v for k, v in config.to_dict().items() if v is not None}
+       if config_dict_clean:
+           await kernel.save_module_config(__name__, config_dict_clean)
+       kernel.store_module_config_schema(__name__, config)
+
+   asyncio.create_task(startup())
+   ```
+5. **Use get_config() helper for live reading** — always read from live config, never cache values:
+   ```python
+   def get_config():
+       live_cfg = getattr(kernel, "_live_module_configs", {}).get(__name__)
+       if live_cfg:
+           return live_cfg
+       return config
+
+   # In handler:
+   cfg = get_config()
+   value = cfg.get("my_setting") if cfg else "default"
+   ```
+6. **Use Choice instead of String for enums** — provides dropdown UI:
+   ```python
+   # Good
+   validator=Choice(choices=["off", "safe", "strict"], default="safe")
+   # Bad (no dropdown)
+   validator=String(default="safe")
+   ```
+7. **Don't use typing.List for lists** — use String with JSON:
+   ```python
+   # Good - store as JSON string
+   validator=String(default='["item1", "item2"]')
+   # Bad - will cause TypeError
+   from typing import List
+   validator=List(default=[])
+   ```
+8. **None values preserve defaults** — when loading config, if a value in DB is `None`, the default value is preserved (not overwritten)
 
 ---
 
@@ -972,6 +1051,85 @@ def register(kernel):
     async def handler2(event):
         await event.edit("Command 2")
 ```
+
+### Owner-Only Commands
+
+```python
+@kernel.register.command('admincmd')
+@kernel.register.owner(only_admin=True)
+async def admin_only_handler(event):
+    await event.edit("Admin only!")
+
+@kernel.register.command('trustedcmd')
+@kernel.register.owner()
+async def trusted_handler(event):
+    await event.edit("Admin or trusted user!")
+```
+
+`kernel.register.owner(only_admin=False)`
+---
+Decorator to restrict a handler to the bot owner (admin) or trusted users.
+
+**Parameters:**
+- `only_admin` (bool): If True, only admin can use the command. If False (default), trusted users with `no_owner()` method returning False can also use it.
+
+**Usage:**
+
+```python
+@kernel.register.owner()
+async def owner_or_trusted(event):
+    await event.reply("Hello, owner!")
+
+@kernel.register.owner(only_admin=True)
+async def admin_only(event):
+    await event.reply("Admin only!")
+```
+
+### Command Aliases Management
+
+```python
+@kernel.register.command('mycmd')
+async def mycmd_handler(event):
+    await event.edit("Command executed!")
+
+aliases = kernel.register.get_all_aliases()
+print(aliases)  # {'ex': 'example', 'p': 'ping'}
+
+cmd_alias = kernel.register.get_command_alias('ping')
+print(cmd_alias)  # 'p' or None
+```
+
+`kernel.register.get_all_aliases()`
+---
+Get all registered command aliases.
+
+**Returns:** Dict mapping alias names to command names.
+
+`kernel.register.get_command_alias(command)`
+---
+Get the alias for a specific command.
+
+**Parameters:**
+- `command` (str): Command name to find alias for.
+
+**Returns:** str or None - The alias if found.
+
+### Inline Bot Information
+
+```python
+bot_info = kernel.register.get_use_bot()
+print(bot_info)
+# {'available': True, 'connected': True, 'username': 'MCUB_bot'}
+```
+
+`kernel.register.get_use_bot()`
+---
+Get information about inline bot usage.
+
+**Returns:** Dict with keys:
+- `available` (bool): Whether bot_client is configured
+- `connected` (bool): Whether bot is connected
+- `username` (str): Bot username if connected
 
 ---
 

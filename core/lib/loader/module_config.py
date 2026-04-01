@@ -267,10 +267,9 @@ class ModuleConfig:
     def from_dict(self, data: Dict[str, Any]):
         """Load config from dict (e.g., from database)."""
         for key, cv in self._values.items():
-            if key in data:
+            if key in data and data[key] is not None:
                 cv.from_storage(data[key])
-            else:
-                cv.from_storage(None)  # reset to default
+            # If key not in data or value is None, keep the default
 
     @property
     def schema(self) -> List[Dict]:

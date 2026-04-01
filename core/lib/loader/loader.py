@@ -1065,17 +1065,18 @@ class ModuleLoader:
                 del k.command_owners[cmd]
             k.logger.debug(f"Unregistered command: {cmd}")
 
-        aliases_to_remove = [
-            alias
-            for alias, target_cmd in k.aliases.items()
-            if k.command_owners.get(target_cmd) == module_name
-            or target_cmd in to_remove
-        ]
-        for alias in aliases_to_remove:
-            del k.aliases[alias]
-            k.logger.debug(f"Unregistered alias: {alias}")
+        # Don't remove aliases on unregister - they persist across reloads
+        # aliases_to_remove = [
+        #     alias
+        #     for alias, target_cmd in k.aliases.items()
+        #     if k.command_owners.get(target_cmd) == module_name
+        #     or target_cmd in to_remove
+        # ]
+        # for alias in aliases_to_remove:
+        #     del k.aliases[alias]
+        #     k.logger.debug(f"Unregistered alias: {alias}")
 
-        if not to_remove and not aliases_to_remove:
+        if not to_remove:
             k.logger.debug(
                 "[loader.unregister] nothing-to-remove module=%r",
                 module_name,
@@ -1088,6 +1089,147 @@ class ModuleLoader:
             list(k.command_handlers.keys()),
             dict(k.aliases),
         )
+
+    def remove_module_aliases(
+        self, module_name: str, commands_removed: list[str] | None = None
+    ) -> None:
+        """Remove all aliases pointing to commands owned by a module.
+
+        This is called when a module is permanently uninstalled (um command),
+        not when it's just reloaded.
+
+        Args:
+            module_name: Name of the module whose aliases should be removed.
+            commands_removed: Optional list of commands that were already removed
+                from command_owners. If provided, aliases for these commands
+                will also be removed.
+        """
+        k = self.k
+        aliases_to_remove = [
+            alias
+            for alias, target_cmd in k.aliases.items()
+            if k.command_owners.get(target_cmd) == module_name
+        ]
+        if commands_removed:
+            for alias, target_cmd in list(k.aliases.items()):
+                if target_cmd in commands_removed:
+                    aliases_to_remove.append(alias)
+        for alias in aliases_to_remove:
+            if alias in k.aliases:
+                del k.aliases[alias]
+                k.logger.debug(f"Removed alias: {alias} (module={module_name})")
+
+    def get_module_path(self, module_name: str) -> str:
+        """Return the filesystem path for a module file.
+
+        System modules are resolved from ``MODULES_DIR``; user modules from
+        ``MODULES_LOADED_DIR``.
+
+        Args:
+            module_name: Bare module name without ``.py`` extension.
+
+        Returns:
+            Absolute-ish path string to ``<module_name>.py``.
+        """
+        import os
+
+        k = self.k
+        if module_name in k.system_modules:
+            return os.path.join(k.MODULES_DIR, f"{module_name}.py")
+        return os.path.join(k.MODULES_LOADED_DIR, f"{module_name}.py")
+
+    def find_module_case_insensitive(
+        self, name: str
+    ) -> "tuple[str | None, str | None]":
+        """Look up a module by name ignoring case across loaded and system dicts.
+
+        Args:
+            name: Module name to search for (case-insensitive).
+
+        Returns:
+            ``(actual_name, location)`` where *location* is ``'loaded'`` or
+            ``'system'``, or ``(None, None)`` if not found.
+        """
+        name_lower = name.lower()
+        for key in self.k.loaded_modules:
+            if key.lower() == name_lower:
+                return key, "loaded"
+        for key in self.k.system_modules:
+            if key.lower() == name_lower:
+                return key, "system"
+        return None, None
+
+    @staticmethod
+    def parse_requires(code: str) -> list:
+        """Parse ``# requires: pkg1, pkg2`` comments from module source.
+
+        Unlike :meth:`pre_install_requirements`, this method only *parses*
+        the list — it does **not** install anything.
+
+        Args:
+            code: Module source code string.
+
+        Returns:
+            List of package specifiers (may include version constraints like
+            ``requests>=2.28``).
+        """
+        if "requires" not in code:
+            return []
+        reqs = re.findall(r"^[ \t]*#[ \t]*requires:[ \t]*(.+)$", code, re.MULTILINE)
+        if not reqs:
+            return []
+        deps: list[str] = []
+        for line in reqs:
+            for part in line.split(","):
+                part = part.strip()
+                if not part:
+                    continue
+                # Accept "pkg_name some_other_pkg" (space-separated) as well
+                if " " in part:
+                    deps.extend(p.strip() for p in part.split() if p.strip())
+                else:
+                    deps.append(part)
+        # Filter out tokens that don't look like valid pip package specifiers.
+        # A valid specifier starts with a letter or digit and contains only
+        # alphanumeric, hyphens, underscores, dots, or version operators.
+        _dep_re = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?([><=!~].+)?$")
+        valid = []
+        for dep in deps:
+            if dep and _dep_re.match(dep):
+                valid.append(dep)
+        return valid
+
+    async def install_dependencies_batch(
+        self,
+        dependencies: list,
+        log_fn=None,
+    ) -> None:
+        """Install multiple packages concurrently via pip.
+
+        Uses :meth:`install_dependency` for each package and runs them all in
+        parallel with :func:`asyncio.gather`.
+
+        Args:
+            dependencies: List of package specifiers to install.
+            log_fn: Optional ``(message: str) -> None`` callback for progress
+                messages (called from the async tasks, so it must be
+                thread-safe or a plain closure).
+        """
+        if not dependencies:
+            return
+
+        async def _install_one(dep: str) -> None:
+            if log_fn:
+                log_fn(f"=- Installing dependency: {dep}")
+            ok, msg = await self.install_dependency(dep)
+            if ok:
+                if log_fn:
+                    log_fn(f"=> Dependency {dep} installed successfully")
+            else:
+                if log_fn:
+                    log_fn(f"=X Error installing {dep}: {msg[:200]}")
+
+        await asyncio.gather(*(_install_one(dep) for dep in dependencies))
 
     async def get_module_version_from_file(self, file_path: str) -> str:
         try:

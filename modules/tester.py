@@ -17,6 +17,13 @@ from telethon import functions
 from telethon import Button
 from copy import copy
 from utils import get_args
+from core.lib.loader.module_config import (
+    ModuleConfig,
+    ConfigValue,
+    Boolean,
+    String,
+    Choice,
+)
 
 
 def _detect_branch_sync():
@@ -57,6 +64,64 @@ CUSTOM_EMOJI = {
 
 def register(kernel):
     client = kernel.client
+    branch = _detect_branch_sync()
+
+    # Module config with ModuleConfig
+    default_config = {
+        "quote_media": False,
+        "banner_url": f"https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/{branch}/img/ping.png",
+        "invert_media": False,
+        "custom_text": "",
+        "start_emoji": "✏️",
+    }
+    config = ModuleConfig(
+        ConfigValue(
+            "quote_media",
+            False,
+            description="Send media with quote in .ping",
+            validator=Boolean(default=False),
+        ),
+        ConfigValue(
+            "banner_url",
+            f"https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/{branch}/img/ping.png",
+            description="Banner URL for .ping command",
+            validator=String(default=""),
+        ),
+        ConfigValue(
+            "invert_media",
+            False,
+            description="Invert media colors",
+            validator=Boolean(default=False),
+        ),
+        ConfigValue(
+            "custom_text",
+            "",
+            description="Custom text for .ping. Placeholders: {emoji} - start emoji, {ms} - ping ms, {emoji2} - second emoji, {uptime} - uptime, {hours}, {minutes}, {seconds}, {system_user}, {hostname}, {cpu}, {ram}, {ping_time}",
+            validator=String(default=""),
+        ),
+        ConfigValue(
+            "start_emoji",
+            "✏️",
+            description="Emoji at the start of .ping message (supports premium emojis)",
+            validator=String(default="✏️"),
+        ),
+    )
+
+    def get_config():
+        """Get live config from kernel or fall back to local config."""
+        live_cfg = getattr(kernel, "_live_module_configs", {}).get(__name__)
+        if live_cfg:
+            return live_cfg
+        return config
+
+    @kernel.register.on_load()
+    async def load_module_config(k):
+        config_dict = await k.get_module_config(__name__, default_config)
+        config.from_dict(config_dict)
+        if config_dict:
+            await k.save_module_config(__name__, config.to_dict())
+        k.store_module_config_schema(__name__, config)
+
     language = kernel.config.get("language", "en")
     log_level_pattern = re.compile(r"^\d{4}-\d{2}-\d{2} .* \[([A-Z]+)\] ")
     log_level_labels = ["debug", "info", "warning", "error", "critical", "all"]
@@ -236,25 +301,15 @@ def register(kernel):
                 except OSError:
                     pass
 
-    branch = _detect_branch_sync()
-
-    kernel.config.setdefault("ping_quote_media", False)
-    kernel.config.setdefault(
-        "ping_banner_url",
-        f"https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/{branch}/img/ping.png",
-    )
-    kernel.config.setdefault("ping_invert_media", False)
-    kernel.config.setdefault("ping_custom_text", None)
-    kernel.config.setdefault("ping_start_emoji", CUSTOM_EMOJI["✏️"])
-
     def resolve_ping_start_emoji() -> str:
         """Resolve configurable start emoji for .ping with sensible fallbacks."""
-        raw = kernel.config.get("ping_start_emoji", CUSTOM_EMOJI["✏️"])
+        cfg = get_config()
+        raw = cfg.get("start_emoji") or "✏️"
         if not isinstance(raw, str):
-            return CUSTOM_EMOJI["✏️"]
+            return "✏️"
         value = raw.strip()
         if not value:
-            return CUSTOM_EMOJI["✏️"]
+            return "✏️"
         return CUSTOM_EMOJI.get(value, value)
 
     def get_cpu_ram():
@@ -302,7 +357,8 @@ def register(kernel):
             else:
                 uptime = f"{seconds}{lang_strings['seconds']}"
 
-            custom_text = kernel.config.get("ping_custom_text")
+            cfg = get_config()
+            custom_text = cfg.get("custom_text") or ""
             if custom_text:
 
                 def uses(*keys):
@@ -468,12 +524,15 @@ def register(kernel):
                     )
                     response = t("custom_text_error", error=str(e))
             else:
-                response = f"""<blockquote>{CUSTOM_EMOJI['❄️']} <b>{lang_strings['ping']}:</b> {ping_time} {lang_strings['ms']}</blockquote>
-<blockquote>{CUSTOM_EMOJI['❄️']} <b>{lang_strings['uptime']}:</b> {uptime}</blockquote>"""
+                cfg = get_config()
+                start_emoji = resolve_ping_start_emoji()
+                response = f"""<blockquote>{start_emoji} <b>{lang_strings["ping"]}:</b> {ping_time} {lang_strings["ms"]}</blockquote>
+<blockquote>{start_emoji} <b>{lang_strings["uptime"]}:</b> {uptime}</blockquote>"""
 
-            banner_url = kernel.config.get("ping_banner_url")
-            quote_media = kernel.config.get("ping_quote_media", False)
-            invert_media = kernel.config.get("ping_invert_media", False)
+            cfg = get_config()
+            banner_url = cfg.get("banner_url")
+            quote_media = cfg.get("quote_media") or False
+            invert_media = cfg.get("invert_media") or False
 
             if (
                 quote_media
@@ -508,7 +567,6 @@ def register(kernel):
                     await kernel.handle_error(e, source="ping:quote_mode", event=event)
 
             if banner_url:
-
                 banner_sent = False
 
                 chat = await event.get_chat()
@@ -556,7 +614,6 @@ def register(kernel):
     async def logs_handler(event):
         """[clear] - cleared logs kernel"""
         try:
-
             kernel_log_path = os.path.join(kernel.LOGS_DIR, "kernel.log")
 
             if not os.path.exists(kernel_log_path):
@@ -605,42 +662,28 @@ def register(kernel):
                 f"{t('logs_choose_level', paper=CUSTOM_EMOJI['📰'])}\n{t('logs_choose_desc')}",
                 buttons=[
                     [
-                        {
-                            "text": "DEBUG",
-                            "type": "callback",
-                            "data": "tester_logs:level:debug",
-                        },
-                        {
-                            "text": "INFO",
-                            "type": "callback",
-                            "data": "tester_logs:level:info",
-                        },
+                        Button.inline(
+                            "DEBUG", b"tester_logs:level:debug", style="primary"
+                        ),
+                        Button.inline(
+                            "INFO", b"tester_logs:level:info", style="primary"
+                        ),
                     ],
                     [
-                        {
-                            "text": "WARNING",
-                            "type": "callback",
-                            "data": "tester_logs:level:warning",
-                        },
-                        {
-                            "text": "ERROR",
-                            "type": "callback",
-                            "data": "tester_logs:level:error",
-                        },
+                        Button.inline(
+                            "WARNING", b"tester_logs:level:warning", style="primary"
+                        ),
+                        Button.inline(
+                            "ERROR", b"tester_logs:level:error", style="primary"
+                        ),
                     ],
                     [
-                        {
-                            "text": "CRITICAL",
-                            "type": "callback",
-                            "data": "tester_logs:level:critical",
-                        },
-                        {
-                            "text": "ALL",
-                            "type": "callback",
-                            "data": "tester_logs:level:all",
-                        },
+                        Button.inline(
+                            "CRITICAL", b"tester_logs:level:critical", style="primary"
+                        ),
+                        Button.inline("ALL", b"tester_logs:level:all", style="primary"),
                     ],
-                    [{"text": "✖", "type": "callback", "data": "tester_logs:cancel"}],
+                    [Button.inline("✖", b"tester_logs:cancel", style="danger")],
                 ],
             )
             if success:
@@ -696,10 +739,11 @@ def register(kernel):
                             Button.inline(
                                 "✅ Send" if language == "en" else "✅ Отправить",
                                 f"tester_logs:confirm:{level}".encode(),
+                                style="success",
                             ),
-                            Button.inline("↩", b"tester_logs:back"),
+                            Button.inline("↩", b"tester_logs:back", style="primary"),
                         ],
-                        [Button.inline("✖", b"tester_logs:cancel")],
+                        [Button.inline("✖", b"tester_logs:cancel", style="danger")],
                     ],
                 )
                 return
@@ -716,18 +760,28 @@ def register(kernel):
                 parse_mode="html",
                 buttons=[
                     [
-                        Button.inline("DEBUG", b"tester_logs:level:debug"),
-                        Button.inline("INFO", b"tester_logs:level:info"),
+                        Button.inline(
+                            "DEBUG", b"tester_logs:level:debug", style="primary"
+                        ),
+                        Button.inline(
+                            "INFO", b"tester_logs:level:info", style="primary"
+                        ),
                     ],
                     [
-                        Button.inline("WARNING", b"tester_logs:level:warning"),
-                        Button.inline("ERROR", b"tester_logs:level:error"),
+                        Button.inline(
+                            "WARNING", b"tester_logs:level:warning", style="primary"
+                        ),
+                        Button.inline(
+                            "ERROR", b"tester_logs:level:error", style="primary"
+                        ),
                     ],
                     [
-                        Button.inline("CRITICAL", b"tester_logs:level:critical"),
-                        Button.inline("ALL", b"tester_logs:level:all"),
+                        Button.inline(
+                            "CRITICAL", b"tester_logs:level:critical", style="primary"
+                        ),
+                        Button.inline("ALL", b"tester_logs:level:all", style="primary"),
                     ],
-                    [Button.inline("✖", b"tester_logs:cancel")],
+                    [Button.inline("✖", b"tester_logs:cancel", style="danger")],
                 ],
             )
         except Exception as e:

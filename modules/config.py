@@ -1,4 +1,4 @@
-# requires: json, telethon>=1.24, hashlib, uuid, time, asyncio
+# requires: json, hashlib, uuid, time, asyncio
 # author: @Hairpin00
 # version: 1.3.0
 # description: config Kernel
@@ -13,6 +13,31 @@ import asyncio
 from telethon import Button, events, types
 from telethon.tl.types import InputWebDocument, DocumentAttributeImageSize
 from core.lib.loader.module_config import ModuleConfig, ValidationError
+
+
+def is_module_config_like(obj) -> bool:
+    """Check if object is a ModuleConfig-like (MCUB or Hikka compat)."""
+    if isinstance(obj, ModuleConfig):
+        return True
+    if hasattr(obj, "_is_hikka_compat") and obj._is_hikka_compat:
+        return True
+    if hasattr(obj, "_config") and hasattr(obj, "_values"):
+        return True
+    return False
+
+
+def update_live_config_schema(kernel, module_name, key=None, value=None):
+    """Update live ModuleConfig schema after config change."""
+    try:
+        live_cfg = kernel._live_module_configs.get(module_name)
+        if live_cfg and hasattr(live_cfg, "_values"):
+            if key is not None and value is not None:
+                live_cfg[key] = value
+            return live_cfg
+    except Exception:
+        pass
+    return None
+
 
 CUSTOM_EMOJI = {
     "📁": '<tg-emoji emoji-id="5433653135799228968">📁</tg-emoji>',
@@ -87,7 +112,7 @@ class InlineMessageManager:
                 "cfg_messages", "inline_messages", json.dumps(self.messages)
             )
         except Exception as e:
-            self.kernel.logger.error(f"Error saving inline messages: {e}")
+            self.kernel.logger.debug(f"Error saving inline messages: {e}")
 
     async def load_from_db(self):
         """Загружает messages из БД"""
@@ -96,7 +121,7 @@ class InlineMessageManager:
             if data:
                 self.messages = json.loads(data)
         except Exception as e:
-            self.kernel.logger.error(f"Error loading inline messages: {e}")
+            self.kernel.logger.debug(f"Error loading inline messages: {e}")
 
     def get_message_info(self, inline_msg_id):
         """Получает информацию о сообщении по inline_msg_id"""
@@ -250,6 +275,38 @@ def register(kernel):
     # Флаг инициализации конфига
     config_initialized = {"value": False}
 
+    MODULES_WITH_CONFIG_CACHE_TTL = 600  # 10 minutes
+
+    def get_modules_with_config(force_refresh=False):
+        """Get list of modules that have config (from live configs or cache)"""
+        cache_key = "modules_with_config_list"
+        cached = kernel.cache.get(cache_key)
+
+        # Always include live configs - they are always up to date
+        live_configs = getattr(kernel, "_live_module_configs", {})
+        modules_with_config = set(live_configs.keys())
+
+        # Add cached modules that might not be in live configs anymore
+        if cached and not force_refresh:
+            modules_with_config.update(cached)
+            return sorted(list(modules_with_config))
+
+        # Cache miss or refresh - rebuild from live configs
+        result = sorted(list(modules_with_config))
+        kernel.cache.set(cache_key, result, ttl=MODULES_WITH_CONFIG_CACHE_TTL)
+        return result
+
+    def add_module_to_config_cache(module_name):
+        """Add a module to the config cache (called when config is saved)"""
+        cache_key = "modules_with_config_list"
+        cached = kernel.cache.get(cache_key)
+        if cached is None:
+            cached = []
+        if module_name not in cached:
+            cached.append(module_name)
+            cached = sorted(cached)
+            kernel.cache.set(cache_key, cached, ttl=MODULES_WITH_CONFIG_CACHE_TTL)
+
     # Функция для ленивой инициализации конфига
     async def ensure_config_initialized():
         if not config_initialized["value"]:
@@ -264,7 +321,7 @@ def register(kernel):
                 )
                 config_initialized["value"] = True
             except Exception as e:
-                kernel.logger.error(f"Error initializing config module config: {e}")
+                kernel.logger.debug(f"Error initializing config module config: {e}")
 
     strings = {
         "en": {
@@ -284,7 +341,11 @@ def register(kernel):
             "invalid_type": "❌ Invalid config type",
             "not_found": "❌ Not found",
             "no_config": "❌ Module has no config",
+            "no_default": "❌ No default value",
+            "not_module_config": "❌ Not a ModuleConfig",
             "not_boolean": "❌ Not boolean",
+            "btn_reset_default": "♻️ Reset to default",
+            "reset_success": "♻️ Reset to default",
             "changed_to": "✅ Changed to {value}",
             "error": "❌ Error: {error}",
             "cfg_usage": "{gear} <b>Config</b>: Use inline or <code>.cfg [key]</code> or <code>.cfg [now/hide/unhide] [key]</code>",
@@ -312,6 +373,14 @@ def register(kernel):
             "list_module_success": "{check} <b>List</b> module <code>{module}</code> key <code>{key}</code> appended",
             "toggle_false": "❌ Set false",
             "toggle_true": "✅ Set true",
+            "cfg_range_both": "Value must be between {min} and {max}",
+            "cfg_range_min": "Value cannot be less than {min}",
+            "cfg_range_max": "Value cannot exceed {max}",
+            "cfg_len_both": "Length must be between {min} and {max} characters",
+            "cfg_len_min": "Length must be at least {min} characters",
+            "cfg_len_max": "Length must be no more than {max} characters",
+            "cfg_type_bool": "Value must be boolean (true/false)",
+            "cfg_choices": "Available options",
             "invalid_format": "❌ Invalid format",
             "btn_edit": "✏️ Edit",
             "btn_delete": "🗑️ Delete",
@@ -348,7 +417,101 @@ def register(kernel):
             "btn_close": "❌ Close",
             "kernel_config_title_short": "Kernel Config - {page}",
             "modules_config_title_short": "Modules Config - {page}",
-        }
+        },
+        "ru": {
+            "config_menu_text": "{menu_emoji} <b>Меню конфига</b>\nВыберите раздел:",
+            "btn_kernel_config": "🪄 Конфиг ядра",
+            "btn_modules_config": "🚂 Конфиг модулей",
+            "kernel_config_title": "{pencil} <b>Конфиг ядра</b>\n{page_emoji} Страница <b>{page}/{total_pages}</b> ({total_keys} ключей)",
+            "modules_config_title": "{puzzle} <b>Конфиг модулей</b>\n{page_emoji} Страница <b>{page}/{total_pages}</b> ({total_modules} модулей)",
+            "module_config_title": "{puzzle} <b>Модуль:</b> <code>{module_name}</code>\n{page_emoji} Страница <b>{page}/{total_pages}</b> ({total_items} ключей)",
+            "key_view": "{note} <b>{key}</b> ({type_emoji} {value_type})\n{display_value}",
+            "btn_back": "⬅️",
+            "btn_next": "➡️",
+            "btn_menu": "🔙 Меню",
+            "btn_modules": "🔙 Модули",
+            "btn_back_simple": "🔙 Назад",
+            "expired": "❌ Истекло",
+            "invalid_type": "❌ Неверный тип конфига",
+            "not_found": "❌ Не найдено",
+            "no_config": "❌ У модуля нет конфига",
+            "no_default": "❌ Нет значения по умолчанию",
+            "not_module_config": "❌ Это не ModuleConfig",
+            "not_boolean": "❌ Не булево значение",
+            "btn_reset_default": "♻️ Сбросить на default",
+            "reset_success": "♻️ Сброшено на default",
+            "changed_to": "✅ Изменено на {value}",
+            "error": "❌ Ошибка: {error}",
+            "cfg_usage": "{gear} <b>Конфиг</b>: Используйте инлайн или <code>.cfg [ключ]</code> или <code>.cfg [now/hide/unhide] [ключ]</code>",
+            "hidden_key": "{briefcase} <b>Скрытый</b>: <code>{key}</code>",
+            "key_not_found": "{ballot} <b>Не найден</b>: <code>{key}</code>",
+            "system_key": "{paperclip} <b>Системный ключ</b>",
+            "visible_key": "{book} <b>Видимый</b>: <code>{key}</code>",
+            "fcfg_usage": "{gear} <code>.fcfg [set/del/add/dict/list] -m [модули]</code>",
+            "specify_module": "{cross} Укажите имя модуля после -m",
+            "not_enough_args": "{cross} Недостаточно аргументов",
+            "protected_key": "{cross} <b>Защищённый</b>",
+            "set_success": "{check} <b>Установлено</b> <code>{key}</code> = <code>{value}</code>",
+            "set_module_success": "{check} <b>Установлено</b> в модуле <code>{module}</code> ключ <code>{key}</code> = <code>{value}</code>",
+            "delete_success": "{ballot} <b>Удалён</b> <code>{key}</code>",
+            "delete_module_success": "{ballot} <b>Удалён</b> из модуля <code>{module}</code> ключ <code>{key}</code>",
+            "not_found_in_module": "{cross} Не найдено в конфиге модуля",
+            "key_exists": "{cross} Уже существует",
+            "add_success": "{check} <b>Добавлен</b> <code>{key}</code>",
+            "add_module_success": "{check} <b>Добавлен</b> в модуль <code>{module}</code> ключ <code>{key}</code>",
+            "not_dict": "{cross} Ключ не является словарём",
+            "dict_success": "{check} <b>Словарь</b> <code>{key}[{subkey}]</code> обновлён",
+            "dict_module_success": "{check} <b>Словарь</b> в модуле <code>{module}</code> ключ <code>{key}[{subkey}]</code> обновлён",
+            "not_list": "{cross} Ключ не является списком",
+            "list_success": "{check} <b>Список</b> <code>{key}</code> дополнен",
+            "list_module_success": "{check} <b>Список</b> в модуле <code>{module}</code> ключ <code>{key}</code> дополнен",
+            "toggle_false": "❌ Установить false",
+            "toggle_true": "✅ Установить true",
+            "cfg_range_both": "Значение должно быть от {min} до {max}",
+            "cfg_range_min": "Значение не может быть меньше {min}",
+            "cfg_range_max": "Значение не может превышать {max}",
+            "cfg_len_both": "Длина должна быть от {min} до {max} символов",
+            "cfg_len_min": "Длина должна быть не менее {min} символов",
+            "cfg_len_max": "Длина должна быть не более {max} символов",
+            "cfg_type_bool": "Значение должно быть логическим (true/false)",
+            "cfg_choices": "Доступные варианты",
+            "invalid_format": "❌ Неверный формат",
+            "btn_edit": "✏️ Изменить",
+            "btn_delete": "🗑️ Удалить",
+            "btn_reveal": "👁️ Показать",
+            "btn_list_add": "📝 Добавить в список",
+            "btn_list_del": "🗑️ Удалить из списка",
+            "btn_list_set": "✏️ Изменить элемент списка",
+            "btn_dict_add": "🔑 Добавить в словарь",
+            "btn_dict_del": "🗑️ Удалить ключ словаря",
+            "btn_dict_set": "✏️ Изменить значение словаря",
+            "fcfg_inline_usage": "Использование: fcfg set <key_id> <value> | fcfg list/dict <add/del/set> <key_id> [value] | fcfg module <module> ...",
+            "fcfg_inline_only_set": "❌ Только set действие поддерживается в инлайн режиме",
+            "fcfg_inline_no_module": "❌ Неверная комбинация модуля/ключа",
+            "fcfg_inline_success": "✅ Ключ {key} изменён на {value}",
+            "fcfg_inline_id_not_found": "❌ ID ключа не найден или истёк",
+            "fcfg_inline_protected": "❌ Этот ключ защищён",
+            "fcfg_confirm_title": "✅ Подтвердите значение",
+            "fcfg_confirm_text": "Значение будет передано в конфиг",
+            "fcfg_confirm_success": "✅ Конфиг ключ {key} обновлён на {value}",
+            "fcfg_confirm_error": "❌ Ошибка обновления конфига: {error}",
+            "fcfg_confirm_expired": "❌ Подтверждение истекло или уже использовано",
+            "key_deleted": "🗑️ Ключ удалён",
+            "value_inserted": "✅ Значение вставлено",
+            "list_empty": "📭 Список пуст",
+            "dict_empty": "📭 Словарь пуст",
+            "list_add_confirm": "➕ Добавить: {value}",
+            "list_remove_confirm": "🗑️ Удалить элемент {index}: {value}",
+            "list_set_confirm": "✏️ Заменить элемент {index}: {old} → {new}",
+            "dict_add_confirm": "🔑 Добавить ключ: {key} = {value}",
+            "dict_remove_confirm": "🗑️ Удалить ключ: {key}",
+            "dict_set_confirm": "✏️ Установить ключ {key}: {old} → {new}",
+            "operation_success": "✅ Операция успешна",
+            "operation_failed": "❌ Операция не удалась: {error}",
+            "btn_close": "❌ Закрыть",
+            "kernel_config_title_short": "Конфиг ядра - {page}",
+            "modules_config_title_short": "Конфиг модулей - {page}",
+        },
     }
 
     lang_strings = strings.get(language, strings["en"])
@@ -521,7 +684,6 @@ def register(kernel):
                 )
             elif isinstance(value, str):
                 escaped_value = html.escape(value)
-                escaped_value = escaped_value.replace("\n", "<br>")
                 display_value = f"<code>{escaped_value}</code>"
             else:
                 display_value = f"<code>{html.escape(str(value))}</code>"
@@ -644,17 +806,21 @@ def register(kernel):
             buttons.append(row)
         nav_buttons = []
         if page > 0:
+            nav_id = generate_key_id(module_name, page - 1, "module_nav")
+            kernel.cache.set(f"module_nav_{nav_id}", (module_name, page - 1), ttl=86400)
             nav_buttons.append(
                 Button.inline(
                     t("btn_back"),
-                    data=f"module_cfg_page_{module_name}__{page - 1}".encode(),
+                    data=f"module_cfg_page_nav_{nav_id}".encode(),
                 )
             )
         if page < total_pages - 1:
+            nav_id = generate_key_id(module_name, page + 1, "module_nav")
+            kernel.cache.set(f"module_nav_{nav_id}", (module_name, page + 1), ttl=86400)
             nav_buttons.append(
                 Button.inline(
                     t("btn_next"),
-                    data=f"module_cfg_page_{module_name}__{page + 1}".encode(),
+                    data=f"module_cfg_page_nav_{nav_id}".encode(),
                 )
             )
         nav_buttons.append(
@@ -850,7 +1016,7 @@ def register(kernel):
                 await event.answer(t("no_config"), alert=True)
                 return
 
-            if isinstance(module_config, ModuleConfig):
+            if is_module_config_like(module_config):
                 items = list(module_config.items())
             elif isinstance(module_config, dict) and module_config.get(
                 "__mcub_config__"
@@ -900,7 +1066,7 @@ def register(kernel):
     async def show_module_key_view(event, module_name, key, page):
         try:
             module_config = await kernel.get_module_config(module_name, {})
-            is_module_config = isinstance(module_config, ModuleConfig)
+            is_module_config = is_module_config_like(module_config)
             is_dict_config = isinstance(module_config, dict) and module_config.get(
                 "__mcub_config__"
             )
@@ -922,6 +1088,7 @@ def register(kernel):
                 value = module_config[key]
                 is_hidden = False
                 is_secret = False
+                config_value = None
             else:
                 # Old format - plain dict
                 if key not in module_config:
@@ -930,6 +1097,36 @@ def register(kernel):
                 value = module_config[key]
                 is_hidden = False
                 is_secret = False
+                config_value = None
+
+            # Even when stored config is a plain dict, the live ModuleConfig schema
+            # (with description, choices, validators) lives in the module instance.
+            # Try to get it from there so we can display metadata.
+            if config_value is None:
+                try:
+                    live_cfg = getattr(kernel, "_live_module_configs", {}).get(
+                        module_name
+                    )
+                    if live_cfg is None:
+                        live_mod = kernel.loaded_modules.get(
+                            module_name
+                        ) or kernel.system_modules.get(module_name)
+                        if live_mod is not None:
+                            live_cfg = getattr(live_mod, "config", None)
+                    if is_module_config_like(live_cfg):
+                        config_value = live_cfg._values.get(key)
+                        if config_value is not None:
+                            is_hidden = is_hidden or config_value.hidden
+                            is_secret = is_secret or hasattr(
+                                config_value.validator, "secret"
+                            )
+                            # Also extract choices if available
+                            if choices is None:
+                                choices = getattr(
+                                    config_value.validator, "choices", None
+                                )
+                except Exception:
+                    pass
 
             value_type = type(value).__name__
             type_emoji = get_type_emoji(value_type)
@@ -941,14 +1138,19 @@ def register(kernel):
                 formatted_value = json.dumps(value, ensure_ascii=False, indent=2)
                 display_value = f"<pre>{html.escape(formatted_value)}</pre>"
             elif value is None:
-                display_value = "<code>null</code>"
+                if config_value is not None and config_value.default is not None:
+                    default_str = str(config_value.default)
+                    display_value = (
+                        f"<code>{html.escape(default_str)}</code> <i>(default)</i>"
+                    )
+                else:
+                    display_value = "<code>null</code>"
             elif isinstance(value, bool):
                 display_value = (
                     "✔️ <code>true</code>" if value else "✖️ <code>false</code>"
                 )
             elif isinstance(value, str):
                 escaped_value = html.escape(value)
-                escaped_value = escaped_value.replace("\n", "<br>")
                 display_value = f"<code>{escaped_value}</code>"
             else:
                 display_value = f"<code>{html.escape(str(value))}</code>"
@@ -962,25 +1164,79 @@ def register(kernel):
                 display_value=display_value,
             )
 
+            # Append ModuleConfig metadata if available (works for both live and dict-stored configs)
+            choices = None
+            # Final fallback - try to get choices from live config directly
+            if choices is None:
+                try:
+                    live_cfg = getattr(kernel, "_live_module_configs", {}).get(
+                        module_name
+                    )
+                    if live_cfg is None:
+                        live_mod = kernel.loaded_modules.get(
+                            module_name
+                        ) or kernel.system_modules.get(module_name)
+                        if live_mod is not None:
+                            live_cfg = getattr(live_mod, "config", None)
+                    if is_module_config_like(live_cfg):
+                        cv = live_cfg._values.get(key)
+                        if cv and hasattr(cv, "validator"):
+                            choices = getattr(cv.validator, "choices", None)
+                except Exception:
+                    pass
+
+            if config_value:
+                validator = config_value.validator
+                description = config_value.description
+                if description:
+                    text += f"\n\n{emoji_provider['📖']} <blockquote expandable><i>{html.escape(str(description))}</i></blockquote>"
+                choices = getattr(validator, "choices", None)
+                if choices:
+                    choices_str = ", ".join(f"<code>{c}</code>" for c in choices)
+                    text += f"\n{emoji_provider['📋']} <b>{t('cfg_choices')}</b>: {choices_str}"
+                v_min = getattr(validator, "min", None)
+                v_max = getattr(validator, "max", None)
+                if v_min is not None or v_max is not None:
+                    if v_min is not None and v_max is not None:
+                        text += f"\n{emoji_provider['🔢']} <b>{t('cfg_range_both', min=v_min, max=v_max)}</b>"
+                    elif v_min is not None:
+                        text += f"\n{emoji_provider['🔢']} <b>{t('cfg_range_min', min=v_min)}</b>"
+                    elif v_max is not None:
+                        text += f"\n{emoji_provider['🔢']} <b>{t('cfg_range_max', max=v_max)}</b>"
+                min_len = getattr(validator, "min_len", None)
+                max_len = getattr(validator, "max_len", None)
+                if min_len is not None or max_len is not None:
+                    if min_len is not None and max_len is not None:
+                        text += f"\n{emoji_provider['📝']} <b>{t('cfg_len_both', min=min_len, max=max_len)}</b>"
+                    elif min_len is not None:
+                        text += f"\n{emoji_provider['📝']} <b>{t('cfg_len_min', min=min_len)}</b>"
+                    elif max_len is not None:
+                        text += f"\n{emoji_provider['📝']} <b>{t('cfg_len_max', max=max_len)}</b>"
+                if value_type == "bool":
+                    text += f"\n{emoji_provider['☑️']} <b>{t('cfg_type_bool')}</b>"
+
             buttons = []
 
             # Bool toggle button
             if value_type == "bool":
                 toggle_text = t("toggle_false") if value else t("toggle_true")
                 toggle_style = "danger" if value else "success"
-                toggle_style = "danger" if value else "success"
+                bool_id = generate_key_id(f"{module_name}__{key}", page, "bool")
+                kernel.cache.set(
+                    f"module_bool_{bool_id}", (module_name, key, page), ttl=86400
+                )
                 buttons.append(
                     [
                         Button.inline(
                             toggle_text,
-                            data=f"cfg_modules_bool_{module_name}__{key}__{page}".encode(),
+                            data=f"cfg_modules_bool_{bool_id}".encode(),
                             style=toggle_style,
                         )
                     ]
                 )
             else:
-                # Edit button for non-bool values (if not hidden/secret)
-                if not is_hidden and not is_secret:
+                # Edit button for non-bool values (if not hidden/secret and no choices)
+                if not is_hidden and not is_secret and not choices:
                     # Create key_id for inline editing
                     key_id = generate_key_id(
                         f"{module_name}__{key}", page, "module_cfg"
@@ -999,6 +1255,34 @@ def register(kernel):
                             )
                         ]
                     )
+
+            # Choice buttons - replace edit button with inline choice buttons
+            if choices and not is_hidden and not is_secret:
+                choice_id = generate_key_id(f"{module_name}__{key}", page, "choice")
+                cache_key = f"module_choice_{choice_id}"
+                kernel.cache.set(
+                    cache_key,
+                    (module_name, key, page, list(choices)),
+                    ttl=86400,
+                )
+                choice_buttons = []
+                row = []
+                for i, choice in enumerate(choices):
+                    is_selected = choice == value
+                    btn_text = f"{'☑️' if is_selected else '🔘'} {choice}"
+                    row.append(
+                        Button.inline(
+                            btn_text,
+                            data=f"cfg_module_choice_{choice_id}-{i}".encode(),
+                        )
+                    )
+                    if len(row) == 3:
+                        choice_buttons.append(row)
+                        row = []
+                if row:
+                    choice_buttons.append(row)
+                for row in choice_buttons:
+                    buttons.append(row)
 
             # List/Dict operation buttons
             if value_type == "list" and not is_hidden and not is_secret:
@@ -1089,6 +1373,21 @@ def register(kernel):
                         )
                     ]
                 )
+                # Edit button for secret values (even when hidden)
+                if is_secret and not is_hidden:
+                    key_id = generate_key_id(
+                        f"{module_name}__{key}", page, "module_cfg"
+                    )
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_edit"),
+                                query=f"fcfg module {module_name} set {key_id} ",
+                                same_peer=True,
+                                style="primary",
+                            )
+                        ]
+                    )
 
             # Create key_id for refresh button
             key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
@@ -1096,11 +1395,37 @@ def register(kernel):
                 f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400
             )
 
+            # Reset to default button - show if config_value exists and value differs from default
+            if config_value is not None and hasattr(config_value, "default"):
+                show_reset = (value is None and config_value.default is not None) or (
+                    value is not None and value != config_value.default
+                )
+                if show_reset:
+                    reset_id = generate_key_id(f"{module_name}__{key}", page, "reset")
+                    kernel.cache.set(
+                        f"module_cfg_reset_{reset_id}",
+                        (module_name, key, page),
+                        ttl=86400,
+                    )
+                    buttons.append(
+                        [
+                            Button.inline(
+                                t("btn_reset_default"),
+                                data=f"cfg_module_reset_{reset_id}".encode(),
+                                style="danger",
+                            )
+                        ]
+                    )
+
             # Navigation buttons
+            back_nav_id = generate_key_id(module_name, page, "module_nav")
+            kernel.cache.set(
+                f"module_nav_{back_nav_id}", (module_name, page), ttl=86400
+            )
             nav_buttons = [
                 Button.inline(
                     t("btn_back_simple"),
-                    data=f"module_cfg_page_{module_name}__{page}".encode(),
+                    data=f"module_cfg_page_nav_{back_nav_id}".encode(),
                 ),
                 Button.inline(
                     "🔄",
@@ -1122,7 +1447,7 @@ def register(kernel):
         try:
             module_config = await kernel.get_module_config(module_name, {})
 
-            is_module_config = isinstance(module_config, ModuleConfig)
+            is_module_config = is_module_config_like(module_config)
             is_dict_config = isinstance(module_config, dict) and module_config.get(
                 "__mcub_config__"
             )
@@ -1136,7 +1461,14 @@ def register(kernel):
                     await event.answer(t("not_boolean"), alert=True)
                     return
                 module_config[key] = not value
-                await kernel.save_module_config(module_name, module_config.to_dict())
+                await kernel.save_module_config(
+                    module_name,
+                    (
+                        module_config.to_dict()
+                        if hasattr(module_config, "to_dict")
+                        else module_config
+                    ),
+                )
             elif is_dict_config:
                 if key not in module_config or key == "__mcub_config__":
                     await event.answer(t("not_found"), alert=True)
@@ -1147,6 +1479,7 @@ def register(kernel):
                     return
                 module_config[key] = not value
                 await kernel.save_module_config(module_name, module_config)
+                add_module_to_config_cache(module_name)
             else:
                 # Old format - plain dict
                 if key not in module_config:
@@ -1158,6 +1491,7 @@ def register(kernel):
                     return
                 module_config[key] = not value
                 await kernel.save_module_config(module_name, module_config)
+                add_module_to_config_cache(module_name)
 
             await show_module_key_view(event, module_name, key, page)
             module_config = await kernel.get_module_config(module_name, {})
@@ -1631,7 +1965,7 @@ def register(kernel):
                 if not module_name:
                     raise ValueError("Module name is not specified")
                 target_config = await kernel.get_module_config(module_name, {})
-                is_module_config = isinstance(target_config, ModuleConfig)
+                is_module_config = is_module_config_like(target_config)
                 is_dict_config = isinstance(target_config, dict) and target_config.get(
                     "__mcub_config__"
                 )
@@ -1760,10 +2094,16 @@ def register(kernel):
                 if is_module_scope:
                     if is_module_config:
                         await kernel.save_module_config(
-                            module_name, target_config.to_dict()
+                            module_name,
+                            (
+                                target_config.to_dict()
+                                if hasattr(target_config, "to_dict")
+                                else target_config
+                            ),
                         )
                     else:
                         await kernel.save_module_config(module_name, target_config)
+                    add_module_to_config_cache(module_name)
                     kernel.logger.info(
                         f"Module config updated via inline fcfg: {module_name}.{key} = {confirm_data.get('value', 'N/A')}"
                     )
@@ -1804,7 +2144,7 @@ def register(kernel):
                             )
 
                 except Exception as e:
-                    kernel.logger.error(f"Failed to edit inline message: {e}")
+                    kernel.logger.debug(f"Failed to edit inline message: {e}")
 
                 if kernel.is_bot_available():
                     try:
@@ -1812,7 +2152,7 @@ def register(kernel):
                             user_id, message, parse_mode="html"
                         )
                     except Exception as e:
-                        kernel.logger.error(f"Failed to send confirmation message: {e}")
+                        kernel.logger.debug(f"Failed to send confirmation message: {e}")
             else:
                 if kernel.is_bot_available():
                     try:
@@ -1820,10 +2160,10 @@ def register(kernel):
                             user_id, message, parse_mode="html"
                         )
                     except Exception as e:
-                        kernel.logger.error(f"Failed to send error message: {e}")
+                        kernel.logger.debug(f"Failed to send error message: {e}")
 
         except Exception as e:
-            kernel.logger.error(f"FCFG confirm error: {e}")
+            kernel.logger.debug(f"FCFG confirm error: {e}")
             # Отправляем сообщение об ошибке
             try:
                 if kernel.is_bot_available():
@@ -1878,7 +2218,7 @@ def register(kernel):
                     return None, None, None
 
                 module_config = await kernel.get_module_config(module_name, {})
-                is_new_format = isinstance(module_config, ModuleConfig) or (
+                is_new_format = is_module_config_like(module_config) or (
                     isinstance(module_config, dict)
                     and module_config.get("__mcub_config__")
                 )
@@ -2083,11 +2423,50 @@ def register(kernel):
             try:
                 await kernel.client.delete_messages(event.chat_id, [event.message_id])
             except Exception as e:
-                kernel.logger.error(e)
+                kernel.logger.debug(e)
                 try:
                     await event.edit("❌ Closed")
                 except Exception:
                     await event.answer("Closed", alert=False)
+            return
+
+        # Обработчик сброса значения до default
+        if data.startswith("cfg_module_reset_"):
+            try:
+                key_id = data[len("cfg_module_reset_") :]
+                cached = kernel.cache.get(f"module_cfg_reset_{key_id}")
+                if not cached:
+                    await event.answer(t("expired"), alert=True)
+                    return
+
+                module_name, key, page = cached
+                live_config = getattr(kernel, "_live_module_configs", {}).get(
+                    module_name
+                )
+                if live_config is None:
+                    live_mod = kernel.loaded_modules.get(
+                        module_name
+                    ) or kernel.system_modules.get(module_name)
+                    if live_mod is not None:
+                        live_config = getattr(live_mod, "config", None)
+
+                if is_module_config_like(live_config):
+                    config_value = live_config._values.get(key)
+                    if config_value and hasattr(config_value, "default"):
+                        default_val = config_value.default
+                        live_config[key] = default_val
+                        await kernel.save_module_config(
+                            module_name, live_config.to_dict()
+                        )
+                        kernel.store_module_config_schema(module_name, live_config)
+                        await show_module_key_view(event, module_name, key, page)
+                        await event.answer(t("reset_success"), alert=True)
+                    else:
+                        await event.answer(t("no_default"), alert=True)
+                else:
+                    await event.answer(t("not_module_config"), alert=True)
+            except Exception as e:
+                await event.answer(t("error", error=str(e)[:50]), alert=True)
             return
 
         if data == "config_menu":
@@ -2125,10 +2504,8 @@ def register(kernel):
         elif data.startswith("config_modules_page_"):
             try:
                 page = int(data.split("_")[3])
-                all_modules = list(kernel.system_modules.keys()) + list(
-                    kernel.loaded_modules.keys()
-                )
-                all_modules = sorted(list(set(all_modules)))
+                # Use only modules that have config
+                all_modules = get_modules_with_config()
 
                 total_modules = len(all_modules)
                 total_pages = (
@@ -2174,7 +2551,16 @@ def register(kernel):
 
         elif data.startswith("module_cfg_page_"):
             try:
-                if "__" in data:
+                if data.startswith("module_cfg_page_nav_"):
+                    # New ID-based format — module_name encoded in cache
+                    nav_id = data[20:]
+                    cached = kernel.cache.get(f"module_nav_{nav_id}")
+                    if not cached:
+                        await event.answer(t("expired"), alert=True)
+                        return
+                    module_name, page = cached
+                elif "__" in data:
+                    # Legacy format: module_cfg_page_{module_name}__{page}
                     parts = data.split("__")
                     module_name = parts[0].replace("module_cfg_page_", "")
                     page = int(parts[1])
@@ -2207,8 +2593,13 @@ def register(kernel):
 
         elif data.startswith("cfg_modules_bool_"):
             try:
-                if "__" in data:
-                    rest = data.replace("cfg_modules_bool_", "")
+                rest = data[17:]  # after "cfg_modules_bool_"
+                # New ID-based format: rest is an 8-char hex ID with no "__"
+                cached = kernel.cache.get(f"module_bool_{rest}")
+                if cached:
+                    module_name, key, page = cached
+                elif "__" in rest:
+                    # Legacy format: {module_name}__{key}__{page}
                     parts = rest.split("__")
                     if len(parts) >= 3:
                         module_name = parts[0]
@@ -2218,18 +2609,62 @@ def register(kernel):
                         await event.answer(t("invalid_format"), alert=True)
                         return
                 else:
-                    rest = data.replace("module_cfg_bool_", "")
-                    parts = rest.split("_")
-                    if parts[-1].isdigit():
-                        page = int(parts[-1])
-                        module_name = parts[0]
-                        key = "_".join(parts[1:-1])
-                    else:
-                        await event.answer(t("invalid_format"), alert=True)
-                        return
+                    await event.answer(t("expired"), alert=True)
+                    return
 
                 await toggle_module_bool_key(event, module_name, key, page)
             except Exception as e:
+                await event.answer(str(e)[:50], alert=True)
+
+        elif data.startswith("cfg_module_choice_"):
+            try:
+                kernel.logger.debug(f"DEBUG choice: data={data}")
+                rest = data[17:]  # after "cfg_module_choice_"
+                kernel.logger.debug(f"DEBUG choice: rest={rest}")
+                idx = rest.rfind("-")
+                kernel.logger.debug(f"DEBUG choice: idx={idx}")
+                if idx == -1:
+                    await event.answer(t("invalid_format"), alert=True)
+                    return
+                choice_id = rest[:idx]
+                if choice_id.startswith("_"):
+                    choice_id = choice_id[1:]
+                choice_idx = int(rest[idx + 1 :])
+                kernel.logger.debug(
+                    f"DEBUG choice: choice_id={choice_id}, choice_idx={choice_idx}"
+                )
+                cached = kernel.cache.get(f"module_choice_{choice_id}")
+                kernel.logger.debug(f"DEBUG choice: cached={cached is not None}")
+                if not cached:
+                    await event.answer(t("expired"), alert=True)
+                    return
+                module_name, key, page, choices = cached
+                kernel.logger.debug(
+                    f"Choice selected: {module_name}, {key}={choices[choice_idx]}, choices={choices}"
+                )
+                if choice_idx >= len(choices):
+                    await event.answer(t("invalid_format"), alert=True)
+                    return
+                new_value = choices[choice_idx]
+                module_config = await kernel.get_module_config(module_name, {})
+                if isinstance(module_config, dict):
+                    module_config[key] = new_value
+                elif hasattr(module_config, "__setitem__"):
+                    module_config[key] = new_value
+                await kernel.save_module_config(
+                    module_name,
+                    (
+                        module_config
+                        if isinstance(module_config, dict)
+                        else module_config.to_dict()
+                    ),
+                )
+                await event.answer(t("changed_to", value=new_value), alert=False)
+                await show_module_key_view(event, module_name, key, page)
+            except Exception as e:
+                import traceback
+
+                kernel.logger.debug(f"Choice error: {e}\n{traceback.format_exc()}")
                 await event.answer(str(e)[:50], alert=True)
 
         elif data.startswith("cfg_view_"):
@@ -2624,9 +3059,7 @@ def register(kernel):
                 module_name, key, page = cached
                 module_config = await kernel.get_module_config(module_name, {})
 
-                # Check if it's the new ModuleConfig format
-
-                is_new_format = isinstance(module_config, ModuleConfig) or (
+                is_new_format = is_module_config_like(module_config) or (
                     isinstance(module_config, dict)
                     and module_config.get("__mcub_config__")
                 )
@@ -2657,7 +3090,6 @@ def register(kernel):
                     )
                 elif isinstance(value, str):
                     escaped_value = html.escape(value)
-                    escaped_value = escaped_value.replace("\n", "<br>")
                     display_value = f"<code>{escaped_value}</code>"
                 else:
                     display_value = f"<code>{html.escape(str(value))}</code>"
@@ -2837,7 +3269,6 @@ def register(kernel):
                     display_value = f"<pre>{html.escape(json.dumps(value, ensure_ascii=False, indent=2))}</pre>"
                 elif isinstance(value, str):
                     escaped_value = html.escape(value)
-                    escaped_value = escaped_value.replace("\n", "<br>")
                     display_value = f"<code>{escaped_value}</code>"
                 else:
                     display_value = f"<code>{html.escape(str(value))}</code>"
@@ -2878,7 +3309,6 @@ def register(kernel):
                         display_value = f"<pre>{html.escape(json.dumps(value, ensure_ascii=False, indent=2))}</pre>"
                     elif isinstance(value, str):
                         escaped_value = html.escape(value)
-                        escaped_value = escaped_value.replace("\n", "<br>")
                         display_value = f"<code>{escaped_value}</code>"
                     else:
                         display_value = f"<code>{html.escape(str(value))}</code>"
@@ -3004,7 +3434,7 @@ def register(kernel):
                 if module_mode:
                     try:
                         module_config = await kernel.get_module_config(module_name, {})
-                        is_new_format = isinstance(module_config, ModuleConfig) or (
+                        is_new_format = is_module_config_like(module_config) or (
                             isinstance(module_config, dict)
                             and module_config.get("__mcub_config__")
                         )
@@ -3021,7 +3451,12 @@ def register(kernel):
                             try:
                                 module_config[key] = value  # This will validate
                                 await kernel.save_module_config(
-                                    module_name, module_config.to_dict()
+                                    module_name,
+                                    (
+                                        module_config.to_dict()
+                                        if hasattr(module_config, "to_dict")
+                                        else module_config
+                                    ),
                                 )
                             except ValidationError as ve:
                                 await event.edit(
@@ -3039,6 +3474,7 @@ def register(kernel):
                             value = parse_value(value_str, current_type)
                             module_config[key] = value
                             await kernel.save_module_config(module_name, module_config)
+                            add_module_to_config_cache(module_name)
 
                         display_value = value
                         if isinstance(value, str):
@@ -3107,6 +3543,7 @@ def register(kernel):
                     if key in module_config:
                         module_config.pop(key)
                         await kernel.save_module_config(module_name, module_config)
+                        add_module_to_config_cache(module_name)
                         await event.edit(
                             t(
                                 "delete_module_success",
@@ -3172,6 +3609,7 @@ def register(kernel):
                         value = parse_value(value_str)
                         module_config[key] = value
                         await kernel.save_module_config(module_name, module_config)
+                        add_module_to_config_cache(module_name)
                         await event.edit(
                             t(
                                 "add_module_success",
@@ -3228,9 +3666,7 @@ def register(kernel):
                     try:
                         module_config = await kernel.get_module_config(module_name, {})
 
-                        # Check if it's the new ModuleConfig format
-
-                        is_new_format = isinstance(module_config, ModuleConfig) or (
+                        is_new_format = is_module_config_like(module_config) or (
                             isinstance(module_config, dict)
                             and module_config.get("__mcub_config__")
                         )
@@ -3250,7 +3686,12 @@ def register(kernel):
                             current_value[subkey] = parse_value(value_str)
                             module_config[key] = current_value
                             await kernel.save_module_config(
-                                module_name, module_config.to_dict()
+                                module_name,
+                                (
+                                    module_config.to_dict()
+                                    if hasattr(module_config, "to_dict")
+                                    else module_config
+                                ),
                             )
                         else:
                             if key not in module_config:
@@ -3263,6 +3704,7 @@ def register(kernel):
                                 return
                             module_config[key][subkey] = parse_value(value_str)
                             await kernel.save_module_config(module_name, module_config)
+                            add_module_to_config_cache(module_name)
 
                         await event.edit(
                             t(
@@ -3327,9 +3769,7 @@ def register(kernel):
                     try:
                         module_config = await kernel.get_module_config(module_name, {})
 
-                        # Check if it's the new ModuleConfig format
-
-                        is_new_format = isinstance(module_config, ModuleConfig) or (
+                        is_new_format = is_module_config_like(module_config) or (
                             isinstance(module_config, dict)
                             and module_config.get("__mcub_config__")
                         )
@@ -3349,7 +3789,12 @@ def register(kernel):
                             current_value.append(parse_value(value_str))
                             module_config[key] = current_value
                             await kernel.save_module_config(
-                                module_name, module_config.to_dict()
+                                module_name,
+                                (
+                                    module_config.to_dict()
+                                    if hasattr(module_config, "to_dict")
+                                    else module_config
+                                ),
                             )
                         else:
                             if key not in module_config:
@@ -3362,6 +3807,7 @@ def register(kernel):
                                 return
                             module_config[key].append(parse_value(value_str))
                             await kernel.save_module_config(module_name, module_config)
+                            add_module_to_config_cache(module_name)
 
                         await event.edit(
                             t(
@@ -3419,6 +3865,8 @@ def register(kernel):
     kernel.register_callback_handler("cfg_delete_", config_callback_handler)
     kernel.register_callback_handler("cfg_reveal_", config_callback_handler)
     kernel.register_callback_handler("cfg_module_reveal_", config_callback_handler)
+    kernel.register_callback_handler("cfg_module_choice_", config_callback_handler)
+    kernel.register_callback_handler("cfg_module_reset_", config_callback_handler)
     kernel.register_callback_handler("cfg_close", config_callback_handler)
 
     if hasattr(kernel, "bot_client") and kernel.bot_client:

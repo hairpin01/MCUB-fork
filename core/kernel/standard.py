@@ -140,6 +140,7 @@ class Kernel:
 
         # Module registries
         self.loaded_modules: dict = {}
+        self._live_module_configs: dict = {}
         self.system_modules: dict = {}
         self.command_handlers: dict = {}
         self.command_owners: dict = {}
@@ -431,9 +432,29 @@ class Kernel:
         self.logger.debug(
             f"[Kernel] save_module_config module={module_name} data={config_data}"
         )
-        result = await self._cfg.save_module_config(module_name, config_data)
-        self.logger.debug(f"[Kernel] save_module_config result={result}")
-        return result
+        try:
+            result = await self._cfg.save_module_config(module_name, config_data)
+
+            # Update live config schema
+            live_cfg = self._live_module_configs.get(module_name)
+            if (
+                live_cfg
+                and hasattr(live_cfg, "_values")
+                and isinstance(config_data, dict)
+            ):
+                for key, value in config_data.items():
+                    if key != "__mcub_config__":
+                        live_cfg[key] = value
+
+            self.logger.debug(f"[Kernel] save_module_config result={result}")
+            return result
+        except Exception as e:
+            self.logger.error(f"[Kernel] save_module_config error: {e}")
+            raise
+
+    def store_module_config_schema(self, module_name: str, config) -> None:
+        """Store a live ModuleConfig schema for UI display."""
+        self._live_module_configs[module_name] = config
 
     async def delete_module_config(self, module_name: str) -> bool:
         """Delete a module's config from the database."""
@@ -1155,6 +1176,15 @@ class Kernel:
                 alias,
                 text,
             )
+            if alias not in self.command_handlers and alias not in self.aliases:
+                self.logger.warning(
+                    f"Alias '{cmd}' points to non-existent target '{alias}', "
+                    f"executing '{cmd}' directly"
+                )
+                if cmd in self.command_handlers:
+                    await self.command_handlers[cmd](event)
+                    return True
+                return False
             if alias in self.command_handlers:
                 self.logger.debug(
                     "[process_command] alias-direct-dispatch target=%r owner=%r",
@@ -1399,7 +1429,11 @@ class Kernel:
         needs_setup = not os.path.exists(self.CONFIG_FILE)
         if not needs_setup:
             # Check if session exists
-            session_exists = os.path.exists("user_session.session")
+            from utils.security import session_exists
+
+            api_id = getattr(self, "API_ID", None)
+            api_hash = getattr(self, "API_HASH", None)
+            session_exists = session_exists(api_id, api_hash)
             needs_setup = not session_exists
 
         # If config.json doesn't exist or session is missing, start the setup wizard
@@ -1446,7 +1480,11 @@ class Kernel:
         if not no_web:
             web_via_env = os.environ.get("MCUB_WEB", "0") == "1"
             web_via_config = self.config.get("web_panel_enabled", False)
-            no_session = not os.path.exists("user_session.session")
+            from utils.security import session_exists
+
+            api_id = getattr(self, "API_ID", None)
+            api_hash = getattr(self, "API_HASH", None)
+            no_session = not session_exists(api_id, api_hash)
             no_config = not os.path.exists(self.CONFIG_FILE)
 
             if web_via_env or web_via_config or no_session or no_config:

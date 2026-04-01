@@ -39,5 +39,7 @@ class TestPlatformShortcuts:
         assert platform_utils.is_virtualized() is True
 
     def test_get_platform_name_from_global_detector(self, monkeypatch):
-        monkeypatch.setattr(platform_utils.detector, "get_friendly_name", lambda: "Custom")
+        monkeypatch.setattr(
+            platform_utils.detector, "get_friendly_name", lambda: "Custom"
+        )
         assert platform_utils.get_platform_name() == "Custom"

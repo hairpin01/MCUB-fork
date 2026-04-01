@@ -24,36 +24,36 @@ from .config import ShellConfig
 
 
 class _C:
-    RESET      = "\033[0m"
-    BOLD       = "\033[1m"
-    DIM        = "\033[2m"
-    ITALIC     = "\033[3m"
-    RED        = "\033[91m"
-    GREEN      = "\033[92m"
-    YELLOW     = "\033[93m"
-    BLUE       = "\033[94m"
-    MAGENTA    = "\033[95m"
-    CYAN       = "\033[96m"
-    WHITE      = "\033[97m"
-    GREY       = "\033[90m"
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
+    ITALIC = "\033[3m"
+    RED = "\033[91m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    BLUE = "\033[94m"
+    MAGENTA = "\033[95m"
+    CYAN = "\033[96m"
+    WHITE = "\033[97m"
+    GREY = "\033[90m"
     CLEAR_LINE = "\033[2K"
-    SAVE_CUR   = "\033[s"
-    REST_CUR   = "\033[u"
+    SAVE_CUR = "\033[s"
+    REST_CUR = "\033[u"
 
     PROMPT_COLORS = {
-        "green":   "\033[92m",
-        "cyan":    "\033[96m",
-        "yellow":  "\033[93m",
-        "white":   "\033[97m",
+        "green": "\033[92m",
+        "cyan": "\033[96m",
+        "yellow": "\033[93m",
+        "white": "\033[97m",
         "magenta": "\033[95m",
-        "blue":    "\033[94m",
+        "blue": "\033[94m",
     }
 
     LOG_COLORS = {
-        "DEBUG":    "\033[97m",
-        "INFO":     "\033[96m",
-        "WARNING":  "\033[93m",
-        "ERROR":    "\033[91m",
+        "DEBUG": "\033[97m",
+        "INFO": "\033[96m",
+        "WARNING": "\033[93m",
+        "ERROR": "\033[91m",
         "CRITICAL": "\033[91m\033[1m",
     }
 
@@ -65,11 +65,27 @@ class _Anim:
     """
 
     # Braille spinner frames
-    SPINNER_FRAMES = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"]
+    SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
     # Classic dot spinner alternative
-    DOT_FRAMES     = ["⣾","⣽","⣻","⢿","⡿","⣟","⣯","⣷"]
+    DOT_FRAMES = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"]
     # Bouncing bar
-    BAR_FRAMES     = ["▏","▎","▍","▌","▋","▊","▉","█","▉","▊","▋","▌","▍","▎","▏"]
+    BAR_FRAMES = [
+        "▏",
+        "▎",
+        "▍",
+        "▌",
+        "▋",
+        "▊",
+        "▉",
+        "█",
+        "▉",
+        "▊",
+        "▋",
+        "▌",
+        "▍",
+        "▎",
+        "▏",
+    ]
 
     @staticmethod
     def _fd():
@@ -86,7 +102,9 @@ class _Anim:
         cls._fd().flush()
 
     @classmethod
-    def typewriter_header(cls, title: str, version: str, py: str, sep_char: str = "─") -> None:
+    def typewriter_header(
+        cls, title: str, version: str, py: str, sep_char: str = "─"
+    ) -> None:
         cols = _terminal_width()
         sep_len = min(cols - 2, 48)
 
@@ -94,11 +112,11 @@ class _Anim:
 
         # Gradient colours cycling for the separator fill
         gradient = [
-            "\033[38;5;21m",   # deep blue
+            "\033[38;5;21m",  # deep blue
             "\033[38;5;27m",
             "\033[38;5;33m",
             "\033[38;5;39m",
-            "\033[38;5;45m",   # cyan
+            "\033[38;5;45m",  # cyan
             "\033[38;5;51m",
             "\033[96m",
         ]
@@ -126,9 +144,9 @@ class _Anim:
     @classmethod
     def cd_transition(cls, old_path: str, new_path: str) -> None:
         """Slide old path out, new path types in on same line."""
-        arrow  = f"{_C.CYAN}→{_C.RESET}"
-        old_s  = f"{_C.GREY}{old_path}{_C.RESET}"
-        new_s  = f"{_C.GREEN}"
+        arrow = f"{_C.CYAN}→{_C.RESET}"
+        old_s = f"{_C.GREY}{old_path}{_C.RESET}"
+        new_s = f"{_C.GREEN}"
 
         cls._w(f"\r{_C.CLEAR_LINE}  {old_s}  {arrow}  {new_s}")
         for ch in new_path:
@@ -143,11 +161,15 @@ class _Anim:
     def goodbye_wave(cls, text: str = "Bye!") -> None:
         """Rainbow wave ripple across farewell text."""
         wave_colors = [
-            "\033[91m", "\033[93m", "\033[92m",
-            "\033[96m", "\033[94m", "\033[95m",
+            "\033[91m",
+            "\033[93m",
+            "\033[92m",
+            "\033[96m",
+            "\033[94m",
+            "\033[95m",
         ]
         phases = 6
-        chars  = list(f"  {text}")
+        chars = list(f"  {text}")
         for phase in range(phases):
             cls._w(f"\r{_C.CLEAR_LINE}")
             for i, ch in enumerate(chars):
@@ -163,11 +185,11 @@ class _Anim:
         label = "! bash mode"
         flicker_seq = [
             (_C.MAGENTA, _C.BOLD),
-            (_C.GREY,    _C.DIM),
+            (_C.GREY, _C.DIM),
             (_C.MAGENTA, _C.BOLD),
-            (_C.WHITE,   _C.BOLD),
+            (_C.WHITE, _C.BOLD),
             (_C.MAGENTA, _C.BOLD),
-            (_C.GREY,    _C.DIM),
+            (_C.GREY, _C.DIM),
             (_C.MAGENTA, _C.BOLD),
         ]
         hint = f"{_C.GREY}(type 'exit' or Ctrl+D to return){_C.RESET}"
@@ -181,7 +203,7 @@ class _Anim:
     @classmethod
     def bash_return_banner(cls) -> None:
         """Slide-in '← returned' message."""
-        msg   = "← returned to MCUB shell"
+        msg = "← returned to MCUB shell"
         chars = list(f"  {msg}")
         cls._w(f"\n\r{_C.CLEAR_LINE}")
         for i, ch in enumerate(chars):
@@ -195,7 +217,9 @@ class _Anim:
         """Red bracket pulse around the error message."""
         brackets = [("❮❮ ", " ❯❯"), ("❮  ", "  ❯"), ("   ", "   ")]
         for lb, rb in brackets:
-            cls._w(f"\r{_C.CLEAR_LINE}  {_C.RED}{lb}{_C.RESET}{msg}{_C.RED}{rb}{_C.RESET}")
+            cls._w(
+                f"\r{_C.CLEAR_LINE}  {_C.RED}{lb}{_C.RESET}{msg}{_C.RED}{rb}{_C.RESET}"
+            )
             time.sleep(0.08)
         cls._w(f"\r{_C.CLEAR_LINE}  {msg}\n")
 
@@ -217,12 +241,12 @@ class _SpinnerCtx:
     """Threading spinner context manager."""
 
     FRAMES = _Anim.SPINNER_FRAMES
-    FPS    = 12   # frames per second
+    FPS = 12  # frames per second
 
     def __init__(self, label: str, delay: float):
-        self._label   = label
-        self._delay   = delay
-        self._stop    = threading.Event()
+        self._label = label
+        self._delay = delay
+        self._stop = threading.Event()
         self._started = threading.Event()
         self._thread: Optional[threading.Thread] = None
 
@@ -245,7 +269,7 @@ class _SpinnerCtx:
     def _run(self):
         # Wait for delay before showing anything
         if self._stop.wait(timeout=self._delay):
-            return   # command already done
+            return  # command already done
 
         fd = sys.stdout
         while hasattr(fd, "_original"):
@@ -256,7 +280,9 @@ class _SpinnerCtx:
         while not self._stop.is_set():
             frame = self.FRAMES[frame_i % len(self.FRAMES)]
             label = f" {self._label}" if self._label else ""
-            fd.write(f"\r{_C.CLEAR_LINE}  {_C.CYAN}{frame}{_C.RESET}{_C.DIM}{label}{_C.RESET}")
+            fd.write(
+                f"\r{_C.CLEAR_LINE}  {_C.CYAN}{frame}{_C.RESET}{_C.DIM}{label}{_C.RESET}"
+            )
             fd.flush()
             frame_i += 1
             self._stop.wait(timeout=interval)
@@ -272,7 +298,7 @@ def _load_command(name: str):
     if not path.exists():
         return None
     spec = importlib.util.spec_from_file_location(f"console.bin.{name}", path)
-    mod  = importlib.util.module_from_spec(spec)
+    mod = importlib.util.module_from_spec(spec)
     try:
         spec.loader.exec_module(mod)
     except Exception:
@@ -293,6 +319,7 @@ def _terminal_width() -> int:
         return os.get_terminal_size().columns
     except Exception:
         return 80
+
 
 class _LineEditor:
     """
@@ -316,24 +343,28 @@ class _LineEditor:
       Ctrl+D           EOFError (on empty line)
     """
 
-    def __init__(self, prompt_str: str, prompt_plain_len: int,
-                 history: list, last_ok: bool = True):
-        self._prompt          = prompt_str
-        self._prompt_len      = prompt_plain_len   # visible width (no ANSI)
-        self._history         = history
-        self._hist_pos        = len(history)
-        self._buf: list       = []
-        self._cur             = 0
+    def __init__(
+        self,
+        prompt_str: str,
+        prompt_plain_len: int,
+        history: list,
+        last_ok: bool = True,
+    ):
+        self._prompt = prompt_str
+        self._prompt_len = prompt_plain_len  # visible width (no ANSI)
+        self._history = history
+        self._hist_pos = len(history)
+        self._buf: list = []
+        self._cur = 0
         self._saved_buf: list = []
-        self._suggestion      = ""     # fish-style ghost text
-        self._search_mode     = False  # Ctrl+R mode
-        self._search_query    = ""
-        self._search_result   = ""
-        self._last_ok         = last_ok
+        self._suggestion = ""  # fish-style ghost text
+        self._search_mode = False  # Ctrl+R mode
+        self._search_query = ""
+        self._search_result = ""
+        self._last_ok = last_ok
         # tab completion state
         self._tab_candidates: list = []
-        self._tab_index            = -1
-
+        self._tab_index = -1
 
     def _render(self) -> None:
         line = "".join(self._buf)
@@ -349,13 +380,13 @@ class _LineEditor:
             return
 
         # Build right-prompt (time) — only when cursor is at end for simplicity
-        now       = datetime.now().strftime("%H:%M:%S")
-        rprompt   = f"{_C.GREY}{now}{_C.RESET}"
-        rprompt_w = len(now)          # visible width
+        now = datetime.now().strftime("%H:%M:%S")
+        rprompt = f"{_C.GREY}{now}{_C.RESET}"
+        rprompt_w = len(now)  # visible width
 
-        cols          = _terminal_width()
-        left_visible  = self._prompt_len + len(line)
-        rp_col        = cols - rprompt_w
+        cols = _terminal_width()
+        left_visible = self._prompt_len + len(line)
+        rp_col = cols - rprompt_w
 
         # Right-prompt (drawn then cursor returned)
         rp_str = ""
@@ -384,7 +415,6 @@ class _LineEditor:
         sys.stdout.write(out)
         sys.stdout.flush()
 
-
     @staticmethod
     def _getch() -> str:
         return sys.stdin.read(1)
@@ -403,7 +433,6 @@ class _LineEditor:
                 break
         return seq
 
-
     def _update_suggestion(self) -> None:
         """Fish-style: find the most recent history entry starting with current buf."""
         if not self._buf:
@@ -412,7 +441,7 @@ class _LineEditor:
         prefix = "".join(self._buf)
         for entry in reversed(self._history):
             if entry.startswith(prefix) and entry != prefix:
-                self._suggestion = entry[len(prefix):]
+                self._suggestion = entry[len(prefix) :]
                 return
         self._suggestion = ""
 
@@ -422,10 +451,9 @@ class _LineEditor:
             self._cur = len(self._buf)
             self._suggestion = ""
 
-
     def _tab_complete(self) -> None:
-        line   = "".join(self._buf[:self._cur])
-        parts  = line.split()
+        line = "".join(self._buf[: self._cur])
+        parts = line.split()
         # Only complete first token (command name)
         if len(parts) > 1 or (parts and " " in line and line[-1] == " "):
             return
@@ -441,15 +469,14 @@ class _LineEditor:
         if self._tab_index >= 0:
             chosen = self._tab_candidates[self._tab_index]
             # Replace buf up to cursor with chosen completion
-            after       = self._buf[self._cur:]
-            self._buf   = list(chosen) + after
-            self._cur   = len(chosen)
+            after = self._buf[self._cur :]
+            self._buf = list(chosen) + after
+            self._cur = len(chosen)
             self._suggestion = ""
 
     def _reset_tab(self) -> None:
         self._tab_candidates = []
-        self._tab_index      = -1
-
+        self._tab_index = -1
 
     def _hist_up(self) -> None:
         if self._hist_pos == len(self._history):
@@ -469,7 +496,6 @@ class _LineEditor:
             self._buf = list(self._history[self._hist_pos])
         self._cur = len(self._buf)
 
-
     def _search_update(self) -> None:
         self._search_result = ""
         if not self._search_query:
@@ -481,13 +507,12 @@ class _LineEditor:
 
     def _search_accept(self) -> None:
         result = self._search_result
-        self._search_mode  = False
+        self._search_mode = False
         self._search_query = ""
         self._search_result = ""
         if result:
             self._buf = list(result)
             self._cur = len(self._buf)
-
 
     def _word_right(self) -> None:
         n = len(self._buf)
@@ -511,10 +536,10 @@ class _LineEditor:
             self._cur -= 1
         while self._cur > 0 and self._buf[self._cur - 1] != " ":
             self._cur -= 1
-        del self._buf[self._cur:end]
+        del self._buf[self._cur : end]
 
     def read(self) -> str:
-        fd  = sys.stdin.fileno()
+        fd = sys.stdin.fileno()
         old = termios.tcgetattr(fd)
         try:
             tty.setraw(fd)
@@ -529,17 +554,19 @@ class _LineEditor:
                         self._search_accept()
                         return "".join(self._buf)
                     elif ch == "\x03":
-                        self._search_mode  = False
+                        self._search_mode = False
                         self._search_query = ""
                         self._buf = []
                         self._cur = 0
                         self._render()
                         continue
-                    elif ch == "\x12":   # another Ctrl+R — cycle
+                    elif ch == "\x12":  # another Ctrl+R — cycle
                         # find next match before current
                         for i in range(len(self._history) - 1, -1, -1):
-                            if (self._search_query in self._history[i]
-                                    and self._history[i] != self._search_result):
+                            if (
+                                self._search_query in self._history[i]
+                                and self._history[i] != self._search_result
+                            ):
                                 self._search_result = self._history[i]
                                 break
                     elif ch in ("\x7f", "\x08"):
@@ -551,20 +578,20 @@ class _LineEditor:
                     self._render()
                     continue
 
-                if ch in ("\r", "\n"):               # Enter
+                if ch in ("\r", "\n"):  # Enter
                     sys.stdout.write("\r\n")
                     sys.stdout.flush()
                     return "".join(self._buf)
 
-                elif ch == "\t":                     # Tab — completion
+                elif ch == "\t":  # Tab — completion
                     self._tab_complete()
 
-                elif ch == "\x03":                   # Ctrl+C
+                elif ch == "\x03":  # Ctrl+C
                     sys.stdout.write("^C\r\n")
                     sys.stdout.flush()
                     raise KeyboardInterrupt
 
-                elif ch == "\x04":                   # Ctrl+D
+                elif ch == "\x04":  # Ctrl+D
                     if not self._buf:
                         sys.stdout.write("\r\n")
                         sys.stdout.flush()
@@ -572,23 +599,24 @@ class _LineEditor:
                     if self._cur < len(self._buf):
                         del self._buf[self._cur]
 
-                elif ch == "\x01":                   # Ctrl+A
+                elif ch == "\x01":  # Ctrl+A
                     self._cur = 0
 
-                elif ch == "\x05":                   # Ctrl+E
+                elif ch == "\x05":  # Ctrl+E
                     self._cur = len(self._buf)
 
-                elif ch == "\x0b":                   # Ctrl+K
+                elif ch == "\x0b":  # Ctrl+K
                     self._buf = self._buf[: self._cur]
 
-                elif ch == "\x15":                   # Ctrl+U - delete to start of line
-                    del self._buf[:self._cur]
+                elif ch == "\x15":  # Ctrl+U - delete to start of line
+                    del self._buf[: self._cur]
                     self._cur = 0
 
-                elif ch == "\x16":                   # Ctrl+V - paste
+                elif ch == "\x16":  # Ctrl+V - paste
                     # Read all available data (paste from clipboard)
                     try:
                         import select
+
                         while True:
                             r, _, _ = select.select([fd], [], [], 0.01)
                             if not r:
@@ -596,50 +624,52 @@ class _LineEditor:
                             data = os.read(fd, 4096)
                             if not data:
                                 break
-                            text = data.decode('utf-8', errors='replace')
-                            self._buf[self._cur:self._cur] = list(text)
+                            text = data.decode("utf-8", errors="replace")
+                            self._buf[self._cur : self._cur] = list(text)
                             self._cur += len(text)
                     except Exception:
                         pass
 
-                elif ch == "\x17":                   # Ctrl+W
+                elif ch == "\x17":  # Ctrl+W
                     self._delete_word_left()
 
-                elif ch == "\x12":                   # Ctrl+R
-                    self._search_mode  = True
+                elif ch == "\x12":  # Ctrl+R
+                    self._search_mode = True
                     self._search_query = ""
                     self._search_result = ""
 
-                elif ch in ("\x7f", "\x08"):         # Backspace
+                elif ch in ("\x7f", "\x08"):  # Backspace
                     if self._cur > 0:
                         self._cur -= 1
                         del self._buf[self._cur]
 
-                elif ch == "\x1b":                   # Escape sequence
+                elif ch == "\x1b":  # Escape sequence
                     seq = self._read_esc()
-                    if   seq == "A":      self._hist_up()
-                    elif seq == "B":      self._hist_down()
-                    elif seq == "C":                 # →
+                    if seq == "A":
+                        self._hist_up()
+                    elif seq == "B":
+                        self._hist_down()
+                    elif seq == "C":  # →
                         if self._cur < len(self._buf):
                             self._cur += 1
                         else:
                             self._accept_suggestion()
-                    elif seq == "D":                 # ←
+                    elif seq == "D":  # ←
                         if self._cur > 0:
                             self._cur -= 1
-                    elif seq in ("H", "1~"):         # Home
+                    elif seq in ("H", "1~"):  # Home
                         self._cur = 0
-                    elif seq in ("F", "4~"):         # End
+                    elif seq in ("F", "4~"):  # End
                         self._cur = len(self._buf)
-                    elif seq == "3~":                # Delete
+                    elif seq == "3~":  # Delete
                         if self._cur < len(self._buf):
                             del self._buf[self._cur]
-                    elif seq == "1;5C":              # Ctrl+→
+                    elif seq == "1;5C":  # Ctrl+→
                         self._word_right()
-                    elif seq == "1;5D":              # Ctrl+←
+                    elif seq == "1;5D":  # Ctrl+←
                         self._word_left()
 
-                elif ch >= " ":                      # printable
+                elif ch >= " ":  # printable
                     self._reset_tab()
                     self._buf.insert(self._cur, ch)
                     self._cur += 1
@@ -653,6 +683,7 @@ class _LineEditor:
 
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
 
 class ShellLogHandler(logging.Handler):
     def __init__(self, shell: "Shell"):
@@ -675,9 +706,9 @@ class _StdoutToShell:
     """
 
     def __init__(self, shell: "Shell", original_stdout):
-        self._shell    = shell
+        self._shell = shell
         self._original = original_stdout
-        self._buf      = ""
+        self._buf = ""
 
     def write(self, data: str) -> int:
         self._buf += data
@@ -702,9 +733,9 @@ class _StdoutToShell:
 
 class _StderrToShell:
     def __init__(self, shell: "Shell", original_stderr):
-        self._shell    = shell
+        self._shell = shell
         self._original = original_stderr
-        self._buf      = ""
+        self._buf = ""
 
     def write(self, data: str) -> int:
         self._buf += data
@@ -725,6 +756,7 @@ class _StderrToShell:
     def __getattr__(self, name):
         return getattr(self._original, name)
 
+
 class Shell:
     """
     MCUB interactive shell.
@@ -735,16 +767,16 @@ class Shell:
         asyncio.ensure_future(self.shell.run())
     """
 
-    PROMPT  = "❯"
+    PROMPT = "❯"
     VERSION = "2.0.0"
 
     def __init__(self, kernel=None):
-        self.kernel   = kernel
-        self.cfg      = ShellConfig()
-        self.running  = False
-        self.cwd      = Path.cwd()
-        self._history: list  = []
-        self._last_ok: bool  = True          # last command exit status
+        self.kernel = kernel
+        self.cfg = ShellConfig()
+        self.running = False
+        self.cwd = Path.cwd()
+        self._history: list = []
+        self._last_ok: bool = True  # last command exit status
         self._log_handler: Optional[ShellLogHandler] = None
         self._original_stdout = None
         self._original_stderr = None
@@ -752,9 +784,9 @@ class Shell:
     def restart(self) -> None:
         """Restart the shell."""
         import asyncio
+
         self.running = False
         asyncio.ensure_future(self.run())
-
 
     def attach_logging(self, logger: Optional[logging.Logger] = None) -> None:
         if self._log_handler is not None:
@@ -833,33 +865,37 @@ class Shell:
 
     def _prompt_str(self) -> tuple[str, int]:
         """Return (ansi_prompt, visible_length)."""
-        ok_col   = _C.GREEN if self._last_ok else _C.RED
+        ok_col = _C.GREEN if self._last_ok else _C.RED
         dir_part = f"{_C.BLUE}{_C.BOLD}{self._short_cwd()}{_C.RESET}"
         sym_part = f"{ok_col}{_C.BOLD}{self.PROMPT}{_C.RESET} "
-        ansi     = f"{dir_part} {sym_part}"
+        ansi = f"{dir_part} {sym_part}"
         # visible length = len(cwd) + 1(space) + 1(prompt) + 1(space)
-        visible  = len(self._short_cwd()) + 3
+        visible = len(self._short_cwd()) + 3
         return ansi, visible
 
     def output(self, text: str) -> None:
         """Print a line above the current input. Safe from any thread."""
         out_fd = self._original_stdout or sys.stdout
-        lines  = text.split("\n")
-        out    = "\r\n".join(f"{_C.CLEAR_LINE}{l}" for l in lines)
+        lines = text.split("\n")
+        out = "\r\n".join(f"{_C.CLEAR_LINE}{l}" for l in lines)
         out_fd.write(f"\r{out}\r\n")
         out_fd.flush()
 
     def _print_header(self) -> None:
         """Simple re-draw for clear/cls — no animation to avoid blocking."""
-        title    = self.cfg.get("display", "title", fallback="MCUB Shell")
+        title = self.cfg.get("display", "title", fallback="MCUB Shell")
         sep_char = self.cfg.get("shell", "separator", fallback="─")
-        cols     = _terminal_width()
-        sep      = sep_char * min(cols - 2, 48)
-        py       = f"Python {sys.version.split()[0]}"
-        print(f"\n{_C.CYAN}{_C.BOLD}  {title}{_C.RESET}  "
-              f"{_C.GREY}v{self.VERSION}  ·  {py}{_C.RESET}")
+        cols = _terminal_width()
+        sep = sep_char * min(cols - 2, 48)
+        py = f"Python {sys.version.split()[0]}"
+        print(
+            f"\n{_C.CYAN}{_C.BOLD}  {title}{_C.RESET}  "
+            f"{_C.GREY}v{self.VERSION}  ·  {py}{_C.RESET}"
+        )
         print(f"{_C.GREY}{sep}{_C.RESET}")
-        print(f"{_C.DIM}  Tab: complete  ↑↓: history  Ctrl+R: search  →: accept suggestion{_C.RESET}\n")
+        print(
+            f"{_C.DIM}  Tab: complete  ↑↓: history  Ctrl+R: search  →: accept suggestion{_C.RESET}\n"
+        )
 
     def _expand_history(self, line: str) -> str:
         """Support !! (last command) and !n (nth entry)."""
@@ -875,7 +911,7 @@ class Shell:
             if idx < 0:
                 idx = len(self._history) + idx
             else:
-                idx -= 1           # 1-based → 0-based
+                idx -= 1  # 1-based → 0-based
             if 0 <= idx < len(self._history):
                 cmd = self._history[idx]
                 self.output(f"{_C.GREY}  {cmd}{_C.RESET}")
@@ -893,9 +929,9 @@ class Shell:
         self.attach_stdout()
 
         # Animated header (blocking in executor so timing is accurate)
-        title    = self.cfg.get("display", "title", fallback="MCUB Shell")
+        title = self.cfg.get("display", "title", fallback="MCUB Shell")
         sep_char = self.cfg.get("shell", "separator", fallback="─")
-        py       = f"Python {sys.version.split()[0]}"
+        py = f"Python {sys.version.split()[0]}"
         await loop.run_in_executor(
             None, _Anim.typewriter_header, title, self.VERSION, py, sep_char
         )
@@ -904,8 +940,10 @@ class Shell:
             try:
                 prompt_str, prompt_len = self._prompt_str()
                 editor = _LineEditor(
-                    prompt_str, prompt_len,
-                    self._history, self._last_ok,
+                    prompt_str,
+                    prompt_len,
+                    self._history,
+                    self._last_ok,
                 )
                 line = await loop.run_in_executor(None, editor.read)
             except KeyboardInterrupt:
@@ -943,8 +981,8 @@ class Shell:
 
     async def _handle(self, line: str) -> None:
         parts = line.split()
-        name  = parts[0].lower()
-        args  = parts[1:]
+        name = parts[0].lower()
+        args = parts[1:]
 
         if name in ("help", "?"):
             self._cmd_help()
@@ -981,7 +1019,9 @@ class Shell:
 
         runner = getattr(mod, "run", None)
         if runner is None:
-            self.output(f"{_C.RED}'{name}.py' has no run(shell, args) function.{_C.RESET}")
+            self.output(
+                f"{_C.RED}'{name}.py' has no run(shell, args) function.{_C.RESET}"
+            )
             self._last_ok = False
             return
 
@@ -1010,7 +1050,9 @@ class Shell:
                 time_str = f"{elapsed * 1000:.1f}ms"
             col = _C.GREEN if self._last_ok else _C.RED
             sym = "✔" if self._last_ok else "✖"
-            self.output(f"{_C.GREY}  {col}{sym}{_C.RESET}{_C.GREY}  done in {time_str}{_C.RESET}")
+            self.output(
+                f"{_C.GREY}  {col}{sym}{_C.RESET}{_C.GREY}  done in {time_str}{_C.RESET}"
+            )
 
     async def _enter_bash_mode(self) -> None:
         """Switch to an interactive bash PTY session until the user exits."""
@@ -1022,13 +1064,13 @@ class Shell:
 
         # PS1 that mirrors the shell's look:  ! /path/to/dir ❯
         ps1 = (
-            "\\[\\033[95m\\]!\\[\\033[0m\\] "        # magenta !
-            "\\[\\033[94m\\]\\w\\[\\033[0m\\] "      # blue cwd
-            "\\[\\033[92m\\]❯\\[\\033[0m\\] "        # green ❯
+            "\\[\\033[95m\\]!\\[\\033[0m\\] "  # magenta !
+            "\\[\\033[94m\\]\\w\\[\\033[0m\\] "  # blue cwd
+            "\\[\\033[92m\\]❯\\[\\033[0m\\] "  # green ❯
         )
         env = os.environ.copy()
         env["PS1"] = ps1
-        env["PROMPT_COMMAND"] = f"echo \"$PWD\" > {pwd_file}"
+        env["PROMPT_COMMAND"] = f'echo "$PWD" > {pwd_file}'
         env["TERM"] = os.environ.get("TERM", "xterm-256color")
 
         cwd = self.cwd
@@ -1057,10 +1099,10 @@ class Shell:
         Spawn bash in a real pseudo-terminal and bridge stdin ↔ master ↔ stdout.
         Blocking — meant to run in an executor thread.
         """
-        stdin_fd  = sys.stdin.fileno()
+        stdin_fd = sys.stdin.fileno()
 
         # Always write to the real terminal fd, bypassing our _StdoutToShell wrapper
-        orig_out  = self._original_stdout or sys.stdout
+        orig_out = self._original_stdout or sys.stdout
         stdout_fd = orig_out.fileno()
 
         def _get_winsize():
@@ -1077,6 +1119,7 @@ class Shell:
                 fcntl.ioctl(fd, termios.TIOCSWINSZ, winsize)
             except Exception:
                 pass
+
         pid, master_fd = pty.fork()
 
         if pid == 0:
@@ -1090,7 +1133,7 @@ class Shell:
         # Parent: bridge I/O
         rows, cols = _get_winsize()
         _set_pty_winsize(master_fd, rows, cols)
-        last_size  = (rows, cols)
+        last_size = (rows, cols)
 
         old_settings = termios.tcgetattr(stdin_fd)
         tty.setraw(stdin_fd)
@@ -1177,21 +1220,22 @@ class Shell:
             self._last_ok = False
 
     def _cmd_help(self) -> None:
-        commands = sorted(
-            p.stem for p in _BIN_DIR.glob("*.py")
-            if not p.stem.startswith("_")
-        ) if _BIN_DIR.exists() else []
+        commands = (
+            sorted(p.stem for p in _BIN_DIR.glob("*.py") if not p.stem.startswith("_"))
+            if _BIN_DIR.exists()
+            else []
+        )
 
         cols = _terminal_width()
-        sep  = self.cfg.get("shell", "separator", fallback="─") * min(cols - 2, 48)
+        sep = self.cfg.get("shell", "separator", fallback="─") * min(cols - 2, 48)
 
-        out  = f"\n{_C.CYAN}{_C.BOLD}  Built-in commands{_C.RESET}\n"
+        out = f"\n{_C.CYAN}{_C.BOLD}  Built-in commands{_C.RESET}\n"
         builtins_info = [
-            ("help",    "show this list"),
-            ("clear",   "clear the terminal"),
+            ("help", "show this list"),
+            ("clear", "clear the terminal"),
             ("history", "show / search history   [history <query>]"),
-            ("cd",      "change directory        [cd <path>]"),
-            ("exit",    "exit the shell"),
+            ("cd", "change directory        [cd <path>]"),
+            ("exit", "exit the shell"),
         ]
         for cmd, desc in builtins_info:
             out += f"  {_C.GREEN}{cmd:<16}{_C.RESET}{_C.DIM}{desc}{_C.RESET}\n"
@@ -1201,7 +1245,7 @@ class Shell:
             for cmd in commands:
                 desc = ""
                 try:
-                    m    = _load_command(cmd)
+                    m = _load_command(cmd)
                     desc = (
                         getattr(m, "DESCRIPTION", "")
                         or (m.__doc__ or "").strip().splitlines()[0]
@@ -1218,13 +1262,16 @@ class Shell:
     def _cmd_history(self, args: list) -> None:
         query = args[0].lower() if args else ""
         entries = [
-            (i, cmd) for i, cmd in enumerate(self._history, 1)
+            (i, cmd)
+            for i, cmd in enumerate(self._history, 1)
             if not query or query in cmd.lower()
         ]
         if not entries:
             self.output(f"{_C.GREY}  No matching history entries.{_C.RESET}")
             return
-        out = f"\n{_C.CYAN}{_C.BOLD}  History{' (filtered)' if query else ''}{_C.RESET}\n"
+        out = (
+            f"\n{_C.CYAN}{_C.BOLD}  History{' (filtered)' if query else ''}{_C.RESET}\n"
+        )
         for i, cmd in entries:
             # Highlight match
             if query:
@@ -1242,7 +1289,9 @@ class Shell:
         for c1 in a:
             new_row = [row[0] + 1]
             for j, c2 in enumerate(b):
-                new_row.append(min(new_row[-1] + 1, row[j + 1] + 1, row[j] + (c1 != c2)))
+                new_row.append(
+                    min(new_row[-1] + 1, row[j + 1] + 1, row[j] + (c1 != c2))
+                )
             row = new_row
         return row[-1]
 

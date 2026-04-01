@@ -8,7 +8,6 @@ import subprocess
 from typing import Tuple
 import shutil
 
-
 # version kenrel MCUB
 __version__ = "1.0.6.1-beta"
 VERSION = __version__

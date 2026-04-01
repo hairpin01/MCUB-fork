@@ -1178,26 +1178,29 @@ class ModuleLoader:
         reqs = re.findall(r"^[ \t]*#[ \t]*requires:[ \t]*(.+)$", code, re.MULTILINE)
         if not reqs:
             return []
+        deps = ModuleLoader._extract_dependencies(reqs)
+        return ModuleLoader._filter_valid_deps(deps)
+
+    @staticmethod
+    def _extract_dependencies(reqs: list) -> list[str]:
+        """Extract dependency names from requires lines."""
         deps: list[str] = []
         for line in reqs:
             for part in line.split(","):
                 part = part.strip()
                 if not part:
                     continue
-                # Accept "pkg_name some_other_pkg" (space-separated) as well
                 if " " in part:
                     deps.extend(p.strip() for p in part.split() if p.strip())
                 else:
                     deps.append(part)
-        # Filter out tokens that don't look like valid pip package specifiers.
-        # A valid specifier starts with a letter or digit and contains only
-        # alphanumeric, hyphens, underscores, dots, or version operators.
+        return deps
+
+    @staticmethod
+    def _filter_valid_deps(deps: list[str]) -> list[str]:
+        """Filter out tokens that don't look like valid pip package specifiers."""
         _dep_re = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?([><=!~].+)?$")
-        valid = []
-        for dep in deps:
-            if dep and _dep_re.match(dep):
-                valid.append(dep)
-        return valid
+        return [dep for dep in deps if dep and _dep_re.match(dep)]
 
     async def install_dependencies_batch(
         self,

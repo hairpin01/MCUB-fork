@@ -62,8 +62,10 @@ class AuthMiddleware:
         elif self.app.get("setup_state"):
             config_path = "config.json"
             import os
+
             if os.path.exists(config_path):
                 import json
+
                 try:
                     with open(config_path, "r") as f:
                         config = json.load(f)
@@ -102,8 +104,11 @@ class AuthMiddleware:
 
     async def __call__(self, app: web.Application) -> None:
         """Middleware factory."""
+
         @web.middleware
-        async def auth_middleware(request: web.Request, handler: Callable) -> web.Response:
+        async def auth_middleware(
+            request: web.Request, handler: Callable
+        ) -> web.Response:
             if not self.auth_enabled:
                 return await handler(request)
 
@@ -115,7 +120,7 @@ class AuthMiddleware:
 
             return web.json_response(
                 {"error": "Unauthorized. Provide valid token in Authorization header."},
-                status=401
+                status=401,
             )
 
         app.middlewares.append(auth_middleware)
@@ -126,15 +131,14 @@ def require_auth(func: Callable) -> Callable:
     Decorator to mark a handler as requiring authentication.
     Can be used for additional protection on sensitive endpoints.
     """
+
     async def wrapper(request: web.Request, *args, **kwargs) -> web.Response:
         auth_middleware = request.app.get("auth_middleware")
         if auth_middleware and auth_middleware.auth_enabled:
             if not await auth_middleware._authenticate(request):
-                return web.json_response(
-                    {"error": "Unauthorized"},
-                    status=401
-                )
+                return web.json_response({"error": "Unauthorized"}, status=401)
         return await func(request, *args, **kwargs)
+
     return wrapper
 
 

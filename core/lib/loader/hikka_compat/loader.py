@@ -27,7 +27,6 @@ from .types import (
 import re
 import site
 
-
 VALID_PIP_PACKAGES = re.compile(
     r"# ?scope: ?pip ?((?:[A-Za-z0-9\-_>=<!\[\].]+(?:\s+|$))+)",
     re.MULTILINE,

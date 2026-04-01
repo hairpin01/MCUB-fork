@@ -11,6 +11,7 @@ from unittest.mock import Mock, AsyncMock, patch, MagicMock
 # Add parent directory to Python path (so core can be imported as a package)
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+
 # Register custom pytest marks
 def pytest_configure(config):
     config.addinivalue_line("markers", "integration: mark test as integration test")
@@ -54,17 +55,19 @@ def mock_db_manager(mock_db_connection):
 @pytest.fixture
 def kernel_instance(mock_client, mock_db_connection, mock_db_manager):
     """Create a Kernel instance with mocked dependencies"""
-    with patch("aiosqlite.connect", return_value=mock_db_connection), \
-         patch("telethon.TelegramClient", return_value=mock_client), \
-         patch("core.kernel.setup_logging"), \
-         patch("core.kernel.ConfigManager"), \
-         patch("core.kernel.ModuleLoader"), \
-         patch("core.kernel.RepositoryManager"), \
-         patch("core.kernel.KernelLogger"), \
-         patch("core.kernel.ClientManager"), \
-         patch("core.kernel.InlineManager"), \
-         patch("core.kernel.VersionManager"), \
-         patch("core.kernel.DatabaseManager", return_value=mock_db_manager):
+    with (
+        patch("aiosqlite.connect", return_value=mock_db_connection),
+        patch("telethon.TelegramClient", return_value=mock_client),
+        patch("core.kernel.setup_logging"),
+        patch("core.kernel.ConfigManager"),
+        patch("core.kernel.ModuleLoader"),
+        patch("core.kernel.RepositoryManager"),
+        patch("core.kernel.KernelLogger"),
+        patch("core.kernel.ClientManager"),
+        patch("core.kernel.InlineManager"),
+        patch("core.kernel.VersionManager"),
+        patch("core.kernel.DatabaseManager", return_value=mock_db_manager),
+    ):
 
         from core.kernel import Kernel
 

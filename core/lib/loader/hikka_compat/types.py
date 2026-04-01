@@ -5,11 +5,10 @@ import typing as _typing
 from importlib.abc import SourceLoader as _SourceLoader
 from typing import Any, Callable, Optional, Union
 
-
-JSONSerializable  = Union[str, int, float, bool, list, dict, None]
+JSONSerializable = Union[str, int, float, bool, list, dict, None]
 HerokuReplyMarkup = Union[_typing.List[_typing.List[dict]], _typing.List[dict], dict]
-ListLike          = Union[list, set, tuple]
-Command           = Callable[..., _typing.Awaitable[_typing.Any]]
+ListLike = Union[list, set, tuple]
+Command = Callable[..., _typing.Awaitable[_typing.Any]]
 
 
 class StringLoader(_SourceLoader):
@@ -35,6 +34,7 @@ class LoadError(Exception):
     def __init__(self, error_message: str = ""):
         self._error = error_message
         super().__init__(error_message)
+
     def __str__(self) -> str:
         return self._error
 
@@ -44,6 +44,7 @@ class CoreOverwriteError(LoadError):
         self.type = "module" if module else "command"
         self.target = module or command
         super().__init__(str(self))
+
     def __str__(self) -> str:
         return f"{'Module' if self.type == 'module' else 'Command'} {self.target} will not be overwritten"
 
@@ -52,6 +53,7 @@ class CoreUnloadError(Exception):
     def __init__(self, module: str):
         self.module = module
         super().__init__()
+
     def __str__(self) -> str:
         return f"Module {self.module} will not be unloaded, because it's core"
 
@@ -60,6 +62,7 @@ class SelfUnload(Exception):
     def __init__(self, error_message: str = ""):
         self._error = error_message
         super().__init__(error_message)
+
     def __str__(self) -> str:
         return self._error
 
@@ -68,6 +71,7 @@ class SelfSuspend(Exception):
     def __init__(self, error_message: str = ""):
         self._error = error_message
         super().__init__(error_message)
+
     def __str__(self) -> str:
         return self._error
 
@@ -87,16 +91,21 @@ class CacheRecordEntity:
     def expired(self) -> bool:
         return self._exp < _time.time()
 
-    def __eq__(self, other) -> bool: return hash(other) == hash(self)
-    def __hash__(self) -> int:       return hash(self._hashable_entity)
-    def __str__(self) -> str:        return f"CacheRecordEntity of {self.entity}"
+    def __eq__(self, other) -> bool:
+        return hash(other) == hash(self)
+
+    def __hash__(self) -> int:
+        return hash(self._hashable_entity)
+
+    def __str__(self) -> str:
+        return f"CacheRecordEntity of {self.entity}"
 
 
 class CacheRecordPerms:
     def __init__(self, hashable_entity, hashable_user, resolved_perms, exp: int):
         self.perms = _copy.deepcopy(resolved_perms)
         self._hashable_entity = _copy.deepcopy(hashable_entity)
-        self._hashable_user   = _copy.deepcopy(hashable_user)
+        self._hashable_user = _copy.deepcopy(hashable_user)
         self._exp = round(_time.time() + exp)
         self.ts = _time.time()
 
@@ -104,14 +113,19 @@ class CacheRecordPerms:
     def expired(self) -> bool:
         return self._exp < _time.time()
 
-    def __eq__(self, other) -> bool: return hash(other) == hash(self)
-    def __hash__(self) -> int:       return hash((self._hashable_entity, self._hashable_user))
-    def __str__(self) -> str:        return f"CacheRecordPerms of {self.perms}"
+    def __eq__(self, other) -> bool:
+        return hash(other) == hash(self)
+
+    def __hash__(self) -> int:
+        return hash((self._hashable_entity, self._hashable_user))
+
+    def __str__(self) -> str:
+        return f"CacheRecordPerms of {self.perms}"
 
 
 class CacheRecordFullChannel:
     def __init__(self, channel_id: int, full_channel, exp: int):
-        self.channel_id  = channel_id
+        self.channel_id = channel_id
         self.full_channel = full_channel
         self._exp = round(_time.time() + exp)
         self.ts = _time.time()
@@ -120,14 +134,19 @@ class CacheRecordFullChannel:
     def expired(self) -> bool:
         return self._exp < _time.time()
 
-    def __eq__(self, other) -> bool: return hash(other) == hash(self)
-    def __hash__(self) -> int:       return hash(self.channel_id)
-    def __str__(self) -> str:        return f"CacheRecordFullChannel of {self.channel_id}"
+    def __eq__(self, other) -> bool:
+        return hash(other) == hash(self)
+
+    def __hash__(self) -> int:
+        return hash(self.channel_id)
+
+    def __str__(self) -> str:
+        return f"CacheRecordFullChannel of {self.channel_id}"
 
 
 class CacheRecordFullUser:
     def __init__(self, user_id: int, full_user, exp: int):
-        self.user_id  = user_id
+        self.user_id = user_id
         self.full_user = full_user
         self._exp = round(_time.time() + exp)
         self.ts = _time.time()
@@ -136,13 +155,19 @@ class CacheRecordFullUser:
     def expired(self) -> bool:
         return self._exp < _time.time()
 
-    def __eq__(self, other) -> bool: return hash(other) == hash(self)
-    def __hash__(self) -> int:       return hash(self.user_id)
-    def __str__(self) -> str:        return f"CacheRecordFullUser of {self.user_id}"
+    def __eq__(self, other) -> bool:
+        return hash(other) == hash(self)
+
+    def __hash__(self) -> int:
+        return hash(self.user_id)
+
+    def __str__(self) -> str:
+        return f"CacheRecordFullUser of {self.user_id}"
 
 
-def _get_members(mod, ending: str, attribute: Optional[str] = None,
-                 strict: bool = False) -> dict:
+def _get_members(
+    mod, ending: str, attribute: Optional[str] = None, strict: bool = False
+) -> dict:
     result = {}
     for method_name in dir(type(mod)):
         if isinstance(getattr(type(mod), method_name, None), property):
@@ -150,7 +175,9 @@ def _get_members(mod, ending: str, attribute: Optional[str] = None,
         method = getattr(mod, method_name, None)
         if not callable(method):
             continue
-        matches_ending = (method_name == ending) if strict else method_name.endswith(ending)
+        matches_ending = (
+            (method_name == ending) if strict else method_name.endswith(ending)
+        )
         matches_attr = bool(attribute and getattr(method, attribute, False))
         if not matches_ending and not matches_attr:
             continue
@@ -166,11 +193,14 @@ def _get_members(mod, ending: str, attribute: Optional[str] = None,
 def get_commands(mod) -> dict:
     return _get_members(mod, "cmd", "is_command")
 
+
 def get_inline_handlers(mod) -> dict:
     return _get_members(mod, "_inline_handler", "is_inline_handler")
 
+
 def get_callback_handlers(mod) -> dict:
     return _get_members(mod, "_callback_handler", "is_callback_handler")
+
 
 def get_watchers(mod) -> dict:
     return _get_members(mod, "watcher", "is_watcher", strict=True)
@@ -178,6 +208,7 @@ def get_watchers(mod) -> dict:
 
 class PointerDict(dict):
     """Dict with pointer-like behavior for module config."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._pointer_keys = set()
@@ -198,6 +229,7 @@ class PointerDict(dict):
 
 class PointerList(list):
     """List with pointer-like behavior for module config."""
+
     def pointer(self, index: int, default=None):
         try:
             return self[index]

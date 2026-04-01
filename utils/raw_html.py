@@ -6,13 +6,26 @@
 import html
 from typing import Tuple, List, Dict, Any
 from telethon.tl.types import (
-    MessageEntityBold, MessageEntityItalic, MessageEntityCode,
-    MessageEntityPre, MessageEntityTextUrl, MessageEntityUnderline,
-    MessageEntityStrike, MessageEntityBlockquote, MessageEntityCustomEmoji,
-    MessageEntitySpoiler, MessageEntityEmail, MessageEntityMentionName,
-    MessageEntityMention, MessageEntityHashtag, MessageEntityCashtag,
-    MessageEntityBotCommand, MessageEntityUrl, MessageEntityBankCard,
-    MessageEntityPhone, MessageEntityUnknown
+    MessageEntityBold,
+    MessageEntityItalic,
+    MessageEntityCode,
+    MessageEntityPre,
+    MessageEntityTextUrl,
+    MessageEntityUnderline,
+    MessageEntityStrike,
+    MessageEntityBlockquote,
+    MessageEntityCustomEmoji,
+    MessageEntitySpoiler,
+    MessageEntityEmail,
+    MessageEntityMentionName,
+    MessageEntityMention,
+    MessageEntityHashtag,
+    MessageEntityCashtag,
+    MessageEntityBotCommand,
+    MessageEntityUrl,
+    MessageEntityBankCard,
+    MessageEntityPhone,
+    MessageEntityUnknown,
 )
 from .html_parser import _utf16_len, _utf16_slice
 
@@ -103,44 +116,46 @@ class RawHTMLConverter:
             tag_name = "code"
         elif isinstance(entity, MessageEntityPre):
             tag_name = "pre"
-            language = getattr(entity, 'language', None)
+            language = getattr(entity, "language", None)
             if language:
                 pre_open = "<pre>"
-                code_open = self._build_html_tag("code", {"class": f"language-{language}"})
+                code_open = self._build_html_tag(
+                    "code", {"class": f"language-{language}"}
+                )
                 return f"{pre_open}{code_open}", "</code></pre>"
             return "<pre>", "</pre>"
         elif isinstance(entity, MessageEntityTextUrl):
             tag_name = "a"
-            if hasattr(entity, 'url') and entity.url:
-                attributes['href'] = entity.url
+            if hasattr(entity, "url") and entity.url:
+                attributes["href"] = entity.url
         elif isinstance(entity, MessageEntityUrl):
             tag_name = "a"
             if entity_text:
-                attributes['href'] = entity_text
+                attributes["href"] = entity_text
         elif isinstance(entity, MessageEntityEmail):
             tag_name = "a"
-            attributes['href'] = f"mailto:{entity_text}"
+            attributes["href"] = f"mailto:{entity_text}"
         elif isinstance(entity, MessageEntityCustomEmoji):
             tag_name = "tg-emoji"
-            if hasattr(entity, 'document_id'):
-                attributes['emoji-id'] = str(entity.document_id)
+            if hasattr(entity, "document_id"):
+                attributes["emoji-id"] = str(entity.document_id)
         elif isinstance(entity, MessageEntitySpoiler):
             tag_name = "tg-spoiler"
         elif isinstance(entity, MessageEntityBlockquote):
             tag_name = "blockquote"
-            if hasattr(entity, 'collapsed') and entity.collapsed:
-                attributes['expandable'] = None
+            if hasattr(entity, "collapsed") and entity.collapsed:
+                attributes["expandable"] = None
         elif isinstance(entity, MessageEntityMention):
             tag_name = "a"
-            if entity_text.startswith('@'):
-                attributes['href'] = f"tg://resolve?domain={entity_text[1:]}"
+            if entity_text.startswith("@"):
+                attributes["href"] = f"tg://resolve?domain={entity_text[1:]}"
         elif isinstance(entity, MessageEntityMentionName):
             tag_name = "a"
-            if hasattr(entity, 'user_id'):
-                attributes['href'] = f"tg://user?id={entity.user_id}"
+            if hasattr(entity, "user_id"):
+                attributes["href"] = f"tg://user?id={entity.user_id}"
         elif isinstance(entity, MessageEntityHashtag):
             tag_name = "a"
-            attributes['class'] = "hashtag"
+            attributes["class"] = "hashtag"
         elif isinstance(entity, MessageEntityBotCommand):
             tag_name = "code"
         elif isinstance(entity, MessageEntityBankCard):
@@ -148,16 +163,22 @@ class RawHTMLConverter:
         elif isinstance(entity, MessageEntityPhone):
             tag_name = "a"
             # Clean phone number for tel: link
-            clean_phone = entity_text.replace('+', '').replace('-', '').replace(' ', '').replace('(', '').replace(')', '')
+            clean_phone = (
+                entity_text.replace("+", "")
+                .replace("-", "")
+                .replace(" ", "")
+                .replace("(", "")
+                .replace(")", "")
+            )
             if clean_phone.isdigit():
-                attributes['href'] = f"tel:{entity_text}"
+                attributes["href"] = f"tel:{entity_text}"
         elif isinstance(entity, MessageEntityCashtag):
             tag_name = "span"
-            attributes['class'] = "cashtag"
+            attributes["class"] = "cashtag"
         elif isinstance(entity, MessageEntityUnknown) and self.preserve_unknown:
             tag_name = "span"
-            attributes['class'] = "tg-unknown-entity"
-            attributes['data-type'] = str(type(entity).__name__)
+            attributes["class"] = "tg-unknown-entity"
+            attributes["data-type"] = str(type(entity).__name__)
 
         opening_tag = self._build_html_tag(tag_name, attributes)
         return opening_tag, f"</{tag_name}>"
@@ -183,12 +204,14 @@ class RawHTMLConverter:
         events = []
         for i, entity in enumerate(entities):
             # Start event: longer entities get higher priority (negative length)
-            events.append((entity.offset, 'start', -entity.length, i, entity))
+            events.append((entity.offset, "start", -entity.length, i, entity))
             # End event: shorter entities close first (positive length)
-            events.append((entity.offset + entity.length, 'end', entity.length, i, entity))
+            events.append(
+                (entity.offset + entity.length, "end", entity.length, i, entity)
+            )
 
         # Sort events: Position -> Type (end before start) -> Priority
-        events.sort(key=lambda x: (x[0], 0 if x[1] == 'end' else 1, x[2]))
+        events.sort(key=lambda x: (x[0], 0 if x[1] == "end" else 1, x[2]))
 
         result_parts = []
         # Currently open HTML tags as tuples: (entity, closing_html)
@@ -205,7 +228,7 @@ class RawHTMLConverter:
                 last_pos = pos
 
             # Update logical stack based on event type
-            if event_type == 'start':
+            if event_type == "start":
                 logical_stack.append(entity)
                 # Sort stack: longest entities first (outer tags)
                 logical_stack.sort(key=lambda e: -e.length)
@@ -231,8 +254,12 @@ class RawHTMLConverter:
             while len(current_tags) < len(logical_stack):
                 entity_to_open = logical_stack[len(current_tags)]
                 # Get entity text for attributes that need it
-                entity_text = _utf16_slice(text, entity_to_open.offset, entity_to_open.length)
-                opening_html, closing_html = self._entity_to_html(entity_to_open, entity_text)
+                entity_text = _utf16_slice(
+                    text, entity_to_open.offset, entity_to_open.length
+                )
+                opening_html, closing_html = self._entity_to_html(
+                    entity_to_open, entity_text
+                )
 
                 result_parts.append(opening_html)
                 current_tags.append((entity_to_open, closing_html))
@@ -265,24 +292,24 @@ class RawHTMLConverter:
             return ""
 
         # Handle messages with media (might have captions)
-        if hasattr(message, 'media') and message.media:
-            text = getattr(message, 'message', '') or getattr(message, 'text', '') or ''
+        if hasattr(message, "media") and message.media:
+            text = getattr(message, "message", "") or getattr(message, "text", "") or ""
 
             # Check for caption in media
-            if hasattr(message.media, 'caption'):
-                text = message.media.caption or ''
+            if hasattr(message.media, "caption"):
+                text = message.media.caption or ""
 
             # Get entities from caption or message
-            if hasattr(message.media, 'caption_entities'):
+            if hasattr(message.media, "caption_entities"):
                 entities = message.media.caption_entities or []
-            elif hasattr(message, 'entities'):
+            elif hasattr(message, "entities"):
                 entities = message.entities or []
             else:
                 entities = []
         else:
             # Regular message without media
-            text = getattr(message, 'message', '') or getattr(message, 'text', '') or ''
-            entities = getattr(message, 'entities', []) or []
+            text = getattr(message, "message", "") or getattr(message, "text", "") or ""
+            entities = getattr(message, "entities", []) or []
 
         # Ensure text is not None
         text = text or ""
@@ -305,9 +332,9 @@ class RawHTMLConverter:
         if not event:
             return ""
 
-        if hasattr(event, 'message'):
+        if hasattr(event, "message"):
             return self.convert_message(event.message)
-        elif hasattr(event, 'text'):
+        elif hasattr(event, "text"):
             text = event.text or ""
             return self._escape_html(text)
         return ""
@@ -332,11 +359,11 @@ def message_to_html(message, detailed: bool = False) -> str:
 
     if detailed:
         metadata = []
-        if hasattr(message, 'id'):
+        if hasattr(message, "id"):
             metadata.append(f"Message ID: {message.id}")
-        if hasattr(message, 'sender_id'):
+        if hasattr(message, "sender_id"):
             metadata.append(f"Sender ID: {message.sender_id}")
-        if hasattr(message, 'date'):
+        if hasattr(message, "date"):
             metadata.append(f"Date: {message.date}")
 
         if metadata:
@@ -405,21 +432,21 @@ def debug_entities(message) -> List[Dict]:
         return []
 
     # Extract text and entities from message
-    if hasattr(message, 'media') and message.media:
-        text = getattr(message, 'message', '') or getattr(message, 'text', '') or ''
+    if hasattr(message, "media") and message.media:
+        text = getattr(message, "message", "") or getattr(message, "text", "") or ""
 
-        if hasattr(message.media, 'caption'):
-            text = message.media.caption or ''
+        if hasattr(message.media, "caption"):
+            text = message.media.caption or ""
 
-        if hasattr(message.media, 'caption_entities'):
+        if hasattr(message.media, "caption_entities"):
             entity_list = message.media.caption_entities or []
-        elif hasattr(message, 'entities'):
+        elif hasattr(message, "entities"):
             entity_list = message.entities or []
         else:
             entity_list = []
     else:
-        text = getattr(message, 'message', '') or getattr(message, 'text', '') or ''
-        entity_list = getattr(message, 'entities', []) or []
+        text = getattr(message, "message", "") or getattr(message, "text", "") or ""
+        entity_list = getattr(message, "entities", []) or []
 
     # Ensure text is not None
     text = text or ""
@@ -428,13 +455,15 @@ def debug_entities(message) -> List[Dict]:
     entities_info = []
     for entity in entity_list:
         entity_text = _utf16_slice(text, entity.offset, entity.length)
-        entities_info.append({
-            'type': type(entity).__name__,
-            'offset': entity.offset,
-            'length': entity.length,
-            'text': entity_text,
-            'repr': repr(entity)
-        })
+        entities_info.append(
+            {
+                "type": type(entity).__name__,
+                "offset": entity.offset,
+                "length": entity.length,
+                "text": entity_text,
+                "repr": repr(entity),
+            }
+        )
 
     return entities_info
 
@@ -443,10 +472,10 @@ def debug_entities(message) -> List[Dict]:
 raw_html_converter = RawHTMLConverter()
 
 __all__ = [
-    'RawHTMLConverter',
-    'message_to_html',
-    'event_to_html',
-    'extract_raw_html',
-    'debug_entities',
-    'raw_html_converter'
+    "RawHTMLConverter",
+    "message_to_html",
+    "event_to_html",
+    "extract_raw_html",
+    "debug_entities",
+    "raw_html_converter",
 ]

@@ -64,11 +64,13 @@ class TestFormatRelativeTime:
 
     def test_just_now(self):
         import time
+
         result = format_relative_time(time.time())
         assert result == "just now"
 
     def test_minutes_ago(self):
         import time
+
         ts = time.time() - 300  # 5 minutes ago
         result = format_relative_time(ts)
         assert "minute" in result
@@ -81,7 +83,7 @@ class TestEscapeHtml:
     def test_basic(self):
         assert escape_html("<b>test</b>") == "&lt;b&gt;test&lt;/b&gt;"
         assert escape_html("a & b") == "a &amp; b"
-        assert escape_html('a < b > c') == "a &lt; b &gt; c"
+        assert escape_html("a < b > c") == "a &lt; b &gt; c"
 
 
 class TestEscapeQuotes:
@@ -89,7 +91,7 @@ class TestEscapeQuotes:
 
     def test_quotes(self):
         assert escape_quotes('say "hello"') == "say &quot;hello&quot;"
-        assert escape_quotes("<a href=\"url\">") == "&lt;a href=&quot;url&quot;&gt;"
+        assert escape_quotes('<a href="url">') == "&lt;a href=&quot;url&quot;&gt;"
 
 
 class TestMakeButton:

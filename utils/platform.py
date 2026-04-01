@@ -7,6 +7,7 @@ import sys
 import platform
 import subprocess
 
+
 class PlatformDetector:
     """Detects the platform where the userbot is running"""
 
@@ -66,7 +67,7 @@ class PlatformDetector:
         termux_paths = [
             "/data/data/com.termux/files/usr",
             "/data/data/com.termux",
-            "/usr/bin/termux-info"
+            "/usr/bin/termux-info",
         ]
 
         for path in termux_paths:
@@ -76,10 +77,7 @@ class PlatformDetector:
         # Method 3: Check via which termux-info
         try:
             result = subprocess.run(
-                ["which", "termux-info"],
-                capture_output=True,
-                text=True,
-                timeout=2
+                ["which", "termux-info"], capture_output=True, text=True, timeout=2
             )
             if result.returncode == 0:
                 return True
@@ -128,10 +126,7 @@ class PlatformDetector:
                     return True
 
             # Check for WSL2 specific files
-            wsl2_files = [
-                "/dev/lxss",
-                "/mnt/wsl"
-            ]
+            wsl2_files = ["/dev/lxss", "/mnt/wsl"]
 
             for file in wsl2_files:
                 if os.path.exists(file):
@@ -185,11 +180,7 @@ class PlatformDetector:
             return False
 
         # Check for X11
-        x11_paths = [
-            "/usr/bin/X11",
-            "/usr/bin/X",
-            "/usr/lib/xorg"
-        ]
+        x11_paths = ["/usr/bin/X11", "/usr/bin/X", "/usr/lib/xorg"]
 
         for path in x11_paths:
             if os.path.exists(path):
@@ -198,10 +189,7 @@ class PlatformDetector:
         # Check for sshd process (server usually accessible via SSH)
         try:
             result = subprocess.run(
-                ["ps", "aux"],
-                capture_output=True,
-                text=True,
-                timeout=2
+                ["ps", "aux"], capture_output=True, text=True, timeout=2
             )
             if "sshd" in result.stdout.lower():
                 return True
@@ -213,9 +201,15 @@ class PlatformDetector:
             # No user home directory like on desktop
             not os.path.exists("/home/user"),
             # Common VPS provider indicators
-            any(keyword in self.platform for keyword in ["cloud", "vps", "vds", "aws", "digitalocean", "linode"]),
+            any(
+                keyword in self.platform
+                for keyword in ["cloud", "vps", "vds", "aws", "digitalocean", "linode"]
+            ),
             # Check hostname (often contains provider names)
-            any(provider in platform.node().lower() for provider in ["vps", "cloud", "server", "node"])
+            any(
+                provider in platform.node().lower()
+                for provider in ["vps", "cloud", "server", "node"]
+            ),
         ]
 
         return any(vds_indicators)
@@ -244,8 +238,8 @@ class PlatformDetector:
                 "wsl": "WSL_DISTRO_NAME" in os.environ,
                 "docker": self._is_docker(),
                 "display": "DISPLAY" in os.environ,
-                "wayland": "WAYLAND_DISPLAY" in os.environ
-            }
+                "wayland": "WAYLAND_DISPLAY" in os.environ,
+            },
         }
 
         return info
@@ -268,7 +262,7 @@ class PlatformDetector:
             "macos": "🍎 macOS",
             "windows": "🪟 Windows",
             "linux": "🐧 Linux Desktop",
-            "unknown": "❓ Unknown Platform"
+            "unknown": "❓ Unknown Platform",
         }
 
         return names.get(platform_name, "❓ Unknown Platform")
@@ -291,47 +285,59 @@ class PlatformDetector:
 # Create global instance for easy import
 detector = PlatformDetector()
 
+
 # Short functions for quick access
 def get_platform():
     """Returns platform name"""
     return detector.detect()
 
+
 def get_detailed_info():
     """Returns detailed platform information"""
     return detector.get_detailed_info()
 
+
 get_platform_info = get_detailed_info
+
 
 def get_platform_name():
     """Returns human-readable platform name"""
     return detector.get_friendly_name()
 
+
 def is_termux():
     """Checks if running in Termux"""
     return get_platform() == "termux"
+
 
 def is_wsl():
     """Checks if running in WSL"""
     platform = get_platform()
     return platform in ["wsl", "wsl2"]
 
+
 def is_vds():
     """Checks if running on VDS"""
     return get_platform() == "vds"
+
 
 def is_docker():
     """Checks if running in Docker"""
     return get_platform() == "docker"
 
+
 def is_mobile_termux():
     """Checks if platform is mobile (Termux)"""
     return detector.is_mobile()
 
+
 is_mobile = is_mobile_termux
+
 
 def is_desktop():
     """Checks if platform is desktop"""
     return detector.is_desktop()
+
 
 def is_virtualized():
     """Checks if platform is virtualized"""

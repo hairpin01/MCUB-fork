@@ -30,7 +30,7 @@ class MockEvent:
         chat_id: int = 123456789,
         sender_id: int = 987654321,
         message_id: int = 1,
-        **kwargs
+        **kwargs,
     ):
         self.text = text
         self.chat_id = chat_id
@@ -58,7 +58,7 @@ class MockCallback:
         query_id: str = "query_123",
         data: str = "callback_data",
         chat_instance: str = "chat_123",
-        **kwargs
+        **kwargs,
     ):
         self.query_id = query_id
         self.data = data
@@ -83,7 +83,7 @@ class MockInlineQuery:
         query_id: str = "inline_123",
         query: str = "test query",
         offset: str = "",
-        **kwargs
+        **kwargs,
     ):
         self.query_id = query_id
         self.query = query
@@ -97,19 +97,20 @@ class MockInlineQuery:
 class MockTelegramClient:
     """Полный мок TelegramClient для тестирования"""
 
-    def __init__(self, session_name: str = "test", api_id: int = 12345, api_hash: str = "hash"):
+    def __init__(
+        self, session_name: str = "test", api_id: int = 12345, api_hash: str = "hash"
+    ):
         self.session_name = session_name
         self.api_id = api_id
         self.api_hash = api_hash
 
         self.is_connected = Mock(return_value=True)
         self.is_user_authorized = Mock(return_value=True)
-        self.get_me = AsyncMock(return_value=Mock(
-            id=123456789,
-            first_name="Test",
-            last_name="User",
-            username="testuser"
-        ))
+        self.get_me = AsyncMock(
+            return_value=Mock(
+                id=123456789, first_name="Test", last_name="User", username="testuser"
+            )
+        )
 
         self.start = AsyncMock()
         self.connect = AsyncMock()
@@ -127,16 +128,20 @@ class MockTelegramClient:
 
     def on(self, event_cls):
         """Декоратор для регистрации обработчиков событий"""
+
         def decorator(func):
             self._event_handlers.append((event_cls, func))
             return func
+
         return decorator
 
-    async def simulate_message(self, text: str, chat_id: int = 123456789, sender_id: int = 987654321):
+    async def simulate_message(
+        self, text: str, chat_id: int = 123456789, sender_id: int = 987654321
+    ):
         """Симуляция входящего сообщения"""
         event = MockEvent(text=text, chat_id=chat_id, sender_id=sender_id)
         for event_cls, handler in self._event_handlers:
-            if hasattr(event_cls, '__name__') and 'Message' in event_cls.__name__:
+            if hasattr(event_cls, "__name__") and "Message" in event_cls.__name__:
                 await handler(event)
                 break
         return event
@@ -145,7 +150,7 @@ class MockTelegramClient:
         """Симуляция callback-запроса"""
         callback = MockCallback(query_id=query_id, data=data)
         for event_cls, handler in self._event_handlers:
-            if hasattr(event_cls, '__name__') and 'Callback' in event_cls.__name__:
+            if hasattr(event_cls, "__name__") and "Callback" in event_cls.__name__:
                 await handler(callback)
                 break
         return callback
@@ -154,7 +159,7 @@ class MockTelegramClient:
         """Симуляция inline-запроса"""
         inline_query = MockInlineQuery(query_id=query_id, query=query)
         for event_cls, handler in self._event_handlers:
-            if hasattr(event_cls, '__name__') and 'Inline' in event_cls.__name__:
+            if hasattr(event_cls, "__name__") and "Inline" in event_cls.__name__:
                 await handler(inline_query)
                 break
         return inline_query
@@ -184,17 +189,22 @@ class TestKernel:
 
     async def setup(self):
         """Инициализация тестового ядра"""
-        with patch('telethon.TelegramClient', return_value=self.client), \
-             patch('core.kernel.setup_logging'), \
-             patch('core.kernel.ConfigManager'), \
-             patch('core.kernel.DatabaseManager'):
+        with (
+            patch("telethon.TelegramClient", return_value=self.client),
+            patch("core.kernel.setup_logging"),
+            patch("core.kernel.ConfigManager"),
+            patch("core.kernel.DatabaseManager"),
+        ):
 
             from core.kernel import Kernel
+
             self.kernel = Kernel()
             self.kernel.client = self.client
             self.kernel.bot_client = AsyncMock()
 
-    async def send_message(self, text: str, chat_id: int = 123456789, sender_id: int = 987654321):
+    async def send_message(
+        self, text: str, chat_id: int = 123456789, sender_id: int = 987654321
+    ):
         """Симуляция отправки сообщения боту"""
         event = await self.client.simulate_message(text, chat_id, sender_id)
         self.last_event = event
@@ -254,11 +264,7 @@ async def run_module_test(module_handler: Callable, test_cases: list) -> dict:
     Returns:
         dict с результатами тестов
     """
-    results = {
-        "passed": 0,
-        "failed": 0,
-        "errors": []
-    }
+    results = {"passed": 0, "failed": 0, "errors": []}
 
     for i, test_case in enumerate(test_cases):
         try:

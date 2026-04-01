@@ -2,7 +2,13 @@ from core.kernel.standard import Kernel
 from core.lib.base.database import DatabaseManager
 from core.lib.base.config import ConfigManager
 from core.lib.utils.logger import setup_logging
-from core.kernel.test_kernel import TestKernel, MockEvent, MockCallback, MockInlineQuery, MockTelegramClient
+from core.kernel.test_kernel import (
+    TestKernel,
+    MockEvent,
+    MockCallback,
+    MockInlineQuery,
+    MockTelegramClient,
+)
 
 __all__ = [
     "Kernel",

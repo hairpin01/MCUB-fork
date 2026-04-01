@@ -37,40 +37,72 @@ import aiohttp
 # Handle both normal import and fallback for shell bin
 try:
     from .config_parser import PackageConfig
-    from .display       import (
-        GREEN, YELLOW, CYAN, GREY, RESET, BOLD, DIM,
-        SYM_OK, SYM_DL, SYM_DEL,
-        ok, err, warn, info, step, h1, kv,
-        pkg_badge, progress_bar, format_pkg_info, format_installed_list,
+    from .display import (
+        GREEN,
+        YELLOW,
+        CYAN,
+        GREY,
+        RESET,
+        BOLD,
+        DIM,
+        SYM_OK,
+        SYM_DL,
+        SYM_DEL,
+        ok,
+        err,
+        warn,
+        info,
+        step,
+        h1,
+        kv,
+        pkg_badge,
+        progress_bar,
+        format_pkg_info,
+        format_installed_list,
     )
-    from .lockfile      import LockFile
-    from .resolver      import DependencyResolver
+    from .lockfile import LockFile
+    from .resolver import DependencyResolver
 except ImportError:
     base_dir = Path(__file__).resolve().parent
     sys.path.insert(0, str(base_dir))
     from config_parser import PackageConfig
-    from display       import (
-        GREEN, YELLOW, CYAN, GREY, RESET, BOLD, DIM,
-        SYM_OK, SYM_DL, SYM_DEL,
-        ok, err, warn, info, step, h1, kv,
-        pkg_badge, progress_bar, format_pkg_info, format_installed_list,
+    from display import (
+        GREEN,
+        YELLOW,
+        CYAN,
+        GREY,
+        RESET,
+        BOLD,
+        DIM,
+        SYM_OK,
+        SYM_DL,
+        SYM_DEL,
+        ok,
+        err,
+        warn,
+        info,
+        step,
+        h1,
+        kv,
+        pkg_badge,
+        progress_bar,
+        format_pkg_info,
+        format_installed_list,
     )
-    from lockfile      import LockFile
-    from resolver      import DependencyResolver
+    from lockfile import LockFile
+    from resolver import DependencyResolver
 
 
-BASE_REPO_URL     = (
-    "https://raw.githubusercontent.com/hairpin01/"
-    "repo-MCUB-fork/refs/heads/main/base"
+BASE_REPO_URL = (
+    "https://raw.githubusercontent.com/hairpin01/" "repo-MCUB-fork/refs/heads/main/base"
 )
-_CORE             = Path('core')
-_CONSOLE_DIR      = _CORE / 'console'
-_BIN_DIR          = _CONSOLE_DIR / "bin"
-_PACKAGES_DIR     = _CONSOLE_DIR / "packages"
-_LOCK_PATH        = _PACKAGES_DIR / "installed.json"
+_CORE = Path("core")
+_CONSOLE_DIR = _CORE / "console"
+_BIN_DIR = _CONSOLE_DIR / "bin"
+_PACKAGES_DIR = _CONSOLE_DIR / "packages"
+_LOCK_PATH = _PACKAGES_DIR / "installed.json"
 
 OutputCB = Callable[[str], None]
-
 
 
 class PackageManager:
@@ -85,11 +117,11 @@ class PackageManager:
         await pm.install("studio", output=shell.output)
     """
 
-    TIMEOUT = 30   # HTTP request timeout in seconds
+    TIMEOUT = 30  # HTTP request timeout in seconds
 
     def __init__(self, repo_url: str = BASE_REPO_URL) -> None:
-        self.repo     = repo_url.rstrip("/")
-        self._lock    = LockFile(_LOCK_PATH)
+        self.repo = repo_url.rstrip("/")
+        self._lock = LockFile(_LOCK_PATH)
         _PACKAGES_DIR.mkdir(parents=True, exist_ok=True)
         _BIN_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -104,11 +136,13 @@ class PackageManager:
 
         if self._lock.is_installed(name) and not force:
             installed = self._lock.get(name)
-            output(warn(
-                f"'{name}' is already installed "
-                f"(v{installed.get('version', '?')}).  "
-                f"Use --force to reinstall or 'base update {name}' to upgrade."
-            ))
+            output(
+                warn(
+                    f"'{name}' is already installed "
+                    f"(v{installed.get('version', '?')}).  "
+                    f"Use --force to reinstall or 'base update {name}' to upgrade."
+                )
+            )
             return False
 
         return await self._do_install(name, output, verb="install")
@@ -182,9 +216,15 @@ class PackageManager:
             cfg = await self._fetch_config(pkg_name)
             if cfg:
                 installed = self._lock.is_installed(pkg_name)
-                badge     = f"{SYM_OK} " if installed else "   "
-                status    = f"{GREEN}installed{RESET}" if installed else f"{GREY}available{RESET}"
-                output(f"  {badge}{pkg_badge(pkg_name, cfg.version)}  {GREY}{status}{RESET}")
+                badge = f"{SYM_OK} " if installed else "   "
+                status = (
+                    f"{GREEN}installed{RESET}"
+                    if installed
+                    else f"{GREY}available{RESET}"
+                )
+                output(
+                    f"  {badge}{pkg_badge(pkg_name, cfg.version)}  {GREY}{status}{RESET}"
+                )
                 if cfg.description:
                     output(f"     {DIM}{cfg.description}{RESET}")
             else:
@@ -223,7 +263,7 @@ class PackageManager:
 
         if self._lock.is_installed(name):
             meta = self._lock.get(name)
-            cfg  = PackageConfig.from_dict(meta)
+            cfg = PackageConfig.from_dict(meta)
             output(info("Status: " + f"{GREEN}{BOLD}installed{RESET}"))
         else:
             output(info("Status: " + f"{GREY}not installed{RESET}"))
@@ -232,14 +272,16 @@ class PackageManager:
                 output(err(f"Package '{name}' not found in repository."))
                 return
 
-        lines = format_pkg_info({
-            "name":        cfg.name,
-            "version":     cfg.version,
-            "author":      cfg.author,
-            "description": cfg.description,
-            "pip_deps":    cfg.pip_deps,
-            "sys_deps":    cfg.sys_deps,
-        })
+        lines = format_pkg_info(
+            {
+                "name": cfg.name,
+                "version": cfg.version,
+                "author": cfg.author,
+                "description": cfg.description,
+                "pip_deps": cfg.pip_deps,
+                "sys_deps": cfg.sys_deps,
+            }
+        )
         for l in lines:
             output(l)
 
@@ -344,27 +386,33 @@ class PackageManager:
 
             progress(0.92, "Updating lock file...")
             self._lock.register(
-                name        = cfg.name or name,
-                version     = cfg.version,
-                author      = cfg.author,
-                description = cfg.description,
-                pip_deps    = cfg.pip_deps,
-                sys_deps    = cfg.sys_deps,
-                bin_file    = cfg.bin_file,
-                src_files   = manifest,
-                repo_url    = self.repo,
-                entry_file  = cfg.entry_file,
+                name=cfg.name or name,
+                version=cfg.version,
+                author=cfg.author,
+                description=cfg.description,
+                pip_deps=cfg.pip_deps,
+                sys_deps=cfg.sys_deps,
+                bin_file=cfg.bin_file,
+                src_files=manifest,
+                repo_url=self.repo,
+                entry_file=cfg.entry_file,
             )
 
             progress(1.0, f"Package '{name}' {verb}ed successfully!")
             output("")
-            output(ok(
-                f"{pkg_badge(cfg.name or name, cfg.version)} "
-                f"{verb}ed successfully."
-            ))
+            output(
+                ok(
+                    f"{pkg_badge(cfg.name or name, cfg.version)} "
+                    f"{verb}ed successfully."
+                )
+            )
             if cfg.bin_file:
-                output(info(f"Run: {CYAN}base shell {name}{RESET} or "
-                            f"use it as a shell command"))
+                output(
+                    info(
+                        f"Run: {CYAN}base shell {name}{RESET} or "
+                        f"use it as a shell command"
+                    )
+                )
             return True
 
         except aiohttp.ClientError as e:
@@ -379,7 +427,9 @@ class PackageManager:
         """Download URL and return text, or None on error."""
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=self.TIMEOUT)) as r:
+                async with session.get(
+                    url, timeout=aiohttp.ClientTimeout(total=self.TIMEOUT)
+                ) as r:
                     if r.status == 200:
                         return await r.text(encoding="utf-8", errors="replace")
         except Exception:
@@ -401,14 +451,18 @@ class PackageManager:
         text = await self._fetch_text(f"{self.repo}/{name}/manifest.ini")
         if text is None:
             return None
-        return [l.strip() for l in text.splitlines() if l.strip() and not l.startswith("#")]
+        return [
+            l.strip() for l in text.splitlines() if l.strip() and not l.startswith("#")
+        ]
 
     async def _fetch_packages_ini(self) -> Optional[List[str]]:
         """Fetch the repository's root packages.ini."""
         text = await self._fetch_text(f"{self.repo}/packages.ini")
         if text is None:
             return None
-        return [l.strip() for l in text.splitlines() if l.strip() and not l.startswith("#")]
+        return [
+            l.strip() for l in text.splitlines() if l.strip() and not l.startswith("#")
+        ]
 
     @staticmethod
     async def _run_entry(path: Path) -> bool:
@@ -418,7 +472,8 @@ class PackageManager:
         """
         try:
             proc = await asyncio.create_subprocess_exec(
-                sys.executable, str(path),
+                sys.executable,
+                str(path),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )

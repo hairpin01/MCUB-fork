@@ -61,7 +61,9 @@ class TestRawHtmlConverter:
         # emoji takes 2 UTF-16 code units
         msg = SimpleNamespace(
             message=text,
-            entities=[MessageEntityBold(offset=_u16_offset(text, 1), length=_u16_len("😀"))],
+            entities=[
+                MessageEntityBold(offset=_u16_offset(text, 1), length=_u16_len("😀"))
+            ],
         )
         assert converter.convert_message(msg) == "A<strong>😀</strong>B"
 
@@ -82,7 +84,10 @@ class TestRawHtmlConverter:
             message="quote",
             entities=[MessageEntityBlockquote(offset=0, length=5, collapsed=True)],
         )
-        assert converter.convert_message(msg) == "<blockquote expandable>quote</blockquote>"
+        assert (
+            converter.convert_message(msg)
+            == "<blockquote expandable>quote</blockquote>"
+        )
 
     def test_links_mention_and_attribute_escaping(self):
         converter = RawHTMLConverter()
@@ -177,7 +182,9 @@ class TestRawHtmlPublicApi:
         assert event_to_html(event) == "a &amp; b"
 
     def test_extract_raw_html_escape_flag(self):
-        msg = SimpleNamespace(message="x", entities=[MessageEntityBold(offset=0, length=1)])
+        msg = SimpleNamespace(
+            message="x", entities=[MessageEntityBold(offset=0, length=1)]
+        )
         assert extract_raw_html(msg) == "<strong>x</strong>"
         assert extract_raw_html(msg, escape=True) == "&lt;strong&gt;x&lt;/strong&gt;"
 

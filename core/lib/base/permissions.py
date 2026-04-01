@@ -51,10 +51,12 @@ class CallbackPermissionManager:
             return val.pattern
         return str(val)
 
-    def allow(self,
-              user_id: int,
-              pattern: Union[str, bytes, Pattern],
-              duration_seconds: float = 60) -> None:
+    def allow(
+        self,
+        user_id: int,
+        pattern: Union[str, bytes, Pattern],
+        duration_seconds: float = 60,
+    ) -> None:
         """
         Grant temporary permission to a user for a specific pattern.
 
@@ -76,9 +78,7 @@ class CallbackPermissionManager:
 
         self.permissions[user_id][pattern_str] = expiry_time
 
-    def is_allowed(self,
-                   user_id: int,
-                   pattern: Union[str, bytes, Pattern]) -> bool:
+    def is_allowed(self, user_id: int, pattern: Union[str, bytes, Pattern]) -> bool:
         """
         Check if a user has permission for a specific pattern.
 
@@ -117,9 +117,9 @@ class CallbackPermissionManager:
 
         return False
 
-    def prohibit(self,
-                 user_id: int,
-                 pattern: Optional[Union[str, bytes, Pattern]] = None) -> None:
+    def prohibit(
+        self, user_id: int, pattern: Optional[Union[str, bytes, Pattern]] = None
+    ) -> None:
         """
         Revoke permission(s) for a user.
 
@@ -172,7 +172,8 @@ class CallbackPermissionManager:
 
             # Find expired patterns for this user
             expired_patterns = [
-                pattern for pattern, expiry_time in user_patterns.items()
+                pattern
+                for pattern, expiry_time in user_patterns.items()
                 if expiry_time <= current_time
             ]
 
@@ -209,9 +210,9 @@ class CallbackPermissionManager:
             if expiry_time > current_time
         }
 
-    def get_expiry_time(self,
-                       user_id: int,
-                       pattern: Union[str, bytes, Pattern]) -> Optional[float]:
+    def get_expiry_time(
+        self, user_id: int, pattern: Union[str, bytes, Pattern]
+    ) -> Optional[float]:
         """
         Get the expiry time for a specific user-pattern permission.
 
@@ -234,9 +235,9 @@ class CallbackPermissionManager:
 
         return expiry_time
 
-    def remaining_time(self,
-                      user_id: int,
-                      pattern: Union[str, bytes, Pattern]) -> Optional[float]:
+    def remaining_time(
+        self, user_id: int, pattern: Union[str, bytes, Pattern]
+    ) -> Optional[float]:
         """
         Get remaining time (in seconds) for a specific permission.
 
@@ -271,6 +272,5 @@ class CallbackPermissionManager:
         """
         # Return a deep copy to prevent external modification
         return {
-            user_id: patterns.copy()
-            for user_id, patterns in self.permissions.items()
+            user_id: patterns.copy() for user_id, patterns in self.permissions.items()
         }

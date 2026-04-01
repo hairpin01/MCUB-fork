@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import Any, Iterable, Optional
 from urllib.parse import urlparse
 
-
 _PLACEHOLDERS: dict[str, dict] = {}
 _INIT_TS = time.perf_counter()
 

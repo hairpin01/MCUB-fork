@@ -23,6 +23,7 @@ class TestInlineManager:
     @pytest.fixture
     def inline_manager(self, mock_kernel):
         from core_inline.lib.manager import InlineManager
+
         return InlineManager(mock_kernel)
 
     @pytest.mark.asyncio
@@ -176,9 +177,7 @@ class TestInlineParsing:
 
     def test_button_format_conversion(self):
         """Test button format conversion"""
-        buttons = [
-            [{"text": "Btn1", "url": "http://example.com"}]
-        ]
+        buttons = [[{"text": "Btn1", "url": "http://example.com"}]]
 
         assert len(buttons) == 1
         assert buttons[0][0]["text"] == "Btn1"

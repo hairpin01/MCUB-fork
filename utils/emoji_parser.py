@@ -2,19 +2,14 @@ import re
 import html
 from telethon.tl.types import MessageEntityCustomEmoji
 
+
 class EmojiParser:
     """Парсер эмодзи для MCUB с улучшенной обработкой"""
 
     # Предкомпилированные регулярные выражения для производительности
-    _EMOJI_TAG_PATTERN = re.compile(
-        r'<emoji\s+document_id=(\d+)>(.*?)</emoji>'
-    )
-    _EMOJI_ID_PATTERN = re.compile(
-        r'<emoji\s+document_id=(\d+)>'
-    )
-    _ALL_EMOJI_TAGS_PATTERN = re.compile(
-        r'<emoji\s+[^>]*>.*?</emoji>'
-    )
+    _EMOJI_TAG_PATTERN = re.compile(r"<emoji\s+document_id=(\d+)>(.*?)</emoji>")
+    _EMOJI_ID_PATTERN = re.compile(r"<emoji\s+document_id=(\d+)>")
+    _ALL_EMOJI_TAGS_PATTERN = re.compile(r"<emoji\s+[^>]*>.*?</emoji>")
 
     @staticmethod
     def parse_to_entities(text):
@@ -31,7 +26,7 @@ class EmojiParser:
 
         for match in EmojiParser._EMOJI_TAG_PATTERN.finditer(text):
             # Добавляем текст перед тегом
-            result += text[offset:match.start()]
+            result += text[offset : match.start()]
 
             emoji_text = match.group(2)
             result += emoji_text
@@ -43,13 +38,11 @@ class EmojiParser:
 
                 # Важно: Telethon использует UTF-16 offsets
                 # Преобразуем позицию в строке в UTF-16 позицию
-                utf16_offset = len(result[:-len(emoji_text)].encode('utf-16-le')) // 2
-                utf16_length = len(emoji_text.encode('utf-16-le')) // 2
+                utf16_offset = len(result[: -len(emoji_text)].encode("utf-16-le")) // 2
+                utf16_length = len(emoji_text.encode("utf-16-le")) // 2
 
                 entity = MessageEntityCustomEmoji(
-                    offset=utf16_offset,
-                    length=utf16_length,
-                    document_id=doc_id
+                    offset=utf16_offset, length=utf16_length, document_id=doc_id
                 )
                 entities.append(entity)
             except (ValueError, TypeError):
@@ -77,12 +70,12 @@ class EmojiParser:
         # Сортируем сущности по убыванию offset для правильной вставки
         sorted_entities = sorted(
             entities,
-            key=lambda e: e.offset if hasattr(e, 'offset') else 0,
-            reverse=True
+            key=lambda e: e.offset if hasattr(e, "offset") else 0,
+            reverse=True,
         )
 
         # Работаем с UTF-16 позициями
-        utf16_text = text.encode('utf-16-le')
+        utf16_text = text.encode("utf-16-le")
 
         for entity in sorted_entities:
             if isinstance(entity, MessageEntityCustomEmoji):
@@ -94,11 +87,11 @@ class EmojiParser:
 
                     # Извлекаем текст эмодзи из UTF-16
                     emoji_bytes = utf16_text[byte_start:byte_end]
-                    emoji_text = emoji_bytes.decode('utf-16-le')
+                    emoji_text = emoji_bytes.decode("utf-16-le")
 
                     # Вставляем тег
-                    before = text[:entity.offset]
-                    after = text[entity.offset + entity.length:]
+                    before = text[: entity.offset]
+                    after = text[entity.offset + entity.length :]
                     text = f"{before}<emoji document_id={entity.document_id}>{emoji_text}</emoji>{after}"
                 except (IndexError, UnicodeDecodeError):
                     # Если что-то пошло не так с позициями, пропускаем эту сущность
@@ -132,8 +125,12 @@ class EmojiParser:
             Выход: "Привет 🔴"
         """
         return EmojiParser._ALL_EMOJI_TAGS_PATTERN.sub(
-            lambda m: m.group(0).split('>', 1)[1].rsplit('<', 1)[0] if '>' in m.group(0) and '<' in m.group(0) else '',
-            text
+            lambda m: (
+                m.group(0).split(">", 1)[1].rsplit("<", 1)[0]
+                if ">" in m.group(0) and "<" in m.group(0)
+                else ""
+            ),
+            text,
         )
 
     @staticmethod
@@ -149,7 +146,8 @@ class EmojiParser:
             return []
 
         return [
-            entity for entity in message.entities
+            entity
+            for entity in message.entities
             if isinstance(entity, MessageEntityCustomEmoji)
         ]
 
@@ -168,8 +166,8 @@ class EmojiParser:
         # Можно добавить более сложную логику проверки эмодзи
         # Например, используя регулярные выражения для эмодзи
         emoji_pattern = re.compile(
-            r'[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF]+',
-            flags=re.UNICODE
+            r"[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF]+",
+            flags=re.UNICODE,
         )
 
         return bool(emoji_pattern.fullmatch(emoji_text))
@@ -183,6 +181,7 @@ class EmojiParser:
             create_emoji_tag(123456) -> "<emoji document_id=123456>🔴</emoji>"
         """
         return f"<emoji document_id={document_id}>{placeholder}</emoji>"
+
 
 # Глобальный экземпляр для обратной совместимости
 emoji_parser = EmojiParser()

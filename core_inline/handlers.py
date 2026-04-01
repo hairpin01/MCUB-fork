@@ -49,7 +49,7 @@ class InlineHandlers:
         if hasattr(self.kernel, "session") and self.kernel.session is not None:
             if not self.kernel.session.closed:
                 await self.kernel.session.close()
-            self.kernel.session = Non
+            self.kernel.session = None
 
     def create_inline_form(
         self, text, buttons=None, ttl=3600, media=None, media_type="photo"

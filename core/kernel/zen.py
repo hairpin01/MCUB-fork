@@ -14,6 +14,7 @@ Zen Kernel — simple is better than complex.
 Flat is better than nested. Readability counts.
 """
 
+# noqa: E402 - conditional imports for dependency checking
 import html
 import importlib.util
 import logging

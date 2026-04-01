@@ -21,7 +21,6 @@ import aiohttp
 
 from .types import get_callback_handlers, get_inline_handlers, get_watchers
 
-
 logger = logging.getLogger(__name__)
 
 

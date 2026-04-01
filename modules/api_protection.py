@@ -25,20 +25,16 @@ from core.lib.loader.module_config import (
 
 DEFAULT_CONFIG = {
     "time_sample": 30,
-    # Профили лимитов:
-    # conservative: 100 req/30s (≈3/s) - максимальная защита
-    # normal: 200 req/30s (≈7/s) - баланс
-    # aggressive: 350 req/30s (≈12/s) - для мощных аккаунтов
     "limit_profile": "normal",
-    "custom_threshold": 200,  # используется если profile = custom
+    "custom_threshold": 200,
     "local_floodwait": 30,
     "ignore_methods": ["GetMessagesRequest"],
     "enable_protection": True,
-    # --- Telethon-MCUB native protection ---
+    # Telethon-MCUB native protection
     # mode: 'off' | 'safe' | 'strict' | 'custom'
     "mcub_mode": "safe",
-    "mcub_dry_run": False,  # наблюдать нарушения без блокировки
-    "mcub_allowlist": [],  # методы-исключения в custom-режиме
+    "mcub_dry_run": False,
+    "mcub_allowlist": [],
     # анализ
     "enable_analytics": True,
     "zscore_threshold": 3.0,

@@ -1090,6 +1090,35 @@ class ModuleLoader:
             dict(k.aliases),
         )
 
+    def remove_module_aliases(
+        self, module_name: str, commands_removed: list[str] | None = None
+    ) -> None:
+        """Remove all aliases pointing to commands owned by a module.
+
+        This is called when a module is permanently uninstalled (um command),
+        not when it's just reloaded.
+
+        Args:
+            module_name: Name of the module whose aliases should be removed.
+            commands_removed: Optional list of commands that were already removed
+                from command_owners. If provided, aliases for these commands
+                will also be removed.
+        """
+        k = self.k
+        aliases_to_remove = [
+            alias
+            for alias, target_cmd in k.aliases.items()
+            if k.command_owners.get(target_cmd) == module_name
+        ]
+        if commands_removed:
+            for alias, target_cmd in list(k.aliases.items()):
+                if target_cmd in commands_removed:
+                    aliases_to_remove.append(alias)
+        for alias in aliases_to_remove:
+            if alias in k.aliases:
+                del k.aliases[alias]
+                k.logger.debug(f"Removed alias: {alias} (module={module_name})")
+
     def get_module_path(self, module_name: str) -> str:
         """Return the filesystem path for a module file.
 

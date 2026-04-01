@@ -437,8 +437,6 @@ class InlineHandlers:
                             await event.answer(result)
                             return
                     except Exception as e:
-                        import traceback
-
                         self.kernel.logger.error(
                             f"User inline handler error: {traceback.format_exc()}"
                         )

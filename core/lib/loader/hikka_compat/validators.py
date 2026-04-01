@@ -103,6 +103,7 @@ class Choice(Validator):
     def __init__(self, possible_values: list, /):
         super().__init__({"en": "one of allowed values"}, "Choice")
         self.possible_values = list(possible_values)
+        self.choices = self.possible_values
 
         def _choice_validator(value: Any) -> Any:
             if value not in self.possible_values:
@@ -120,6 +121,7 @@ class MultiChoice(Validator):
     def __init__(self, possible_values: list, /):
         super().__init__({"en": "multiple allowed values"}, "MultiChoice")
         self.possible_values = list(possible_values)
+        self.choices = self.possible_values
 
         def _multichoice_validator(value: Any) -> list:
             if not isinstance(value, (list, tuple, set)):

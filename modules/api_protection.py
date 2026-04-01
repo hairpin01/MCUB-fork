@@ -25,7 +25,12 @@ from core.lib.loader.module_config import (
 
 DEFAULT_CONFIG = {
     "time_sample": 30,
-    "threshold": 200,
+    # Профили лимитов:
+    # conservative: 100 req/30s (≈3/s) - максимальная защита
+    # normal: 200 req/30s (≈7/s) - баланс
+    # aggressive: 350 req/30s (≈12/s) - для мощных аккаунтов
+    "limit_profile": "normal",
+    "custom_threshold": 200,  # используется если profile = custom
     "local_floodwait": 30,
     "ignore_methods": ["GetMessagesRequest"],
     "enable_protection": True,
@@ -43,6 +48,12 @@ DEFAULT_CONFIG = {
     "profile_min_samples": 50,
     "predict_alert_cooldown": 10,
     "warn_alert_cooldown": 30,
+}
+
+LIMIT_PROFILES = {
+    "conservative": 100,
+    "normal": 200,
+    "aggressive": 350,
 }
 
 
@@ -533,9 +544,18 @@ def register(kernel):
             validator=Integer(default=30, min=1),
         ),
         ConfigValue(
-            "threshold",
+            "limit_profile",
+            "normal",
+            description="API limit profile: conservative (100/30s), normal (200/30s), aggressive (350/30s), custom",
+            validator=Choice(
+                choices=["conservative", "normal", "aggressive", "custom"],
+                default="normal",
+            ),
+        ),
+        ConfigValue(
+            "custom_threshold",
             200,
-            description="API request threshold",
+            description="Custom threshold (req/30s) - used when profile is 'custom'",
             validator=Integer(default=200, min=1),
         ),
         ConfigValue(
@@ -759,7 +779,11 @@ def register(kernel):
 
         interval = api_config["time_sample"]
         ignore_set = set(api_config["ignore_methods"])
-        threshold = api_config["threshold"]
+        profile = api_config.get("limit_profile", "normal")
+        if profile == "custom":
+            threshold = api_config.get("custom_threshold", 200)
+        else:
+            threshold = LIMIT_PROFILES.get(profile, 200)
         cutoff = now - interval
         total_relevant = sum(
             1 for m, ts in request_log if ts > cutoff and m not in ignore_set

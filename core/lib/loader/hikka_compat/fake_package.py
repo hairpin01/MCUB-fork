@@ -900,6 +900,7 @@ def _ensure_fake_package() -> str:
                 self.validator = validator or _MCUBValidator()
                 self.on_change = on_change
                 self._value = None
+                self.hidden = getattr(validator, "hidden", False)
                 self._config_value = _MCUBConfigValue(
                     key=option,
                     default=default,
@@ -921,6 +922,10 @@ def _ensure_fake_package() -> str:
                 return self._config_value.description
 
             @property
+            def description(self):
+                return self.doc
+
+            @property
             def is_secret(self):
                 return getattr(self.validator, "secret", False)
 
@@ -928,8 +933,11 @@ def _ensure_fake_package() -> str:
                 self._config_value.set_value(value)
 
         class _HikkaCompatibleModuleConfig(dict):
+            _is_hikka_compat = True
+
             def __init__(self, *entries, db=None, module_name=None):
                 self._config = {}
+                self._values = self._config
                 self._db = db
                 self._module_name = module_name
 
@@ -1066,7 +1074,9 @@ def _ensure_fake_package() -> str:
                     super().__setitem__(key, config.value)
 
             def to_dict(self) -> dict:
-                return {key: config.value for key, config in self._config.items()}
+                result = {key: config.value for key, config in self._config.items()}
+                result["__mcub_config__"] = True
+                return result
 
             def load_from_dict(self, data: dict) -> None:
                 for key, value in data.items():
@@ -1694,7 +1704,11 @@ async def load_hikka_module(
                     ):
                         db_proxy._mem[db_proxy._mem_key(canonical_owner, key)] = value
 
-    if hasattr(instance, "config") and isinstance(instance.config, ModuleConfig):
+    if hasattr(instance, "config") and (
+        isinstance(instance.config, ModuleConfig)
+        or getattr(instance.config, "_is_hikka_compat", False)
+        or hasattr(instance.config, "_config")
+    ):
         try:
             saved = {}
             for owner in _instance_owner_names(instance, module_name):
@@ -1705,11 +1719,16 @@ async def load_hikka_module(
             )
             if saved:
                 instance.config.load_from_dict(saved)
+            elif hasattr(kernel, "save_module_config"):
+                await kernel.save_module_config(module_name, instance.config.to_dict())
 
             if hasattr(instance.config, "_save_config"):
                 db_proxy = getattr(instance, "db", None)
                 instance.config._db = db_proxy
                 instance.config._module_name = module_name
+
+            if hasattr(kernel, "store_module_config_schema"):
+                kernel.store_module_config_schema(module_name, instance.config)
         except Exception:
             pass
 

@@ -170,9 +170,7 @@ def register(kernel):
             },
         )
         config.from_dict(config_dict)
-        config_dict_clean = {k: v for k, v in config.to_dict().items() if v is not None}
-        if config_dict_clean:
-            await kernel.save_module_config(__name__, config_dict_clean)
+        await kernel.save_module_config(__name__, config.to_dict())
         kernel.store_module_config_schema(__name__, config)
 
     asyncio.create_task(startup())

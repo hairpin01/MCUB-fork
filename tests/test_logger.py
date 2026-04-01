@@ -85,6 +85,11 @@ from core.lib.utils.logger import (  # noqa: E402
 )
 import logging
 
+_logger_mod.FloodWaitError = _errors.FloodWaitError
+_logger_mod.NetworkMigrateError = _errors.NetworkMigrateError
+_logger_mod.ServerError = _errors.ServerError
+_logger_mod.TimedOutError = _errors.TimedOutError
+
 FloodWaitError = _errors.FloodWaitError
 NetworkMigrateError = _errors.NetworkMigrateError
 ServerError = _errors.ServerError

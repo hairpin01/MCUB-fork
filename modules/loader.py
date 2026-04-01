@@ -1956,11 +1956,15 @@ def register(kernel):
 
         instance = kernel.loaded_modules.get(module_name)
         if instance and getattr(instance, "_hikka_compat", False):
-            import asyncio
-
-            asyncio.ensure_future(unload_hikka_module(kernel, module_name))
+            await unload_hikka_module(kernel, module_name)
         else:
+            commands_to_remove = [
+                cmd
+                for cmd, owner in kernel.command_owners.items()
+                if owner == module_name
+            ]
             await kernel.unregister_module_commands(module_name)
+            kernel._loader.remove_module_aliases(module_name, commands_to_remove)
 
         file_path = kernel._loader.get_module_path(module_name)
         if os.path.exists(file_path):

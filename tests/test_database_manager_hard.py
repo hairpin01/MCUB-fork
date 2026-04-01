@@ -20,6 +20,10 @@ def _make_kernel() -> MagicMock:
 class TestDatabaseManagerHard:
     async def test_init_db_uses_default_file(self, monkeypatch):
         kernel = _make_kernel()
+        if hasattr(kernel, "API_ID"):
+            del kernel.API_ID
+        if hasattr(kernel, "API_HASH"):
+            del kernel.API_HASH
         db = DatabaseManager(kernel)
 
         conn = AsyncMock()

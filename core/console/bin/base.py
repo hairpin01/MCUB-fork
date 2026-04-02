@@ -19,14 +19,14 @@ DESCRIPTION = "MCUB package manager"
 PM_VERSION = "1.0.0"
 
 # ── Colors (inline so bin has no dep on base.display at import) ──
-_R   = "\033[0m"
-_C   = "\033[96m"    # cyan
-_G   = "\033[92m"    # green
-_Y   = "\033[93m"    # yellow
-_RED = "\033[91m"    # red
-_GR  = "\033[90m"    # grey
-_B   = "\033[1m"     # bold
-_D   = "\033[2m"     # dim
+_R = "\033[0m"
+_C = "\033[96m"  # cyan
+_G = "\033[92m"  # green
+_Y = "\033[93m"  # yellow
+_RED = "\033[91m"  # red
+_GR = "\033[90m"  # grey
+_B = "\033[1m"  # bold
+_D = "\033[2m"  # dim
 
 _LOGO = f"""
 {_C}{_B}  ██████╗  █████╗ ███████╗███████╗{_R}
@@ -51,7 +51,6 @@ _HELP = f"""{_LOGO}
   {_G}show{_R}      {_Y}<pkg>{_R}              Show detailed package info
   {_G}version{_R}                    Print package manager version
 """
-
 
 
 async def run(shell, args: list) -> None:
@@ -81,8 +80,12 @@ async def run(shell, args: list) -> None:
         import importlib.util
         import pathlib
 
-        manager_path = pathlib.Path(__file__).resolve().parent.parent / "base" / "manager.py"
-        spec = importlib.util.spec_from_file_location("console.base.manager", manager_path)
+        manager_path = (
+            pathlib.Path(__file__).resolve().parent.parent / "base" / "manager.py"
+        )
+        spec = importlib.util.spec_from_file_location(
+            "console.base.manager", manager_path
+        )
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
         PackageManager = mod.PackageManager
@@ -94,7 +97,7 @@ async def run(shell, args: list) -> None:
         if len(args) < 2:
             _usage_err(out, "install", "base install <package>  [--force]")
             return
-        pkg   = args[1]
+        pkg = args[1]
         force = "--force" in args or "-f" in args
         await pm.install(pkg, output=out, force=force)
 
@@ -147,11 +150,13 @@ async def _confirm(shell, prompt: str) -> bool:
     Returns True if the user typed 'y' or 'Y'.
     """
     import asyncio
+
     loop = asyncio.get_event_loop()
     try:
         # Use shell's line editor if available
         if hasattr(shell, "_history"):
             from ..shell import _LineEditor
+
             # Plain prompt without ANSI codes
             plain_prompt = f"  {prompt}"
             editor = _LineEditor(

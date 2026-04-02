@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import Any, Iterable, Optional
 from urllib.parse import urlparse
 
-
 _PLACEHOLDERS: dict[str, dict] = {}
 _INIT_TS = time.perf_counter()
 
@@ -68,6 +67,7 @@ class _Utils:
                 return await message.edit(text, parse_mode=parse_mode, **edit_kwargs)
             except TypeError:
                 edit_kwargs.pop("reply_markup", None)
+                edit_kwargs.pop("reply_to", None)
                 return await message.edit(text, parse_mode=parse_mode, **edit_kwargs)
             except Exception:
                 pass

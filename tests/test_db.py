@@ -144,11 +144,7 @@ class TestDataTypes:
 
         db = DatabaseManager(kernel)
 
-        complex_data = {
-            "list": [1, 2, 3],
-            "dict": {"nested": True},
-            "string": "test"
-        }
+        complex_data = {"list": [1, 2, 3], "dict": {"nested": True}, "string": "test"}
 
         serialized = json.dumps(complex_data)
         deserialized = json.loads(serialized)

@@ -209,8 +209,12 @@ class TestArgumentValidator:
         parser = parse_arguments(".cmd a b c")
         assert ArgumentValidator.validate_count(parser, min_count=2) is True
         assert ArgumentValidator.validate_count(parser, min_count=5) is False
-        assert ArgumentValidator.validate_count(parser, min_count=1, max_count=3) is True
-        assert ArgumentValidator.validate_count(parser, min_count=1, max_count=2) is False
+        assert (
+            ArgumentValidator.validate_count(parser, min_count=1, max_count=3) is True
+        )
+        assert (
+            ArgumentValidator.validate_count(parser, min_count=1, max_count=2) is False
+        )
 
     def test_validate_types(self):
         parser = parse_arguments(".cmd 42 3.14 hello")
@@ -220,4 +224,6 @@ class TestArgumentValidator:
     def test_validate_kwarg_type(self):
         parser = parse_arguments(".cmd --age=25")
         assert ArgumentValidator.validate_kwarg_type(parser, "age", int) is True
-        assert ArgumentValidator.validate_kwarg_type(parser, "name", int) is True  # missing is OK
+        assert (
+            ArgumentValidator.validate_kwarg_type(parser, "name", int) is True
+        )  # missing is OK

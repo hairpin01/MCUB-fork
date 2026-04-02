@@ -7,6 +7,7 @@ from typing import List
 
 DESCRIPTION = "Execute Python code (asynchronous context available, can use 'await')"
 
+
 async def run(shell, args: List[str]):
     """
     Выполняет переданный код Python в асинхронном контексте.
@@ -27,14 +28,10 @@ async def run(shell, args: List[str]):
     # Нормализуем отступы, чтобы убрать случайный общий префикс
     code = textwrap.dedent(code)
     # Оборачиваем в асинхронную функцию для поддержки await на верхнем уровне
-    indented = textwrap.indent(code, '    ')
+    indented = textwrap.indent(code, "    ")
     wrapped = f"async def __code():\n{indented}"
 
-    namespace = {
-        "kernel": shell.kernel,
-        "shell": shell,
-        "__name__": "__console__"
-    }
+    namespace = {"kernel": shell.kernel, "shell": shell, "__name__": "__console__"}
 
     try:
         exec(wrapped, namespace)

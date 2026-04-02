@@ -1,14 +1,17 @@
+from __future__ import annotations
+
 # author: @Hairpin00
 # version: 1.0.0
 # description: MCUB command argument parser
 
 import shlex
-from typing import List, Dict, Any, Tuple, Optional
+from typing import Any
+
 
 class ArgumentParser:
     """Argument parser for MCUB commands"""
 
-    def __init__(self, text: str, prefix: str = '.'):
+    def __init__(self, text: str, prefix: str = "."):
         """
         Initialize argument parser
 
@@ -18,11 +21,11 @@ class ArgumentParser:
         """
         self.full_text = text.strip()
         self.prefix = prefix
-        self.command = ''
+        self.command = ""
         self.args = []
         self.kwargs = {}
         self.flags = set()
-        self.raw_args = ''
+        self.raw_args = ""
 
         self._parse()
 
@@ -31,7 +34,7 @@ class ArgumentParser:
         if not self.full_text.startswith(self.prefix):
             raise ValueError(f"Text doesn't start with prefix '{self.prefix}'")
 
-        text_without_prefix = self.full_text[len(self.prefix):].strip()
+        text_without_prefix = self.full_text[len(self.prefix) :].strip()
 
         if not text_without_prefix:
             return
@@ -54,20 +57,20 @@ class ArgumentParser:
         while i < len(tokens):
             token = tokens[i]
 
-            if token.startswith('--'):
+            if token.startswith("--"):
                 flag_name = token[2:]
-                if '=' in flag_name:
-                    key, value = flag_name.split('=', 1)
+                if "=" in flag_name:
+                    key, value = flag_name.split("=", 1)
                     self.kwargs[key] = self._parse_value(value)
                 else:
-                    if i + 1 < len(tokens) and not tokens[i + 1].startswith('-'):
+                    if i + 1 < len(tokens) and not tokens[i + 1].startswith("-"):
                         self.kwargs[flag_name] = self._parse_value(tokens[i + 1])
                         i += 1
                     else:
                         self.flags.add(flag_name)
                         self.kwargs[flag_name] = True
 
-            elif token.startswith('-'):
+            elif token.startswith("-"):
                 if len(token) > 1:
                     flag_chars = token[1:]
 
@@ -76,7 +79,7 @@ class ArgumentParser:
                             self.flags.add(char)
                             self.kwargs[char] = True
                     else:
-                        if i + 1 < len(tokens) and not tokens[i + 1].startswith('-'):
+                        if i + 1 < len(tokens) and not tokens[i + 1].startswith("-"):
                             self.kwargs[flag_chars] = self._parse_value(tokens[i + 1])
                             i += 1
                         else:
@@ -88,7 +91,7 @@ class ArgumentParser:
 
             i += 1
 
-    def _simple_split(self, args_string: str) -> List[str]:
+    def _simple_split(self, args_string: str) -> list[str]:
         """Simple string splitting into tokens"""
         tokens = []
         current = []
@@ -100,27 +103,27 @@ class ArgumentParser:
                 if in_quotes:
                     in_quotes = False
                     if current:
-                        tokens.append(''.join(current))
+                        tokens.append("".join(current))
                         current = []
                 else:
                     in_quotes = True
                     quote_char = char
-            elif char == ' ' and not in_quotes:
+            elif char == " " and not in_quotes:
                 if current:
-                    tokens.append(''.join(current))
+                    tokens.append("".join(current))
                     current = []
             else:
                 current.append(char)
 
         if current:
-            tokens.append(''.join(current))
+            tokens.append("".join(current))
 
         return tokens
 
     def _parse_value(self, value: str) -> Any:
         """Parse value, trying to determine its type"""
         if not value:
-            return ''
+            return ""
 
         if value.isdigit():
             return int(value)
@@ -131,13 +134,13 @@ class ArgumentParser:
             pass
 
         lower_value = value.lower()
-        if lower_value in ('true', 'yes', 'on', '1'):
+        if lower_value in ("true", "yes", "on", "1"):
             return True
-        elif lower_value in ('false', 'no', 'off', '0'):
+        elif lower_value in ("false", "no", "off", "0"):
             return False
 
-        if ',' in value:
-            parts = [self._parse_value(part.strip()) for part in value.split(',')]
+        if "," in value:
+            parts = [self._parse_value(part.strip()) for part in value.split(",")]
             return parts
 
         return value
@@ -161,14 +164,16 @@ class ArgumentParser:
         """Check if argument exists (positional or named)"""
         return key in self.kwargs
 
-    def join_args(self, start: int = 0, end: Optional[int] = None) -> str:
+    def join_args(self, start: int = 0, end: int | None = None) -> str:
         """Join positional arguments into string"""
         args = self.args[start:end]
-        return ' '.join(str(arg) for arg in args)
+        return " ".join(str(arg) for arg in args)
 
     def __repr__(self) -> str:
-        return (f"ArgumentParser(command='{self.command}', "
-                f"args={self.args}, kwargs={self.kwargs}, flags={self.flags})")
+        return (
+            f"ArgumentParser(command='{self.command}', "
+            f"args={self.args}, kwargs={self.kwargs}, flags={self.flags})"
+        )
 
     def __len__(self) -> int:
         return len(self.args)
@@ -176,15 +181,15 @@ class ArgumentParser:
     def __contains__(self, item: str) -> bool:
         return item in self.flags or item in self.kwargs
 
-    def get_all(self) -> List[Any]:
+    def get_all(self) -> list[Any]:
         """Get all positional arguments as a list."""
         return self.args.copy()
 
-    def slice(self, start: int = 0, end: Optional[int] = None) -> List[Any]:
+    def slice(self, start: int = 0, end: int | None = None) -> list[Any]:
         """Get a slice of positional arguments."""
         return self.args[start:end]
 
-    def require(self, *names: str) -> Tuple[bool, str]:
+    def require(self, *names: str) -> tuple[bool, str]:
         """
         Validate that required arguments are present.
 
@@ -210,37 +215,42 @@ class ArgumentParser:
             return ""
         return " ".join(tokens[start:])
 
-def parse_arguments(text: str, prefix: str = '.') -> ArgumentParser:
+
+def parse_arguments(text: str, prefix: str = ".") -> ArgumentParser:
     """Create argument parser from message text"""
     return ArgumentParser(text, prefix)
 
-def extract_command(text: str, prefix: str = '.') -> Tuple[str, str]:
+
+def extract_command(text: str, prefix: str = ".") -> tuple[str, str]:
     """Extract command and arguments from text"""
     if not text.startswith(prefix):
-        return '', text
+        return "", text
 
-    text_without_prefix = text[len(prefix):].strip()
+    text_without_prefix = text[len(prefix) :].strip()
     if not text_without_prefix:
-        return '', ''
+        return "", ""
 
     parts = text_without_prefix.split(None, 1)
     command = parts[0]
-    args = parts[1] if len(parts) > 1 else ''
+    args = parts[1] if len(parts) > 1 else ""
 
     return command, args
 
-def split_args(args_string: str) -> List[str]:
+
+def split_args(args_string: str) -> list[str]:
     """Split argument string into tokens considering quotes"""
     try:
         return shlex.split(args_string)
     except ValueError:
-        parser = ArgumentParser(f".cmd {args_string}", '.')
+        parser = ArgumentParser(f".cmd {args_string}", ".")
         return parser.args
 
-def parse_kwargs(args_string: str) -> Dict[str, Any]:
+
+def parse_kwargs(args_string: str) -> dict[str, Any]:
     """Parse argument string into key-value dictionary"""
-    parser = ArgumentParser(f".cmd {args_string}", '.')
+    parser = ArgumentParser(f".cmd {args_string}", ".")
     return parser.kwargs
+
 
 class ArgumentValidator:
     """Argument validator"""
@@ -254,7 +264,9 @@ class ArgumentValidator:
         return True
 
     @staticmethod
-    def validate_count(parser: ArgumentParser, min_count: int = 0, max_count: Optional[int] = None) -> bool:
+    def validate_count(
+        parser: ArgumentParser, min_count: int = 0, max_count: int | None = None
+    ) -> bool:
         """Check positional argument count"""
         count = len(parser.args)
         if count < min_count:
@@ -279,7 +291,9 @@ class ArgumentValidator:
         return True
 
     @staticmethod
-    def validate_kwarg_type(parser: ArgumentParser, key: str, expected_type: type) -> bool:
+    def validate_kwarg_type(
+        parser: ArgumentParser, key: str, expected_type: type
+    ) -> bool:
         """Check named argument type"""
         if key not in parser.kwargs:
             return True

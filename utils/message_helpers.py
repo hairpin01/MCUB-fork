@@ -32,6 +32,7 @@ _SUPPORTED_HTML_TAG_PATTERNS = (
 )
 _WHITESPACE_RE = re.compile(r"\s+")
 
+
 def clean_html_fallback(html_text: str) -> str:
     """
     Universal HTML cleanup in case of parsing errors.
@@ -60,6 +61,7 @@ def clean_html_fallback(html_text: str) -> str:
     text = _WHITESPACE_RE.sub(" ", text).strip()
 
     return text
+
 
 def truncate_text_with_entities(text: str, entities: list, max_length: int = 4096):
     """
@@ -100,7 +102,7 @@ def truncate_text_with_entities(text: str, entities: list, max_length: int = 409
         # If entity starts inside but ends outside
         elif entity.offset < current_length:
             # Create a copy of entity with truncated length
-            if hasattr(entity, '__dict__'):
+            if hasattr(entity, "__dict__"):
                 # For most Telethon entities
                 entity_dict = entity.__dict__.copy()
                 entity_dict["length"] = current_length - entity.offset
@@ -109,7 +111,10 @@ def truncate_text_with_entities(text: str, entities: list, max_length: int = 409
 
     return truncated_text, truncated_entities
 
-async def _send_html_generic(send_func, html_text: str, kernel, truncate: bool = True, **kwargs):
+
+async def _send_html_generic(
+    send_func, html_text: str, kernel, truncate: bool = True, **kwargs
+):
     """
     Universal function for sending HTML with error handling.
 
@@ -133,7 +138,7 @@ async def _send_html_generic(send_func, html_text: str, kernel, truncate: bool =
         return await send_func(text, formatting_entities=entities, **kwargs)
     except Exception as e:
         # Get function name
-        source_name = getattr(send_func, '__name__', str(send_func))
+        source_name = getattr(send_func, "__name__", str(send_func))
         await kernel.handle_error(e, source=f"{source_name}_with_html")
 
         # Fallback: send cleaned text
@@ -145,7 +150,10 @@ async def _send_html_generic(send_func, html_text: str, kernel, truncate: bool =
 
         return await send_func(fallback_text, **kwargs)
 
-async def edit_with_html(kernel, event, html_text: str, truncate: bool = True, **kwargs):
+
+async def edit_with_html(
+    kernel, event, html_text: str, truncate: bool = True, **kwargs
+):
     """
     Edits a message with HTML markup.
 
@@ -160,14 +168,13 @@ async def edit_with_html(kernel, event, html_text: str, truncate: bool = True, *
         Updated message
     """
     return await _send_html_generic(
-        event.edit,
-        html_text,
-        kernel,
-        truncate=truncate,
-        **kwargs
+        event.edit, html_text, kernel, truncate=truncate, **kwargs
     )
 
-async def reply_with_html(kernel, event, html_text: str, truncate: bool = True, **kwargs):
+
+async def reply_with_html(
+    kernel, event, html_text: str, truncate: bool = True, **kwargs
+):
     """
     Replies to a message with HTML markup.
 
@@ -182,14 +189,13 @@ async def reply_with_html(kernel, event, html_text: str, truncate: bool = True, 
         Sent message
     """
     return await _send_html_generic(
-        event.reply,
-        html_text,
-        kernel,
-        truncate=truncate,
-        **kwargs
+        event.reply, html_text, kernel, truncate=truncate, **kwargs
     )
 
-async def send_with_html(kernel, client, chat_id, html_text: str, truncate: bool = True, **kwargs):
+
+async def send_with_html(
+    kernel, client, chat_id, html_text: str, truncate: bool = True, **kwargs
+):
     """
     Sends a message with HTML markup.
 
@@ -204,18 +210,18 @@ async def send_with_html(kernel, client, chat_id, html_text: str, truncate: bool
     Returns:
         Sent message
     """
+
     async def send_message(text, **inner_kwargs):
         return await client.send_message(chat_id, text, **inner_kwargs)
 
     return await _send_html_generic(
-        send_message,
-        html_text,
-        kernel,
-        truncate=truncate,
-        **kwargs
+        send_message, html_text, kernel, truncate=truncate, **kwargs
     )
 
-async def send_file_with_html(kernel, client, chat_id, html_text: str, file, truncate: bool = True, **kwargs):
+
+async def send_file_with_html(
+    kernel, client, chat_id, html_text: str, file, truncate: bool = True, **kwargs
+):
     """
     Sends a file with HTML caption.
 
@@ -231,19 +237,11 @@ async def send_file_with_html(kernel, client, chat_id, html_text: str, file, tru
     Returns:
         Sent message
     """
+
     async def send_file(text, **inner_kwargs):
-        return await client.send_file(
-            chat_id,
-            file,
-            caption=text,
-            **inner_kwargs
-        )
+        return await client.send_file(chat_id, file, caption=text, **inner_kwargs)
 
     # For file captions the limit is 1024 characters
     return await _send_html_generic(
-        send_file,
-        html_text,
-        kernel,
-        truncate=truncate,
-        **kwargs
+        send_file, html_text, kernel, truncate=truncate, **kwargs
     )

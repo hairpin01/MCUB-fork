@@ -96,7 +96,9 @@ class TestWrappers:
         kernel = SimpleNamespace(handle_error=AsyncMock())
         client = SimpleNamespace(send_message=AsyncMock(return_value="ok"))
 
-        result = await mh.send_with_html(kernel, client, 123, "<b>body</b>", parse_mode=None)
+        result = await mh.send_with_html(
+            kernel, client, 123, "<b>body</b>", parse_mode=None
+        )
         assert result == "ok"
         client.send_message.assert_awaited_once_with(
             123,

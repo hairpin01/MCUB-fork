@@ -760,7 +760,7 @@ def register(kernel):
         method = request.__class__.__name__
 
         if not protection_enabled:
-            return await original_call(sender, request, ordered, flood_sleep_threshold)
+            return await original_call(sender, request, ordered, flood_sleep_threshold)  # type: ignore[operator]
 
         # Wait out any active block
         if now < blocked_until:
@@ -806,10 +806,10 @@ def register(kernel):
                     analyzer.trigger_count,
                 )
             )
-            return await original_call(sender, request, ordered, flood_sleep_threshold)
+            return await original_call(sender, request, ordered, flood_sleep_threshold)  # type: ignore[operator]
 
         if not api_config.get("enable_analytics", True):
-            return await original_call(sender, request, ordered, flood_sleep_threshold)
+            return await original_call(sender, request, ordered, flood_sleep_threshold)  # type: ignore[operator]
 
         warn_pct = api_config.get("warn_percent", 90)
         eta = analyzer.predict_eta(now, threshold)
@@ -848,7 +848,7 @@ def register(kernel):
                     )
                 )
 
-        return await original_call(sender, request, ordered, flood_sleep_threshold)
+        return await original_call(sender, request, ordered, flood_sleep_threshold)  # type: ignore[operator]
 
     @kernel.register.on_load()
     async def install_interceptor(kernel):

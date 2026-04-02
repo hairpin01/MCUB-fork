@@ -2,6 +2,7 @@
 # version: 1.0.1
 # description: Custom exceptions for kernel
 
+
 class CommandConflictError(Exception):
     """Исключение для конфликта команд"""
 
@@ -10,5 +11,6 @@ class CommandConflictError(Exception):
         self.conflict_type = conflict_type
         self.command = command
 
+
 class McubTelethonError(Exception):
-        pass
+    pass

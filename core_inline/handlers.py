@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 import asyncio
 import html
 import json
 import time
 import traceback
 import uuid
+from typing import Any
 
 import aiohttp
 from telethon import Button, events
@@ -29,7 +32,7 @@ class InlineHandlers:
     EMOJI_SHIELD = '<tg-emoji emoji-id="5379679518740978720">🛡</tg-emoji>'
     EMOJI_TOT = '<tg-emoji emoji-id="5085121109574025951">🫧</tg-emoji>'
 
-    def __init__(self, kernel, bot_client):
+    def __init__(self, kernel: Any, bot_client: Any) -> None:
         self.kernel = kernel
         self.bot_client = bot_client
         if (
@@ -49,11 +52,16 @@ class InlineHandlers:
         if hasattr(self.kernel, "session") and self.kernel.session is not None:
             if not self.kernel.session.closed:
                 await self.kernel.session.close()
-            self.kernel.session = Non
+            self.kernel.session = None
 
     def create_inline_form(
-        self, text, buttons=None, ttl=3600, media=None, media_type="photo"
-    ):
+        self,
+        text: str,
+        buttons: list[Any] | None = None,
+        ttl: int = 3600,
+        media: Any = None,
+        media_type: str = "photo",
+    ) -> str:
         """
         Создаёт инлайн-форму и возвращает её ID.
 

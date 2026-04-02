@@ -313,7 +313,7 @@ def register(kernel):
             "close": "Закрыть",
             "inline_bot_not_configured": "Inline бот не настроен\nУстановите inline_bot_token в config",
             "no_inline_results": "❌ Нет inline результатов",
-            "error": "❌ Ошибка",
+            "error": "Ошибка",
             "module_manager": 'Менеджер модулей\n\nИспользуйте "man" для просмотра модулей или "man [модуль]" для поиска.',
             "search_hint": '🔍 Поиск модулей\n\nНапишите "man [название]" для поиска модулей и команд\nПример: man ping',
             "search_results": "Результаты поиска",
@@ -432,9 +432,7 @@ def register(kernel):
         search_term, kernel, strings, show_hidden=False
     ):
         """Поиск модулей для inline режима."""
-        search_term = search_term.lower()
-        exact_matches = []
-        similar_modules = []
+        search_term = search_term.lower().strip()
         hidden = await get_hidden_modules(kernel)
 
         all_modules = {}
@@ -446,31 +444,107 @@ def register(kernel):
         if not show_hidden:
             all_modules = {k: v for k, v in all_modules.items() if k not in hidden}
 
-        for name, (typ, module) in all_modules.items():
-            if name.lower() == search_term:
-                exact_matches.append((name, typ, module))
+        search_words = search_term.split()
+        concatenated = "".join(search_words)
+        underscored = "_".join(search_words)
+        camel_cased = "".join(w.capitalize() for w in search_words)
 
-        seen = set(n for n, _, _ in exact_matches)
+        scored_modules: list[tuple[int, tuple]] = []
+
         for name, (typ, module) in all_modules.items():
+            name_lower = name.lower()
+            score = 0
+
+            if name_lower == search_term:
+                scored_modules.append((1000, (name, typ, module)))
+                continue
+
+            if name_lower.startswith(search_term):
+                score += 500
+            elif search_term in name_lower:
+                score += 300
+            elif concatenated in name_lower:
+                score += 250
+            elif underscored in name_lower or camel_cased.lower() in name_lower:
+                score += 220
+            else:
+                words = search_words
+                if all(w in name_lower for w in words):
+                    score += 200
+
+            if score > 0:
+                scored_modules.append((score, (name, typ, module)))
+                continue
+
+            commands, _, descriptions = get_module_commands(name, kernel)
+            cmd_match = False
+            for cmd in commands:
+                cmd_lower = cmd.lower()
+                if cmd_lower == search_term:
+                    scored_modules.append((900, (name, typ, module)))
+                    cmd_match = True
+                    break
+                elif cmd_lower.startswith(search_term):
+                    score = 600
+                elif concatenated in cmd_lower:
+                    score = 550
+                elif underscored in cmd_lower or camel_cased.lower() in cmd_lower:
+                    score = 520
+                elif search_term in cmd_lower:
+                    score = 400
+
+                if score > 0:
+                    scored_modules.append((score, (name, typ, module)))
+                    cmd_match = True
+                    break
+            if cmd_match:
+                continue
+
+            try:
+                file_path = (
+                    f"{kernel.MODULES_DIR}/{name}.py"
+                    if typ == "system"
+                    else f"{kernel.MODULES_LOADED_DIR}/{name}.py"
+                )
+                with open(file_path, "r", encoding="utf-8") as f:
+                    code = f.read()
+                metadata = await kernel.get_module_metadata(code)
+            except Exception:
+                metadata = {"description": "", "commands": {}}
+
+            desc = metadata.get("description", "").lower()
+            if desc and search_term in desc:
+                scored_modules.append((100, (name, typ, module)))
+                continue
+
+            for cmd, cmd_desc in metadata.get("commands", {}).items():
+                if (
+                    cmd_desc
+                    and isinstance(cmd_desc, str)
+                    and search_term in cmd_desc.lower()
+                ):
+                    scored_modules.append((50, (name, typ, module)))
+                    break
+
+        scored_modules.sort(key=lambda x: -x[0])
+        seen = set()
+        exact_matches = []
+        similar_modules = []
+        for score, (name, typ, module) in scored_modules:
             if name in seen:
                 continue
-            if search_term in name.lower():
-                similar_modules.append((name, typ, module))
-                seen.add(name)
+            seen.add(name)
+            if score >= 900:
+                exact_matches.append((name, typ, module))
             else:
-                commands, _, _ = get_module_commands(name, kernel)
-                for cmd in commands:
-                    if search_term in cmd.lower():
-                        similar_modules.append((name, typ, module))
-                        seen.add(name)
-                        break
+                similar_modules.append((name, typ, module))
 
         return exact_matches, similar_modules
 
     async def generate_module_article(module_info, kernel, strings):
         """Генерирует статью для одного модуля."""
         name, typ, module = module_info
-        commands, aliases_info, _ = get_module_commands(name, kernel)
+        commands, aliases_info, descriptions = get_module_commands(name, kernel)
         file_path = (
             f"modules/{name}.py" if typ == "system" else f"modules_loaded/{name}.py"
         )
@@ -494,8 +568,10 @@ def register(kernel):
             msg += f"\n<b>{strings['command']}:</b>\n"
             msg += "<blockquote expandable>"
             for cmd in commands[:5]:
-                cmd_desc = metadata.get("commands", {}).get(
-                    cmd, f"{CUSTOM_EMOJI['confused']} {strings['no_description']}"
+                cmd_desc = (
+                    descriptions.get(cmd)
+                    or metadata.get("commands", {}).get(cmd)
+                    or f"{CUSTOM_EMOJI['confused']} {strings['no_description']}"
                 )
                 msg += f"• <code>{kernel.custom_prefix}{cmd}</code> - {cmd_desc}\n"
             if len(commands) > 5:

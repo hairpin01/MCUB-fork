@@ -2,8 +2,10 @@
 # version: 1.0.1
 # description: Terminal color codes
 
+
 class Colors:
     """Цвета для терминала"""
+
     RESET = "\033[0m"
     RED = "\033[91m"
     GREEN = "\033[92m"

@@ -10,16 +10,23 @@ from html.parser import HTMLParser
 from typing import Optional, Tuple, List, Union
 
 from telethon.tl.types import (
-    MessageEntityBold, MessageEntityItalic, MessageEntityCode,
-    MessageEntityPre, MessageEntityTextUrl, MessageEntityUnderline,
-    MessageEntityStrike, MessageEntityBlockquote, MessageEntityCustomEmoji,
-    MessageEntitySpoiler, MessageEntityEmail
+    MessageEntityBold,
+    MessageEntityItalic,
+    MessageEntityCode,
+    MessageEntityPre,
+    MessageEntityTextUrl,
+    MessageEntityUnderline,
+    MessageEntityStrike,
+    MessageEntityBlockquote,
+    MessageEntityCustomEmoji,
+    MessageEntitySpoiler,
+    MessageEntityEmail,
 )
 
 
 def _utf16_len(text: str) -> int:
     """Calculate UTF-16 length of a string."""
-    return len(text.encode('utf-16-le')) // 2
+    return len(text.encode("utf-16-le")) // 2
 
 
 def _utf16_slice(text: str, offset: int, length: int) -> str:
@@ -36,7 +43,7 @@ def _utf16_slice(text: str, offset: int, length: int) -> str:
         return utf16_bytes[start_byte:end_byte].decode("utf-16-le")
     except Exception:
         if offset < len(text):
-            return text[offset:min(offset + length, len(text))]
+            return text[offset : min(offset + length, len(text))]
         return ""
 
 
@@ -47,7 +54,7 @@ class TelegramHTMLParser(HTMLParser):
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
-        self.text = ''
+        self.text = ""
         self.entities = []
         self._open_entities = {}
         self._tag_stack = deque()
@@ -59,34 +66,42 @@ class TelegramHTMLParser(HTMLParser):
         self._tag_stack.appendleft(tag)
 
         # Map HTML tags to Telegram entities
-        if tag in ('b', 'strong'):
+        if tag in ("b", "strong"):
             self._open_entities[tag] = MessageEntityBold(self._utf16_offset, 0)
-        elif tag in ('i', 'em'):
+        elif tag in ("i", "em"):
             self._open_entities[tag] = MessageEntityItalic(self._utf16_offset, 0)
-        elif tag == 'u':
+        elif tag == "u":
             self._open_entities[tag] = MessageEntityUnderline(self._utf16_offset, 0)
-        elif tag in ('s', 'del', 'strike'):
+        elif tag in ("s", "del", "strike"):
             self._open_entities[tag] = MessageEntityStrike(self._utf16_offset, 0)
-        elif tag == 'code':
+        elif tag == "code":
             self._open_entities[tag] = MessageEntityCode(self._utf16_offset, 0)
-        elif tag == 'pre':
-            lang = attrs_dict.get('language', '')
-            self._open_entities[tag] = MessageEntityPre(self._utf16_offset, 0, language=lang)
-        elif tag in ('tg-spoiler', 'spoiler'):
+        elif tag == "pre":
+            lang = attrs_dict.get("language", "")
+            self._open_entities[tag] = MessageEntityPre(
+                self._utf16_offset, 0, language=lang
+            )
+        elif tag in ("tg-spoiler", "spoiler"):
             self._open_entities[tag] = MessageEntitySpoiler(self._utf16_offset, 0)
-        elif tag == 'blockquote':
-            collapsed = 'expandable' in attrs_dict
-            self._open_entities[tag] = MessageEntityBlockquote(self._utf16_offset, 0, collapsed=collapsed)
-        elif tag == 'a':
-            href = attrs_dict.get('href', '')
-            if href.startswith('mailto:'):
+        elif tag == "blockquote":
+            collapsed = "expandable" in attrs_dict
+            self._open_entities[tag] = MessageEntityBlockquote(
+                self._utf16_offset, 0, collapsed=collapsed
+            )
+        elif tag == "a":
+            href = attrs_dict.get("href", "")
+            if href.startswith("mailto:"):
                 self._open_entities[tag] = MessageEntityEmail(self._utf16_offset, 0)
             elif href:
-                self._open_entities[tag] = MessageEntityTextUrl(self._utf16_offset, 0, url=href)
-        elif tag == 'tg-emoji':
-            emoji_id = attrs_dict.get('emoji-id')
+                self._open_entities[tag] = MessageEntityTextUrl(
+                    self._utf16_offset, 0, url=href
+                )
+        elif tag == "tg-emoji":
+            emoji_id = attrs_dict.get("emoji-id")
             if emoji_id and emoji_id.isdigit():
-                self._open_entities[tag] = MessageEntityCustomEmoji(self._utf16_offset, 0, document_id=int(emoji_id))
+                self._open_entities[tag] = MessageEntityCustomEmoji(
+                    self._utf16_offset, 0, document_id=int(emoji_id)
+                )
 
     def handle_endtag(self, tag: str) -> None:
         """Handle closing HTML tags."""
@@ -108,8 +123,8 @@ class TelegramHTMLParser(HTMLParser):
 
     def handle_startendtag(self, tag: str, attrs: List[Tuple[str, str]]) -> None:
         """Handle self-closing tags like <br/>."""
-        if tag == 'br':
-            self.handle_data('\n')
+        if tag == "br":
+            self.handle_data("\n")
 
     def close(self) -> None:
         """Finalize parsing and sort entities."""
@@ -129,19 +144,21 @@ class HTMLDecorator:
         if not entities:
             return html.escape(text, quote=False)
 
-        utf16_bytes = text.encode('utf-16-le')
+        utf16_bytes = text.encode("utf-16-le")
         total_len = len(utf16_bytes) // 2
 
         # Create events for the sweep-line algorithm
         events = []
         for i, entity in enumerate(entities):
             # Start: prioritize outer (longer) entities
-            events.append((entity.offset, 'start', -entity.length, i, entity))
+            events.append((entity.offset, "start", -entity.length, i, entity))
             # End: prioritize inner (shorter) entities to close them first
-            events.append((entity.offset + entity.length, 'end', entity.length, i, entity))
+            events.append(
+                (entity.offset + entity.length, "end", entity.length, i, entity)
+            )
 
         # Sort events: Position -> Type (end before start) -> Priority
-        events.sort(key=lambda x: (x[0], 0 if x[1] == 'end' else 1, x[2]))
+        events.sort(key=lambda x: (x[0], 0 if x[1] == "end" else 1, x[2]))
 
         result_parts = []
         current_tags = []
@@ -152,7 +169,7 @@ class HTMLDecorator:
             """Extract text chunk using UTF-16 offsets."""
             s = start * 2
             e = (start + length) * 2
-            return utf16_bytes[s:e].decode('utf-16-le')
+            return utf16_bytes[s:e].decode("utf-16-le")
 
         for pos, event_type, _, _, entity in events:
             # Add text before this position
@@ -162,7 +179,7 @@ class HTMLDecorator:
                 last_pos = pos
 
             # Update logical stack
-            if event_type == 'start':
+            if event_type == "start":
                 logical_stack.append(entity)
                 # Sort by length (longer entities outside)
                 logical_stack.sort(key=lambda e: -e.length)
@@ -187,13 +204,20 @@ class HTMLDecorator:
             while len(current_tags) < len(logical_stack):
                 ent = logical_stack[len(current_tags)]
                 tag, attrs = self._get_tag_attrs(ent, text)
-                attr_str = "".join([f' {k}="{v}"' if v is not None else f' {k}' for k, v in attrs.items()])
+                attr_str = "".join(
+                    [
+                        f' {k}="{v}"' if v is not None else f" {k}"
+                        for k, v in attrs.items()
+                    ]
+                )
                 result_parts.append(f"<{tag}{attr_str}>")
                 current_tags.append(ent)
 
         # Add remaining text
         if last_pos < total_len:
-            result_parts.append(html.escape(get_chunk(last_pos, total_len - last_pos), quote=False))
+            result_parts.append(
+                html.escape(get_chunk(last_pos, total_len - last_pos), quote=False)
+            )
 
         # Close remaining tags
         while current_tags:
@@ -223,28 +247,28 @@ class HTMLDecorator:
             tag = "code"
         elif isinstance(entity, MessageEntityPre):
             tag = "pre"
-            if getattr(entity, 'language', None):
-                attrs['language'] = entity.language
+            if getattr(entity, "language", None):
+                attrs["language"] = entity.language
         elif isinstance(entity, MessageEntitySpoiler):
             tag = "tg-spoiler"
         elif isinstance(entity, MessageEntityBlockquote):
             tag = "blockquote"
-            if getattr(entity, 'collapsed', False):
-                attrs['expandable'] = None
+            if getattr(entity, "collapsed", False):
+                attrs["expandable"] = None
         elif isinstance(entity, MessageEntityTextUrl):
             tag = "a"
-            attrs['href'] = getattr(entity, 'url', '')
+            attrs["href"] = getattr(entity, "url", "")
         elif isinstance(entity, MessageEntityEmail):
             tag = "a"
             # Extract email text from the content
             try:
                 email_text = _utf16_slice(text_content, entity.offset, entity.length)
-                attrs['href'] = f"mailto:{email_text}"
+                attrs["href"] = f"mailto:{email_text}"
             except Exception:
-                attrs['href'] = "mailto:"
+                attrs["href"] = "mailto:"
         elif isinstance(entity, MessageEntityCustomEmoji):
             tag = "tg-emoji"
-            attrs['emoji-id'] = str(getattr(entity, 'document_id', ''))
+            attrs["emoji-id"] = str(getattr(entity, "document_id", ""))
 
         return tag, attrs
 
@@ -280,7 +304,9 @@ def telegram_to_html(text: str, entities: List) -> str:
     return decorator.unparse(text, entities)
 
 
-def format_message(text: str, entities: Optional[List] = None, as_html: bool = False) -> Union[str, Tuple[str, List]]:
+def format_message(
+    text: str, entities: Optional[List] = None, as_html: bool = False
+) -> Union[str, Tuple[str, List]]:
     """
     Format a message either as HTML or parse HTML to entities.
 
@@ -294,7 +320,7 @@ def format_message(text: str, entities: Optional[List] = None, as_html: bool = F
     """
     if as_html and entities:
         return telegram_to_html(text, entities)
-    elif not as_html and ('<' in text and '>' in text):
+    elif not as_html and ("<" in text and ">" in text):
         return parse_html(text)
     if entities:
         return text, entities
@@ -302,11 +328,11 @@ def format_message(text: str, entities: Optional[List] = None, as_html: bool = F
 
 
 __all__ = [
-    'TelegramHTMLParser',
-    'parse_html',
-    'telegram_to_html',
-    'format_message',
-    'HTMLDecorator',
-    '_utf16_len',
-    '_utf16_slice',
+    "TelegramHTMLParser",
+    "parse_html",
+    "telegram_to_html",
+    "format_message",
+    "HTMLDecorator",
+    "_utf16_len",
+    "_utf16_slice",
 ]

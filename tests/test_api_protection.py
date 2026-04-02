@@ -1,8 +1,5 @@
-import pytest
 import time
-import math
 from collections import deque
-from unittest.mock import MagicMock
 
 from modules.api_protection import RequestAnalyzer, DEFAULT_CONFIG, LIMIT_PROFILES
 

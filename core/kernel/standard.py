@@ -378,18 +378,18 @@ class Kernel:
         self.logger.debug(f"[Kernel] is_admin user_id={user_id} result={result}")
         return result
 
-    def should_process_command_event(self, event) -> bool:
+    def should_process_command_event(self, event: Any) -> bool:
         """Accept own command messages even when Telethon loses the out flag."""
         msg = getattr(event, "message", event)
         if getattr(msg, "out", False):
             return True
         return self.is_admin(getattr(event, "sender_id", None))
 
-    def _is_command_event_processed(self, event) -> bool:
+    def _is_command_event_processed(self, event: Any) -> bool:
         msg = getattr(event, "message", event)
         return bool(getattr(msg, "_mcub_command_processed", False))
 
-    def _mark_command_event_processed(self, event) -> None:
+    def _mark_command_event_processed(self, event: Any) -> None:
         msg = getattr(event, "message", event)
         setattr(msg, "_mcub_command_processed", True)
 
@@ -418,7 +418,7 @@ class Kernel:
         """Run the interactive first-time setup wizard."""
         return self._cfg.first_time_setup()
 
-    async def get_module_config(self, module_name: str, default=None):
+    async def get_module_config(self, module_name: str, default: Any = None) -> Any:
         """Load a module's config from the database."""
         self.logger.debug(f"[Kernel] get_module_config module={module_name}")
         result = await self._cfg.get_module_config(module_name, default)
@@ -460,11 +460,15 @@ class Kernel:
         """Delete a module's config from the database."""
         return await self._cfg.delete_module_config(module_name)
 
-    async def get_module_config_key(self, module_name: str, key: str, default=None):
+    async def get_module_config_key(
+        self, module_name: str, key: str, default: Any = None
+    ) -> Any:
         """Get a single config key for a module."""
         return await self._cfg.get_key(module_name, key, default)
 
-    async def set_module_config_key(self, module_name: str, key: str, value) -> bool:
+    async def set_module_config_key(
+        self, module_name: str, key: str, value: Any
+    ) -> bool:
         """Set a single config key for a module."""
         return await self._cfg.set_key(module_name, key, value)
 
@@ -486,7 +490,7 @@ class Kernel:
         """Synchronously log an error to file."""
         self.logger.error(message)
 
-    async def send_log_message(self, text: str, file=None) -> bool:
+    async def send_log_message(self, text: str, file: Any = None) -> bool:
         """Send a message to the configured log chat."""
         return await self._log.send_log_message(text, file)
 
@@ -497,7 +501,7 @@ class Kernel:
         await self._log.send_error_log(error_text, source_file, message_info)
 
     async def handle_error(
-        self, error: Exception, source: str = "unknown", event=None
+        self, error: Exception, source: str = "unknown", event: Any = None
     ) -> None:
         """Log an error to file and send a report to the log chat."""
         await self._log.handle_error(error, source, event)
@@ -541,7 +545,7 @@ class Kernel:
         self.logger.debug(f"[Kernel] add_repository result={result}")
         return result
 
-    async def remove_repository(self, index) -> tuple:
+    async def remove_repository(self, index: int) -> tuple:
         """Remove a repository by 1-based index."""
         return await self._repo.remove(index)
 
@@ -549,7 +553,7 @@ class Kernel:
         """Get the human-readable name for a repository."""
         return await self._repo.get_name(url)
 
-    async def get_repo_modules_list(self, repo_url: str) -> list:
+    async def get_repo_modules_list(self, repo_url: str) -> list[str]:
         """Fetch the list of modules from a repository."""
         self.logger.debug(f"[Kernel] get_repo_modules_list url={repo_url}")
         result = await self._repo.get_modules_list(repo_url)
@@ -573,7 +577,7 @@ class Kernel:
         self.current_loading_module = None
         self.current_loading_module_type = None
 
-    async def detected_module_type(self, module) -> str:
+    async def detected_module_type(self, module: Any) -> str:
         """Detect the registration pattern of a module."""
         return await self._loader.detect_module_type(module)
 
@@ -599,8 +603,22 @@ class Kernel:
         """Load all modules from the user modules directory."""
         await self._loader.load_user_modules()
 
-    async def unregister_module_commands(self, module_name: str) -> None:
-        """Stop loops/handlers and unregister all commands for a module."""
+    async def unregister_module_commands(
+        self, module_name: str, force: bool = False
+    ) -> None:
+        """Stop loops/handlers and unregister all commands for a module.
+
+        Args:
+            module_name: Name of module to unregister.
+            force: If True, allows unloading of system modules.
+                  If False (default), blocks system module unload.
+        """
+        is_system = module_name in self.system_modules
+        if is_system and not force:
+            raise PermissionError(
+                f"Cannot unload system module {module_name}. "
+                "Use force=True to override."
+            )
         await self._loader.unregister_module_commands(module_name)
 
     def _debug_event_builders_snapshot(self) -> list[str]:
@@ -612,7 +630,7 @@ class Kernel:
             )
         return snapshot
 
-    def _event_builder_signature(self, event_obj, callback) -> tuple:
+    def _event_builder_signature(self, event_obj: Any, callback: Any) -> tuple:
         return (
             type(event_obj).__name__,
             getattr(callback, "__module__", None),
@@ -887,7 +905,7 @@ class Kernel:
         """Get the description for a command registered by a module."""
         return await self._loader.get_command_description(module_name, command)
 
-    def register_command(self, pattern: str, func=None):
+    def register_command(self, pattern: str, func: Any | None = None) -> Any:
         """Register a userbot command, raising CommandConflictError on collisions.
 
         Args:
@@ -920,7 +938,7 @@ class Kernel:
 
         return _register(func) if func else _register
 
-    def register_command_bot(self, pattern: str, func=None):
+    def register_command_bot(self, pattern: str, func: Any | None = None) -> Any:
         """Register a bot command (starting with /).
 
         Args:
@@ -957,7 +975,7 @@ class Kernel:
             del self.bot_command_owners[cmd]
             self.logger.debug(f"Removed bot command: {cmd}")
 
-    def register_inline_handler(self, pattern: str, handler) -> None:
+    def register_inline_handler(self, pattern: str, handler: Any) -> None:
         """Register an inline query handler."""
         self._inline.register_inline_handler(pattern, handler)
 
@@ -965,28 +983,34 @@ class Kernel:
         """Remove all inline handlers for a module."""
         self._inline.unregister_module_inline_handlers(module_name)
 
-    def register_callback_handler(self, pattern, handler) -> None:
+    def register_callback_handler(self, pattern: str, handler: Any) -> None:
         """Register a callback query handler."""
         self._inline.register_callback_handler(pattern, handler)
 
-    async def inline_query_and_click(self, chat_id, query, **kwargs):
+    async def inline_query_and_click(
+        self, chat_id: int, query: str, **kwargs: Any
+    ) -> Any:
         """Perform an inline query and click a result."""
         return await self._inline.inline_query_and_click(chat_id, query, **kwargs)
 
-    async def send_inline(self, chat_id: int, query: str, buttons=None) -> bool:
+    async def send_inline(
+        self, chat_id: int, query: str, buttons: Any | None = None
+    ) -> bool:
         """Send an inline result using the configured bot."""
         return await self._inline.send_inline(chat_id, query, buttons)
 
-    async def send_inline_from_config(self, chat_id: int, query: str, buttons=None):
+    async def send_inline_from_config(
+        self, chat_id: int, query: str, buttons: Any | None = None
+    ) -> Any:
         """Send an inline result using the bot from config."""
         return await self._inline.send_inline_from_config(chat_id, query, buttons)
 
     async def inline_form(
         self,
-        chat_id,
-        title,
-        fields=None,
-        buttons=None,
+        chat_id: int,
+        title: str,
+        fields: list[dict[str, Any]] | None = None,
+        buttons: list[Any] | None = None,
         auto_send=True,
         ttl=200,
         **kwargs,
@@ -1021,16 +1045,16 @@ class Kernel:
     async def create_tables(self):
         await self.db_manager._create_tables()
 
-    async def db_set(self, module: str, key: str, value) -> None:
+    async def db_set(self, module: str, key: str, value: Any) -> None:
         await self.db_manager.db_set(module, key, value)
 
-    async def db_get(self, module: str, key: str):
+    async def db_get(self, module: str, key: str) -> Any:
         return await self.db_manager.db_get(module, key)
 
     async def db_delete(self, module: str, key: str) -> None:
         await self.db_manager.db_delete(module, key)
 
-    async def db_query(self, query: str, parameters):
+    async def db_query(self, query: str, parameters: Any) -> Any:
         return await self.db_manager.db_query(query, parameters)
 
     @property
@@ -1118,7 +1142,7 @@ class Kernel:
         """Decorator alias for request middleware registration."""
         return self.add_request_middleware(middleware_func)
 
-    async def process_with_middleware(self, event, handler: Callable):
+    async def process_with_middleware(self, event: Any, handler: Callable) -> Any:
         """Run *event* through all middleware, then call *handler*."""
         if self.client and hasattr(self.client, "_middleware"):
             return await self.client._middleware.process(
@@ -1131,7 +1155,7 @@ class Kernel:
                 return False
         return await handler(event)
 
-    async def process_command(self, event, depth: int = 0) -> bool:
+    async def process_command(self, event: Any, depth: int = 0) -> bool:
         """Match and dispatch an outgoing message event to a command handler.
 
         Resolves aliases recursively (max depth 5).
@@ -1224,7 +1248,7 @@ class Kernel:
         )
         return False
 
-    async def process_bot_command(self, event) -> bool:
+    async def process_bot_command(self, event: Any) -> bool:
         """Dispatch a bot command event to its registered handler.
 
         Returns:
@@ -1261,7 +1285,7 @@ class Kernel:
         except Exception:
             return f"ID: {user_id}"
 
-    async def get_thread_id(self, event) -> int | None:
+    async def get_thread_id(self, event: Any) -> int | None:
         """Extract the thread/topic ID from an event if present.
 
         Returns:

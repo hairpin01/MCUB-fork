@@ -1,5 +1,6 @@
 import asyncio
 import json
+import random
 import sys
 import traceback
 from typing import TYPE_CHECKING
@@ -8,6 +9,94 @@ from telethon import TelegramClient
 
 if TYPE_CHECKING:
     from kernel import Kernel
+
+DEVICE_MODELS = [
+    "Samsung Galaxy S23 Ultra",
+    "Samsung Galaxy S22",
+    "Samsung Galaxy A54",
+    "Xiaomi Redmi Note 12",
+    "Xiaomi 13 Pro",
+    "Xiaomi Poco F5",
+    "OnePlus 11",
+    "OnePlus Nord 3",
+    "Google Pixel 8 Pro",
+    "Google Pixel 7a",
+    "Nothing Phone 2",
+    "Realme GT 5",
+    "Vivo X90 Pro",
+    "Oppo Find X6",
+    "Huawei P60 Pro",
+    "Sony Xperia 1 V",
+    "Asus ROG Phone 7",
+    "Motorola Edge 40",
+    "Nokia X30",
+    "Fairphone 5",
+    "MacBook Pro 16",
+    "MacBook Pro 14",
+    "MacBook Air M2",
+    "MacBook Air M1",
+    "MacBook Pro M3",
+    "iMac 24",
+    "iMac 27",
+    "Mac Studio",
+    "Mac Mini",
+    "Dell XPS 15",
+    "Dell XPS 13",
+    "Dell Inspiron 15",
+    "Lenovo ThinkPad X1",
+    "Lenovo ThinkPad T14",
+    "Lenovo IdeaPad 5",
+    "HP Spectre x360",
+    "HP Pavilion 15",
+    "HP EliteBook 840",
+    "ASUS ROG Zephyrus G14",
+    "ASUS ROG Strix G15",
+    "ASUS ZenBook 14",
+    "Acer Aspire 5",
+    "Acer Swift 3",
+    "Microsoft Surface Laptop 5",
+    "Microsoft Surface Pro 9",
+    "Microsoft Surface Go 3",
+    "MSI Stealth 15",
+    "Razer Blade 15",
+    "Gigabyte AERO 15",
+]
+
+SYSTEM_VERSIONS = [
+    "Android 14",
+    "Android 13",
+    "Android 12",
+    "MIUI 14",
+    "MIUI 13",
+    "OxygenOS 14",
+    "OxygenOS 13",
+    "One UI 6",
+    "One UI 5",
+    "ColorOS 14",
+    "ColorOS 13",
+    "Funtouch 14",
+    "HarmonyOS 4",
+    "iOS 17",
+    "iOS 16",
+    "Windows 11",
+    "Windows 10",
+    "Windows 8.1",
+    "macOS 14",
+    "macOS 13",
+    "macOS 12",
+    "Ubuntu 24.04",
+    "Ubuntu 22.04",
+    "Ubuntu 20.04",
+    "Debian 12",
+    "Debian 11",
+    "Fedora 40",
+    "Fedora 39",
+    "Arch Linux",
+    "Linux Mint 21",
+    "Linux Mint 20",
+    "Manjaro 24",
+    "Gentoo 13",
+]
 
 
 class ClientManager:
@@ -66,6 +155,11 @@ class ClientManager:
 
         session_path = self._get_session_path("user_session")
 
+        device_model = random.choice(DEVICE_MODELS)
+        system_version = random.choice(SYSTEM_VERSIONS)
+        arch = "64-bit" if sys.maxsize > 2**32 else "32-bit"
+        app_version = f"{k.VERSION} {arch}"
+
         k.client = TelegramClient(
             SQLiteSession(session_path),
             k.API_ID,
@@ -74,9 +168,9 @@ class ClientManager:
             connection_retries=999999,
             request_retries=3,
             flood_sleep_threshold=30,
-            device_model=f"MCUB-{detected_platform}",
-            system_version=f"Python {sys.version}",
-            app_version=f"MCUB {k.VERSION}",
+            device_model=device_model,
+            system_version=system_version,
+            app_version=app_version,
             lang_code="en",
             system_lang_code="en-US",
             base_logger=None,

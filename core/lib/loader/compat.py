@@ -26,18 +26,18 @@ class ModuleCompatChecker:
         """
         directives: List[Tuple[str, str]] = []
 
-        for line in code.split('\n'):
+        for line in code.split("\n"):
             stripped = line.strip()
-            if not stripped.startswith('# scop:'):
+            if not stripped.startswith("# scop:"):
                 continue
 
-            rest = stripped[len('# scop:'):].strip()
-            space_index = rest.find(' ')
+            rest = stripped[len("# scop:") :].strip()
+            space_index = rest.find(" ")
 
             if space_index == -1:
-                directives.append((rest, ''))
+                directives.append((rest, ""))
             else:
-                directives.append((rest[:space_index], rest[space_index + 1:].strip()))
+                directives.append((rest[:space_index], rest[space_index + 1 :].strip()))
 
         return directives
 
@@ -45,7 +45,7 @@ class ModuleCompatChecker:
         self,
         params: str,
         current_version: str,
-        latest_version_cache: List,   # mutable 1-element list used as a lazy cache
+        latest_version_cache: List,  # mutable 1-element list used as a lazy cache
     ) -> Tuple[bool, str]:
         """
         Handles '# scop: kernel ...' directives.
@@ -62,8 +62,8 @@ class ModuleCompatChecker:
 
         compare = self.version_manager.compare_versions
 
-        if parts[0] == 'min':
-            if len(parts) >= 2 and parts[1].startswith('v'):
+        if parts[0] == "min":
+            if len(parts) >= 2 and parts[1].startswith("v"):
                 required = parts[1][1:]
                 if compare(current_version, required) < 0:
                     return False, (
@@ -71,8 +71,8 @@ class ModuleCompatChecker:
                         f"current is {current_version}"
                     )
 
-        elif parts[0] == 'max':
-            if len(parts) >= 2 and parts[1].startswith('v'):
+        elif parts[0] == "max":
+            if len(parts) >= 2 and parts[1].startswith("v"):
                 required = parts[1][1:]
                 if compare(current_version, required) > 0:
                     return False, (
@@ -81,14 +81,16 @@ class ModuleCompatChecker:
                     )
 
         else:
-            if not parts[0].startswith('v'):
+            if not parts[0].startswith("v"):
                 return True, ""
 
             spec = parts[0][1:]
 
-            if spec == '[__lastest__]':
+            if spec == "[__lastest__]":
                 if latest_version_cache[0] is None:
-                    latest_version_cache[0] = await self.version_manager.get_latest_kernel_version()
+                    latest_version_cache[0] = (
+                        await self.version_manager.get_latest_kernel_version()
+                    )
                 latest = latest_version_cache[0]
                 if compare(current_version, latest) != 0:
                     return False, (
@@ -109,10 +111,16 @@ class ModuleCompatChecker:
         Handles '# scop: inline'.
         Verifies that bot_client exists and is connected.
         """
-        if not hasattr(self.kernel, 'bot_client') or self.kernel.bot_client is None:
-            return False, "Module requires inline bot to be enabled, but bot_client is not available"
+        if not hasattr(self.kernel, "bot_client") or self.kernel.bot_client is None:
+            return (
+                False,
+                "Module requires inline bot to be enabled, but bot_client is not available",
+            )
         if not self.kernel.bot_client.is_connected():
-            return False, "Module requires inline bot to be connected, but bot_client is disconnected"
+            return (
+                False,
+                "Module requires inline bot to be connected, but bot_client is disconnected",
+            )
         return True, ""
 
     @staticmethod
@@ -121,10 +129,9 @@ class ModuleCompatChecker:
         Handles '# scop: ffmpeg'.
         Verifies that ffmpeg is present on the system PATH.
         """
-        if shutil.which('ffmpeg') is None:
+        if shutil.which("ffmpeg") is None:
             return False, "Module requires ffmpeg to be installed on the system"
         return True, ""
-
 
     async def check_module_compatibility(self, code: str) -> Tuple[bool, str]:
         """
@@ -139,16 +146,16 @@ class ModuleCompatChecker:
             return True, ""
 
         current_version = self.kernel.VERSION
-        latest_version_cache = [None]   # lazy-fetched once if needed
+        latest_version_cache = [None]  # lazy-fetched once if needed
 
         for scope, params in directives:
-            if scope == 'kernel':
+            if scope == "kernel":
                 ok, reason = await self._check_kernel_scope(
                     params, current_version, latest_version_cache
                 )
-            elif scope == 'inline':
+            elif scope == "inline":
                 ok, reason = self._check_inline_scope()
-            elif scope == 'ffmpeg':
+            elif scope == "ffmpeg":
                 ok, reason = self._check_ffmpeg_scope()
             else:
                 continue

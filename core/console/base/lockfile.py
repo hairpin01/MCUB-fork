@@ -27,7 +27,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
-
 _LOCK_FILE = Path("console/packages/installed.json")
 
 
@@ -73,37 +72,36 @@ class LockFile:
     def names(self) -> List[str]:
         return list(self._data.keys())
 
-
     def register(
         self,
         *,
-        name:        str,
-        version:     str,
-        author:      str,
+        name: str,
+        version: str,
+        author: str,
         description: str,
-        pip_deps:    list,
-        sys_deps:    list,
-        bin_file:    Optional[str],
-        src_files:   list,
-        repo_url:    str,
-        entry_file:  Optional[str] = None,
+        pip_deps: list,
+        sys_deps: list,
+        bin_file: Optional[str],
+        src_files: list,
+        repo_url: str,
+        entry_file: Optional[str] = None,
     ) -> None:
         """Add or update a package entry and persist immediately."""
         now = datetime.now().isoformat(timespec="seconds")
         old = self._data.get(name, {})
         self._data[name] = {
-            "name":         name,
-            "version":      version,
-            "author":       author,
-            "description":  description,
-            "pip_deps":     pip_deps,
-            "sys_deps":     sys_deps,
-            "bin_file":     bin_file,
-            "entry_file":   entry_file,
-            "src_files":    src_files,
+            "name": name,
+            "version": version,
+            "author": author,
+            "description": description,
+            "pip_deps": pip_deps,
+            "sys_deps": sys_deps,
+            "bin_file": bin_file,
+            "entry_file": entry_file,
+            "src_files": src_files,
             "installed_at": old.get("installed_at", now),
-            "updated_at":   now,
-            "repo_url":     repo_url,
+            "updated_at": now,
+            "repo_url": repo_url,
         }
         self._save()
 

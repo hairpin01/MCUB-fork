@@ -14,6 +14,7 @@ Zen Kernel — simple is better than complex.
 Flat is better than nested. Readability counts.
 """
 
+# noqa: E402 - conditional imports for dependency checking
 import html
 import importlib.util
 import logging
@@ -489,7 +490,22 @@ class Kernel:
     async def load_user_modules(self) -> None:
         await self._loader.load_user_modules()
 
-    async def unregister_module_commands(self, module_name: str) -> None:
+    async def unregister_module_commands(
+        self, module_name: str, force: bool = False
+    ) -> None:
+        """Stop loops/handlers and unregister all commands for a module.
+
+        Args:
+            module_name: Name of module to unregister.
+            force: If True, allows unloading of system modules.
+                  If False (default), blocks system module unload.
+        """
+        is_system = module_name in self.system_modules
+        if is_system and not force:
+            raise PermissionError(
+                f"Cannot unload system module {module_name}. "
+                "Use force=True to override."
+            )
         await self._loader.unregister_module_commands(module_name)
 
     def _debug_event_builders_snapshot(self) -> list[str]:

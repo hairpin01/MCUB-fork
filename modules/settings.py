@@ -86,6 +86,9 @@ def register(kernel):
             "clearcache_done": "✅ Кэш очищен",
             "clearcache_error": "❌ Не удалось очистить кэш: <code>{error}</code>",
             "danger_cancelled": "❄️ Действие отменено",
+            "btn_russian": "Русский",
+            "btn_english": "English",
+            "select_language": "🌐 Выберите язык",
         },
         "en": {
             "prefix_usage": "❌ Usage: {prefix}setprefix [symbol]",

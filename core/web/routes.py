@@ -761,10 +761,10 @@ def _rename_session(src: str, dst: str) -> None:
                 cfg = json.load(f)
             api_id = cfg.get("api_id")
             api_hash = cfg.get("api_hash")
-        except:
+        except Exception:
             pass
 
-    from utils.security import get_sessions_dir, get_session_path
+    from utils.security import get_sessions_dir
 
     for ext in (".session", ".session-journal"):
         if api_id and api_hash:

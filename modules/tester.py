@@ -22,7 +22,6 @@ from core.lib.loader.module_config import (
     ConfigValue,
     Boolean,
     String,
-    Choice,
 )
 
 

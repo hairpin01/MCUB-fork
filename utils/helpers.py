@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # author: @Hairpin00
 # version: 1.0.2
 # description: helper utilities for modules (arguments, replies, files, formatting)
@@ -6,7 +8,7 @@ import shlex
 import html as html_escape
 import datetime
 import time as time_module
-from typing import List, Optional, Union, Any, Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from telethon import events, Button
 from telethon.tl.custom import Message
@@ -20,7 +22,7 @@ from .html_parser import telegram_to_html
 from .emoji_parser import emoji_parser
 
 
-def get_args(event: Union[Message, events.NewMessage.Event]) -> List[str]:
+def get_args(event: Union[Message, events.NewMessage.Event]) -> list[str]:
     """
     Extract command arguments split by spaces, respecting quotes.
 
@@ -35,7 +37,7 @@ def get_args(event: Union[Message, events.NewMessage.Event]) -> List[str]:
         >>> if args:
         ...     first_arg = args[0]
     """
-    text = getattr(event, 'text', None) or getattr(event, 'raw_text', '')
+    text = getattr(event, "text", None) or getattr(event, "raw_text", "")
     if not text:
         return []
 
@@ -60,12 +62,12 @@ def get_args_raw(event: Union[Message, events.NewMessage.Event]) -> str:
     Returns:
         String of arguments. Empty string if none.
     """
-    text = getattr(event, 'text', None) or getattr(event, 'raw_text', '')
+    text = getattr(event, "text", None) or getattr(event, "raw_text", "")
     if not text:
-        return ''
+        return ""
 
     parts = text.split(maxsplit=1)
-    return parts[1] if len(parts) > 1 else ''
+    return parts[1] if len(parts) > 1 else ""
 
 
 def get_args_html(event: Union[Message, events.NewMessage.Event]) -> str:
@@ -80,7 +82,7 @@ def get_args_html(event: Union[Message, events.NewMessage.Event]) -> str:
     Returns:
         Arguments as an HTML string, or empty string if none.
     """
-    if not hasattr(event, 'message') or not event.message.entities:
+    if not hasattr(event, "message") or not event.message.entities:
         return get_args_raw(event)
 
     raw_text = event.raw_text
@@ -89,9 +91,9 @@ def get_args_html(event: Union[Message, events.NewMessage.Event]) -> str:
     try:
         # Find where the command ends (first space after prefix)
         cmd_start = raw_text.index(prefix)
-        cmd_end = raw_text.index(' ', cmd_start + 1) + 1
+        cmd_end = raw_text.index(" ", cmd_start + 1) + 1
     except (ValueError, IndexError):
-        return ''
+        return ""
 
     args_text = raw_text[cmd_end:]
     entities = event.message.entities
@@ -106,31 +108,29 @@ async def answer(
     event: Union[Message, events.NewMessage.Event, Any],
     text: str,
     *,
-    reply_markup: Optional[Any] = None,
-    file: Optional[Any] = None,
-    as_html: bool = False,
-    as_emoji: bool = False,
-    caption: Optional[str] = None,
-    **kwargs
+    reply_markup: Any = None,
+    file: Any = None,
+    caption: str | None = None,
+    **kwargs,
 ) -> Any:
     """
     Universal method to reply to a message, edit an inline message, or send a file.
     """
     kernel = _get_kernel(event)
-    is_inline = hasattr(event, 'edit') and callable(event.edit)
+    is_inline = hasattr(event, "edit") and callable(event.edit)
 
     if file:
         return await answer_file(event, file, caption or text, **kwargs)
 
     # Prepare the `buttons` argument for both edit and reply
     if reply_markup is not None:
-        kwargs['buttons'] = reply_markup
+        kwargs["buttons"] = reply_markup
 
     if as_html or (kernel and kernel.HTML_PARSER_AVAILABLE and _looks_like_html(text)):
         if is_inline:
-            return await event.edit(text, parse_mode='html', **kwargs)
+            return await event.edit(text, parse_mode="html", **kwargs)
         else:
-            if kernel and hasattr(kernel, 'reply_with_html'):
+            if kernel and hasattr(kernel, "reply_with_html"):
                 return await kernel.reply_with_html(event, text, **kwargs)
             else:
                 return await event.reply(text, **kwargs)
@@ -140,8 +140,10 @@ async def answer(
             parsed_text, entities = emoji_parser.parse_to_entities(text)
             return await event.edit(parsed_text, entities=entities, **kwargs)
         else:
-            if kernel and hasattr(kernel, 'send_with_emoji'):
-                return await kernel.send_with_emoji(event.chat_id, text, reply_to=event.id, **kwargs)
+            if kernel and hasattr(kernel, "send_with_emoji"):
+                return await kernel.send_with_emoji(
+                    event.chat_id, text, reply_to=event.id, **kwargs
+                )
             else:
                 return await event.reply(text, **kwargs)
     if is_inline:
@@ -149,20 +151,21 @@ async def answer(
     else:
         return await event.reply(text, **kwargs)
 
+
 async def answer_file(
     event: Union[Message, events.NewMessage.Event, Any],
     file: Any,
-    caption: Optional[str] = None,
+    caption: str | None = None,
     *,
     as_html: bool = False,
     as_emoji: bool = False,
-    **kwargs
+    **kwargs,
 ) -> Any:
     """
     Send a file in reply to a message.
     """
     kernel = _get_kernel(event)
-    is_inline = hasattr(event, 'edit') and callable(event.edit)
+    is_inline = hasattr(event, "edit") and callable(event.edit)
 
     if is_inline:
         # Inline context: cannot send a real file → send a plain text notice without the file
@@ -170,18 +173,25 @@ async def answer_file(
 
     # Regular chat – send as a document
     chat_id = event.chat_id
-    thread_id = await get_thread_id(event) if hasattr(event, 'client') else None
+    thread_id = await get_thread_id(event) if hasattr(event, "client") else None
     reply_to = thread_id or event.id
 
     # Process caption formatting
     if caption:
         if as_html or (kernel and kernel.HTML_PARSER_AVAILABLE):
-            return await kernel.send_file_with_html(chat_id, caption, file, reply_to=reply_to, **kwargs)
+            return await kernel.send_file_with_html(
+                chat_id, caption, file, reply_to=reply_to, **kwargs
+            )
         elif as_emoji or (kernel and kernel.emoji_parser):
-            return await kernel.send_with_emoji(chat_id, caption, file=file, reply_to=reply_to, **kwargs)
+            return await kernel.send_with_emoji(
+                chat_id, caption, file=file, reply_to=reply_to, **kwargs
+            )
 
     # Plain caption
-    return await event.client.send_file(chat_id, file, caption=caption, reply_to=reply_to, **kwargs)
+    return await event.client.send_file(
+        chat_id, file, caption=caption, reply_to=reply_to, **kwargs
+    )
+
 
 def escape_html(text: str) -> str:
     """
@@ -195,22 +205,22 @@ def escape_quotes(text: str) -> str:
     """
     Escape double quotes for use inside HTML attributes.
     """
-    return escape_html(text).replace('"', '&quot;')
+    return escape_html(text).replace('"', "&quot;")
 
 
 def get_chat_id(event: Union[Message, events.NewMessage.Event]) -> int:
     """
     Return the chat ID (without -100 prefix for channels).
     """
-    if hasattr(event, 'chat_id'):
+    if hasattr(event, "chat_id"):
         return event.chat_id
-    if hasattr(event, 'message') and event.message:
+    if hasattr(event, "message") and event.message:
         peer = event.message.peer_id
-        if hasattr(peer, 'channel_id'):
+        if hasattr(peer, "channel_id"):
             return peer.channel_id
-        if hasattr(peer, 'chat_id'):
+        if hasattr(peer, "chat_id"):
             return peer.chat_id
-        if hasattr(peer, 'user_id'):
+        if hasattr(peer, "user_id"):
             return peer.user_id
     return 0
 
@@ -223,32 +233,32 @@ async def get_sender_info(event: Union[Message, events.NewMessage.Event]) -> str
     """
     try:
         sender = await event.get_sender()
-        first = sender.first_name or ''
-        last = sender.last_name or ''
+        first = sender.first_name or ""
+        last = sender.last_name or ""
         name = f"{first} {last}".strip()
-        username = f"@{sender.username}" if sender.username else 'no username'
+        username = f"@{sender.username}" if sender.username else "no username"
         return f"{name} ({username}) [<code>{sender.id}</code>]"
     except Exception:
-        sender_id = getattr(event, 'sender_id', 'unknown')
+        sender_id = getattr(event, "sender_id", "unknown")
         return f"ID: {sender_id}"
 
 
-async def get_thread_id(event: Union[Message, events.NewMessage.Event]) -> Optional[int]:
+async def get_thread_id(
+    event: Union[Message, events.NewMessage.Event],
+) -> int | None:
     """
     Return the thread (topic) ID if the message is in a forum.
     """
-    if hasattr(event, 'reply_to') and event.reply_to:
-        return getattr(event.reply_to, 'reply_to_top_id', None)
-    if hasattr(event, 'message') and event.message.reply_to:
-        return getattr(event.message.reply_to, 'reply_to_top_id', None)
+    if hasattr(event, "reply_to") and event.reply_to:
+        return getattr(event.reply_to, "reply_to_top_id", None)
+    if hasattr(event, "message") and event.message.reply_to:
+        return getattr(event.message.reply_to, "reply_to_top_id", None)
     return None
 
 
 def relocate_entities(
-    entities: List[TypeMessageEntity],
-    offset: int,
-    text: Optional[str] = None
-) -> List[TypeMessageEntity]:
+    entities: list[TypeMessageEntity], offset: int, text: str | None = None
+) -> list[TypeMessageEntity]:
     """
     Shift all message entities by `offset` and clamp them to the length of `text`.
 
@@ -288,30 +298,32 @@ def relocate_entities(
 
 def _get_prefix(event) -> str:
     """Extract the command prefix from the client (if available)."""
-    if hasattr(event, 'client') and hasattr(event.client, 'loader'):
+    if hasattr(event, "client") and hasattr(event.client, "loader"):
         prefix = event.client.loader.get_prefix()
         if prefix:
             return prefix
-    return '.'
+    return "."
 
 
 def _get_kernel(event):
     """Retrieve the kernel instance from the client, if attached."""
-    if hasattr(event, 'client') and hasattr(event.client, 'kernel'):
+    if hasattr(event, "client") and hasattr(event.client, "kernel"):
         return event.client.kernel
-    if hasattr(event, '_kernel'):
+    if hasattr(event, "_kernel"):
         return event._kernel
     return None
 
 
 def _looks_like_html(text: str) -> bool:
     """Heuristic: does the string look like it contains HTML tags?"""
-    return '<' in text and '>' in text and any(
-        tag in text for tag in ('<b>', '<i>', '<a', '<code', '<pre')
+    return (
+        "<" in text
+        and ">" in text
+        and any(tag in text for tag in ("<b>", "<i>", "<a", "<code", "<pre"))
     )
 
 
-def format_time(seconds: Union[int, float], detailed: bool = False) -> str:
+def format_time(seconds: int | float, detailed: bool = False) -> str:
     """
     Format seconds into a human-readable time string.
 
@@ -329,11 +341,16 @@ def format_time(seconds: Union[int, float], detailed: bool = False) -> str:
         minutes, seconds = divmod(seconds, 60)
 
         parts = []
-        if weeks: parts.append(f"{weeks}w")
-        if days: parts.append(f"{days}d")
-        if hours: parts.append(f"{hours}h")
-        if minutes: parts.append(f"{minutes}m")
-        if seconds or not parts: parts.append(f"{seconds}s")
+        if weeks:
+            parts.append(f"{weeks}w")
+        if days:
+            parts.append(f"{days}d")
+        if hours:
+            parts.append(f"{hours}h")
+        if minutes:
+            parts.append(f"{minutes}m")
+        if seconds or not parts:
+            parts.append(f"{seconds}s")
         return " ".join(parts)
 
     if seconds < 60:
@@ -348,7 +365,9 @@ def format_time(seconds: Union[int, float], detailed: bool = False) -> str:
         return f"{hours}h {minutes}m" if minutes else f"{hours}h"
 
 
-def format_date(timestamp: Union[int, float, datetime.datetime], fmt: str = "%Y-%m-%d %H:%M") -> str:
+def format_date(
+    timestamp: int | float | datetime.datetime, fmt: str = "%Y-%m-%d %H:%M"
+) -> str:
     """
     Format a timestamp or datetime object to a string.
 
@@ -366,7 +385,7 @@ def format_date(timestamp: Union[int, float, datetime.datetime], fmt: str = "%Y-
     return dt.strftime(fmt)
 
 
-def format_relative_time(timestamp: Union[int, float]) -> str:
+def format_relative_time(timestamp: int | float) -> str:
     """
     Format a timestamp as relative time (e.g., "5 minutes ago").
 
@@ -397,7 +416,9 @@ def format_relative_time(timestamp: Union[int, float]) -> str:
         return format_date(timestamp)
 
 
-async def get_admins(event_or_client, chat_id: Optional[int] = None) -> List[Dict[str, Any]]:
+async def get_admins(
+    event_or_client, chat_id: int | None = None
+) -> list[dict[str, Any]]:
     """
     Get list of admins in a chat.
 
@@ -408,21 +429,23 @@ async def get_admins(event_or_client, chat_id: Optional[int] = None) -> List[Dic
     Returns:
         List of dicts with admin info (id, name, is_creator, etc.)
     """
-    client = getattr(event_or_client, 'client', event_or_client)
+    client = getattr(event_or_client, "client", event_or_client)
     if chat_id is None:
-        chat_id = getattr(event_or_client, 'chat_id', None)
+        chat_id = getattr(event_or_client, "chat_id", None)
 
     if not chat_id:
         return []
 
     try:
-        participants = await client.get_participants(chat_id, filter=lambda x: x.admin_rights is not None or x.creator)
+        participants = await client.get_participants(
+            chat_id, filter=lambda x: x.admin_rights is not None or x.creator
+        )
         return [
             {
                 "id": p.id,
                 "name": f"{p.first_name or ''} {p.last_name or ''}".strip(),
                 "username": p.username,
-                "is_creator": getattr(p, 'creator', False),
+                "is_creator": getattr(p, "creator", False),
                 "is_admin": p.admin_rights is not None,
             }
             for p in participants
@@ -431,7 +454,7 @@ async def get_admins(event_or_client, chat_id: Optional[int] = None) -> List[Dic
         return []
 
 
-async def resolve_peer(client, identifier: Union[str, int]) -> Optional[int]:
+async def resolve_peer(client, identifier: str | int) -> int | None:
     """
     Resolve a username, phone, or peer ID to a user ID.
 
@@ -451,7 +474,7 @@ async def resolve_peer(client, identifier: Union[str, int]) -> Optional[int]:
         if identifier.isdigit():
             return int(identifier)
 
-        if identifier.startswith('@'):
+        if identifier.startswith("@"):
             identifier = identifier[1:]
 
         entity = await client.get_entity(identifier)
@@ -460,8 +483,13 @@ async def resolve_peer(client, identifier: Union[str, int]) -> Optional[int]:
         return None
 
 
-def make_button(text: str, data: Optional[str] = None, url: Optional[str] = None,
-                switch: Optional[str] = None, same_peer: bool = False) -> Button:
+def make_button(
+    text: str,
+    data: str | None = None,
+    url: str | None = None,
+    switch: str | None = None,
+    same_peer: bool = False,
+) -> Button:
     """
     Create a button with less boilerplate.
 
@@ -485,7 +513,10 @@ def make_button(text: str, data: Optional[str] = None, url: Optional[str] = None
         return Button.text(text)
 
 
-def make_buttons(buttons: Union[List[Dict[str, Any]], List[List[Dict[str, Any]]]], cols: Optional[int] = None) -> List[List[Button]]:
+def make_buttons(
+    buttons: list[dict[str, Any]] | list[list[dict[str, Any]]],
+    cols: int | None = None,
+) -> list[list[Button]]:
     """
     Create buttons from a list of dicts.
 
@@ -523,13 +554,15 @@ def make_buttons(buttons: Union[List[Dict[str, Any]], List[List[Dict[str, Any]]]
         for row in buttons:
             button_row = []
             for btn in row:
-                button_row.append(make_button(
-                    text=btn.get("text", ""),
-                    data=btn.get("data"),
-                    url=btn.get("url"),
-                    switch=btn.get("switch"),
-                    same_peer=btn.get("same_peer", False)
-                ))
+                button_row.append(
+                    make_button(
+                        text=btn.get("text", ""),
+                        data=btn.get("data"),
+                        url=btn.get("url"),
+                        switch=btn.get("switch"),
+                        same_peer=btn.get("same_peer", False),
+                    )
+                )
             result.append(button_row)
         return result
 
@@ -539,13 +572,15 @@ def make_buttons(buttons: Union[List[Dict[str, Any]], List[List[Dict[str, Any]]]
     result = []
     for i in range(0, len(buttons), cols):
         row = []
-        for btn in buttons[i:i+cols]:
-            row.append(make_button(
-                text=btn.get("text", ""),
-                data=btn.get("data"),
-                url=btn.get("url"),
-                switch=btn.get("switch"),
-                same_peer=btn.get("same_peer", False)
-            ))
+        for btn in buttons[i : i + cols]:
+            row.append(
+                make_button(
+                    text=btn.get("text", ""),
+                    data=btn.get("data"),
+                    url=btn.get("url"),
+                    switch=btn.get("switch"),
+                    same_peer=btn.get("same_peer", False),
+                )
+            )
         result.append(row)
     return result

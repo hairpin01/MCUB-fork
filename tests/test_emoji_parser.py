@@ -57,4 +57,7 @@ class TestEmojiParser:
         assert EmojiParser.validate_emoji_content("😀") is True
         assert EmojiParser.validate_emoji_content("abc") is False
         assert EmojiParser.validate_emoji_content("") is False
-        assert EmojiParser.create_emoji_tag(999, "🧪") == "<emoji document_id=999>🧪</emoji>"
+        assert (
+            EmojiParser.create_emoji_tag(999, "🧪")
+            == "<emoji document_id=999>🧪</emoji>"
+        )

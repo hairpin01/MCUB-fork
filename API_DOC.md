@@ -142,7 +142,171 @@ def register(kernel):
 ```
 
 ## Kernel API Reference
-Core Properties
+
+### Kernel Core Variables
+
+The `Kernel` class exposes the following core variables that can be accessed in your modules:
+
+#### Module Registries
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `kernel.loaded_modules` | `dict` | Dictionary of all currently loaded user modules. Keys are module names (str), values are the module objects. |
+| `kernel.system_modules` | `dict` | Dictionary of all loaded system modules (from `modules/` directory). |
+| `kernel.command_handlers` | `dict` | Dictionary mapping command names to their handler functions. |
+| `kernel.command_owners` | `dict` | Dictionary mapping command names to the module that owns them. |
+| `kernel.bot_command_handlers` | `dict` | Dictionary of registered bot commands (starting with `/`). |
+| `kernel.bot_command_owners` | `dict` | Dictionary mapping bot command names to owning modules. |
+| `kernel.inline_handlers` | `dict` | Dictionary of registered inline query handlers. |
+| `kernel.inline_handlers_owners` | `dict` | Dictionary mapping inline handlers to owning modules. |
+| `kernel.callback_handlers` | `dict` | Dictionary of registered callback query handlers. |
+| `kernel.aliases` | `dict` | Dictionary of command aliases. |
+
+#### Runtime State
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `kernel.custom_prefix` | `str` | Command prefix (default: `.`). |
+| `kernel.config` | `dict` | Persistent kernel configuration storage. |
+| `kernel.client` | `TelethonClient` | The main Telethon client instance for Telegram API operations. |
+| `kernel.bot_client` | `TelethonClient` or `None` | The inline bot client (if configured). |
+| `kernel.inline_bot` | `TelethonClient` or `None` | Alias for `bot_client`. |
+| `kernel.catalog_cache` | `dict` | Cache for module catalogs. |
+| `kernel.pending_confirmations` | `dict` | Dictionary for pending confirmation dialogs. |
+| `kernel.shutdown_flag` | `bool` | Flag indicating if kernel is shutting down. |
+| `kernel.power_save_mode` | `bool` | Power saving mode flag. |
+| `kernel.error_load_modules` | `int` | Count of modules that failed to load. |
+| `kernel.current_loading_module` | `str` or `None` | Name of the currently loading module. |
+| `kernel.current_loading_module_type` | `str` or `None` | Type of the currently loading module (e.g., "system", "user"). |
+| `kernel.repositories` | `list` | List of configured module repositories. |
+| `kernel.middleware_chain` | `list` | List of registered event middlewares. |
+| `kernel.request_middleware_chain` | `list` | List of registered request middlewares. |
+| `kernel.scheduler` | `TaskScheduler` or `None` | The task scheduler instance. |
+| `kernel.log_chat_id` | `int` or `None` | ID of the designated log chat. |
+| `kernel.log_bot_enabled` | `bool` | Whether Telegram log bot is enabled. |
+| `kernel.inline_message_manager` | `object` or `None` | Manager for inline messages. |
+
+#### Reconnection Settings
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `kernel.reconnect_attempts` | `int` | Current number of reconnection attempts. |
+| `kernel.max_reconnect_attempts` | `int` | Maximum reconnection attempts (-1 = infinite). |
+| `kernel.reconnect_delay` | `int` | Delay between reconnection attempts in seconds. |
+
+#### Paths and Directories
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `kernel.MODULES_DIR` | `str` | Path to user modules directory (default: `"modules"`). |
+| `kernel.MODULES_LOADED_DIR` | `str` | Path to loaded modules directory (default: `"modules_loaded"`). |
+| `kernel.IMG_DIR` | `str` | Path to images directory (default: `"img"`). |
+| `kernel.LOGS_DIR` | `str` | Path to logs directory (default: `"logs"`). |
+| `kernel.CONFIG_FILE` | `str` | Config file name (default: `"config.json"`). |
+| `kernel.BACKUP_FILE` | `str` | Backup file name (default: `"kernel.py.backup"`). |
+| `kernel.ERROR_FILE` | `str` | Error dump file name (default: `"crash.tmp"`). |
+| `kernel.RESTART_FILE` | `str` | Restart trigger file name (default: `"restart.tmp"`). |
+| `kernel.MODULES_REPO` | `str` | Default modules repository URL. |
+| `kernel.UPDATE_REPO` | `str` | Kernel update repository URL. |
+| `kernel.default_repo` | `str` | Default repository URL (alias for `MODULES_REPO`). |
+
+#### Core Subsystems
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `kernel.cache` | `TTLCache` | TTL cache instance for temporary data storage. |
+| `kernel.register` | `Register` | Command/handler registration manager. |
+| `kernel.callback_permissions` | `CallbackPermissionManager` | Callback permission manager. |
+| `kernel.logger` | `KernelLogger` | Structured logging instance. |
+| `kernel.version_manager` | `VersionManager` | Kernel version manager. |
+| `kernel.db_manager` | `DatabaseManager` | Database manager instance. |
+| `kernel.Colors` | `Colors` | ANSI color codes for terminal output. |
+
+#### Version and Time
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `kernel.VERSION` | `str` | Kernel version string. |
+| `kernel.DB_VERSION` | `int` | Database version number. |
+| `kernel.start_time` | `float` | Unix timestamp when kernel started. |
+
+#### Other Properties
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `kernel.HTML_PARSER_AVAILABLE` | `bool` | Whether HTML parser is available. |
+| `kernel.emoji_parser` | `object` or `None` | Emoji parser instance. |
+| `kernel.html_converter` | `object` or `None` | Raw HTML converter instance. |
+
+---
+
+### Executing Userbot Commands Programmatically
+
+To execute a userbot command (e.g., `.ping`) from code, you need to call the command handler directly:
+
+#### Direct Handler Call
+
+```python
+# Execute a command by calling its handler directly
+if 'ping' in kernel.command_handlers:
+    await kernel.command_handlers['ping'](event)
+```
+
+#### Using process_command Method
+
+The `process_command` method parses and executes commands just like the userbot does:
+
+```python
+# Execute a command as if the user typed it
+# Create a mock event with the command text
+from telethon import events
+
+# The event must have:
+# - text attribute starting with custom_prefix (e.g., ".ping")
+# - message attribute (for reply_to handling)
+# - sender_id, chat_id, etc.
+
+result = await kernel.process_command(event)
+```
+
+#### Creating a Synthetic Event
+
+```python
+# Create a minimal event to trigger command processing
+class FakeEvent:
+    def __init__(self, text, sender_id, chat_id):
+        self.text = text
+        self.sender_id = sender_id
+        self.chat_id = chat_id
+
+        # Required for process_command
+        class FakeMessage:
+            def __init__(self, text):
+                self.message = text
+                self.text = text
+                self.reply_to_top_id = None
+                self.reply_to = None
+
+        self.message = FakeMessage(text)
+
+# Execute .ping command
+fake_event = FakeEvent(f"{kernel.custom_prefix}ping", admin_id, chat_id)
+await kernel.process_command(fake_event)
+```
+
+#### Direct Command Invocation with Arguments
+
+```python
+# Call handler directly with custom arguments
+if 'mycommand' in kernel.command_handlers:
+    handler = kernel.command_handlers['mycommand']
+    # Create appropriate event and call
+    await handler(event)
+```
+
+---
+
+### Core Properties
 
 `kernel.client`
 ---
@@ -700,7 +864,7 @@ from core.lib.loader.module_config import ModuleConfig, ConfigValue, Boolean, In
 #### Creating Configuration
 
 ```python
-from core.lib.loader.module_config import ModuleConfig, ConfigValue, Boolean, String, Choice
+from core.lib.loader.module_config import ModuleConfig, ConfigValue, Boolean, String, Choice, Integer
 
 def register(kernel):
     class MyModule:
@@ -1917,50 +2081,149 @@ elif is_wsl():
 
 ## Best Practices
 
-### Module Organization
+This section covers recommended patterns and modern APIs for writing MCUB modules.
+
+### Modern Module Configuration (Recommended)
+
+Use `ModuleConfig` for declarative configuration with validation and UI support:
 
 ```python
-# requires: aiohttp, pillow
+# requires: aiohttp
 # author: Developer Name
 # version: 1.0.0
 # description: Example module with best practices
 
 import asyncio
-from telethon import Button
+from core.lib.loader.module_config import ModuleConfig, ConfigValue, Boolean, String, Choice, Integer
 
 def register(kernel):
-    # Configuration
-    CONFIG_KEY = 'example_module'
+    class ExampleModule:
+        def __init__(self):
+            self.config = None
 
-    # Initialize module config
-    if CONFIG_KEY not in kernel.config:
-        kernel.config[CONFIG_KEY] = {
-            'enabled': True,
-            'timeout': 30
-        }
+        async def init(self):
+            self.config = ModuleConfig(
+                ConfigValue(
+                    "enabled",
+                    True,
+                    description="Enable module",
+                    validator=Boolean(default=True)
+                ),
+                ConfigValue(
+                    "api_url",
+                    "https://api.example.com",
+                    description="API endpoint URL",
+                    validator=String(default="https://api.example.com")
+                ),
+                ConfigValue(
+                    "timeout",
+                    30,
+                    description="Request timeout (seconds)",
+                    validator=Integer(default=30, min=1, max=300)
+                ),
+                ConfigValue(
+                    "mode",
+                    "default",
+                    description="Operation mode",
+                    validator=Choice(choices=["default", "fast", "safe"], default="default")
+                )
+            )
 
-    # Command handlers
+            config_dict = await kernel.get_module_config(__name__, {
+                "enabled": True,
+                "api_url": "https://api.example.com",
+                "timeout": 30,
+                "mode": "default"
+            })
+            self.config.from_dict(config_dict)
+            await kernel.save_module_config(__name__, self.config.to_dict())
+            kernel.store_module_config_schema(__name__, self.config)
+
+        def get_config(self):
+            live_cfg = getattr(kernel, "_live_module_configs", {}).get(__name__)
+            return live_cfg if live_cfg else self.config
+
+    module = ExampleModule()
+    asyncio.create_task(module.init())
+
     @kernel.register.command('example', alias='ex')
+    # example command with description
     async def example_handler(event):
-        try:
-            # Get configuration
-            config = kernel.config[CONFIG_KEY]
-            if not config['enabled']:
-                await event.edit("Module disabled")
-                return
+        cfg = module.get_config()
+        if not cfg["enabled"]:
+            await event.edit("Module disabled")
+            return
 
-            # Process command
-            result = await process_command(event, config)
-            await event.edit(result)
+        await event.edit(f"Mode: {cfg['mode']}, URL: {cfg['api_url']}")
 
-        except Exception as e:
-            await kernel.handle_error(e, source="example_handler", event=event)
-            await event.edit("Command failed")
-
-    async def process_command(event, config):
-        # Implementation
-        return "Success"
+    return module
 ```
+
+### Using Register Decorators
+
+```python
+def register(kernel):
+    # Owner-only command (admin only)
+    @kernel.register.command('adminonly')
+    @kernel.register.owner(only_admin=True)
+    async def admin_handler(event):
+        await event.edit("Admin only command")
+
+    # Trusted users command (admin + trusted)
+    @kernel.register.command('trustedcmd')
+    @kernel.register.owner()
+    async def trusted_handler(event):
+        await event.edit("Admin or trusted user command")
+
+    # Command with no parsing (raw text)
+    @kernel.register.command('raw')
+    @kernel.register.owner()
+    async def raw_handler(event):
+        await event.edit(f"Raw text: {event.text}")
+
+    # Event handler (auto-removed on unload)
+    @kernel.register.event('newmessage', pattern=r'keyword')
+    async def keyword_handler(event):
+        await event.reply("Keyword detected!")
+```
+
+### Lifecycle Callbacks
+
+```python
+def register(kernel):
+    class LifecycleModule:
+        pass
+
+    module = LifecycleModule()
+
+    @kernel.register.on_load()
+    async def on_load(kernel):
+        kernel.logger.info(f"{__name__} loaded")
+
+    @kernel.register.on_install()
+    async def on_install(kernel):
+        kernel.logger.info(f"{__name__} first install")
+
+    @kernel.register.uninstall()
+    async def on_uninstall(kernel):
+        kernel.logger.info(f"{__name__} unloaded")
+
+    @kernel.register.loop(interval=60)
+    async def background_loop(kernel):
+        while True:
+            await asyncio.sleep(60)
+            kernel.logger.debug("Background task running")
+
+    return module
+```
+
+> **Note:**
+> - `@kernel.register.on_load()` — called on every load (startup + reload)
+> - `@kernel.register.on_install()` — called only on first install (not on reload)
+> - `@kernel.register.uninstall()` — called when module is unloaded
+> - `@kernel.register.loop()` — auto-managed background loop (starts on load, stops on unload)
+> - All decorators must be placed **at the top level** of the `register` function.
+> - Use `__name__` for module identification (auto-resolves to filename)
 
 ### Error Handling Pattern
 
@@ -1968,54 +2231,194 @@ def register(kernel):
 @kernel.register.command('safe')
 async def safe_handler(event):
     try:
-        # Main logic
         result = await risky_operation()
         await event.edit(f"Result: {result}")
 
     except ValueError as e:
-        # Specific error handling
         await kernel.logger.warning(f"Invalid value: {e}")
         await event.edit("Invalid input")
 
     except ConnectionError as e:
-        # Network error handling
         await kernel.logger.error(f"Connection failed: {e}")
         await event.edit("Network error")
 
     except Exception as e:
-        # Generic error handling
         await kernel.handle_error(e, source="safe_handler", event=event)
         await event.edit("Unexpected error occurred")
 ```
 
-### Resource Management
+### Database Operations
+
+MCUB provides multiple database APIs:
+
+#### Key-Value Storage (Recommended)
+
+```python
+from utils import get_args
+
+@kernel.register.command('dbsave')
+async def dbsave_handler(event):
+    try:
+        args = get_args(event)
+        if len(args) < 2:
+            await event.edit("Usage: .dbsave <key> <value>")
+            return
+
+        key, value = args[0], ' '.join(args[1:])
+        await kernel.db_set('my_module', key, value)
+        await event.edit(f"Saved: {key} = {value}")
+
+    except Exception as e:
+        await kernel.handle_error(e, source="dbsave_handler", event=event)
+
+@kernel.register.command('dbget')
+async def dbget_handler(event):
+    try:
+        args = get_args(event)
+        if not args:
+            await event.edit("Usage: .dbget <key>")
+            return
+
+        value = await kernel.db_get('my_module', args[0])
+        await event.edit(f"Value: {value or 'Not found'}")
+
+    except Exception as e:
+        await kernel.handle_error(e, source="dbget_handler", event=event)
+
+@kernel.register.command('dbdel')
+async def dbdel_handler(event):
+    try:
+        args = get_args(event)
+        if not args:
+            await event.edit("Usage: .dbdel <key>")
+            return
+
+        await kernel.db_delete('my_module', args[0])
+        await event.edit("Deleted")
+
+    except Exception as e:
+        await kernel.handle_error(e, source="dbdel_handler", event=event)
+```
+
+#### Raw SQL Queries (SELECT only)
+
+```python
+@kernel.register.command('dbquery')
+async def dbquery_handler(event):
+    try:
+        args = get_args(event)
+        if not args:
+            await event.edit("Usage: .dbquery <sql>")
+            return
+
+        query = ' '.join(args)
+        rows = await kernel.db_query(query, ())
+
+        if not rows:
+            await event.edit("No results")
+            return
+
+        result = "\n".join(str(r) for r in rows[:10])
+        await event.edit(f"Results:\n{result}")
+
+    except Exception as e:
+        await kernel.handle_error(e, source="dbquery_handler", event=event)
+```
+
+> **Security:** Only `SELECT`, `PRAGMA`, and `EXPLAIN` queries are allowed. Write operations are blocked.
+
+#### Direct Connection (Advanced)
+
+```python
+@kernel.register.command('dbraw')
+async def dbraw_handler(event):
+    try:
+        conn = kernel.db_conn
+        if conn is None:
+            await event.edit("Database not initialized")
+            return
+
+        async with conn.execute("SELECT * FROM module_data LIMIT 5") as cursor:
+            rows = await cursor.fetchall()
+
+        result = "\n".join(str(r) for r in rows)
+        await event.edit(f"Raw rows:\n{result}")
+
+    except Exception as e:
+        await kernel.handle_error(e, source="dbraw_handler", event=event)
+```
+
+#### Module Config (for settings)
+
+```python
+@kernel.register.command('cfgget')
+async def cfgget_handler(event):
+    try:
+        args = get_args(event)
+        key = args[0] if args else "enabled"
+
+        value = await kernel.get_module_config_key('my_module', key, 'default')
+        await event.edit(f"{key} = {value}")
+
+    except Exception as e:
+        await kernel.handle_error(e, source="cfgget_handler", event=event)
+
+@kernel.register.command('cfgset')
+async def cfgset_handler(event):
+    try:
+        args = get_args(event)
+        if len(args) < 2:
+            await event.edit("Usage: .cfgset <key> <value>")
+            return
+
+        key, value = args[0], args[1]
+        await kernel.set_module_config_key('my_module', key, value)
+        await event.edit(f"Set {key} = {value}")
+
+    except Exception as e:
+        await kernel.handle_error(e, source="cfgset_handler", event=event)
+```
+
+### Using Scheduler
+
+> **Note:** Consider using `@kernel.register.loop()` instead for background tasks — it auto-starts/stops with the module lifecycle.
 
 ```python
 def register(kernel):
-    # Store resources in module-level variables
-    module_cache = {}
+    async def periodic_task():
+        kernel.logger.debug("Periodic task executed")
 
-    @kernel.register.command('resource')
-    async def resource_handler(event):
-        # Use module cache
-        if 'data' not in module_cache:
-            module_cache['data'] = await load_data()
+    @kernel.register.on_load()
+    async def on_load(kernel):
+        await kernel.scheduler.add_interval_task(periodic_task, 300)
 
-        data = module_cache['data']
-        await event.edit(f"Cached data: {data}")
-
-    # Cleanup on module reload (if needed)
-    async def cleanup():
-        module_cache.clear()
+    @kernel.register.uninstall()
+    async def on_uninstall(kernel):
+        kernel.scheduler.cancel_task("periodic_task")
 ```
 
-### Asynchronous Operations
+### Middleware Usage
+
+```python
+def register(kernel):
+    @kernel.middleware
+    async def auth_middleware(event, handler):
+        if not kernel.is_admin(event.sender_id):
+            await event.reply("Access denied")
+            return
+        return await handler(event)
+
+    @kernel.register.command('test')
+    async def test_handler(event):
+        await event.edit("Test command executed")
+```
+
+### Async Parallel Operations
 
 ```python
 @kernel.register.command('parallel')
 async def parallel_handler(event):
     try:
-        # Execute operations in parallel
         results = await asyncio.gather(
             operation1(),
             operation2(),
@@ -2023,7 +2426,6 @@ async def parallel_handler(event):
             return_exceptions=True
         )
 
-        # Process results
         success_count = sum(1 for r in results if not isinstance(r, Exception))
         await event.edit(f"Completed: {success_count}/3")
 
@@ -2031,27 +2433,20 @@ async def parallel_handler(event):
         await kernel.handle_error(e, source="parallel_handler", event=event)
 ```
 
-### Database Operations
+### Resource Management with Cache
 
 ```python
-@kernel.register.command('dbsave')
-async def dbsave_handler(event):
-    try:
-        # Get arguments
-        args = get_args(event)
-        if len(args) < 2:
-            await event.edit("Usage: .dbsave <key> <value>")
-            return
+def register(kernel):
+    @kernel.register.command('cached')
+    async def cached_handler(event):
+        cache_key = f"{__name__}_data"
 
-        key, value = args[0], ' '.join(args[1:])
+        data = kernel.cache.get(cache_key)
+        if data is None:
+            data = await fetch_data()
+            kernel.cache.set(cache_key, data, ttl=300)
 
-        # Save to module key-value storage
-        await kernel.db_set('my_module', key, value)
-
-        await event.edit(f"Saved: {key} = {value}")
-
-    except Exception as e:
-        await kernel.handle_error(e, source="dbsave_handler", event=event)
+        await event.edit(f"Cached data: {data}")
 ```
 
 ---
@@ -2070,18 +2465,6 @@ import aiohttp
 from utils import get_args, answer, parse_html, ArgumentParser
 
 def register(kernel):
-    # Module configuration
-    MODULE_NAME = 'example'
-
-    # Initialize config
-    if MODULE_NAME not in kernel.config:
-        kernel.config[MODULE_NAME] = {
-            'api_url': 'https://api.example.com',
-            'timeout': 30,
-            'cache_enabled': True
-        }
-
-
     @kernel.register.command('hello', alias='hi')
     # Simple command
     async def hello_handler(event):
@@ -2090,27 +2473,19 @@ def register(kernel):
             name = args[0] if args else 'World'
             await answer(event, f"Hello, {name}!")
         except Exception as e:
-            await kernel.handle_error(e, source=f"{MODULE_NAME}:hello", event=event)
+            await kernel.handle_error(e, source=f"{__name__}:hello", event=event)
 
 
     @kernel.register.command('fetch')
     # Command with API call
     async def fetch_handler(event):
         try:
-            config = kernel.config[MODULE_NAME]
-
-            # Show loading message
             await event.edit("Fetching data...")
 
-            # Make API request
             async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    config['api_url'],
-                    timeout=config['timeout']
-                ) as response:
+                async with session.get("https://api.example.com", timeout=30) as response:
                     data = await response.json()
 
-            # Format response with HTML
             html = f'<b>Result:</b>\n<code>{data}</code>'
             await answer(event, html, as_html=True)
 
@@ -2118,7 +2493,7 @@ def register(kernel):
             await kernel.logger.error(f"API request failed: {e}")
             await event.edit("Failed to fetch data")
         except Exception as e:
-            await kernel.handle_error(e, source=f"{MODULE_NAME}:fetch", event=event)
+            await kernel.handle_error(e, source=f"{__name__}:fetch", event=event)
 
 
     @kernel.register.command('save')
@@ -2131,14 +2506,12 @@ def register(kernel):
                 return
 
             key, value = args[0], ' '.join(args[1:])
-
-            await kernel.db_set(MODULE_NAME, key, value)
-
-            await event.edit(f"Saved: {key}")
+            await kernel.db_set(__name__, key, value)
+            await event.edit(f"Saved: {key} = {value}")
 
         except Exception as e:
-            await kernel.handle_error(e, source=f"{MODULE_NAME}:save", event=event)
-
+            await kernel.handle_error(e, source=f"{__name__}:save", event=event)
+```
 
     @kernel.register.command('deploy')
     # Command with advanced argument parsing
@@ -2173,7 +2546,7 @@ def register(kernel):
             await event.edit(message)
 
         except Exception as e:
-            await kernel.handle_error(e, source=f"{MODULE_NAME}:deploy", event=event)
+            await kernel.handle_error(e, source=f"{__name__}:deploy", event=event)
 
 
     async def example_inline_handler(event):

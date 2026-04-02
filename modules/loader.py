@@ -870,6 +870,8 @@ def register(kernel):
             if url:
                 return f'<blockquote><tg-emoji emoji-id="5411527152212411235">🔗</tg-emoji> {url}</blockquote>'
             elif repo:
+                # Normalize URL to avoid double slashes
+                repo = repo.rstrip("/")
                 return f'<blockquote><tg-emoji emoji-id="5411527152212411235">🔗</tg-emoji> {repo}/{module_name}.py</blockquote>'
         return ""
 
@@ -2085,8 +2087,9 @@ def register(kernel):
             ),
         )
 
-        # Remove source info
+        # Remove source info and save
         kernel._module_sources.pop(module_name, None)
+        await kernel.save_module_sources()
 
     @kernel.register.command("unlm")
     # <модуль> - выгрузить в виде файла

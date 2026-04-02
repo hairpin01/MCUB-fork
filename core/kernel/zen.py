@@ -457,6 +457,28 @@ class Kernel:
     async def save_repositories(self) -> None:
         await self._repo.save()
 
+    async def save_module_sources(self) -> None:
+        """Save module sources to database."""
+        import json
+
+        try:
+            await self.db_set(
+                "mcub_internal", "module_sources", json.dumps(self._module_sources)
+            )
+        except Exception as e:
+            self.logger.error(f"Error saving module sources: {e}")
+
+    async def load_module_sources(self) -> None:
+        """Load module sources from database."""
+        import json
+
+        try:
+            data = await self.db_get("mcub_internal", "module_sources")
+            if data:
+                self._module_sources = json.loads(data)
+        except Exception as e:
+            self.logger.error(f"Error loading module sources: {e}")
+
     async def add_repository(self, url: str) -> tuple:
         return await self._repo.add(url)
 
@@ -1278,6 +1300,7 @@ class Kernel:
 
         modules_start = time.time()
         await self.load_system_modules()
+        await self.load_module_sources()
         await self.load_user_modules()
         modules_end = time.time()
 

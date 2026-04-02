@@ -189,6 +189,9 @@ class Kernel:
         self.callback_handlers: dict = {}
         self.aliases: dict = {}
 
+        # Module source tracking: {module_name: {"url": str, "repo": str or None}}
+        self._module_sources: dict = {}
+
         self.custom_prefix = "."
         self.config: dict = {}
         self.client = None
@@ -407,6 +410,12 @@ class Kernel:
         return await self._cfg.get_module_config(module_name, default)
 
     async def save_module_config(self, module_name: str, config_data: dict) -> bool:
+        """Save a module's config to the database.
+
+        Args:
+            module_name: Name of the module.
+            config_data: Configuration dictionary to save.
+        """
         result = await self._cfg.save_module_config(module_name, config_data)
 
         # Update live config schema
@@ -423,6 +432,11 @@ class Kernel:
         self._live_module_configs[module_name] = config
 
     async def delete_module_config(self, module_name: str) -> bool:
+        """Delete a module's config from the database.
+
+        Args:
+            module_name: Name of the module.
+        """
         return await self._cfg.delete_module_config(module_name)
 
     async def get_module_config_key(self, module_name: str, key: str, default=None):
@@ -442,6 +456,28 @@ class Kernel:
 
     async def save_repositories(self) -> None:
         await self._repo.save()
+
+    async def save_module_sources(self) -> None:
+        """Save module sources to database."""
+        import json
+
+        try:
+            await self.db_set(
+                "mcub_internal", "module_sources", json.dumps(self._module_sources)
+            )
+        except Exception as e:
+            self.logger.error(f"Error saving module sources: {e}")
+
+    async def load_module_sources(self) -> None:
+        """Load module sources from database."""
+        import json
+
+        try:
+            data = await self.db_get("mcub_internal", "module_sources")
+            if data:
+                self._module_sources = json.loads(data)
+        except Exception as e:
+            self.logger.error(f"Error loading module sources: {e}")
 
     async def add_repository(self, url: str) -> tuple:
         return await self._repo.add(url)
@@ -967,7 +1003,10 @@ class Kernel:
 
         if cmd in self.aliases:
             alias = self.aliases[cmd]
+            # Extract just the command name (first word) from alias for the check
+            alias_cmd = alias.split()[0] if " " in alias else alias
             args = text[len(self.custom_prefix) + len(cmd) :]
+            # Use full alias (with its args) plus user args
             new_text = self.custom_prefix + alias + args
             self.logger.debug(
                 "[process_command] alias-hit cmd=%r target=%r text=%r",
@@ -975,7 +1014,9 @@ class Kernel:
                 alias,
                 text,
             )
-            if alias not in self.command_handlers and alias not in self.aliases:
+            # Extract just the command name (first word) from alias for the check
+            alias_cmd = alias.split()[0] if " " in alias else alias
+            if alias_cmd not in self.command_handlers and alias_cmd not in self.aliases:
                 self.logger.warning(
                     f"Alias '{cmd}' points to non-existent target '{alias}', "
                     f"executing '{cmd}' directly"
@@ -988,14 +1029,7 @@ class Kernel:
             if hasattr(event, "message"):
                 event.message.message = new_text
                 event.message.text = new_text
-            if alias in self.command_handlers:
-                self.logger.debug(
-                    "[process_command] alias-direct-dispatch target=%r owner=%r",
-                    alias,
-                    self.command_owners.get(alias),
-                )
-                await self.command_handlers[alias](event)
-                return True
+            # Always use recursive text replacement for aliases
             return await self.process_command(event, depth + 1)
 
         if cmd in self.command_handlers:
@@ -1266,6 +1300,7 @@ class Kernel:
 
         modules_start = time.time()
         await self.load_system_modules()
+        await self.load_module_sources()
         await self.load_user_modules()
         modules_end = time.time()
 

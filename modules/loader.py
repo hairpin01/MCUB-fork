@@ -100,6 +100,7 @@ CUSTOM_EMOJI = {
     "author": '<tg-emoji emoji-id="5332630862137685609">💖</tg-emoji>',
     "lib": '<tg-emoji emoji-id="5359785904535774578">💼</tg-emoji>',
     "wait": '<tg-emoji emoji-id="5326015457155620929">🧳</tg-emoji>',
+    "link": '<tg-emoji emoji-id="5411527152212411235">🔗</tg-emoji>',
 }
 
 # Случайные эмодзи для завершения
@@ -204,7 +205,8 @@ def register(kernel):
             "log_loading_module": "=- Loading module {module_name}...",
             "log_module_loaded": "=> Module loaded successfully",
             "log_commands_found": "=> Commands found: {count}",
-            "module_loaded": "{success} <b>Module {module_name} loaded!</b> {emoji}\n<blockquote expandable>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote expandable>{commands_list}</blockquote>\n<blockquote>{emoji_author} Author: {author}</blockquote>",
+            "module_loaded": "{success} <b>Module {module_name} loaded!</b> {emoji}\n<blockquote expandable>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote expandable>{commands_list}</blockquote>\n<blockquote>{emoji_author} Author: {author}</blockquote>\n{source_link}",
+            "module_loaded_no_cmds": "{success} <b>Module {module_name} loaded!</b> {emoji}\n<blockquote>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote>{emoji_author} Author: {author}</blockquote>\n{source_link}",
             "no_cmd_desc": "{no_cmd} Command has no description",
             "command_line": "{crystal} <code>{prefix}{cmd}</code> – <b>{desc}</b>",
             "aliases_text": " (Aliases: {alias_text})",
@@ -260,7 +262,7 @@ def register(kernel):
             "unlm_usage": "{warning} <b>Usage:</b> <code>{prefix}unlm module_name</code>",
             "module_file_not_found": "{warning} <b>Module file not found</b>",
             "uploading_module": "{upload} <b>Uploading module {module_name}...</b>",
-            "file_upload_caption": "{file} <b>Module:</b> {module_name}.py\n\n<blockquote><code>{prefix}im</code> to install</blockquote>",
+            "file_upload_caption": "{file} <b>Module:</b> {module_name}.py\n\n<blockquote><code>{prefix}im</code> to install</blockquote>\n{source_link}",
             "reload_usage": "{warning} <b>Usage:</b> <code>{prefix}reload module_name</code>",
             "reloading": "{reload} <b>Reloading <code>{module_name}</code>...</b>",
             "reload_success": "{success} <b>Module {module_name} reloaded!</b> {emoji}\n\n<blockquote expandable>{cmd_text}</blockquote>",
@@ -330,7 +332,8 @@ def register(kernel):
             "log_loading_module": "=- Загружаю модуль {module_name}...",
             "log_module_loaded": "=> Модуль успешно загружен",
             "log_commands_found": "=> Найдено команд: {count}",
-            "module_loaded": "{success} <b>Модуль {module_name} загружен!</b> {emoji}\n<blockquote expandable>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote expandable>{commands_list}</blockquote>\n<blockquote>{emoji_author} Author: {author}</blockquote>",
+            "module_loaded": "{success} <b>Модуль {module_name} загружен!</b> {emoji}\n<blockquote expandable>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote expandable>{commands_list}</blockquote>\n<blockquote>{emoji_author} Author: {author}</blockquote>\n{source_link}",
+            "module_loaded_no_cmds": "{success} <b>Модуль {module_name} загружен!</b> {emoji}\n<blockquote>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote>{emoji_author} Author: {author}</blockquote>\n{source_link}",
             "no_cmd_desc": "{no_cmd} У команды нету описания",
             "command_line": "{crystal} <code>{prefix}{cmd}</code> – <b>{desc}</b>",
             "aliases_text": " (Aliases: {alias_text})",
@@ -386,7 +389,7 @@ def register(kernel):
             "unlm_usage": "{warning} <b>Использование:</b> <code>{prefix}unlm название_модуля</code>",
             "module_file_not_found": "{warning} <b>Файл модуля не найден</b>",
             "uploading_module": "{upload} <b>Отправка модуля {module_name}...</b>",
-            "file_upload_caption": "{file} <b>Модуль:</b> {module_name}.py\n\n<blockquote><code>{prefix}im</code> для установки</blockquote>",
+            "file_upload_caption": "{file} <b>Модуль:</b> {module_name}.py\n\n<blockquote><code>{prefix}im</code> для установки</blockquote>\n{source_link}",
             "reload_usage": "{warning} <b>Использование:</b> <code>{prefix}reload название_модуля</code>",
             "reloading": "{reload} <b>Перезагрузка <code>{module_name}</code>...</b>",
             "reload_success": "{success} <b>Модуль {module_name} перезагружен!</b> {emoji}\n\n<blockquote expandable>{cmd_text}</blockquote>",
@@ -858,6 +861,18 @@ def register(kernel):
 
     kernel.register_inline_handler("dlm", dlm_inline_handler)
 
+    def get_source_link(module_name: str) -> str:
+        """Generate source link string for module."""
+        source = kernel._module_sources.get(module_name)
+        if source:
+            url = source.get("url")
+            repo = source.get("repo")
+            if url:
+                return f'<blockquote><tg-emoji emoji-id="5411527152212411235">🔗</tg-emoji> {url}</blockquote>'
+            elif repo:
+                return f'<blockquote><tg-emoji emoji-id="5411527152212411235">🔗</tg-emoji> {repo}/{module_name}.py</blockquote>'
+        return ""
+
     async def run_dlm_install(
         event: types.Message,
         module_or_url: str,
@@ -1217,6 +1232,7 @@ def register(kernel):
                                     author=metadata.get("author", "unknown"),
                                     emoji_author=CUSTOM_EMOJI["author"],
                                     commands_list=commands_list + conflict_text,
+                                    source_link=get_source_link(module_name),
                                 ),
                                 file=media,
                                 parse_mode="html",
@@ -1253,6 +1269,7 @@ def register(kernel):
                                 author=metadata.get("author", "unknown"),
                                 emoji_author=CUSTOM_EMOJI["author"],
                                 commands_list=commands_list + conflict_text,
+                                source_link=get_source_link(module_name),
                             ),
                         )
                 else:
@@ -1272,7 +1289,11 @@ def register(kernel):
                 return
 
             success, message_text = await kernel.load_module_from_file(
-                file_path, module_name, False
+                file_path,
+                module_name,
+                False,
+                source_url=module_or_url if is_url else None,
+                source_repo=repo_url if not is_url and repo_url else None,
             )
 
             if success:
@@ -1343,6 +1364,7 @@ def register(kernel):
                     author=metadata.get("author", "unknown"),
                     emoji_author=CUSTOM_EMOJI["author"],
                     commands_list=commands_list,
+                    source_link=get_source_link(module_name),
                 )
 
                 kernel.logger.info(f"Модуль {module_name} скачан")
@@ -1431,6 +1453,9 @@ def register(kernel):
             if os.path.exists(file_path):
                 add_log(t("log_deleting_due_error"))
                 os.remove(file_path)
+
+            # Remove source info on error
+            kernel._module_sources.pop(module_name, None)
 
     async def dlm_repo_callback_handler(event: types.CallbackQuery) -> None:
         try:
@@ -1624,7 +1649,7 @@ def register(kernel):
 
             add_log(t("log_loading_module", module_name=module_name))
             success, message_text = await kernel.load_module_from_file(
-                file_path, module_name, False
+                file_path, module_name, False, source_url=None, source_repo=None
             )
 
             if success:
@@ -1696,6 +1721,7 @@ def register(kernel):
                     author=metadata.get("author", "unknown"),
                     emoji_author=CUSTOM_EMOJI["author"],
                     commands_list=commands_list,
+                    source_link=get_source_link(module_name),
                 )
 
                 kernel.logger.info(f"Модуль {module_name} установлен")
@@ -2059,6 +2085,9 @@ def register(kernel):
             ),
         )
 
+        # Remove source info
+        kernel._module_sources.pop(module_name, None)
+
     @kernel.register.command("unlm")
     # <модуль> - выгрузить в виде файла
     async def upload_module_handler(event: types.Message) -> None:
@@ -2112,6 +2141,7 @@ def register(kernel):
                 file=CUSTOM_EMOJI["file"],
                 module_name=module_name,
                 prefix=kernel.custom_prefix,
+                source_link=get_source_link(module_name),
             ),
             parse_mode="html",
             file=file_path,
@@ -2203,8 +2233,15 @@ def register(kernel):
                     )
                     del kernel.loaded_modules[module_name]
 
+                # Preserve source info on reload
+                old_source = kernel._module_sources.get(module_name)
+
                 success, _ = await kernel.load_module_from_file(
-                    file_path, module_name, False
+                    file_path,
+                    module_name,
+                    False,
+                    source_url=old_source.get("url") if old_source else None,
+                    source_repo=old_source.get("repo") if old_source else None,
                 )
                 kernel.logger.debug(
                     "[reload] post-load bulk module=%r success=%s loaded=%s",

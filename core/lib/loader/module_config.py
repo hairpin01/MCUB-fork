@@ -156,6 +156,64 @@ class Secret(Validator):
         return value
 
 
+class List(Validator):
+    def __init__(
+        self,
+        default: Any = None,
+        item_type: Optional[type] = None,
+        min_len: Optional[int] = None,
+        max_len: Optional[int] = None,
+    ):
+        super().__init__(default or [])
+        self.item_type = item_type
+        self.min_len = min_len
+        self.max_len = max_len
+
+    def validate(self, value: Any) -> list:
+        if not isinstance(value, (list, tuple, set)):
+            raise ValidationError("Expected a list")
+        if self.min_len is not None and len(value) < self.min_len:
+            raise ValidationError(f"List length must be >= {self.min_len}")
+        if self.max_len is not None and len(value) > self.max_len:
+            raise ValidationError(f"List length must be <= {self.max_len}")
+        if self.item_type is not None:
+            for item in value:
+                if not isinstance(item, self.item_type):
+                    raise ValidationError(
+                        f"List items must be of type {self.item_type.__name__}"
+                    )
+        return list(value)
+
+
+class Dict(Validator):
+    def __init__(
+        self,
+        default: Any = None,
+        key_type: Optional[type] = None,
+        value_type: Optional[type] = None,
+    ):
+        super().__init__(default or {})
+        self.key_type = key_type
+        self.value_type = value_type
+
+    def validate(self, value: Any) -> dict:
+        if not isinstance(value, dict):
+            raise ValidationError("Expected a dictionary")
+        if self.key_type is not None:
+            for key in value:
+                if not isinstance(key, self.key_type):
+                    raise ValidationError(
+                        f"Dictionary keys must be of type {self.key_type.__name__}"
+                    )
+        if self.value_type is not None:
+            for val in value.values():
+                if not isinstance(val, self.value_type):
+                    raise ValidationError(
+                        f"Dictionary values must be of type {self.value_type.__name__}"
+                    )
+        return dict(value)
+
+
 class ConfigValue:
     """
     Represents a single configuration option for a module.

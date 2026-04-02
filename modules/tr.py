@@ -13,6 +13,7 @@ from core.lib.loader.module_config import (
     ModuleConfig,
     ConfigValue,
     String,
+    Choice,
 )
 
 

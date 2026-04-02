@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # author: @Hairpin00
 # version: 1.0.2
 # description: helper utilities for modules (arguments, replies, files, formatting)
@@ -6,7 +8,7 @@ import shlex
 import html as html_escape
 import datetime
 import time as time_module
-from typing import List, Optional, Union, Any, Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from telethon import events, Button
 from telethon.tl.custom import Message
@@ -20,7 +22,7 @@ from .html_parser import telegram_to_html
 from .emoji_parser import emoji_parser
 
 
-def get_args(event: Union[Message, events.NewMessage.Event]) -> List[str]:
+def get_args(event: Union[Message, events.NewMessage.Event]) -> list[str]:
     """
     Extract command arguments split by spaces, respecting quotes.
 
@@ -106,11 +108,9 @@ async def answer(
     event: Union[Message, events.NewMessage.Event, Any],
     text: str,
     *,
-    reply_markup: Optional[Any] = None,
-    file: Optional[Any] = None,
-    as_html: bool = False,
-    as_emoji: bool = False,
-    caption: Optional[str] = None,
+    reply_markup: Any = None,
+    file: Any = None,
+    caption: str | None = None,
     **kwargs,
 ) -> Any:
     """
@@ -155,7 +155,7 @@ async def answer(
 async def answer_file(
     event: Union[Message, events.NewMessage.Event, Any],
     file: Any,
-    caption: Optional[str] = None,
+    caption: str | None = None,
     *,
     as_html: bool = False,
     as_emoji: bool = False,
@@ -245,7 +245,7 @@ async def get_sender_info(event: Union[Message, events.NewMessage.Event]) -> str
 
 async def get_thread_id(
     event: Union[Message, events.NewMessage.Event],
-) -> Optional[int]:
+) -> int | None:
     """
     Return the thread (topic) ID if the message is in a forum.
     """
@@ -257,8 +257,8 @@ async def get_thread_id(
 
 
 def relocate_entities(
-    entities: List[TypeMessageEntity], offset: int, text: Optional[str] = None
-) -> List[TypeMessageEntity]:
+    entities: list[TypeMessageEntity], offset: int, text: str | None = None
+) -> list[TypeMessageEntity]:
     """
     Shift all message entities by `offset` and clamp them to the length of `text`.
 
@@ -323,7 +323,7 @@ def _looks_like_html(text: str) -> bool:
     )
 
 
-def format_time(seconds: Union[int, float], detailed: bool = False) -> str:
+def format_time(seconds: int | float, detailed: bool = False) -> str:
     """
     Format seconds into a human-readable time string.
 
@@ -366,7 +366,7 @@ def format_time(seconds: Union[int, float], detailed: bool = False) -> str:
 
 
 def format_date(
-    timestamp: Union[int, float, datetime.datetime], fmt: str = "%Y-%m-%d %H:%M"
+    timestamp: int | float | datetime.datetime, fmt: str = "%Y-%m-%d %H:%M"
 ) -> str:
     """
     Format a timestamp or datetime object to a string.
@@ -385,7 +385,7 @@ def format_date(
     return dt.strftime(fmt)
 
 
-def format_relative_time(timestamp: Union[int, float]) -> str:
+def format_relative_time(timestamp: int | float) -> str:
     """
     Format a timestamp as relative time (e.g., "5 minutes ago").
 
@@ -417,8 +417,8 @@ def format_relative_time(timestamp: Union[int, float]) -> str:
 
 
 async def get_admins(
-    event_or_client, chat_id: Optional[int] = None
-) -> List[Dict[str, Any]]:
+    event_or_client, chat_id: int | None = None
+) -> list[dict[str, Any]]:
     """
     Get list of admins in a chat.
 
@@ -454,7 +454,7 @@ async def get_admins(
         return []
 
 
-async def resolve_peer(client, identifier: Union[str, int]) -> Optional[int]:
+async def resolve_peer(client, identifier: str | int) -> int | None:
     """
     Resolve a username, phone, or peer ID to a user ID.
 
@@ -485,9 +485,9 @@ async def resolve_peer(client, identifier: Union[str, int]) -> Optional[int]:
 
 def make_button(
     text: str,
-    data: Optional[str] = None,
-    url: Optional[str] = None,
-    switch: Optional[str] = None,
+    data: str | None = None,
+    url: str | None = None,
+    switch: str | None = None,
     same_peer: bool = False,
 ) -> Button:
     """
@@ -514,9 +514,9 @@ def make_button(
 
 
 def make_buttons(
-    buttons: Union[List[Dict[str, Any]], List[List[Dict[str, Any]]]],
-    cols: Optional[int] = None,
-) -> List[List[Button]]:
+    buttons: list[dict[str, Any]] | list[list[dict[str, Any]]],
+    cols: int | None = None,
+) -> list[list[Button]]:
     """
     Create buttons from a list of dicts.
 

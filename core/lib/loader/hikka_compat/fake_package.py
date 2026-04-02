@@ -122,6 +122,8 @@ _NATIVE_MCUB_INDICATORS = (
     "def register(kernel",
     "from core.lib.loader import",
     "mcub_only",
+    "def register(client",
+    "client.on(",
 )
 
 
@@ -136,7 +138,7 @@ def _detect_module_type(source_code: str) -> str:
         return "geek"
     if native_score >= 1:
         return "native"
-    return "hikka"
+    return "unknown"
 
 
 class ScamDetectionError(Exception):
@@ -1262,7 +1264,8 @@ def _ensure_fake_package() -> str:
 
 
 def is_hikka_module(source_code: str) -> bool:
-    return _detect_module_type(source_code) == "hikka"
+    module_type = _detect_module_type(source_code)
+    return module_type in ("hikka", "geek", "old_mcub")
 
 
 def _create_system_stub(pkg_name: str) -> None:

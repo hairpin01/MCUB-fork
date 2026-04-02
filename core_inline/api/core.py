@@ -8,16 +8,20 @@ def build_inline_result_text(
     description: Optional[str] = None,
     parse_mode: str = "HTML",
 ) -> dict[str, Any]:
-    return {
+    result = {
         "type": "article",
         "id": str(uuid.uuid4()),
         "title": title,
-        "description": description or text[:200],
         "input_message_content": {
-            "message_text": text,
+            "message_text": text or "",
             "parse_mode": parse_mode,
         },
     }
+    if description is not None:
+        result["description"] = description
+    elif text:
+        result["description"] = text[:200]
+    return result
 
 
 def build_inline_result_photo(
@@ -28,16 +32,18 @@ def build_inline_result_photo(
     parse_mode: str = "HTML",
     thumb_url: Optional[str] = None,
 ) -> dict[str, Any]:
-    return {
+    result = {
         "type": "photo",
         "id": str(uuid.uuid4()),
         "photo_url": photo_url,
         "thumb_url": thumb_url or photo_url,
         "title": title,
-        "description": description,
         "caption": text,
         "parse_mode": parse_mode,
     }
+    if description is not None:
+        result["description"] = description
+    return result
 
 
 def build_inline_result_video(
@@ -49,17 +55,19 @@ def build_inline_result_video(
     description: Optional[str] = None,
     parse_mode: str = "HTML",
 ) -> dict[str, Any]:
-    return {
+    result = {
         "type": "video",
         "id": str(uuid.uuid4()),
         "video_url": video_url,
         "mime_type": mime_type,
         "thumb_url": thumb_url or video_url,
         "title": title,
-        "description": description,
         "caption": text,
         "parse_mode": parse_mode,
     }
+    if description is not None:
+        result["description"] = description
+    return result
 
 
 def build_inline_result_document(
@@ -71,17 +79,19 @@ def build_inline_result_document(
     description: Optional[str] = None,
     parse_mode: str = "HTML",
 ) -> dict[str, Any]:
-    return {
+    result = {
         "type": "document",
         "id": str(uuid.uuid4()),
         "document_url": document_url,
         "mime_type": mime_type,
         "thumb_url": thumb_url or "https://kappa.lol/KSKoOu",
         "title": title,
-        "description": description,
         "caption": text,
         "parse_mode": parse_mode,
     }
+    if description is not None:
+        result["description"] = description
+    return result
 
 
 def build_inline_result_gif(
@@ -92,16 +102,18 @@ def build_inline_result_gif(
     description: Optional[str] = None,
     parse_mode: str = "HTML",
 ) -> dict[str, Any]:
-    return {
+    result = {
         "type": "mpeg4_gif",
         "id": str(uuid.uuid4()),
         "mpeg4_url": gif_url,
         "thumb_url": thumb_url or gif_url,
         "title": title,
-        "description": description,
         "caption": text,
         "parse_mode": parse_mode,
     }
+    if description is not None:
+        result["description"] = description
+    return result
 
 
 def build_inline_result_media(

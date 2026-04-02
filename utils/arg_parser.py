@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 # author: @Hairpin00
 # version: 1.0.0
 # description: MCUB command argument parser
 
 import shlex
-from typing import List, Dict, Any, Tuple, Optional
+from typing import Any
 
 
 class ArgumentParser:
@@ -89,7 +91,7 @@ class ArgumentParser:
 
             i += 1
 
-    def _simple_split(self, args_string: str) -> List[str]:
+    def _simple_split(self, args_string: str) -> list[str]:
         """Simple string splitting into tokens"""
         tokens = []
         current = []
@@ -162,7 +164,7 @@ class ArgumentParser:
         """Check if argument exists (positional or named)"""
         return key in self.kwargs
 
-    def join_args(self, start: int = 0, end: Optional[int] = None) -> str:
+    def join_args(self, start: int = 0, end: int | None = None) -> str:
         """Join positional arguments into string"""
         args = self.args[start:end]
         return " ".join(str(arg) for arg in args)
@@ -179,15 +181,15 @@ class ArgumentParser:
     def __contains__(self, item: str) -> bool:
         return item in self.flags or item in self.kwargs
 
-    def get_all(self) -> List[Any]:
+    def get_all(self) -> list[Any]:
         """Get all positional arguments as a list."""
         return self.args.copy()
 
-    def slice(self, start: int = 0, end: Optional[int] = None) -> List[Any]:
+    def slice(self, start: int = 0, end: int | None = None) -> list[Any]:
         """Get a slice of positional arguments."""
         return self.args[start:end]
 
-    def require(self, *names: str) -> Tuple[bool, str]:
+    def require(self, *names: str) -> tuple[bool, str]:
         """
         Validate that required arguments are present.
 
@@ -219,7 +221,7 @@ def parse_arguments(text: str, prefix: str = ".") -> ArgumentParser:
     return ArgumentParser(text, prefix)
 
 
-def extract_command(text: str, prefix: str = ".") -> Tuple[str, str]:
+def extract_command(text: str, prefix: str = ".") -> tuple[str, str]:
     """Extract command and arguments from text"""
     if not text.startswith(prefix):
         return "", text
@@ -235,7 +237,7 @@ def extract_command(text: str, prefix: str = ".") -> Tuple[str, str]:
     return command, args
 
 
-def split_args(args_string: str) -> List[str]:
+def split_args(args_string: str) -> list[str]:
     """Split argument string into tokens considering quotes"""
     try:
         return shlex.split(args_string)
@@ -244,7 +246,7 @@ def split_args(args_string: str) -> List[str]:
         return parser.args
 
 
-def parse_kwargs(args_string: str) -> Dict[str, Any]:
+def parse_kwargs(args_string: str) -> dict[str, Any]:
     """Parse argument string into key-value dictionary"""
     parser = ArgumentParser(f".cmd {args_string}", ".")
     return parser.kwargs
@@ -263,7 +265,7 @@ class ArgumentValidator:
 
     @staticmethod
     def validate_count(
-        parser: ArgumentParser, min_count: int = 0, max_count: Optional[int] = None
+        parser: ArgumentParser, min_count: int = 0, max_count: int | None = None
     ) -> bool:
         """Check positional argument count"""
         count = len(parser.args)

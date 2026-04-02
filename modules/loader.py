@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # author: @Hairpin00
 # version: 1.1.5
 # description: loader modules
@@ -12,10 +14,14 @@ import subprocess
 import sys
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING, Callable
 
 import aiohttp
 from telethon import Button
 from telethon.types import InputMediaWebPage
+
+if TYPE_CHECKING:
+    from telethon import types
 
 from core.lib.loader.module_config import (
     ModuleConfig,
@@ -33,9 +39,14 @@ try:
     HIKKA_COMPAT = True
 except ImportError:
     HIKKA_COMPAT = False
+    _OLD_MCUB_COMPAT = False
 
     def is_hikka_module(code):
-        return False
+        from core.lib.loader.hikka_compat.fake_package import (
+            is_hikka_module as _is_hikka,
+        )
+
+        return _is_hikka(code)
 
     async def load_hikka_module(kernel, path, name):
         return False, "hikka_compat not found"
@@ -166,6 +177,7 @@ def register(kernel):
             "reply_to_py": "{warning} <b>Reply to a .py file</b>",
             "not_py_file": "{warning} <b>This is not a .py file</b>",
             "system_module_update_attempt": "{confused} <b>Oops, looks like you tried to update a system module</b> <code>{module_name}</code>\n<blockquote><i>{blocked} Unfortunately, you cannot update system modules using <code>loadera</code></i></blockquote>",
+            "system_module_unload_attempt": "{confused} <b>Oops, looks like you tried to unload a system module</b> <code>{module_name}</code>\n<blockquote><i>{blocked} Unfortunately, you cannot unload system modules</i></blockquote>",
             "starting_install": "{action} <b>modules</b>",
             "installing": "{test} <b>Installing</b>",
             "updating": "{reload} <b>Updating</b>",
@@ -291,6 +303,7 @@ def register(kernel):
             "reply_to_py": "{warning} <b>Ответьте на .py файл</b>",
             "not_py_file": "{warning} <b>Это не .py файл</b>",
             "system_module_update_attempt": "{confused} <b>Ой, кажется ты попытался обновить системный модуль</b> <code>{module_name}</code>\n<blockquote><i>{blocked} К сожалению нельзя обновлять системные модули с помощью <code>loadera</code></i></blockquote>",
+            "system_module_unload_attempt": "{confused} <b>Ой, кажется ты попытался выгрузить системный модуль</b> <code>{module_name}</code>\n<blockquote><i>{blocked} К сожалению нельзя выгружать системные модули</i></blockquote>",
             "starting_install": "{action} <b>модуль</b>",
             "installing": "{test} <b>Устанавливаю</b>",
             "updating": "{reload} <b>Oбновляю</b>",
@@ -416,13 +429,13 @@ def register(kernel):
     # Получаем строки для текущего языка
     lang_strings = strings.get(language, strings["en"])
 
-    def t(key, **kwargs):
+    def t(key: str, **kwargs: str) -> str:
         """Возвращает локализованную строку с подстановкой значений"""
         if key not in lang_strings:
             return key
         return lang_strings[key].format(**kwargs)
 
-    async def mcub_handler():
+    async def mcub_handler() -> str:
         me = await kernel.client.get_me()
         mcub_emoji = (
             '<tg-emoji emoji-id="5470015630302287916">🔮</tg-emoji><tg-emoji emoji-id="5469945764069280010">🔮</tg-emoji><tg-emoji emoji-id="5469943045354984820">🔮</tg-emoji><tg-emoji emoji-id="5469879466954098867">🔮</tg-emoji>'
@@ -431,20 +444,29 @@ def register(kernel):
         )
         return mcub_emoji
 
-    async def log_to_bot(text):
+    async def log_to_bot(text: str) -> None:
         if hasattr(kernel, "_log") and kernel._log:
             await kernel._log.log_module(text)
         elif hasattr(kernel, "send_log_message"):
             await kernel.send_log_message(f"{CUSTOM_EMOJI['crystal']} {text}")
 
-    async def edit_with_emoji(message, text, parse_mode="html", **kwargs):
+    async def edit_with_emoji(
+        message: types.Message,
+        text: str,
+        parse_mode: str = "html",
+        **kwargs,
+    ) -> bool:
         try:
             await message.edit(text, parse_mode=parse_mode, **kwargs)
             return True
-        except Exception as e:
+        except Exception:
             return False
 
-    async def send_with_emoji(chat_id, text, **kwargs):
+    async def send_with_emoji(
+        chat_id: int | str,
+        text: str,
+        **kwargs,
+    ) -> types.Message:
         try:
             if "<emoji" in text:
                 text = text.replace("<emoji document_id=", "<tg-emoji emoji-id=")
@@ -458,13 +480,16 @@ def register(kernel):
                 return await client.send_message(chat_id, text, **kwargs)
         except Exception as e:
             await kernel.handle_error(e, source="send_with_emoji")
-            # Fallback
             fallback_text = re.sub(r"<tg-emoji[^>]*>.*?</tg-emoji>", "", text)
             fallback_text = re.sub(r"<emoji[^>]*>.*?</emoji>", "", fallback_text)
             fallback_text = re.sub(r"<[^>]+>", "", fallback_text)
             return await client.send_message(chat_id, fallback_text, **kwargs)
 
-    async def load_module_from_file(file_path, module_name, is_system=False):
+    async def load_module_from_file(
+        file_path: str,
+        module_name: str,
+        is_system: bool = False,
+    ) -> tuple[bool, str] | None:
         try:
             return await kernel.load_module_from_file(file_path, module_name, is_system)
         except CommandConflictError as e:
@@ -473,7 +498,7 @@ def register(kernel):
             kernel.logger.error(f"Ошибка загрузки модуля {module_name}: {e}")
             return False, f"Ошибка загрузки: {str(e)}"
 
-    def detect_module_type(module):
+    def detect_module_type(module: object) -> str:
         register = getattr(module, "register", None)
         if register is None:
             return "none"
@@ -493,7 +518,10 @@ def register(kernel):
                 return "old"
         return "unknown"
 
-    async def handle_catalog(event, query_or_data):
+    async def handle_catalog(
+        event: types.Message,
+        query_or_data: str,
+    ) -> tuple[str, list[list[Button]]]:
         try:
             parts = query_or_data.split("_")
 
@@ -615,7 +643,7 @@ def register(kernel):
             traceback.print_exc()
             return t("catalog_error", error=str(e)[:100]), []
 
-    async def get_inline_bot_username():
+    async def get_inline_bot_username() -> str | None:
         username = kernel.config.get("inline_bot_username")
         if username:
             return username.lstrip("@")
@@ -629,7 +657,10 @@ def register(kernel):
 
         return None
 
-    async def open_inline_result(event, query):
+    async def open_inline_result(
+        event: types.Message,
+        query: str,
+    ) -> bool:
         bot_username = await get_inline_bot_username()
         if not bot_username:
             return False
@@ -642,7 +673,11 @@ def register(kernel):
         await event.delete()
         return True
 
-    async def find_repo_matches(module_name, repos, add_log=None):
+    async def find_repo_matches(
+        module_name: str,
+        repos: list[str],
+        add_log: Callable | None = None,
+    ) -> list[dict[str, int | str]]:
         matches = []
         normalized = module_name.lower()
 
@@ -672,7 +707,12 @@ def register(kernel):
 
         return matches
 
-    async def open_repo_choice_inline(event, module_name, send_mode, matches):
+    async def open_repo_choice_inline(
+        event: types.Message,
+        module_name: str,
+        send_mode: bool,
+        matches: list[dict[str, int | str]],
+    ) -> bool:
         bot_username = await get_inline_bot_username()
         if not bot_username:
             return False
@@ -704,7 +744,7 @@ def register(kernel):
         await event.delete()
         return True
 
-    async def catalog_inline_handler(event):
+    async def catalog_inline_handler(event: types.InlineQuery) -> None:
         try:
             query = event.text or ""
 
@@ -725,7 +765,7 @@ def register(kernel):
         except Exception as e:
             logger.error(f"Ошибка в catalog_inline_handler: {e}")
 
-    async def catalog_callback_handler(event):
+    async def catalog_callback_handler(event: types.CallbackQuery) -> None:
         try:
             data_str = (
                 event.data.decode("utf-8")
@@ -746,7 +786,7 @@ def register(kernel):
     kernel.register_inline_handler("catalog", catalog_inline_handler)
     kernel.register_callback_handler("catalog_", catalog_callback_handler)
 
-    async def dlm_inline_handler(event):
+    async def dlm_inline_handler(event: types.InlineQuery) -> None:
         try:
             parts = (event.text or "").split()
             if len(parts) < 3 or parts[1] != "select":
@@ -819,13 +859,13 @@ def register(kernel):
     kernel.register_inline_handler("dlm", dlm_inline_handler)
 
     async def run_dlm_install(
-        event,
-        module_or_url,
-        send_mode=False,
-        repo_index=None,
-        preloaded_code=None,
-        preloaded_repo_url=None,
-    ):
+        event: types.Message,
+        module_or_url: str,
+        send_mode: bool = False,
+        repo_index: int | None = None,
+        preloaded_code: str | None = None,
+        preloaded_repo_url: str | None = None,
+    ) -> None:
         is_url = False
         if module_or_url.startswith(
             ("http://", "https://", "raw.githubusercontent.com")
@@ -1392,7 +1432,7 @@ def register(kernel):
                 add_log(t("log_deleting_due_error"))
                 os.remove(file_path)
 
-    async def dlm_repo_callback_handler(event):
+    async def dlm_repo_callback_handler(event: types.CallbackQuery) -> None:
         try:
             data_str = (
                 event.data.decode("utf-8")
@@ -1430,7 +1470,7 @@ def register(kernel):
 
     @kernel.register.command("iload", alias="im")
     # <ответ> загрузить модуль
-    async def install_module_handler(event):
+    async def install_module_handler(event: types.CallbackQuery) -> None:
         if not event.is_reply:
             await edit_with_emoji(
                 event, t("reply_to_py", warning=CUSTOM_EMOJI["warning"])
@@ -1748,7 +1788,7 @@ def register(kernel):
 
     @kernel.register.command("dlm")
     # <args> <URL/модуль> -s отправить файлом, -list список модулей
-    async def download_module_handler(event):
+    async def download_module_handler(event: types.Message) -> None:
         args = event.text.split()
 
         if len(args) < 2:
@@ -1925,7 +1965,7 @@ def register(kernel):
 
     @kernel.register.command("um")
     # <модуль> удалить модуль
-    async def unload_module_handler(event):
+    async def unload_module_handler(event: types.Message) -> None:
         args = event.text.split()
         if len(args) < 2:
             await edit_with_emoji(
@@ -1954,6 +1994,23 @@ def register(kernel):
 
         module_name = actual_name
 
+        cfg = get_config()
+        force_unload = not (cfg and cfg.get("loader_protect_system", True))
+
+        try:
+            await kernel.unregister_module_commands(module_name, force=force_unload)
+        except PermissionError as e:
+            await edit_with_emoji(
+                event,
+                t(
+                    "system_module_unload_attempt",
+                    confused=CUSTOM_EMOJI["confused"],
+                    blocked=CUSTOM_EMOJI["blocked"],
+                    module_name=module_name,
+                ),
+            )
+            return
+
         instance = kernel.loaded_modules.get(module_name)
         if instance and getattr(instance, "_hikka_compat", False):
             await unload_hikka_module(kernel, module_name)
@@ -1963,7 +2020,20 @@ def register(kernel):
                 for cmd, owner in kernel.command_owners.items()
                 if owner == module_name
             ]
-            await kernel.unregister_module_commands(module_name)
+            try:
+                await kernel.unregister_module_commands(module_name, force=force_unload)
+            except PermissionError:
+                await edit_with_emoji(
+                    event,
+                    t(
+                        "system_module_unload_attempt",
+                        confused=CUSTOM_EMOJI["confused"],
+                        blocked=CUSTOM_EMOJI["blocked"],
+                        module_name=module_name,
+                    ),
+                )
+                return
+
             kernel._loader.remove_module_aliases(module_name, commands_to_remove)
 
         file_path = kernel._loader.get_module_path(module_name)
@@ -1991,7 +2061,7 @@ def register(kernel):
 
     @kernel.register.command("unlm")
     # <модуль> - выгрузить в виде файла
-    async def upload_module_handler(event):
+    async def upload_module_handler(event: types.Message) -> None:
         args = event.text.split()
         if len(args) < 2:
             await edit_with_emoji(
@@ -2049,7 +2119,7 @@ def register(kernel):
 
     @kernel.register.command("reload")
     # <modules> reload modules
-    async def reload_module_handler(event):
+    async def reload_module_handler(event: types.Message) -> None:
         args = event.text.split()
         kernel.dedupe_event_builders(reason="reload_command_start_precheck")
         kernel.ensure_core_message_handlers(reason="reload_command_start")
@@ -2079,11 +2149,10 @@ def register(kernel):
             results = []
             failed = []
 
+            cfg = get_config()
+            force_unload = not (cfg and cfg.get("loader_protect_system", True))
+
             for module_name in modules_to_reload:
-                cfg = get_config()
-                if cfg and cfg.get("loader_protect_system", True):
-                    if module_name in kernel.system_modules:
-                        continue
                 kernel.logger.debug(
                     "[reload] reloading-from-bulk module=%r", module_name
                 )
@@ -2112,7 +2181,15 @@ def register(kernel):
                     )
                     del sys.modules[module_name]
 
-                await kernel.unregister_module_commands(module_name)
+                try:
+                    await kernel.unregister_module_commands(
+                        module_name, force=force_unload
+                    )
+                except PermissionError:
+                    kernel.logger.debug(
+                        "[reload] skipped-system-module module=%r", module_name
+                    )
+                    continue
                 kernel.logger.debug(
                     "[reload] after-unregister module=%r commands=%r aliases=%r",
                     module_name,
@@ -2269,7 +2346,22 @@ def register(kernel):
                 await unload_hikka_module(kernel, module_name)
                 await asyncio.sleep(0)
         else:
-            await kernel.unregister_module_commands(module_name)
+            cfg = get_config()
+            force_unload = not (cfg and cfg.get("loader_protect_system", True))
+            try:
+                await kernel.unregister_module_commands(module_name, force=force_unload)
+            except PermissionError:
+                await edit_with_emoji(
+                    msg,
+                    t(
+                        "system_module_unload_attempt",
+                        confused=CUSTOM_EMOJI["confused"],
+                        blocked=CUSTOM_EMOJI["blocked"],
+                        module_name=module_name,
+                    ),
+                )
+                return
+
             kernel.logger.debug(
                 "[reload] single-after-unregister module=%r commands=%r aliases=%r",
                 module_name,
@@ -2282,6 +2374,16 @@ def register(kernel):
                 "[reload] single-remove-sys-module module=%r", module_name
             )
             del sys.modules[module_name]
+
+        if module_name in kernel.loaded_modules:
+            kernel.logger.debug(
+                "[reload] single-drop-loaded-module module=%r", module_name
+            )
+            del kernel.loaded_modules[module_name]
+        else:
+            kernel.logger.debug(
+                "[reload] single-loaded-module-absent module=%r", module_name
+            )
 
         if is_system:
             cfg = get_config()
@@ -2296,15 +2398,9 @@ def register(kernel):
                         "[reload] single-system-module-already-absent module=%r",
                         module_name,
                     )
-        else:
-            if module_name in kernel.loaded_modules:
-                kernel.logger.debug(
-                    "[reload] single-drop-loaded-module module=%r", module_name
-                )
-                del kernel.loaded_modules[module_name]
             else:
                 kernel.logger.debug(
-                    "[reload] single-loaded-module-already-absent module=%r",
+                    "[reload] single-keep-system-module module=%r (protect disabled)",
                     module_name,
                 )
 
@@ -2362,7 +2458,7 @@ def register(kernel):
 
     @kernel.register.command("addrepo")
     # <URL> добавить репо
-    async def add_repo_handler(event):
+    async def add_repo_handler(event: types.Message) -> None:
         args = event.text.split()
         if len(args) < 2:
             await edit_with_emoji(
@@ -2385,7 +2481,7 @@ def register(kernel):
 
     @kernel.register.command("delrepo")
     # <id> удалить репо
-    async def del_repo_handler(event):
+    async def del_repo_handler(event: types.Message) -> None:
         args = event.text.split()
         if len(args) < 2:
             await edit_with_emoji(

@@ -4,7 +4,9 @@ Module configuration system for MCUB.
 Provides declarative configuration similar to Hikka.
 """
 
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, List, Optional, Union, TypeVar
+
+Dict = TypeVar("Dict")
 
 
 class Validator:

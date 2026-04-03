@@ -185,7 +185,9 @@ class List(Validator):
         return list(value)
 
 
-class Dict(Validator):
+class DictType(Validator):
+    """Validator for dictionary configuration values."""
+
     def __init__(
         self,
         default: Any = None,

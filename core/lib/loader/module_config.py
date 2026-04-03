@@ -7,12 +7,6 @@ Provides declarative configuration similar to Hikka.
 from typing import Any, Callable, Dict, List, Optional, Union
 
 
-class ValidationError(Exception):
-    """Raised when a config value fails validation."""
-
-    pass
-
-
 class Validator:
     """Base validator class."""
 
@@ -30,6 +24,12 @@ class Validator:
     def to_storage(self, value: Any) -> Any:
         """Convert Python object to storable form (e.g., for JSON)."""
         return value
+
+
+class ValidationError(Exception):
+    """Raised when a config value fails validation."""
+
+    pass
 
 
 class Boolean(Validator):

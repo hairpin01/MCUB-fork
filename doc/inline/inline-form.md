@@ -1,5 +1,7 @@
 # Inline Form
 
+← [Index](../../API_DOC.md)
+
 ## `kernel.inline_form()`
 
 Sends an inline message with formatted fields and buttons.

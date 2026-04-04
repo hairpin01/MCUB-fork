@@ -1,5 +1,7 @@
 # Middleware API
 
+← [Index](../../API_DOC.md)
+
 `kernel.add_middleware(middleware_func)`
 Add middleware to process events before handlers.
 

@@ -1,5 +1,7 @@
 # Error Handling
 
+← [Index](../../API_DOC.md)
+
 ## Basic Error Handling
 
 ```python

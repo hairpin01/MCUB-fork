@@ -1,5 +1,7 @@
 # Lifecycle Callbacks
 
+← [Index](../../API_DOC.md)
+
 All lifecycle callbacks receive `kernel` as their only argument.
 
 ## `@kernel.register.on_load()`

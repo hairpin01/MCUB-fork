@@ -1,5 +1,7 @@
 # InfiniteLoop
 
+← [Index](../../API_DOC.md)
+
 `@kernel.register.loop(interval, autostart=True, wait_before=False)`
 Declare a managed background loop. The kernel starts it after the module loads and stops it on unload.
 

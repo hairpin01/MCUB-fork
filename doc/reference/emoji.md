@@ -1,5 +1,7 @@
 # Premium Emoji Guide
 
+← [Index](../../API_DOC.md)
+
 ## Using Custom Emojis
 
 MCUB supports Telegram premium custom emojis through the emoji parser.

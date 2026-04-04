@@ -1,5 +1,7 @@
 # Custom Core MCUB
 
+← [Index](../../API_DOC.md)
+
 MCUB supports multiple interchangeable kernel cores. Each core is a `.py` file placed in `core/kernel/` that exposes a single `Kernel` class.
 
 ## How the Loader Works

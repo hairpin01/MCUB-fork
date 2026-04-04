@@ -1,5 +1,7 @@
 # Kernel API Reference
 
+← [Index](../../API_DOC.md)
+
 ## Kernel Core Variables
 
 The `Kernel` class exposes the following core variables that can be accessed in your modules:

@@ -1,5 +1,7 @@
 # Cache API
 
+← [Index](../../API_DOC.md)
+
 `kernel.cache.set(key, value, ttl=None)`
 Store value in cache.
 

@@ -1,5 +1,7 @@
 # New Registration Methods v1.0.3
 
+← [Index](../../API_DOC.md)
+
 ## Query Registered Handlers
 
 `kernel.register.get_commands()` — Get all registered userbot commands.

@@ -1,5 +1,7 @@
 # Command Registration
 
+← [Index](../../API_DOC.md)
+
 ## Standard Registration
 
 ```python

@@ -1,5 +1,7 @@
 # Telethon-MCUB Additional Methods
 
+← [Index](../../API_DOC.md)
+
 ## Payments
 
 - `get_saved_gifts()` — Get saved star gifts

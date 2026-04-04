@@ -1,5 +1,7 @@
 # Kernel Module API
 
+← [Index](../../API_DOC.md)
+
 ## Repository Management
 
 `kernel.add_repository(url)` — Add a new module repository URL.

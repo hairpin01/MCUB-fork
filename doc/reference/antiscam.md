@@ -1,5 +1,7 @@
 # AntiScamModules
 
+← [Index](../../API_DOC.md)
+
 Telethon-MCUB blocks dangerous account-level requests before sending them to Telegram.
 
 ## Blocked Requests

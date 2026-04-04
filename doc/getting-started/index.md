@@ -1,5 +1,7 @@
 # Introduction
 
+← [Index](../../API_DOC.md)
+
 MCUB (`Mitrich UserBot`) is a modular Telegram **userbot** framework built on Telethon. This documentation describes the extended API for creating modules.
 
 ## Quick Start

@@ -1,5 +1,7 @@
 # Enhanced Registration API v1.0.2
 
+← [Index](../../API_DOC.md)
+
 MCUB introduces a `Register` class with decorator-based registration. All handlers registered through it are tracked per-module and removed automatically on unload — no zombie handlers after `um` or `reload`.
 
 ## Decorators

@@ -1,5 +1,7 @@
 # Best Practices
 
+← [Index](../../API_DOC.md)
+
 This section covers recommended patterns and modern APIs for writing MCUB modules.
 
 ## Modern Module Configuration

@@ -1,5 +1,7 @@
 # Example Module
 
+← [Index](../../API_DOC.md)
+
 Complete example demonstrating various features:
 
 ```python

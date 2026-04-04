@@ -1,5 +1,7 @@
 # Module Config API
 
+← [Index](../../API_DOC.md)
+
 MCUB provides two ways to configure modules: a simple dict-based API and a structured **ModuleConfig** system (recommended). Both are backed by the database and persist across restarts.
 
 ## Simple Dict API

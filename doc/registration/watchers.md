@@ -1,5 +1,7 @@
 # Watchers
 
+← [Index](../../API_DOC.md)
+
 `@kernel.register.watcher(bot_client=False, **tags)`
 Register a passive message watcher. Fires on every new message and is cleaned up automatically on module unload.
 

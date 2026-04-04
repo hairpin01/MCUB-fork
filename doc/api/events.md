@@ -1,5 +1,7 @@
 # Event Handlers
 
+← [Index](../../API_DOC.md)
+
 > [!TIP]
 > Prefer `@kernel.register.event(...)` over `@kernel.client.on(...)` in modules. The register version tracks the handler per-module and removes it automatically on unload.
 

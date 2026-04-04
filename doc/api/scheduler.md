@@ -1,5 +1,7 @@
 # Task Scheduler API
 
+← [Index](../../API_DOC.md)
+
 All scheduler methods are available via `kernel.scheduler`.
 
 ## Lifecycle Methods

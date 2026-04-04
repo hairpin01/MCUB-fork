@@ -1,5 +1,7 @@
 # Database API
 
+← [Index](../../API_DOC.md)
+
 > [!IMPORTANT]
 > There is no `kernel.db` object in current kernels. Use the methods below.
 

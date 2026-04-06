@@ -1,7 +1,7 @@
 # MCUB Module API Documentation
 
 > **Version:** 1.0.6.1
->
+
 > [!IMPORTANT]
 > Recent Telethon-MCUB changes: [CHANGELOG.md](https://github.com/hairpin01/Telethon-MCUB/blob/v1/CHANGELOG.md)
 

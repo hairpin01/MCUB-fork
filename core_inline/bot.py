@@ -297,7 +297,7 @@ class InlineBot:
             self.kernel.logger.debug(f"Инлайн-плейсхолдер установлен: {placeholder}")
             await asyncio.sleep(2)
 
-            # Включение инлайн-фидбека
+            # Enable inline feedback
             await client.send_message(botfather, "/setinlinefeedback")
             await asyncio.sleep(1)
             await client.send_message(botfather, f"@{self.username}")

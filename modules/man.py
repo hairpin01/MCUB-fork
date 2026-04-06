@@ -781,12 +781,12 @@ def register(kernel):
                 )
 
     @kernel.register.command("man")
-    # [модуль/-f] — инфо по модулю или список (-f показывает скрытые)
+    # [module/-f] — info about module or list (-f shows hidden)
     async def man_handler(event):
         try:
             args = event.text.split()
 
-            # Разбираем флаги
+            # Parse flags
             show_hidden = "-f" in args
             clean_args = [a for a in args[1:] if a != "-f"]
 
@@ -874,7 +874,7 @@ def register(kernel):
             await kernel.handle_error(e, source="man", event=event)
 
     @kernel.register.command("manhide")
-    # скрыть модуль из списка .man
+    # hide module from .man list
     async def manhide_handler(event):
         try:
             args = event.text.split(maxsplit=1)
@@ -915,7 +915,7 @@ def register(kernel):
             await kernel.handle_error(e, source="manhide", event=event)
 
     @kernel.register.command("manunhide")
-    # убрать модуль из скрытых
+    # unhide module from hidden
     async def manunhide_handler(event):
         try:
             args = event.text.split(maxsplit=1)

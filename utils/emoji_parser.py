@@ -4,9 +4,9 @@ from telethon.tl.types import MessageEntityCustomEmoji
 
 
 class EmojiParser:
-    """Парсер эмодзи для MCUB с улучшенной обработкой"""
+    """Emoji parser for MCUB with improved handling"""
 
-    # Предкомпилированные регулярные выражения для производительности
+    # Precompiled regex patterns for performance
     _EMOJI_TAG_PATTERN = re.compile(r"<emoji\s+document_id=(\d+)>(.*?)</emoji>")
     _EMOJI_ID_PATTERN = re.compile(r"<emoji\s+document_id=(\d+)>")
     _ALL_EMOJI_TAGS_PATTERN = re.compile(r"<emoji\s+[^>]*>.*?</emoji>")
@@ -25,19 +25,19 @@ class EmojiParser:
         offset = 0
 
         for match in EmojiParser._EMOJI_TAG_PATTERN.finditer(text):
-            # Добавляем текст перед тегом
+            # Add text before the tag
             result += text[offset : match.start()]
 
             emoji_text = match.group(2)
             result += emoji_text
 
-            # Создаем сущность для кастомного эмодзи
+            # Create entity for custom emoji
             try:
-                # Валидация: проверяем что document_id - число
+                # Validation: check that document_id is a number
                 doc_id = int(match.group(1))
 
-                # Важно: Telethon использует UTF-16 offsets
-                # Преобразуем позицию в строке в UTF-16 позицию
+                # Important: Telethon uses UTF-16 offsets
+                # Convert string position to UTF-16 position
                 utf16_offset = len(result[: -len(emoji_text)].encode("utf-16-le")) // 2
                 utf16_length = len(emoji_text.encode("utf-16-le")) // 2
 
@@ -46,12 +46,12 @@ class EmojiParser:
                 )
                 entities.append(entity)
             except (ValueError, TypeError):
-                # Если document_id не число, пропускаем этот тег
+                # If document_id is not a number, skip this tag
                 continue
 
             offset = match.end()
 
-        # Добавляем остаток текста после последнего тега
+        # Add remaining text after the last tag
         result += text[offset:]
         return result, entities
 
@@ -67,34 +67,34 @@ class EmojiParser:
         if not entities:
             return html.escape(text)
 
-        # Сортируем сущности по убыванию offset для правильной вставки
+        # Sort entities by descending offset for correct insertion
         sorted_entities = sorted(
             entities,
             key=lambda e: e.offset if hasattr(e, "offset") else 0,
             reverse=True,
         )
 
-        # Работаем с UTF-16 позициями
+        # Work with UTF-16 positions
         utf16_text = text.encode("utf-16-le")
 
         for entity in sorted_entities:
             if isinstance(entity, MessageEntityCustomEmoji):
-                # Преобразуем UTF-16 offsets в позиции в строке
+                # Convert UTF-16 offsets to string positions
                 try:
-                    # Вычисляем byte offsets
+                    # Calculate byte offsets
                     byte_start = entity.offset * 2
                     byte_end = (entity.offset + entity.length) * 2
 
-                    # Извлекаем текст эмодзи из UTF-16
+                    # Extract emoji text from UTF-16
                     emoji_bytes = utf16_text[byte_start:byte_end]
                     emoji_text = emoji_bytes.decode("utf-16-le")
 
-                    # Вставляем тег
+                    # Insert tag
                     before = text[: entity.offset]
                     after = text[entity.offset + entity.length :]
                     text = f"{before}<emoji document_id={entity.document_id}>{emoji_text}</emoji>{after}"
                 except (IndexError, UnicodeDecodeError):
-                    # Если что-то пошло не так с позициями, пропускаем эту сущность
+                    # If something went wrong with positions, skip this entity
                     continue
 
         return html.escape(text)
@@ -158,13 +158,13 @@ class EmojiParser:
 
         Telegram требует чтобы внутри тега был ровно один обычный эмодзи
         """
-        # Простая проверка: длина в символах должна быть 1-2 (большинство эмодзи)
-        # Более точная проверка может использовать библиотеку emoji
+        # Simple check: length in characters should be 1-2 (most emojis)
+        # More precise check can use the emoji library
         if not emoji_text:
             return False
 
-        # Можно добавить более сложную логику проверки эмодзи
-        # Например, используя регулярные выражения для эмодзи
+        # Can add more complex emoji validation logic
+        # For example, using regex for emojis
         emoji_pattern = re.compile(
             r"[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF]+",
             flags=re.UNICODE,
@@ -183,5 +183,5 @@ class EmojiParser:
         return f"<emoji document_id={document_id}>{placeholder}</emoji>"
 
 
-# Глобальный экземпляр для обратной совместимости
+# Global instance for backward compatibility
 emoji_parser = EmojiParser()

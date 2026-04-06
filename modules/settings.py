@@ -14,17 +14,10 @@ from core.lib.loader.module_config import (
     Boolean,
 )
 
-# <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji>
-# <tg-emoji emoji-id="5904692292324692386">⚠️</tg-emoji>
-# <tg-emoji emoji-id="5893382531037794941">🔎</tg-emoji>
-# <tg-emoji emoji-id="5893081007153746175">❌</tg-emoji>
-# <tg-emoji emoji-id="5893368370530621889">🔜</tg-emoji>
-
 
 def register(kernel):
     client = kernel.client
 
-    # Локализованные строки
     strings = {
         "ru": {
             "prefix_usage": "❌ Использование: {prefix}setprefix [символ]",

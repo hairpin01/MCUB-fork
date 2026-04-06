@@ -113,7 +113,7 @@ class InlineHandlers:
         if not buttons or not isinstance(buttons, list):
             return None
 
-        # Список словарей (одноуровневый) → каждый в отдельный ряд
+        # List of dicts (single-level) → each in separate row
         if isinstance(buttons[0], dict):
             parsed = [
                 [btn]
@@ -122,7 +122,7 @@ class InlineHandlers:
             ]
             return parsed or None
 
-        # Список рядов
+        # List of rows
         if isinstance(buttons[0], list):
             parsed = []
             for row in buttons:

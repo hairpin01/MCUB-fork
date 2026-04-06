@@ -1203,7 +1203,7 @@ class Kernel:
             no_session = not session_exists(api_id, api_hash)
             no_config = not os.path.exists(self.CONFIG_FILE)
 
-            # запускаем панель если: явно включено ИЛИ нет сессии ИЛИ нет конфига
+            # Run panel if: explicitly enabled OR no session OR no config
             if web_via_env or web_via_config or no_session or no_config:
                 await self.run_panel()
 

@@ -87,14 +87,11 @@ TYPE_EMOJIS = {
 
 
 class InlineMessageManager:
-    """Менеджер для хранения и управления inline-сообщениями"""
-
     def __init__(self, kernel):
         self.kernel = kernel
         self.messages = {}  # {inline_msg_id: (chat_id, message_id, key_id, user_id)}
 
     def save_message(self, inline_msg_id, chat_id, message_id, key_id, user_id):
-        """Сохраняет информацию о inline-сообщении"""
         self.messages[inline_msg_id] = {
             "chat_id": chat_id,
             "message_id": message_id,
@@ -102,11 +99,9 @@ class InlineMessageManager:
             "user_id": user_id,
             "timestamp": time.time(),
         }
-        # Сохраняем в БД для persistence
         asyncio.create_task(self.save_to_db())
 
     async def save_to_db(self):
-        """Сохраняет messages в БД"""
         try:
             await self.kernel.db_set(
                 "cfg_messages", "inline_messages", json.dumps(self.messages)
@@ -115,7 +110,6 @@ class InlineMessageManager:
             self.kernel.logger.debug(f"Error saving inline messages: {e}")
 
     async def load_from_db(self):
-        """Загружает messages из БД"""
         try:
             data = await self.kernel.db_get("cfg_messages", "inline_messages")
             if data:
@@ -124,33 +118,26 @@ class InlineMessageManager:
             self.kernel.logger.debug(f"Error loading inline messages: {e}")
 
     def get_message_info(self, inline_msg_id):
-        """Получает информацию о сообщении по inline_msg_id"""
         return self.messages.get(inline_msg_id)
 
     def remove_message(self, inline_msg_id):
-        """Удаляет информацию о сообщении"""
         if inline_msg_id in self.messages:
             del self.messages[inline_msg_id]
             asyncio.create_task(self.save_to_db())
 
 
 async def init_module_config(kernel):
-    """Инициализация конфигурации модуля config"""
     default_config = {
-        "use_premium_emoji": True,  # Использовать ли премиум эмодзи
-        "items_per_page": 16,  # Количество элементов на странице в Kernel Config
-        "modules_per_page": 12,  # Количество модулей на странице в Modules Config
+        "use_premium_emoji": True,
+        "items_per_page": 16,
+        "modules_per_page": 12,
     }
-
-    # Загружаем существующую конфигурацию (без default, чтобы понять есть ли конфиг)
     config = await kernel.get_module_config("config", None)
 
-    # Если конфига нет, сохраняем дефолтный
     if config is None:
         await kernel.save_module_config("config", default_config)
         config = default_config
     elif not isinstance(config, dict):
-        # Если конфиг есть, но он некорректный, перезаписываем
         await kernel.save_module_config("config", default_config)
         config = default_config
 
@@ -158,16 +145,13 @@ async def init_module_config(kernel):
 
 
 class EmojiProvider:
-    """Провайдер эмодзи с поддержкой переключения между обычными и премиум"""
-
     def __init__(self, kernel, custom_emoji_dict):
         self.kernel = kernel
         self.custom_emoji_dict = custom_emoji_dict
-        self._use_premium = True  # Кеш
+        self._use_premium = True
         self._last_check = 0
 
     def _should_update_cache(self):
-        """Проверяет, нужно ли обновить кеш (раз в 60 секунд)"""
         current_time = time.time()
         if current_time - self._last_check > 60:
             self._last_check = current_time
@@ -175,7 +159,6 @@ class EmojiProvider:
         return False
 
     async def _update_cache(self):
-        """Обновляет кеш настроек"""
         try:
             config = await self.kernel.get_module_config("config", {})
             self._use_premium = config.get("use_premium_emoji", True)
@@ -183,15 +166,12 @@ class EmojiProvider:
             self._use_premium = True
 
     def __getitem__(self, emoji_char):
-        """Позволяет использовать как словарь: emoji_provider['📝']"""
-        # Периодически обновляем кеш
         if self._should_update_cache():
             try:
                 import asyncio
 
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
-                    # Планируем обновление асинхронно
                     asyncio.create_task(self._update_cache())
             except Exception:
                 pass
@@ -202,7 +182,6 @@ class EmojiProvider:
             return emoji_char
 
     def get(self, emoji_char, default=None):
-        """Метод get как у словаря"""
         try:
             return self[emoji_char]
         except Exception:
@@ -210,8 +189,6 @@ class EmojiProvider:
 
 
 class ConfigSettings:
-    """Класс для хранения и получения настроек модуля config"""
-
     def __init__(self, kernel):
         self.kernel = kernel
         self._items_per_page = ITEMS_PER_PAGE
@@ -219,7 +196,6 @@ class ConfigSettings:
         self._last_check = 0
 
     def _should_update_cache(self):
-        """Проверяет, нужно ли обновить кеш (раз в 60 секунд)"""
         current_time = time.time()
         if current_time - self._last_check > 60:
             self._last_check = current_time
@@ -227,7 +203,6 @@ class ConfigSettings:
         return False
 
     async def _update_cache(self):
-        """Обновляет кеш настроек"""
         try:
             config = await self.kernel.get_module_config("config", {})
             self._items_per_page = config.get("items_per_page", ITEMS_PER_PAGE)
@@ -238,7 +213,6 @@ class ConfigSettings:
 
     @property
     def items_per_page(self):
-        """Получить количество элементов на странице"""
         if self._should_update_cache():
             try:
                 import asyncio
@@ -252,7 +226,6 @@ class ConfigSettings:
 
     @property
     def modules_per_page(self):
-        """Получить количество модулей на странице"""
         if self._should_update_cache():
             try:
                 import asyncio
@@ -268,14 +241,12 @@ class ConfigSettings:
 def register(kernel):
     language = kernel.config.get("language", "en")
 
-    # Создаем провайдер эмодзи и настроек
     emoji_provider = EmojiProvider(kernel, CUSTOM_EMOJI)
     config_settings = ConfigSettings(kernel)
 
-    # Флаг инициализации конфига
     config_initialized = {"value": False}
 
-    MODULES_WITH_CONFIG_CACHE_TTL = 600  # 10 minutes
+    MODULES_WITH_CONFIG_CACHE_TTL = 600
 
     def get_modules_with_config(force_refresh=False):
         """Get list of modules that have config (from live configs or cache)"""
@@ -307,7 +278,6 @@ def register(kernel):
             cached = sorted(cached)
             kernel.cache.set(cache_key, cached, ttl=MODULES_WITH_CONFIG_CACHE_TTL)
 
-    # Функция для ленивой инициализации конфига
     async def ensure_config_initialized():
         if not config_initialized["value"]:
             try:
@@ -523,7 +493,6 @@ def register(kernel):
 
     SENSITIVE_KEYS = ["inline_bot_token", "api_id", "api_hash", "phone"]
 
-    # Создаем менеджер inline-сообщений
     msg_manager = InlineMessageManager(kernel)
     asyncio.create_task(msg_manager.load_from_db())
 
@@ -604,11 +573,8 @@ def register(kernel):
             return value_str
 
     def strip_formatting(value_str):
-        """Убирает HTML-теги и Markdown-форматирование из вставляемого значения"""
-        # Декодируем HTML-сущности (теги HTML сохраняются как есть)
         value_str = html.unescape(value_str)
-        # Убираем Markdown-форматирование (bold, italic, underline, strikethrough, code, spoiler)
-        # Порядок важен: сначала длинные паттерны
+
         value_str = re.sub(
             r"\|\|(.+?)\|\|", r"\1", value_str, flags=re.DOTALL
         )  # ||spoiler||
@@ -639,8 +605,7 @@ def register(kernel):
         visible_keys = []
         for key, value in kernel.config.items():
             if is_key_hidden(key):
-                # Для скрытых ключей показываем звездочки
-                visible_keys.append((key, "****"))
+                visible_keys.append((key, "*" * len(key)))
             else:
                 visible_keys.append((key, value))
         return sorted(visible_keys, key=lambda x: x[0])
@@ -663,12 +628,10 @@ def register(kernel):
         return hash_obj.hexdigest()[:8]
 
     def format_key_value(key, value, reveal=False):
-        """Форматирует ключ и значение для отображения"""
         value_type = type(value).__name__
 
-        # Для скрытых ключей показываем звездочки, если не запрошено раскрытие
         if is_key_hidden(key) and not reveal:
-            display_value = "****"
+            display_value = "*" * len(key)
             value_type = "hidden"
             type_emoji = get_type_emoji("hidden")
         else:
@@ -917,7 +880,6 @@ def register(kernel):
         await event.answer([builder])
 
     async def config_kernel_page(event, page):
-        """Вспомогательная функция для отображения страницы конфига ядра"""
         visible_keys = get_visible_keys()
         total_keys = len(visible_keys)
         total_pages = (
@@ -1510,7 +1472,6 @@ def register(kernel):
         module_name=None,
         expected_type=None,
     ):
-        """Генерация статьи для обычного set"""
         try:
             user_id = getattr(event, "sender_id", None)
             if user_id is None and getattr(event, "sender", None):
@@ -1565,14 +1526,12 @@ def register(kernel):
         scope="kernel",
         module_name=None,
     ):
-        """Генерация статей для операции добавления"""
         try:
             user_id = getattr(event, "sender_id", None)
             if user_id is None and getattr(event, "sender", None):
                 user_id = event.sender.id
 
             if data_type == "list":
-                # Для списка просто добавляем элемент
                 value = parse_value(value_str)
                 confirm_id = str(uuid.uuid4())[:8]
 
@@ -1606,7 +1565,6 @@ def register(kernel):
                 await event.answer([builder])
 
             elif data_type == "dict":
-                # Для словаря нужен ключ и значение: fcfg dict add <key_id> <subkey> <value>
                 subkey_parts = value_str.split(maxsplit=1)
                 if len(subkey_parts) < 2:
                     await event.answer(
@@ -1663,14 +1621,12 @@ def register(kernel):
     async def generate_del_articles(
         event, data_type, key_id, key, current_value, scope="kernel", module_name=None
     ):
-        """Генерация статей для операции удаления"""
         builders = []
         user_id = getattr(event, "sender_id", None)
         if user_id is None and getattr(event, "sender", None):
             user_id = event.sender.id
 
         if data_type == "list":
-            # Для списка: статьи для каждого элемента
             if not current_value:
                 await event.answer(
                     [event.builder.article("Empty", text=t("list_empty"))]
@@ -1711,7 +1667,6 @@ def register(kernel):
                 builders.append(builder)
 
         elif data_type == "dict":
-            # Для словаря: статьи для каждого ключа
             if not current_value:
                 await event.answer(
                     [event.builder.article("Empty", text=t("dict_empty"))]
@@ -1765,7 +1720,6 @@ def register(kernel):
         scope="kernel",
         module_name=None,
     ):
-        """Генерация статей для операции изменения"""
         try:
             user_id = getattr(event, "sender_id", None)
             if user_id is None and getattr(event, "sender", None):
@@ -1775,7 +1729,6 @@ def register(kernel):
             builders = []
 
             if data_type == "list":
-                # Для списка: статьи для замены каждого элемента
                 if not current_value:
                     await event.answer(
                         [event.builder.article("Empty", text=t("list_empty"))]
@@ -1826,7 +1779,6 @@ def register(kernel):
                     builders.append(builder)
 
             elif data_type == "dict":
-                # Для словаря: статьи для изменения значения по каждому ключу
                 if not current_value:
                     await event.answer(
                         [event.builder.article("Empty", text=t("dict_empty"))]
@@ -2164,19 +2116,10 @@ def register(kernel):
 
         except Exception as e:
             kernel.logger.debug(f"FCFG confirm error: {e}")
-            # Отправляем сообщение об ошибке
-            try:
-                if kernel.is_bot_available():
-                    await kernel.bot_client.send_message(
-                        user_id,
-                        t("fcfg_confirm_error", error=str(e)),
-                        parse_mode="html",
-                    )
-            except Exception:
-                pass
+            kernel.handle_error(e, source="FCFG:chosen_result_handler", event=event)
 
     async def fcfg_inline_handler(event):
-        """Обработчик inline-команды fcfg с поддержкой kernel и module config"""
+
         query = event.text.strip()
         parts = query.split()
 
@@ -2418,7 +2361,6 @@ def register(kernel):
     async def config_callback_handler(event):
         data = event.data.decode()
 
-        # Обработчик кнопки закрыть
         if data == "cfg_close":
             try:
                 await kernel.client.delete_messages(event.chat_id, [event.message_id])
@@ -2430,7 +2372,6 @@ def register(kernel):
                     await event.answer("Closed", alert=False)
             return
 
-        # Обработчик сброса значения до default
         if data.startswith("cfg_module_reset_"):
             try:
                 key_id = data[len("cfg_module_reset_") :]
@@ -2504,7 +2445,6 @@ def register(kernel):
         elif data.startswith("config_modules_page_"):
             try:
                 page = int(data.split("_")[3])
-                # Use only modules that have config
                 all_modules = get_modules_with_config()
 
                 total_modules = len(all_modules)
@@ -2675,7 +2615,6 @@ def register(kernel):
                     return
                 text, key, page, config_type, key_id = result
 
-                # Сохраняем inline_message_id если есть
                 if (
                     hasattr(event.query, "inline_message_id")
                     and event.query.inline_message_id
@@ -2690,7 +2629,6 @@ def register(kernel):
 
                 buttons = []
 
-                # Получаем значение для проверки типа
                 value = kernel.config.get(key)
                 value_type = type(value).__name__ if value is not None else "NoneType"
 
@@ -2720,9 +2658,7 @@ def register(kernel):
                             ]
                         )
 
-                # Кнопки для списков и словарей
                 if value_type == "list":
-                    # Кнопки для работы со списками
                     buttons.append(
                         [
                             Button.switch_inline(
@@ -2755,7 +2691,6 @@ def register(kernel):
                     )
 
                 elif value_type == "dict":
-                    # Кнопки для работы со словарями
                     buttons.append(
                         [
                             Button.switch_inline(
@@ -2809,7 +2744,6 @@ def register(kernel):
                         ]
                     )
 
-                # Кнопки навигации
                 nav_buttons = [
                     Button.inline(
                         t("btn_back_simple"), data=f"config_kernel_page_{page}".encode()
@@ -2898,13 +2832,11 @@ def register(kernel):
                     await event.answer(t("fcfg_inline_protected"), alert=True)
                     return
 
-                # Удаляем ключ
                 if key in kernel.config:
                     kernel.config.pop(key)
                     await save_config()
                     await event.answer(t("key_deleted"), alert=True)
 
-                    # Возвращаемся на предыдущую страницу
                     await config_kernel_page(event, page)
                 else:
                     await event.answer(t("not_found"), alert=True)
@@ -2915,22 +2847,20 @@ def register(kernel):
         elif data.startswith("cfg_reveal_"):
             try:
                 key_id = data[11:]
-                # Показываем значение без маскировки
+                # Show value without masking
                 result = await show_key_view(event, key_id, reveal=True)
                 if result[0] is None:
                     return
                 text, key, page, config_type, key_id = result
 
-                # Обновляем кеш
+                # Update cache
                 kernel.cache.set(
                     f"cfg_view_{key_id}", (key, page, config_type), ttl=86400
                 )
 
-                # Получаем значение для проверки типа
                 value = kernel.config.get(key)
                 value_type = type(value).__name__ if value is not None else "NoneType"
 
-                # Формируем кнопки
                 buttons = []
                 if value_type == "bool":
                     toggle_text = t("toggle_false") if value else t("toggle_true")
@@ -2954,7 +2884,6 @@ def register(kernel):
                         ]
                     )
 
-                # Кнопки для списков и словарей
                 if value_type == "list":
                     buttons.append(
                         [
@@ -3029,7 +2958,6 @@ def register(kernel):
                     ]
                 )
 
-                # Кнопки навигации
                 nav_buttons = [
                     Button.inline(
                         t("btn_back_simple"), data=f"config_kernel_page_{page}".encode()
@@ -3226,19 +3154,9 @@ def register(kernel):
         try:
             args = event.text.split()
             if len(args) == 1:
-                # Без аргументов - показываем inline меню
-                if hasattr(kernel, "bot_client") and kernel.config.get(
-                    "inline_bot_username"
-                ):
+                if hasattr(kernel, "bot_client"):
                     try:
-                        bot_username = kernel.config.get("inline_bot_username")
-                        results = await kernel.client.inline_query(bot_username, "cfg")
-                        if results:
-                            await results[0].click(
-                                event.chat_id, reply_to=event.reply_to_msg_id
-                            )
-                            await event.delete()
-                            return
+                        await kernel.inline_query_and_click(event.chat_id, "cfg")
                     except:
                         pass
                 await event.edit(
@@ -3247,7 +3165,6 @@ def register(kernel):
                 )
 
             elif len(args) == 2:
-                # Только ключ - показываем значение (аналогично .cfg now key)
                 key = args[1].strip()
 
                 if is_key_hidden(key):
@@ -3353,7 +3270,7 @@ def register(kernel):
                         parse_mode="html",
                     )
                 else:
-                    # Неизвестная субкоманда
+                    # Unknown subcommand
                     await event.edit(
                         t("cfg_usage", gear=emoji_provider["⚙️"]),
                         parse_mode="html",

@@ -71,7 +71,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
 
-# Кастомные эмодзи
+# Custom emoji
 CUSTOM_EMOJI = {
     "loading": '<tg-emoji emoji-id="5893368370530621889">🔜</tg-emoji>',
     "dependencies": '<tg-emoji emoji-id="5328311576736833844">🟠</tg-emoji>',
@@ -103,7 +103,7 @@ CUSTOM_EMOJI = {
     "link": '<tg-emoji emoji-id="5411527152212411235">🔗</tg-emoji>',
 }
 
-# Случайные эмодзи для завершения
+# Random completion emojis
 RANDOM_EMOJIS = [
     "ಠ_ಠ",
     "( ཀ ʖ̯ ཀ)",
@@ -171,7 +171,7 @@ def register(kernel):
 
     asyncio.create_task(startup())
 
-    # Локализованные строки
+    # Localized strings
     strings = {
         "en": {
             "wait": "{wait} <b>Please wait...</b>",
@@ -429,7 +429,7 @@ def register(kernel):
         },
     }
 
-    # Получаем строки для текущего языка
+    # Get strings for current language
     lang_strings = strings.get(language, strings["en"])
 
     def t(key: str, **kwargs: str) -> str:
@@ -1496,7 +1496,7 @@ def register(kernel):
     kernel.register_callback_handler("dlm_repo:", dlm_repo_callback_handler)
 
     @kernel.register.command("iload", alias="im")
-    # <ответ> загрузить модуль
+    # <reply> load module
     async def install_module_handler(event: types.CallbackQuery) -> None:
         if not event.is_reply:
             await edit_with_emoji(
@@ -1815,7 +1815,7 @@ def register(kernel):
                 os.remove(file_path)
 
     @kernel.register.command("dlm")
-    # <args> <URL/модуль> -s отправить файлом, -list список модулей
+    # <args> <URL/module> -s send as file, -list list modules
     async def download_module_handler(event: types.Message) -> None:
         args = event.text.split()
 
@@ -1992,7 +1992,7 @@ def register(kernel):
         )
 
     @kernel.register.command("um")
-    # <модуль> удалить модуль
+    # <module> remove module
     async def unload_module_handler(event: types.Message) -> None:
         args = event.text.split()
         if len(args) < 2:
@@ -2092,7 +2092,7 @@ def register(kernel):
         await kernel.save_module_sources()
 
     @kernel.register.command("unlm")
-    # <модуль> - выгрузить в виде файла
+    # <module> - upload as file
     async def upload_module_handler(event: types.Message) -> None:
         args = event.text.split()
         if len(args) < 2:
@@ -2497,7 +2497,7 @@ def register(kernel):
             )
 
     @kernel.register.command("addrepo")
-    # <URL> добавить репо
+    # <URL> add repo
     async def add_repo_handler(event: types.Message) -> None:
         args = event.text.split()
         if len(args) < 2:
@@ -2520,7 +2520,7 @@ def register(kernel):
             await edit_with_emoji(event, f"{CUSTOM_EMOJI['warning']} <b>{message}</b>")
 
     @kernel.register.command("delrepo")
-    # <id> удалить репо
+    # <id> remove repo
     async def del_repo_handler(event: types.Message) -> None:
         args = event.text.split()
         if len(args) < 2:

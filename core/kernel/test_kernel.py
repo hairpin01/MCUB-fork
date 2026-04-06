@@ -1,18 +1,18 @@
 """
-TestKernel - тестовое ядро для разработчиков модулей MCUB
+TestKernel - test kernel for MCUB module developers
 
-Позволяет запускать и отлаживать модули без реального подключения к Telegram.
+Allows running and debugging modules without real Telegram connection.
 
-Использование:
+Usage:
     from core.kernel.test_kernel import TestKernel
 
     test_kernel = TestKernel()
     await test_kernel.setup()
 
-    # Симуляция событий
+    # Event simulation
     await test_kernel.send_message(".ping")
 
-    # Проверка результатов
+    # Result verification
     assert test_kernel.last_response is not None
 """
 
@@ -22,7 +22,7 @@ import asyncio
 
 
 class MockEvent:
-    """Эмуляция события Telegram"""
+    """Telegram event emulation"""
 
     def __init__(
         self,
@@ -195,7 +195,6 @@ class TestKernel:
             patch("core.kernel.ConfigManager"),
             patch("core.kernel.DatabaseManager"),
         ):
-
             from core.kernel import Kernel
 
             self.kernel = Kernel()

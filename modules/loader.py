@@ -2377,6 +2377,47 @@ def register(kernel):
             file_path,
         )
 
+        # Устанавливаем зависимости до снятия старых команд/watchers,
+        # чтобы при ошибке установки не остаться без модуля.
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                code = f.read()
+            dependencies = kernel._loader.parse_requires(code)
+        except Exception as e:
+            dependencies = []
+            kernel.logger.warning(
+                "[reload] failed to parse dependencies for %s: %s", module_name, e
+            )
+
+        if dependencies:
+            deps_with_emoji = "\n".join(
+                f"{CUSTOM_EMOJI['lib']} {dep}" for dep in dependencies
+            )
+            await edit_with_emoji(
+                msg,
+                t(
+                    "installing_deps",
+                    dependencies=CUSTOM_EMOJI["dependencies"],
+                    deps_list=deps_with_emoji,
+                ),
+            )
+            try:
+                await kernel._loader.install_dependencies_batch(dependencies)
+            except Exception as e:
+                kernel.logger.error(
+                    "[reload] deps install failed for %s: %s", module_name, e
+                )
+                await edit_with_emoji(
+                    msg,
+                    t(
+                        "install_failed",
+                        blocked=CUSTOM_EMOJI["blocked"],
+                        idea=CUSTOM_EMOJI["idea"],
+                        log=html.escape(str(e)),
+                    ),
+                )
+                return
+
         instance = kernel.loaded_modules.get(module_name) or kernel.system_modules.get(
             module_name
         )

@@ -67,3 +67,47 @@ exclude = [
     "modules_loaded",
     ".mypy_cache",
 ]
+[build-system]
+requires = ["setuptools>=65", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcub-fork"
+version = "1.0.6.2"
+description = "MCUB (Telegram userbot) fork with improved API and structure"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "telethon_mcub",
+    "psutil",
+    "aiohttp",
+    "pysocks",
+    "aiosqlite",
+    "cryptg",
+    "socks",
+    "jinja2",
+    "aiohttp-jinja2",
+]
+
+[project.scripts]
+mcub = "core.__main__:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["core*", "core_inline*", "utils*", "modules*"]
+exclude = [
+    "tests*",
+    "downloads*",
+    "logs*",
+    "img*",
+    "data*",
+    "debugger*",
+    "gemini_data*",
+    "modules_loaded*",
+    "tmp*",
+]
+
+[tool.setuptools.package-data]
+"core.web" = ["templates/**/*", "static/**/*", "img/*"]

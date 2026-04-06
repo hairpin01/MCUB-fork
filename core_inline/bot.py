@@ -1,6 +1,8 @@
 import asyncio
 import aiohttp
 import json
+import tempfile
+import os
 import re
 import os
 import tempfile
@@ -89,7 +91,7 @@ class InlineBot:
             self.token = token
             self.username = bot_username
 
-            await self._configure_bot_via_botfather(botfather, client=client)
+            await self._configure_bot(botfather, client=client)
 
             return {"success": True, "token": token, "username": bot_username}
 
@@ -117,7 +119,7 @@ class InlineBot:
             self.token = token
             self.username = actual_username
 
-            await self._configure_bot_via_botfather(botfather)
+            await self._configure_bot(botfather)
 
             await self._save_config_and_restart()
 
@@ -154,8 +156,7 @@ class InlineBot:
 
         self.kernel.config["inline_bot_token"] = token
         self.kernel.config["inline_bot_username"] = username
-        with open(self.kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
-            json.dump(self.kernel.config, f, ensure_ascii=False, indent=2)
+        self._write_config_atomic(self.kernel.CONFIG_FILE, self.kernel.config)
 
         setup_choice = (
             input(
@@ -167,7 +168,7 @@ class InlineBot:
         if setup_choice == "y":
             try:
                 botfather = await self.kernel.client.get_entity("BotFather")
-                await self._configure_bot_via_botfather(botfather)
+                await self._configure_bot(botfather)
             except Exception as e:
                 self.kernel.logger.error(f"Ошибка при настройке через BotFather: {e}")
 
@@ -267,6 +268,91 @@ class InlineBot:
             self.kernel.logger.error(f"Ошибка при проверке токена: {e}")
             return False
 
+    async def _configure_bot(self, botfather=None, client=None):
+        """Configure bot either via Bot API (preferred) or via BotFather fallback."""
+        api_ok = False
+        if self.token:
+            api_ok = await self._configure_bot_via_api()
+
+        if api_ok:
+            return
+
+        if botfather:
+            await self._configure_bot_via_botfather(botfather, client=client)
+
+    async def _configure_bot_via_api(self):
+        """Setup description and commands using Bot API (works with BotFather WebApp flow)."""
+        if not self.token:
+            return False
+
+        session = getattr(self.kernel, "session", None)
+        external_session = True
+        if session is None or session.closed:
+            session = aiohttp.ClientSession()
+            external_session = False
+
+        try:
+            base = f"https://api.telegram.org/bot{self.token}"
+
+            async def _post(method, payload):
+                async with session.post(f"{base}/{method}", json=payload) as resp:
+                    data = await resp.json()
+                    if not data.get("ok"):
+                        self.kernel.logger.warning(
+                            f"Bot API {method} failed: {data.get('description')}"
+                        )
+                    return data.get("ok", False)
+
+            await _post(
+                "setMyDescription",
+                {
+                    "description": "🌠 MCUB inline bot for automation",
+                },
+            )
+
+            await _post(
+                "setMyShortDescription",
+                {
+                    "short_description": "MCUB inline assistant",
+                },
+            )
+
+            commands = [
+                {"command": "start", "description": "старт"},
+                {"command": "profile", "description": "профиль"},
+                {"command": "ping", "description": "пинг"},
+                {
+                    "command": "delete_mcub_bot",
+                    "description": "удалить из чата бота",
+                },
+            ]
+
+            await _post(
+                "setMyCommands",
+                {
+                    "scope": {"type": "default"},
+                    "language_code": "ru",
+                    "commands": commands,
+                },
+            )
+
+            await _post(
+                "setMyCommands",
+                {
+                    "scope": {"type": "default"},
+                    "language_code": "en",
+                    "commands": commands,
+                },
+            )
+
+            return True
+        except Exception as e:
+            self.kernel.logger.error(f"Bot API configure error: {e}", exc_info=True)
+            return False
+        finally:
+            if not external_session:
+                await session.close()
+
     async def _configure_bot_via_botfather(self, botfather, client=None):
         client = client or self.kernel.client
         try:
@@ -346,8 +432,7 @@ delete_mcub_bot - удалить из чата бота
         self.kernel.config["inline_bot_token"] = self.token
         self.kernel.config["inline_bot_username"] = self.username
 
-        with open(self.kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
-            json.dump(self.kernel.config, f, ensure_ascii=False, indent=2)
+        self._write_config_atomic(self.kernel.CONFIG_FILE, self.kernel.config)
 
         self.kernel.logger.info(f"Конфигурация бота сохранена: @{self.username}")
         self.kernel.logger.info("Перезапуск...")
@@ -385,8 +470,7 @@ delete_mcub_bot - удалить из чата бота
             me = await self.bot_client.get_me()
             self.username = me.username
             self.kernel.config["inline_bot_username"] = self.username
-            with open(self.kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
-                json.dump(self.kernel.config, f, ensure_ascii=False, indent=2)
+            self._write_config_atomic(self.kernel.CONFIG_FILE, self.kernel.config)
 
             from .handlers import InlineHandlers
 
@@ -404,6 +488,24 @@ delete_mcub_bot - удалить из чата бота
             self.kernel.logger.error(f"Сетевая ошибка при запуске бота: {e}")
         except Exception as e:
             self.kernel.logger.error(f"Ошибка запуска инлайн-бота: {e}", exc_info=True)
+
+    def _write_config_atomic(self, path: str, data: dict) -> None:
+        """Write JSON config atomically to avoid truncation on crash."""
+        fd, tmp_path = tempfile.mkstemp(
+            prefix="config_", suffix=".json", dir=os.path.dirname(path) or "."
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            os.replace(tmp_path, path)
+        except Exception as e:
+            self.kernel.logger.error(f"Failed to write config atomically: {e}")
+            # Best effort fallback
+            try:
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+            except Exception as e2:
+                self.kernel.logger.error(f"Fallback config write failed: {e2}")
 
     async def _register_module_commands(self):
         if not self.bot_client:

@@ -30,6 +30,46 @@ def _redact(value: object, visible: int = 2) -> str:
     return f"{text[:visible]}***{text[-visible:]}"
 
 
+def _build_setup_status(app: web.Application) -> dict:
+    """Collect setup status shared by /status and /api/setup/state."""
+    import os
+    import json
+
+    state = app.get("setup_state") or {}
+
+    config_path = "config.json"
+
+    api_id = None
+    api_hash = None
+    needs_reauth = False
+
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r") as f:
+                cfg = json.load(f)
+            api_id = cfg.get("api_id")
+            api_hash = cfg.get("api_hash")
+            if api_id and api_hash and cfg.get("phone"):
+                from utils.security import session_exists
+
+                if not session_exists(api_id, api_hash):
+                    needs_reauth = True
+        except (json.JSONDecodeError, IOError):
+            pass
+    else:
+        needs_reauth = os.path.exists(config_path) and not os.path.exists(
+            "user_session.session"
+        )
+
+    return {
+        "has_session": "client" in state,
+        "awaiting_code": state.get("awaiting_code", False),
+        "awaiting_2fa": state.get("awaiting_2fa", False),
+        "done": state.get("done", False),
+        "needs_reauth": needs_reauth,
+    }
+
+
 def setup_routes(app: web.Application) -> None:
     app.router.add_get("/", index)
     app.router.add_get("/status", status)
@@ -106,44 +146,7 @@ async def index(request: web.Request) -> web.Response:
 
 
 async def status(request: web.Request) -> web.Response:
-    import os
-    import json
-
-    s = request.app.get("setup_state") or {}
-
-    config_path = "config.json"
-
-    api_id = None
-    api_hash = None
-    needs_reauth = False
-
-    if os.path.exists(config_path):
-        try:
-            with open(config_path, "r") as f:
-                cfg = json.load(f)
-            api_id = cfg.get("api_id")
-            api_hash = cfg.get("api_hash")
-            if api_id and api_hash and cfg.get("phone"):
-                from utils.security import session_exists
-
-                if not session_exists(api_id, api_hash):
-                    needs_reauth = True
-        except (json.JSONDecodeError, IOError):
-            pass
-    else:
-        needs_reauth = os.path.exists(config_path) and not os.path.exists(
-            "user_session.session"
-        )
-
-    return web.json_response(
-        {
-            "has_session": "client" in s,
-            "awaiting_code": s.get("awaiting_code", False),
-            "awaiting_2fa": s.get("awaiting_2fa", False),
-            "done": s.get("done", False),
-            "needs_reauth": needs_reauth,
-        }
-    )
+    return web.json_response(_build_setup_status(request.app))
 
     auth_middleware = request.app.get("auth_middleware")
 
@@ -173,44 +176,7 @@ async def status(request: web.Request) -> web.Response:
 
 
 async def api_setup_state(request: web.Request) -> web.Response:
-    import os
-    import json
-
-    s = request.app.get("setup_state") or {}
-
-    config_path = "config.json"
-
-    api_id = None
-    api_hash = None
-    needs_reauth = False
-
-    if os.path.exists(config_path):
-        try:
-            with open(config_path, "r") as f:
-                cfg = json.load(f)
-            api_id = cfg.get("api_id")
-            api_hash = cfg.get("api_hash")
-            if api_id and api_hash and cfg.get("phone"):
-                from utils.security import session_exists
-
-                if not session_exists(api_id, api_hash):
-                    needs_reauth = True
-        except (json.JSONDecodeError, IOError):
-            pass
-    else:
-        needs_reauth = os.path.exists(config_path) and not os.path.exists(
-            "user_session.session"
-        )
-
-    return web.json_response(
-        {
-            "has_session": "client" in s,
-            "awaiting_code": s.get("awaiting_code", False),
-            "awaiting_2fa": s.get("awaiting_2fa", False),
-            "done": s.get("done", False),
-            "needs_reauth": needs_reauth,
-        }
-    )
+    return web.json_response(_build_setup_status(request.app))
 
 
 async def api_send_code(request: web.Request) -> web.Response:

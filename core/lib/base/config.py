@@ -1,7 +1,7 @@
 import json
 import os
 import sys
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Dict, List
 
 from ..utils.colors import Colors
 from utils.security import ensure_locked_after_write, lock_sensitive_files
@@ -16,6 +16,58 @@ class ConfigManager:
     def __init__(self, kernel: "Kernel") -> None:
         self.k = kernel
 
+    @staticmethod
+    def _env_config() -> dict[str, Any]:
+        """Return config values provided via environment variables.
+
+        Supported variables:
+        - MCUB_API_ID
+        - MCUB_API_HASH
+        - MCUB_PHONE
+        """
+
+        env_config: dict[str, Any] = {}
+        if os.environ.get("MCUB_API_ID"):
+            env_config["api_id"] = os.environ["MCUB_API_ID"]
+        if os.environ.get("MCUB_API_HASH"):
+            env_config["api_hash"] = os.environ["MCUB_API_HASH"]
+        if os.environ.get("MCUB_PHONE"):
+            env_config["phone"] = os.environ["MCUB_PHONE"]
+        return env_config
+
+    @staticmethod
+    def _validate_config(cfg: Dict[str, Any]) -> List[str]:
+        """Validate required config fields and basic types.
+
+        Returns a list of human-readable error strings; empty when valid.
+        """
+
+        errors: List[str] = []
+
+        for field in ("api_id", "api_hash", "phone"):
+            if field not in cfg or cfg.get(field) in (None, ""):
+                errors.append(f"Missing required field: {field}")
+
+        if "api_id" in cfg:
+            try:
+                int(cfg["api_id"])
+            except (TypeError, ValueError):
+                errors.append("api_id must be an integer")
+
+        if "api_hash" in cfg and not isinstance(cfg["api_hash"], str):
+            errors.append("api_hash must be a string")
+
+        if "phone" in cfg and not isinstance(cfg["phone"], str):
+            errors.append("phone must be a string")
+
+        if "aliases" in cfg and not isinstance(cfg["aliases"], dict):
+            errors.append("aliases must be a mapping")
+
+        if "power_save_mode" in cfg and not isinstance(cfg["power_save_mode"], bool):
+            errors.append("power_save_mode must be a boolean")
+
+        return errors
+
     def load_or_create(self) -> bool:
         """Load config.json if it exists and contains required fields.
 
@@ -27,9 +79,25 @@ class ConfigManager:
         if logger:
             logger.debug("[Config] load_or_create start")
 
+        env_config = self._env_config()
+
         if not os.path.exists(k.CONFIG_FILE):
             if logger:
                 logger.debug("Config file not found: %s", k.CONFIG_FILE)
+
+            # Allow headless configuration via environment variables
+            if env_config:
+                k.config = env_config
+                errors = self._validate_config(k.config)
+                if errors:
+                    for err in errors:
+                        print(f"{Colors.RED}❌ {err}{Colors.RESET}")
+                    return False
+                if logger:
+                    logger.debug("Config created from environment variables")
+                self.setup()
+                return True
+
             return False
 
         # Tighten permissions on every load (covers files created before this
@@ -45,18 +113,23 @@ class ConfigManager:
                 sorted(k.config.keys()),
             )
 
-        required = ("api_id", "api_hash", "phone")
-        if all(k.config.get(field) for field in required):
+        # Apply environment overrides (e.g., for containerized deployments)
+        if env_config:
+            k.config.update(env_config)
+
+        errors = self._validate_config(k.config)
+        if not errors:
             if logger:
-                logger.debug("Config contains required fields: %s", required)
+                logger.debug("Config validation succeeded")
             self.setup()
             if logger:
                 logger.debug("[Config] load_or_create success")
             return True
 
-        print(f"{Colors.RED}❌ Config is damaged or incomplete{Colors.RESET}")
+        for err in errors:
+            print(f"{Colors.RED}❌ {err}{Colors.RESET}")
         if logger:
-            logger.debug("[Config] load_or_create failed - incomplete config")
+            logger.debug("[Config] load_or_create failed - errors: %s", errors)
         return False
 
     def save(self) -> None:

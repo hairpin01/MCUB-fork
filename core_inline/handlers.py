@@ -6,6 +6,7 @@ import json
 import time
 import traceback
 import uuid
+import inspect
 from typing import Any
 
 import aiohttp
@@ -22,6 +23,14 @@ from .api import (
     build_inline_result_text,
     build_inline_result_media,
     add_inline_keyboard_to_result,
+    build_inline_keyboard,
+    build_button_callback,
+    build_button_url,
+    build_button_switch,
+    build_button_phone,
+    build_button_location,
+    build_button_game,
+    build_input_message_content,
 )
 
 
@@ -63,20 +72,20 @@ class InlineHandlers:
         media_type: str = "photo",
     ) -> str:
         """
-        Создаёт инлайн-форму и возвращает её ID.
+        Creates an inline form and returns its ID.
 
         Args:
-            text: Текст сообщения (поддерживает HTML)
-            buttons: Кнопки в формате:
-                - список списков Button объектов: [[Button.callback(...), ...], ...]
-                - список словарей: [{"text": "...", "type": "callback", "data": "..."}, ...]
-                - JSON строка
-            ttl: Время жизни формы в кэше (секунды)
-            media: URL или file_id медиафайла (опционально)
-            media_type: Тип медиа — "photo", "document", "gif" (по умолчанию "photo")
+            text: Message text (supports HTML)
+            buttons: Buttons in format:
+                - list of lists of Button objects: [[Button.callback(...), ...], ...]
+                - list of dicts: [{"text": "...", "type": "callback", "data": "..."}, ...]
+                - JSON string
+            ttl: Form cache lifetime (seconds)
+            media: URL or file_id of media file (optional)
+            media_type: Media type - "photo", "document", "gif" (default "photo")
 
         Returns:
-            str: ID формы для использования в inline query
+            str: Form ID for use in inline query
         """
         self.kernel.logger.debug(f"[InlineHandlers] create_inline_form ttl={ttl}")
         self._form_counter += 1
@@ -104,11 +113,268 @@ class InlineHandlers:
     def get_inline_form(self, form_id):
         return self.kernel.cache.get(form_id)
 
+    async def send_inline_form(
+        self,
+        chat_id: int,
+        text: str,
+        buttons: list | None = None,
+        media: str | None = None,
+        media_type: str = "photo",
+        parse_mode: str = "HTML",
+    ) -> dict[str, Any]:
+        """
+        Sends an inline form directly to a chat via Bot API.
+
+        Args:
+            chat_id: Chat ID to send to
+            text: Message text
+            buttons: Buttons (list of dicts or Button objects)
+            media: Media file URL
+            media_type: Media type
+            parse_mode: Parse mode (HTML/Markdown)
+
+        Returns:
+            dict: Bot API response
+        """
+        _bot_token = self.kernel.config.get("inline_bot_token")
+        if not _bot_token:
+            raise ValueError("inline_bot_token not configured")
+
+        form_id = self.create_inline_form(
+            text=text,
+            buttons=buttons,
+            media=media,
+            media_type=media_type,
+        )
+
+        result_obj = build_inline_result_text(
+            title="Form", text=text, parse_mode=parse_mode
+        )
+
+        if media:
+            result_obj = build_inline_result_media(
+                media_url=media,
+                media_type=media_type,
+                text=text,
+                title="Media",
+                parse_mode=parse_mode,
+            )
+
+        if buttons:
+            if isinstance(buttons[0], dict):
+                kb_rows = []
+                for btn in buttons:
+                    parsed_btn = self._dict_to_button(btn)
+                    if parsed_btn:
+                        kb_rows.append([parsed_btn])
+            else:
+                kb_rows = buttons
+
+            if kb_rows:
+                result_obj = add_inline_keyboard_to_result(result_obj, kb_rows)
+
+        async with self.kernel.session.post(
+            f"https://api.telegram.org/bot{_bot_token}/sendMessage",
+            json={
+                "chat_id": chat_id,
+                "text": text,
+                "parse_mode": parse_mode,
+                "reply_markup": result_obj.get("reply_markup"),
+            },
+        ) as resp:
+            return await resp.json()
+
+    async def answer_inline_query_custom(
+        self,
+        inline_query_id: str,
+        results: list[dict[str, Any]],
+        cache_time: int = 300,
+        is_personal: bool = False,
+        next_offset: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Answers an inline query via Bot API.
+
+        Args:
+            inline_query_id: Query ID
+            results: List of results (dict)
+            cache_time: Cache time
+            is_personal: Personal result
+            next_offset: Offset for next page
+
+        Returns:
+            dict: Bot API response
+        """
+        _bot_token = self.kernel.config.get("inline_bot_token")
+        if not _bot_token:
+            raise ValueError("inline_bot_token not configured")
+
+        payload = {
+            "inline_query_id": inline_query_id,
+            "results": results,
+            "cache_time": cache_time,
+            "is_personal": is_personal,
+        }
+        if next_offset:
+            payload["next_offset"] = next_offset
+
+        async with self.kernel.session.post(
+            f"https://api.telegram.org/bot{_bot_token}/answerInlineQuery",
+            json=payload,
+        ) as resp:
+            return await resp.json()
+
+    def create_form_with_validation(
+        self,
+        text: str,
+        buttons: list | None = None,
+        fields: list[dict] | None = None,
+        ttl: int = 3600,
+        media: str | None = None,
+        media_type: str = "photo",
+    ) -> str:
+        """
+        Creates a form with field validation.
+
+        Args:
+            text: Message text
+            buttons: Buttons
+            fields: List of fields for validation:
+                [{"name": "email", "type": "email", "required": True}, ...]
+                Types: text, email, phone, number, url
+            ttl: Cache lifetime
+            media: Media URL
+            media_type: Media type
+
+        Returns:
+            str: Form ID
+        """
+        form_id = self.create_inline_form(
+            text=text,
+            buttons=buttons,
+            media=media,
+            media_type=media_type,
+            ttl=ttl,
+        )
+
+        if fields:
+            form_data = self.get_inline_form(form_id)
+            form_data["validation_fields"] = fields
+            self.kernel.cache.set(form_id, form_data, ttl=ttl)
+
+        return form_id
+
+    def validate_form_data(self, form_id: str, data: dict) -> dict[str, Any]:
+        """
+        Validates form data.
+
+        Args:
+            form_id: Form ID
+            data: Data to validate
+
+        Returns:
+            dict: {"valid": bool, "errors": list}
+        """
+        form = self.get_inline_form(form_id)
+        if not form:
+            return {"valid": False, "errors": ["Form not found or expired"]}
+
+        errors = []
+        fields = form.get("validation_fields", [])
+
+        for field in fields:
+            name = field.get("name")
+            f_type = field.get("type", "text")
+            required = field.get("required", False)
+
+            value = data.get(name)
+            if required and not value:
+                errors.append(f"Field '{name}' is required")
+                continue
+
+            if value:
+                if f_type == "email" and "@" not in value:
+                    errors.append(f"Invalid email format for '{name}'")
+                elif f_type == "phone" and not value.replace("+", "").isdigit():
+                    errors.append(f"Invalid phone format for '{name}'")
+                elif (
+                    f_type == "number"
+                    and not value.replace(".", "").replace("-", "").isdigit()
+                ):
+                    errors.append(f"Invalid number format for '{name}'")
+                elif f_type == "url" and not value.startswith(("http://", "https://")):
+                    errors.append(f"Invalid URL format for '{name}'")
+
+        return {"valid": len(errors) == 0, "errors": errors}
+
+    def build_buttons_dict(
+        self,
+        buttons: list[dict | list],
+    ) -> list[list[dict]]:
+        """
+        Converts buttons from dict format to inline keyboard format.
+
+        Args:
+            buttons: [{"text": "...", "type": "callback", "data": "..."}, ...]
+
+        Returns:
+            list: [[{"text": ..., "callback_data": ...}, ...], ...]
+        """
+        result = []
+        for row in buttons:
+            if not isinstance(row, list):
+                row = [row]
+            kb_row = []
+            for btn in row:
+                if not isinstance(btn, dict):
+                    continue
+                b_type = btn.get("type", "callback").lower()
+                if b_type == "callback":
+                    kb_row.append(
+                        build_button_callback(
+                            btn.get("text", ""),
+                            btn.get("data", ""),
+                            btn.get("emoji"),
+                        )
+                    )
+                elif b_type == "url":
+                    kb_row.append(
+                        build_button_url(
+                            btn.get("text", ""),
+                            btn.get("url", ""),
+                            btn.get("emoji"),
+                        )
+                    )
+                elif b_type == "switch":
+                    kb_row.append(
+                        build_button_switch(
+                            btn.get("text", ""),
+                            btn.get("query", ""),
+                            btn.get("hint", ""),
+                            btn.get("emoji"),
+                        )
+                    )
+                elif b_type == "phone":
+                    kb_row.append(
+                        build_button_phone(btn.get("text", ""), btn.get("emoji"))
+                    )
+                elif b_type == "location":
+                    kb_row.append(
+                        build_button_location(btn.get("text", ""), btn.get("emoji"))
+                    )
+                elif b_type == "game":
+                    kb_row.append(
+                        build_button_game(btn.get("text", ""), btn.get("emoji"))
+                    )
+            if kb_row:
+                result.append(kb_row)
+        return result
+
     def _make_form_id(self):
         return f"form_{int(time.time())}_{self._form_counter}"
 
     def _normalize_buttons(self, buttons):
-        """Приводит кнопки к единому формату (список рядов)."""
+        """Converts buttons to unified format (list of rows)."""
         # Consolidate the three redundant falsy checks into one
         if not buttons or not isinstance(buttons, list):
             return None
@@ -334,25 +600,14 @@ class InlineHandlers:
                             "Message", text=text, parse_mode="html"
                         )
 
-                # Check for user-defined inline handlers
+                    await event.answer([builder])
+                    return
+
                 query_cmd = query.lower().split()[0] if query.strip() else ""
-                if query_cmd in self.kernel.inline_handlers:
-                    try:
-                        handler = self.kernel.inline_handlers[query_cmd]
-                        result = await handler(event)
-                        if result:
-                            if asyncio.iscoroutine(result):
-                                result = await result
-                            await event.answer(result)
-                            return
-                    except Exception as e:
-                        import traceback
+                if await self._dispatch_inline_handler(query_cmd, query, event):
+                    return
 
-                        self.kernel.logger.error(
-                            f"User inline handler error for {query_cmd}: {traceback.format_exc()}"
-                        )
-
-                elif query.startswith("form_"):
+                if query.startswith("form_"):
                     form_data = self.get_inline_form(query)
                     if form_data:
                         media = form_data.get("media")
@@ -419,38 +674,7 @@ class InlineHandlers:
                         )
                     return
 
-                # Check for user-defined inline handlers
-                query_lower = query.lower().split()[0] if query.strip() else ""
-                if query_lower in self.kernel.inline_handlers:
-                    try:
-                        handler = self.kernel.inline_handlers[query_lower]
-                        from core.lib.loader.hikka_compat.inline_types import (
-                            InlineQuery as _HikkaInlineQuery,
-                        )
-
-                        inline_proxy = getattr(
-                            self.kernel, "_hikka_compat_inline_proxy", None
-                        )
-                        iq_obj = _HikkaInlineQuery(
-                            query_id=event.query.query_id,
-                            query=query,
-                            offset=event.query.offset or "",
-                            user_id=event.sender_id,
-                            inline_proxy=inline_proxy,
-                            original_event=event,
-                        )
-
-                        result = await handler(iq_obj)
-                        if result:
-                            await event.answer(result)
-                            return
-                    except Exception as e:
-                        self.kernel.logger.error(
-                            f"User inline handler error: {traceback.format_exc()}"
-                        )
-
-                else:
-                    await event.answer()
+                await event.answer()
 
             except Exception as e:
                 error_traceback = "".join(
@@ -502,14 +726,6 @@ class InlineHandlers:
                     await self._handle_find_similar(event, data_str)
                 elif data_str.startswith("mute_err:"):
                     await self._handle_mute_error(event, data_str)
-                elif data_str.startswith("confirm_"):
-                    from .keyboards import InlineKeyboards
-
-                    kb = InlineKeyboards(self.kernel)
-                    if "yes" in data_str:
-                        await kb.handle_confirm_yes(event)
-                    else:
-                        await kb.handle_confirm_no(event)
 
                 for pattern, handler in list(self.kernel.callback_handlers.items()):
                     p_str = (
@@ -629,3 +845,48 @@ class InlineHandlers:
         except Exception as e:
             self.kernel.logger.error(f"Error _handle_mute_error: {e}")
             await event.answer(f"{self.lang['critical_error']}: {e}", alert=True)
+
+    async def _dispatch_inline_handler(self, cmd: str, raw_query: str, event) -> bool:
+        """Route to a user inline handler once, supporting hikka proxy if needed."""
+        if not cmd or cmd not in self.kernel.inline_handlers:
+            return False
+
+        handler = self.kernel.inline_handlers[cmd]
+
+        try:
+            # Prefer native event signature; fall back to hikka-compat if handler expects it
+            sig = None
+            try:
+                sig = inspect.signature(handler)
+            except (TypeError, ValueError):
+                sig = None
+
+            if sig and len(sig.parameters) == 1:
+                result = handler(event)
+            else:
+                from core.lib.loader.hikka_compat.inline_types import (
+                    InlineQuery as _HikkaInlineQuery,
+                )
+
+                inline_proxy = getattr(self.kernel, "_hikka_compat_inline_proxy", None)
+                iq_obj = _HikkaInlineQuery(
+                    query_id=event.query.query_id,
+                    query=raw_query,
+                    offset=event.query.offset or "",
+                    user_id=event.sender_id,
+                    inline_proxy=inline_proxy,
+                    original_event=event,
+                )
+                result = handler(iq_obj)
+
+            if asyncio.iscoroutine(result):
+                result = await result
+
+            if result:
+                await event.answer(result)
+                return True
+        except Exception:
+            self.kernel.logger.error(
+                f"User inline handler error for {cmd}: {traceback.format_exc()}"
+            )
+        return False

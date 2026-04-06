@@ -702,6 +702,9 @@ class ModuleLoader:
         for file_name in os.listdir(k.MODULES_DIR):
             if not file_name.endswith(".py"):
                 continue
+            if file_name == "__init__.py":
+                # Packaging marker; not an actual system module
+                continue
             module_name = file_name[:-3]
             file_path = os.path.join(k.MODULES_DIR, file_name)
             try:

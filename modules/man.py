@@ -265,7 +265,8 @@ def get_paginated_data(
     close_cb=None,
     ttl: int = 900,
 ):
-    CHUNK_SIZE = 10
+    CHUNK_SIZE = 30
+    MAX_MSG_LENGTH = 2000
     if hidden_list is None:
         hidden_list = []
 
@@ -273,12 +274,6 @@ def get_paginated_data(
         if show_hidden:
             return names
         return [n for n in names if n not in hidden_list]
-
-    sys_modules = sorted(filter_modules(list(kernel.system_modules.keys())))
-    usr_modules = sorted(filter_modules(list(kernel.loaded_modules.keys())))
-
-    user_pages_count = math.ceil(len(usr_modules) / CHUNK_SIZE) if usr_modules else 0
-    total_pages = 1 + user_pages_count
 
     def render_module_line(name):
         commands, aliases_info, _ = get_module_commands(name, kernel)
@@ -327,20 +322,60 @@ def get_paginated_data(
             return f"<b>{name}</b>{hidden_mark}: {cmd_text}\n"
         return None
 
+    def chunk_by_size(items, start_msg=""):
+        chunks = []
+        current_chunk = []
+        current_len = len(start_msg)
+
+        for item in items:
+            line = render_module_line(item)
+            if line is None:
+                continue
+            line_len = len(line)
+
+            if current_chunk and current_len + line_len > MAX_MSG_LENGTH:
+                chunks.append(current_chunk)
+                current_chunk = [item]
+                current_len = line_len
+            else:
+                current_chunk.append(item)
+                current_len += line_len
+
+        if current_chunk:
+            chunks.append(current_chunk)
+        return chunks
+
+    sys_modules = sorted(filter_modules(list(kernel.system_modules.keys())))
+    usr_modules = sorted(filter_modules(list(kernel.loaded_modules.keys())))
+
     if page == 0:
+        header_len = len(
+            f"{CUSTOM_EMOJI['crystal']} <b>{strings['system_modules']}:</b> <code>{len(sys_modules)}</code><blockquote expandable>\n</blockquote>"
+        )
+        sys_chunks = chunk_by_size(sys_modules, " " * header_len)
+    else:
+        sys_chunks = [[]]
+
+    usr_chunks = chunk_by_size(usr_modules)
+    total_pages = len(sys_chunks) + len(usr_chunks)
+
+    if page < len(sys_chunks):
         msg = f"{CUSTOM_EMOJI['crystal']} <b>{strings['system_modules']}:</b> <code>{len(sys_modules)}</code>"
+        if len(sys_chunks) > 1:
+            msg += f" ({page + 1}/{len(sys_chunks)})"
         msg += "<blockquote expandable>"
-        for name in sys_modules:
+        for name in sys_chunks[page]:
             line = render_module_line(name)
             if line:
                 msg += line
         msg += "</blockquote>"
     else:
-        start_idx = (page - 1) * CHUNK_SIZE
-        end_idx = start_idx + CHUNK_SIZE
-        current_chunk = usr_modules[start_idx:end_idx]
+        usr_page = page - len(sys_chunks)
+        current_chunk = usr_chunks[usr_page] if usr_page < len(usr_chunks) else []
 
-        msg = f"{CUSTOM_EMOJI['crystal']} <b>{strings['user_modules_page'].format(page=page, count=len(usr_modules))}:</b>"
+        msg = f"{CUSTOM_EMOJI['crystal']} <b>{strings['user_modules_page'].format(page=usr_page + 1, count=len(usr_modules))}:</b>"
+        if len(usr_chunks) > 1:
+            msg += f" ({usr_page + 1}/{len(usr_chunks)})"
         msg += "<blockquote expandable>"
         for name in current_chunk:
             line = render_module_line(name)
@@ -360,14 +395,58 @@ def get_paginated_data(
     else:
         page_buttons.append(Button.inline("<", data=f"man_page_{prev_page}"))
 
-    for i in range(total_pages):
-        text = "•" if i == page else str(i + 1)
-        if page_cb:
-            page_buttons.append(
-                make_cb_button(kernel, text, page_cb, args=[i], ttl=ttl)
-            )
-        else:
-            page_buttons.append(Button.inline(text, data=f"man_page_{i}"))
+    max_page_buttons = 7
+    if total_pages <= max_page_buttons:
+        for i in range(total_pages):
+            text = "•" if i == page else str(i + 1)
+            if page_cb:
+                page_buttons.append(
+                    make_cb_button(kernel, text, page_cb, args=[i], ttl=ttl)
+                )
+            else:
+                page_buttons.append(Button.inline(text, data=f"man_page_{i}"))
+    else:
+        start_idx = max(0, page - 3)
+        end_idx = min(total_pages, start_idx + max_page_buttons)
+        if end_idx - start_idx < max_page_buttons:
+            start_idx = max(0, end_idx - max_page_buttons)
+
+        if start_idx > 0:
+            if page_cb:
+                page_buttons.append(
+                    make_cb_button(kernel, "1", page_cb, args=[0], ttl=ttl)
+                )
+            else:
+                page_buttons.append(Button.inline("1", data="man_page_0"))
+            if start_idx > 1:
+                page_buttons.append(Button.inline("...", data="noop"))
+
+        for i in range(start_idx, end_idx):
+            text = "•" if i == page else str(i + 1)
+            if page_cb:
+                page_buttons.append(
+                    make_cb_button(kernel, text, page_cb, args=[i], ttl=ttl)
+                )
+            else:
+                page_buttons.append(Button.inline(text, data=f"man_page_{i}"))
+
+        if end_idx < total_pages:
+            if end_idx < total_pages - 1:
+                page_buttons.append(Button.inline("...", data="noop"))
+            if page_cb:
+                page_buttons.append(
+                    make_cb_button(
+                        kernel,
+                        str(total_pages),
+                        page_cb,
+                        args=[total_pages - 1],
+                        ttl=ttl,
+                    )
+                )
+            else:
+                page_buttons.append(
+                    Button.inline(str(total_pages), data=f"man_page_{total_pages - 1}")
+                )
 
     if page_cb:
         page_buttons.append(

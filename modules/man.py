@@ -5,6 +5,7 @@
 from telethon import Button
 import re
 import asyncio
+import os
 from html import escape
 import math
 import json
@@ -37,8 +38,93 @@ CUSTOM_EMOJI = {
 ZERO_WIDTH_CHAR = "\u2060"
 
 
+# Кеш метаданных модулей по пути файла и времени изменения
+_METADATA_CACHE: dict[str, tuple[float, dict]] = {}
+_METADATA_LOCKS: dict[int, asyncio.Lock] = {}
+
+
+def _get_metadata_lock() -> asyncio.Lock:
+    """Вернуть lock, привязанный к текущему event loop."""
+
+    loop = asyncio.get_running_loop()
+    loop_id = id(loop)
+    lock = _METADATA_LOCKS.get(loop_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _METADATA_LOCKS[loop_id] = lock
+    return lock
+
+
 def get_module_commands(module_name, kernel):
     return kernel._loader.get_module_commands(module_name)
+
+
+def resolve_module_path(name: str, typ: str, kernel) -> str:
+    """Путь к файлу модуля (системный или пользовательский)."""
+    return (
+        f"{kernel.MODULES_DIR}/{name}.py"
+        if typ == "system"
+        else f"{kernel.MODULES_LOADED_DIR}/{name}.py"
+    )
+
+
+async def load_module_metadata(name: str, typ: str, kernel, strings) -> dict:
+    """Загрузить и кешировать метаданные модуля по mtime файла."""
+
+    file_path = resolve_module_path(name, typ, kernel)
+
+    try:
+        mtime = os.path.getmtime(file_path)
+    except OSError:
+        return {
+            "commands": {},
+            "description": strings["no_description"],
+            "version": "?.?.?",
+            "author": strings["unknown"],
+            "banner_url": None,
+        }
+
+    lock = _get_metadata_lock()
+
+    async with lock:
+        cached = _METADATA_CACHE.get(file_path)
+        if cached and cached[0] == mtime:
+            return cached[1]
+
+    try:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            code = f.read()
+        metadata = await kernel.get_module_metadata(code)
+    except Exception:
+        metadata = {
+            "commands": {},
+            "description": strings["no_description"],
+            "version": "?.?.?",
+            "author": strings["unknown"],
+            "banner_url": None,
+        }
+
+    async with lock:
+        _METADATA_CACHE[file_path] = (mtime, metadata)
+
+    return metadata
+
+
+def gather_all_modules(
+    kernel, show_hidden: bool, hidden: list[str]
+) -> dict[str, tuple[str, object]]:
+    """Собрать системные и пользовательские модули в одном словаре."""
+
+    all_modules: dict[str, tuple[str, object]] = {}
+    for name, module in kernel.system_modules.items():
+        all_modules[name] = ("system", module)
+    for name, module in kernel.loaded_modules.items():
+        all_modules[name] = ("user", module)
+
+    if not show_hidden:
+        all_modules = {k: v for k, v in all_modules.items() if k not in hidden}
+
+    return all_modules
 
 
 async def get_hidden_modules(kernel):
@@ -72,14 +158,7 @@ async def generate_detailed_page(search_term, kernel, strings, show_hidden=False
 
     hidden = await get_hidden_modules(kernel)
 
-    all_modules = {}
-    for name, module in kernel.system_modules.items():
-        all_modules[name] = ("system", module)
-    for name, module in kernel.loaded_modules.items():
-        all_modules[name] = ("user", module)
-
-    if not show_hidden:
-        all_modules = {k: v for k, v in all_modules.items() if k not in hidden}
+    all_modules = gather_all_modules(kernel, show_hidden, hidden)
 
     for name, (typ, module) in all_modules.items():
         if name.lower() == search_term_clean:
@@ -133,23 +212,7 @@ async def _build_module_detail(match_tuple, kernel, strings):
     """Построить детальную страницу модуля."""
     name, typ, module = match_tuple
     commands, aliases_info, descriptions = get_module_commands(name, kernel)
-    file_path = (
-        f"{kernel.MODULES_DIR}/{name}.py"
-        if typ == "system"
-        else f"{kernel.MODULES_LOADED_DIR}/{name}.py"
-    )
-    try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            code = f.read()
-            metadata = await kernel.get_module_metadata(code)
-    except Exception:
-        metadata = {
-            "commands": {},
-            "description": strings["no_description"],
-            "version": "?.?.?",
-            "author": strings["unknown"],
-            "banner_url": None,
-        }
+    metadata = await load_module_metadata(name, typ, kernel, strings)
 
     msg = f"{CUSTOM_EMOJI['dna']} <b>{strings['module']}</b> <code>{name}</code>:\n"
     msg += f"{CUSTOM_EMOJI['alembic']} <b>{strings['description']}:</b> <i>{metadata.get('description', strings['no_description'])}</i>\n"
@@ -269,7 +332,10 @@ def get_paginated_data(kernel, page, strings, hidden_list=None, show_hidden=Fals
         end_idx = start_idx + CHUNK_SIZE
         current_chunk = usr_modules[start_idx:end_idx]
 
-        msg = f"{CUSTOM_EMOJI['crystal']} <b>{strings['user_modules_page'].format(page=page, count=len(usr_modules))}:</b>\n"
+        msg = (
+            f"{CUSTOM_EMOJI['crystal']} <b>{strings['user_modules_page'].format(page=page, count=len(usr_modules))}:</b>\n"
+            f"<i>{start_idx + 1}–{min(end_idx, len(usr_modules))} / {len(usr_modules)}</i>\n"
+        )
         msg += "<blockquote expandable>"
         for name in current_chunk:
             line = render_module_line(name)
@@ -279,9 +345,16 @@ def get_paginated_data(kernel, page, strings, hidden_list=None, show_hidden=Fals
 
     buttons = []
     page_buttons = []
+
+    prev_page = max(0, page - 1)
+    next_page = min(total_pages - 1, page + 1)
+    page_buttons.append(Button.inline("⬅️", data=f"man_page_{prev_page}"))
+
     for i in range(total_pages):
         text = "•" if i == page else str(i + 1)
         page_buttons.append(Button.inline(text, data=f"man_page_{i}"))
+
+    page_buttons.append(Button.inline("➡️", data=f"man_page_{next_page}"))
 
     buttons.append(page_buttons)
     buttons.append([Button.inline("❌ " + strings["close"], data="man_close")])
@@ -435,14 +508,7 @@ def register(kernel):
         search_term = search_term.lower().strip()
         hidden = await get_hidden_modules(kernel)
 
-        all_modules = {}
-        for name, module in kernel.system_modules.items():
-            all_modules[name] = ("system", module)
-        for name, module in kernel.loaded_modules.items():
-            all_modules[name] = ("user", module)
-
-        if not show_hidden:
-            all_modules = {k: v for k, v in all_modules.items() if k not in hidden}
+        all_modules = gather_all_modules(kernel, show_hidden, hidden)
 
         search_words = search_term.split()
         concatenated = "".join(search_words)
@@ -500,17 +566,7 @@ def register(kernel):
             if cmd_match:
                 continue
 
-            try:
-                file_path = (
-                    f"{kernel.MODULES_DIR}/{name}.py"
-                    if typ == "system"
-                    else f"{kernel.MODULES_LOADED_DIR}/{name}.py"
-                )
-                with open(file_path, "r", encoding="utf-8") as f:
-                    code = f.read()
-                metadata = await kernel.get_module_metadata(code)
-            except Exception:
-                metadata = {"description": "", "commands": {}}
+            metadata = await load_module_metadata(name, typ, kernel, strings)
 
             desc = metadata.get("description", "").lower()
             if desc and search_term in desc:
@@ -545,21 +601,7 @@ def register(kernel):
         """Генерирует статью для одного модуля."""
         name, typ, module = module_info
         commands, aliases_info, descriptions = get_module_commands(name, kernel)
-        file_path = (
-            f"modules/{name}.py" if typ == "system" else f"modules_loaded/{name}.py"
-        )
-
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                code = f.read()
-                metadata = await kernel.get_module_metadata(code)
-        except Exception:
-            metadata = {
-                "commands": {},
-                "description": strings["no_description"],
-                "version": "?.?.?",
-                "author": strings["unknown"],
-            }
+        metadata = await load_module_metadata(name, typ, kernel, strings)
 
         msg = f"<blockquote>{CUSTOM_EMOJI['dna']} <b>{strings['module']}</b> <code>{name}</code></blockquote>\n"
         msg += f"<blockquote expandable>{CUSTOM_EMOJI['alembic']} <b>{strings['description']}:</b> <i>{metadata.get('description', strings['no_description'])}</i>\n</blockquote>"
@@ -791,63 +833,57 @@ def register(kernel):
             clean_args = [a for a in args[1:] if a != "-f"]
 
             if not clean_args:
-                bot_username = kernel.config.get("inline_bot_username")
-                if not bot_username:
-                    await event.edit(
-                        f"{CUSTOM_EMOJI['blocked']} <b>{lang_strings['inline_bot_not_configured']}</b>",
-                        parse_mode="html",
-                    )
-                    return
-
                 await event.delete()
 
                 try:
-                    results = await client.inline_query(bot_username, "man")
-                    if results:
-                        sent = await results[0].click(
-                            event.chat_id, reply_to=event.reply_to_msg_id
-                        )
-
-                        if get_config().get("man_invert_media", False):
-                            try:
-                                hidden = await get_hidden_modules(kernel)
-                                page_msg, page_buttons = get_paginated_data(
-                                    kernel,
-                                    0,
-                                    lang_strings,
-                                    hidden_list=hidden,
-                                    show_hidden=show_hidden,
-                                )
-                                page_msg = add_inline_banner_preview(page_msg)
-                                sent_id = (
-                                    sent[0].id
-                                    if isinstance(sent, list) and sent
-                                    else getattr(sent, "id", None)
-                                )
-                                if sent_id:
-                                    try:
-                                        await client.edit_message(
-                                            event.chat_id,
-                                            sent_id,
-                                            page_msg,
-                                            buttons=page_buttons,
-                                            parse_mode="html",
-                                            invert_media=True,
-                                        )
-                                    except TypeError:
-                                        await client.edit_message(
-                                            event.chat_id,
-                                            sent_id,
-                                            page_msg,
-                                            buttons=page_buttons,
-                                            parse_mode="html",
-                                        )
-                            except Exception:
-                                pass
-                    else:
+                    success, sent = await kernel.inline_query_and_click(
+                        chat_id=event.chat_id,
+                        query="man",
+                        reply_to=event.reply_to_msg_id,
+                    )
+                    if not success:
                         await client.send_message(
                             event.chat_id, lang_strings["no_inline_results"]
                         )
+                        return
+
+                    if get_config().get("man_invert_media", False):
+                        try:
+                            hidden = await get_hidden_modules(kernel)
+                            page_msg, page_buttons = get_paginated_data(
+                                kernel,
+                                0,
+                                lang_strings,
+                                hidden_list=hidden,
+                                show_hidden=show_hidden,
+                            )
+                            page_msg = add_inline_banner_preview(page_msg)
+                            sent_id = (
+                                sent[0].id
+                                if isinstance(sent, list) and sent
+                                else getattr(sent, "id", None)
+                            )
+                            if sent_id:
+                                try:
+                                    await client.edit_message(
+                                        event.chat_id,
+                                        sent_id,
+                                        page_msg,
+                                        buttons=page_buttons,
+                                        parse_mode="html",
+                                        invert_media=True,
+                                    )
+                                except TypeError:
+                                    await client.edit_message(
+                                        event.chat_id,
+                                        sent_id,
+                                        page_msg,
+                                        buttons=page_buttons,
+                                        parse_mode="html",
+                                    )
+                        except Exception:
+                            pass
+
                 except Exception as e:
                     await kernel.handle_error(e, source="man_inline", event=event)
                     await client.send_message(

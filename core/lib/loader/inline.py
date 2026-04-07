@@ -12,6 +12,7 @@ from telethon import Button, events
 if TYPE_CHECKING:
     from kernel import Kernel
     from telethon.types import Message
+    from core_inline.handlers import InlineHandlers
 
 
 @dataclass(slots=True)
@@ -507,17 +508,45 @@ class InlineManager:
         """
         k = self.k
         try:
+            k.logger.debug(
+                "[inline] inline_query_and_click start chat_id=%s query=%s bot=%s",
+                chat_id,
+                query,
+                bot_username,
+            )
             if not bot_username:
                 bot_username = k.config.get("inline_bot_username")
-                if not bot_username:
-                    raise ValueError("No inline bot configured")
+
+            if (
+                not bot_username
+                and getattr(k, "is_bot_available", None)
+                and k.is_bot_available()
+            ):
+                try:
+                    bot_info = await k.bot_client.get_me()
+                    if bot_info and getattr(bot_info, "username", None):
+                        bot_username = bot_info.username
+                        k.config["inline_bot_username"] = bot_username
+
+                except Exception:
+                    bot_username = None
+
+            if not bot_username:
+                k.logger.debug("[inline] inline_query_and_click abort: no bot username")
+                raise ValueError("No inline bot configured")
 
             results = await k.client.inline_query(bot_username, query)
+            k.logger.debug(
+                "[inline] inline_query results=%d bot=%s",
+                len(results) if results else 0,
+                bot_username,
+            )
             if not results:
                 return False, None
 
             if result_index >= len(results):
                 result_index = 0
+                k.logger.debug("[inline] result_index reset to 0")
 
             click_kwargs = {}
             if buttons:
@@ -533,7 +562,13 @@ class InlineManager:
             message = await results[result_index].click(chat_id, **click_kwargs)
             if form_sms:
                 await form_sms.delete()
-            k.logger.info(f"Inline query OK: {query[:50]}...")
+            k.logger.debug(
+                "[inline] clicked index=%d chat_id=%s silent=%s reply_to=%s",
+                result_index,
+                chat_id,
+                silent,
+                reply_to,
+            )
             return True, message
 
         except Exception as e:
@@ -578,7 +613,6 @@ class InlineManager:
         """
         k = self.k
         try:
-            from core_inline.handlers import InlineHandlers
 
             lines = [title]
             if isinstance(fields, dict):

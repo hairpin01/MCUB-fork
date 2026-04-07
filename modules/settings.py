@@ -349,17 +349,14 @@ def register(kernel):
     @kernel.register.command("settings")
     async def settings_handler(event):
         """settings userbot"""
-        bot_username = kernel.config.get("inline_bot_username")
-        if not bot_username:
-            await event.edit(_("inline_bot_not_set"))
-            return
-
         await event.delete()
         try:
-            results = await client.inline_query(bot_username, "settings")
-            if results:
-                await results[0].click(event.chat_id, reply_to=event.reply_to_msg_id)
-            else:
+            success, _ = await kernel.inline_query_and_click(
+                chat_id=event.chat_id,
+                query="settings",
+                reply_to=event.reply_to_msg_id,
+            )
+            if not success:
                 await client.send_message(event.chat_id, _("inline_no_results"))
         except Exception as e:
             await kernel.handle_error(e, source="settings_inline", event=event)
@@ -368,11 +365,6 @@ def register(kernel):
             )
 
     async def _show_danger_confirm(event, action: str, text: str):
-        bot_username = kernel.config.get("inline_bot_username")
-        if not bot_username:
-            await event.edit(_("danger_inline_not_set"), parse_mode="html")
-            return
-
         success, form_message = await kernel.inline_form(
             event.chat_id,
             text,

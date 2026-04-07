@@ -346,24 +346,6 @@ def register(kernel):
 
         await event.edit(_("lang_changed", lang=new_lang), parse_mode="html")
 
-    @kernel.register.command("settings")
-    async def settings_handler(event):
-        """settings userbot"""
-        await event.delete()
-        try:
-            success, _ = await kernel.inline_query_and_click(
-                chat_id=event.chat_id,
-                query="settings",
-                reply_to=event.reply_to_msg_id,
-            )
-            if not success:
-                await client.send_message(event.chat_id, _("inline_no_results"))
-        except Exception as e:
-            await kernel.handle_error(e, source="settings_inline", event=event)
-            await client.send_message(
-                event.chat_id, _("inline_error", error=str(e)[:100])
-            )
-
     async def _show_danger_confirm(event, action: str, text: str):
         success, form_message = await kernel.inline_form(
             event.chat_id,
@@ -501,5 +483,4 @@ def register(kernel):
             await kernel.handle_error(e, source="mcubinfo_cmd", event=event)
             await event.edit(_("mcubinfo_error"), parse_mode="html")
 
-    kernel.register_callback_handler("settings_", settings_danger_callback_handler)
     kernel.register_callback_handler("lang:", lang_callback_handler)

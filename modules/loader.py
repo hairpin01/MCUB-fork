@@ -147,6 +147,12 @@ def register(kernel):
             description="Show module banners in loaded modules list",
             validator=Boolean(default=True),
         ),
+        ConfigValue(
+            "loader_allow_hikka_modules",
+            True,
+            description="Allow loading Hikka/Heroku compatible modules",
+            validator=Boolean(default=True),
+        ),
     )
 
     def get_config():
@@ -161,15 +167,22 @@ def register(kernel):
             {
                 "loader_protect_system": True,
                 "loader_show_banners": True,
+                "loader_allow_hikka_modules": True,
             },
         )
         config.from_dict(config_dict)
+        kernel.store_module_config_schema(__name__, config)
         config_dict_clean = {k: v for k, v in config.to_dict().items() if v is not None}
         if config_dict_clean:
             await kernel.save_module_config(__name__, config_dict_clean)
-        kernel.store_module_config_schema(__name__, config)
 
     asyncio.create_task(startup())
+
+    def allow_hikka_modules() -> bool:
+        cfg = get_config()
+        if cfg is None:
+            return True
+        return cfg.get("loader_allow_hikka_modules", True)
 
     # Localized strings
     strings = {
@@ -292,6 +305,7 @@ def register(kernel):
             "modules_not_mcub": "{warning} Module is not {mcub} type, [Heroku/Hikka]",
             "log_hikka_detected": "=+ Hikka/Heroku module detected — loading via compat layer",
             "hikka_no_compat": "{warning} <b>Hikka compat, not found.</b>",
+            "hikka_disabled": "{warning} <b>Hikka/Heroku modules support is disabled via loader config (loader_allow_hikka_modules).</b>",
             "reload_all": "{reload} <b>Reloading all modules...</b>",
             "reload_all_success": "{success} <b>All modules reloaded!</b>\n<blockquote>{count}</blockquote>",
             "reload_all_success_one": "{success} <b>All modules reloaded!</b>\n{count} (<code>{name}</code>)",
@@ -419,6 +433,7 @@ def register(kernel):
             "modules_not_mcub": "{warning} Модуль не {mcub} типа <i>[Heroku/Hikka]</i>",
             "log_hikka_detected": "=+ Обнаружен Hikka/Heroku модуль",
             "hikka_no_compat": "{warning} <b>Hikka compat не найден.</b>",
+            "hikka_disabled": "{warning} <b>Поддержка Hikka/Heroku модулей отключена через конфиг loader (loader_allow_hikka_modules).</b>",
             "reload_all": "{reload} <b>Перезагружаю все модули...</b>",
             "reload_all_success": "{success} <b>Все модули перезагружены!</b>\n<blockquote>{count}</blockquote>",
             "reload_all_success_one": "{success} <b>Все модули перезагружены!</b>\n{count} (<code>{name}</code>)",
@@ -1145,6 +1160,14 @@ def register(kernel):
 
             if is_hikka_module(code):
                 add_log(t("log_hikka_detected"))
+                if not allow_hikka_modules():
+                    await edit_with_emoji(
+                        target_message(),
+                        t("hikka_disabled", warning=CUSTOM_EMOJI["warning"]),
+                    )
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                    return
                 if not HIKKA_COMPAT:
                     await edit_with_emoji(
                         target_message(),
@@ -1403,7 +1426,8 @@ def register(kernel):
                 )
                 if os.path.exists(file_path):
                     add_log(t("log_deleting_due_error"))
-                    os.remove(file_path)
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
 
         except CommandConflictError as e:
             add_log(t("log_conflict", error=e))
@@ -1614,6 +1638,14 @@ def register(kernel):
 
             if is_hikka_module(code):
                 add_log(t("log_hikka_detected"))
+                if not allow_hikka_modules():
+                    await edit_with_emoji(
+                        msg,
+                        t("hikka_disabled", warning=CUSTOM_EMOJI["warning"]),
+                    )
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                    return
                 if not HIKKA_COMPAT:
                     await edit_with_emoji(
                         msg,

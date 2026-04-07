@@ -13,7 +13,8 @@ from core_inline.api.inline import make_cb_button
 if TYPE_CHECKING:
     from kernel import Kernel
     from telethon.types import Message
-    from core_inline.handlers import InlineHandlers
+
+from core_inline.handlers import InlineHandlers
 
 
 @dataclass(slots=True)
@@ -610,8 +611,8 @@ class InlineManager:
             (success, message) when auto_send=True, else form_id str.
         """
         k = self.k
+        form_sms = None
         try:
-
             lines = [title]
             if isinstance(fields, dict):
                 lines += [f"{fk}: {fv}" for fk, fv in fields.items()]

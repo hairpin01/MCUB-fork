@@ -1,4 +1,3 @@
-# requires: json, hashlib, uuid, time, asyncio
 # author: @Hairpin00
 # version: 1.3.0
 # description: config Kernel
@@ -3156,13 +3155,17 @@ def register(kernel):
             if len(args) == 1:
                 if hasattr(kernel, "bot_client"):
                     try:
-                        await kernel.inline_query_and_click(event.chat_id, "cfg")
+                        success, _msg = await kernel.inline_query_and_click(
+                            event.chat_id, "cfg"
+                        )
+
+                        if success:
+                            await event.delete()
                     except:
-                        pass
-                await event.edit(
-                    t("cfg_usage", gear=emoji_provider["⚙️"]),
-                    parse_mode="html",
-                )
+                        await event.edit(
+                            t("cfg_usage", gear=emoji_provider["⚙️"]),
+                            parse_mode="html",
+                        )
 
             elif len(args) == 2:
                 key = args[1].strip()

@@ -91,10 +91,14 @@ class InlineHandlers:
         self._form_counter += 1
         form_id = self._make_form_id()
 
+        # Keep the ttl around so we can expire ad‑hoc callbacks attached to buttons
+        self._current_form_ttl = ttl
+        self._cleanup_inline_callback_map()
+
         if isinstance(buttons, str):
             buttons = self._parse_json_buttons(buttons)
         else:
-            buttons = self._normalize_buttons(buttons)
+            buttons = self._normalize_buttons(buttons, ttl=ttl)
 
         form_data = {
             "text": text,
@@ -373,7 +377,7 @@ class InlineHandlers:
     def _make_form_id(self):
         return f"form_{int(time.time())}_{self._form_counter}"
 
-    def _normalize_buttons(self, buttons):
+    def _normalize_buttons(self, buttons, ttl: int | None = None):
         """Converts buttons to unified format (list of rows)."""
         # Consolidate the three redundant falsy checks into one
         if not buttons or not isinstance(buttons, list):
@@ -384,7 +388,7 @@ class InlineHandlers:
             parsed = [
                 [btn]
                 for item in buttons
-                if (btn := self._dict_to_button(item)) is not None
+                if (btn := self._dict_to_button(item, ttl=ttl)) is not None
             ]
             return parsed or None
 
@@ -397,7 +401,7 @@ class InlineHandlers:
                 parsed_row = []
                 for item in row:
                     if isinstance(item, dict):
-                        btn = self._dict_to_button(item)
+                        btn = self._dict_to_button(item, ttl=ttl)
                         if btn:
                             parsed_row.append(btn)
                     else:
@@ -408,25 +412,49 @@ class InlineHandlers:
 
         return None
 
-    def _dict_to_button(self, btn_dict):
+    def _dict_to_button(self, btn_dict, ttl: int | None = None):
         if not isinstance(btn_dict, dict):
             return None
 
         text = btn_dict.get("text", self.lang["btn_default"])
         b_type = btn_dict.get("type", "callback").lower()
+        icon = btn_dict.get("icon")
+        style = btn_dict.get("style")
 
         if b_type == "callback":
+            # Support both traditional byte data and callable callbacks with
+            # auto‑generated tokens (Heroku/Hikka‑style behavior).
             data = btn_dict.get("data", "")
+            callback = btn_dict.get("callback")
+
+            if callable(callback):
+                token = btn_dict.get("token") or uuid.uuid4().hex
+                # Store mapping globally on kernel so multiple InlineHandlers
+                # instances share the same callback map.
+                cb_map = getattr(self.kernel, "inline_callback_map", None)
+                if cb_map is None:
+                    cb_map = {}
+                    setattr(self.kernel, "inline_callback_map", cb_map)
+
+                cb_map[token] = {
+                    "handler": callback,
+                    "args": btn_dict.get("args", []),
+                    "kwargs": btn_dict.get("kwargs", {}),
+                    "expires_at": time.time() + (ttl or 3600),
+                }
+
+                data = token
+
             if isinstance(data, str):
                 data = data.encode()
-            return Button.inline(text, data)
+            return Button.inline(text, data, icon=icon, style=style)
         if b_type == "url":
             url = btn_dict.get("url", btn_dict.get("data", ""))
-            return Button.url(text, url)
+            return Button.url(text, url, icon=icon, style=style)
         if b_type == "switch":
             query = btn_dict.get("query", "")
             hint = btn_dict.get("hint", "")
-            return Button.switch_inline(text, query, hint)
+            return Button.switch_inline(text, query, hint, icon=icon, style=style)
         return None
 
     def _parse_json_buttons(self, json_str):
@@ -470,6 +498,21 @@ class InlineHandlers:
             self.kernel.logger.warning(f"{self.lang['json_parsing_error']}: {e}")
             return []
 
+    def _cleanup_inline_callback_map(self) -> None:
+        """Drop expired auto-generated callback tokens to keep the map small."""
+        cb_map = getattr(self.kernel, "inline_callback_map", None)
+        if not cb_map:
+            return
+
+        now = time.time()
+        expired = [
+            key
+            for key, val in cb_map.items()
+            if val.get("expires_at") and val["expires_at"] < now
+        ]
+        for key in expired:
+            cb_map.pop(key, None)
+
     async def check_admin(self, event):
         try:
             user_id = int(event.sender_id)
@@ -479,7 +522,7 @@ class InlineHandlers:
             return False
 
     async def register_handlers(self):
-        """Регистрирует все обработчики для бота."""
+        """Registers all handlers for the bot."""
 
         @self.bot_client.on(events.InlineQuery)
         async def inline_query_handler(event):
@@ -720,6 +763,7 @@ class InlineHandlers:
                 ):
                     return await event.answer(self.lang["no_access"], alert=False)
 
+                # 1. Built-in service callbacks
                 if data_str.startswith("show_tb:"):
                     await self._handle_show_traceback(event, data_str)
                 elif data_str.startswith("find_similar:"):
@@ -727,6 +771,33 @@ class InlineHandlers:
                 elif data_str.startswith("mute_err:"):
                     await self._handle_mute_error(event, data_str)
 
+                # 2. Auto-generated callback tokens
+                self._cleanup_inline_callback_map()
+                cb_map = getattr(self.kernel, "inline_callback_map", None) or {}
+                if data_str in cb_map:
+                    entry = cb_map[data_str]
+
+                    if entry.get("expires_at") and entry["expires_at"] < time.time():
+                        cb_map.pop(data_str, None)
+                        return await event.answer(
+                            self.lang["form_expired"], alert=False
+                        )
+
+                    handler = entry.get("handler")
+                    if callable(handler):
+                        try:
+                            await handler(
+                                event, *entry.get("args", []), **entry.get("kwargs", {})
+                            )
+                        except Exception:
+                            self.kernel.logger.error(
+                                "Inline callback handler error: %s",
+                                traceback.format_exc(),
+                            )
+                            await event.answer(self.lang["critical_error"], alert=True)
+                        return
+
+                # 3. Legacy prefix/pattern handlers
                 for pattern, handler in list(self.kernel.callback_handlers.items()):
                     p_str = (
                         pattern.decode() if isinstance(pattern, bytes) else str(pattern)

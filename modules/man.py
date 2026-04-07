@@ -1,8 +1,11 @@
-# requires: re, math
 # author: @Hairpin00
 # version: 1.1.0
 # description: Module manager
 from telethon import Button
+import time
+import uuid
+
+from core_inline.api.inline import make_cb_button
 import re
 import asyncio
 import os
@@ -38,13 +41,13 @@ CUSTOM_EMOJI = {
 ZERO_WIDTH_CHAR = "\u2060"
 
 
-# Кеш метаданных модулей по пути файла и времени изменения
+# Cache module metadata keyed by file path and mtime
 _METADATA_CACHE: dict[str, tuple[float, dict]] = {}
 _METADATA_LOCKS: dict[int, asyncio.Lock] = {}
 
 
 def _get_metadata_lock() -> asyncio.Lock:
-    """Вернуть lock, привязанный к текущему event loop."""
+    """Return a lock bound to the current event loop."""
 
     loop = asyncio.get_running_loop()
     loop_id = id(loop)
@@ -60,7 +63,7 @@ def get_module_commands(module_name, kernel):
 
 
 def resolve_module_path(name: str, typ: str, kernel) -> str:
-    """Путь к файлу модуля (системный или пользовательский)."""
+    """Return module file path (system or user)."""
     return (
         f"{kernel.MODULES_DIR}/{name}.py"
         if typ == "system"
@@ -69,7 +72,7 @@ def resolve_module_path(name: str, typ: str, kernel) -> str:
 
 
 async def load_module_metadata(name: str, typ: str, kernel, strings) -> dict:
-    """Загрузить и кешировать метаданные модуля по mtime файла."""
+    """Load and cache module metadata keyed by file mtime."""
 
     file_path = resolve_module_path(name, typ, kernel)
 
@@ -113,7 +116,7 @@ async def load_module_metadata(name: str, typ: str, kernel, strings) -> dict:
 def gather_all_modules(
     kernel, show_hidden: bool, hidden: list[str]
 ) -> dict[str, tuple[str, object]]:
-    """Собрать системные и пользовательские модули в одном словаре."""
+    """Collect system and user modules into one dict."""
 
     all_modules: dict[str, tuple[str, object]] = {}
     for name, module in kernel.system_modules.items():
@@ -128,7 +131,7 @@ def gather_all_modules(
 
 
 async def get_hidden_modules(kernel):
-    """Получить список скрытых модулей из БД."""
+    """Fetch hidden modules list from DB."""
     data = await kernel.db_get("man", "hidden_modules")
     if not data:
         return []
@@ -141,17 +144,12 @@ async def get_hidden_modules(kernel):
 
 
 async def save_hidden_modules(kernel, hidden):
-    """Сохранить список скрытых модулей в БД."""
+    """Persist hidden modules list to DB."""
     await kernel.db_set("man", "hidden_modules", json.dumps(hidden))
 
 
 async def generate_detailed_page(search_term, kernel, strings, show_hidden=False):
-    """
-    Найти модуль по search_term.
-    Если точное совпадение — вернуть его страницу.
-    Если частичных совпадений ровно одно — показать его напрямую.
-    Если несколько — показать список похожих.
-    """
+    """Build detail page or search list for a module name/substring."""
     search_term_clean = search_term.lower()
     exact_match = None
     similar_modules = []
@@ -209,7 +207,7 @@ async def generate_detailed_page(search_term, kernel, strings, show_hidden=False
 
 
 async def _build_module_detail(match_tuple, kernel, strings):
-    """Построить детальную страницу модуля."""
+    """Build a module detail page."""
     name, typ, module = match_tuple
     commands, aliases_info, descriptions = get_module_commands(name, kernel)
     metadata = await load_module_metadata(name, typ, kernel, strings)
@@ -256,7 +254,17 @@ async def _build_module_detail(match_tuple, kernel, strings):
     return msg, metadata.get("banner_url")
 
 
-def get_paginated_data(kernel, page, strings, hidden_list=None, show_hidden=False):
+def get_paginated_data(
+    kernel,
+    page,
+    strings,
+    hidden_list=None,
+    show_hidden=False,
+    *,
+    page_cb=None,
+    close_cb=None,
+    ttl: int = 900,
+):
     CHUNK_SIZE = 10
     if hidden_list is None:
         hidden_list = []
@@ -320,7 +328,7 @@ def get_paginated_data(kernel, page, strings, hidden_list=None, show_hidden=Fals
         return None
 
     if page == 0:
-        msg = f"{CUSTOM_EMOJI['crystal']} <b>{strings['system_modules']}:</b> <code>{len(sys_modules)}</code>\n\n"
+        msg = f"{CUSTOM_EMOJI['crystal']} <b>{strings['system_modules']}:</b> <code>{len(sys_modules)}</code>"
         msg += "<blockquote expandable>"
         for name in sys_modules:
             line = render_module_line(name)
@@ -332,10 +340,7 @@ def get_paginated_data(kernel, page, strings, hidden_list=None, show_hidden=Fals
         end_idx = start_idx + CHUNK_SIZE
         current_chunk = usr_modules[start_idx:end_idx]
 
-        msg = (
-            f"{CUSTOM_EMOJI['crystal']} <b>{strings['user_modules_page'].format(page=page, count=len(usr_modules))}:</b>\n"
-            f"<i>{start_idx + 1}–{min(end_idx, len(usr_modules))} / {len(usr_modules)}</i>\n"
-        )
+        msg = f"{CUSTOM_EMOJI['crystal']} <b>{strings['user_modules_page'].format(page=page, count=len(usr_modules))}:</b>"
         msg += "<blockquote expandable>"
         for name in current_chunk:
             line = render_module_line(name)
@@ -348,16 +353,37 @@ def get_paginated_data(kernel, page, strings, hidden_list=None, show_hidden=Fals
 
     prev_page = max(0, page - 1)
     next_page = min(total_pages - 1, page + 1)
-    page_buttons.append(Button.inline("⬅️", data=f"man_page_{prev_page}"))
+    if page_cb:
+        page_buttons.append(
+            make_cb_button(kernel, "<", page_cb, args=[prev_page], ttl=ttl)
+        )
+    else:
+        page_buttons.append(Button.inline("<", data=f"man_page_{prev_page}"))
 
     for i in range(total_pages):
         text = "•" if i == page else str(i + 1)
-        page_buttons.append(Button.inline(text, data=f"man_page_{i}"))
+        if page_cb:
+            page_buttons.append(
+                make_cb_button(kernel, text, page_cb, args=[i], ttl=ttl)
+            )
+        else:
+            page_buttons.append(Button.inline(text, data=f"man_page_{i}"))
 
-    page_buttons.append(Button.inline("➡️", data=f"man_page_{next_page}"))
+    if page_cb:
+        page_buttons.append(
+            make_cb_button(kernel, ">", page_cb, args=[next_page], ttl=ttl)
+        )
+    else:
+        page_buttons.append(Button.inline(">", data=f"man_page_{next_page}"))
 
     buttons.append(page_buttons)
-    buttons.append([Button.inline("❌ " + strings["close"], data="man_close")])
+
+    if close_cb:
+        buttons.append(
+            [make_cb_button(kernel, "❌ " + strings["close"], close_cb, ttl=ttl)]
+        )
+    else:
+        buttons.append([Button.inline("❌ " + strings["close"], data="man_close")])
 
     return msg, buttons
 
@@ -382,7 +408,7 @@ def register(kernel):
             "no_exact_match": "Точное совпадение не найдено",
             "module_not_found": "Модуль не найден",
             "system_modules": "Системные модули",
-            "user_modules_page": "Пользовательские модули (Страница {page}/<code>{count}</code>)",
+            "user_modules_page": "Пользовательские модули (Страница {page} |<code> {count}</code>)",
             "close": "Закрыть",
             "inline_bot_not_configured": "Inline бот не настроен\nУстановите inline_bot_token в config",
             "no_inline_results": "❌ Нет inline результатов",
@@ -419,7 +445,7 @@ def register(kernel):
             "no_exact_match": "No exact match found",
             "module_not_found": "Module not found",
             "system_modules": "System modules",
-            "user_modules_page": "User modules (Page {page}/<code>{count}</code>)",
+            "user_modules_page": "User modules (Page {page} | Count<code> {count}</code>)",
             "close": "Close",
             "inline_bot_not_configured": "Inline bot not configured\nSet inline_bot_token in config",
             "no_inline_results": "❌ No inline results",
@@ -501,10 +527,48 @@ def register(kernel):
             return message_html
         return f'<a href="{escape(banner_url, quote=True)}">{ZERO_WIDTH_CHAR}</a>{message_html}'
 
+    async def _man_close_cb(event):
+        try:
+            await kernel.client.delete_messages(event.chat_id, [event.message_id])
+        except Exception:
+            await event.answer(lang_strings["closed"], alert=False)
+
+    async def _man_page_cb(event, page: int):
+        try:
+            hidden = await get_hidden_modules(kernel)
+            msg, buttons = get_paginated_data(
+                kernel,
+                page,
+                lang_strings,
+                hidden_list=hidden,
+                page_cb=_man_page_cb,
+                close_cb=_man_close_cb,
+            )
+            invert_media = (
+                get_config().get("man_invert_media", False) if get_config() else False
+            )
+            try:
+                await event.edit(
+                    add_inline_banner_preview(msg),
+                    buttons=buttons,
+                    parse_mode="html",
+                    invert_media=invert_media,
+                )
+            except TypeError:
+                await event.edit(
+                    add_inline_banner_preview(msg),
+                    buttons=buttons,
+                    parse_mode="html",
+                )
+        except Exception as e:
+            await event.answer(
+                f"{lang_strings['page_error']}: {str(e)[:50]}", alert=True
+            )
+
     async def search_modules_for_inline(
         search_term, kernel, strings, show_hidden=False
     ):
-        """Поиск модулей для inline режима."""
+        """Search modules for inline mode."""
         search_term = search_term.lower().strip()
         hidden = await get_hidden_modules(kernel)
 
@@ -598,7 +662,7 @@ def register(kernel):
         return exact_matches, similar_modules
 
     async def generate_module_article(module_info, kernel, strings):
-        """Генерирует статью для одного модуля."""
+        """Generate article for a single module (inline)."""
         name, typ, module = module_info
         commands, aliases_info, descriptions = get_module_commands(name, kernel)
         metadata = await load_module_metadata(name, typ, kernel, strings)
@@ -639,7 +703,12 @@ def register(kernel):
             )
             hidden = await get_hidden_modules(kernel)
             msg1, buttons = get_paginated_data(
-                kernel, 0, lang_strings, hidden_list=hidden
+                kernel,
+                0,
+                lang_strings,
+                hidden_list=hidden,
+                page_cb=_man_page_cb,
+                close_cb=_man_close_cb,
             )
             article1 = event.builder.article(
                 title="Module Manager",
@@ -783,45 +852,6 @@ def register(kernel):
         )
         await event.answer([builder])
 
-    async def man_callback_handler(event):
-        data = event.data.decode()
-
-        if data == "man_close":
-            try:
-                await kernel.client.delete_messages(event.chat_id, [event.message_id])
-            except Exception:
-                await event.answer(lang_strings["closed"], alert=False)
-
-        elif data.startswith("man_page_"):
-            try:
-                page = int(data.split("_")[-1])
-                hidden = await get_hidden_modules(kernel)
-                msg, buttons = get_paginated_data(
-                    kernel, page, lang_strings, hidden_list=hidden
-                )
-                invert_media = (
-                    get_config().get("man_invert_media", False)
-                    if get_config()
-                    else False
-                )
-                try:
-                    await event.edit(
-                        add_inline_banner_preview(msg),
-                        buttons=buttons,
-                        parse_mode="html",
-                        invert_media=invert_media,
-                    )
-                except TypeError:
-                    await event.edit(
-                        add_inline_banner_preview(msg),
-                        buttons=buttons,
-                        parse_mode="html",
-                    )
-            except Exception as e:
-                await event.answer(
-                    f"{lang_strings['page_error']}: {str(e)[:50]}", alert=True
-                )
-
     @kernel.register.command("man")
     # [module/-f] — info about module or list (-f shows hidden)
     async def man_handler(event):
@@ -856,6 +886,8 @@ def register(kernel):
                                 lang_strings,
                                 hidden_list=hidden,
                                 show_hidden=show_hidden,
+                                page_cb=_man_page_cb,
+                                close_cb=_man_close_cb,
                             )
                             page_msg = add_inline_banner_preview(page_msg)
                             sent_id = (
@@ -984,11 +1016,10 @@ def register(kernel):
 
     @kernel.register.command("help")
     async def help_cmd(event):
-        """fallback"""
+        """Fallback help stub: redirect to man."""
         await event.edit(
             f"<b>{lang_strings['help_not_command']}</b><code>{kernel.custom_prefix}man?</code>",
             parse_mode="html",
         )
 
     kernel.register_inline_handler("man", man_inline_handler)
-    kernel.register_callback_handler("man_", man_callback_handler)

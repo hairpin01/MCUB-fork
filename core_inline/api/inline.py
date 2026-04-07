@@ -1,4 +1,8 @@
 from typing import Any, Optional
+import time
+import uuid
+
+from telethon import Button
 
 
 def get_button_emoji(btn: Any) -> Optional[str]:
@@ -119,6 +123,61 @@ def build_button_url(
     if emoji:
         btn["emoji"] = emoji
     return btn
+
+
+def cleanup_inline_callback_map(kernel) -> None:
+    """Remove expired entries from kernel.inline_callback_map in-place."""
+
+    cb_map = getattr(kernel, "inline_callback_map", None)
+    if not cb_map:
+        return
+
+    now = time.time()
+    expired = [
+        k for k, v in cb_map.items() if v.get("expires_at") and v["expires_at"] < now
+    ]
+    for k in expired:
+        cb_map.pop(k, None)
+
+
+def make_cb_button(
+    kernel,
+    text: str,
+    callback,
+    *,
+    args: Optional[list] = None,
+    kwargs: Optional[dict] = None,
+    ttl: int = 900,
+    token: Optional[str] = None,
+    icon: Any = None,
+    style: Any = None,
+):
+    """Create Button.inline with auto-generated callback token.
+
+    Stores mapping in kernel.inline_callback_map with expiry TTL seconds.
+    Compatible with the auto-callback dispatcher in core_inline.handlers.
+    """
+
+    if not callable(callback):
+        raise TypeError("callback must be callable")
+
+    cb_map = getattr(kernel, "inline_callback_map", None)
+    if cb_map is None:
+        cb_map = {}
+        setattr(kernel, "inline_callback_map", cb_map)
+
+    now = time.time()
+    cleanup_inline_callback_map(kernel)
+
+    tok = token or uuid.uuid4().hex
+    cb_map[tok] = {
+        "handler": callback,
+        "args": list(args or []),
+        "kwargs": dict(kwargs or {}),
+        "expires_at": now + ttl if ttl else None,
+    }
+
+    return Button.inline(text, tok.encode(), icon=icon, style=style)
 
 
 def build_button_switch(

@@ -4,10 +4,11 @@ import time
 import sys
 from dataclasses import dataclass
 from html import escape as html_escape
-from typing import TYPE_CHECKING, Any, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Mapping, Sequence, Callable
 import traceback
 
 from telethon import Button, events
+from core_inline.api.inline import make_cb_button
 
 if TYPE_CHECKING:
     from kernel import Kernel
@@ -88,13 +89,21 @@ class InlineManager:
     def _list_session_key(list_uuid: str) -> str:
         return f"list:{list_uuid}"
 
-    @staticmethod
-    def _nav_buttons(prefix: str, uid: str) -> list[list[Any]]:
+    def _nav_buttons(self, kind: str, uid: str, *, ttl: int = 900) -> list[list[Any]]:
+        handler: Callable | None = None
+        match kind:
+            case "gallery":
+                handler = self._gallery_nav_cb
+            case "list":
+                handler = self._list_nav_cb
+        if handler is None:
+            return []
+
         return [
             [
-                Button.inline("◀", f"{prefix}_{uid}_prev".encode()),
-                Button.inline("🔄", f"{prefix}_{uid}_refresh".encode()),
-                Button.inline("▶", f"{prefix}_{uid}_next".encode()),
+                make_cb_button(self.k, "◀", handler, args=[uid, "prev"], ttl=ttl),
+                make_cb_button(self.k, "🔄", handler, args=[uid, "refresh"], ttl=ttl),
+                make_cb_button(self.k, "▶", handler, args=[uid, "next"], ttl=ttl),
             ]
         ]
 
@@ -167,6 +176,101 @@ class InlineManager:
         lines.append(f"<blockquote>📄 {page + 1}/{total_pages}</blockquote>")
         return "\n".join(lines), page, total_pages
 
+    async def _gallery_nav_cb(self, event, gallery_uuid: str, action: str):
+        k = self.k
+        session_key = self._gallery_session_key(gallery_uuid)
+        gallery_data = self._session_get(session_key)
+        if not gallery_data:
+            await event.answer("❌ Session expired", alert=True)
+            return
+
+        rows = gallery_data.get("rows", [])
+        title = self._as_text(gallery_data.get("title", ""))
+        current_index = int(gallery_data.get("current_index", 0) or 0)
+        escape_html_flag = bool(gallery_data.get("escape_html", False))
+        total = len(rows)
+        if total <= 0:
+            await event.answer("❌ Empty gallery", alert=True)
+            return
+
+        match action:
+            case "prev":
+                current_index = (current_index - 1) % total
+            case "next":
+                current_index = (current_index + 1) % total
+            case "refresh":
+                current_index = current_index % total
+            case _:
+                current_index = 0
+
+        gallery_data["current_index"] = current_index
+        session = self._sessions.get(session_key)
+        if session:
+            self._sessions[session_key] = _Session(
+                expires_at=session.expires_at, data=gallery_data
+            )
+
+        gallery_text, media, _media_type = self._render_gallery(
+            title, rows, current_index, escape_html=escape_html_flag
+        )
+        nav_buttons = self._nav_buttons("gallery", gallery_uuid)
+        try:
+            await event.edit(
+                gallery_text,
+                file=media,
+                buttons=nav_buttons,
+                parse_mode="html",
+            )
+            await event.answer()
+        except Exception as e:
+            k.logger.error(f"gallery nav error: {e}")
+            await event.answer(f"❌ Error: {e}", alert=True)
+
+    async def _list_nav_cb(self, event, list_uuid: str, action: str):
+        k = self.k
+        session_key = self._list_session_key(list_uuid)
+        list_data = self._session_get(session_key)
+        if not list_data:
+            await event.answer("❌ Session expired", alert=True)
+            return
+
+        items = list_data.get("items", [])
+        title = self._as_text(list_data.get("title", ""))
+        page = int(list_data.get("page", 0) or 0)
+        per_page = int(list_data.get("per_page", 5) or 5)
+        escape_html_flag = bool(list_data.get("escape_html", False))
+
+        total_pages = (len(items) + per_page - 1) // per_page
+        total_pages = max(total_pages, 1)
+
+        match action:
+            case "prev":
+                page = (page - 1) % total_pages
+            case "next":
+                page = (page + 1) % total_pages
+            case "refresh":
+                page = page % total_pages
+            case _:
+                page = 0
+
+        list_text, page, _tp = self._render_list(
+            title, items, page, per_page, escape_html=escape_html_flag
+        )
+        list_data["page"] = page
+        session = self._sessions.get(session_key)
+        if session:
+            self._sessions[session_key] = _Session(
+                expires_at=session.expires_at, data=list_data
+            )
+
+        nav_buttons = self._nav_buttons("list", list_uuid)
+        try:
+            await event.edit(list_text, buttons=nav_buttons, parse_mode="html")
+            await event.answer()
+        except Exception as e:
+            k.logger.error(f"list nav error: {e}")
+            await event.answer(f"❌ Error: {e}", alert=True)
+
     def _setup_temp_callback_handler(self) -> None:
         """Setup temporary callback handler for gallery/list items."""
         k = self.k
@@ -226,114 +330,8 @@ class InlineManager:
                     await event.answer(f"❌ Error: {e}", alert=True)
                 return
 
-            # Navigation: gallery_<uuid>_<action>
-            if data.startswith("gallery_"):
-                parts = data.split("_", 2)
-                if len(parts) < 3:
-                    return
-                gallery_uuid, action = parts[1], parts[2]
-                session_key = inline_self._gallery_session_key(gallery_uuid)
-                gallery_data = inline_self._session_get(session_key)
-                if not gallery_data:
-                    await event.answer("❌ Session expired", alert=True)
-                    return
-
-                rows = gallery_data.get("rows", [])
-                title = inline_self._as_text(gallery_data.get("title", ""))
-                current_index = int(gallery_data.get("current_index", 0) or 0)
-                escape_html_flag = bool(gallery_data.get("escape_html", False))
-                total = len(rows)
-                if total <= 0:
-                    await event.answer("❌ Empty gallery", alert=True)
-                    return
-
-                if action == "prev":
-                    current_index = (current_index - 1) % total
-                elif action == "next":
-                    current_index = (current_index + 1) % total
-                elif action == "refresh":
-                    current_index = current_index % total
-                else:
-                    current_index = 0
-
-                gallery_data["current_index"] = current_index
-                # Preserve original TTL by updating the session in-place.
-                session = inline_self._sessions.get(session_key)
-                if session:
-                    inline_self._sessions[session_key] = _Session(
-                        expires_at=session.expires_at, data=gallery_data
-                    )
-
-                gallery_text, media, _media_type = inline_self._render_gallery(
-                    title, rows, current_index, escape_html=escape_html_flag
-                )
-                nav_buttons = inline_self._nav_buttons("gallery", gallery_uuid)
-                try:
-                    await event.edit(
-                        gallery_text,
-                        file=media,
-                        buttons=nav_buttons,
-                        parse_mode="html",
-                    )
-                    await event.answer()
-                except Exception as e:
-                    k.logger.error(f"gallery nav error: {e}")
-                    await event.answer(f"❌ Error: {e}", alert=True)
-                return
-
-            # Navigation: list_<uuid>_<action>
-            if data.startswith("list_"):
-                parts = data.split("_", 2)
-                if len(parts) < 3:
-                    return
-                list_uuid, action = parts[1], parts[2]
-                session_key = inline_self._list_session_key(list_uuid)
-                list_data = inline_self._session_get(session_key)
-                if not list_data:
-                    await event.answer("❌ Session expired", alert=True)
-                    return
-
-                items = list_data.get("items", [])
-                title = inline_self._as_text(list_data.get("title", ""))
-                page = int(list_data.get("page", 0) or 0)
-                per_page = int(list_data.get("per_page", 5) or 5)
-                escape_html_flag = bool(list_data.get("escape_html", False))
-
-                total_pages = (len(items) + per_page - 1) // per_page
-                total_pages = max(total_pages, 1)
-
-                if action == "prev":
-                    page = (page - 1) % total_pages
-                elif action == "next":
-                    page = (page + 1) % total_pages
-                elif action == "refresh":
-                    page = page % total_pages
-                else:
-                    page = 0
-
-                list_text, page, _tp = inline_self._render_list(
-                    title, items, page, per_page, escape_html=escape_html_flag
-                )
-                list_data["page"] = page
-                session = inline_self._sessions.get(session_key)
-                if session:
-                    inline_self._sessions[session_key] = _Session(
-                        expires_at=session.expires_at, data=list_data
-                    )
-
-                nav_buttons = inline_self._nav_buttons("list", list_uuid)
-                try:
-                    await event.edit(list_text, buttons=nav_buttons, parse_mode="html")
-                    await event.answer()
-                except Exception as e:
-                    k.logger.error(f"list nav error: {e}")
-                    await event.answer(f"❌ Error: {e}", alert=True)
-                return
-
         try:
             self.register_callback_handler("temp_callback_", temp_callback_handler)
-            self.register_callback_handler("gallery_", temp_callback_handler)
-            self.register_callback_handler("list_", temp_callback_handler)
         except Exception as e:
             # Inline UI is optional; don't crash loader init.
             k.logger.error(f"Failed to register inline callback handlers: {e}")

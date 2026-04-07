@@ -25,6 +25,41 @@ buttons = [
 ]
 ```
 
+**Auto callback token (Heroku/Hikka style):**
+```python
+from core_inline.api.inline import make_cb_button, cleanup_inline_callback_map
+
+async def on_click(event, user_id):
+    await event.answer(f"Hi {user_id}!", alert=True)
+
+buttons = [
+    make_cb_button(
+        kernel,                      # required: holds inline_callback_map
+        "Ping",                     # text
+        on_click,                    # callable
+        args=[123],                  # optional
+        kwargs={"foo": "bar"},     # optional
+        ttl=600,                     # optional, defaults 900s
+        icon=5429283852684124412,    # optional premium emoji_id
+        style="primary",           # optional style
+        # token="fixed-token",      # optional fixed token
+    )
+]
+
+# optional: clear expired tokens manually (usually not needed)
+cleanup_inline_callback_map(kernel)
+```
+How it works:
+- when building the form a random token is generated (or your `token` is used);
+- the token is stored in `kernel.inline_callback_map` with your handler + args/kwargs;
+- only `callback_data=<token>` goes into the button, so logs show a UUID-like string;
+- TTL equals the form TTL (`ttl` of `create_inline_form` / `inline_form`); expired tokens are removed.
+
+Notes:
+- If you provide `data` without `callback`, the legacy scheme still applies (prefix bytes + `register_callback_handler`).
+- Expired tokens are cleaned automatically when creating forms and on any button press.
+- Telethon `Button.inline(...)` continues to work with explicit `data`; callable callbacks are only available via the dict format above.
+
 **Ready-made Telethon buttons:**
 ```python
 from telethon import Button

@@ -68,6 +68,10 @@ inline_mgr = InlineManager(kernel)
 
 `clear_all()` — Clear all permissions.
 
+### Auto-generated inline callbacks (token → handler)
+
+You can pass a callable `callback` directly in the button dict. The inline manager generates `callback_data` tokens and stores the mapping in `kernel.inline_callback_map` for the lifetime of the form (TTL). Expired tokens are cleaned automatically when forms are created and on every press.
+
 ### Usage
 
 ```python

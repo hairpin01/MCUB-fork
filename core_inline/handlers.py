@@ -418,6 +418,24 @@ class InlineHandlers:
 
         text = btn_dict.get("text", self.lang["btn_default"])
         b_type = btn_dict.get("type", "callback").lower()
+
+        # If no explicit type, detect from keys (hikka style)
+        if (
+            b_type == "callback"
+            and not btn_dict.get("callback")
+            and not btn_dict.get("data")
+        ):
+            if "url" in btn_dict:
+                b_type = "url"
+            elif "switch" in btn_dict or "input" in btn_dict:
+                b_type = "switch"
+            elif "phone" in btn_dict:
+                b_type = "phone"
+            elif "location" in btn_dict:
+                b_type = "location"
+            elif "game" in btn_dict:
+                b_type = "game"
+
         icon = btn_dict.get("icon")
         style = btn_dict.get("style")
 
@@ -455,6 +473,12 @@ class InlineHandlers:
             query = btn_dict.get("query", "")
             hint = btn_dict.get("hint", "")
             return Button.switch_inline(text, query, hint, icon=icon, style=style)
+        if b_type == "phone":
+            return Button.request_phone(text, icon=icon, style=style)
+        if b_type == "location":
+            return Button.request_location(text, icon=icon, style=style)
+        if b_type == "game":
+            return Button.game(text, icon=icon, style=style)
         return None
 
     def _parse_json_buttons(self, json_str):
@@ -647,6 +671,9 @@ class InlineHandlers:
                     return
 
                 query_cmd = query.lower().split()[0] if query.strip() else ""
+                self.kernel.logger.debug(
+                    f"[InlineHandlers] query_cmd={query_cmd}, query={query}"
+                )
                 if await self._dispatch_inline_handler(query_cmd, query, event):
                     return
 
@@ -796,6 +823,8 @@ class InlineHandlers:
                             )
                             await event.answer(self.lang["critical_error"], alert=True)
                         return
+                    elif entry.get("kwargs", {}).get("url"):
+                        return
 
                 # 3. Legacy prefix/pattern handlers
                 for pattern, handler in list(self.kernel.callback_handlers.items()):
@@ -919,22 +948,30 @@ class InlineHandlers:
 
     async def _dispatch_inline_handler(self, cmd: str, raw_query: str, event) -> bool:
         """Route to a user inline handler once, supporting hikka proxy if needed."""
+        self.kernel.logger.debug(f"[InlineHandlers] _dispatch_inline_handler cmd={cmd}")
         if not cmd or cmd not in self.kernel.inline_handlers:
+            self.kernel.logger.debug(f"[InlineHandlers] cmd not in inline_handlers")
             return False
 
         handler = self.kernel.inline_handlers[cmd]
+        self.kernel.logger.debug(
+            f"[InlineHandlers] handler found: {handler}, cmd={cmd}"
+        )
 
         try:
-            # Prefer native event signature; fall back to hikka-compat if handler expects it
-            sig = None
-            try:
-                sig = inspect.signature(handler)
-            except (TypeError, ValueError):
-                sig = None
+            # Check if this is a hikka-compat handler by checking attributes
+            is_hikka_handler = getattr(
+                handler, "__hikka_inline_handler__", False
+            ) or getattr(handler, "is_inline_handler", False)
 
-            if sig and len(sig.parameters) == 1:
-                result = handler(event)
-            else:
+            sig = None
+            if not is_hikka_handler:
+                try:
+                    sig = inspect.signature(handler)
+                except (TypeError, ValueError):
+                    sig = None
+
+            if is_hikka_handler:
                 from core.lib.loader.hikka_compat.inline_types import (
                     InlineQuery as _HikkaInlineQuery,
                 )
@@ -949,11 +986,75 @@ class InlineHandlers:
                     original_event=event,
                 )
                 result = handler(iq_obj)
+                self.kernel.logger.debug(
+                    f"[InlineHandlers] handler result type: {type(result)}"
+                )
+            elif sig and len(sig.parameters) == 1:
+                result = handler(event)
+                self.kernel.logger.debug(
+                    f"[InlineHandlers] handler result type: {type(result)}"
+                )
+            else:
+                result = handler(event)
+                self.kernel.logger.debug(
+                    f"[InlineHandlers] handler result type: {type(result)}"
+                )
 
             if asyncio.iscoroutine(result):
                 result = await result
+                self.kernel.logger.debug(
+                    f"[InlineHandlers] awaited result: {type(result)}"
+                )
+
+            self.kernel.logger.debug(f"[InlineHandlers] final result: {result}")
 
             if result:
+                from telethon.tl.types import InputWebDocument
+
+                if isinstance(result, dict):
+                    thumb_url = result.get("thumb", "")
+                    if thumb_url:
+                        try:
+                            thumb = InputWebDocument(
+                                url=thumb_url,
+                                size=0,
+                                mime_type="image/jpeg",
+                                attributes=[],
+                            )
+                        except Exception:
+                            thumb = None
+                    else:
+                        thumb = None
+
+                    result = await event.builder.article(
+                        title=result.get("title", ""),
+                        description=result.get("description", ""),
+                        text=result.get("message", result.get("text", "")),
+                        thumb=thumb,
+                    )
+                    result = [result]
+                elif isinstance(result, list):
+                    converted = []
+                    for item in result:
+                        # Skip if already a Telethon-compatible object (has _bytes method)
+                        if hasattr(item, "_bytes"):
+                            converted.append(item)
+                        # Check for aiogram types (they have 'id' and 'title' but no '_bytes')
+                        elif hasattr(item, "id") and hasattr(item, "title"):
+                            converted.append(item)
+                        elif isinstance(item, dict):
+                            article = await event.builder.article(
+                                title=item.get("title", ""),
+                                description=item.get("description", ""),
+                                text=item.get("message", item.get("text", "")),
+                            )
+                            converted.append(article)
+                        else:
+                            converted.append(item)
+                    result = converted
+                self.kernel.logger.debug(
+                    f"[InlineHandlers] converted result: {result}, len={len(result) if result else 0}"
+                )
                 await event.answer(result)
                 return True
         except Exception:

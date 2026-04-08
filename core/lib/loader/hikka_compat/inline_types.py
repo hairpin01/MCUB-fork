@@ -288,7 +288,12 @@ class InlineCall:
         text: str = "",
         show_alert: bool = False,
         url: typing.Optional[str] = None,
+        **kwargs,
     ) -> None:
+        show_alert = kwargs.get("show_alert", show_alert) or kwargs.get(
+            "alert", show_alert
+        )
+
         if self.original_call is not None and hasattr(self.original_call, "answer"):
             try:
                 await self.original_call.answer(
@@ -398,9 +403,12 @@ class InlineQuery:
             self.query_id = getattr(inline_query, "query_id", None) or getattr(
                 inline_query, "id", None
             )
-            self.query = getattr(inline_query, "query", "") or getattr(
+            raw_query = getattr(inline_query, "query", "") or getattr(
                 inline_query, "text", ""
             )
+            self.query = raw_query.strip()
+            parts = self.query.split(maxsplit=1)
+            self.args: str = parts[1] if len(parts) > 1 else ""
             self.offset = getattr(inline_query, "offset", "") or ""
             from_user = getattr(inline_query, "from_user", None)
             self.from_user = (
@@ -412,7 +420,10 @@ class InlineQuery:
             self._inline_proxy = inline_proxy
         else:
             self.query_id = query_id
-            self.query = query
+            raw_query = query or ""
+            self.query = raw_query.strip()
+            parts = self.query.split(maxsplit=1)
+            self.args: str = parts[1] if len(parts) > 1 else ""
             self.offset = offset
             self.from_user = (
                 types.SimpleNamespace(id=user_id, username="")
@@ -422,18 +433,20 @@ class InlineQuery:
             self._original_event = original_event
             self._inline_proxy = inline_proxy
 
-        self.args: str = ""
-        self.inline_query = types.SimpleNamespace(
-            query_id=self.query_id,
-            query=self.query,
-            offset=self.offset,
-            from_user=self.from_user,
-        )
+        class _CompatInlineQuery:
+            """Compatibility wrapper for inline_query to support answer() calls."""
 
-        if self.query:
-            parts = self.query.split(maxsplit=1)
-            if len(parts) > 1:
-                self.args = parts[1]
+            def __init__(inner_self, parent: "InlineQuery"):
+                inner_self._parent = parent
+                inner_self.query_id = parent.query_id
+                inner_self.query = parent.query
+                inner_self.offset = parent.offset
+                inner_self.from_user = parent.from_user
+
+            async def answer(inner_self, results=None, cache_time=300):
+                return await inner_self._parent.answer(results, cache_time)
+
+        self.inline_query = _CompatInlineQuery(self)
 
     @property
     def id(self) -> str:
@@ -461,10 +474,17 @@ class InlineQuery:
 
         processed_results = []
         for result in results:
+            if result is None:
+                continue
             if isinstance(result, dict):
                 processed_results.append(result)
+            elif hasattr(result, "to_dict"):
+                processed_results.append(result.to_dict())
             elif hasattr(result, "__iter__"):
                 processed_results.extend(result)
+
+        if not processed_results:
+            return
 
         if self._original_event is not None:
             try:

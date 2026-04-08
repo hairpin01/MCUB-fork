@@ -25,7 +25,7 @@ buttons = [
 ]
 ```
 
-**Auto callback token (Heroku/Hikka style):**
+**Auto callback token (NEW):**
 ```python
 from core_inline.api.inline import make_cb_button, cleanup_inline_callback_map
 

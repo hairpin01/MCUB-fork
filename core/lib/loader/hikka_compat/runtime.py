@@ -1008,61 +1008,7 @@ class InlineProxy:
         self._register_callback_handler()
 
     def _register_callback_handler(self):
-        kernel = self._kernel
-        client = getattr(kernel, "client", None)
-        if not client:
-            return
-
-        try:
-            from telethon import events
-
-            @client.on(events.CallbackQuery())
-            async def _hikka_compat_callback_handler(event):
-                data = event.data
-                if not data:
-                    return
-
-                data_str = data.decode() if isinstance(data, bytes) else str(data)
-                custom_payload = self._custom_map.get(data_str)
-
-                if custom_payload:
-                    from .inline_types import InlineCall, BotInlineCall
-
-                    is_bot_message = getattr(event, "message", None) is not None
-                    inline_proxy = self
-
-                    call_obj = (
-                        BotInlineCall(
-                            event,
-                            inline_proxy=inline_proxy,
-                            unit_id=custom_payload.get("unit_id", ""),
-                        )
-                        if is_bot_message
-                        else InlineCall(
-                            data_str,
-                            unit_id=custom_payload.get("unit_id", ""),
-                            inline_proxy=inline_proxy,
-                            original_call=event,
-                            inline_message_id=getattr(event, "inline_message_id", None),
-                            chat_id=getattr(event, "chat_instance", None),
-                            message_id=getattr(event, "message_id", None),
-                            from_user_id=getattr(
-                                getattr(event, "from_user", None), "id", None
-                            ),
-                        )
-                    )
-
-                    handler = custom_payload.get("handler")
-                    if handler:
-                        try:
-                            await handler(call_obj)
-                        except Exception as e:
-                            kernel.logger.error(f"[hikka_compat] callback error: {e}")
-
-        except Exception as e:
-            kernel.logger.warning(
-                f"[hikka_compat] failed to register callback handler: {e}"
-            )
+        pass
 
     def _bind_module(self, module) -> None:
         self._module = module
@@ -1132,6 +1078,7 @@ class InlineProxy:
         if not markup:
             return []
 
+        # If all elements are dicts, it's a single row (list of buttons)
         if all(isinstance(btn, dict) for btn in markup):
             return [[dict(btn) for btn in markup]]
 
@@ -1166,6 +1113,23 @@ class InlineProxy:
             for button in row:
                 btn = dict(button)
 
+                # Handle non-callback buttons (URL, switch, phone, location, game)
+                if "url" in btn and "callback" not in btn:
+                    prepared_row.append(btn)
+                    continue
+                if ("switch" in btn or "input" in btn) and "callback" not in btn:
+                    prepared_row.append(btn)
+                    continue
+                if "phone" in btn and "callback" not in btn:
+                    prepared_row.append(btn)
+                    continue
+                if "location" in btn and "callback" not in btn:
+                    prepared_row.append(btn)
+                    continue
+                if "game" in btn and "callback" not in btn:
+                    prepared_row.append(btn)
+                    continue
+
                 if "callback" not in btn:
                     action = str(btn.get("action", "")).lower()
                     if action == "close":
@@ -1177,13 +1141,20 @@ class InlineProxy:
                         async def _answer(
                             call,
                             _text=btn.get("message", ""),
-                            _show=bool(btn.get("show_alert", False)),
+                            _show=bool(
+                                btn.get("alert") or btn.get("show_alert", False)
+                            ),
                         ):
                             return await self._answer_unit_handler(
                                 call, text=_text, show_alert=_show
                             )
 
                         btn["callback"] = _answer
+
+                # Handle URL and other non-callback buttons - just add them without callback processing
+                if "url" in btn and "callback" not in btn:
+                    prepared_row.append(btn)
+                    continue
 
                 cb = btn.get("callback")
                 if callable(cb):
@@ -1210,6 +1181,21 @@ class InlineProxy:
                             btn.get("disable_security", disable_security)
                         ),
                         "unit_id": unit_id,
+                    }
+
+                    cb_map = getattr(self._kernel, "inline_callback_map", None)
+                    if cb_map is None:
+                        cb_map = {}
+                        setattr(self._kernel, "inline_callback_map", cb_map)
+
+                    ttl = getattr(self, "_current_form_ttl", 3600)
+                    import time as _time
+
+                    cb_map[cb_data] = {
+                        "handler": cb,
+                        "args": tuple(raw_args),
+                        "kwargs": dict(raw_kwargs),
+                        "expires_at": _time.time() + ttl,
                     }
                 elif isinstance(cb, str):
                     btn["callback_data"] = cb
@@ -1298,6 +1284,12 @@ class InlineProxy:
                 elif "switch_inline_query" in button:
                     query = str(button.get("switch_inline_query", "")).strip()
                     out_row.append(Button.switch_inline(text, query, same_peer=False))
+                elif "phone" in button:
+                    out_row.append(Button.request_phone(text))
+                elif "location" in button:
+                    out_row.append(Button.request_location(text))
+                elif "game" in button:
+                    out_row.append(Button.game(text))
                 else:
                     data = button.get("callback_data", button.get("data", ""))
                     if isinstance(data, bytes):
@@ -1462,6 +1454,8 @@ class InlineProxy:
         chat_id = self._derive_chat_id(message)
         if chat_id is None:
             return False
+
+        self._current_form_ttl = ttl or 3600
 
         unit_type = str(kwargs.pop("_unit_type", "form"))
         unit_id = str(kwargs.pop("unit_id", self._unit_id(unit_type)))

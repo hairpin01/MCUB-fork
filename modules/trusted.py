@@ -494,6 +494,9 @@ def register(kernel):
         """Build inline button rows using make_cb_button for temporary callbacks."""
 
         async def on_toggle(event, uid, cat_key):
+            if event.sender_id != kernel.ADMIN_ID:
+                await event.answer()
+                return
             cur = await get_access(uid)
             cur[cat_key] = not cur.get(cat_key, False)
             await save_access(uid, cur)
@@ -517,6 +520,9 @@ def register(kernel):
                 pass
 
         async def on_preset(event, uid, preset_key):
+            if event.sender_id != kernel.ADMIN_ID:
+                await event.answer()
+                return
             preset = PRESETS[preset_key]
             await save_access(uid, dict(preset["access"]))
             if preset["access"].get("inline", False):
@@ -539,6 +545,9 @@ def register(kernel):
                 pass
 
         async def on_allow_all(event, uid):
+            if event.sender_id != kernel.ADMIN_ID:
+                await event.answer()
+                return
             full = {cat: True for cat in ACCESS_CATEGORIES}
             await save_access(uid, full)
             if full.get("inline", False):
@@ -560,6 +569,9 @@ def register(kernel):
                 pass
 
         async def on_deny_all(event, uid):
+            if event.sender_id != kernel.ADMIN_ID:
+                await event.answer()
+                return
             none_ = {cat: False for cat in ACCESS_CATEGORIES}
             await save_access(uid, none_)
             await inline_manager.deny_user(uid)
@@ -578,6 +590,9 @@ def register(kernel):
                 pass
 
         async def on_close(event, uid):
+            if event.sender_id != kernel.ADMIN_ID:
+                await event.answer()
+                return
             try:
                 await kernel.client.delete_messages(event.chat_id, [event.message.id])
             except Exception:
@@ -632,6 +647,9 @@ def register(kernel):
         rows.append(preset_row)
 
         async def on_cmds(event, uid):
+            if event.sender_id != kernel.ADMIN_ID:
+                await event.answer()
+                return
             access = await get_access(uid)
             cmd_access = await get_cmd_access(uid)
             name = await get_user_display(uid)
@@ -701,6 +719,9 @@ def register(kernel):
         ITEMS_PER_PAGE = 10
 
         async def on_toggle_cmd(event, uid, cmd, current_allowed, current_page):
+            if event.sender_id != kernel.ADMIN_ID:
+                await event.answer()
+                return
             cmd_access = await get_cmd_access(uid)
             cmd_access[cmd] = not current_allowed
             await save_cmd_access(uid, cmd_access)
@@ -710,6 +731,9 @@ def register(kernel):
             await event.edit(text, buttons=rows, parse_mode="html")
 
         async def on_back(event, uid):
+            if event.sender_id != kernel.ADMIN_ID:
+                await event.answer()
+                return
             access = await get_access(uid)
             name = await get_user_display(uid)
             groups = await get_sgroups()
@@ -723,6 +747,9 @@ def register(kernel):
             await event.edit(text, buttons=buttons, parse_mode="html")
 
         async def on_prev(event, uid, current_page):
+            if event.sender_id != kernel.ADMIN_ID:
+                await event.answer()
+                return
             if current_page > 0:
                 access = await get_access(uid)
                 cmd_access = await get_cmd_access(uid)
@@ -733,6 +760,9 @@ def register(kernel):
                 await event.edit(text, buttons=rows, parse_mode="html")
 
         async def on_next(event, uid, current_page):
+            if event.sender_id != kernel.ADMIN_ID:
+                await event.answer()
+                return
             all_cmds = get_all_commands()
             total_pages = (len(all_cmds) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
             if current_page < total_pages - 1:
@@ -874,6 +904,9 @@ def register(kernel):
         name = await get_user_display(user_id)
 
         async def on_time_select(event, uid, seconds):
+            if event.sender_id != kernel.ADMIN_ID:
+                await event.answer()
+                return
             if seconds == 0:
                 await _show_nonick_step(event, uid)
             else:
@@ -886,6 +919,9 @@ def register(kernel):
                 await _show_nonick_step(event, uid, timed=True, seconds=seconds)
 
         async def _show_nonick_step(event, uid, timed=False, seconds=0):
+            if event.sender_id != kernel.ADMIN_ID:
+                await event.answer()
+                return
             name = await get_user_display(uid)
             owner_uname = await get_owner_username()
 
@@ -940,6 +976,9 @@ def register(kernel):
             await event.edit(text, buttons=buttons, parse_mode="html")
 
         async def on_nonick(event, uid, nonick, timed=False, seconds=0):
+            if event.sender_id != kernel.ADMIN_ID:
+                await event.answer()
+                return
             trusted = await get_trusted_list()
             if uid not in trusted:
                 trusted.append(uid)

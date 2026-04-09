@@ -45,6 +45,7 @@ try:
     from ..lib.base.database import DatabaseManager
     from ..lib.base.permissions import CallbackPermissionManager
     from ..lib.loader.inline import InlineManager
+    from ..lib.loader.inline import InlineMessage as _InlineMessage
     from ..lib.loader.loader import ModuleLoader
     from ..lib.loader.register import Register
     from ..lib.loader.repository import RepositoryManager
@@ -1075,6 +1076,24 @@ class Kernel:
         return await self._inline.inline_form(
             chat_id, title, fields, buttons, auto_send, ttl, **kwargs
         )
+
+    @property
+    def InlineMessage(self) -> type[_InlineMessage]:
+        """Get the InlineMessage class for editing/deleting inline messages.
+
+        Example:
+            ```python
+            # Get an existing inline message
+            msg = self.kernel.InlineMessage.get(form_id)
+            if msg:
+                await msg.edit("New text")
+                await msg.delete()
+            ```
+
+        Returns:
+            InlineMessage class.
+        """
+        return _InlineMessage
 
     def get_module_inline_commands(self, module_name: str) -> list:
         """Get inline commands registered by a module."""

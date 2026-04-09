@@ -120,6 +120,9 @@ class ConfigManager:
         errors = self._validate_config(k.config)
         if not errors:
             if logger:
+                logger.debug(
+                    "Config contains required fields: %s", sorted(k.config.keys())
+                )
                 logger.debug("Config validation succeeded")
             self.setup()
             if logger:

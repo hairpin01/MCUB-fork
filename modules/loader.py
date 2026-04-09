@@ -725,20 +725,18 @@ def register(kernel):
 
         return matches
 
-    async def open_repo_choice_inline(
+    async def open_repo_choice_form(
         event: types.Message,
         module_name: str,
         send_mode: bool,
         matches: list[dict[str, int | str]],
     ) -> bool:
-        bot_username = await get_inline_bot_username()
-        if not bot_username:
-            return False
+        from core_inline.api.inline import make_cb_button
 
-        select_id = str(uuid.uuid4())[:8]
-        cache_key = f"dlm_repo_select:{select_id}"
-        kernel.cache.set(
-            cache_key,
+        session_uuid = str(uuid.uuid4())[:8]
+        session_key = f"dlm:{session_uuid}"
+        kernel._inline._session_put(
+            session_key,
             {
                 "module_name": module_name,
                 "send_mode": send_mode,
@@ -754,13 +752,86 @@ def register(kernel):
             ttl=300,
         )
 
-        results = await client.inline_query(bot_username, f"dlm select {select_id}")
-        if not results:
-            return False
+        buttons = []
+        for item in matches:
+            clean_name = re.sub(r"<[^>]+>", "", item["repo_name"])[:40]
+            buttons.append(
+                [
+                    make_cb_button(
+                        kernel,
+                        f"{item['repo_index'] + 1}. {clean_name}",
+                        dlm_repo_session_callback,
+                        args=[session_uuid, str(item["repo_index"])],
+                        ttl=300,
+                    )
+                ]
+            )
+        buttons.append(
+            [
+                make_cb_button(
+                    kernel,
+                    re.sub(r"<[^>]+>", "", t("dlm_repo_choice_cancel")),
+                    dlm_repo_session_callback,
+                    args=[session_uuid, "cancel"],
+                    ttl=300,
+                )
+            ]
+        )
 
-        await results[0].click(event.chat_id, reply_to=event.reply_to_msg_id)
-        await event.delete()
-        return True
+        action_key = (
+            "dlm_repo_choice_action_send"
+            if send_mode
+            else "dlm_repo_choice_action_install"
+        )
+        title = t(
+            "dlm_repo_choice_title",
+            cloud="🧩",
+            module_name=module_name,
+            action=t(action_key),
+        )
+
+        success, _ = await kernel.inline_form(
+            event.chat_id,
+            title=title,
+            buttons=buttons,
+            auto_send=True,
+            ttl=300,
+        )
+
+        if success:
+            await event.delete()
+            return True
+        return False
+
+    async def dlm_repo_session_callback(event: types.CallbackQuery, *args) -> None:
+        if not args:
+            return
+
+        session_uuid = args[0]
+        action = args[1] if len(args) > 1 else ""
+
+        session_key = f"dlm:{session_uuid}"
+        select_data = kernel._inline._session_get(session_key, pop=True)
+
+        if not select_data:
+            await event.answer(t("dlm_repo_choice_expired"), alert=True)
+            return
+
+        if action == "cancel":
+            await event.edit(t("dlm_repo_choice_cancelled"), parse_mode="html")
+            return
+
+        if select_data.get("user_id") != event.sender_id:
+            await event.answer(t("dlm_repo_choice_expired"), alert=True)
+            return
+
+        repo_index = int(action)
+        await run_dlm_install(
+            event,
+            select_data["module_name"],
+            send_mode=select_data.get("send_mode", False),
+            repo_index=repo_index,
+        )
 
     async def catalog_inline_handler(event: types.InlineQuery) -> None:
         try:
@@ -803,78 +874,6 @@ def register(kernel):
 
     kernel.register_inline_handler("catalog", catalog_inline_handler)
     kernel.register_callback_handler("catalog_", catalog_callback_handler)
-
-    async def dlm_inline_handler(event: types.InlineQuery) -> None:
-        try:
-            parts = (event.text or "").split()
-            if len(parts) < 3 or parts[1] != "select":
-                return
-
-            select_id = parts[2]
-            select_data = kernel.cache.get(f"dlm_repo_select:{select_id}")
-            if not select_data:
-                await event.answer(
-                    [
-                        event.builder.article(
-                            "Expired",
-                            text=t("dlm_repo_choice_expired"),
-                            parse_mode="html",
-                        )
-                    ]
-                )
-                return
-
-            action_key = (
-                "dlm_repo_choice_action_send"
-                if select_data.get("send_mode")
-                else "dlm_repo_choice_action_install"
-            )
-            text = t(
-                "dlm_repo_choice_title",
-                cloud="🧩",
-                module_name=select_data["module_name"],
-                action=t(action_key),
-            )
-
-            def strip_emoji_tags(text):
-                """Remove tg-emoji and other HTML tags from button labels."""
-                return re.sub(r"<[^>]+>", "", text).strip()
-
-            buttons = []
-            for item in select_data["matches"]:
-                clean_name = strip_emoji_tags(item["repo_name"])[:40]
-                buttons.append(
-                    [
-                        Button.inline(
-                            t(
-                                "dlm_repo_choice_repo",
-                                index=item["repo_index"] + 1,
-                                repo_name=clean_name,
-                            ),
-                            f"dlm_repo:{select_id}:{item['repo_index']}".encode(),
-                        )
-                    ]
-                )
-            buttons.append(
-                [
-                    Button.inline(
-                        t("dlm_repo_choice_cancel"),
-                        f"dlm_repo:cancel:{select_id}".encode(),
-                    )
-                ]
-            )
-
-            builder = event.builder.article(
-                f"dlm-select-{select_id}",
-                text=text,
-                buttons=buttons,
-                parse_mode="html",
-            )
-            await event.answer([builder])
-        except Exception as e:
-            logger.error(f"Ошибка в dlm_inline_handler: {e}")
-
-    kernel.register_inline_handler("dlm", dlm_inline_handler)
 
     def get_source_link(module_name: str) -> str:
         """Generate source link string for module."""
@@ -1483,42 +1482,6 @@ def register(kernel):
             # Remove source info on error
             kernel._module_sources.pop(module_name, None)
 
-    async def dlm_repo_callback_handler(event: types.CallbackQuery) -> None:
-        try:
-            data_str = (
-                event.data.decode("utf-8")
-                if isinstance(event.data, bytes)
-                else str(event.data)
-            )
-            _, part1, part2 = data_str.split(":", 2)
-
-            if part1 == "cancel":
-                kernel.cache.set(f"dlm_repo_select:{part2}", None, ttl=1)
-                await event.edit(t("dlm_repo_choice_cancelled"), parse_mode="html")
-                return
-
-            select_data = kernel.cache.get(f"dlm_repo_select:{part1}")
-            repo_index = int(part2)
-            if not select_data:
-                await event.answer(t("dlm_repo_choice_expired"), alert=True)
-                return
-
-            if select_data.get("user_id") != event.sender_id:
-                await event.answer(t("dlm_repo_choice_expired"), alert=True)
-                return
-
-            await run_dlm_install(
-                event,
-                select_data["module_name"],
-                send_mode=select_data.get("send_mode", False),
-                repo_index=repo_index,
-            )
-        except Exception as e:
-            logger.error(f"Ошибка в dlm_repo_callback_handler: {e}")
-            await event.answer(f"Ошибка: {str(e)[:50]}", alert=True)
-
-    kernel.register_callback_handler("dlm_repo:", dlm_repo_callback_handler)
-
     @kernel.register.command("iload", alias="im")
     # <reply> load module
     async def install_module_handler(event: types.CallbackQuery) -> None:
@@ -1978,7 +1941,7 @@ def register(kernel):
         module_or_url = None
         repo_index = None
 
-        if args[1] in ["-send", "-s"]:
+        if args[1] in ["-send", "-s", "--send"]:
             if len(args) < 3:
                 await edit_with_emoji(
                     event,
@@ -2007,7 +1970,7 @@ def register(kernel):
             matches = await find_repo_matches(module_or_url, repos)
 
             if len(matches) > 1:
-                opened = await open_repo_choice_inline(
+                opened = await open_repo_choice_form(
                     event, module_or_url, send_mode, matches
                 )
                 if opened:
@@ -2409,8 +2372,6 @@ def register(kernel):
             file_path,
         )
 
-        # Устанавливаем зависимости до снятия старых команд/watchers,
-        # чтобы при ошибке установки не остаться без модуля.
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 code = f.read()

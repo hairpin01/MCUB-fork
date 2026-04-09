@@ -13,6 +13,7 @@ import aiohttp
 from telethon import Button, events
 from telethon.tl.types import (
     InputWebDocument,
+    InputBotInlineMessageID,
     KeyboardButtonCallback,
     KeyboardButtonUrl,
 )
@@ -55,6 +56,28 @@ class InlineHandlers:
         self._inline_manager = InlineManager(kernel)
         self.lang = get_strings(kernel)
         self.kernel.logger.debug("[InlineHandlers] __init__")
+        self._setup_inline_send_handler()
+
+    def _setup_inline_send_handler(self) -> None:
+        @self.bot_client.on(events.Raw)
+        async def inline_send_handler(event):
+            from telethon.tl.types import UpdateBotInlineSend
+
+            if isinstance(event, UpdateBotInlineSend):
+                msg_id = event.msg_id
+                if isinstance(msg_id, InputBotInlineMessageID):
+                    inline_msg_id_str = (
+                        f"{msg_id.dc_id}:{msg_id.id}:{msg_id.access_hash}"
+                    )
+                    self.kernel.logger.debug(
+                        f"[InlineHandlers] UpdateBotInlineSend: form_id={event.id} inline_msg_id={inline_msg_id_str}"
+                    )
+                    form_data = self.kernel.cache.get(event.id)
+                    if form_data:
+                        form_data["inline_message_id"] = inline_msg_id_str
+                        self.kernel.cache.set(
+                            event.id, form_data, ttl=form_data.get("_ttl", 3600)
+                        )
 
     async def close(self) -> None:
         """Close aiohttp session on bot shutdown."""
@@ -106,6 +129,7 @@ class InlineHandlers:
             "created_at": time.time(),
             "media": media,
             "media_type": media_type,
+            "_ttl": ttl,
         }
 
         self.kernel.cache.set(form_id, form_data, ttl=ttl)
@@ -703,11 +727,13 @@ class InlineHandlers:
                                 media_type=mtype,
                                 text=text,
                                 title="Media",
+                                result_id=query,
                             )
                         else:
                             _result_obj = build_inline_result_text(
                                 title="Inline Form",
                                 text=text,
+                                result_id=query,
                             )
 
                         if buttons:

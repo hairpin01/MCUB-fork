@@ -251,6 +251,8 @@ async def _build_module_detail(match_tuple, kernel, strings):
         msg += "</blockquote>"
 
     msg += f"\n<blockquote>{CUSTOM_EMOJI['pancake']} <b>{strings['author']}:</b> <i>{metadata.get('author', strings['unknown'])}</i></blockquote>"
+    if typ == "system":
+        msg += f"<blockquote>{strings['system_module_note']}</blockquote>"
     return msg, metadata.get("banner_url")
 
 
@@ -508,6 +510,7 @@ def register(kernel):
             "module_not_hidden": f"{CUSTOM_EMOJI['blocked']} Этот модуль не скрыт.",
             "manhide_usage": f"{CUSTOM_EMOJI['confused']} Использование: <code>.manhide [модуль]</code>",
             "manunhide_usage": f"{CUSTOM_EMOJI['confused']} Использование: <code>.manunhide [модуль]</code>",
+            "system_module_note": f"{CUSTOM_EMOJI['blocked']} <b>Это системный модуль, и его просто так нельзя выгрузить loader'ом</b>",
         },
         "en": {
             "help_not_command": "Did you mean ",
@@ -545,6 +548,7 @@ def register(kernel):
             "module_not_hidden": f"{CUSTOM_EMOJI['blocked']} This module is not hidden.",
             "manhide_usage": f"{CUSTOM_EMOJI['confused']} Usage: <code>.manhide [module]</code>",
             "manunhide_usage": f"{CUSTOM_EMOJI['confused']} Usage: <code>.manunhide [module]</code>",
+            "system_module_note": f"{CUSTOM_EMOJI['blocked']} <b>This is a system module, and it cannot simply be unloaded with a loader</b>",
         },
     }
 
@@ -767,6 +771,9 @@ def register(kernel):
 
         msg += f"\n<blockquote>{CUSTOM_EMOJI['snowflake']} <b>{strings['version']}:</b> <code>{metadata.get('version', '1.0.0')}</code>"
         msg += f"\n{CUSTOM_EMOJI['pancake']} <b>{strings['author']}:</b> <i>{metadata.get('author', strings['unknown'])}</i></blockquote>"
+
+        if typ == "system":
+            msg += f"<blockquote>{strings['system_module_note']}</blockquote>"
 
         return msg
 

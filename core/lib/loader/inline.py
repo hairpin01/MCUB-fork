@@ -561,6 +561,30 @@ class InlineManager:
             message = await results[result_index].click(chat_id, **click_kwargs)
             if form_sms:
                 await form_sms.delete()
+
+            if message:
+                inline_msg_id = getattr(message, "inline_message_id", None)
+                if inline_msg_id:
+                    form_data = handlers.get_inline_form(form_id)
+                    if form_data:
+                        if (
+                            hasattr(inline_msg_id, "dc_id")
+                            and hasattr(inline_msg_id, "id")
+                            and hasattr(inline_msg_id, "access_hash")
+                        ):
+                            form_data["inline_message_id"] = (
+                                f"{inline_msg_id.dc_id}:{inline_msg_id.id}:{inline_msg_id.access_hash}"
+                            )
+                        else:
+                            form_data["inline_message_id"] = str(inline_msg_id)
+                        handlers.create_inline_form(
+                            text=form_data.get("text", ""),
+                            buttons=form_data.get("buttons"),
+                            ttl=ttl,
+                            media=form_data.get("media"),
+                            media_type=form_data.get("media_type", "photo"),
+                        )
+
             k.logger.debug(
                 "[inline] clicked index=%d chat_id=%s silent=%s reply_to=%s",
                 result_index,
@@ -568,6 +592,7 @@ class InlineManager:
                 silent,
                 reply_to,
             )
+            message.form_id = query
             return True, message
 
         except Exception as e:
@@ -803,3 +828,314 @@ class InlineManager:
                 commands.append((cmd, doc if doc else None))
 
         return commands
+
+
+class InlineMessage:
+    """Inline message wrapper for easy editing and deleting.
+
+    Provides a clean API to manage inline messages without needing to store
+    inline_message_id manually.
+
+    Example:
+        ```python
+        # Create inline form
+        success, msg = await kernel.inline_form(chat_id, "Hello!")
+
+        # Later edit it
+        msg.edit("New text!")
+
+        # Or delete it
+        msg.delete()
+
+        # Or get existing message by form_id
+        msg = InlineMessage.get(form_id, kernel)
+        await msg.edit("Updated!")
+        ```
+    """
+
+    def __init__(
+        self,
+        unit_id: str,
+        kernel: "Kernel",
+    ) -> None:
+        """Initialize InlineMessage.
+
+        Args:
+            unit_id: The form ID of the inline message (returned by inline_form).
+            kernel: The kernel instance.
+        """
+        self.unit_id = unit_id
+        self._kernel = kernel
+        self._form_data: dict | None = None
+
+    @classmethod
+    def get(cls, unit_id: str, kernel: "Kernel") -> "InlineMessage | None":
+        """Get an InlineMessage by unit/form ID or message ID.
+
+        Args:
+            unit_id: The form ID or message ID to look up.
+            kernel: The kernel instance.
+
+        Returns:
+            InlineMessage instance if found, None otherwise.
+        """
+        msg = cls(unit_id, kernel)
+        if msg._load_form_data():
+            return msg
+        return None
+
+    def _load_form_data(self) -> bool:
+        """Load form data from cache."""
+        from core_inline.handlers import InlineHandlers
+
+        handlers = InlineHandlers(self._kernel, self._kernel.bot_client)
+
+        form_data = handlers.get_inline_form(self.unit_id)
+        if form_data:
+            self._form_data = form_data
+            return True
+
+        form_id = f"msg_{self.unit_id}"
+        form_data = handlers.get_inline_form(form_id)
+        if form_data:
+            self._form_data = form_data
+            return True
+
+        return False
+
+    @property
+    def text(self) -> str:
+        """Get current message text."""
+        if self._form_data:
+            return self._form_data.get("text", "")
+        return ""
+
+    @property
+    def buttons(self) -> list | None:
+        """Get current message buttons."""
+        if self._form_data:
+            return self._form_data.get("buttons")
+        return None
+
+    async def edit(
+        self,
+        text: str | None = None,
+        buttons: list | None = None,
+        **kwargs,
+    ) -> "InlineMessage":
+        """Edit the inline message.
+
+        Args:
+            text: New message text (optional).
+            buttons: New buttons (optional).
+            **kwargs: Additional arguments passed to edit_message.
+
+        Returns:
+            Self for chaining.
+
+        Example:
+            ```python
+            msg = InlineMessage.get(form_id, kernel)
+            await msg.edit("New text", buttons=[[Button.callback("Click", "data")]])
+            ```
+        """
+        from core_inline.handlers import InlineHandlers
+        from telethon.tl.functions.messages import EditInlineBotMessageRequest
+        from telethon.tl.types import InputBotInlineMessageID
+
+        handlers = InlineHandlers(self._kernel, self._kernel.bot_client)
+        form_data = handlers.get_inline_form(self.unit_id)
+        if not form_data:
+            alt_id = f"msg_{self.unit_id}"
+            form_data = handlers.get_inline_form(alt_id)
+        if not form_data:
+            return self
+
+        update_data = dict(form_data)
+        if text is not None:
+            update_data["text"] = text
+        if buttons is not None:
+            update_data["buttons"] = self._normalize_buttons(buttons)
+
+        cache = getattr(self._kernel, "cache", None)
+        if cache:
+            cache.set(self.unit_id, update_data, ttl=3600)
+
+        bot_client = getattr(self._kernel, "bot_client", None)
+        user_client = getattr(self._kernel, "client", None)
+        client = bot_client or user_client
+        if client is None:
+            return self
+
+        inline_msg_id = form_data.get("inline_message_id")
+        if inline_msg_id:
+            try:
+                msg_id = None
+                if isinstance(inline_msg_id, InputBotInlineMessageID):
+                    msg_id = inline_msg_id
+                elif isinstance(inline_msg_id, str):
+                    if ":" in inline_msg_id:
+                        parts = inline_msg_id.split(":")
+                        if len(parts) == 3:
+                            msg_id = InputBotInlineMessageID(
+                                dc_id=int(parts[0]),
+                                id=int(parts[1]),
+                                access_hash=int(parts[2]),
+                            )
+                        elif len(parts) == 2:
+                            msg_id = InputBotInlineMessageID(
+                                dc_id=0,
+                                id=int(parts[0]),
+                                access_hash=int(parts[1]),
+                            )
+
+                if msg_id and bot_client:
+                    reply_markup = None
+                    if buttons:
+                        reply_markup = bot_client.build_reply_markup(
+                            self._to_telethon_buttons(buttons)
+                        )
+                    await bot_client(
+                        EditInlineBotMessageRequest(
+                            id=msg_id,
+                            message=text or form_data.get("text", ""),
+                            reply_markup=reply_markup,
+                            parse_mode="html",
+                        )
+                    )
+            except Exception as e:
+                self._kernel.logger.debug(f"InlineMessage.edit inline error: {e}")
+
+        message = form_data.get("message")
+        chat = form_data.get("chat")
+        if message is not None and chat is not None and hasattr(client, "edit_message"):
+            edit_kwargs = {"parse_mode": "html"}
+            if buttons:
+                edit_kwargs["buttons"] = self._to_telethon_buttons(buttons)
+            edit_kwargs.update(kwargs)
+            try:
+                await client.edit_message(
+                    chat,
+                    message,
+                    text or form_data.get("text", ""),
+                    **edit_kwargs,
+                )
+            except Exception as e:
+                self._kernel.logger.debug(f"InlineMessage.edit message error: {e}")
+
+        self._form_data = update_data
+        return self
+
+    async def delete(self) -> bool:
+        """Delete the inline message.
+
+        Returns:
+            True if deleted successfully, False otherwise.
+
+        Example:
+            ```python
+            msg = InlineMessage.get(form_id, kernel)
+            await msg.delete()
+            ```
+        """
+        from core_inline.handlers import InlineHandlers
+        from telethon.tl.functions.messages import DeleteBotCallbackMessage
+
+        bot_client = getattr(self._kernel, "bot_client", None)
+        user_client = getattr(self._kernel, "client", None)
+        client = bot_client or user_client
+        if client is None:
+            return False
+
+        handlers = InlineHandlers(self._kernel, bot_client)
+        form_data = handlers.get_inline_form(self.unit_id)
+        if not form_data:
+            alt_id = f"msg_{self.unit_id}"
+            form_data = handlers.get_inline_form(alt_id)
+        if not form_data:
+            return False
+
+        inline_msg_id = form_data.get("inline_message_id")
+        if inline_msg_id and bot_client:
+            try:
+                await bot_client(DeleteBotCallbackMessage(inline_msg_id))
+            except Exception as e:
+                self._kernel.logger.debug(f"InlineMessage.delete inline error: {e}")
+
+        message = form_data.get("message")
+        chat = form_data.get("chat")
+        if (
+            message is not None
+            and chat is not None
+            and hasattr(client, "delete_messages")
+        ):
+            try:
+                await client.delete_messages(chat, message)
+            except Exception as e:
+                self._kernel.logger.debug(f"InlineMessage.delete message error: {e}")
+
+        cache = getattr(self._kernel, "cache", None)
+        if cache:
+            cache.delete(self.unit_id)
+            cache.delete(f"msg_{self.unit_id}")
+
+        return True
+
+    async def unload(self) -> bool:
+        """Unload the inline unit (remove from cache).
+
+        Returns:
+            True if unloaded successfully.
+
+        Example:
+            ```python
+            msg = InlineMessage.get(form_id, kernel)
+            await msg.unload()
+            ```
+        """
+        cache = getattr(self._kernel, "cache", None)
+        if cache:
+            cache.delete(self.unit_id)
+            cache.delete(f"msg_{self.unit_id}")
+        return True
+
+    def _normalize_buttons(self, buttons: list) -> list:
+        """Normalize buttons to internal format."""
+        if not buttons:
+            return []
+
+        normalized = []
+        for row in buttons:
+            if isinstance(row, list):
+                normalized.append(row)
+            elif isinstance(row, dict):
+                normalized.append([row])
+            else:
+                normalized.append([row])
+        return normalized
+
+    def _to_telethon_buttons(self, buttons) -> list | None:
+        """Convert buttons to Telethon format."""
+        if not buttons:
+            return None
+
+        from telethon import Button
+
+        prepared = []
+        for row in buttons:
+            out_row = []
+            for btn in row:
+                if isinstance(btn, Button):
+                    out_row.append(btn)
+                elif isinstance(btn, dict):
+                    btn_text = btn.get("text", "")
+                    btn_data = btn.get("data", b"").encode() if btn.get("data") else b""
+                    out_row.append(Button.callback(btn_text, btn_data))
+                elif isinstance(btn, (tuple, list)) and len(btn) >= 2:
+                    btn_text, btn_data = btn[0], btn[1]
+                    if isinstance(btn_data, str):
+                        btn_data = btn_data.encode()
+                    out_row.append(Button.callback(btn_text, btn_data))
+            if out_row:
+                prepared.append(out_row)
+        return prepared if prepared else None

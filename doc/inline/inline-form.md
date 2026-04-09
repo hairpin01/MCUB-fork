@@ -146,4 +146,5 @@ async def casino_callback_handler(event):
         await event.edit("Starting game...")
 
 kernel.register_callback_handler('casino_', casino_callback_handler)
-```
+
+---

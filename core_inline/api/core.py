@@ -7,10 +7,11 @@ def build_inline_result_text(
     text: str,
     description: Optional[str] = None,
     parse_mode: str = "HTML",
+    result_id: Optional[str] = None,
 ) -> dict[str, Any]:
     result = {
         "type": "article",
-        "id": str(uuid.uuid4()),
+        "id": result_id or str(uuid.uuid4()),
         "title": title,
         "input_message_content": {
             "message_text": text or "",
@@ -31,10 +32,11 @@ def build_inline_result_photo(
     description: Optional[str] = None,
     parse_mode: str = "HTML",
     thumb_url: Optional[str] = None,
+    result_id: Optional[str] = None,
 ) -> dict[str, Any]:
     result = {
         "type": "photo",
-        "id": str(uuid.uuid4()),
+        "id": result_id or str(uuid.uuid4()),
         "photo_url": photo_url,
         "thumb_url": thumb_url or photo_url,
         "title": title,
@@ -54,10 +56,11 @@ def build_inline_result_video(
     thumb_url: Optional[str] = None,
     description: Optional[str] = None,
     parse_mode: str = "HTML",
+    result_id: Optional[str] = None,
 ) -> dict[str, Any]:
     result = {
         "type": "video",
-        "id": str(uuid.uuid4()),
+        "id": result_id or str(uuid.uuid4()),
         "video_url": video_url,
         "mime_type": mime_type,
         "thumb_url": thumb_url or video_url,
@@ -78,10 +81,11 @@ def build_inline_result_document(
     thumb_url: Optional[str] = None,
     description: Optional[str] = None,
     parse_mode: str = "HTML",
+    result_id: Optional[str] = None,
 ) -> dict[str, Any]:
     result = {
         "type": "document",
-        "id": str(uuid.uuid4()),
+        "id": result_id or str(uuid.uuid4()),
         "document_url": document_url,
         "mime_type": mime_type,
         "thumb_url": thumb_url or "https://kappa.lol/KSKoOu",
@@ -101,10 +105,11 @@ def build_inline_result_gif(
     thumb_url: Optional[str] = None,
     description: Optional[str] = None,
     parse_mode: str = "HTML",
+    result_id: Optional[str] = None,
 ) -> dict[str, Any]:
     result = {
         "type": "mpeg4_gif",
-        "id": str(uuid.uuid4()),
+        "id": result_id or str(uuid.uuid4()),
         "mpeg4_url": gif_url,
         "thumb_url": thumb_url or gif_url,
         "title": title,
@@ -123,6 +128,7 @@ def build_inline_result_media(
     title: str,
     description: Optional[str] = None,
     parse_mode: str = "HTML",
+    result_id: Optional[str] = None,
 ) -> dict[str, Any]:
     media_type = media_type.lower()
 
@@ -133,6 +139,7 @@ def build_inline_result_media(
             title=title,
             description=description,
             parse_mode=parse_mode,
+            result_id=result_id,
         )
     elif media_type == "video":
         return build_inline_result_video(
@@ -141,6 +148,7 @@ def build_inline_result_media(
             title=title,
             description=description,
             parse_mode=parse_mode,
+            result_id=result_id,
         )
     elif media_type == "gif":
         return build_inline_result_gif(
@@ -149,6 +157,7 @@ def build_inline_result_media(
             title=title,
             description=description,
             parse_mode=parse_mode,
+            result_id=result_id,
         )
     elif media_type == "document":
         return build_inline_result_document(
@@ -157,6 +166,7 @@ def build_inline_result_media(
             title=title,
             description=description,
             parse_mode=parse_mode,
+            result_id=result_id,
         )
     elif media_type == "audio":
         return build_inline_result_audio(
@@ -165,6 +175,7 @@ def build_inline_result_media(
             title=title,
             description=description,
             parse_mode=parse_mode,
+            result_id=result_id,
         )
     elif media_type == "voice":
         return build_inline_result_voice(
@@ -173,6 +184,7 @@ def build_inline_result_media(
             title=title,
             description=description,
             parse_mode=parse_mode,
+            result_id=result_id,
         )
     elif media_type == "sticker":
         return build_inline_result_sticker(
@@ -181,6 +193,7 @@ def build_inline_result_media(
             title=title,
             description=description,
             parse_mode=parse_mode,
+            result_id=result_id,
         )
     else:
         return build_inline_result_photo(
@@ -189,6 +202,7 @@ def build_inline_result_media(
             title=title,
             description=description,
             parse_mode=parse_mode,
+            result_id=result_id,
         )
 
 
@@ -223,12 +237,156 @@ def build_inline_result_location(
     longitude: float,
     title: str,
     description: Optional[str] = None,
+    result_id: Optional[str] = None,
 ) -> dict[str, Any]:
     result = {
         "type": "location",
-        "id": str(uuid.uuid4()),
+        "id": result_id or str(uuid.uuid4()),
         "latitude": latitude,
         "longitude": longitude,
+        "title": title,
+    }
+    if description is not None:
+        result["description"] = description
+    return result
+
+
+def build_inline_result_venue(
+    latitude: float,
+    longitude: float,
+    title: str,
+    address: str,
+    provider: Optional[str] = None,
+    venue_id: Optional[str] = None,
+    venue_type: Optional[str] = None,
+    description: Optional[str] = None,
+    result_id: Optional[str] = None,
+) -> dict[str, Any]:
+    result = {
+        "type": "venue",
+        "id": result_id or str(uuid.uuid4()),
+        "latitude": latitude,
+        "longitude": longitude,
+        "title": title,
+        "address": address,
+    }
+    if provider is not None:
+        result["provider"] = provider
+    if venue_id is not None:
+        result["venue_id"] = venue_id
+    if venue_type is not None:
+        result["venue_type"] = venue_type
+    if description is not None:
+        result["description"] = description
+    return result
+
+
+def build_inline_result_contact(
+    phone_number: str,
+    first_name: str,
+    last_name: Optional[str] = None,
+    title: Optional[str] = None,
+    description: Optional[str] = None,
+    result_id: Optional[str] = None,
+) -> dict[str, Any]:
+    result = {
+        "type": "contact",
+        "id": result_id or str(uuid.uuid4()),
+        "phone_number": phone_number,
+        "first_name": first_name,
+    }
+    if last_name is not None:
+        result["last_name"] = last_name
+    if title is not None:
+        result["title"] = title
+    if description is not None:
+        result["description"] = description
+    return result
+
+
+def build_inline_result_audio(
+    audio_url: str,
+    text: str,
+    title: str,
+    performer: Optional[str] = None,
+    duration: Optional[int] = None,
+    description: Optional[str] = None,
+    parse_mode: str = "HTML",
+    result_id: Optional[str] = None,
+) -> dict[str, Any]:
+    result = {
+        "type": "audio",
+        "id": result_id or str(uuid.uuid4()),
+        "audio_url": audio_url,
+        "title": title,
+        "caption": text,
+        "parse_mode": parse_mode,
+    }
+    if performer is not None:
+        result["performer"] = performer
+    if duration is not None:
+        result["audio_duration"] = duration
+    if description is not None:
+        result["description"] = description
+    return result
+
+
+def build_inline_result_voice(
+    voice_url: str,
+    text: str,
+    title: str,
+    duration: Optional[int] = None,
+    description: Optional[str] = None,
+    parse_mode: str = "HTML",
+    result_id: Optional[str] = None,
+) -> dict[str, Any]:
+    result = {
+        "type": "voice",
+        "id": result_id or str(uuid.uuid4()),
+        "voice_url": voice_url,
+        "title": title,
+        "caption": text,
+        "parse_mode": parse_mode,
+    }
+    if duration is not None:
+        result["voice_duration"] = duration
+    if description is not None:
+        result["description"] = description
+    return result
+
+
+def build_inline_result_sticker(
+    sticker_url: str,
+    text: Optional[str] = None,
+    title: Optional[str] = None,
+    description: Optional[str] = None,
+    result_id: Optional[str] = None,
+) -> dict[str, Any]:
+    result = {
+        "type": "sticker",
+        "id": result_id or str(uuid.uuid4()),
+        "sticker_url": sticker_url,
+    }
+    if text is not None:
+        result["caption"] = text
+    if title is not None:
+        result["title"] = title
+    if description is not None:
+        result["description"] = description
+    return result
+
+
+def build_inline_result_game(
+    game_short_name: str,
+    title: str,
+    description: Optional[str] = None,
+    text: Optional[str] = None,
+    result_id: Optional[str] = None,
+) -> dict[str, Any]:
+    result = {
+        "type": "game",
+        "id": result_id or str(uuid.uuid4()),
+        "game_short_name": game_short_name,
         "title": title,
     }
     if description is not None:

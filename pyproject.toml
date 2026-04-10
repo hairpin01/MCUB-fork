@@ -79,6 +79,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "telethon_mcub",
+    "aiogram>=3.13,<4",
     "psutil",
     "aiohttp",
     "pysocks",

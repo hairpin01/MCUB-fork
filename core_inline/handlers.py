@@ -34,6 +34,23 @@ from .api import (
     build_input_message_content,
 )
 
+try:
+    from aiogram import Bot as AioBot
+    from aiogram.client.default import DefaultBotProperties
+    from aiogram.types import (
+        InlineQueryResultArticle,
+        InputTextMessageContent,
+        InlineKeyboardMarkup,
+        InlineKeyboardButton,
+    )
+except Exception:  # pragma: no cover - optional dependency at runtime
+    AioBot = None
+    DefaultBotProperties = None
+    InlineQueryResultArticle = None
+    InputTextMessageContent = None
+    InlineKeyboardMarkup = None
+    InlineKeyboardButton = None
+
 
 class InlineHandlers:
     EMOJI_TELESCOPE = '<tg-emoji emoji-id="5429283852684124412">🔭</tg-emoji>'
@@ -45,6 +62,7 @@ class InlineHandlers:
     def __init__(self, kernel: Any, bot_client: Any) -> None:
         self.kernel = kernel
         self.bot_client = bot_client
+        self._api_bot = None
         if (
             not hasattr(self.kernel, "session")
             or self.kernel.session is None
@@ -57,6 +75,393 @@ class InlineHandlers:
         self.lang = get_strings(kernel)
         self.kernel.logger.debug("[InlineHandlers] __init__")
         self._setup_inline_send_handler()
+
+    def _is_aiogram_event(self, event: Any) -> bool:
+        """Detect whether event is from aiogram or Telethon.
+
+        Uses method signature inspection (most reliable):
+        - aiogram CallbackQuery.answer(text=..., show_alert=...)
+        - Telethon CallbackQuery.Event.answer(message=..., alert=...)
+
+        Args:
+            event: Event object.
+
+        Returns:
+            True for aiogram events, False for Telethon.
+        """
+        try:
+            import inspect
+
+            sig = inspect.signature(event.answer)
+            params = list(sig.parameters.keys())
+            return "text" in params
+        except (TypeError, ValueError):
+            return False
+
+    def _wrap_aiogram_inline_query(self, query: Any) -> Any:
+        """Wrap aiogram InlineQuery in a Telethon-compatible event interface.
+
+        This allows the existing Telethon handler logic to run unchanged
+        when the event comes from aiogram instead of Telethon.
+
+        Args:
+            query: Aiogram InlineQuery object.
+
+        Returns:
+            Object with Telethon-compatible .text, .sender_id,
+            .builder (with .article()), and .answer() methods.
+        """
+
+        if not self._is_aiogram_event(query):
+            return query
+
+        bot = self._get_api_bot()
+
+        class _TelethonInlineQueryAdapter:
+            """Thin Telethon-compatible wrapper around aiogram InlineQuery."""
+
+            def __init__(self, q: Any, api_bot: Any | None) -> None:
+                self._q = q
+                self._api_bot = api_bot
+                self.text: str = getattr(q, "query", "") or ""
+                self.sender_id: int = (
+                    getattr(getattr(q, "from_user", None), "id", 0) or 0
+                )
+
+            @property
+            def query(self) -> Any:
+                return self._q
+
+            class _Builder:
+                @staticmethod
+                def article(
+                    title: str,
+                    text: str,
+                    description: str = "",
+                    parse_mode: str = "html",
+                    thumb: Any = None,
+                    buttons: Any = None,
+                ) -> Any:
+                    if (
+                        InlineQueryResultArticle is not None
+                        and InputTextMessageContent is not None
+                    ):
+                        kb = None
+                        if buttons:
+                            rows = []
+                            for row in (
+                                buttons
+                                if hasattr(buttons, "__iter__")
+                                and not isinstance(buttons, dict)
+                                else [buttons]
+                            ):
+                                row_btns = []
+                                for btn in (
+                                    row
+                                    if hasattr(row, "__iter__")
+                                    and not isinstance(row, dict)
+                                    else [row]
+                                ):
+                                    if hasattr(btn, "url"):
+                                        row_btns.append(
+                                            InlineKeyboardButton(
+                                                text=btn.text, url=btn.url
+                                            )
+                                        )
+                                    elif hasattr(btn, "data"):
+                                        row_btns.append(
+                                            InlineKeyboardButton(
+                                                text=btn.text,
+                                                callback_data=(
+                                                    btn.data.decode()
+                                                    if isinstance(btn.data, bytes)
+                                                    else btn.data
+                                                ),
+                                            )
+                                        )
+                                    elif isinstance(btn, dict):
+                                        btype = btn.get("type", "callback").lower()
+                                        if btype == "url":
+                                            row_btns.append(
+                                                InlineKeyboardButton(
+                                                    text=btn.get("text", ""),
+                                                    url=btn.get("url", ""),
+                                                )
+                                            )
+                                        elif btype == "callback":
+                                            row_btns.append(
+                                                InlineKeyboardButton(
+                                                    text=btn.get("text", ""),
+                                                    callback_data=btn.get("data", ""),
+                                                )
+                                            )
+                                if row_btns:
+                                    rows.append(row_btns)
+                            if rows:
+                                kb = InlineKeyboardMarkup(inline_keyboard=rows)
+
+                        return InlineQueryResultArticle(
+                            id=str(uuid.uuid4()),
+                            title=title,
+                            description=description or "",
+                            input_message_content=InputTextMessageContent(
+                                message_text=text,
+                                parse_mode=parse_mode.upper(),
+                            ),
+                            thumb_url=getattr(thumb, "url", None) if thumb else None,
+                            reply_markup=kb,
+                        )
+                    return {"title": title, "text": text}
+
+            builder = _Builder()
+
+            async def answer(self, results: list[Any], cache_time: int = 300) -> None:
+                api_bot = self._api_bot or self._get_api_bot()
+                if api_bot is not None:
+                    await api_bot.answer_inline(
+                        inline_query_id=self._q.id,
+                        results=results,
+                        cache_time=cache_time,
+                    )
+
+        return _TelethonInlineQueryAdapter(query, bot)
+
+    def _wrap_aiogram_callback_query(self, query: Any) -> Any:
+        """Wrap aiogram CallbackQuery in a Telethon-compatible event interface.
+
+        This allows the existing Telethon handler logic to run unchanged
+        when the event comes from aiogram instead of Telethon.
+
+        Args:
+            query: Aiogram CallbackQuery object.
+
+        Returns:
+            Object with Telethon-compatible .data, .sender_id,
+            .answer(), and .edit() methods.
+        """
+
+        if hasattr(query, "builder") or isinstance(query, events.CallbackQuery.Event):
+            return query
+
+        bot = self._get_api_bot()
+
+        class _TelethonCallbackAdapter:
+            """Thin Telethon-compatible wrapper around aiogram CallbackQuery."""
+
+            def __init__(self, q: Any, api_bot: Any | None) -> None:
+                self._q = q
+                self._api_bot = api_bot
+                self.data: bytes | str = (
+                    q.data.decode() if isinstance(q.data, bytes) else q.data or b""
+                )
+                self.sender_id: int = (
+                    getattr(getattr(q, "from_user", None), "id", 0) or 0
+                )
+                self.message: Any = getattr(q, "message", None)
+                self.chat_instance: int = getattr(q, "chat_instance", 0) or 0
+
+            async def answer(
+                self,
+                message: str = "",
+                alert: bool = False,
+                url: str = "",
+            ) -> None:
+                try:
+                    await self._q.answer(
+                        message=message,
+                        alert=alert,
+                        url=url if url else None,
+                    )
+                except Exception as e:
+                    self._kernel.logger.warning(
+                        "[InlineHandlers] answer_callback failed: %s", e
+                    )
+
+            async def edit(
+                self,
+                text: str,
+                parse_mode: str = "html",
+                buttons: Any = None,
+            ) -> None:
+                msg = self.message
+                if msg is None:
+                    return
+                kb = None
+                if buttons:
+                    rows = []
+                    for row in (
+                        buttons
+                        if hasattr(buttons, "__iter__")
+                        and not isinstance(buttons, dict)
+                        else [buttons]
+                    ):
+                        row_btns = []
+                        for btn in (
+                            row
+                            if hasattr(row, "__iter__") and not isinstance(row, dict)
+                            else [row]
+                        ):
+                            if hasattr(btn, "url"):
+                                row_btns.append(
+                                    InlineKeyboardButton(text=btn.text, url=btn.url)
+                                )
+                            elif hasattr(btn, "data"):
+                                row_btns.append(
+                                    InlineKeyboardButton(
+                                        text=btn.text,
+                                        callback_data=(
+                                            btn.data.decode()
+                                            if isinstance(btn.data, bytes)
+                                            else btn.data
+                                        ),
+                                    )
+                                )
+                        if row_btns:
+                            rows.append(row_btns)
+                    if rows:
+                        kb = InlineKeyboardMarkup(inline_keyboard=rows)
+
+                try:
+                    await msg.edit_text(
+                        text=text,
+                        parse_mode=parse_mode,
+                        reply_markup=kb,
+                    )
+                except Exception as e:
+                    self.kernel.logger.warning(
+                        "[InlineHandlers] aiogram edit_message_text failed: %s", e
+                    )
+
+        adapter = _TelethonCallbackAdapter(query, bot)
+        adapter._kernel = self.kernel
+        return adapter
+
+    def _build_article_result(
+        self,
+        event: Any,
+        title: str,
+        text: str,
+        description: str | None = None,
+        thumb_url: str | None = None,
+        buttons: Any = None,
+        parse_mode: str = "HTML",
+    ) -> Any:
+        """Build an inline query article result compatible with both frameworks.
+
+        Args:
+            event: Event object (aiogram or Telethon).
+            title: Article title.
+            text: Message text.
+            description: Optional description.
+            thumb_url: Optional thumbnail URL.
+            buttons: Optional buttons (Telethon Button or aiogram InlineKeyboardButton).
+            parse_mode: Parse mode for text.
+
+        Returns:
+            Telethon builder.article() result or InlineQueryResultArticle.
+        """
+
+        if self._is_aiogram_event(event):
+            if InlineQueryResultArticle is None:
+                return None
+            content = InputTextMessageContent(
+                message_text=text,
+                parse_mode=parse_mode,
+            )
+            kb = None
+            if buttons:
+                rows = []
+                for row in buttons if hasattr(buttons, "__iter__") else [buttons]:
+                    row_btns = []
+                    for btn in row if hasattr(row, "__iter__") else [row]:
+                        if hasattr(btn, "url"):
+                            row_btns.append(
+                                InlineKeyboardButton(text=btn.text, url=btn.url)
+                            )
+                        elif hasattr(btn, "data"):
+                            row_btns.append(
+                                InlineKeyboardButton(
+                                    text=btn.text,
+                                    callback_data=(
+                                        btn.data.decode()
+                                        if isinstance(btn.data, bytes)
+                                        else btn.data
+                                    ),
+                                )
+                            )
+                    if row_btns:
+                        rows.append(row_btns)
+                if rows:
+                    kb = InlineKeyboardMarkup(inline_keyboard=rows)
+
+            return InlineQueryResultArticle(
+                id=str(uuid.uuid4()),
+                title=title,
+                description=description or "",
+                input_message_content=content,
+                thumb_url=thumb_url,
+                reply_markup=kb,
+            )
+        else:
+            thumb = None
+            if thumb_url:
+                try:
+                    thumb = InputWebDocument(
+                        url=thumb_url,
+                        size=0,
+                        mime_type="image/jpeg",
+                        attributes=[],
+                    )
+                except Exception:
+                    pass
+            return event.builder.article(
+                title,
+                text=text,
+                description=description or "",
+                parse_mode=parse_mode,
+                thumb=thumb,
+                buttons=buttons,
+            )
+
+    async def _answer_inline_query(
+        self,
+        event: Any,
+        results: list[Any],
+        cache_time: int = 300,
+        is_personal: bool = False,
+        next_offset: str | None = None,
+    ) -> None:
+        """Answer an inline query using the appropriate framework API.
+
+        Args:
+            event: Telethon InlineQuery event or aiogram InlineQuery.
+            results: List of built article results.
+            cache_time: Bot API cache time in seconds.
+            is_personal: Return results only for this user.
+            next_offset: Offset for pagination.
+        """
+
+        if self._is_aiogram_event(event):
+            try:
+                await event.answer(
+                    results=results,
+                    cache_time=cache_time,
+                    is_personal=is_personal,
+                    next_offset=next_offset,
+                )
+            except Exception as e:
+                self.kernel.logger.error(
+                    "[InlineHandlers] aiogram answer_inline_query failed: %s",
+                    e,
+                )
+        else:
+            try:
+                await event.answer(results)
+            except Exception as e:
+                self.kernel.logger.error(
+                    "[InlineHandlers] Telethon answer failed: %s",
+                    e,
+                )
 
     def _setup_inline_send_handler(self) -> None:
         @self.bot_client.on(events.Raw)
@@ -81,10 +486,57 @@ class InlineHandlers:
 
     async def close(self) -> None:
         """Close aiohttp session on bot shutdown."""
+        if self._api_bot is not None:
+            try:
+                await self._api_bot.session.close()
+            except Exception:
+                self.kernel.logger.debug(
+                    "[InlineHandlers] failed to close aiogram session"
+                )
+            self._api_bot = None
+
         if hasattr(self.kernel, "session") and self.kernel.session is not None:
             if not self.kernel.session.closed:
                 await self.kernel.session.close()
             self.kernel.session = None
+
+    def _get_bot_token(self) -> str:
+        """Get inline bot token from config.
+
+        Returns:
+            Bot token string.
+
+        Raises:
+            ValueError: If token is missing in config.
+        """
+
+        token = self.kernel.config.get("inline_bot_token")
+        if not token:
+            raise ValueError("inline_bot_token not configured")
+        return token
+
+    def _get_api_bot(self) -> Any | None:
+        """Get cached aiogram bot instance for Bot API calls."""
+
+        if AioBot is None or DefaultBotProperties is None:
+            return None
+
+        if self._api_bot is not None:
+            return self._api_bot
+
+        try:
+            token = self._get_bot_token()
+            self._api_bot = AioBot(
+                token=token,
+                default=DefaultBotProperties(parse_mode="HTML"),
+            )
+            return self._api_bot
+        except Exception as e:
+            self.kernel.logger.warning(
+                "[InlineHandlers] aiogram bot init failed: %s",
+                e,
+            )
+            return None
 
     def create_inline_form(
         self,
@@ -164,9 +616,7 @@ class InlineHandlers:
         Returns:
             dict: Bot API response
         """
-        _bot_token = self.kernel.config.get("inline_bot_token")
-        if not _bot_token:
-            raise ValueError("inline_bot_token not configured")
+        _bot_token = self._get_bot_token()
 
         form_id = self.create_inline_form(
             text=text,
@@ -201,14 +651,33 @@ class InlineHandlers:
             if kb_rows:
                 result_obj = add_inline_keyboard_to_result(result_obj, kb_rows)
 
+        payload = {
+            "chat_id": chat_id,
+            "text": text,
+            "parse_mode": parse_mode,
+            "reply_markup": result_obj.get("reply_markup"),
+        }
+
+        api_bot = self._get_api_bot()
+        if api_bot is not None:
+            try:
+                msg = await api_bot.send_message(**payload)
+                return {
+                    "ok": True,
+                    "result": {
+                        "message_id": getattr(msg, "message_id", None),
+                        "chat": {"id": chat_id},
+                    },
+                }
+            except Exception as e:
+                self.kernel.logger.warning(
+                    "[InlineHandlers] aiogram send_message failed: %s",
+                    e,
+                )
+
         async with self.kernel.session.post(
             f"https://api.telegram.org/bot{_bot_token}/sendMessage",
-            json={
-                "chat_id": chat_id,
-                "text": text,
-                "parse_mode": parse_mode,
-                "reply_markup": result_obj.get("reply_markup"),
-            },
+            json=payload,
         ) as resp:
             return await resp.json()
 
@@ -233,9 +702,7 @@ class InlineHandlers:
         Returns:
             dict: Bot API response
         """
-        _bot_token = self.kernel.config.get("inline_bot_token")
-        if not _bot_token:
-            raise ValueError("inline_bot_token not configured")
+        _bot_token = self._get_bot_token()
 
         payload = {
             "inline_query_id": inline_query_id,
@@ -245,6 +712,23 @@ class InlineHandlers:
         }
         if next_offset:
             payload["next_offset"] = next_offset
+
+        api_bot = self._get_api_bot()
+        if api_bot is not None:
+            try:
+                await api_bot.answer_inline_query(
+                    inline_query_id=inline_query_id,
+                    results=results,
+                    cache_time=cache_time,
+                    is_personal=is_personal,
+                    next_offset=next_offset,
+                )
+                return {"ok": True, "result": True}
+            except Exception as e:
+                self.kernel.logger.warning(
+                    "[InlineHandlers] aiogram answer_inline_query failed: %s",
+                    e,
+                )
 
         async with self.kernel.session.post(
             f"https://api.telegram.org/bot{_bot_token}/answerInlineQuery",
@@ -564,308 +1048,315 @@ class InlineHandlers:
     async def check_admin(self, event):
         try:
             user_id = int(event.sender_id)
-            return await self._inline_manager.is_allowed(user_id)
+            result = await self._inline_manager.is_allowed(user_id)
+            self.kernel.logger.warning(
+                f"[check_admin] sender_id={user_id}, is_allowed={result}"
+            )
+            return result
         except (ValueError, TypeError) as e:
             self.kernel.logger.error(f"Ошибка в check_admin: {e}")
             return False
 
     async def register_handlers(self):
-        """Registers all handlers for the bot."""
+        """Registers all handlers for the bot.
+
+        Registers Telethon event handlers that delegate to adapter methods.
+        These methods can also be called directly from aiogram handlers.
+        """
 
         @self.bot_client.on(events.InlineQuery)
         async def inline_query_handler(event):
-            try:
-                query = event.text or ""
+            await self.process_inline_query(event)
 
-                if not await self.check_admin(event):
+        @self.bot_client.on(events.CallbackQuery)
+        async def callback_query_handler(event):
+            await self.process_callback_query(event)
+
+    async def process_inline_query(self, event: Any) -> None:
+        """Process an inline query event.
+
+        Extracted into a separate method so it can be called from both
+        Telethon and aiogram event handlers without duplication.
+        Aiogram events are wrapped in a Telethon-compatible adapter.
+
+        Args:
+            event: Telethon InlineQuery event or aiogram InlineQuery.
+        """
+
+        event = self._wrap_aiogram_inline_query(event)
+
+        try:
+            query = event.text or ""
+
+            if not await self.check_admin(event):
+                await event.answer(
+                    [
+                        event.builder.article(
+                            self.lang["no_access"],
+                            text=(
+                                f"{self.EMOJI_BLOCK} {self.lang['no_access']}\n"
+                                f"<blockquote>{self.EMOJI_SHIELD} {self.lang['no_access_id']}: {event.sender_id}</blockquote>"
+                            ),
+                            parse_mode="html",
+                        )
+                    ]
+                )
+                return
+
+            if not query.strip():
+                results = []
+                modules_count = len(self.kernel.loaded_modules) + len(
+                    self.kernel.system_modules
+                )
+
+                info_text = (
+                    f"{self.EMOJI_CRYSTAL} <b>{self.lang['mcub_bot_title']}</b>\n"
+                    f"<blockquote>{self.EMOJI_SHIELD} {self.lang['version']}: {self.kernel.VERSION}</blockquote>\n"
+                    f"<blockquote>{self.EMOJI_TOT} {self.lang['modules']}: {modules_count}</blockquote>\n"
+                )
+
+                thumb = InputWebDocument(
+                    url="https://kappa.lol/KSKoOu",
+                    size=0,
+                    mime_type="image/jpeg",
+                    attributes=[],
+                )
+
+                results.append(
+                    event.builder.article(
+                        "MCUB Info",
+                        text=info_text,
+                        description=self.lang["info_description"],
+                        parse_mode="html",
+                        thumb=thumb,
+                    )
+                )
+
+                for pattern, handler in self.kernel.inline_handlers.items():
+                    if len(results) >= 50:
+                        break
+                    docstring = getattr(handler, "__doc__", None) or "команда"
+                    cmd_text = (
+                        f"{self.EMOJI_TELESCOPE} <b>{self.lang['command']}:</b>"
+                        f" <code>{html.escape(pattern)}</code>\n\n"
+                    )
+                    thumb_cmd = InputWebDocument(
+                        url="https://kappa.lol/EKhGKM",
+                        size=0,
+                        mime_type="image/jpeg",
+                        attributes=[],
+                    )
+                    results.append(
+                        event.builder.article(
+                            f"{self.lang['command']}: {pattern[:20]}",
+                            text=cmd_text,
+                            parse_mode="html",
+                            thumb=thumb_cmd,
+                            description=html.escape(docstring.strip()),
+                            buttons=[
+                                [
+                                    Button.switch_inline(
+                                        f"🏄‍♀️ {self.lang['execute']}: {pattern}",
+                                        query=pattern,
+                                        same_peer=True,
+                                    )
+                                ]
+                            ],
+                        )
+                    )
+
+                if len(results) == 1:
+                    no_cmds_text = (
+                        f"{self.EMOJI_CRYSTAL} <b>{self.lang['mcub_bot_title']}</b>\n\n"
+                        f"{self.EMOJI_BLOCK} <i>{self.lang['no_commands']}</i>\n\n"
+                    )
+                    results.append(
+                        event.builder.article(
+                            self.lang["no_commands"],
+                            text=no_cmds_text,
+                            parse_mode="html",
+                        )
+                    )
+
+                await event.answer(results)
+                return
+
+            query_cmd = query.lower().split()[0] if query.strip() else ""
+            self.kernel.logger.debug(
+                f"[InlineHandlers] query_cmd={query_cmd}, query={query}"
+            )
+            if await self._dispatch_inline_handler(query_cmd, query, event):
+                return
+
+            if query.startswith("form_"):
+                form_data = self.get_inline_form(query)
+                if form_data:
+                    media = form_data.get("media")
+                    mtype = (form_data.get("media_type") or "photo").lower()
+                    buttons = form_data.get("buttons")
+                    text = form_data["text"]
+
+                    _bot_token = self.kernel.config.get("inline_bot_token")
+
+                    if not _bot_token:
+                        builder = event.builder.article(
+                            "Inline Form",
+                            text=text,
+                            buttons=buttons,
+                            parse_mode="html",
+                        )
+                        await event.answer([builder])
+                        return
+
+                    if media:
+                        _result_obj = build_inline_result_media(
+                            media_url=media,
+                            media_type=mtype,
+                            text=text,
+                            title="Media",
+                            result_id=query,
+                        )
+                    else:
+                        _result_obj = build_inline_result_text(
+                            title="Inline Form",
+                            text=text,
+                            result_id=query,
+                        )
+
+                    if buttons:
+                        _result_obj = add_inline_keyboard_to_result(
+                            _result_obj, buttons
+                        )
+
+                    _data = await self.answer_inline_query_custom(
+                        inline_query_id=str(event.query.query_id),
+                        results=[_result_obj],
+                        cache_time=0,
+                        is_personal=False,
+                    )
+                    if not _data.get("ok"):
+                        self.kernel.logger.error(
+                            f"Bot API answerInlineQuery error: {_data}"
+                        )
+                    return
+                else:
                     await event.answer(
                         [
                             event.builder.article(
-                                self.lang["no_access"],
+                                self.lang["form_not_found"],
                                 text=(
-                                    f"{self.EMOJI_BLOCK} {self.lang['no_access']}\n"
-                                    f"<blockquote>{self.EMOJI_SHIELD} {self.lang['no_access_id']}: {event.sender_id}</blockquote>"
+                                    f"{self.EMOJI_BLOCK} <b>{self.lang['form_expired']}</b>\n"
+                                    f"<i>{self.lang['form_id']}: <code>{html.escape(query)}</code></i>"
                                 ),
                                 parse_mode="html",
                             )
                         ]
                     )
-                    return
+                return
 
-                if not query.strip():
-                    results = []
-                    modules_count = len(self.kernel.loaded_modules) + len(
-                        self.kernel.system_modules
+            await event.answer()
+
+        except Exception as e:
+            error_traceback = "".join(
+                traceback.format_exception(type(e), e, e.__traceback__)
+            )
+            self.kernel.logger.error(f"{self.lang['error']}: {e}")
+            self.kernel.logger.error(f"Full traceback: {error_traceback}")
+            thumb = InputWebDocument(
+                url="https://kappa.lol/qNFKBT",
+                size=0,
+                mime_type="image/jpeg",
+                attributes=[],
+            )
+            await event.answer(
+                [
+                    event.builder.article(
+                        "Error",
+                        text=f"🃏 {self.lang['error']}:\n <pre>{html.escape(error_traceback)}</pre>",
+                        description=f"{self.lang['error_description']}: {str(e)[:50]}",
+                        parse_mode="html",
+                        thumb=thumb,
                     )
+                ]
+            )
 
-                    info_text = (
-                        f"{self.EMOJI_CRYSTAL} <b>{self.lang['mcub_bot_title']}</b>\n"
-                        f"<blockquote>{self.EMOJI_SHIELD} {self.lang['version']}: {self.kernel.VERSION}</blockquote>\n"
-                        f"<blockquote>{self.EMOJI_TOT} {self.lang['modules']}: {modules_count}</blockquote>\n"
-                    )
+    async def process_callback_query(self, event: Any) -> None:
+        """Process a callback query event.
 
-                    thumb = InputWebDocument(
-                        url="https://kappa.lol/KSKoOu",
-                        size=0,
-                        mime_type="image/jpeg",
-                        attributes=[],
-                    )
+        Extracted into a separate method so it can be called from both
+        Telethon and aiogram event handlers without duplication.
+        Aiogram events are wrapped in a Telethon-compatible adapter.
 
-                    results.append(
-                        event.builder.article(
-                            "MCUB Info",
-                            text=info_text,
-                            description=self.lang["info_description"],
-                            parse_mode="html",
-                            thumb=thumb,
-                        )
-                    )
+        Args:
+            event: Telethon CallbackQuery event or aiogram CallbackQuery.
+        """
 
-                    for pattern, handler in self.kernel.inline_handlers.items():
-                        if len(results) >= 50:
-                            break
-                        docstring = getattr(handler, "__doc__", None) or "команда"
-                        cmd_text = (
-                            f"{self.EMOJI_TELESCOPE} <b>{self.lang['command']}:</b>"
-                            f" <code>{html.escape(pattern)}</code>\n\n"
-                        )
-                        thumb_cmd = InputWebDocument(
-                            url="https://kappa.lol/EKhGKM",
-                            size=0,
-                            mime_type="image/jpeg",
-                            attributes=[],
-                        )
-                        results.append(
-                            event.builder.article(
-                                f"{self.lang['command']}: {pattern[:20]}",
-                                text=cmd_text,
-                                parse_mode="html",
-                                thumb=thumb_cmd,
-                                description=html.escape(docstring.strip()),
-                                buttons=[
-                                    [
-                                        Button.switch_inline(
-                                            f"🏄‍♀️ {self.lang['execute']}: {pattern}",
-                                            query=pattern,
-                                            same_peer=True,
-                                        )
-                                    ]
-                                ],
-                            )
-                        )
+        event = self._wrap_aiogram_callback_query(event)
 
-                    if len(results) == 1:
-                        no_cmds_text = (
-                            f"{self.EMOJI_CRYSTAL} <b>{self.lang['mcub_bot_title']}</b>\n\n"
-                            f"{self.EMOJI_BLOCK} <i>{self.lang['no_commands']}</i>\n\n"
-                        )
-                        results.append(
-                            event.builder.article(
-                                self.lang["no_commands"],
-                                text=no_cmds_text,
-                                parse_mode="html",
-                            )
-                        )
+        try:
+            if not event.data:
+                return
 
-                    await event.answer(results)
-                    return
+            data_str = (
+                event.data.decode("utf-8")
+                if isinstance(event.data, bytes)
+                else str(event.data)
+            )
 
-                #  text | {keyboards}
-                if "|" in query:
+            if not await self.check_admin(event) and (
+                not hasattr(self.kernel, "callback_permissions")
+                or not self.kernel.callback_permissions.is_allowed(
+                    event.sender_id, data_str
+                )
+            ):
+                return await event.answer(self.lang["no_access"], alert=False)
+
+            # 1. Built-in service callbacks
+            if data_str.startswith("show_tb:"):
+                await self._handle_show_traceback(event, data_str)
+            elif data_str.startswith("find_similar:"):
+                await self._handle_find_similar(event, data_str)
+            elif data_str.startswith("mute_err:"):
+                await self._handle_mute_error(event, data_str)
+
+            # 2. Auto-generated callback tokens
+            self._cleanup_inline_callback_map()
+            cb_map = getattr(self.kernel, "inline_callback_map", None) or {}
+            if data_str in cb_map:
+                entry = cb_map[data_str]
+
+                if entry.get("expires_at") and entry["expires_at"] < time.time():
+                    cb_map.pop(data_str, None)
+                    return await event.answer(self.lang["form_expired"], alert=False)
+
+                handler = entry.get("handler")
+                if callable(handler):
                     try:
-                        parts = query.split("|", 1)
-                        text = parts[0].strip().strip("\"'")
-                        json_str = parts[1].strip() if len(parts) > 1 else ""
-                        buttons = self._parse_json_buttons(json_str) if json_str else []
-
-                        builder = event.builder.article(
-                            "Message",
-                            text=text,
-                            buttons=buttons or None,
-                            parse_mode="html",
+                        await handler(
+                            event, *entry.get("args", []), **entry.get("kwargs", {})
                         )
-                    except Exception as e:
-                        self.kernel.logger.debug(f"Ошибка обработки JSON формы: {e}")
-                        text = query.split("|")[0].strip().strip("\"'")
-                        builder = event.builder.article(
-                            "Message", text=text, parse_mode="html"
+                    except Exception:
+                        self.kernel.logger.error(
+                            "Inline callback handler error: %s",
+                            traceback.format_exc(),
                         )
-
-                    await event.answer([builder])
+                        await event.answer(self.lang["critical_error"], alert=True)
+                    return
+                elif entry.get("kwargs", {}).get("url"):
                     return
 
-                query_cmd = query.lower().split()[0] if query.strip() else ""
-                self.kernel.logger.debug(
-                    f"[InlineHandlers] query_cmd={query_cmd}, query={query}"
-                )
-                if await self._dispatch_inline_handler(query_cmd, query, event):
-                    return
+            # 3. Legacy prefix/pattern handlers
+            for pattern, handler in list(self.kernel.callback_handlers.items()):
+                p_str = pattern.decode() if isinstance(pattern, bytes) else str(pattern)
+                if data_str.startswith(p_str):
+                    await handler(event)
 
-                if query.startswith("form_"):
-                    form_data = self.get_inline_form(query)
-                    if form_data:
-                        media = form_data.get("media")
-                        mtype = (form_data.get("media_type") or "photo").lower()
-                        buttons = form_data.get("buttons")
-                        text = form_data["text"]
-
-                        _bot_token = self.kernel.config.get("inline_bot_token")
-
-                        if not _bot_token:
-                            builder = event.builder.article(
-                                "Inline Form",
-                                text=text,
-                                buttons=buttons,
-                                parse_mode="html",
-                            )
-                            await event.answer([builder])
-                            return
-
-                        if media:
-                            _result_obj = build_inline_result_media(
-                                media_url=media,
-                                media_type=mtype,
-                                text=text,
-                                title="Media",
-                                result_id=query,
-                            )
-                        else:
-                            _result_obj = build_inline_result_text(
-                                title="Inline Form",
-                                text=text,
-                                result_id=query,
-                            )
-
-                        if buttons:
-                            _result_obj = add_inline_keyboard_to_result(
-                                _result_obj, buttons
-                            )
-
-                        async with self.kernel.session.post(
-                            f"https://api.telegram.org/bot{_bot_token}/answerInlineQuery",
-                            json={
-                                "inline_query_id": str(event.query.query_id),
-                                "results": [_result_obj],
-                                "cache_time": 0,
-                            },
-                        ) as _resp:
-                            _data = await _resp.json()
-                            if not _data.get("ok"):
-                                self.kernel.logger.error(
-                                    f"Bot API answerInlineQuery error: {_data}"
-                                )
-                        return
-                    else:
-                        await event.answer(
-                            [
-                                event.builder.article(
-                                    self.lang["form_not_found"],
-                                    text=(
-                                        f"{self.EMOJI_BLOCK} <b>{self.lang['form_expired']}</b>\n"
-                                        f"<i>{self.lang['form_id']}: <code>{html.escape(query)}</code></i>"
-                                    ),
-                                    parse_mode="html",
-                                )
-                            ]
-                        )
-                    return
-
-                await event.answer()
-
-            except Exception as e:
-                error_traceback = "".join(
-                    traceback.format_exception(type(e), e, e.__traceback__)
-                )
-                self.kernel.logger.error(f"{self.lang['error']}: {e}")
-                self.kernel.logger.error(f"Full traceback: {error_traceback}")
-                thumb = InputWebDocument(
-                    url="https://kappa.lol/qNFKBT",
-                    size=0,
-                    mime_type="image/jpeg",
-                    attributes=[],
-                )
-                await event.answer(
-                    [
-                        event.builder.article(
-                            "Error",
-                            text=f"🃏 {self.lang['error']}:\n <pre>{html.escape(error_traceback)}</pre>",
-                            description=f"{self.lang['error_description']}: {str(e)[:50]}",
-                            parse_mode="html",
-                            thumb=thumb,
-                        )
-                    ]
-                )
-
-        @self.bot_client.on(events.CallbackQuery)
-        async def callback_query_handler(event):
-            try:
-                if not event.data:
-                    return
-
-                data_str = (
-                    event.data.decode("utf-8")
-                    if isinstance(event.data, bytes)
-                    else str(event.data)
-                )
-
-                if not await self.check_admin(event) and (
-                    not hasattr(self.kernel, "callback_permissions")
-                    or not self.kernel.callback_permissions.is_allowed(
-                        event.sender_id, data_str
-                    )
-                ):
-                    return await event.answer(self.lang["no_access"], alert=False)
-
-                # 1. Built-in service callbacks
-                if data_str.startswith("show_tb:"):
-                    await self._handle_show_traceback(event, data_str)
-                elif data_str.startswith("find_similar:"):
-                    await self._handle_find_similar(event, data_str)
-                elif data_str.startswith("mute_err:"):
-                    await self._handle_mute_error(event, data_str)
-
-                # 2. Auto-generated callback tokens
-                self._cleanup_inline_callback_map()
-                cb_map = getattr(self.kernel, "inline_callback_map", None) or {}
-                if data_str in cb_map:
-                    entry = cb_map[data_str]
-
-                    if entry.get("expires_at") and entry["expires_at"] < time.time():
-                        cb_map.pop(data_str, None)
-                        return await event.answer(
-                            self.lang["form_expired"], alert=False
-                        )
-
-                    handler = entry.get("handler")
-                    if callable(handler):
-                        try:
-                            await handler(
-                                event, *entry.get("args", []), **entry.get("kwargs", {})
-                            )
-                        except Exception:
-                            self.kernel.logger.error(
-                                "Inline callback handler error: %s",
-                                traceback.format_exc(),
-                            )
-                            await event.answer(self.lang["critical_error"], alert=True)
-                        return
-                    elif entry.get("kwargs", {}).get("url"):
-                        return
-
-                # 3. Legacy prefix/pattern handlers
-                for pattern, handler in list(self.kernel.callback_handlers.items()):
-                    p_str = (
-                        pattern.decode() if isinstance(pattern, bytes) else str(pattern)
-                    )
-                    if data_str.startswith(p_str):
-                        await handler(event)
-
-            except Exception as e:
-                error_traceback = "".join(
-                    traceback.format_exception(type(e), e, e.__traceback__)
-                )
-                self.kernel.logger.error(f"Error callback_handlers: {error_traceback}")
-                await event.answer(f"error: {e}")
+        except Exception as e:
+            error_traceback = "".join(
+                traceback.format_exception(type(e), e, e.__traceback__)
+            )
+            self.kernel.logger.error(f"Error callback_handlers: {error_traceback}")
+            await event.answer(f"error: {e}")
 
     async def _handle_show_traceback(self, event, data_str: str) -> None:
         """Show the stored traceback for a given error ID."""

@@ -850,9 +850,9 @@ async def api_bot_auto_create(request: web.Request) -> web.Response:
 
     state: dict = request.app.get("setup_state") or {}
     client = state.get("client")
+    kernel = request.app.get("kernel")
 
     if client is None:
-        kernel = request.app.get("kernel")
         if kernel is None:
             return web.json_response({"error": "No client available"}, status=400)
         client = kernel.client
@@ -860,7 +860,7 @@ async def api_bot_auto_create(request: web.Request) -> web.Response:
     try:
         from core_inline.bot import InlineBot
 
-        inline_bot = InlineBot(kernel=None)
+        inline_bot = InlineBot(kernel=kernel)
         result = await inline_bot.create_bot_auto_web(client)
 
         if "error" in result:

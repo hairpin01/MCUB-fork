@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # author: @Hairpin00
 # version: 1.1.0
 # description: Module manager
@@ -252,7 +254,7 @@ async def _build_module_detail(match_tuple, kernel, strings):
 
     msg += f"\n<blockquote>{CUSTOM_EMOJI['pancake']} <b>{strings['author']}:</b> <i>{metadata.get('author', strings['unknown'])}</i></blockquote>"
     if typ == "system":
-        msg += f"<blockquote>{strings['system_module_note']}</blockquote>"
+        msg += f"\n<blockquote>{strings['system_module_note']}</blockquote>"
     return msg, metadata.get("banner_url")
 
 
@@ -773,7 +775,7 @@ def register(kernel):
         msg += f"\n{CUSTOM_EMOJI['pancake']} <b>{strings['author']}:</b> <i>{metadata.get('author', strings['unknown'])}</i></blockquote>"
 
         if typ == "system":
-            msg += f"<blockquote>{strings['system_module_note']}</blockquote>"
+            msg += f"\n<blockquote>{strings['system_module_note']}</blockquote>"
 
         return msg
 

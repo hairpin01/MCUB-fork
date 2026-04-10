@@ -38,7 +38,7 @@ def build_inline_result_photo(
         "type": "photo",
         "id": result_id or str(uuid.uuid4()),
         "photo_url": photo_url,
-        "thumb_url": thumb_url or photo_url,
+        "thumbnail_url": thumb_url or photo_url,
         "title": title,
         "caption": text,
         "parse_mode": parse_mode,
@@ -63,7 +63,7 @@ def build_inline_result_video(
         "id": result_id or str(uuid.uuid4()),
         "video_url": video_url,
         "mime_type": mime_type,
-        "thumb_url": thumb_url or video_url,
+        "thumbnail_url": thumb_url or video_url,
         "title": title,
         "caption": text,
         "parse_mode": parse_mode,
@@ -88,7 +88,7 @@ def build_inline_result_document(
         "id": result_id or str(uuid.uuid4()),
         "document_url": document_url,
         "mime_type": mime_type,
-        "thumb_url": thumb_url or "https://kappa.lol/KSKoOu",
+        "thumbnail_url": thumb_url or "https://kappa.lol/KSKoOu",
         "title": title,
         "caption": text,
         "parse_mode": parse_mode,
@@ -111,7 +111,7 @@ def build_inline_result_gif(
         "type": "mpeg4_gif",
         "id": result_id or str(uuid.uuid4()),
         "mpeg4_url": gif_url,
-        "thumb_url": thumb_url or gif_url,
+        "thumbnail_url": thumb_url or gif_url,
         "title": title,
         "caption": text,
         "parse_mode": parse_mode,
@@ -556,5 +556,5 @@ def build_inline_result_article(
     elif text:
         result["description"] = text[:200]
     if thumb_url is not None:
-        result["thumb_url"] = thumb_url
+        result["thumbnail_url"] = thumb_url
     return result

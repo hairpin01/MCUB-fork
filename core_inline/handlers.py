@@ -208,7 +208,9 @@ class InlineHandlers:
                                 message_text=text,
                                 parse_mode=parse_mode.upper(),
                             ),
-                            thumb_url=getattr(thumb, "url", None) if thumb else None,
+                            thumbnail_url=(
+                                getattr(thumb, "url", None) if thumb else None
+                            ),
                             reply_markup=kb,
                         )
                     return {"title": title, "text": text}
@@ -949,7 +951,6 @@ class InlineHandlers:
 
         if b_type == "callback":
             # Support both traditional byte data and callable callbacks with
-            # auto‑generated tokens (Heroku/Hikka‑style behavior).
             data = btn_dict.get("data", "")
             callback = btn_dict.get("callback")
 
@@ -1526,7 +1527,9 @@ class InlineHandlers:
                 from telethon.tl.types import InputWebDocument
 
                 if isinstance(result, dict):
-                    thumb_url = result.get("thumb", "")
+                    thumb_url = result.get("thumb_url") or result.get(
+                        "thumbnail_url", ""
+                    )
                     if thumb_url:
                         try:
                             thumb = InputWebDocument(

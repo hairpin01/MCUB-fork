@@ -628,8 +628,6 @@ class KernelLogger:
                     )
 
             success = await self._send_with_retry(_do_send)
-            if not success:
-                self.k.logger.warning(f"Failed to send log message: {safe_text[:100]}")
             return success
 
     async def _send_error_with_traceback(
@@ -809,7 +807,6 @@ class KernelLogger:
                 pass
 
         safe_stack = strip_html(mask_sensitive_data(rich.full_stack[:500]))
-        self.k.logger.error("Error in %s:\n%s", source, safe_stack)
 
         # Read repeat count BEFORE _get_lifetime_info increments it again
         raw_count = self.cache.get(f"err_count:{sig_key}") if self.cache else 0

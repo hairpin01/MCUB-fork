@@ -514,7 +514,7 @@ class _InlineQueryBuilder:
         if description:
             result["description"] = description
         if thumb:
-            result["thumb_url"] = thumb
+            result["thumbnail_url"] = thumb
         result.update(kwargs)
         return result
 

@@ -1049,9 +1049,6 @@ class InlineHandlers:
         try:
             user_id = int(event.sender_id)
             result = await self._inline_manager.is_allowed(user_id)
-            self.kernel.logger.warning(
-                f"[check_admin] sender_id={user_id}, is_allowed={result}"
-            )
             return result
         except (ValueError, TypeError) as e:
             self.kernel.logger.error(f"Ошибка в check_admin: {e}")

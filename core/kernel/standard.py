@@ -1770,16 +1770,14 @@ class Kernel:
                     strings = (lang_strings["success"], lang_strings["loading"])
                     emoji = "(*.*)"
                     total_ms = (
-                        round((time.time() - restart_time) * 1000, 2)
-                        if restart_time
-                        else 0
+                        round(time.time() - restart_time, 2) if restart_time else 0
                     )
 
                     await self.client.edit_message(
                         restart_chat_id,
                         restart_msg_id,
                         f"{em_alembic} {strings[0]} {emoji}\n"
-                        f"<i>{strings[1]}</i> <b>KLB:</b> <code>{total_ms} ms</code>",
+                        f"<i>{strings[1]}</i> <b>Kernel boot:</b><code> {total_ms} </code>s",
                         parse_mode="html",
                     )
             except Exception:
@@ -1957,8 +1955,8 @@ class Kernel:
             em_package = '<tg-emoji emoji-id="5399898266265475100">📦</tg-emoji>'
             em_error = '<tg-emoji emoji-id="5208923808169222461">🥀</tg-emoji>'
 
-            total_ms = round((time.time() - restart_time) * 1000, 2)
-            mod_ms = round((modules_end - modules_start) * 1000, 2)
+            kernel_s = round(modules_start - restart_time, 2)
+            mod_s = round(modules_end - modules_start, 2)
 
             lang = self.config.get("language", "ru")
             strings = (
@@ -1987,14 +1985,14 @@ class Kernel:
                 if not self.error_load_modules:
                     msg_text = (
                         f"{em_package} {strings('loaded')}\n"
-                        f"<blockquote><b>Kernel:</b> <code>{total_ms} ms</code>. "
-                        f"<b>Modules:</b> <code>{mod_ms} ms</code>.</blockquote>"
+                        f"<blockquote><b>Kernel:</b><code> {kernel_s} </code>s. "
+                        f"<b>Modules:</b><code> {mod_s} </code>s.</blockquote>"
                     )
                 else:
                     msg_text = (
                         f"{em_error} {strings('errors')}\n"
-                        f"<blockquote><b>Kernel:</b> <code>{total_ms} ms</code>. "
-                        f"<b>Modules:</b> <code>{mod_ms} ms</code>.</blockquote>"
+                        f"<blockquote><b>Kernel:</b><code> {kernel_s} </code>s. "
+                        f"<b>Modules Error:</b><code> {int(self.error_load_modules)} </code>s.</blockquote>"
                     )
 
                 try:

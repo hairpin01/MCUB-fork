@@ -1,4 +1,5 @@
 from typing import Any, Optional
+import threading
 import time
 import uuid
 
@@ -128,16 +129,23 @@ def build_button_url(
 def cleanup_inline_callback_map(kernel) -> None:
     """Remove expired entries from kernel.inline_callback_map in-place."""
 
-    cb_map = getattr(kernel, "inline_callback_map", None)
-    if not cb_map:
+    lock = getattr(kernel, "_inline_cb_lock", None)
+    if lock is None:
         return
 
-    now = time.time()
-    expired = [
-        k for k, v in cb_map.items() if v.get("expires_at") and v["expires_at"] < now
-    ]
-    for k in expired:
-        cb_map.pop(k, None)
+    with lock:
+        cb_map = getattr(kernel, "inline_callback_map", None)
+        if not cb_map:
+            return
+
+        now = time.time()
+        expired = [
+            k
+            for k, v in list(cb_map.items())
+            if v.get("expires_at") and v["expires_at"] < now
+        ]
+        for k in expired:
+            cb_map.pop(k, None)
 
 
 def make_cb_button(
@@ -161,21 +169,32 @@ def make_cb_button(
     if not callable(callback):
         raise TypeError("callback must be callable")
 
-    cb_map = getattr(kernel, "inline_callback_map", None)
-    if cb_map is None:
-        cb_map = {}
-        setattr(kernel, "inline_callback_map", cb_map)
+    if not hasattr(kernel, "_inline_cb_lock"):
+        kernel._inline_cb_lock = threading.Lock()
+    lock = kernel._inline_cb_lock
 
-    now = time.time()
-    cleanup_inline_callback_map(kernel)
+    with lock:
+        cb_map = getattr(kernel, "inline_callback_map", None)
+        if cb_map is None:
+            cb_map = {}
+            setattr(kernel, "inline_callback_map", cb_map)
 
-    tok = token or uuid.uuid4().hex
-    cb_map[tok] = {
-        "handler": callback,
-        "args": list(args or []),
-        "kwargs": dict(kwargs or {}),
-        "expires_at": now + ttl if ttl else None,
-    }
+        now = time.time()
+        expired = [
+            k
+            for k, v in list(cb_map.items())
+            if v.get("expires_at") and v["expires_at"] < now
+        ]
+        for k in expired:
+            cb_map.pop(k, None)
+
+        tok = token or uuid.uuid4().hex
+        cb_map[tok] = {
+            "handler": callback,
+            "args": list(args or []),
+            "kwargs": dict(kwargs or {}),
+            "expires_at": now + ttl if ttl else None,
+        }
 
     return Button.inline(text, tok.encode(), icon=icon, style=style)
 

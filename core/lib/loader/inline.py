@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Mapping, Sequence, Callable
 import traceback
 
 from telethon import Button, events
+from telethon.errors import ChatSendInlineForbiddenError
 from core_inline.api.inline import make_cb_button
 
 if TYPE_CHECKING:
@@ -557,7 +558,6 @@ class InlineManager:
             if reply_to:
                 click_kwargs["reply_to"] = reply_to
             click_kwargs.update(kwargs)
-
             message = await results[result_index].click(chat_id, **click_kwargs)
             if form_sms:
                 await form_sms.delete()
@@ -595,6 +595,20 @@ class InlineManager:
             message.form_id = query
             return True, message
 
+        except ChatSendInlineForbiddenError:
+            _warning_strings = {
+                "ru": "Инлайн-формы запрещены в этом чате.",
+                "en": "Inline forms are not allowed in this chat.",
+            }
+            lang = getattr(k, "config", {}).get("language", "en")
+            warning = _warning_strings.get(lang, _warning_strings["en"])
+            if form_sms:
+                await form_sms.edit(
+                    f'<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>{warning}</b>',
+                    parse_mode="html",
+                )
+            return False, None
+
         except Exception as e:
             await k.handle_error(e, source="inline_query_and_click")
             raw_tb = "".join(traceback.format_exception(*sys.exc_info())).replace(
@@ -617,6 +631,8 @@ class InlineManager:
         ttl: int = 200,
         media: str | None = None,
         media_type: str = "photo",
+        reply_to: int | None = None,
+        parse_mode: str = "html",
         **kwargs,
     ):
         """Create and optionally send an inline form.
@@ -631,6 +647,8 @@ class InlineManager:
             ttl: Cache TTL for the form (seconds).
             media: Public URL or file_id of a photo/document/gif to attach.
             media_type: One of "photo", "document", "gif" (default "photo").
+            reply_to: Topic/thread message ID for supergroups with topics.
+            parse_mode: Parse mode for the form message (default "html").
 
         Returns:
             (success, message) when auto_send=True, else form_id str.
@@ -655,15 +673,22 @@ class InlineManager:
 
             if auto_send:
                 try:
+                    send_kwargs = {"parse_mode": parse_mode}
+                    if reply_to is not None:
+                        send_kwargs["reply_to"] = reply_to
                     form_sms = await k.client.send_message(
                         chat_id,
                         '<tg-emoji emoji-id="5204110240752110921">🕳️</tg-emoji> <i><b>Open inline form</b></i>',
-                        parse_mode="html",
+                        **send_kwargs,
                     )
                 except Exception:
                     form_sms = None
                 return await self.inline_query_and_click(
-                    chat_id=chat_id, query=form_id, form_sms=form_sms, **kwargs
+                    chat_id=chat_id,
+                    query=form_id,
+                    form_sms=form_sms,
+                    reply_to=reply_to,
+                    **kwargs,
                 )
             return form_id
 

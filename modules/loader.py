@@ -1425,8 +1425,7 @@ def register(kernel):
                 )
                 if os.path.exists(file_path):
                     add_log(t("log_deleting_due_error"))
-                    if os.path.exists(file_path):
-                        os.remove(file_path)
+                    os.remove(file_path)
 
         except CommandConflictError as e:
             add_log(t("log_conflict", error=e))
@@ -1614,7 +1613,8 @@ def register(kernel):
                         msg,
                         t("hikka_no_compat", warning=CUSTOM_EMOJI["warning"]),
                     )
-                    os.remove(file_path)
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
                     return
 
                 await edit_with_emoji(

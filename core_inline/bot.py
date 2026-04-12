@@ -102,6 +102,7 @@ class InlineBot:
         self._aiogram_bot = None
         self._aiogram_dp: Dispatcher | None = None
         self._aiogram_polling_task: asyncio.Task | None = None
+        self._telethon_task: asyncio.Task | None = None
         self._inline_handlers_instance = None
 
         if kernel and getattr(kernel, "logger", None):
@@ -138,6 +139,14 @@ class InlineBot:
         """Disconnect runtime bot client and aiogram runtime if active."""
 
         await self._stop_aiogram_runtime()
+
+        if self._telethon_task is not None:
+            self._telethon_task.cancel()
+            try:
+                await self._telethon_task
+            except (asyncio.CancelledError, Exception):
+                pass
+            self._telethon_task = None
 
         if self.bot_client and self.bot_client.is_connected():
             await self.bot_client.disconnect()
@@ -816,7 +825,9 @@ class InlineBot:
             self.logger.info(
                 "[InlineBot] runtime client started username=@%s", self.username
             )
-            asyncio.create_task(self.bot_client.run_until_disconnected())
+            self._telethon_task = asyncio.create_task(
+                self.bot_client.run_until_disconnected()
+            )
 
             aiogram_started = await self.start_aiogram_runtime()
             if not aiogram_started:

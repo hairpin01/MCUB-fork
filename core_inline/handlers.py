@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import html
 import json
+import threading
 import time
 import traceback
 import uuid
@@ -52,6 +53,210 @@ except Exception:  # pragma: no cover - optional dependency at runtime
     InlineKeyboardButton = None
 
 
+class _TelethonInlineQueryAdapter:
+    """Thin Telethon-compatible wrapper around aiogram InlineQuery."""
+
+    __slots__ = ("_q", "_api_bot", "text", "sender_id")
+
+    def __init__(self, q: Any, api_bot: Any | None) -> None:
+        self._q = q
+        self._api_bot = api_bot
+        self.text: str = getattr(q, "query", "") or ""
+        self.sender_id: int = getattr(getattr(q, "from_user", None), "id", 0) or 0
+
+    @property
+    def query(self) -> Any:
+        return self._q
+
+    class _Builder:
+        @staticmethod
+        def article(
+            title: str,
+            text: str,
+            description: str = "",
+            parse_mode: str = "html",
+            thumb: Any = None,
+            buttons: Any = None,
+        ) -> Any:
+            if (
+                InlineQueryResultArticle is not None
+                and InputTextMessageContent is not None
+            ):
+                kb = None
+                if buttons:
+                    rows = []
+                    for row in (
+                        buttons
+                        if hasattr(buttons, "__iter__")
+                        and not isinstance(buttons, dict)
+                        else [buttons]
+                    ):
+                        row_btns = []
+                        for btn in (
+                            row
+                            if hasattr(row, "__iter__") and not isinstance(row, dict)
+                            else [row]
+                        ):
+                            if hasattr(btn, "url"):
+                                row_btns.append(
+                                    InlineKeyboardButton(text=btn.text, url=btn.url)
+                                )
+                            elif hasattr(btn, "data"):
+                                row_btns.append(
+                                    InlineKeyboardButton(
+                                        text=btn.text,
+                                        callback_data=(
+                                            btn.data.decode()
+                                            if isinstance(btn.data, bytes)
+                                            else btn.data
+                                        ),
+                                    )
+                                )
+                            elif isinstance(btn, dict):
+                                btype = btn.get("type", "callback").lower()
+                                if btype == "url":
+                                    row_btns.append(
+                                        InlineKeyboardButton(
+                                            text=btn.get("text", ""),
+                                            url=btn.get("url", ""),
+                                        )
+                                    )
+                                elif btype == "callback":
+                                    row_btns.append(
+                                        InlineKeyboardButton(
+                                            text=btn.get("text", ""),
+                                            callback_data=btn.get("data", ""),
+                                        )
+                                    )
+                        if row_btns:
+                            rows.append(row_btns)
+                    if rows:
+                        kb = InlineKeyboardMarkup(inline_keyboard=rows)
+
+                return InlineQueryResultArticle(
+                    id=str(uuid.uuid4()),
+                    title=title,
+                    description=description or "",
+                    input_message_content=InputTextMessageContent(
+                        message_text=text,
+                        parse_mode=parse_mode.upper(),
+                    ),
+                    thumbnail_url=(getattr(thumb, "url", None) if thumb else None),
+                    reply_markup=kb,
+                )
+            return {"title": title, "text": text}
+
+    builder = _Builder()
+
+    async def answer(self, results: list[Any], cache_time: int = 300) -> None:
+        if self._api_bot is not None:
+            await self._api_bot.answer_inline(
+                inline_query_id=self._q.id,
+                results=results,
+                cache_time=cache_time,
+            )
+
+
+class _TelethonCallbackAdapter:
+    """Thin Telethon-compatible wrapper around aiogram CallbackQuery."""
+
+    __slots__ = (
+        "_q",
+        "_api_bot",
+        "data",
+        "sender_id",
+        "message",
+        "chat_instance",
+        "_kernel",
+    )
+
+    def __init__(self, q: Any, api_bot: Any | None, kernel: Any) -> None:
+        self._q = q
+        self._api_bot = api_bot
+        self._kernel = kernel
+        self.data: bytes | str = (
+            q.data.decode() if isinstance(q.data, bytes) else q.data or b""
+        )
+        self.sender_id: int = getattr(getattr(q, "from_user", None), "id", 0) or 0
+        self.message: Any = getattr(q, "message", None)
+        self.chat_instance: int = getattr(q, "chat_instance", 0) or 0
+
+    @property
+    def kernel(self) -> Any:
+        return self._kernel
+
+    async def answer(
+        self,
+        message: str = "",
+        alert: bool = False,
+        url: str = "",
+    ) -> None:
+        try:
+            await self._q.answer(
+                message=message,
+                alert=alert,
+                url=url if url else None,
+            )
+        except Exception as e:
+            self._kernel.logger.warning(
+                "[InlineHandlers] answer_callback failed: %s", e
+            )
+
+    async def edit(
+        self,
+        text: str,
+        parse_mode: str = "html",
+        buttons: Any = None,
+    ) -> None:
+        msg = self.message
+        if msg is None:
+            return
+        kb = None
+        if buttons:
+            rows = []
+            for row in (
+                buttons
+                if hasattr(buttons, "__iter__") and not isinstance(buttons, dict)
+                else [buttons]
+            ):
+                row_btns = []
+                for btn in (
+                    row
+                    if hasattr(row, "__iter__") and not isinstance(row, dict)
+                    else [row]
+                ):
+                    if hasattr(btn, "url"):
+                        row_btns.append(
+                            InlineKeyboardButton(text=btn.text, url=btn.url)
+                        )
+                    elif hasattr(btn, "data"):
+                        row_btns.append(
+                            InlineKeyboardButton(
+                                text=btn.text,
+                                callback_data=(
+                                    btn.data.decode()
+                                    if isinstance(btn.data, bytes)
+                                    else btn.data
+                                ),
+                            )
+                        )
+                if row_btns:
+                    rows.append(row_btns)
+            if rows:
+                kb = InlineKeyboardMarkup(inline_keyboard=rows)
+
+        try:
+            await msg.edit_text(
+                text=text,
+                parse_mode=parse_mode,
+                reply_markup=kb,
+            )
+        except Exception as e:
+            self._kernel.logger.warning(
+                "[InlineHandlers] aiogram edit_message_text failed: %s", e
+            )
+
+
 class InlineHandlers:
     EMOJI_TELESCOPE = '<tg-emoji emoji-id="5429283852684124412">🔭</tg-emoji>'
     EMOJI_BLOCK = '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji>'
@@ -70,11 +275,15 @@ class InlineHandlers:
         ):
             self.kernel.session = aiohttp.ClientSession()
 
-        self._form_counter = 0
         self._inline_manager = InlineManager(kernel)
         self.lang = get_strings(kernel)
         self.kernel.logger.debug("[InlineHandlers] __init__")
         self._setup_inline_send_handler()
+        self._cb_lock = threading.Lock()
+        self._last_cleanup_time = 0.0
+        self._cleanup_task: asyncio.Task | None = None
+        self._cleanup_interval = 300.0
+        self._form_counter = 0
 
     def _is_aiogram_event(self, event: Any) -> bool:
         """Detect whether event is from aiogram or Telethon.
@@ -116,116 +325,6 @@ class InlineHandlers:
             return query
 
         bot = self._get_api_bot()
-
-        class _TelethonInlineQueryAdapter:
-            """Thin Telethon-compatible wrapper around aiogram InlineQuery."""
-
-            def __init__(self, q: Any, api_bot: Any | None) -> None:
-                self._q = q
-                self._api_bot = api_bot
-                self.text: str = getattr(q, "query", "") or ""
-                self.sender_id: int = (
-                    getattr(getattr(q, "from_user", None), "id", 0) or 0
-                )
-
-            @property
-            def query(self) -> Any:
-                return self._q
-
-            class _Builder:
-                @staticmethod
-                def article(
-                    title: str,
-                    text: str,
-                    description: str = "",
-                    parse_mode: str = "html",
-                    thumb: Any = None,
-                    buttons: Any = None,
-                ) -> Any:
-                    if (
-                        InlineQueryResultArticle is not None
-                        and InputTextMessageContent is not None
-                    ):
-                        kb = None
-                        if buttons:
-                            rows = []
-                            for row in (
-                                buttons
-                                if hasattr(buttons, "__iter__")
-                                and not isinstance(buttons, dict)
-                                else [buttons]
-                            ):
-                                row_btns = []
-                                for btn in (
-                                    row
-                                    if hasattr(row, "__iter__")
-                                    and not isinstance(row, dict)
-                                    else [row]
-                                ):
-                                    if hasattr(btn, "url"):
-                                        row_btns.append(
-                                            InlineKeyboardButton(
-                                                text=btn.text, url=btn.url
-                                            )
-                                        )
-                                    elif hasattr(btn, "data"):
-                                        row_btns.append(
-                                            InlineKeyboardButton(
-                                                text=btn.text,
-                                                callback_data=(
-                                                    btn.data.decode()
-                                                    if isinstance(btn.data, bytes)
-                                                    else btn.data
-                                                ),
-                                            )
-                                        )
-                                    elif isinstance(btn, dict):
-                                        btype = btn.get("type", "callback").lower()
-                                        if btype == "url":
-                                            row_btns.append(
-                                                InlineKeyboardButton(
-                                                    text=btn.get("text", ""),
-                                                    url=btn.get("url", ""),
-                                                )
-                                            )
-                                        elif btype == "callback":
-                                            row_btns.append(
-                                                InlineKeyboardButton(
-                                                    text=btn.get("text", ""),
-                                                    callback_data=btn.get("data", ""),
-                                                )
-                                            )
-                                if row_btns:
-                                    rows.append(row_btns)
-                            if rows:
-                                kb = InlineKeyboardMarkup(inline_keyboard=rows)
-
-                        return InlineQueryResultArticle(
-                            id=str(uuid.uuid4()),
-                            title=title,
-                            description=description or "",
-                            input_message_content=InputTextMessageContent(
-                                message_text=text,
-                                parse_mode=parse_mode.upper(),
-                            ),
-                            thumbnail_url=(
-                                getattr(thumb, "url", None) if thumb else None
-                            ),
-                            reply_markup=kb,
-                        )
-                    return {"title": title, "text": text}
-
-            builder = _Builder()
-
-            async def answer(self, results: list[Any], cache_time: int = 300) -> None:
-                api_bot = self._api_bot or self._get_api_bot()
-                if api_bot is not None:
-                    await api_bot.answer_inline(
-                        inline_query_id=self._q.id,
-                        results=results,
-                        cache_time=cache_time,
-                    )
-
         return _TelethonInlineQueryAdapter(query, bot)
 
     def _wrap_aiogram_callback_query(self, query: Any) -> Any:
@@ -246,97 +345,7 @@ class InlineHandlers:
             return query
 
         bot = self._get_api_bot()
-
-        class _TelethonCallbackAdapter:
-            """Thin Telethon-compatible wrapper around aiogram CallbackQuery."""
-
-            def __init__(self, q: Any, api_bot: Any | None) -> None:
-                self._q = q
-                self._api_bot = api_bot
-                self.data: bytes | str = (
-                    q.data.decode() if isinstance(q.data, bytes) else q.data or b""
-                )
-                self.sender_id: int = (
-                    getattr(getattr(q, "from_user", None), "id", 0) or 0
-                )
-                self.message: Any = getattr(q, "message", None)
-                self.chat_instance: int = getattr(q, "chat_instance", 0) or 0
-
-            async def answer(
-                self,
-                message: str = "",
-                alert: bool = False,
-                url: str = "",
-            ) -> None:
-                try:
-                    await self._q.answer(
-                        message=message,
-                        alert=alert,
-                        url=url if url else None,
-                    )
-                except Exception as e:
-                    self._kernel.logger.warning(
-                        "[InlineHandlers] answer_callback failed: %s", e
-                    )
-
-            async def edit(
-                self,
-                text: str,
-                parse_mode: str = "html",
-                buttons: Any = None,
-            ) -> None:
-                msg = self.message
-                if msg is None:
-                    return
-                kb = None
-                if buttons:
-                    rows = []
-                    for row in (
-                        buttons
-                        if hasattr(buttons, "__iter__")
-                        and not isinstance(buttons, dict)
-                        else [buttons]
-                    ):
-                        row_btns = []
-                        for btn in (
-                            row
-                            if hasattr(row, "__iter__") and not isinstance(row, dict)
-                            else [row]
-                        ):
-                            if hasattr(btn, "url"):
-                                row_btns.append(
-                                    InlineKeyboardButton(text=btn.text, url=btn.url)
-                                )
-                            elif hasattr(btn, "data"):
-                                row_btns.append(
-                                    InlineKeyboardButton(
-                                        text=btn.text,
-                                        callback_data=(
-                                            btn.data.decode()
-                                            if isinstance(btn.data, bytes)
-                                            else btn.data
-                                        ),
-                                    )
-                                )
-                        if row_btns:
-                            rows.append(row_btns)
-                    if rows:
-                        kb = InlineKeyboardMarkup(inline_keyboard=rows)
-
-                try:
-                    await msg.edit_text(
-                        text=text,
-                        parse_mode=parse_mode,
-                        reply_markup=kb,
-                    )
-                except Exception as e:
-                    self.kernel.logger.warning(
-                        "[InlineHandlers] aiogram edit_message_text failed: %s", e
-                    )
-
-        adapter = _TelethonCallbackAdapter(query, bot)
-        adapter._kernel = self.kernel
-        return adapter
+        return _TelethonCallbackAdapter(query, bot, self.kernel)
 
     def _build_article_result(
         self,
@@ -488,6 +497,14 @@ class InlineHandlers:
 
     async def close(self) -> None:
         """Close aiohttp session on bot shutdown."""
+        if self._cleanup_task is not None:
+            self._cleanup_task.cancel()
+            try:
+                await self._cleanup_task
+            except (asyncio.CancelledError, Exception):
+                pass
+            self._cleanup_task = None
+
         if self._api_bot is not None:
             try:
                 await self._api_bot.session.close()
@@ -885,7 +902,7 @@ class InlineHandlers:
         return result
 
     def _make_form_id(self):
-        return f"form_{int(time.time())}_{self._form_counter}"
+        return f"form_{uuid.uuid4().hex[:16]}"
 
     def _normalize_buttons(self, buttons, ttl: int | None = None):
         """Converts buttons to unified format (list of rows)."""
@@ -957,18 +974,23 @@ class InlineHandlers:
             if callable(callback):
                 token = btn_dict.get("token") or uuid.uuid4().hex
                 # Store mapping globally on kernel so multiple InlineHandlers
-                # instances share the same callback map.
-                cb_map = getattr(self.kernel, "inline_callback_map", None)
-                if cb_map is None:
-                    cb_map = {}
-                    setattr(self.kernel, "inline_callback_map", cb_map)
+                # instances share the same callback map and lock.
+                if not hasattr(self.kernel, "_inline_cb_lock"):
+                    self.kernel._inline_cb_lock = threading.Lock()
+                lock = self.kernel._inline_cb_lock
 
-                cb_map[token] = {
-                    "handler": callback,
-                    "args": btn_dict.get("args", []),
-                    "kwargs": btn_dict.get("kwargs", {}),
-                    "expires_at": time.time() + (ttl or 3600),
-                }
+                with lock:
+                    cb_map = getattr(self.kernel, "inline_callback_map", None)
+                    if cb_map is None:
+                        cb_map = {}
+                        setattr(self.kernel, "inline_callback_map", cb_map)
+
+                    cb_map[token] = {
+                        "handler": callback,
+                        "args": btn_dict.get("args", []),
+                        "kwargs": btn_dict.get("kwargs", {}),
+                        "expires_at": time.time() + (ttl or 3600),
+                    }
 
                 data = token
 
@@ -1031,20 +1053,48 @@ class InlineHandlers:
             self.kernel.logger.warning(f"{self.lang['json_parsing_error']}: {e}")
             return []
 
-    def _cleanup_inline_callback_map(self) -> None:
-        """Drop expired auto-generated callback tokens to keep the map small."""
-        cb_map = getattr(self.kernel, "inline_callback_map", None)
-        if not cb_map:
+    def _cleanup_inline_callback_map(self, force: bool = False) -> None:
+        """Drop expired auto-generated callback tokens to keep the map small.
+
+        Args:
+            force: If True, cleanup regardless of interval. Otherwise, cleanup
+                   only if enough time has passed since last cleanup.
+        """
+        now = time.time()
+        if not force and (now - self._last_cleanup_time) < self._cleanup_interval:
             return
 
-        now = time.time()
-        expired = [
-            key
-            for key, val in cb_map.items()
-            if val.get("expires_at") and val["expires_at"] < now
-        ]
-        for key in expired:
-            cb_map.pop(key, None)
+        self._last_cleanup_time = now
+        lock = getattr(self.kernel, "_inline_cb_lock", None)
+        if lock is None:
+            return
+
+        with lock:
+            cb_map = getattr(self.kernel, "inline_callback_map", None)
+            if not cb_map:
+                return
+
+            expired = [
+                key
+                for key, val in list(cb_map.items())
+                if val.get("expires_at") and val["expires_at"] < now
+            ]
+            if expired:
+                for key in expired:
+                    cb_map.pop(key, None)
+                self.kernel.logger.debug(
+                    f"[InlineHandlers] cleaned {len(expired)} expired callbacks"
+                )
+
+    async def _start_cleanup_task(self) -> None:
+        """Start background task for periodic cleanup."""
+
+        async def _periodic_cleanup():
+            while True:
+                await asyncio.sleep(60)
+                self._cleanup_inline_callback_map(force=True)
+
+        self._cleanup_task = asyncio.create_task(_periodic_cleanup())
 
     async def check_admin(self, event):
         try:
@@ -1061,6 +1111,7 @@ class InlineHandlers:
         Registers Telethon event handlers that delegate to adapter methods.
         These methods can also be called directly from aiogram handlers.
         """
+        await self._start_cleanup_task()
 
         @self.bot_client.on(events.InlineQuery)
         async def inline_query_handler(event):
@@ -1319,12 +1370,15 @@ class InlineHandlers:
 
             # 2. Auto-generated callback tokens
             self._cleanup_inline_callback_map()
-            cb_map = getattr(self.kernel, "inline_callback_map", None) or {}
+            with self._cb_lock:
+                cb_map = getattr(self.kernel, "inline_callback_map", None) or {}
+
             if data_str in cb_map:
                 entry = cb_map[data_str]
 
                 if entry.get("expires_at") and entry["expires_at"] < time.time():
-                    cb_map.pop(data_str, None)
+                    with self._cb_lock:
+                        cb_map.pop(data_str, None)
                     return await event.answer(self.lang["form_expired"], alert=False)
 
                 handler = entry.get("handler")

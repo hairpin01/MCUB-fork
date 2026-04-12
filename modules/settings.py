@@ -227,13 +227,14 @@ def register(kernel):
     @kernel.register.command("addalias")
     async def alias_handler(event):
         """[alias] = [command]"""
-        args = event.text[len(kernel.custom_prefix) + 9 :].strip()
+        parts_text = event.text.split(None, 1)
+        args = parts_text[1].strip() if len(parts_text) > 1 else ""
         if "=" not in args:
             await event.edit(_("alias_usage", prefix=kernel.custom_prefix))
             return
 
-        parts = args.split("=")
-        if len(parts) != 2:
+        parts = args.split("=", 1)
+        if len(parts) < 2:
             await event.edit(_("alias_usage", prefix=kernel.custom_prefix))
             return
 

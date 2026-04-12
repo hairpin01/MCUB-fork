@@ -50,8 +50,10 @@ _METADATA_LOCKS: dict[int, asyncio.Lock] = {}
 
 def _get_metadata_lock() -> asyncio.Lock:
     """Return a lock bound to the current event loop."""
-
-    loop = asyncio.get_running_loop()
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.Lock()
     loop_id = id(loop)
     lock = _METADATA_LOCKS.get(loop_id)
     if lock is None:

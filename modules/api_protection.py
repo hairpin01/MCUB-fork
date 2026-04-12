@@ -35,7 +35,7 @@ DEFAULT_CONFIG = {
     "mcub_mode": "safe",
     "mcub_dry_run": False,
     "mcub_allowlist": [],
-    # анализ
+    # analytics
     "enable_analytics": True,
     "zscore_threshold": 3.0,
     "warn_percent": 90,

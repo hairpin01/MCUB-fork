@@ -2120,5 +2120,12 @@ async def unload_hikka_module(kernel, module_name: str) -> bool:
     child_pkg = f"{_FAKE_PKG_NAME}.{module_name}"
     sys.modules.pop(child_pkg, None)
 
+    for key in list(sys.modules.keys()):
+        if key.startswith(f"{_FAKE_PKG_NAME}.{module_name}."):
+            sys.modules.pop(key, None)
+
+    sys.modules.pop("inline", None)
+    sys.modules.pop("inline.types", None)
+
     kernel.logger.info(f"[hikka_compat] Unloaded '{module_name}'")
     return True

@@ -2,7 +2,6 @@
 __pycache__/
 *.py[codz]
 *$py.class
-modules_loaded/
 data/
 userbot.db
 *.session-journal

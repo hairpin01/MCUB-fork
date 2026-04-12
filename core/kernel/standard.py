@@ -36,7 +36,7 @@ try:
     _check_mcub_installation()
 except Exception:
     raise McubTelethonError(
-        "YOU is not install telethon-mcub, please run: 'pip -U install telethon-mcub' and 'pip uninstall telethon -y'! (or update telethon-mcub)"
+        "YOU is not install telethon-mcub, please run: 'pip install -U telethon-mcub' and 'pip uninstall telethon -y'! (or update telethon-mcub)"
     ) from None
 
 try:
@@ -45,6 +45,7 @@ try:
     from ..lib.base.database import DatabaseManager
     from ..lib.base.permissions import CallbackPermissionManager
     from ..lib.loader.inline import InlineManager
+    from ..lib.loader.inline import InlineMessage as _InlineMessage
     from ..lib.loader.loader import ModuleLoader
     from ..lib.loader.register import Register
     from ..lib.loader.repository import RepositoryManager
@@ -1076,6 +1077,24 @@ class Kernel:
             chat_id, title, fields, buttons, auto_send, ttl, **kwargs
         )
 
+    @property
+    def InlineMessage(self) -> type[_InlineMessage]:
+        """Get the InlineMessage class for editing/deleting inline messages.
+
+        Example:
+            ```python
+            # Get an existing inline message
+            msg = self.kernel.InlineMessage.get(form_id)
+            if msg:
+                await msg.edit("New text")
+                await msg.delete()
+            ```
+
+        Returns:
+            InlineMessage class.
+        """
+        return _InlineMessage
+
     def get_module_inline_commands(self, module_name: str) -> list:
         """Get inline commands registered by a module."""
         return self._inline.get_module_inline_commands(module_name)
@@ -1551,7 +1570,7 @@ class Kernel:
         import os
         import logging
 
-        no_web = not getattr(self, "web_enabled", True)  # True если --no-web
+        no_web = not getattr(self, "web_enabled", True)  # True if --no-web
 
         if not no_web:
             web_via_env = os.environ.get("MCUB_WEB", "0") == "1"
@@ -1751,16 +1770,14 @@ class Kernel:
                     strings = (lang_strings["success"], lang_strings["loading"])
                     emoji = "(*.*)"
                     total_ms = (
-                        round((time.time() - restart_time) * 1000, 2)
-                        if restart_time
-                        else 0
+                        round(time.time() - restart_time, 2) if restart_time else 0
                     )
 
                     await self.client.edit_message(
                         restart_chat_id,
                         restart_msg_id,
                         f"{em_alembic} {strings[0]} {emoji}\n"
-                        f"<i>{strings[1]}</i> <b>KLB:</b> <code>{total_ms} ms</code>",
+                        f"<i>{strings[1]}</i> <b>Kernel boot:</b><code> {total_ms} </code>s",
                         parse_mode="html",
                     )
             except Exception:
@@ -1938,8 +1955,8 @@ class Kernel:
             em_package = '<tg-emoji emoji-id="5399898266265475100">📦</tg-emoji>'
             em_error = '<tg-emoji emoji-id="5208923808169222461">🥀</tg-emoji>'
 
-            total_ms = round((time.time() - restart_time) * 1000, 2)
-            mod_ms = round((modules_end - modules_start) * 1000, 2)
+            kernel_s = round(modules_start - restart_time, 2)
+            mod_s = round(modules_end - modules_start, 2)
 
             lang = self.config.get("language", "ru")
             strings = (
@@ -1968,14 +1985,14 @@ class Kernel:
                 if not self.error_load_modules:
                     msg_text = (
                         f"{em_package} {strings('loaded')}\n"
-                        f"<blockquote><b>Kernel:</b> <code>{total_ms} ms</code>. "
-                        f"<b>Modules:</b> <code>{mod_ms} ms</code>.</blockquote>"
+                        f"<blockquote><b>Kernel:</b><code> {kernel_s} </code>s. "
+                        f"<b>Modules:</b><code> {mod_s} </code>s.</blockquote>"
                     )
                 else:
                     msg_text = (
                         f"{em_error} {strings('errors')}\n"
-                        f"<blockquote><b>Kernel:</b> <code>{total_ms} ms</code>. "
-                        f"<b>Modules:</b> <code>{mod_ms} ms</code>.</blockquote>"
+                        f"<blockquote><b>Kernel:</b><code> {kernel_s} </code>s. "
+                        f"<b>Modules Error:</b><code> {int(self.error_load_modules)} </code>s.</blockquote>"
                     )
 
                 try:

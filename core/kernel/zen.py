@@ -59,6 +59,7 @@ try:
     from ..lib.base.config import ConfigManager
     from ..lib.base.client import ClientManager
     from ..lib.loader.inline import InlineManager
+    from ..lib.loader.inline import InlineMessage as _InlineMessage
 except ImportError as e:
     sys.exit(
         f"[kernel] failed to import internal modules: {e}\n{traceback.format_exc()}"
@@ -880,10 +881,10 @@ class Kernel:
 
     async def inline_form(
         self,
-        chat_id,
-        title,
-        fields=None,
-        buttons=None,
+        chat_id: int,
+        title: str,
+        fields: list[dict[str, Any]] | None = None,
+        buttons: list[Any] | None = None,
         auto_send=True,
         ttl=200,
         **kwargs,
@@ -891,6 +892,23 @@ class Kernel:
         return await self._inline.inline_form(
             chat_id, title, fields, buttons, auto_send, ttl, **kwargs
         )
+
+    @property
+    def InlineMessage(self) -> type[_InlineMessage]:
+        """Get the InlineMessage class for editing/deleting inline messages.
+
+        Example:
+            ```python
+            msg = self.kernel.InlineMessage.get(form_id)
+            if msg:
+                await msg.edit("New text")
+                await msg.delete()
+            ```
+
+        Returns:
+            InlineMessage class.
+        """
+        return _InlineMessage
 
     async def init_client(self) -> bool:
         return await self._client_mgr.init_client()
@@ -1203,7 +1221,7 @@ class Kernel:
             no_session = not session_exists(api_id, api_hash)
             no_config = not os.path.exists(self.CONFIG_FILE)
 
-            # запускаем панель если: явно включено ИЛИ нет сессии ИЛИ нет конфига
+            # Run panel if: explicitly enabled OR no session OR no config
             if web_via_env or web_via_config or no_session or no_config:
                 await self.run_panel()
 

@@ -9,7 +9,7 @@ from typing import Tuple
 import shutil
 
 # version kenrel MCUB
-__version__ = "1.0.6.2"
+__version__ = "1.1.6"
 VERSION = __version__
 
 
@@ -24,7 +24,6 @@ class VersionManager:
         """
         Преобразует строку версии '1.0.2.1' в кортеж целых чисел.
         Нечисловые части заменяются на 0.
-        Извлекает числовую часть из строк типа '5-hikka-compat'.
         """
         parts = []
         for part in version_str.split("."):

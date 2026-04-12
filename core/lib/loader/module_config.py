@@ -4,9 +4,7 @@ Module configuration system for MCUB.
 Provides declarative configuration similar to Hikka.
 """
 
-from typing import Any, Callable, List, Optional, Union, TypeVar
-
-Dict = TypeVar("Dict")
+from typing import Any, Callable, Dict, List, Optional, Union
 
 
 class Validator:
@@ -187,7 +185,9 @@ class List(Validator):
         return list(value)
 
 
-class Dict(Validator):
+class DictType(Validator):
+    """Validator for dictionary configuration values."""
+
     def __init__(
         self,
         default: Any = None,

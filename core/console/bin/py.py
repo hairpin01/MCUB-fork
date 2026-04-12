@@ -25,9 +25,9 @@ async def run(shell, args: List[str]):
         return
 
     code = " ".join(args)
-    # Нормализуем отступы, чтобы убрать случайный общий префикс
+    # Normalize indentation to remove random common prefix
     code = textwrap.dedent(code)
-    # Оборачиваем в асинхронную функцию для поддержки await на верхнем уровне
+    # Wrap in async function to support await at top level
     indented = textwrap.indent(code, "    ")
     wrapped = f"async def __code():\n{indented}"
 

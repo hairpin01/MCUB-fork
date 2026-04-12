@@ -1,12 +1,148 @@
 from __future__ import annotations
 
-# author: @Hairpin01
-# version: 1.2.0-beta
-# description: Trusted users can execute owner commands with alias and NoNick support
+# author: @Hairpin00
+# version: 1.4.0-beta
+# description: Trusted users can execute owner commands
+
 
 import json
 from telethon import Button
 from core_inline.lib.manager import InlineManager
+from core_inline.api.inline import make_cb_button
+
+ACCESS_CATEGORIES = {
+    "modules": {
+        "en": {
+            "label": "Modules",
+            "desc": "unloading, cleaning and managing installed modules",
+        },
+        "ru": {
+            "label": "Модули",
+            "desc": "выгрузка, очистка и управление уже установленными модулями",
+        },
+        "commands": [],
+        "is_module_cmds": True,
+    },
+    "loader": {
+        "en": {
+            "label": "Module Loader",
+            "desc": "install external modules from files, links and presets",
+        },
+        "ru": {
+            "label": "Установка модулей",
+            "desc": "установка внешних модулей из файлов, ссылок и пресетов",
+        },
+        "commands": ["iload", "dlm", "um", "reload", "addrepo", "delrepo"],
+    },
+    "config": {
+        "en": {"label": "Config", "desc": "userbot settings and basic parameters"},
+        "ru": {"label": "Конфиг", "desc": "настройки юзербота и базовые параметры"},
+        "commands": [
+            "cfg",
+            "fcfg",
+            "setprefix",
+            "addalias",
+            "delalias",
+            "lang",
+            "cleardb",
+            "clearmodules",
+            "clearcache",
+            "api_protection",
+        ],
+    },
+    "backup": {
+        "en": {"label": "Backups", "desc": "database and modules backup"},
+        "ru": {"label": "Бэкапы", "desc": "резервные копии базы и модулей"},
+        "commands": ["backup", "restore", "backupsettings", "backuptime"],
+    },
+    "terminal": {
+        "en": {"label": "Terminal", "desc": "system shell commands on server"},
+        "ru": {"label": "Терминал", "desc": "системные shell-команды на сервере"},
+        "commands": ["t", "tkill"],
+    },
+    "eval": {
+        "en": {"label": "Code / Eval", "desc": "eval and code execution"},
+        "ru": {"label": "Код / Eval", "desc": "eval и выполнение кода"},
+        "commands": ["py"],
+    },
+    "security": {
+        "en": {
+            "label": "Security",
+            "desc": "owner, security, targeted rules and accesses",
+        },
+        "ru": {
+            "label": "Безопасность",
+            "desc": "owner, security, targeted rules и доступы",
+        },
+        "commands": [
+            "trust",
+            "untrust",
+            "trustlist",
+            "trustcmd",
+            "sgroup",
+            "watcher",
+            "timedtrusted",
+            "nonickuser",
+            "nonickusers",
+            "addowner",
+            "delowner",
+            "listowner",
+        ],
+    },
+    "system": {
+        "en": {"label": "System", "desc": "update, restart and system maintenance"},
+        "ru": {"label": "Система", "desc": "update, restart и системное обслуживание"},
+        "commands": ["restart", "update", "stop", "rollback"],
+    },
+    "inline": {
+        "en": {"label": "Inline", "desc": "use inline commands and bots"},
+        "ru": {"label": "Inline", "desc": "использовать инлайн-команды и боты"},
+        "commands": [],
+    },
+    "callback": {
+        "en": {"label": "Callback", "desc": "press callback buttons"},
+        "ru": {"label": "Callback", "desc": "нажимать на callback-кнопки"},
+        "commands": [],
+    },
+}
+
+# Flat map: command → category key (built once at import time)
+_CMD_TO_CAT: dict[str, str] = {}
+for _cat_key, _cat_info in ACCESS_CATEGORIES.items():
+    for _cmd in _cat_info.get("commands", []):
+        _CMD_TO_CAT[_cmd] = _cat_key
+
+# Display order: pairs → 2 per row, singletons → 1 per row
+_CATEGORY_ROWS = [
+    ("modules", "loader"),
+    ("config", "backup"),
+    ("terminal", "eval"),
+    ("security", "system"),
+    ("inline", "callback"),
+]
+
+# Presets
+PRESETS = {
+    "user": {
+        "en": {"label": "👤 User"},
+        "ru": {"label": "👤 Пользователь"},
+        "access": {k: (k == "modules") for k in ACCESS_CATEGORIES},
+    },
+    "programmer": {
+        "en": {"label": "💻 Programmer"},
+        "ru": {"label": "💻 Программист"},
+        "access": {
+            k: (k in ("modules", "eval", "terminal")) for k in ACCESS_CATEGORIES
+        },
+    },
+    "moderator": {
+        "en": {"label": "🛡 Moderator"},
+        "ru": {"label": "🛡 Модератор"},
+        "access": {
+            k: (k in ("modules", "loader", "config")) for k in ACCESS_CATEGORIES
+        },
+    },
+}
 
 
 def register(kernel):
@@ -14,7 +150,6 @@ def register(kernel):
     language = kernel.config.get("language", "en")
     inline_manager = InlineManager(kernel)
 
-    # Simple cache to avoid calling get_me() on every watcher tick
     _cache = {"owner_username": None}
 
     strings = {
@@ -22,20 +157,12 @@ def register(kernel):
             "not_owner": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Only the owner can use this command.',
             "usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.trust</code> / <code>.untrust</code> (reply, @username or ID)',
             "trust_added": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>User added to trusted list.</b>',
-            "trust_added_full": (
-                '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>User added to trusted list.</b>'
-            ),
             "trust_removed": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>User removed from trusted list.</b>',
             "trust_already": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> <i>User is already trusted.</i>',
             "trust_not_in_list": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> User is not in trusted list.',
             "trustlist_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Trusted list is empty.',
             "trustlist_title": '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Trusted users:</b>',
-            "confirm_title": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Add user to trusted?</b>',
-            "confirm_user_line": "👤 <b>User:</b> {name} (<code>{uid}</code>)",
-            "confirm_warning": '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> <b>Warning:</b> The user will gain access to <b>all owner commands</b> of the userbot!',
-            "btn_confirm": "Confirm",
             "btn_cancel": "Cancel",
-            "confirm_cancelled": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Cancelled.',
             "nonick_step_title": '<tg-emoji emoji-id="5332723564711804828">✨</tg-emoji> <b>Enable NoNick for {name}?</b>',
             "nonick_step_desc": (
                 "With <b>NoNick</b> enabled, the user will be able to execute commands simply like"
@@ -49,7 +176,6 @@ def register(kernel):
             "btn_nonick_no": "No NoNick",
             "nonick_toggled_on": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> NoNick <b>enabled</b> for {name}.',
             "nonick_toggled_off": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> NoNick <b>disabled</b> for {name}.',
-            "nonick_not_trusted": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> User is not in the trusted list.',
             "nonick_list_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No trusted users with NoNick.',
             "nonick_list_title": '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Trusted users with NoNick:</b>',
             "nonick_usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.nonickuser</code> (reply, @username or ID)',
@@ -61,25 +187,66 @@ def register(kernel):
             "watcher_disabled": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Watcher disabled:</b> <code>{module}.{watcher}</code>',
             "watcher_enabled": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Watcher enabled:</b> <code>{module}.{watcher}</code>',
             "watcher_not_found": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Watcher not found: <code>{module}.{watcher}</code>',
+            "trustaccess_usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.trustaccess</code> (reply or @username or ID)',
+            "trustaccess_footer": "<em>If access is off, the bot will simply ignore the corresponding commands.</em>",
+            "trustaccess_title": "🔐 <b>Owner access for {user}</b>",
+            "btn_close": "🙈 Close this menu",
+            "btn_allow_all": "Allow all",
+            "btn_deny_all": "Deny all",
+            "access_allowed": "allowed",
+            "access_denied": "denied",
+            "access_allowed_group": "allowed (group)",
+            "trustcmd_usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Manage per-command access for trusted users</b>\n\n<code>.trustcmd @username +py</code> - allow command py\n<code>.trustcmd @username -py</code> - deny command py\n<code>.trustcmd @username list</code> - show all command permissions\n<code>.trustcmd @username +py -loader</code> - allow py, deny loader category\n\n<i>Requires user to be in trusted list</i>',
+            "trustcmd_added": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access to <code>{cmd}</code> <b>granted</b> for {user}.',
+            "trustcmd_removed": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access to <code>{cmd}</code> <b>revoked</b> for {user}.',
+            "trustcmd_not_found": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Command <code>{cmd}</code> not found.',
+            "trustcmd_list_title": "🔐 <b>Command access for {user}:</b>",
+            "trustcmd_list_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No specific command permissions set.',
+            "percmd_title": "🔐 <b>Commands for {user}</b>",
+            "percmd_back": "← Back",
+            "btn_cmds": "📋 Commands",
+            "trust_time_title": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Add user for a limited time?</b>',
+            "trust_time_desc": '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> User will be removed from trusted after {time}.',
+            "btn_1h": "1 hour",
+            "btn_24h": "24 hours",
+            "btn_7d": "7 days",
+            "btn_permanent": "Permanent",
+            "trust_added_timed": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>User added to trusted list for {time}.</b>',
+            "trust_expired": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Trust for <b>{user}</b> has expired.',
+            "timed_trusted_title": '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Temporary trusted users:</b>',
+            "timed_trusted_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No temporary trusted users.',
+            "trust_expiring": " (expires in {time})",
+            "sgroup_usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Security groups (access groups)</b>\n\n<b>Commands:</b>\n<code>.sgroup create mygroup</code> - create new group\n<code>.sgroup delete mygroup</code> - delete group\n<code>.sgroup add mygroup @user</code> - add user to group\n<code>.sgroup remove mygroup @user</code> - remove user from group\n<code>.sgroup access mygroup</code> - edit group access (inline menu)\n<code>.sgroup list</code> - list all groups\n<code>.sgroup info mygroup</code> - show group info & menu\n\n<i>Groups allow managing access for multiple users at once</i>',
+            "sgroup_created": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access group <b>{name}</b> created.',
+            "sgroup_deleted": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access group <b>{name}</b> deleted.',
+            "sgroup_already_exists": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Group <b>{name}</b> already exists.',
+            "sgroup_not_found": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Group <b>{name}</b> not found.',
+            "sgroup_user_added": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> User <b>{user}</b> added to group <b>{group}</b>.',
+            "sgroup_user_removed": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> User <b>{user}</b> removed from group <b>{group}</b>.',
+            "sgroup_user_in_group": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> User is already in this group.',
+            "sgroup_user_not_in_group": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> User is not in this group.',
+            "sgroup_list_title": '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Access groups:</b>',
+            "sgroup_list_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No access groups.',
+            "sgroup_info_users_empty": "No users",
+            "sgroup_info_access_empty": "No specific access",
+            "sgroup_menu_title": "<b>Manage group: {name}</b>",
+            "sgroup_btn_add_user": "Add User",
+            "sgroup_btn_remove_user": "Remove User",
+            "sgroup_btn_access": "Access",
+            "sgroup_btn_delete": "Delete Group",
+            "sgroup_confirm_delete": '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> Delete group <b>{name}</b>?',
+            "btn_confirm_delete": "Delete",
         },
         "ru": {
             "not_owner": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Только владелец может использовать эту команду.',
             "usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Использование: <code>.trust</code> / <code>.untrust</code> (реплай, @username или ID)',
             "trust_added": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Пользователь добавлен в список доверенных.</b>',
-            "trust_added_full": (
-                '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Пользователь добавлен в список доверенных.</b>'
-            ),
             "trust_removed": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Пользователь удалён из списка доверенных.</b>',
             "trust_already": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> <i>Пользователь уже в списке доверенных.</i>',
             "trust_not_in_list": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Пользователь не в списке доверенных.',
             "trustlist_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Список доверенных пуст.',
             "trustlist_title": '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Доверенные пользователи:</b>',
-            "confirm_title": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Добавить пользователя в доверенные?</b>',
-            "confirm_user_line": "👤 <b>Пользователь:</b> {name} (<code>{uid}</code>)",
-            "confirm_warning": '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> <b>Внимание:</b> Пользователь получит доступ ко <b>всем командам владельца</b> юзербота!',
-            "btn_confirm": "Подтвердить",
             "btn_cancel": "Отмена",
-            "confirm_cancelled": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Отменено.',
             "nonick_step_title": '<tg-emoji emoji-id="5332723564711804828">✨</tg-emoji> <b>Включить NoNick для {name}?</b>',
             "nonick_step_desc": (
                 "При включённом <b>NoNick</b> пользователь сможет выполнять команды просто как "
@@ -94,7 +261,6 @@ def register(kernel):
             "btn_nonick_no": "Без NoNick",
             "nonick_toggled_on": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> NoNick <b>включён</b> для {name}.',
             "nonick_toggled_off": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> NoNick <b>выключен</b> для {name}.',
-            "nonick_not_trusted": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Пользователь не в списке доверенных.',
             "nonick_list_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Нет доверенных пользователей с NoNick.',
             "nonick_list_title": '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Доверенные пользователи с NoNick:</b>',
             "nonick_usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Использование: <code>.nonickuser</code> (реплай, @username или ID)',
@@ -106,6 +272,55 @@ def register(kernel):
             "watcher_disabled": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Watcher отключен:</b> <code>{module}.{watcher}</code>',
             "watcher_enabled": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Watcher включен:</b> <code>{module}.{watcher}</code>',
             "watcher_not_found": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Watcher не найден: <code>{module}.{watcher}</code>',
+            "trustaccess_usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Использование: <code>.trustaccess</code> (реплай, @username или ID)',
+            "trustaccess_footer": "<em>Если доступ выключен, бот просто проигнорирует соответствующие команды.</em>",
+            "trustaccess_title": "🔐 <b>Доступ owner для {user}</b>",
+            "btn_close": "🙈 Закрыть это меню",
+            "btn_allow_all": "Разрешить всё",
+            "btn_deny_all": "Запретить всё",
+            "access_allowed": "разрешено",
+            "access_denied": "запрещено",
+            "access_allowed_group": "разрешено (группа)",
+            "trustcmd_usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Управление доступом к командам для доверенных</b>\n\n<code>.trustcmd @username +py</code> - разрешить команду py\n<code>.trustcmd @username -py</code> - запретить команду py\n<code>.trustcmd @username list</code> - показать права на команды\n\n<i>Требует чтобы пользователь был в списке доверенных</i>',
+            "trustcmd_added": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Доступ к <code>{cmd}</code> <b>разрешён</b> для {user}.',
+            "trustcmd_removed": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Доступ к <code>{cmd}</code> <b>запрещён</b> для {user}.',
+            "trustcmd_not_found": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Команда <code>{cmd}</code> не найдена.',
+            "trustcmd_list_title": "🔐 <b>Доступ к командам для {user}:</b>",
+            "trustcmd_list_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Нет специфичных разрешений на команды.',
+            "percmd_title": "🔐 <b>Команды для {user}</b>",
+            "percmd_back": "← Назад",
+            "btn_cmds": "📋 Команды",
+            "trust_time_title": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Добавить пользователя на ограниченное время?</b>',
+            "trust_time_desc": '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> Пользователь будет удалён из доверенных через {time}.',
+            "btn_1h": "1 час",
+            "btn_24h": "24 часа",
+            "btn_7d": "7 дней",
+            "btn_permanent": "Навсегда",
+            "trust_added_timed": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Пользователь добавлен в доверенные на {time}.</b>',
+            "trust_expired": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Доверие для <b>{user}</b> истекло.',
+            "timed_trusted_title": '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Временные доверенные:</b>',
+            "timed_trusted_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Нет временных доверенных.',
+            "trust_expiring": " (истекает через {time})",
+            "sgroup_usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Группы доступа</b>\n\n<b>Команды:</b>\n<code>.sgroup create mygroup</code> - создать группу\n<code>.sgroup delete mygroup</code> - удалить группу\n<code>.sgroup add mygroup @user</code> - добавить пользователя\n<code>.sgroup remove mygroup @user</code> - удалить пользователя\n<code>.sgroup access mygroup</code> - настроить доступ (меню)\n<code>.sgroup list</code> - список групп\n<code>.sgroup info mygroup</code> - инфо о группе\n\n<i>Группы позволяют управлять доступом нескольких пользователей сразу</i>',
+            "sgroup_created": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access group <b>{name}</b> created.',
+            "sgroup_deleted": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access group <b>{name}</b> deleted.',
+            "sgroup_already_exists": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Group <b>{name}</b> already exists.',
+            "sgroup_not_found": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Group <b>{name}</b> not found.',
+            "sgroup_user_added": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> User <b>{user}</b> added to group <b>{group}</b>.',
+            "sgroup_user_removed": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> User <b>{user}</b> removed from group <b>{group}</b>.',
+            "sgroup_user_in_group": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> User is already in this group.',
+            "sgroup_user_not_in_group": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> User is not in this group.',
+            "sgroup_list_title": '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Access groups:</b>',
+            "sgroup_list_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No access groups.',
+            "sgroup_info_users_empty": "No users",
+            "sgroup_info_access_empty": "No specific access",
+            "sgroup_menu_title": "<b>Manage group: {name}</b>",
+            "sgroup_btn_add_user": "Add User",
+            "sgroup_btn_remove_user": "Remove User",
+            "sgroup_btn_access": "Access",
+            "sgroup_btn_delete": "Delete Group",
+            "sgroup_confirm_delete": '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> Delete group <b>{name}</b>?',
+            "btn_confirm_delete": "Delete",
         },
     }
 
@@ -135,13 +350,76 @@ def register(kernel):
     async def save_nonick_list(users):
         await kernel.db_set("trusted", "nonick", json.dumps(users))
 
+    async def get_expired_trusted() -> dict:
+        """Get dict of user_id -> expiry_timestamp for temporary trusts."""
+        data = await kernel.db_get("trusted", "expired")
+        if not data:
+            return {}
+        try:
+            return json.loads(data) if isinstance(data, str) else json.loads(str(data))
+        except Exception:
+            return {}
+
+    async def save_expired_trusted(expired: dict):
+        await kernel.db_set("trusted", "expired", json.dumps(expired))
+
+    async def get_sgroups() -> dict:
+        """Get all security groups."""
+        data = await kernel.db_get("trusted", "sgroups")
+        if not data:
+            return {}
+        try:
+            return json.loads(data) if isinstance(data, str) else json.loads(str(data))
+        except Exception:
+            return {}
+
+    async def save_sgroups(groups: dict):
+        await kernel.db_set("trusted", "sgroups", json.dumps(groups))
+
+    async def get_access(user_id: int) -> dict:
+        """Return per-user access dict. Defaults: all False."""
+        data = await kernel.db_get("trusted_access", str(user_id))
+        if not data:
+            return {cat: False for cat in ACCESS_CATEGORIES}
+        try:
+            stored = (
+                json.loads(data) if isinstance(data, str) else json.loads(str(data))
+            )
+            # Fill any missing keys with False
+            return {cat: stored.get(cat, False) for cat in ACCESS_CATEGORIES}
+        except Exception:
+            return {cat: False for cat in ACCESS_CATEGORIES}
+
+    async def save_access(user_id: int, access: dict):
+        await kernel.db_set("trusted_access", str(user_id), json.dumps(access))
+
+    async def get_cmd_access(user_id: int) -> dict:
+        """Return per-user command access dict. Keys are command names."""
+        data = await kernel.db_get("trusted_cmd_access", str(user_id))
+        if not data:
+            return {}
+        try:
+            return json.loads(data) if isinstance(data, str) else json.loads(str(data))
+        except Exception:
+            return {}
+
+    async def save_cmd_access(user_id: int, cmd_access: dict):
+        await kernel.db_set("trusted_cmd_access", str(user_id), json.dumps(cmd_access))
+
+    def get_all_commands() -> list:
+        """Get list of all registered command names from kernel."""
+        return (
+            list(kernel.command_handlers.keys())
+            if hasattr(kernel, "command_handlers")
+            else []
+        )
+
     async def get_owner_username():
-        """Return cached owner username (without @), or None."""
         if _cache["owner_username"] is not None:
             return _cache["owner_username"]
         try:
             me = await client.get_me()
-            _cache["owner_username"] = me.username  # may be None
+            _cache["owner_username"] = me.username
             return _cache["owner_username"]
         except Exception:
             return None
@@ -156,18 +434,15 @@ def register(kernel):
             return str(user_id)
 
     async def get_user_id(event) -> int | None:
-        """Resolve target user from reply, @username, or numeric ID."""
         if event.is_reply:
             reply = await event.get_reply_message()
             if reply:
                 return reply.sender_id
         args = event.text.split(maxsplit=1)
         if len(args) > 1:
-            target = args[1].strip()
-            # numeric ID (positive or negative)
+            target = args[1].strip().split()[0]  # only first word
             if target.lstrip("-").isdigit():
                 return int(target)
-            # @username
             username = target.lstrip("@")
             try:
                 entity = await client.get_entity(username)
@@ -176,10 +451,445 @@ def register(kernel):
                 pass
         return None
 
+    def _get_command_category(cmd: str) -> str:
+        """Return category key for a command; falls back to 'modules'."""
+        return _CMD_TO_CAT.get(cmd, "modules")
+
+    def _build_access_text(
+        user_display: str, access: dict, group_access: dict = None
+    ) -> str:
+        lines = [s["trustaccess_title"].format(user=user_display)]
+        body_lines = []
+        for cat_key, cat_info in ACCESS_CATEGORIES.items():
+            allowed = access.get(cat_key, False)
+            group_allowed = False
+            if group_access is not None:
+                for gname, gdata in group_access.items():
+                    if gdata.get("access", {}).get(cat_key, False):
+                        group_allowed = True
+                        break
+            if allowed and not group_allowed:
+                state_word = s["access_allowed"]
+            elif group_allowed and not allowed:
+                state_word = s["access_allowed_group"]
+            elif allowed and group_allowed:
+                state_word = s["access_allowed"]
+            else:
+                state_word = s["access_denied"]
+            icon = "✅" if (allowed or group_allowed) else "🚫"
+            localized = cat_info.get(language, cat_info["en"])
+            body_lines.append(
+                f"{icon} {localized['label']} — <em>{state_word}</em>\n"
+                f"└ {localized['desc']}"
+            )
+        lines.append(
+            "<blockquote expandable>" + "\n".join(body_lines) + "</blockquote>"
+        )
+        lines.append(s["trustaccess_footer"])
+        return "\n".join(lines)
+
+    def _build_access_buttons(
+        kernel, user_id: int, access: dict, msg_ref, group_access: dict = None
+    ) -> list:
+        """Build inline button rows using make_cb_button for temporary callbacks."""
+
+        async def on_toggle(event, uid, cat_key):
+            if event.sender_id != kernel.ADMIN_ID:
+                await event.answer()
+                return
+            cur = await get_access(uid)
+            cur[cat_key] = not cur.get(cat_key, False)
+            await save_access(uid, cur)
+            if cat_key == "inline":
+                if cur[cat_key]:
+                    await inline_manager.allow_user(uid)
+                else:
+                    await inline_manager.deny_user(uid)
+            name = await get_user_display(uid)
+            groups = await get_sgroups()
+            g_access = {
+                gname: gdata
+                for gname, gdata in groups.items()
+                if uid in gdata.get("users", [])
+            }
+            new_text = _build_access_text(name, cur, g_access)
+            new_buttons = _build_access_buttons(kernel, uid, cur, None, g_access)
+            try:
+                await event.edit(new_text, buttons=new_buttons, parse_mode="html")
+            except Exception:
+                pass
+
+        async def on_preset(event, uid, preset_key):
+            if event.sender_id != kernel.ADMIN_ID:
+                await event.answer()
+                return
+            preset = PRESETS[preset_key]
+            await save_access(uid, dict(preset["access"]))
+            if preset["access"].get("inline", False):
+                await inline_manager.allow_user(uid)
+            else:
+                await inline_manager.deny_user(uid)
+            name = await get_user_display(uid)
+            new_access = dict(preset["access"])
+            groups = await get_sgroups()
+            g_access = {
+                gname: gdata
+                for gname, gdata in groups.items()
+                if uid in gdata.get("users", [])
+            }
+            new_text = _build_access_text(name, new_access, g_access)
+            new_buttons = _build_access_buttons(kernel, uid, new_access, None, g_access)
+            try:
+                await event.edit(new_text, buttons=new_buttons, parse_mode="html")
+            except Exception:
+                pass
+
+        async def on_allow_all(event, uid):
+            if event.sender_id != kernel.ADMIN_ID:
+                await event.answer()
+                return
+            full = {cat: True for cat in ACCESS_CATEGORIES}
+            await save_access(uid, full)
+            if full.get("inline", False):
+                await inline_manager.allow_user(uid)
+            else:
+                await inline_manager.deny_user(uid)
+            name = await get_user_display(uid)
+            groups = await get_sgroups()
+            g_access = {
+                gname: gdata
+                for gname, gdata in groups.items()
+                if uid in gdata.get("users", [])
+            }
+            new_text = _build_access_text(name, full, g_access)
+            new_buttons = _build_access_buttons(kernel, uid, full, None, g_access)
+            try:
+                await event.edit(new_text, buttons=new_buttons, parse_mode="html")
+            except Exception:
+                pass
+
+        async def on_deny_all(event, uid):
+            if event.sender_id != kernel.ADMIN_ID:
+                await event.answer()
+                return
+            none_ = {cat: False for cat in ACCESS_CATEGORIES}
+            await save_access(uid, none_)
+            await inline_manager.deny_user(uid)
+            name = await get_user_display(uid)
+            groups = await get_sgroups()
+            g_access = {
+                gname: gdata
+                for gname, gdata in groups.items()
+                if uid in gdata.get("users", [])
+            }
+            new_text = _build_access_text(name, none_, g_access)
+            new_buttons = _build_access_buttons(kernel, uid, none_, None, g_access)
+            try:
+                await event.edit(new_text, buttons=new_buttons, parse_mode="html")
+            except Exception:
+                pass
+
+        async def on_close(event, uid):
+            if event.sender_id != kernel.ADMIN_ID:
+                await event.answer()
+                return
+            try:
+                await kernel.client.delete_messages(event.chat_id, [event.message.id])
+            except Exception:
+                pass
+
+        TTL = 600
+        rows = []
+
+        # Category toggle rows (layout from _CATEGORY_ROWS)
+        for row_cats in _CATEGORY_ROWS:
+            row = []
+            for cat_key in row_cats:
+                cat_info = ACCESS_CATEGORIES[cat_key]
+                localized = cat_info.get(language, cat_info["en"])
+                allowed = access.get(cat_key, False)
+
+                group_allowed = False
+                if group_access is not None:
+                    for gname, gdata in group_access.items():
+                        if gdata.get("access", {}).get(cat_key, False):
+                            group_allowed = True
+                            break
+
+                is_allowed = allowed or group_allowed
+                icon = "✅" if is_allowed else "🚫"
+                label = f"{icon} {localized['label']}"
+                row.append(
+                    make_cb_button(
+                        kernel,
+                        label,
+                        on_toggle,
+                        args=[user_id, cat_key],
+                        ttl=TTL,
+                        style="success" if is_allowed else "danger",
+                    )
+                )
+            rows.append(row)
+
+        preset_row = []
+        for preset_key, preset_info in PRESETS.items():
+            localized = preset_info.get(language, preset_info["en"])
+            preset_row.append(
+                make_cb_button(
+                    kernel,
+                    localized["label"],
+                    on_preset,
+                    args=[user_id, preset_key],
+                    ttl=TTL,
+                    style="primary",
+                )
+            )
+        rows.append(preset_row)
+
+        async def on_cmds(event, uid):
+            if event.sender_id != kernel.ADMIN_ID:
+                await event.answer()
+                return
+            access = await get_access(uid)
+            cmd_access = await get_cmd_access(uid)
+            name = await get_user_display(uid)
+            text, rows = _build_percmd_menu(uid, access, cmd_access, name)
+            await event.edit(text, buttons=rows, parse_mode="html")
+
+        rows.append(
+            [
+                make_cb_button(
+                    kernel,
+                    s["btn_cmds"],
+                    on_cmds,
+                    args=[user_id],
+                    ttl=TTL,
+                    style="primary",
+                ),
+            ]
+        )
+
+        # Allow all / Deny all
+        rows.append(
+            [
+                make_cb_button(
+                    kernel,
+                    s["btn_allow_all"],
+                    on_allow_all,
+                    args=[user_id],
+                    ttl=TTL,
+                    style="success",
+                ),
+                make_cb_button(
+                    kernel,
+                    s["btn_deny_all"],
+                    on_deny_all,
+                    args=[user_id],
+                    ttl=TTL,
+                    style="danger",
+                ),
+            ]
+        )
+
+        # Close
+        rows.append(
+            [
+                make_cb_button(
+                    kernel,
+                    s["btn_close"],
+                    on_close,
+                    args=[user_id],
+                    ttl=TTL,
+                    style="primary",
+                ),
+            ]
+        )
+
+        return rows
+
+    def _get_cmd_default_access(cmd: str, access: dict) -> bool:
+        """Get default access for a command based on its category."""
+        category = _get_command_category(cmd)
+        return access.get(category, False)
+
+    def _build_percmd_menu(
+        user_id: int, access: dict, cmd_access: dict, name: str, page: int = 0
+    ) -> tuple:
+        """Build per-command menu with pagination."""
+        ITEMS_PER_PAGE = 10
+
+        async def on_toggle_cmd(event, uid, cmd, current_allowed, current_page):
+            if event.sender_id != kernel.ADMIN_ID:
+                await event.answer()
+                return
+            cmd_access = await get_cmd_access(uid)
+            cmd_access[cmd] = not current_allowed
+            await save_cmd_access(uid, cmd_access)
+            access = await get_access(uid)
+            name = await get_user_display(uid)
+            text, rows = _build_percmd_menu(uid, access, cmd_access, name, current_page)
+            await event.edit(text, buttons=rows, parse_mode="html")
+
+        async def on_back(event, uid):
+            if event.sender_id != kernel.ADMIN_ID:
+                await event.answer()
+                return
+            access = await get_access(uid)
+            name = await get_user_display(uid)
+            groups = await get_sgroups()
+            g_access = {
+                gname: gdata
+                for gname, gdata in groups.items()
+                if uid in gdata.get("users", [])
+            }
+            text = _build_access_text(name, access, g_access)
+            buttons = _build_access_buttons(kernel, uid, access, None, g_access)
+            await event.edit(text, buttons=buttons, parse_mode="html")
+
+        async def on_prev(event, uid, current_page):
+            if event.sender_id != kernel.ADMIN_ID:
+                await event.answer()
+                return
+            if current_page > 0:
+                access = await get_access(uid)
+                cmd_access = await get_cmd_access(uid)
+                name = await get_user_display(uid)
+                text, rows = _build_percmd_menu(
+                    uid, access, cmd_access, name, current_page - 1
+                )
+                await event.edit(text, buttons=rows, parse_mode="html")
+
+        async def on_next(event, uid, current_page):
+            if event.sender_id != kernel.ADMIN_ID:
+                await event.answer()
+                return
+            all_cmds = get_all_commands()
+            total_pages = (len(all_cmds) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
+            if current_page < total_pages - 1:
+                access = await get_access(uid)
+                cmd_access = await get_cmd_access(uid)
+                name = await get_user_display(uid)
+                text, rows = _build_percmd_menu(
+                    uid, access, cmd_access, name, current_page + 1
+                )
+                await event.edit(text, buttons=rows, parse_mode="html")
+
+        TTL = 600
+        all_cmds = get_all_commands()
+        total_pages = (len(all_cmds) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
+
+        start_idx = page * ITEMS_PER_PAGE
+        end_idx = min(start_idx + ITEMS_PER_PAGE, len(all_cmds))
+        page_cmds = all_cmds[start_idx:end_idx]
+
+        lines = [s["percmd_title"].format(user=name), "<blockquote>"]
+        for cmd in page_cmds:
+            if cmd in cmd_access:
+                allowed = cmd_access[cmd]
+            else:
+                allowed = _get_cmd_default_access(cmd, access)
+            icon = "✅" if allowed else "🚫"
+            state = s["access_allowed"] if allowed else s["access_denied"]
+            lines.append(f"{icon} <code>{cmd}</code> — <em>{state}</em>")
+        if total_pages > 1:
+            lines.append(f"<em>{page + 1}/{total_pages}</em>")
+        lines.append("</blockquote>")
+
+        text = "\n".join(lines)
+
+        rows = []
+        for cmd in page_cmds:
+            if cmd in cmd_access:
+                allowed = cmd_access[cmd]
+            else:
+                allowed = _get_cmd_default_access(cmd, access)
+            icon = "✅" if allowed else "🚫"
+            rows.append(
+                [
+                    make_cb_button(
+                        kernel,
+                        f"{icon} {cmd}",
+                        on_toggle_cmd,
+                        args=[user_id, cmd, allowed, page],
+                        ttl=TTL,
+                        style="success" if allowed else "danger",
+                    )
+                ]
+            )
+
+        nav_row = []
+        if page > 0:
+            nav_row.append(
+                make_cb_button(
+                    kernel,
+                    "<",
+                    on_prev,
+                    args=[user_id, page],
+                    ttl=TTL,
+                    style="primary",
+                )
+            )
+        if page < total_pages - 1:
+            nav_row.append(
+                make_cb_button(
+                    kernel,
+                    ">",
+                    on_next,
+                    args=[user_id, page],
+                    ttl=TTL,
+                    style="primary",
+                )
+            )
+        if nav_row:
+            rows.append(nav_row)
+
+        rows.append(
+            [
+                make_cb_button(
+                    kernel,
+                    s["percmd_back"],
+                    on_back,
+                    args=[user_id],
+                    ttl=TTL,
+                    style="primary",
+                )
+            ]
+        )
+
+        return text, rows
+
+    @kernel.register.command("trustaccess")
+    async def trustaccess_handler(event):
+        """Manage trusted user's access permissions"""
+        user_id = await get_user_id(event)
+        if not user_id:
+            await event.edit(s["trustaccess_usage"], parse_mode="html")
+            return
+
+        trusted = await get_trusted_list()
+        if user_id not in trusted:
+            await event.edit(s["trust_not_in_list"], parse_mode="html")
+            return
+
+        access = await get_access(user_id)
+        name = await get_user_display(user_id)
+
+        groups = await get_sgroups()
+        group_access = {
+            gname: gdata
+            for gname, gdata in groups.items()
+            if user_id in gdata.get("users", [])
+        }
+
+        text = _build_access_text(name, access, group_access)
+        buttons = _build_access_buttons(kernel, user_id, access, None, group_access)
+
+        await kernel.inline_form(event.chat_id, text, buttons=buttons, ttl=600)
+        await event.delete()
+
     @kernel.register.command("trust", alias=["addowner"])
-    @kernel.register.owner(only_admin=True)
     async def trust_handler(event):
-        """add trust users with inline confirmation form"""
+        """Add a user to the trusted list with confirmation and time options"""
 
         user_id = await get_user_id(event)
         if not user_id:
@@ -193,38 +903,26 @@ def register(kernel):
 
         name = await get_user_display(user_id)
 
-        text = (
-            s["confirm_title"]
-            + "\n"
-            + "<blockquote>"
-            + s["confirm_warning"]
-            + "</blockquote>"
-        )
-        buttons = [
-            [
-                Button.inline(
-                    s["btn_confirm"],
-                    f"trust_confirm_{user_id}".encode(),
-                    style="success",
-                ),
-                Button.inline(s["btn_cancel"], b"trust_cancel", style="primary"),
-            ]
-        ]
-        await kernel.inline_form(event.chat_id, text, buttons=buttons)
+        async def on_time_select(event, uid, seconds):
+            if event.sender_id != kernel.ADMIN_ID:
+                await event.answer()
+                return
+            if seconds == 0:
+                await _show_nonick_step(event, uid)
+            else:
+                import time
 
-    async def trust_callback(event):
-        if event.sender_id != kernel.ADMIN_ID:
-            return await event.answer("only not owner click to buttons")
+                expiry = int(time.time()) + seconds
+                expired = await get_expired_trusted()
+                expired[str(uid)] = expiry
+                await save_expired_trusted(expired)
+                await _show_nonick_step(event, uid, timed=True, seconds=seconds)
 
-        data = event.data.decode("utf-8")
-
-        if data == "trust_cancel":
-            await event.edit(s["confirm_cancelled"], parse_mode="html")
-            return
-
-        if data.startswith("trust_confirm_"):
-            user_id = int(data[len("trust_confirm_") :])
-            name = await get_user_display(user_id)
+        async def _show_nonick_step(event, uid, timed=False, seconds=0):
+            if event.sender_id != kernel.ADMIN_ID:
+                await event.answer()
+                return
+            name = await get_user_display(uid)
             owner_uname = await get_owner_username()
 
             if owner_uname:
@@ -235,64 +933,166 @@ def register(kernel):
             else:
                 desc = s["nonick_step_desc_no_alias"]
 
-            text = (
-                s["nonick_step_title"].format(name=name)
-                + "\n"
-                + "<blockquote>"
-                + desc
-                + "</blockquote>"
-            )
+            if timed:
+                time_str = _format_duration(seconds)
+                text = (
+                    s["trust_added_timed"].format(time=time_str)
+                    + "\n\n"
+                    + s["nonick_step_title"].format(name=name)
+                    + "\n"
+                    + "<blockquote>"
+                    + desc
+                    + "</blockquote>"
+                )
+            else:
+                text = (
+                    s["nonick_step_title"].format(name=name)
+                    + "\n"
+                    + "<blockquote>"
+                    + desc
+                    + "</blockquote>"
+                )
+
             buttons = [
                 [
-                    Button.inline(
+                    make_cb_button(
+                        kernel,
                         s["btn_nonick_yes"],
-                        f"trust_nonick_yes_{user_id}".encode(),
+                        on_nonick,
+                        args=[uid, True, timed, seconds],
+                        ttl=TTL,
                         style="success",
                     ),
-                    Button.inline(
+                    make_cb_button(
+                        kernel,
                         s["btn_nonick_no"],
-                        f"trust_nonick_no_{user_id}".encode(),
+                        on_nonick,
+                        args=[uid, False, timed, seconds],
+                        ttl=TTL,
                         style="danger",
                     ),
                 ]
             ]
-            await event.edit(text, buttons=buttons, parse_mode="html")  # noqe: MCUB001
-            return
+            await event.edit(text, buttons=buttons, parse_mode="html")
 
-        for prefix, nonick in (
-            ("trust_nonick_yes_", True),
-            ("trust_nonick_no_", False),
-        ):
-            if data.startswith(prefix):
-                user_id = int(data[len(prefix) :])
+        async def on_nonick(event, uid, nonick, timed=False, seconds=0):
+            if event.sender_id != kernel.ADMIN_ID:
+                await event.answer()
+                return
+            trusted = await get_trusted_list()
+            if uid not in trusted:
+                trusted.append(uid)
+                await save_trusted_list(trusted)
+                default_access = {
+                    cat: (cat in ("modules", "inline", "callback"))
+                    for cat in ACCESS_CATEGORIES
+                }
+                await save_access(uid, default_access)
+                if default_access.get("inline", False):
+                    await inline_manager.allow_user(uid)
 
-                trusted = await get_trusted_list()
-                if user_id not in trusted:
-                    trusted.append(user_id)
-                    await save_trusted_list(trusted)
-                    await inline_manager.allow_user(user_id)
+            nonick_list = await get_nonick_list()
+            if nonick and uid not in nonick_list:
+                nonick_list.append(uid)
+                await save_nonick_list(nonick_list)
+            elif not nonick and uid in nonick_list:
+                nonick_list.remove(uid)
+                await save_nonick_list(nonick_list)
 
-                nonick_list = await get_nonick_list()
-                if nonick and user_id not in nonick_list:
-                    nonick_list.append(user_id)
-                    await save_nonick_list(nonick_list)
-                elif not nonick and user_id in nonick_list:
-                    nonick_list.remove(user_id)
-                    await save_nonick_list(nonick_list)
-
-                name = await get_user_display(user_id)
-                nonick_icon = "✅" if nonick else "❌"
+            name = await get_user_display(uid)
+            if timed:
+                time_str = _format_duration(seconds)
                 await event.edit(
-                    s["trust_added_full"],
+                    s["trust_added_timed"].format(time=time_str),
                     parse_mode="html",
                 )
-                return
+            else:
+                await event.edit(
+                    s["trust_added"],
+                    parse_mode="html",
+                )
 
-    kernel.register_callback_handler("trust_", trust_callback)
+        def _format_duration(seconds: int) -> str:
+            if seconds >= 86400:
+                days = seconds // 86400
+                unit = "дней" if language == "ru" else "days"
+                return f"{days} {unit}"
+            elif seconds >= 3600:
+                hours = seconds // 3600
+                unit = "часов" if language == "ru" else "hours"
+                return f"{hours} {unit}"
+            else:
+                minutes = seconds // 60
+                unit = "минут" if language == "ru" else "minutes"
+                return f"{minutes} {unit}"
+
+        async def on_cancel(event):
+            try:
+                await kernel.client.delete_messages(event.chat_id, [event.message.id])
+            except Exception:
+                pass
+
+        TTL = 600
+
+        text = (
+            s["trust_time_title"]
+            + "\n"
+            + "<blockquote>"
+            + s["trust_time_desc"].format(time="")
+            + "</blockquote>"
+        )
+
+        rows = [
+            [
+                make_cb_button(
+                    kernel,
+                    s["btn_1h"],
+                    on_time_select,
+                    args=[user_id, 3600],
+                    ttl=TTL,
+                    style="primary",
+                ),
+                make_cb_button(
+                    kernel,
+                    s["btn_24h"],
+                    on_time_select,
+                    args=[user_id, 86400],
+                    ttl=TTL,
+                    style="primary",
+                ),
+                make_cb_button(
+                    kernel,
+                    s["btn_7d"],
+                    on_time_select,
+                    args=[user_id, 604800],
+                    ttl=TTL,
+                    style="primary",
+                ),
+            ],
+            [
+                make_cb_button(
+                    kernel,
+                    s["btn_permanent"],
+                    on_time_select,
+                    args=[user_id, 0],
+                    ttl=TTL,
+                    style="success",
+                ),
+                make_cb_button(
+                    kernel,
+                    s["btn_cancel"],
+                    on_cancel,
+                    args=[],
+                    ttl=TTL,
+                    style="danger",
+                ),
+            ],
+        ]
+        await kernel.inline_form(event.chat_id, text, buttons=rows)
 
     @kernel.register.command("untrust", alias=["delowner"])
-    # remove user from trusted list
     async def untrust_handler(event):
+        """Remove a user from the trusted list"""
         if event.sender_id != kernel.ADMIN_ID:
             await event.edit(s["not_owner"], parse_mode="html")
             return
@@ -320,8 +1120,8 @@ def register(kernel):
         await event.edit(s["trust_removed"], parse_mode="html")
 
     @kernel.register.command("trustlist", alias=["listowner"])
-    # list trusted users
     async def trustlist_handler(event):
+        """Show list of all trusted users"""
         trusted = await get_trusted_list()
         if not trusted:
             await event.edit(s["trustlist_empty"], parse_mode="html")
@@ -336,9 +1136,85 @@ def register(kernel):
 
         await event.edit("\n".join(lines), parse_mode="html")
 
+    @kernel.register.command("trustcmd")
+    async def trustcmd_handler(event):
+        """Manage per-command access for trusted users"""
+        args = event.text.split(maxsplit=2)
+        if len(args) < 2:
+            await event.edit(s["trustcmd_usage"], parse_mode="html")
+            return
+
+        user_id = await get_user_id(event)
+        if not user_id:
+            await event.edit(s["trustcmd_usage"], parse_mode="html")
+            return
+
+        trusted = await get_trusted_list()
+        if user_id not in trusted:
+            await event.edit(s["trust_not_in_list"], parse_mode="html")
+            return
+
+        all_cmds = get_all_commands()
+        if len(args) < 3:
+            # check for "list" subcommand (no third arg needed)
+            if len(args) == 2 and args[1].lower() == "list":
+                pass
+            else:
+                await event.edit(s["trustcmd_usage"], parse_mode="html")
+                return
+
+        if len(args) >= 3:
+            cmd_arg = args[2].lstrip("+_-")
+            cmd_name = cmd_arg.lower()
+        else:
+            cmd_name = ""
+
+        if cmd_name in all_cmds:
+            is_add = args[2].startswith("+")
+            is_remove = args[2].startswith("-")
+
+            cmd_access = await get_cmd_access(user_id)
+
+            if is_add:
+                cmd_access[cmd_name] = True
+                status_key = "trustcmd_added"
+            elif is_remove:
+                cmd_access[cmd_name] = False
+                status_key = "trustcmd_removed"
+            else:
+                await event.edit(s["trustcmd_usage"], parse_mode="html")
+                return
+
+            await save_cmd_access(user_id, cmd_access)
+            name = await get_user_display(user_id)
+            msg = s[status_key].format(cmd=cmd_name, user=name)
+            await event.edit(msg, parse_mode="html")
+            return
+
+        if cmd_name == "list" or (len(args) == 2 and args[1].lower() == "list"):
+            cmd_access = await get_cmd_access(user_id)
+            name = await get_user_display(user_id)
+
+            if not cmd_access:
+                await event.edit(s["trustcmd_list_empty"], parse_mode="html")
+                return
+
+            lines = [s["trustcmd_list_title"].format(user=name), "<blockquote>"]
+            for cmd, allowed in cmd_access.items():
+                icon = "✅" if allowed else "🚫"
+                state = s["access_allowed"] if allowed else s["access_denied"]
+                lines.append(f"{icon} <code>{cmd}</code> — <em>{state}</em>")
+            lines.append("</blockquote>")
+            await event.edit("\n".join(lines), parse_mode="html")
+            return
+
+        await event.edit(
+            s["trustcmd_not_found"].format(cmd=cmd_name), parse_mode="html"
+        )
+
     @kernel.register.command("nonickuser")
-    # toggle NoNick for a trusted user
     async def nonickuser_handler(event):
+        """Toggle NoNick mode for a trusted user"""
         if event.sender_id != kernel.ADMIN_ID:
             await event.edit(s["not_owner"], parse_mode="html")
             return
@@ -350,7 +1226,7 @@ def register(kernel):
 
         trusted = await get_trusted_list()
         if user_id not in trusted:
-            await event.edit(s["nonick_not_trusted"], parse_mode="html")
+            await event.edit(s["trust_not_in_list"], parse_mode="html")
             return
 
         nonick_list = await get_nonick_list()
@@ -370,8 +1246,8 @@ def register(kernel):
             )
 
     @kernel.register.command("nonickusers")
-    # list trusted users with NoNick enabled
     async def nonickusers_handler(event):
+        """Show list of trusted users with NoNick enabled"""
         nonick_list = await get_nonick_list()
         if not nonick_list:
             await event.edit(s["nonick_list_empty"], parse_mode="html")
@@ -385,8 +1261,8 @@ def register(kernel):
         await event.edit("\n".join(lines), parse_mode="html")
 
     @kernel.register.command("watchers")
-    # list active watchers
     async def watchers_handler(event):
+        """Show list of all active watchers"""
         try:
             watchers = kernel.register.get_watchers()
             if not watchers:
@@ -414,6 +1290,7 @@ def register(kernel):
 
     @kernel.register.command("watchersdebug")
     async def watchers_debug_handler(event):
+        """Debug watchers with optional filter"""
         try:
             args = event.text.split(maxsplit=1)
             filter_text = args[1].lower() if len(args) > 1 else ""
@@ -469,6 +1346,7 @@ def register(kernel):
             await kernel.handle_error(e, source="watchersdebug", event=event)
 
     async def toggle_watcher_handler(event):
+        """Toggle a specific watcher on/off"""
         if event.sender_id != kernel.ADMIN_ID:
             await event.edit(s["not_owner"], parse_mode="html")
             return
@@ -518,10 +1396,12 @@ def register(kernel):
 
     @kernel.register.command("watcher")
     async def watcher_toggle_handler(event):
+        """Enable or disable a specific watcher"""
         await toggle_watcher_handler(event)
 
     @kernel.register.watcher(out=False, incoming=True)
     async def trusted_watcher(event):
+        """Process commands from trusted users with access control"""
         msg = getattr(event, "message", event)
         if getattr(msg, "out", False):
             return
@@ -552,23 +1432,54 @@ def register(kernel):
 
         if owner_alias and cmd_token.lower().endswith(owner_alias.lower()):
             stripped = cmd_token[: -len(owner_alias)]
-            if stripped:  # guard against bare "@owner"
+            if stripped:
                 actual_cmd = stripped
                 has_alias = True
 
         nonick_list = await get_nonick_list()
         sender_has_nonick = sender_id in nonick_list
 
-        # Need at least one of: alias present OR NoNick enabled
         if not has_alias and not sender_has_nonick:
             return
+
+        resolved_cmd = actual_cmd
+        all_aliases = kernel.register.get_all_aliases()
+        if resolved_cmd in all_aliases:
+            resolved_cmd = all_aliases[resolved_cmd]
+
+        category = _get_command_category(resolved_cmd)
+        access = await get_access(sender_id)
+
+        cmd_access = await get_cmd_access(sender_id)
+        user_has_access = False
+
+        if resolved_cmd in cmd_access:
+            if not cmd_access[resolved_cmd]:
+                groups = await get_sgroups()
+                for gname, gdata in groups.items():
+                    if sender_id in gdata.get("users", []):
+                        if gdata.get("access", {}).get(category, False):
+                            user_has_access = True
+                            break
+                if not user_has_access:
+                    return
+            else:
+                user_has_access = True
+        elif not access.get(category, False):
+            groups = await get_sgroups()
+            for gname, gdata in groups.items():
+                if sender_id in gdata.get("users", []):
+                    if gdata.get("access", {}).get(category, False):
+                        user_has_access = True
+                        break
+            if not user_has_access:
+                return
 
         cmd_text = kernel.custom_prefix + actual_cmd
         if rest:
             cmd_text += " " + " ".join(rest)
 
         if actual_cmd not in kernel.command_handlers:
-            all_aliases = kernel.register.get_all_aliases()
             if actual_cmd not in all_aliases:
                 return
             actual_cmd = all_aliases.get(actual_cmd, actual_cmd)
@@ -617,12 +1528,597 @@ def register(kernel):
     async def update_callback_permissions(_kernel):
         trusted = await get_trusted_list()
         for uid in trusted:
-            _kernel.callback_permissions.allow(uid, "", duration_seconds=60)
+            access = await get_access(uid)
+            if access.get("inline", False) or access.get("callback", False):
+                _kernel.callback_permissions.allow(uid, "", duration_seconds=60)
+            else:
+                _kernel.callback_permissions.prohibit(uid)
+
+    @kernel.register.loop(interval=60, autostart=True)
+    async def check_expired_trusted(_kernel):
+        """Remove expired temporary trusted users"""
+        import time
+
+        expired = await get_expired_trusted()
+        if not expired:
+            return
+
+        current_time = int(time.time())
+        trusted = await get_trusted_list()
+        changed = False
+
+        for uid_str, expiry in list(expired.items()):
+            if current_time >= expiry:
+                uid = int(uid_str)
+                if uid in trusted:
+                    trusted.remove(uid)
+                    changed = True
+
+                nonick_list = await get_nonick_list()
+                if uid in nonick_list:
+                    nonick_list.remove(uid)
+                    await save_nonick_list(nonick_list)
+
+                await inline_manager.deny_user(uid)
+                _kernel.callback_permissions.prohibit(uid)
+
+                del expired[uid_str]
+                changed = True
+
+                try:
+                    name = await get_user_display(uid)
+                except:
+                    name = str(uid)
+
+                await _kernel.client.send_message(
+                    _kernel.ADMIN_ID,
+                    s["trust_expired"].format(user=name),
+                    parse_mode="html",
+                )
+
+        if changed:
+            await save_trusted_list(trusted)
+            await save_expired_trusted(expired)
+
+    @kernel.register.command("timedtrusted")
+    async def timedtrusted_handler(event):
+        """Show list of temporary trusted users with expiry times"""
+        expired = await get_expired_trusted()
+        if not expired:
+            await event.edit(s["timed_trusted_empty"], parse_mode="html")
+            return
+
+        import time
+
+        current_time = int(time.time())
+        lines = [s["timed_trusted_title"]]
+
+        for uid_str, expiry in expired.items():
+            uid = int(uid_str)
+            name = await get_user_display(uid)
+            remaining = expiry - current_time
+            if remaining > 0:
+                if remaining >= 86400:
+                    time_str = f"{remaining // 86400}d"
+                elif remaining >= 3600:
+                    time_str = f"{remaining // 3600}h"
+                else:
+                    time_str = f"{remaining // 60}m"
+                lines.append(
+                    f"• {name} (<code>{uid}</code>){s['trust_expiring'].format(time=time_str)}"
+                )
+
+        await event.edit("\n".join(lines), parse_mode="html")
+
+    @kernel.register.command("sgroup")
+    async def sgroup_handler(event):
+        """Manage access groups"""
+        args = event.text.split(maxsplit=2)
+        if len(args) < 2:
+            await event.edit(s["sgroup_usage"], parse_mode="html")
+            return
+
+        action = args[1].lower()
+        groups = await get_sgroups()
+
+        if action == "create":
+            if len(args) < 3:
+                await event.edit(s["sgroup_usage"], parse_mode="html")
+                return
+            name = args[2].strip()
+            if name in groups:
+                await event.edit(
+                    s["sgroup_already_exists"].format(name=name), parse_mode="html"
+                )
+                return
+            groups[name] = {
+                "users": [],
+                "access": {cat: False for cat in ACCESS_CATEGORIES},
+            }
+            await save_sgroups(groups)
+            await event.edit(s["sgroup_created"].format(name=name), parse_mode="html")
+            return
+
+        if action == "delete":
+            if len(args) < 3:
+                await event.edit(s["sgroup_usage"], parse_mode="html")
+                return
+            name = args[2].strip()
+            if name not in groups:
+                await event.edit(
+                    s["sgroup_not_found"].format(name=name), parse_mode="html"
+                )
+                return
+            del groups[name]
+            await save_sgroups(groups)
+            await event.edit(s["sgroup_deleted"].format(name=name), parse_mode="html")
+            return
+
+        if action == "add":
+            if len(args) < 3:
+                await event.edit(s["sgroup_usage"], parse_mode="html")
+                return
+            sub = args[2].split(maxsplit=1)
+            if len(sub) < 2:
+                await event.edit(s["sgroup_usage"], parse_mode="html")
+                return
+            name = sub[0].strip()
+            user_part = sub[1].strip()
+            if user_part.lstrip("-").isdigit():
+                user_id = int(user_part)
+            else:
+                try:
+                    entity = await client.get_entity(user_part.lstrip("@"))
+                    user_id = entity.id
+                except Exception:
+                    await event.edit(s["sgroup_usage"], parse_mode="html")
+                    return
+            if name not in groups:
+                await event.edit(
+                    s["sgroup_not_found"].format(name=name), parse_mode="html"
+                )
+                return
+            if user_id in groups[name]["users"]:
+                await event.edit(s["sgroup_user_in_group"], parse_mode="html")
+                return
+            groups[name]["users"].append(user_id)
+            await save_sgroups(groups)
+            user_name = await get_user_display(user_id)
+            await event.edit(
+                s["sgroup_user_added"].format(user=user_name, group=name),
+                parse_mode="html",
+            )
+            return
+
+        if action == "remove":
+            if len(args) < 3:
+                await event.edit(s["sgroup_usage"], parse_mode="html")
+                return
+            sub = args[2].split(maxsplit=1)
+            if len(sub) < 2:
+                await event.edit(s["sgroup_usage"], parse_mode="html")
+                return
+            name = sub[0].strip()
+            user_part = sub[1].strip()
+            if user_part.lstrip("-").isdigit():
+                user_id = int(user_part)
+            else:
+                try:
+                    entity = await client.get_entity(user_part.lstrip("@"))
+                    user_id = entity.id
+                except Exception:
+                    await event.edit(s["sgroup_usage"], parse_mode="html")
+                    return
+            if name not in groups:
+                await event.edit(
+                    s["sgroup_not_found"].format(name=name), parse_mode="html"
+                )
+                return
+            if user_id not in groups[name]["users"]:
+                await event.edit(s["sgroup_user_not_in_group"], parse_mode="html")
+                return
+            groups[name]["users"].remove(user_id)
+            await save_sgroups(groups)
+            user_name = await get_user_display(user_id)
+            await event.edit(
+                s["sgroup_user_removed"].format(user=user_name, group=name),
+                parse_mode="html",
+            )
+            return
+
+        if action == "access":
+            if len(args) < 3:
+                await event.edit(s["sgroup_usage"], parse_mode="html")
+                return
+            name = args[2].strip()
+            if name not in groups:
+                await event.edit(
+                    s["sgroup_not_found"].format(name=name), parse_mode="html"
+                )
+                return
+
+            async def on_toggle_sg_cat(event, gname, cat_key, current_state):
+                groups = await get_sgroups()
+                if gname in groups:
+                    groups[gname]["access"][cat_key] = not current_state
+                    await save_sgroups(groups)
+                access = groups[gname]["access"]
+                text = _build_sgroup_access_text(gname, access)
+                buttons = _build_sgroup_access_buttons(gname, access)
+                await event.edit(text, buttons=buttons, parse_mode="html")
+
+            async def on_back_sg(event, gname):
+                await show_sgroup_menu(event, gname)
+
+            async def on_allow_all_sg(event, gname):
+                groups = await get_sgroups()
+                if gname in groups:
+                    groups[gname]["access"] = {cat: True for cat in ACCESS_CATEGORIES}
+                    await save_sgroups(groups)
+                access = groups[gname]["access"]
+                text = _build_sgroup_access_text(gname, access)
+                buttons = _build_sgroup_access_buttons(gname, access)
+                await event.edit(text, buttons=buttons, parse_mode="html")
+
+            async def on_deny_all_sg(event, gname):
+                groups = await get_sgroups()
+                if gname in groups:
+                    groups[gname]["access"] = {cat: False for cat in ACCESS_CATEGORIES}
+                    await save_sgroups(groups)
+                access = groups[gname]["access"]
+                text = _build_sgroup_access_text(gname, access)
+                buttons = _build_sgroup_access_buttons(gname, access)
+                await event.edit(text, buttons=buttons, parse_mode="html")
+
+            TTL = 600
+            access = groups[name]["access"]
+
+            text = _build_sgroup_access_text(name, access)
+
+            rows = []
+            for row_cats in _CATEGORY_ROWS:
+                row = []
+                for cat_key in row_cats:
+                    cat_info = ACCESS_CATEGORIES[cat_key]
+                    localized = cat_info.get(language, cat_info["en"])
+                    allowed = access.get(cat_key, False)
+                    icon = "✅" if allowed else "🚫"
+                    label = f"{icon} {localized['label']}"
+                    row.append(
+                        make_cb_button(
+                            kernel,
+                            label,
+                            on_toggle_sg_cat,
+                            args=[name, cat_key, allowed],
+                            ttl=TTL,
+                            style="success" if allowed else "danger",
+                        )
+                    )
+                rows.append(row)
+
+            rows.append(
+                [
+                    make_cb_button(
+                        kernel,
+                        s["btn_allow_all"],
+                        on_allow_all_sg,
+                        args=[name],
+                        ttl=TTL,
+                        style="success",
+                    ),
+                    make_cb_button(
+                        kernel,
+                        s["btn_deny_all"],
+                        on_deny_all_sg,
+                        args=[name],
+                        ttl=TTL,
+                        style="danger",
+                    ),
+                ]
+            )
+
+            rows.append(
+                [
+                    make_cb_button(
+                        kernel,
+                        s["percmd_back"],
+                        on_back_sg,
+                        args=[name],
+                        ttl=TTL,
+                        style="primary",
+                    )
+                ]
+            )
+
+            await kernel.inline_form(event.chat_id, text, buttons=rows)
+            await event.delete()
+            return
+
+        if action == "list":
+            if not groups:
+                await event.edit(s["sgroup_list_empty"], parse_mode="html")
+                return
+            lines = [s["sgroup_list_title"]]
+            for gname, gdata in groups.items():
+                users_count = len(gdata.get("users", []))
+                access_on = sum(1 for v in gdata.get("access", {}).values() if v)
+                lines.append(
+                    f"• <b>{gname}</b> — {users_count} users, {access_on} access"
+                )
+            await event.edit("\n".join(lines), parse_mode="html")
+            return
+
+        if action == "info":
+            if len(args) < 3:
+                await event.edit(s["sgroup_usage"], parse_mode="html")
+                return
+            name = args[2].strip()
+            if name not in groups:
+                await event.edit(
+                    s["sgroup_not_found"].format(name=name), parse_mode="html"
+                )
+                return
+
+            async def on_sgroup_menu(event, gname):
+                await show_sgroup_menu(event, gname)
+
+            await show_sgroup_menu(event, name)
+            return
+
+        await event.edit(s["sgroup_usage"], parse_mode="html")
+
+    async def show_sgroup_menu(event, name: str):
+        """Show inline menu for managing a security group"""
+        groups = await get_sgroups()
+        if name not in groups:
+            await event.edit(s["sgroup_not_found"].format(name=name), parse_mode="html")
+            return
+
+        group = groups[name]
+        gname = name
+
+        async def on_add_user(event, gname):
+            await event.edit(
+                s["sgroup_usage"] + "\n\n" + s["sgroup_btn_add_user"], parse_mode="html"
+            )
+
+        async def on_remove_user(event, gname):
+            await event.edit(
+                s["sgroup_usage"] + "\n\n" + s["sgroup_btn_remove_user"],
+                parse_mode="html",
+            )
+
+        async def on_access(event, gname):
+            groups = await get_sgroups()
+            if gname not in groups:
+                return
+            access = groups[gname]["access"]
+            text = _build_sgroup_access_text(gname, access)
+            buttons = _build_sgroup_access_buttons(gname, access)
+            await event.edit(text, buttons=buttons, parse_mode="html")
+
+        async def on_delete_group(event, gname):
+            groups = await get_sgroups()
+            if gname not in groups:
+                return
+
+            async def on_confirm_delete(event, gname):
+                groups = await get_sgroups()
+                if gname in groups:
+                    del groups[gname]
+                    await save_sgroups(groups)
+                await event.edit(
+                    s["sgroup_deleted"].format(name=gname), parse_mode="html"
+                )
+
+            async def on_cancel_delete(event, gname):
+                await show_sgroup_menu(event, gname)
+
+            TTL = 600
+            text = s["sgroup_confirm_delete"].format(name=gname)
+            buttons = [
+                [
+                    make_cb_button(
+                        kernel,
+                        s["btn_confirm_delete"],
+                        on_confirm_delete,
+                        args=[gname],
+                        ttl=TTL,
+                        style="danger",
+                    ),
+                    make_cb_button(
+                        kernel,
+                        s["btn_cancel"],
+                        on_cancel_delete,
+                        args=[gname],
+                        ttl=TTL,
+                        style="primary",
+                    ),
+                ]
+            ]
+            await event.edit(text, buttons=buttons, parse_mode="html")
+
+        TTL = 600
+
+        lines = [s["sgroup_menu_title"].format(name=name)]
+
+        if group["users"]:
+            lines.append("\n<b>Users:</b>")
+            for uid in group["users"]:
+                u_name = await get_user_display(uid)
+                lines.append(f"• {u_name} (<code>{uid}</code>)")
+        else:
+            lines.append("\n<b>Users:</b> — " + s["sgroup_info_users_empty"])
+
+        access = group.get("access", {})
+        access_on = [cat for cat, val in access.items() if val]
+        if access_on:
+            lines.append(f"\n<b>Access:</b> {', '.join(access_on)}")
+        else:
+            lines.append(f"\n<b>Access:</b> " + s["sgroup_info_access_empty"])
+
+        text = "\n".join(lines)
+
+        rows = [
+            [
+                make_cb_button(
+                    kernel,
+                    s["sgroup_btn_add_user"],
+                    on_add_user,
+                    args=[gname],
+                    ttl=TTL,
+                    style="success",
+                )
+            ],
+            [
+                make_cb_button(
+                    kernel,
+                    s["sgroup_btn_remove_user"],
+                    on_remove_user,
+                    args=[gname],
+                    ttl=TTL,
+                    style="danger",
+                )
+            ],
+            [
+                make_cb_button(
+                    kernel,
+                    s["sgroup_btn_access"],
+                    on_access,
+                    args=[gname],
+                    ttl=TTL,
+                    style="primary",
+                )
+            ],
+            [
+                make_cb_button(
+                    kernel,
+                    s["sgroup_btn_delete"],
+                    on_delete_group,
+                    args=[gname],
+                    ttl=TTL,
+                    style="danger",
+                )
+            ],
+        ]
+
+        await event.edit(text, buttons=rows, parse_mode="html")
+
+    def _build_sgroup_access_text(group_name: str, access: dict) -> str:
+        lines = [f"🔐 <b>Access for group {group_name}:</b>"]
+        body_lines = []
+        for cat_key, cat_info in ACCESS_CATEGORIES.items():
+            allowed = access.get(cat_key, False)
+            icon = "✅" if allowed else "🚫"
+            state_word = s["access_allowed"] if allowed else s["access_denied"]
+            localized = cat_info.get(language, cat_info["en"])
+            body_lines.append(
+                f"{icon} {localized['label']} — <em>{state_word}</em>\n└ {localized['desc']}"
+            )
+        lines.append(
+            "<blockquote expandable>" + "\n".join(body_lines) + "</blockquote>"
+        )
+        lines.append(s["trustaccess_footer"])
+        return "\n".join(lines)
+
+    def _build_sgroup_access_buttons(group_name: str, access: dict) -> list:
+        async def on_toggle_sg_cat(event, gname, cat_key, current_state):
+            groups = await get_sgroups()
+            if gname in groups:
+                groups[gname]["access"][cat_key] = not current_state
+                await save_sgroups(groups)
+            g_access = groups[gname]["access"]
+            text = _build_sgroup_access_text(gname, g_access)
+            buttons = _build_sgroup_access_buttons(gname, g_access)
+            await event.edit(text, buttons=buttons, parse_mode="html")
+
+        async def on_back_sg(event, gname):
+            await show_sgroup_menu(event, gname)
+
+        async def on_allow_all_sg(event, gname):
+            groups = await get_sgroups()
+            if gname in groups:
+                groups[gname]["access"] = {cat: True for cat in ACCESS_CATEGORIES}
+                await save_sgroups(groups)
+            g_access = groups[gname]["access"]
+            text = _build_sgroup_access_text(gname, g_access)
+            buttons = _build_sgroup_access_buttons(gname, g_access)
+            await event.edit(text, buttons=buttons, parse_mode="html")
+
+        async def on_deny_all_sg(event, gname):
+            groups = await get_sgroups()
+            if gname in groups:
+                groups[gname]["access"] = {cat: False for cat in ACCESS_CATEGORIES}
+                await save_sgroups(groups)
+            g_access = groups[gname]["access"]
+            text = _build_sgroup_access_text(gname, g_access)
+            buttons = _build_sgroup_access_buttons(gname, g_access)
+            await event.edit(text, buttons=buttons, parse_mode="html")
+
+        TTL = 600
+        rows = []
+
+        for row_cats in _CATEGORY_ROWS:
+            row = []
+            for cat_key in row_cats:
+                cat_info = ACCESS_CATEGORIES[cat_key]
+                localized = cat_info.get(language, cat_info["en"])
+                allowed = access.get(cat_key, False)
+                icon = "✅" if allowed else "🚫"
+                label = f"{icon} {localized['label']}"
+                row.append(
+                    make_cb_button(
+                        kernel,
+                        label,
+                        on_toggle_sg_cat,
+                        args=[group_name, cat_key, allowed],
+                        ttl=TTL,
+                        style="success" if allowed else "danger",
+                    )
+                )
+            rows.append(row)
+
+        rows.append(
+            [
+                make_cb_button(
+                    kernel,
+                    s["btn_allow_all"],
+                    on_allow_all_sg,
+                    args=[group_name],
+                    ttl=TTL,
+                    style="success",
+                ),
+                make_cb_button(
+                    kernel,
+                    s["btn_deny_all"],
+                    on_deny_all_sg,
+                    args=[group_name],
+                    ttl=TTL,
+                    style="danger",
+                ),
+            ]
+        )
+
+        rows.append(
+            [
+                make_cb_button(
+                    kernel,
+                    s["percmd_back"],
+                    on_back_sg,
+                    args=[group_name],
+                    ttl=TTL,
+                    style="primary",
+                )
+            ]
+        )
+
+        return rows
 
     @kernel.register.on_load()
     async def inline_allow_owner(_kernel):
         trusted = await get_trusted_list()
         for uid in trusted:
-            await inline_manager.allow_user(uid)
-        # Pre-warm owner username cache
+            access = await get_access(uid)
+            if access.get("inline", False):
+                await inline_manager.allow_user(uid)
         await get_owner_username()

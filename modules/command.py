@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # author: @Hairpin00
 # version: 1.2.0
 # description: Bot command handlers with localization
@@ -164,8 +166,8 @@ def register(kernel):
                 file="https://x0.at/ZXNS.mp4",
                 message=(
                     f"<b>{lang_strings['hello']}</b>\n"
-                    f"<blockquote>{lang_strings['developers']}\n"
-                    f"{lang_strings['fork']} @Hairpin01\n"
+                    f"{lang_strings['developers']}\n"
+                    f"<blockquote>{lang_strings['fork']} @Hairpin00\n"
                     f"{lang_strings['original']} @Mitrichq</blockquote>"
                 ),
                 parse_mode="html",

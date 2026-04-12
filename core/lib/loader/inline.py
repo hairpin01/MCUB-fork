@@ -4,14 +4,18 @@ import time
 import sys
 from dataclasses import dataclass
 from html import escape as html_escape
-from typing import TYPE_CHECKING, Any, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Mapping, Sequence, Callable
 import traceback
 
 from telethon import Button, events
+from telethon.errors import ChatSendInlineForbiddenError
+from core_inline.api.inline import make_cb_button
 
 if TYPE_CHECKING:
     from kernel import Kernel
     from telethon.types import Message
+
+from core_inline.handlers import InlineHandlers
 
 
 @dataclass(slots=True)
@@ -87,13 +91,21 @@ class InlineManager:
     def _list_session_key(list_uuid: str) -> str:
         return f"list:{list_uuid}"
 
-    @staticmethod
-    def _nav_buttons(prefix: str, uid: str) -> list[list[Any]]:
+    def _nav_buttons(self, kind: str, uid: str, *, ttl: int = 900) -> list[list[Any]]:
+        handler: Callable | None = None
+        match kind:
+            case "gallery":
+                handler = self._gallery_nav_cb
+            case "list":
+                handler = self._list_nav_cb
+        if handler is None:
+            return []
+
         return [
             [
-                Button.inline("◀", f"{prefix}_{uid}_prev".encode()),
-                Button.inline("🔄", f"{prefix}_{uid}_refresh".encode()),
-                Button.inline("▶", f"{prefix}_{uid}_next".encode()),
+                make_cb_button(self.k, "◀", handler, args=[uid, "prev"], ttl=ttl),
+                make_cb_button(self.k, "🔄", handler, args=[uid, "refresh"], ttl=ttl),
+                make_cb_button(self.k, "▶", handler, args=[uid, "next"], ttl=ttl),
             ]
         ]
 
@@ -166,6 +178,101 @@ class InlineManager:
         lines.append(f"<blockquote>📄 {page + 1}/{total_pages}</blockquote>")
         return "\n".join(lines), page, total_pages
 
+    async def _gallery_nav_cb(self, event, gallery_uuid: str, action: str):
+        k = self.k
+        session_key = self._gallery_session_key(gallery_uuid)
+        gallery_data = self._session_get(session_key)
+        if not gallery_data:
+            await event.answer("❌ Session expired", alert=True)
+            return
+
+        rows = gallery_data.get("rows", [])
+        title = self._as_text(gallery_data.get("title", ""))
+        current_index = int(gallery_data.get("current_index", 0) or 0)
+        escape_html_flag = bool(gallery_data.get("escape_html", False))
+        total = len(rows)
+        if total <= 0:
+            await event.answer("❌ Empty gallery", alert=True)
+            return
+
+        match action:
+            case "prev":
+                current_index = (current_index - 1) % total
+            case "next":
+                current_index = (current_index + 1) % total
+            case "refresh":
+                current_index = current_index % total
+            case _:
+                current_index = 0
+
+        gallery_data["current_index"] = current_index
+        session = self._sessions.get(session_key)
+        if session:
+            self._sessions[session_key] = _Session(
+                expires_at=session.expires_at, data=gallery_data
+            )
+
+        gallery_text, media, _media_type = self._render_gallery(
+            title, rows, current_index, escape_html=escape_html_flag
+        )
+        nav_buttons = self._nav_buttons("gallery", gallery_uuid)
+        try:
+            await event.edit(
+                gallery_text,
+                file=media,
+                buttons=nav_buttons,
+                parse_mode="html",
+            )
+            await event.answer()
+        except Exception as e:
+            k.logger.error(f"gallery nav error: {e}")
+            await event.answer(f"❌ Error: {e}", alert=True)
+
+    async def _list_nav_cb(self, event, list_uuid: str, action: str):
+        k = self.k
+        session_key = self._list_session_key(list_uuid)
+        list_data = self._session_get(session_key)
+        if not list_data:
+            await event.answer("❌ Session expired", alert=True)
+            return
+
+        items = list_data.get("items", [])
+        title = self._as_text(list_data.get("title", ""))
+        page = int(list_data.get("page", 0) or 0)
+        per_page = int(list_data.get("per_page", 5) or 5)
+        escape_html_flag = bool(list_data.get("escape_html", False))
+
+        total_pages = (len(items) + per_page - 1) // per_page
+        total_pages = max(total_pages, 1)
+
+        match action:
+            case "prev":
+                page = (page - 1) % total_pages
+            case "next":
+                page = (page + 1) % total_pages
+            case "refresh":
+                page = page % total_pages
+            case _:
+                page = 0
+
+        list_text, page, _tp = self._render_list(
+            title, items, page, per_page, escape_html=escape_html_flag
+        )
+        list_data["page"] = page
+        session = self._sessions.get(session_key)
+        if session:
+            self._sessions[session_key] = _Session(
+                expires_at=session.expires_at, data=list_data
+            )
+
+        nav_buttons = self._nav_buttons("list", list_uuid)
+        try:
+            await event.edit(list_text, buttons=nav_buttons, parse_mode="html")
+            await event.answer()
+        except Exception as e:
+            k.logger.error(f"list nav error: {e}")
+            await event.answer(f"❌ Error: {e}", alert=True)
+
     def _setup_temp_callback_handler(self) -> None:
         """Setup temporary callback handler for gallery/list items."""
         k = self.k
@@ -225,114 +332,8 @@ class InlineManager:
                     await event.answer(f"❌ Error: {e}", alert=True)
                 return
 
-            # Navigation: gallery_<uuid>_<action>
-            if data.startswith("gallery_"):
-                parts = data.split("_", 2)
-                if len(parts) < 3:
-                    return
-                gallery_uuid, action = parts[1], parts[2]
-                session_key = inline_self._gallery_session_key(gallery_uuid)
-                gallery_data = inline_self._session_get(session_key)
-                if not gallery_data:
-                    await event.answer("❌ Session expired", alert=True)
-                    return
-
-                rows = gallery_data.get("rows", [])
-                title = inline_self._as_text(gallery_data.get("title", ""))
-                current_index = int(gallery_data.get("current_index", 0) or 0)
-                escape_html_flag = bool(gallery_data.get("escape_html", False))
-                total = len(rows)
-                if total <= 0:
-                    await event.answer("❌ Empty gallery", alert=True)
-                    return
-
-                if action == "prev":
-                    current_index = (current_index - 1) % total
-                elif action == "next":
-                    current_index = (current_index + 1) % total
-                elif action == "refresh":
-                    current_index = current_index % total
-                else:
-                    current_index = 0
-
-                gallery_data["current_index"] = current_index
-                # Preserve original TTL by updating the session in-place.
-                session = inline_self._sessions.get(session_key)
-                if session:
-                    inline_self._sessions[session_key] = _Session(
-                        expires_at=session.expires_at, data=gallery_data
-                    )
-
-                gallery_text, media, _media_type = inline_self._render_gallery(
-                    title, rows, current_index, escape_html=escape_html_flag
-                )
-                nav_buttons = inline_self._nav_buttons("gallery", gallery_uuid)
-                try:
-                    await event.edit(
-                        gallery_text,
-                        file=media,
-                        buttons=nav_buttons,
-                        parse_mode="html",
-                    )
-                    await event.answer()
-                except Exception as e:
-                    k.logger.error(f"gallery nav error: {e}")
-                    await event.answer(f"❌ Error: {e}", alert=True)
-                return
-
-            # Navigation: list_<uuid>_<action>
-            if data.startswith("list_"):
-                parts = data.split("_", 2)
-                if len(parts) < 3:
-                    return
-                list_uuid, action = parts[1], parts[2]
-                session_key = inline_self._list_session_key(list_uuid)
-                list_data = inline_self._session_get(session_key)
-                if not list_data:
-                    await event.answer("❌ Session expired", alert=True)
-                    return
-
-                items = list_data.get("items", [])
-                title = inline_self._as_text(list_data.get("title", ""))
-                page = int(list_data.get("page", 0) or 0)
-                per_page = int(list_data.get("per_page", 5) or 5)
-                escape_html_flag = bool(list_data.get("escape_html", False))
-
-                total_pages = (len(items) + per_page - 1) // per_page
-                total_pages = max(total_pages, 1)
-
-                if action == "prev":
-                    page = (page - 1) % total_pages
-                elif action == "next":
-                    page = (page + 1) % total_pages
-                elif action == "refresh":
-                    page = page % total_pages
-                else:
-                    page = 0
-
-                list_text, page, _tp = inline_self._render_list(
-                    title, items, page, per_page, escape_html=escape_html_flag
-                )
-                list_data["page"] = page
-                session = inline_self._sessions.get(session_key)
-                if session:
-                    inline_self._sessions[session_key] = _Session(
-                        expires_at=session.expires_at, data=list_data
-                    )
-
-                nav_buttons = inline_self._nav_buttons("list", list_uuid)
-                try:
-                    await event.edit(list_text, buttons=nav_buttons, parse_mode="html")
-                    await event.answer()
-                except Exception as e:
-                    k.logger.error(f"list nav error: {e}")
-                    await event.answer(f"❌ Error: {e}", alert=True)
-                return
-
         try:
             self.register_callback_handler("temp_callback_", temp_callback_handler)
-            self.register_callback_handler("gallery_", temp_callback_handler)
-            self.register_callback_handler("list_", temp_callback_handler)
         except Exception as e:
             # Inline UI is optional; don't crash loader init.
             k.logger.error(f"Failed to register inline callback handlers: {e}")
@@ -507,17 +508,45 @@ class InlineManager:
         """
         k = self.k
         try:
+            k.logger.debug(
+                "[inline] inline_query_and_click start chat_id=%s query=%s bot=%s",
+                chat_id,
+                query,
+                bot_username,
+            )
             if not bot_username:
                 bot_username = k.config.get("inline_bot_username")
-                if not bot_username:
-                    raise ValueError("No inline bot configured")
+
+            if (
+                not bot_username
+                and getattr(k, "is_bot_available", None)
+                and k.is_bot_available()
+            ):
+                try:
+                    bot_info = await k.bot_client.get_me()
+                    if bot_info and getattr(bot_info, "username", None):
+                        bot_username = bot_info.username
+                        k.config["inline_bot_username"] = bot_username
+
+                except Exception:
+                    bot_username = None
+
+            if not bot_username:
+                k.logger.debug("[inline] inline_query_and_click abort: no bot username")
+                raise ValueError("No inline bot configured")
 
             results = await k.client.inline_query(bot_username, query)
+            k.logger.debug(
+                "[inline] inline_query results=%d bot=%s",
+                len(results) if results else 0,
+                bot_username,
+            )
             if not results:
                 return False, None
 
             if result_index >= len(results):
                 result_index = 0
+                k.logger.debug("[inline] result_index reset to 0")
 
             click_kwargs = {}
             if buttons:
@@ -529,12 +558,56 @@ class InlineManager:
             if reply_to:
                 click_kwargs["reply_to"] = reply_to
             click_kwargs.update(kwargs)
-
             message = await results[result_index].click(chat_id, **click_kwargs)
             if form_sms:
                 await form_sms.delete()
-            k.logger.info(f"Inline query OK: {query[:50]}...")
+
+            if message:
+                inline_msg_id = getattr(message, "inline_message_id", None)
+                if inline_msg_id:
+                    form_data = handlers.get_inline_form(form_id)
+                    if form_data:
+                        if (
+                            hasattr(inline_msg_id, "dc_id")
+                            and hasattr(inline_msg_id, "id")
+                            and hasattr(inline_msg_id, "access_hash")
+                        ):
+                            form_data["inline_message_id"] = (
+                                f"{inline_msg_id.dc_id}:{inline_msg_id.id}:{inline_msg_id.access_hash}"
+                            )
+                        else:
+                            form_data["inline_message_id"] = str(inline_msg_id)
+                        handlers.create_inline_form(
+                            text=form_data.get("text", ""),
+                            buttons=form_data.get("buttons"),
+                            ttl=ttl,
+                            media=form_data.get("media"),
+                            media_type=form_data.get("media_type", "photo"),
+                        )
+
+            k.logger.debug(
+                "[inline] clicked index=%d chat_id=%s silent=%s reply_to=%s",
+                result_index,
+                chat_id,
+                silent,
+                reply_to,
+            )
+            message.form_id = query
             return True, message
+
+        except ChatSendInlineForbiddenError:
+            _warning_strings = {
+                "ru": "Инлайн-формы запрещены в этом чате.",
+                "en": "Inline forms are not allowed in this chat.",
+            }
+            lang = getattr(k, "config", {}).get("language", "en")
+            warning = _warning_strings.get(lang, _warning_strings["en"])
+            if form_sms:
+                await form_sms.edit(
+                    f'<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>{warning}</b>',
+                    parse_mode="html",
+                )
+            return False, None
 
         except Exception as e:
             await k.handle_error(e, source="inline_query_and_click")
@@ -558,6 +631,8 @@ class InlineManager:
         ttl: int = 200,
         media: str | None = None,
         media_type: str = "photo",
+        reply_to: int | None = None,
+        parse_mode: str = "html",
         **kwargs,
     ):
         """Create and optionally send an inline form.
@@ -572,14 +647,15 @@ class InlineManager:
             ttl: Cache TTL for the form (seconds).
             media: Public URL or file_id of a photo/document/gif to attach.
             media_type: One of "photo", "document", "gif" (default "photo").
+            reply_to: Topic/thread message ID for supergroups with topics.
+            parse_mode: Parse mode for the form message (default "html").
 
         Returns:
             (success, message) when auto_send=True, else form_id str.
         """
         k = self.k
+        form_sms = None
         try:
-            from core_inline.handlers import InlineHandlers
-
             lines = [title]
             if isinstance(fields, dict):
                 lines += [f"{fk}: {fv}" for fk, fv in fields.items()]
@@ -597,15 +673,22 @@ class InlineManager:
 
             if auto_send:
                 try:
+                    send_kwargs = {"parse_mode": parse_mode}
+                    if reply_to is not None:
+                        send_kwargs["reply_to"] = reply_to
                     form_sms = await k.client.send_message(
                         chat_id,
                         '<tg-emoji emoji-id="5204110240752110921">🕳️</tg-emoji> <i><b>Open inline form</b></i>',
-                        parse_mode="html",
+                        **send_kwargs,
                     )
                 except Exception:
                     form_sms = None
                 return await self.inline_query_and_click(
-                    chat_id=chat_id, query=form_id, form_sms=form_sms, **kwargs
+                    chat_id=chat_id,
+                    query=form_id,
+                    form_sms=form_sms,
+                    reply_to=reply_to,
+                    **kwargs,
                 )
             return form_id
 
@@ -770,3 +853,314 @@ class InlineManager:
                 commands.append((cmd, doc if doc else None))
 
         return commands
+
+
+class InlineMessage:
+    """Inline message wrapper for easy editing and deleting.
+
+    Provides a clean API to manage inline messages without needing to store
+    inline_message_id manually.
+
+    Example:
+        ```python
+        # Create inline form
+        success, msg = await kernel.inline_form(chat_id, "Hello!")
+
+        # Later edit it
+        msg.edit("New text!")
+
+        # Or delete it
+        msg.delete()
+
+        # Or get existing message by form_id
+        msg = InlineMessage.get(form_id, kernel)
+        await msg.edit("Updated!")
+        ```
+    """
+
+    def __init__(
+        self,
+        unit_id: str,
+        kernel: "Kernel",
+    ) -> None:
+        """Initialize InlineMessage.
+
+        Args:
+            unit_id: The form ID of the inline message (returned by inline_form).
+            kernel: The kernel instance.
+        """
+        self.unit_id = unit_id
+        self._kernel = kernel
+        self._form_data: dict | None = None
+
+    @classmethod
+    def get(cls, unit_id: str, kernel: "Kernel") -> "InlineMessage | None":
+        """Get an InlineMessage by unit/form ID or message ID.
+
+        Args:
+            unit_id: The form ID or message ID to look up.
+            kernel: The kernel instance.
+
+        Returns:
+            InlineMessage instance if found, None otherwise.
+        """
+        msg = cls(unit_id, kernel)
+        if msg._load_form_data():
+            return msg
+        return None
+
+    def _load_form_data(self) -> bool:
+        """Load form data from cache."""
+        from core_inline.handlers import InlineHandlers
+
+        handlers = InlineHandlers(self._kernel, self._kernel.bot_client)
+
+        form_data = handlers.get_inline_form(self.unit_id)
+        if form_data:
+            self._form_data = form_data
+            return True
+
+        form_id = f"msg_{self.unit_id}"
+        form_data = handlers.get_inline_form(form_id)
+        if form_data:
+            self._form_data = form_data
+            return True
+
+        return False
+
+    @property
+    def text(self) -> str:
+        """Get current message text."""
+        if self._form_data:
+            return self._form_data.get("text", "")
+        return ""
+
+    @property
+    def buttons(self) -> list | None:
+        """Get current message buttons."""
+        if self._form_data:
+            return self._form_data.get("buttons")
+        return None
+
+    async def edit(
+        self,
+        text: str | None = None,
+        buttons: list | None = None,
+        **kwargs,
+    ) -> "InlineMessage":
+        """Edit the inline message.
+
+        Args:
+            text: New message text (optional).
+            buttons: New buttons (optional).
+            **kwargs: Additional arguments passed to edit_message.
+
+        Returns:
+            Self for chaining.
+
+        Example:
+            ```python
+            msg = InlineMessage.get(form_id, kernel)
+            await msg.edit("New text", buttons=[[Button.callback("Click", "data")]])
+            ```
+        """
+        from core_inline.handlers import InlineHandlers
+        from telethon.tl.functions.messages import EditInlineBotMessageRequest
+        from telethon.tl.types import InputBotInlineMessageID
+
+        handlers = InlineHandlers(self._kernel, self._kernel.bot_client)
+        form_data = handlers.get_inline_form(self.unit_id)
+        if not form_data:
+            alt_id = f"msg_{self.unit_id}"
+            form_data = handlers.get_inline_form(alt_id)
+        if not form_data:
+            return self
+
+        update_data = dict(form_data)
+        if text is not None:
+            update_data["text"] = text
+        if buttons is not None:
+            update_data["buttons"] = self._normalize_buttons(buttons)
+
+        cache = getattr(self._kernel, "cache", None)
+        if cache:
+            cache.set(self.unit_id, update_data, ttl=3600)
+
+        bot_client = getattr(self._kernel, "bot_client", None)
+        user_client = getattr(self._kernel, "client", None)
+        client = bot_client or user_client
+        if client is None:
+            return self
+
+        inline_msg_id = form_data.get("inline_message_id")
+        if inline_msg_id:
+            try:
+                msg_id = None
+                if isinstance(inline_msg_id, InputBotInlineMessageID):
+                    msg_id = inline_msg_id
+                elif isinstance(inline_msg_id, str):
+                    if ":" in inline_msg_id:
+                        parts = inline_msg_id.split(":")
+                        if len(parts) == 3:
+                            msg_id = InputBotInlineMessageID(
+                                dc_id=int(parts[0]),
+                                id=int(parts[1]),
+                                access_hash=int(parts[2]),
+                            )
+                        elif len(parts) == 2:
+                            msg_id = InputBotInlineMessageID(
+                                dc_id=0,
+                                id=int(parts[0]),
+                                access_hash=int(parts[1]),
+                            )
+
+                if msg_id and bot_client:
+                    reply_markup = None
+                    if buttons:
+                        reply_markup = bot_client.build_reply_markup(
+                            self._to_telethon_buttons(buttons)
+                        )
+                    await bot_client(
+                        EditInlineBotMessageRequest(
+                            id=msg_id,
+                            message=text or form_data.get("text", ""),
+                            reply_markup=reply_markup,
+                            parse_mode="html",
+                        )
+                    )
+            except Exception as e:
+                self._kernel.logger.debug(f"InlineMessage.edit inline error: {e}")
+
+        message = form_data.get("message")
+        chat = form_data.get("chat")
+        if message is not None and chat is not None and hasattr(client, "edit_message"):
+            edit_kwargs = {"parse_mode": "html"}
+            if buttons:
+                edit_kwargs["buttons"] = self._to_telethon_buttons(buttons)
+            edit_kwargs.update(kwargs)
+            try:
+                await client.edit_message(
+                    chat,
+                    message,
+                    text or form_data.get("text", ""),
+                    **edit_kwargs,
+                )
+            except Exception as e:
+                self._kernel.logger.debug(f"InlineMessage.edit message error: {e}")
+
+        self._form_data = update_data
+        return self
+
+    async def delete(self) -> bool:
+        """Delete the inline message.
+
+        Returns:
+            True if deleted successfully, False otherwise.
+
+        Example:
+            ```python
+            msg = InlineMessage.get(form_id, kernel)
+            await msg.delete()
+            ```
+        """
+        from core_inline.handlers import InlineHandlers
+        from telethon.tl.functions.messages import DeleteBotCallbackMessage
+
+        bot_client = getattr(self._kernel, "bot_client", None)
+        user_client = getattr(self._kernel, "client", None)
+        client = bot_client or user_client
+        if client is None:
+            return False
+
+        handlers = InlineHandlers(self._kernel, bot_client)
+        form_data = handlers.get_inline_form(self.unit_id)
+        if not form_data:
+            alt_id = f"msg_{self.unit_id}"
+            form_data = handlers.get_inline_form(alt_id)
+        if not form_data:
+            return False
+
+        inline_msg_id = form_data.get("inline_message_id")
+        if inline_msg_id and bot_client:
+            try:
+                await bot_client(DeleteBotCallbackMessage(inline_msg_id))
+            except Exception as e:
+                self._kernel.logger.debug(f"InlineMessage.delete inline error: {e}")
+
+        message = form_data.get("message")
+        chat = form_data.get("chat")
+        if (
+            message is not None
+            and chat is not None
+            and hasattr(client, "delete_messages")
+        ):
+            try:
+                await client.delete_messages(chat, message)
+            except Exception as e:
+                self._kernel.logger.debug(f"InlineMessage.delete message error: {e}")
+
+        cache = getattr(self._kernel, "cache", None)
+        if cache:
+            cache.delete(self.unit_id)
+            cache.delete(f"msg_{self.unit_id}")
+
+        return True
+
+    async def unload(self) -> bool:
+        """Unload the inline unit (remove from cache).
+
+        Returns:
+            True if unloaded successfully.
+
+        Example:
+            ```python
+            msg = InlineMessage.get(form_id, kernel)
+            await msg.unload()
+            ```
+        """
+        cache = getattr(self._kernel, "cache", None)
+        if cache:
+            cache.delete(self.unit_id)
+            cache.delete(f"msg_{self.unit_id}")
+        return True
+
+    def _normalize_buttons(self, buttons: list) -> list:
+        """Normalize buttons to internal format."""
+        if not buttons:
+            return []
+
+        normalized = []
+        for row in buttons:
+            if isinstance(row, list):
+                normalized.append(row)
+            elif isinstance(row, dict):
+                normalized.append([row])
+            else:
+                normalized.append([row])
+        return normalized
+
+    def _to_telethon_buttons(self, buttons) -> list | None:
+        """Convert buttons to Telethon format."""
+        if not buttons:
+            return None
+
+        from telethon import Button
+
+        prepared = []
+        for row in buttons:
+            out_row = []
+            for btn in row:
+                if isinstance(btn, Button):
+                    out_row.append(btn)
+                elif isinstance(btn, dict):
+                    btn_text = btn.get("text", "")
+                    btn_data = btn.get("data", b"").encode() if btn.get("data") else b""
+                    out_row.append(Button.callback(btn_text, btn_data))
+                elif isinstance(btn, (tuple, list)) and len(btn) >= 2:
+                    btn_text, btn_data = btn[0], btn[1]
+                    if isinstance(btn_data, str):
+                        btn_data = btn_data.encode()
+                    out_row.append(Button.callback(btn_text, btn_data))
+            if out_row:
+                prepared.append(out_row)
+        return prepared if prepared else None

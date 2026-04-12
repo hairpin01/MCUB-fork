@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # requires:
 # author: @Hairpin00
 # version: 1.0.3

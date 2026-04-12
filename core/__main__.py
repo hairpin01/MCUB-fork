@@ -167,7 +167,16 @@ async def _main() -> None:
 
 
 if __name__ == "__main__":
+    import asyncio
 
+    try:
+        asyncio.run(_main())
+    except KeyboardInterrupt:
+        print("\n-> exit kernel…", flush=True)
+
+
+def main() -> None:
+    """Entry point for console_scripts."""
     import asyncio
 
     try:

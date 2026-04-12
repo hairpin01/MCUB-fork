@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 import os
 import time
@@ -92,7 +93,6 @@ def register(kernel):
     client = kernel.client
     language = kernel.config.get("language", "en")
 
-    # Локализованные строки
     strings = {
         "en": {
             "custom_text_error": "<b>Error in custom text format:</b> {error}",
@@ -108,11 +108,9 @@ def register(kernel):
         },
     }
 
-    # Получаем строки для текущего языка
     lang_strings = strings.get(language, strings["en"])
 
     def t(key, **kwargs):
-        """Возвращает локализованную строку с подстановкой значений"""
         if key not in lang_strings:
             return key
         return lang_strings[key].format(**kwargs)
@@ -289,7 +287,7 @@ def register(kernel):
 
     @kernel.register.command("info")
     async def info_cmd(event):
-        """info mcub-fork"""
+        """no args, info mcub-fork"""
         try:
             start_time = time.time()
             msg = await event.edit(resolve_info_start_emoji(), parse_mode="html")

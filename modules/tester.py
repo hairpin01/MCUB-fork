@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 import os
 import time
@@ -125,7 +126,7 @@ def register(kernel):
     log_level_pattern = re.compile(r"^\d{4}-\d{2}-\d{2} .* \[([A-Z]+)\] ")
     log_level_labels = ["debug", "info", "warning", "error", "critical", "all"]
 
-    # Локализованные строки
+    # Localized strings
     strings = {
         "en": {
             "error_logs": "{snowflake} <b>Error, see logs</b>",
@@ -191,7 +192,7 @@ def register(kernel):
         },
     }
 
-    # Получаем строки для текущего языка
+    # Get strings for current language
     lang_strings = strings.get(language, strings["en"])
 
     def t(key, **kwargs):

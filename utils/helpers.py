@@ -111,6 +111,8 @@ async def answer(
     reply_markup: Any = None,
     file: Any = None,
     caption: str | None = None,
+    as_html: bool = False,
+    as_emoji: bool = False,
     **kwargs,
 ) -> Any:
     """

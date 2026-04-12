@@ -35,6 +35,16 @@ class FakeClient:
         **kwargs,
     ) -> typing.Any:
         if self._default_parse_mode is not None and "parse_mode" not in kwargs:
+            caption = kwargs.pop("caption", None) or kwargs.pop("message", None)
+            if caption:
+                return await self._client.send_file(
+                    entity,
+                    file,
+                    *args,
+                    caption=caption,
+                    parse_mode=self._default_parse_mode,
+                    **kwargs,
+                )
             kwargs["parse_mode"] = self._default_parse_mode
         return await self._client.send_file(entity, file, *args, **kwargs)
 

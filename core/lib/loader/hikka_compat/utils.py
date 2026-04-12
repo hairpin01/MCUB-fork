@@ -91,14 +91,17 @@ class _Utils:
 
     @staticmethod
     async def answer_file(message, file: Any, caption: Optional[str] = None, **kwargs):
+        parse_mode = kwargs.pop("parse_mode", "html")
         if hasattr(message, "client") and hasattr(message, "chat_id"):
             return await message.client.send_file(
                 message.chat_id,
                 file,
                 caption=caption,
                 reply_to=getattr(message, "id", None),
+                parse_mode=parse_mode,
                 **kwargs,
             )
+        kwargs["parse_mode"] = parse_mode
         return await _Utils.answer(message, caption or "", **kwargs)
 
     @staticmethod

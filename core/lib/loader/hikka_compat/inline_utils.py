@@ -2,6 +2,7 @@ import functools
 import random
 import re
 import string
+import time
 import types
 import typing
 
@@ -71,11 +72,14 @@ def generate_markup(
     if not normalized:
         return None
 
+    ttl = getattr(inline_proxy, "_current_form_ttl", 3600) if inline_proxy else 3600
+
     return process_buttons(
         normalized,
         custom_map=custom_map,
         inline_proxy=inline_proxy,
         unit_id=unit_id,
+        ttl=ttl,
     )
 
 
@@ -84,6 +88,7 @@ def process_buttons(
     custom_map: typing.Optional[typing.Dict[str, dict]] = None,
     inline_proxy=None,
     unit_id: typing.Optional[str] = None,
+    ttl: int = 3600,
 ) -> typing.List[typing.List[dict]]:
     if custom_map is None:
         custom_map = getattr(inline_proxy, "_custom_map", None)
@@ -119,6 +124,21 @@ def process_buttons(
                     "disable_security": bool(btn_copy.get("disable_security", False)),
                     "unit_id": unit_id or btn_copy.get("unit_id"),
                 }
+
+                if inline_proxy is not None:
+                    kernel = getattr(inline_proxy, "_kernel", None)
+                    if kernel is not None:
+                        cb_map = getattr(kernel, "inline_callback_map", None)
+                        if cb_map is None:
+                            cb_map = {}
+                            setattr(kernel, "inline_callback_map", cb_map)
+
+                        cb_map[btn_copy["_callback_data"]] = {
+                            "handler": btn_copy["callback"],
+                            "args": btn_copy.get("args", ()),
+                            "kwargs": btn_copy.get("kwargs", {}),
+                            "expires_at": time.time() + ttl,
+                        }
 
             result_button = _build_button(btn_copy)
             if result_button:

@@ -134,7 +134,7 @@ async def restart_kernel(
     """
     kernel.logger.info("Restart...")
 
-    # Сохраняем информацию о перезагрузке, если переданы чат и сообщение
+    # Save restart info if chat and message were passed
     if chat_id is not None and message_id is not None:
         try:
             write_restart_file(
@@ -147,11 +147,11 @@ async def restart_kernel(
         except Exception as e:
             kernel.logger.error(f"Не удалось сохранить данные рестарта: {e}")
 
-    # Закрываем ресурсы ядра
+    # Close kernel resources
     try:
         await _close_kernel_resources(kernel)
     except Exception as e:
         kernel.logger.error(f"Ошибка при закрытии ресурсов: {e}")
 
-    # Перезапуск процесса
+    # Restart process
     safe_restart()

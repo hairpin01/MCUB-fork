@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # author: @Hairpin00
 # version: 1.0.6
 # description: Update module

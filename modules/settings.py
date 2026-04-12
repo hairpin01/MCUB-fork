@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # author: @Hairpin00
 # version: 1.0.4
 # description: settings
@@ -14,17 +16,10 @@ from core.lib.loader.module_config import (
     Boolean,
 )
 
-# <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji>
-# <tg-emoji emoji-id="5904692292324692386">⚠️</tg-emoji>
-# <tg-emoji emoji-id="5893382531037794941">🔎</tg-emoji>
-# <tg-emoji emoji-id="5893081007153746175">❌</tg-emoji>
-# <tg-emoji emoji-id="5893368370530621889">🔜</tg-emoji>
-
 
 def register(kernel):
     client = kernel.client
 
-    # Локализованные строки
     strings = {
         "ru": {
             "prefix_usage": "❌ Использование: {prefix}setprefix [символ]",
@@ -232,13 +227,14 @@ def register(kernel):
     @kernel.register.command("addalias")
     async def alias_handler(event):
         """[alias] = [command]"""
-        args = event.text[len(kernel.custom_prefix) + 9 :].strip()
+        parts_text = event.text.split(None, 1)
+        args = parts_text[1].strip() if len(parts_text) > 1 else ""
         if "=" not in args:
             await event.edit(_("alias_usage", prefix=kernel.custom_prefix))
             return
 
-        parts = args.split("=")
-        if len(parts) != 2:
+        parts = args.split("=", 1)
+        if len(parts) < 2:
             await event.edit(_("alias_usage", prefix=kernel.custom_prefix))
             return
 
@@ -353,33 +349,7 @@ def register(kernel):
 
         await event.edit(_("lang_changed", lang=new_lang), parse_mode="html")
 
-    @kernel.register.command("settings")
-    async def settings_handler(event):
-        """settings userbot"""
-        bot_username = kernel.config.get("inline_bot_username")
-        if not bot_username:
-            await event.edit(_("inline_bot_not_set"))
-            return
-
-        await event.delete()
-        try:
-            results = await client.inline_query(bot_username, "settings")
-            if results:
-                await results[0].click(event.chat_id, reply_to=event.reply_to_msg_id)
-            else:
-                await client.send_message(event.chat_id, _("inline_no_results"))
-        except Exception as e:
-            await kernel.handle_error(e, source="settings_inline", event=event)
-            await client.send_message(
-                event.chat_id, _("inline_error", error=str(e)[:100])
-            )
-
     async def _show_danger_confirm(event, action: str, text: str):
-        bot_username = kernel.config.get("inline_bot_username")
-        if not bot_username:
-            await event.edit(_("danger_inline_not_set"), parse_mode="html")
-            return
-
         success, form_message = await kernel.inline_form(
             event.chat_id,
             text,
@@ -516,5 +486,4 @@ def register(kernel):
             await kernel.handle_error(e, source="mcubinfo_cmd", event=event)
             await event.edit(_("mcubinfo_error"), parse_mode="html")
 
-    kernel.register_callback_handler("settings_", settings_danger_callback_handler)
     kernel.register_callback_handler("lang:", lang_callback_handler)

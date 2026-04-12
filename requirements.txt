@@ -1,4 +1,5 @@
 telethon_mcub
+aiogram>=3.13,<4
 psutil
 aiohttp
 pysocks

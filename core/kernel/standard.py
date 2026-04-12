@@ -36,7 +36,7 @@ try:
     _check_mcub_installation()
 except Exception:
     raise McubTelethonError(
-        "YOU is not install telethon-mcub, please run: 'pip -U install telethon-mcub' and 'pip uninstall telethon -y'! (or update telethon-mcub)"
+        "YOU is not install telethon-mcub, please run: 'pip install -U telethon-mcub' and 'pip uninstall telethon -y'! (or update telethon-mcub)"
     ) from None
 
 try:
@@ -1570,7 +1570,7 @@ class Kernel:
         import os
         import logging
 
-        no_web = not getattr(self, "web_enabled", True)  # True если --no-web
+        no_web = not getattr(self, "web_enabled", True)  # True if --no-web
 
         if not no_web:
             web_via_env = os.environ.get("MCUB_WEB", "0") == "1"

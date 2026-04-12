@@ -1,13 +1,24 @@
+# requires: cryptography
+# author: @Hairpin00
+# version: 2.0.0
+# description: Advanced backup
+
 from __future__ import annotations
+
 import asyncio
+import fnmatch
+import hashlib
+import io
+import json
 import os
+import re
 import shutil
+import tarfile
 import tempfile
 import zipfile
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
-# ruff: noqa: RUF001
 import aiohttp
 from telethon import Button
 from telethon.errors import ChannelsTooMuchError
@@ -18,25 +29,98 @@ from telethon.tl.functions.channels import (
 )
 
 from core.lib.loader.module_config import (
-    ModuleConfig,
-    ConfigValue,
     Boolean,
+    Choice,
+    ConfigValue,
     Integer,
+    ModuleConfig,
+    Secret,
     String,
 )
+
+
+def _derive_fernet_key(password: str, salt: bytes) -> bytes:
+    """Derive a 32-byte Fernet-compatible key from a password using PBKDF2."""
+    import base64
+
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=390_000,
+    )
+    return base64.urlsafe_b64encode(kdf.derive(password.encode()))
+
+
+def _encrypt_file(src: Path, dst: Path, password: str) -> None:
+    """Encrypt *src* to *dst* using Fernet/AES with a password-derived key.
+
+    File format: 16-byte salt | ciphertext
+    """
+    from cryptography.fernet import Fernet
+
+    salt = os.urandom(16)
+    key = _derive_fernet_key(password, salt)
+    f = Fernet(key)
+    with open(src, "rb") as fh:
+        data = fh.read()
+    token = f.encrypt(data)
+    with open(dst, "wb") as fh:
+        fh.write(salt + token)
+
+
+def _decrypt_file(src: Path, password: str) -> bytes:
+    """Decrypt a file produced by *_encrypt_file* and return plaintext bytes."""
+    from cryptography.fernet import Fernet, InvalidToken
+
+    with open(src, "rb") as fh:
+        raw = fh.read()
+    salt, token = raw[:16], raw[16:]
+    key = _derive_fernet_key(password, salt)
+    f = Fernet(key)
+    try:
+        return f.decrypt(token)
+    except InvalidToken as exc:
+        raise ValueError("Wrong password or corrupted archive") from exc
+
+
+def _sha256_of_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _parse_delay(text: str) -> int | None:
+    """Parse '30m' / '2h' / '90s' → seconds.  Returns None on failure."""
+    m = re.fullmatch(r"(\d+)(s|m|h)", text.strip().lower())
+    if not m:
+        return None
+    val, unit = int(m.group(1)), m.group(2)
+    return val * {"s": 1, "m": 60, "h": 3600}[unit]
 
 
 class BackupModule:
     def __init__(self, k):
         self.kernel = k
         self.client = k.client
-        self.backup_task = None
+        self.backup_task: asyncio.Task | None = None
+        self.lang_strings: dict = {}
+        self._delayed_tasks: list[asyncio.Task] = []
 
     def get_config(self):
-        live_cfg = getattr(self.kernel, "_live_module_configs", {}).get(__name__)
-        if live_cfg:
-            return live_cfg
-        return None
+        live = getattr(self.kernel, "_live_module_configs", {}).get(__name__)
+        return live if live else None
+
+    async def save_config(self):
+        cfg = self.get_config()
+        if cfg:
+            data = cfg.to_dict() if hasattr(cfg, "to_dict") else cfg
+            await self.kernel.save_module_config(__name__, data)
 
     async def initialize(self):
         await self.schedule_backups()
@@ -66,6 +150,413 @@ class BackupModule:
 
         self.backup_task = asyncio.create_task(backup_loop())
 
+    async def check_disk_space(
+        self, paths_to_archive: list[Path]
+    ) -> tuple[bool, int, int]:
+        """Return (ok, estimated_size_bytes, free_bytes)."""
+        estimated = sum(p.stat().st_size for p in paths_to_archive if p.is_file())
+        usage = shutil.disk_usage(Path.cwd())
+        free = usage.free
+        ok = free >= estimated * 2
+        return ok, estimated, free
+
+    async def _collect_sources(self, components: str | None) -> dict[str, Path]:
+        """Return a mapping of archive-name → source-path for the requested components."""
+        current_dir = Path.cwd()
+        sources: dict[str, Path] = {}
+
+        want_config = components in (None, "config")
+        want_db = components in (None, "db")
+        want_modules = components in (None, "modules")
+
+        if want_config:
+            p = current_dir / "config.json"
+            if p.exists():
+                sources["config.json"] = p
+
+        if want_db:
+            api_id = getattr(self.kernel, "API_ID", None)
+            api_hash = getattr(self.kernel, "API_HASH", None)
+            if api_id and api_hash:
+                from utils.security import get_db_path
+
+                p = Path(get_db_path(api_id, api_hash))
+            else:
+                p = current_dir / "userbot.db"
+            if p.exists():
+                sources["userbot.db"] = p
+
+        if want_modules:
+            p = current_dir / "modules_loaded"
+            if p.exists():
+                sources["modules_loaded"] = p
+
+        return sources
+
+    def _should_exclude(self, rel_path: str, exclude_patterns: list[str]) -> bool:
+        for pattern in exclude_patterns:
+            if fnmatch.fnmatch(rel_path, pattern) or fnmatch.fnmatch(
+                Path(rel_path).name, pattern
+            ):
+                return True
+        return False
+
+    async def create_backup_archive(
+        self,
+        components: str | None = None,
+        archive_format: str = "zip",
+        compression_level: int = 6,
+        exclude_patterns: list[str] | None = None,
+        encryption_password: str | None = None,
+    ) -> tuple[Path, str, int, str | None]:
+        """Create backup archive.
+
+        Returns (archive_path, timestamp, size_bytes, sha256_hex).
+        archive_path may have .enc suffix if encrypted.
+        """
+        exclude_patterns = exclude_patterns or []
+        temp_dir = Path(tempfile.mkdtemp(prefix="mcub_backup_"))
+        backup_dir = temp_dir / "MCUB_backup"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+
+        sources = await self._collect_sources(components)
+
+        # Disk space pre-check
+        all_files: list[Path] = []
+        for src in sources.values():
+            if src.is_file():
+                all_files.append(src)
+            elif src.is_dir():
+                all_files.extend(f for f in src.rglob("*") if f.is_file())
+
+        ok, estimated, free = await self.check_disk_space(all_files)
+        if not ok:
+            await self.kernel.log_warning(
+                f"[Backup] Low disk space: estimated {estimated // 1024}KB needed, "
+                f"{free // 1024}KB free. Backup may fail."
+            )
+
+        # Copy sources into staging dir, respecting exclude_patterns
+        for name, src in sources.items():
+            dst = backup_dir / name
+            if src.is_file():
+                if not self._should_exclude(name, exclude_patterns):
+                    shutil.copy2(src, dst)
+            elif src.is_dir():
+                dst.mkdir(parents=True, exist_ok=True)
+                for item in src.rglob("*"):
+                    if item.is_file():
+                        rel = str(item.relative_to(src))
+                        if not self._should_exclude(rel, exclude_patterns):
+                            target = dst / item.relative_to(src)
+                            target.parent.mkdir(parents=True, exist_ok=True)
+                            shutil.copy2(item, target)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        comp_suffix = f"_{components}" if components else ""
+
+        if archive_format == "tar.gz":
+            archive_name = f"MCUB_backup{comp_suffix}_{timestamp}.tar.gz"
+            archive_path = temp_dir / archive_name
+            with tarfile.open(archive_path, "w:gz") as tf:
+                for item in backup_dir.rglob("*"):
+                    if item.is_file():
+                        arcname = item.relative_to(backup_dir)
+                        tf.add(item, arcname=arcname)
+        else:
+            archive_name = f"MCUB_backup{comp_suffix}_{timestamp}.zip"
+            archive_path = temp_dir / archive_name
+            compress_type = (
+                zipfile.ZIP_DEFLATED if compression_level > 0 else zipfile.ZIP_STORED
+            )
+            with zipfile.ZipFile(
+                archive_path, "w", compress_type, compresslevel=compression_level
+            ) as zf:
+                for item in backup_dir.rglob("*"):
+                    if item.is_file():
+                        arcname = item.relative_to(backup_dir)
+                        zf.write(item, arcname)
+
+        shutil.rmtree(backup_dir)
+
+        # Compute SHA256 before optional encryption
+        sha256 = _sha256_of_file(archive_path)
+
+        # Encrypt if password is set
+        if encryption_password:
+            enc_path = archive_path.with_suffix(archive_path.suffix + ".enc")
+            _encrypt_file(archive_path, enc_path, encryption_password)
+            archive_path.unlink()
+            archive_path = enc_path
+
+        size = archive_path.stat().st_size
+        return archive_path, timestamp, size, sha256
+
+    async def upload_to_cloud(self, file_path: Path, provider: str, token: str) -> bool:
+        """Upload *file_path* to the specified cloud provider."""
+        if provider == "yadisk":
+            return await self._upload_yadisk(file_path, token)
+        if provider == "gdrive":
+            return await self._upload_gdrive(file_path, token)
+        return False
+
+    async def _upload_yadisk(self, file_path: Path, token: str) -> bool:
+        """Upload to Yandex Disk via REST API."""
+        filename = file_path.name
+        remote_path = f"/MCUB_Backups/{filename}"
+        headers = {"Authorization": f"OAuth {token}"}
+
+        async with aiohttp.ClientSession(headers=headers) as session:
+            # Ensure remote directory exists
+            await session.put(
+                "https://cloud-api.yandex.net/v1/disk/resources",
+                params={"path": "/MCUB_Backups"},
+            )
+            # Get upload URL
+            resp = await session.get(
+                "https://cloud-api.yandex.net/v1/disk/resources/upload",
+                params={"path": remote_path, "overwrite": "true"},
+            )
+            if resp.status != 200:
+                body = await resp.text()
+                raise RuntimeError(
+                    f"Yandex Disk get upload URL failed: {resp.status} {body}"
+                )
+            data = await resp.json()
+            upload_url = data["href"]
+
+            # Upload file
+            with open(file_path, "rb") as fh:
+                put_resp = await session.put(upload_url, data=fh)
+            if put_resp.status not in (200, 201):
+                body = await put_resp.text()
+                raise RuntimeError(
+                    f"Yandex Disk upload failed: {put_resp.status} {body}"
+                )
+
+        return True
+
+    async def _upload_gdrive(self, file_path: Path, token: str) -> bool:
+        """Upload to Google Drive via REST API (requires a valid OAuth2 access token)."""
+        filename = file_path.name
+        file_path.stat().st_size
+        headers = {
+            "Authorization": f"Bearer {token}",
+        }
+
+        # First find or create the MCUB_Backups folder
+        async with aiohttp.ClientSession(headers=headers) as session:
+            query = "name='MCUB_Backups' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+            list_resp = await session.get(
+                "https://www.googleapis.com/drive/v3/files",
+                params={"q": query, "fields": "files(id,name)"},
+            )
+            list_data = await list_resp.json()
+            files = list_data.get("files", [])
+
+            if files:
+                folder_id = files[0]["id"]
+            else:
+                create_resp = await session.post(
+                    "https://www.googleapis.com/drive/v3/files",
+                    json={
+                        "name": "MCUB_Backups",
+                        "mimeType": "application/vnd.google-apps.folder",
+                    },
+                )
+                create_data = await create_resp.json()
+                folder_id = create_data["id"]
+
+            # Upload file using multipart upload
+            metadata = json.dumps({"name": filename, "parents": [folder_id]})
+            with open(file_path, "rb") as fh:
+                file_data = fh.read()
+
+            body = (
+                b"--boundary\r\n"
+                b"Content-Type: application/json; charset=UTF-8\r\n\r\n"
+                + metadata.encode()
+                + b"\r\n--boundary\r\n"
+                b"Content-Type: application/octet-stream\r\n\r\n"
+                + file_data
+                + b"\r\n--boundary--"
+            )
+
+            upload_resp = await session.post(
+                "https://www.googleapis.com/upload/drive/v3/files",
+                params={"uploadType": "multipart"},
+                data=body,
+                headers={
+                    **headers,
+                    "Content-Type": "multipart/related; boundary=boundary",
+                    "Content-Length": str(len(body)),
+                },
+            )
+            if upload_resp.status not in (200, 201):
+                body_text = await upload_resp.text()
+                raise RuntimeError(
+                    f"Google Drive upload failed: {upload_resp.status} {body_text}"
+                )
+
+        return True
+
+    async def rotate_old_backups(self, chat_id: int, max_count: int) -> int:
+        """Delete oldest backup messages in *chat_id* if count exceeds *max_count*.
+
+        Returns the number of messages deleted.
+        """
+        if max_count <= 0:
+            return 0
+
+        backup_msgs = []
+        async for msg in self.client.iter_messages(chat_id, limit=500):
+            if msg.document and msg.file and msg.file.name:
+                name = msg.file.name
+                if name.startswith("MCUB_backup") and (
+                    name.endswith(".zip")
+                    or name.endswith(".tar.gz")
+                    or name.endswith(".enc")
+                ):
+                    backup_msgs.append(msg)
+
+        backup_msgs.sort(key=lambda m: m.date)
+
+        deleted = 0
+        while len(backup_msgs) > max_count:
+            old = backup_msgs.pop(0)
+            try:
+                await self.client.delete_messages(chat_id, [old.id])
+                deleted += 1
+            except Exception as e:
+                await self.kernel.handle_error(
+                    e, source="rotate_old_backups", event=None
+                )
+
+        return deleted
+
+    async def list_backup_messages(self, chat_id: int, limit: int = 15) -> list:
+        """Fetch recent backup messages from the chat."""
+        backup_msgs = []
+        async for msg in self.client.iter_messages(chat_id, limit=500):
+            if msg.document and msg.file and msg.file.name:
+                name = msg.file.name
+                if name.startswith("MCUB_backup") and (
+                    name.endswith(".zip")
+                    or name.endswith(".tar.gz")
+                    or name.endswith(".enc")
+                ):
+                    backup_msgs.append(msg)
+                    if len(backup_msgs) >= limit:
+                        break
+        return backup_msgs
+
+    async def send_backup(
+        self,
+        manual: bool = False,
+        components: str | None = None,
+        notify_event=None,
+    ) -> bool:
+        cfg = self.get_config()
+
+        archive_format = cfg.get("archive_format", "zip") if cfg else "zip"
+        compression_level = cfg.get("compression_level", 6) if cfg else 6
+        encryption_password = cfg.get("encryption_password") if cfg else None
+        if not encryption_password:
+            encryption_password = None
+        exclude_raw = cfg.get("exclude_patterns", "") if cfg else ""
+        exclude_patterns = (
+            [p.strip() for p in exclude_raw.split(",") if p.strip()]
+            if exclude_raw
+            else []
+        )
+        max_backups = cfg.get("max_backups", 0) if cfg else 0
+        cloud_provider = cfg.get("cloud_provider", "none") if cfg else "none"
+        cloud_token = cfg.get("cloud_token", "") if cfg else ""
+
+        try:
+            chat = await self.ensure_backup_chat()
+            if not chat:
+                return False
+
+            archive_path, timestamp, _size, sha256 = await self.create_backup_archive(
+                components=components,
+                archive_format=archive_format,
+                compression_level=compression_level,
+                exclude_patterns=exclude_patterns,
+                encryption_password=encryption_password,
+            )
+
+            caption_parts = [
+                self.lang_strings["tip_restore"].format(
+                    prefix=self.kernel.custom_prefix
+                )
+            ]
+            if sha256:
+                caption_parts.append(
+                    f"<blockquote><b>SHA256: </b><code>{sha256}</code></b></blockquote>"
+                )
+            if encryption_password:
+                caption_parts.append(self.lang_strings.get("encrypted_note"))
+            caption = "\n".join(caption_parts)
+
+            # Upload to cloud if configured
+            if cloud_provider != "none" and cloud_token:
+                try:
+                    await self.upload_to_cloud(
+                        archive_path, cloud_provider, cloud_token
+                    )
+                except Exception as e:
+                    await self.kernel.handle_error(e, source="cloud_upload", event=None)
+                cloud_send_tg = cfg.get("cloud_also_telegram", True) if cfg else True
+            else:
+                cloud_send_tg = True
+
+            # Send to Telegram
+            if cloud_send_tg:
+                buttons = Button.inline(
+                    self.lang_strings["btn_restore"], f"restore:{timestamp}"
+                )
+                if self.kernel.is_bot_available():
+                    try:
+                        await self.kernel.bot_client.send_file(
+                            chat.id,
+                            archive_path,
+                            caption=caption,
+                            buttons=buttons,
+                            parse_mode="html",
+                        )
+                    except Exception:
+                        await self.client.send_file(
+                            chat.id, archive_path, caption=caption, parse_mode="html"
+                        )
+                else:
+                    await self.client.send_file(
+                        chat.id, archive_path, caption=caption, parse_mode="html"
+                    )
+
+            archive_path.unlink(missing_ok=True)
+            # Clean up temp dir
+            try:
+                archive_path.parent.rmdir()
+            except Exception:
+                pass
+
+            # Update stats
+            if cfg:
+                cfg["last_backup_time"] = datetime.now().isoformat()
+                cfg["backup_count"] = cfg.get("backup_count", 0) + 1
+                await self.save_config()
+
+            # Rotate old backups
+            if max_backups > 0 and cloud_send_tg:
+                await self.rotate_old_backups(chat.id, max_backups)
+
+            return True
+
+        except Exception as e:
+            await self.kernel.handle_error(e, source="send_backup", event=None)
+            return False
+
     async def ensure_backup_chat(self):
         cfg = self.get_config()
         backup_chat_id = cfg.get("backup_chat_id") if cfg else None
@@ -73,7 +564,6 @@ class BackupModule:
         if backup_chat_id:
             try:
                 chat = await self.client.get_entity(int(backup_chat_id))
-
                 if self.kernel.is_bot_available():
                     try:
                         bot_me = await self.kernel.bot_client.get_me()
@@ -92,25 +582,17 @@ class BackupModule:
                         await self.kernel.handle_error(
                             e, source="check_bot_in_chat", event=None
                         )
-                else:
-                    await self.kernel.log_warning(
-                        f"Bot not available for chat {chat.id}"
-                    )
-
                 return chat
             except Exception:
-                cfg = self.get_config()
                 if cfg:
                     cfg["backup_chat_id"] = None
 
         async for dialog in self.client.iter_dialogs(limit=500):
             if hasattr(dialog.entity, "title") and dialog.entity.title:
                 if "backup" in dialog.entity.title.lower():
-                    cfg = self.get_config()
                     if cfg:
                         cfg["backup_chat_id"] = dialog.entity.id
                         await self.save_config()
-
                     if self.kernel.is_bot_available():
                         try:
                             bot_me = await self.kernel.bot_client.get_me()
@@ -123,7 +605,6 @@ class BackupModule:
                             await self.kernel.handle_error(
                                 e, source="add_bot_to_existing", event=None
                             )
-
                     return dialog.entity
 
         try:
@@ -134,13 +615,10 @@ class BackupModule:
                     megagroup=True,
                 )
             )
-
             chat_id = result.chats[0].id
-            cfg = self.get_config()
             if cfg:
                 cfg["backup_chat_id"] = chat_id
                 await self.save_config()
-
             if self.kernel.is_bot_available():
                 try:
                     bot_me = await self.kernel.bot_client.get_me()
@@ -151,17 +629,15 @@ class BackupModule:
                     await self.kernel.handle_error(
                         e, source="add_bot_to_new", event=None
                     )
-
             chat = await self.client.get_entity(chat_id)
-            await self.client.send_message(chat_id, self.lang_strings["group_created"])
-
+            await self.client.send_message(
+                chat_id, self.lang_strings["group_created"], parse_mode="html"
+            )
             await self.set_group_photo(chat_id, "https://x0.at/4Bjx.jpg")
-
             return chat
         except ChannelsTooMuchError:
             await self.kernel.log_warning(
-                "ChannelsTooMuchError: cannot create backup group because the account "
-                "has joined the maximum number of channels/supergroups. "
+                "ChannelsTooMuchError: cannot create backup group. "
                 "Leave some channels or run `.backupsettings chat <id>` to use an existing group."
             )
             return None
@@ -169,137 +645,24 @@ class BackupModule:
             await self.kernel.handle_error(e, source="ensure_backup_chat", event=None)
             return None
 
-    async def create_backup_archive(self):
-        temp_dir = tempfile.mkdtemp(prefix="mcub_backup_")
-        backup_dir = Path(temp_dir) / "MCUB_backup"
-        backup_dir.mkdir(parents=True, exist_ok=True)
-
-        current_dir = Path.cwd()
-
-        config_file = current_dir / "config.json"
-        if config_file.exists():
-            shutil.copy2(config_file, backup_dir / "config.json")
-
-        db_file = None
-        api_id = getattr(self.kernel, "API_ID", None)
-        api_hash = getattr(self.kernel, "API_HASH", None)
-
-        if api_id and api_hash:
-            from utils.security import get_db_path
-
-            db_path = get_db_path(api_id, api_hash)
-            db_file = Path(db_path)
-        else:
-            db_file = current_dir / "userbot.db"
-
-        if db_file and db_file.exists():
-            shutil.copy2(db_file, backup_dir / "userbot.db")
-
-        modules_dir = current_dir / "modules_loaded"
-        if modules_dir.exists():
-            shutil.copytree(modules_dir, backup_dir / "modules_loaded")
-
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        zip_path = Path(temp_dir) / f"MCUB_backup_{timestamp}.zip"
-
-        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
-            for root, _dirs, files in os.walk(backup_dir):
-                for file in files:
-                    file_path = Path(root) / file
-                    arcname = file_path.relative_to(backup_dir)
-                    zipf.write(file_path, arcname)
-
-        shutil.rmtree(backup_dir)
-
-        zip_size = os.path.getsize(zip_path)
-        return zip_path, timestamp, zip_size
-
-    async def send_backup(self, manual=False):
-        try:
-            chat = await self.ensure_backup_chat()
-            if not chat:
-                return False
-
-            zip_path, timestamp, _zip_size = await self.create_backup_archive()
-
-            if self.kernel.is_bot_available():
-                try:
-                    await self.kernel.bot_client.send_file(
-                        chat.id,
-                        zip_path,
-                        caption=self.lang_strings["tip_restore"].format(
-                            prefix=self.kernel.custom_prefix
-                        ),
-                        buttons=Button.inline(
-                            self.lang_strings["btn_restore"], f"restore:{timestamp}"
-                        ),
-                        parse_mode="html",
-                    )
-                except Exception as e:
-                    self.kernel.log_warning(
-                        f"Failed to send backup via bot: {e}, trying via main client"
-                    )
-                    await self.client.send_file(
-                        chat.id,
-                        zip_path,
-                        caption=self.lang_strings["tip_restore"].format(
-                            prefix=self.kernel.custom_prefix
-                        ),
-                        parse_mode="html",
-                    )
-            else:
-                await self.client.send_file(
-                    chat.id,
-                    zip_path,
-                    caption=self.lang_strings["tip_restore"].format(
-                        prefix=self.kernel.custom_prefix
-                    ),
-                    parse_mode="html",
-                )
-
-            cfg = self.get_config()
-            if cfg:
-                cfg["last_backup_time"] = datetime.now().isoformat()
-                cfg["backup_count"] = cfg.get("backup_count", 0) + 1
-                await self.save_config()
-
-            os.remove(zip_path)
-            return True
-        except Exception as e:
-            await self.kernel.handle_error(e, source="send_backup", event=None)
-            return False
-
-    async def save_config(self):
-        cfg = self.get_config()
-        if cfg:
-            if hasattr(cfg, "to_dict"):
-                await self.kernel.save_module_config(__name__, cfg.to_dict())
-            else:
-                await self.kernel.save_module_config(__name__, cfg)
-
     async def set_group_photo(self, chat_id, photo_url):
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(photo_url) as resp:
                     if resp.status == 200:
                         photo_data = await resp.read()
-
                         content_type = resp.headers.get("Content-Type", "image/jpeg")
                         ext_map = {
                             "image/jpeg": "photo.jpg",
                             "image/jpg": "photo.jpg",
                             "image/png": "photo.png",
                             "image/webp": "photo.jpg",
-                            "image/gif": "photo.gif",
                         }
                         filename = ext_map.get(
                             content_type.split(";")[0].strip(), "photo.jpg"
                         )
-                        import io as _io
-
-                        buf = _io.BytesIO(photo_data)
+                        buf = io.BytesIO(photo_data)
                         buf.name = filename
-
                         input_file = await self.client.upload_file(buf)
                         await self.client(
                             EditPhotoRequest(channel=chat_id, photo=input_file)
@@ -311,18 +674,32 @@ class BackupModule:
 def register(kernel):
     language = kernel.config.get("language", "en")
 
+    emojis = {
+        "hourglass": '<tg-emoji emoji-id="5426958067763804056">⏳</tg-emoji>',
+        "check": '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji>',
+        "cross": '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji>',
+        "warning": '<tg-emoji emoji-id="5409235172979672859">⚠️</tg-emoji>',
+        "settings": '<tg-emoji emoji-id="5332654441508119011">⚙️</tg-emoji>',
+        "clock": '<tg-emoji emoji-id="5326015457155620929">🧳</tg-emoji>',
+        "box": '<tg-emoji emoji-id="5399898266265475100">📦</tg-emoji>',
+        "refresh": '<tg-emoji emoji-id="5332600281970517875">🔄</tg-emoji>',
+        "lock": '<tg-emoji emoji-id="5447644880824181073">🔐</tg-emoji>',
+        "cloud": '<tg-emoji emoji-id="5359954476607521990">☁️</tg-emoji>',
+        "trash": '<tg-emoji emoji-id="5380186498827373381">🗑️</tg-emoji>',
+        "list": '<tg-emoji emoji-id="5411192149058289173">☁️</tg-emoji>',
+    }
+
     strings = {
         "ru": {
-            "creating_backup": "⌛ Создаю бэкап...",
-            "backup_created": "✅ Бэкап создан",
-            "backup_failed": "❌ Ошибка создания бэкапа",
-            "reply_to_backup": "❌ Ответьте на сообщение с бэкапом",
-            "not_backup_file": "❌ Это не файл бэкапа",
-            "restoring": "⌛ Восстанавливаю...",
-            "restored": "✅ Восстановлено:",
-            "no_files": "⚠️ Нет файлов для восстановления",
-            "restore_error": "❌ Ошибка:",
-            "backup_settings": "⚙️ Настройки бэкапа",
+            "creating_backup": f"{emojis['hourglass']} <i>Создаю бэкап...</i>",
+            "backup_created": f"{emojis['check']} <b>Бэкап создан</b>",
+            "backup_failed": f"{emojis['cross']} <i><b>Ошибка создания бэкапа</b></i>",
+            "reply_to_backup": f"{emojis['cross']} <u>Ответьте на сообщение с бэкапом</u>",
+            "not_backup_file": f"{emojis['cross']} <u>Это не файл бэкапа</u>",
+            "restoring": f"{emojis['hourglass']} <i>Восстанавливаю...</i>",
+            "restored": f"{emojis['check']} <b>Восстановлено:</b>",
+            "no_files": f"{emojis['warning']} <u>Нет файлов для восстановления</u>",
+            "restore_error": f"{emojis['cross']} Ошибка:",
             "chat_id": "Chat ID:",
             "interval": "Интервал:",
             "auto_backup": "Авто-бэкап:",
@@ -332,19 +709,13 @@ def register(kernel):
             "set_interval": "Установить интервал бэкапа",
             "enable_disable": "Включить/выключить авто-бэкап",
             "set_chat": "Установить чат для бэкапа",
-            "interval_set": "✅ Интервал установлен на {hours} часов",
-            "interval_invalid": "❌ Интервал должен быть от 1 до 24 часов",
-            "auto_enabled": "✅ Авто-бэкап включен",
-            "auto_disabled": "✅ Авто-бэкап выключен",
-            "chat_set": "✅ Чат для бэкапа установлен: {chat_id}",
-            "invalid_chat_id": "❌ Неверный ID чата",
-            "unknown_command": "❌ Неизвестная команда",
-            "select_interval": "⏰ Выберите интервал бэкапа:",
-            "check_pm": "✅ Проверьте ЛС с ботом",
-            "bot_not_available": "⚠️ Бот недоступен. Сначала напишите боту.",
-            "cant_send_pm": "❌ Не могу отправить ЛС. Сначала напишите боту",
-            "processing": "⌛ Обработка...",
-            "group_created": "✅ Группа для бэкапов создана",
+            "interval_set": f"{emojis['check']} Интервал установлен на {{hours}} часов",
+            "interval_invalid": f"{emojis['cross']} Интервал должен быть от 1 до 24 часов",
+            "invalid_chat_id": f"{emojis['cross']} Неверный ID чата",
+            "unknown_command": f"{emojis['cross']} Неизвестная команда",
+            "select_interval": f"{emojis['clock']} Выберите интервал бэкапа:",
+            "processing": "🔄 Обработка...",
+            "group_created": f"{emojis['check']} Группа для бэкапов создана",
             "tip_restore": "подсказка: {prefix}restore для восстановления бэкапа",
             "btn_restore": "🔄 Восстановить",
             "btn_1_hour": "1 час",
@@ -353,22 +724,37 @@ def register(kernel):
             "btn_24_hours": "24 часа",
             "not_set": "Не установлен",
             "hours": "часов",
-            "enabled": "Включен",
+            "enabled": "Включён",
             "disabled": "Выключен",
-            "invalid_interval": "❌ Неверный интервал",
-            "error_processing": "❌ Ошибка обработки",
+            "invalid_interval": f"{emojis['cross']} Неверный интервал",
+            "error_processing": f"{emojis['cross']} Ошибка обработки",
+            "encrypted_note": f"<blockquote>{emojis['lock']} Зашифровано</blockquote>",
+            "wrong_password": f"{emojis['cross']} Неверный пароль или архив повреждён",
+            "hash_ok": f"{emojis['check']} SHA256 совпадает — файл цел",
+            "hash_mismatch": f"<blockquote>{emojis['cross']} SHA256 не совпадает — файл повреждён!</blockquote>",
+            "hash_unknown": f"{emojis['warning']} SHA256 не найден в подписи",
+            "cloud_ok": f"{emojis['cloud']} {{provider}}: загружено успешно",
+            "cloud_fail": f"{emojis['cross']} {{provider}}: ошибка загрузки",
+            "cleanup_done": f"{emojis['trash']} Удалено старых бэкапов: {{count}}",
+            "no_backups_found": f"{emojis['warning']} Бэкапы не найдены в чате",
+            "select_backup": f"{emojis['list']} <b>Выберите бэкап для восстановления:</b>",
+            "delayed_scheduled": f"{emojis['clock']} Бэкап будет создан в <b>{{time}}</b>",
+            "invalid_time": f"{emojis['cross']} Неверный формат времени. Пример: 30m, 2h, 90s",
+            "unknown_arg": f"{emojis['cross']} Неизвестный аргумент. Доступно: config, db, modules, in &lt;время&gt;, cleanup",
+            "low_disk": f"{emojis['warning']} Мало места на диске: нужно ~{{needed}}MB, свободно {{free}}MB",
+            "encrypted_restore": f"{emojis['lock']} Архив зашифрован. Укажите пароль: <code>{kernel.custom_prefix}restore_with &lt;пароль&gt;</code>",
         },
         "en": {
-            "creating_backup": "⌛ Creating backup...",
-            "backup_created": "✅ Backup created",
-            "backup_failed": "❌ Backup failed",
-            "reply_to_backup": "❌ Reply to a backup message",
-            "not_backup_file": "❌ This is not a backup file",
-            "restoring": "⌛ Restoring...",
-            "restored": "✅ Restored:",
-            "no_files": "⚠️ No files to restore",
-            "restore_error": "❌ Error:",
-            "backup_settings": "⚙️ Backup Settings",
+            "creating_backup": f"{emojis['hourglass']} <i>Creating backup...</i>",
+            "backup_created": f"{emojis['check']} <b>Backup created</b>",
+            "backup_failed": f"{emojis['cross']} <b><i>Backup failed</i></b>",
+            "reply_to_backup": f"{emojis['cross']} <u>Reply to a backup message</u>",
+            "not_backup_file": f"{emojis['cross']} <u>This is not a backup file</u>",
+            "restoring": f"{emojis['hourglass']} <i>Restoring...</i>",
+            "restored": f"{emojis['check']} Restored:",
+            "no_files": f"{emojis['warning']} No files to restore",
+            "restore_error": f"{emojis['cross']} Error:",
+            "backup_settings": f"{emojis['settings']} Backup Settings",
             "chat_id": "Chat ID:",
             "interval": "Interval:",
             "auto_backup": "Auto backup:",
@@ -378,20 +764,20 @@ def register(kernel):
             "set_interval": "Set backup interval",
             "enable_disable": "Enable/disable auto backup",
             "set_chat": "Set backup chat manually",
-            "interval_set": "✅ Interval set to {hours} hours",
-            "interval_invalid": "❌ Interval must be between 1 and 24 hours",
-            "auto_enabled": "✅ Auto backup enabled",
-            "auto_disabled": "✅ Auto backup disabled",
-            "chat_set": "✅ Backup chat set to {chat_id}",
-            "invalid_chat_id": "❌ Invalid chat ID",
-            "unknown_command": "❌ Unknown command",
-            "select_interval": "⏰ Select backup interval:",
-            "check_pm": "✅ Check your PM with the bot",
-            "bot_not_available": "⚠️ Bot is not available. Please start a chat with the bot first.",
-            "cant_send_pm": "❌ Can't send PM. Start a chat with the bot first",
-            "processing": "⌛ Processing...",
-            "group_created": "✅ Backup group created",
-            "tip_restore": "tip: {prefix}restore to restore a backup",
+            "interval_set": f"{emojis['check']} Interval set to {{hours}} hours",
+            "interval_invalid": f"{emojis['cross']} Interval must be between 1 and 24 hours",
+            "auto_enabled": f"{emojis['check']} Auto backup enabled",
+            "auto_disabled": f"{emojis['check']} Auto backup disabled",
+            "chat_set": f"{emojis['check']} Backup chat set to {{chat_id}}",
+            "invalid_chat_id": f"{emojis['cross']} Invalid chat ID",
+            "unknown_command": f"{emojis['cross']} Unknown command",
+            "select_interval": f"{emojis['clock']} Select backup interval:",
+            "check_pm": f"{emojis['check']} Check your PM with the bot",
+            "bot_not_available": f"{emojis['warning']} Bot not available. Please start a chat with the bot first.",
+            "cant_send_pm": f"{emojis['cross']} Can't send PM. Start a chat with the bot first",
+            "processing": "🔄 Processing...",
+            "group_created": f"{emojis['check']} Backup group created",
+            "tip_restore": "<blockquote>tip: {prefix}restore to restore a backup</blockquote>",
             "btn_restore": "🔄 Restore",
             "btn_1_hour": "1 hour",
             "btn_6_hours": "6 hours",
@@ -401,8 +787,23 @@ def register(kernel):
             "hours": "hours",
             "enabled": "Enabled",
             "disabled": "Disabled",
-            "invalid_interval": "❌ Invalid interval",
-            "error_processing": "❌ Error processing",
+            "invalid_interval": f"{emojis['cross']} Invalid interval",
+            "error_processing": f"{emojis['cross']} Error processing",
+            "encrypted_note": f"<blockquote>{emojis['lock']} Encrypted</blockquote>",
+            "wrong_password": f"{emojis['cross']} Wrong password or corrupted archive",
+            "hash_ok": f"{emojis['check']} SHA256 matches — file is intact",
+            "hash_mismatch": f"{emojis['cross']} </blockquote>SHA256 mismatch — file may be corrupted!</blockquote>",
+            "hash_unknown": f"{emojis['warning']} SHA256 not found in message caption",
+            "cloud_ok": f"{emojis['cloud']} {{provider}}: uploaded successfully",
+            "cloud_fail": f"{emojis['cross']} {{provider}}: upload failed",
+            "cleanup_done": f"{emojis['trash']} Deleted {{count}} old backup(s)",
+            "no_backups_found": f"{emojis['warning']} No backups found in the chat",
+            "select_backup": f"{emojis['list']} <b>Select a backup to restore:</b>",
+            "delayed_scheduled": f"{emojis['clock']} Backup scheduled for <b>{{time}}</b>",
+            "invalid_time": f"{emojis['cross']} Invalid time format. Examples: 30m, 2h, 90s",
+            "unknown_arg": f"{emojis['cross']} Unknown argument. Available: config, db, modules, in &lt;time&gt;, cleanup",
+            "low_disk": f"{emojis['warning']} Low disk space: ~{{needed}}MB needed, {{free}}MB free",
+            "encrypted_restore": f"{emojis['lock']} Archive is encrypted. Provide password: <code>{kernel.custom_prefix}restore_with &lt;password&gt;</code>",
         },
     }
 
@@ -418,8 +819,8 @@ def register(kernel):
         ConfigValue(
             "backup_interval_hours",
             12,
-            description="Backup interval in hours (1-24)",
-            validator=Integer(default=12, min=1, max=24),
+            description="Auto-backup interval in hours (1-168)",
+            validator=Integer(default=12, min=1, max=168),
         ),
         ConfigValue(
             "last_backup_time",
@@ -439,79 +840,218 @@ def register(kernel):
             description="Enable automatic backups",
             validator=Boolean(default=True),
         ),
+        ConfigValue(
+            "exclude_patterns",
+            "",
+            description="Comma-separated glob patterns to exclude (e.g. *.log,*.tmp)",
+            validator=String(default=""),
+        ),
+        ConfigValue(
+            "max_backups",
+            0,
+            description="Max backup files to keep in chat (0 = unlimited)",
+            validator=Integer(default=0, min=0),
+        ),
+        ConfigValue(
+            "encryption_password",
+            "",
+            description="Password for AES archive encryption (empty = disabled)",
+            validator=Secret(default=""),
+        ),
+        ConfigValue(
+            "cloud_provider",
+            "none",
+            description="Cloud storage provider",
+            validator=Choice(choices=["none", "yadisk", "gdrive"], default="none"),
+        ),
+        ConfigValue(
+            "cloud_token",
+            "",
+            description="Cloud OAuth token (Yandex Disk or Google Drive)",
+            validator=Secret(default=""),
+        ),
+        ConfigValue(
+            "cloud_also_telegram",
+            True,
+            description="Also send to Telegram when cloud is enabled",
+            validator=Boolean(default=True),
+        ),
+        ConfigValue(
+            "compression_level",
+            6,
+            description="ZIP compression level (0 = store, 9 = maximum)",
+            validator=Integer(default=6, min=0, max=9),
+        ),
+        ConfigValue(
+            "archive_format",
+            "zip",
+            description="Archive format",
+            validator=Choice(choices=["zip", "tar.gz"], default="zip"),
+        ),
+        ConfigValue(
+            "auto_restore_config",
+            True,
+            description="Attempt to auto-restore config.json on startup if missing",
+            validator=Boolean(default=True),
+        ),
     )
 
     def get_config():
-        live_cfg = getattr(kernel, "_live_module_configs", {}).get(__name__)
-        if live_cfg:
-            return live_cfg
-        return config
+        live = getattr(kernel, "_live_module_configs", {}).get(__name__)
+        return live if live else config
 
     backup_module = BackupModule(kernel)
     backup_module.lang_strings = lang_strings
 
     async def startup():
-        config_dict = await kernel.get_module_config(
-            __name__,
-            {
-                "backup_chat_id": None,
-                "backup_interval_hours": 12,
-                "last_backup_time": None,
-                "backup_count": 0,
-                "enable_auto_backup": True,
-            },
-        )
+        defaults = {
+            "backup_chat_id": None,
+            "backup_interval_hours": 12,
+            "last_backup_time": None,
+            "backup_count": 0,
+            "enable_auto_backup": True,
+            "exclude_patterns": "",
+            "max_backups": 0,
+            "encryption_password": "",
+            "cloud_provider": "none",
+            "cloud_token": "",
+            "cloud_also_telegram": True,
+            "compression_level": 6,
+            "archive_format": "zip",
+            "auto_restore_config": True,
+        }
+        config_dict = await kernel.get_module_config(__name__, defaults)
         config.from_dict(config_dict)
-        config_dict_clean = {k: v for k, v in config.to_dict().items() if v is not None}
-        if config_dict_clean:
-            await kernel.save_module_config(__name__, config_dict_clean)
+        clean = {k: v for k, v in config.to_dict().items() if v is not None}
+        if clean:
+            await kernel.save_module_config(__name__, clean)
         kernel.store_module_config_schema(__name__, config)
         await backup_module.initialize()
 
+        cfg = get_config()
+        if cfg and cfg.get("auto_restore_config", True):
+            if not (Path.cwd() / "config.json").exists():
+                backup_chat_id = cfg.get("backup_chat_id")
+                if backup_chat_id:
+                    try:
+                        msgs = await backup_module.list_backup_messages(
+                            int(backup_chat_id), limit=5
+                        )
+                        if msgs:
+                            latest = msgs[0]
+                            tmp = Path(tempfile.mkdtemp(prefix="mcub_autorestore_"))
+                            zip_path = tmp / "backup.zip"
+                            await latest.download_media(zip_path)
+                            with zipfile.ZipFile(zip_path, "r") as zf:
+                                for name in zf.namelist():
+                                    if name.endswith("config.json"):
+                                        zf.extract(name, tmp)
+                                        extracted = tmp / name
+                                        shutil.copy2(
+                                            extracted, Path.cwd() / "config.json"
+                                        )
+                                        kernel.logger.info(
+                                            "[Backup] Auto-restored config.json from latest backup"
+                                        )
+                                        break
+                            shutil.rmtree(tmp, ignore_errors=True)
+                    except Exception as e:
+                        kernel.logger.warning(
+                            f"[Backup] Auto-restore config failed: {e}"
+                        )
+
     asyncio.create_task(startup())
 
-    async def _restore_from_backup_message(backup_message, status_event):
+    async def _restore_from_backup_message(
+        backup_message, status_event, password: str | None = None
+    ):
         if (
             not backup_message
             or not getattr(backup_message, "document", None)
-            or not getattr(getattr(backup_message, "file", None), "name", "").endswith(
-                ".zip"
-            )
+            or not getattr(getattr(backup_message, "file", None), "name", "")
         ):
-            await status_event.edit(lang_strings["not_backup_file"])
+            await status_event.edit(lang_strings["not_backup_file"], parse_mode="html")
             return False
 
-        await status_event.edit(lang_strings["restoring"])
-        temp_dir = tempfile.mkdtemp(prefix="restore_")
-        zip_path = Path(temp_dir) / "backup.zip"
+        fname = backup_message.file.name
+        is_encrypted = fname.endswith(".enc")
+        is_valid = fname.startswith("MCUB_backup") and (
+            fname.endswith(".zip") or fname.endswith(".tar.gz") or is_encrypted
+        )
+        if not is_valid:
+            await status_event.edit(lang_strings["not_backup_file"], parse_mode="html")
+            return False
+
+        # If encrypted and no password, prompt
+        if is_encrypted and not password:
+            cfg = get_config()
+            password = cfg.get("encryption_password") if cfg else None
+            if not password:
+                await status_event.edit(
+                    lang_strings["encrypted_restore"], parse_mode="html"
+                )
+                return False
+
+        caption = getattr(backup_message, "message", "") or ""
+        sha256_from_caption = None
+        m = re.search(r"SHA256: ([a-f0-9]{64})", caption)
+        if m:
+            sha256_from_caption = m.group(1)
+
+        await status_event.edit(lang_strings["restoring"], parse_mode="html")
+        temp_dir = Path(tempfile.mkdtemp(prefix="restore_"))
+        archive_path = temp_dir / fname
 
         try:
-            await backup_message.download_media(zip_path)
+            await backup_message.download_media(archive_path)
 
-            extract_dir = Path(temp_dir) / "extracted"
-            with zipfile.ZipFile(zip_path, "r") as zipf:
-                zipf.extractall(extract_dir)
+            # Verify SHA256
+            if sha256_from_caption:
+                actual_sha256 = _sha256_of_file(archive_path)
+                if actual_sha256 != sha256_from_caption:
+                    await status_event.edit(
+                        lang_strings["hash_mismatch"], parse_mode="html"
+                    )
+                    return False
+
+            # Decrypt if needed
+            if is_encrypted:
+                try:
+                    plaintext = _decrypt_file(archive_path, password)
+                except ValueError:
+                    await status_event.edit(
+                        lang_strings["wrong_password"], parse_mode="html"
+                    )
+                    return False
+                real_name = fname[:-4]  # strip .enc
+                decrypted_path = temp_dir / real_name
+                with open(decrypted_path, "wb") as fh:
+                    fh.write(plaintext)
+                archive_path = decrypted_path
+
+            extract_dir = temp_dir / "extracted"
+
+            # Extract
+            if archive_path.name.endswith(".tar.gz"):
+                with tarfile.open(archive_path, "r:gz") as tf:
+                    tf.extractall(extract_dir)
+            else:
+                with zipfile.ZipFile(archive_path, "r") as zf:
+                    zf.extractall(extract_dir)
 
             backup_dir = extract_dir / "MCUB_backup"
             if not backup_dir.exists():
                 backup_dir = extract_dir
 
             current_dir = Path.cwd()
-            restored = []
-
+            restored: list[str] = []
             api_id = getattr(kernel, "API_ID", None)
             api_hash = getattr(kernel, "API_HASH", None)
 
-            if api_id and api_hash:
-                from utils.security import get_db_path, get_mcub_dir
-
-                mcub_dir = Path(get_mcub_dir(api_id, api_hash))
-                mcub_dir.mkdir(parents=True, exist_ok=True)
-            else:
-                mcub_dir = current_dir
-
             for item in backup_dir.iterdir():
                 if item.name == "userbot.db" and api_id and api_hash:
+                    from utils.security import get_db_path
+
                     target = Path(get_db_path(api_id, api_hash))
                 else:
                     target = current_dir / item.name
@@ -519,183 +1059,247 @@ def register(kernel):
                 if target.exists():
                     backup_time = datetime.now().strftime("%Y%m%d_%H%M%S")
                     backup_name = f"{target.name}_backup_{backup_time}"
-                    shutil.move(target, current_dir / backup_name)
-                    restored.append(f"📦 {item.name} → {backup_name}")
+                    shutil.move(str(target), current_dir / backup_name)
+                    restored.append(f"{emojis['box']} {item.name} → {backup_name}")
 
                 if item.is_file():
                     shutil.copy2(item, target)
                 elif item.is_dir():
                     shutil.copytree(item, target, dirs_exist_ok=True)
 
-                restored.append(f"✅ {item.name}")
-
-            shutil.rmtree(temp_dir, ignore_errors=True)
+                restored.append(f"{emojis['check']} {item.name}")
 
             if restored:
-                await status_event.edit(
-                    f"{lang_strings['restored']}\n" + "\n".join(restored)
-                )
-                cmd = await kernel.client.send_message(
-                    status_event.chat_id, f"{kernel.custom_prefix}restart"
-                )
-                await kernel.process_command(cmd)
+                try:
+                    await status_event.edit(
+                        f"{lang_strings['restored']}\n" + "\n".join(restored),
+                        parse_mode="html",
+                    )
+                    cmd = await kernel.client.send_message(
+                        status_event.chat_id,
+                        f"{kernel.custom_prefix}restart",
+                        parse_mode="html",
+                    )
+                    await kernel.process_command(cmd)
+                except Exception:
+                    pass
+
                 return True
 
-            await status_event.edit(lang_strings["no_files"])
+            await status_event.edit(lang_strings["no_files"], parse_mode="html")
             return False
+
         except Exception as e:
             await kernel.handle_error(e, source="restore_handler", event=status_event)
-            await status_event.edit(f"{lang_strings['restore_error']} {e!s}")
+            await status_event.edit(
+                f"{lang_strings['restore_error']} {e!s}", parse_mode="html"
+            )
             return False
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
     @kernel.register.command("backup")
+    # create backup: .backup [config|db|modules] [in <time>] [cleanup] [cloud]
     async def backup_handler(event):
-        await event.edit(lang_strings["creating_backup"])
+        raw = event.message.text.strip()
+        parts = raw.split()
+        args = parts[1:]
 
-        if await backup_module.send_backup(manual=True):
-            await event.edit(lang_strings["backup_created"])
+        if args and args[0] == "cleanup":
+            cfg = get_config()
+            backup_chat_id = cfg.get("backup_chat_id") if cfg else None
+            if not backup_chat_id:
+                await event.edit(lang_strings["no_backups_found"], parse_mode="html")
+                return
+            await event.edit(lang_strings["processing"], parse_mode="html")
+            max_backups = cfg.get("max_backups", 0) if cfg else 0
+            keep = max_backups if max_backups > 0 else 0
+            deleted = await backup_module.rotate_old_backups(int(backup_chat_id), keep)
+            await event.edit(
+                lang_strings["cleanup_done"].format(count=deleted), parse_mode="html"
+            )
+            return
+
+        if args and args[0] == "cloud":
+            cfg = get_config()
+            provider = cfg.get("cloud_provider", "none") if cfg else "none"
+            token = cfg.get("cloud_token", "") if cfg else ""
+            if provider == "none" or not token:
+                await event.edit(
+                    f"{emojis['cross']} Cloud provider not configured",
+                    parse_mode="html",
+                )
+                return
+            await event.edit(lang_strings["creating_backup"], parse_mode="html")
+            try:
+                archive_path, _, _, _ = await backup_module.create_backup_archive(
+                    compression_level=cfg.get("compression_level", 6),
+                    archive_format=cfg.get("archive_format", "zip"),
+                    encryption_password=cfg.get("encryption_password") or None,
+                )
+                await backup_module.upload_to_cloud(archive_path, provider, token)
+                archive_path.unlink(missing_ok=True)
+                await event.edit(
+                    lang_strings["cloud_ok"].format(provider=provider),
+                    parse_mode="html",
+                )
+            except Exception as e:
+                await event.edit(
+                    lang_strings["cloud_fail"].format(provider=provider)
+                    + f"\n<code>{e}</code>",
+                    parse_mode="html",
+                )
+            return
+
+        if len(args) >= 2 and args[0] == "in":
+            delay_secs = _parse_delay(args[1])
+            if delay_secs is None:
+                await event.edit(lang_strings["invalid_time"], parse_mode="html")
+                return
+            target_time = (datetime.now() + timedelta(seconds=delay_secs)).strftime(
+                "%H:%M"
+            )
+            await event.edit(
+                lang_strings["delayed_scheduled"].format(time=target_time),
+                parse_mode="html",
+            )
+            components = (
+                args[2]
+                if len(args) >= 3 and args[2] in ("config", "db", "modules")
+                else None
+            )
+
+            async def _delayed():
+                await asyncio.sleep(delay_secs)
+                await backup_module.send_backup(manual=True, components=components)
+
+            task = asyncio.create_task(_delayed())
+            backup_module._delayed_tasks.append(task)
+            return
+
+        components = None
+        if args and args[0] in ("config", "db", "modules"):
+            components = args[0]
+        elif args:
+            await event.edit(lang_strings["unknown_arg"], parse_mode="html")
+            return
+
+        await event.edit(lang_strings["creating_backup"], parse_mode="html")
+        if await backup_module.send_backup(manual=True, components=components):
+            await event.edit(lang_strings["backup_created"], parse_mode="html")
         else:
-            await event.edit(lang_strings["backup_failed"])
+            await event.edit(lang_strings["backup_failed"], parse_mode="html")
 
     @kernel.register.command("restore")
+    # restore backup: reply to backup file OR use .restore list
     async def restore_handler(event):
+        raw = event.message.text.strip()
+        parts = raw.split()
+        args = parts[1:]
+
+        if args and args[0] == "list":
+            cfg = get_config()
+            backup_chat_id = cfg.get("backup_chat_id") if cfg else None
+            if not backup_chat_id:
+                await event.edit(lang_strings["no_backups_found"], parse_mode="html")
+                return
+            await event.edit(lang_strings["processing"], parse_mode="html")
+            msgs = await backup_module.list_backup_messages(
+                int(backup_chat_id), limit=10
+            )
+            if not msgs:
+                await event.edit(lang_strings["no_backups_found"], parse_mode="html")
+                return
+
+            buttons = []
+            for msg in msgs:
+                date_str = msg.date.strftime("%Y-%m-%d %H:%M")
+                size_kb = round(msg.document.size / 1024)
+                label = f"📦 {date_str} ({size_kb}KB)"
+                buttons.append([Button.inline(label, f"restore_pick:{msg.id}")])
+
+            true, _ = await kernel.inline_form(
+                event.chat_id,
+                lang_strings["select_backup"],
+                buttons=buttons,
+                parse_mode="html",
+            )
+            if true:
+                await event.delete()
+
+            return
+
         if not event.is_reply:
-            await event.edit(lang_strings["reply_to_backup"])
+            await event.edit(lang_strings["reply_to_backup"], parse_mode="html")
             return
 
         reply = await event.get_reply_message()
         await _restore_from_backup_message(reply, event)
 
-    @kernel.register.command("backupsettings")
-    async def backup_settings_handler(event):
-        args = event.text.split()
+    @kernel.register.command("restore_with")
+    # restore encrypted backup: reply + provide password
+    async def restore_with_handler(event):
+        raw = event.message.text.strip()
+        parts = raw.split(maxsplit=1)
+        password = parts[1].strip() if len(parts) > 1 else None
 
-        if len(args) == 1:
-            cfg = get_config()
-
-            last_backup = cfg.get("last_backup_time")
-            if last_backup:
-                last_backup = datetime.fromisoformat(last_backup).strftime(
-                    "%Y-%m-%d %H:%M"
-                )
-            else:
-                last_backup = "Never"
-
-            settings_text = f"""⚙️ **{lang_strings["backup_settings"]}**
-
-**{lang_strings["chat_id"]}** `{cfg.get("backup_chat_id") or lang_strings["not_set"]}`
-**{lang_strings["interval"]}** `{cfg.get("backup_interval_hours")} {lang_strings["hours"]}`
-**{lang_strings["auto_backup"]}** `{lang_strings["enabled"] if cfg.get("enable_auto_backup") else lang_strings["disabled"]}`
-**{lang_strings["last_backup"]}** `{last_backup}`
-**{lang_strings["total_backups"]}** `{cfg.get("backup_count")}`
-
-**{lang_strings["commands"]}**
-`.backupsettings interval <hours>` - {lang_strings["set_interval"]}
-`.backupsettings auto on/off` - {lang_strings["enable_disable"]}
-`.backupsettings chat` - {lang_strings["set_chat"]}"""
-
-            await event.edit(settings_text)
+        if not password:
+            await event.edit(
+                f"{emojis['cross']} Usage: <code>{kernel.custom_prefix}restore_with &lt;password&gt;</code>",
+                parse_mode="html",
+            )
+            return
+        if not event.is_reply:
+            await event.edit(lang_strings["reply_to_backup"], parse_mode="html")
             return
 
-        cmd = args[1].lower()
-        cfg = get_config()
+        reply = await event.get_reply_message()
+        await _restore_from_backup_message(reply, event, password=password)
 
-        if cmd == "interval" and len(args) > 2:
-            try:
-                hours = int(args[2])
-                if 1 <= hours <= 24:
-                    cfg["backup_interval_hours"] = hours
-                    await backup_module.save_config()
-                    await backup_module.schedule_backups()
-                    await event.edit(lang_strings["interval_set"].format(hours=hours))
-                else:
-                    await event.edit(lang_strings["interval_invalid"])
-            except ValueError:
-                await event.edit(lang_strings["interval_invalid"])
+    @kernel.register.command("backup_verify")
+    # verify SHA256 of a backup: reply to backup message
+    async def verify_handler(event):
+        if not event.is_reply:
+            await event.edit(lang_strings["reply_to_backup"], parse_mode="html")
+            return
 
-        elif cmd == "auto" and len(args) > 2:
-            state = args[2].lower()
-            if state in ["on", "true", "1", "yes"]:
-                cfg["enable_auto_backup"] = True
-                await backup_module.save_config()
-                await backup_module.schedule_backups()
-                await event.edit(lang_strings["auto_enabled"])
-            elif state in ["off", "false", "0", "no"]:
-                cfg["enable_auto_backup"] = False
-                await backup_module.save_config()
-                await backup_module.schedule_backups()
-                await event.edit(lang_strings["auto_disabled"])
-            else:
-                await event.edit(lang_strings["unknown_command"])
+        reply = await event.get_reply_message()
+        caption = getattr(reply, "message", "") or ""
+        m = re.search(r"SHA256: ([a-f0-9]{64})", caption)
+        if not m:
+            await event.edit(lang_strings["hash_unknown"], parse_mode="html")
+            return
 
-        elif cmd == "chat" and len(args) > 2:
-            try:
-                chat_id = int(args[2])
-                cfg["backup_chat_id"] = chat_id
-                await backup_module.save_config()
-                await event.edit(lang_strings["chat_set"].format(chat_id=chat_id))
-            except ValueError:
-                await event.edit(lang_strings["invalid_chat_id"])
-        else:
-            await event.edit(lang_strings["unknown_command"])
-
-    @kernel.register.command("backuptime")
-    async def backup_time_handler(event):
-        user_id = event.sender_id
-
-        buttons = [
-            [
-                Button.inline(
-                    lang_strings["btn_1_hour"], "backup_interval:1", style="primary"
-                )
-            ],
-            [
-                Button.inline(
-                    lang_strings["btn_6_hours"], "backup_interval:6", style="primary"
-                )
-            ],
-            [
-                Button.inline(
-                    lang_strings["btn_12_hours"], "backup_interval:12", style="primary"
-                )
-            ],
-            [
-                Button.inline(
-                    lang_strings["btn_24_hours"], "backup_interval:24", style="primary"
-                )
-            ],
-        ]
-
+        expected = m.group(1)
+        await event.edit(lang_strings["processing"], parse_mode="html")
+        tmp = Path(tempfile.mkdtemp(prefix="mcub_verify_"))
         try:
-            if kernel.is_bot_available():
-                await kernel.bot_client.send_message(
-                    user_id,
-                    f"⏰ **{lang_strings['select_interval']}**",
-                    buttons=buttons,
-                )
-                await event.edit(lang_strings["check_pm"])
+            dl_path = tmp / "backup_verify"
+            await reply.download_media(dl_path)
+            actual = _sha256_of_file(dl_path)
+            if actual == expected:
+                await event.edit(lang_strings["hash_ok"], parse_mode="html")
             else:
-                await event.edit(lang_strings["bot_not_available"])
-        except Exception:
-            await event.edit(lang_strings["cant_send_pm"])
+                await event.edit(lang_strings["hash_mismatch"], parse_mode="html")
+        except Exception as e:
+            await event.edit(f"{emojis['cross']} {e}", parse_mode="html")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
     async def backup_interval_callback(event):
         try:
             interval = int(event.data.decode().split(":")[1])
-
-            if 1 <= interval <= 24:
+            if 1 <= interval <= 168:
                 cfg = get_config()
                 cfg["backup_interval_hours"] = interval
                 await backup_module.save_config()
                 await backup_module.schedule_backups()
-
                 await event.answer(
                     lang_strings["interval_set"].format(hours=interval), alert=False
                 )
                 await event.edit(
-                    f"⏰ {lang_strings['interval']}: {interval} {lang_strings['hours']}"
+                    f"{emojis['clock']} {lang_strings['interval']}: {interval} {lang_strings['hours']}",
+                    parse_mode="html",
                 )
             else:
                 await event.answer(lang_strings["invalid_interval"], alert=True)
@@ -707,10 +1311,34 @@ def register(kernel):
             await event.answer(lang_strings["processing"], alert=False)
             backup_message = await event.get_message()
             await _restore_from_backup_message(backup_message, event)
-
         except Exception as e:
             await kernel.handle_error(e, source="restore_callback", event=event)
             await event.answer(lang_strings["error_processing"], alert=True)
 
+    async def restore_pick_callback(event):
+        """Handle selection from .restore list inline buttons."""
+        try:
+            msg_id = int(event.data.decode().split(":")[1])
+            cfg = get_config()
+            backup_chat_id = cfg.get("backup_chat_id") if cfg else None
+            if not backup_chat_id:
+                await event.answer(lang_strings["no_backups_found"], alert=True)
+                return
+            await event.answer(lang_strings["processing"], alert=False)
+
+            # Fetch the selected backup message
+            msgs = await kernel.client.get_messages(int(backup_chat_id), ids=[msg_id])
+            if not msgs or not msgs[0]:
+                await event.answer(lang_strings["not_backup_file"], alert=True)
+                return
+
+            backup_msg = msgs[0]
+            # Use the callback event as the status message target
+            await _restore_from_backup_message(backup_msg, event)
+        except Exception as e:
+            await kernel.handle_error(e, source="restore_pick_callback", event=event)
+            await event.answer(lang_strings["error_processing"], alert=True)
+
     kernel.register_callback_handler("backup_interval:", backup_interval_callback)
     kernel.register_callback_handler("restore:", restore_callback)
+    kernel.register_callback_handler("restore_pick:", restore_pick_callback)

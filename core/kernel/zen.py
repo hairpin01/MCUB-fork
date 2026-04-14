@@ -184,8 +184,10 @@ class Kernel:
         self.system_modules: CaseInsensitiveDict = CaseInsensitiveDict()
         self.command_handlers: dict = {}
         self.command_owners: dict = {}
+        self.command_docs: dict = {}  # {cmd: {lang: description}}
         self.bot_command_handlers: dict = {}
         self.bot_command_owners: dict = {}
+        self.bot_command_docs: dict = {}  # {cmd: {lang: description}}
         self.inline_handlers: dict = {}
         self.inline_handlers_owners: dict = {}
         self.callback_handlers: dict = {}
@@ -803,7 +805,16 @@ class Kernel:
     async def get_command_description(self, module_name: str, command: str) -> str:
         return await self._loader.get_command_description(module_name, command)
 
-    def register_command(self, pattern: str, func=None):
+    def get_command(self, command: str) -> dict:
+        return {
+            "handler": self.command_handlers.get(command),
+            "owner": self.command_owners.get(command),
+            "docs": getattr(self, "command_docs", {}).get(command, {}),
+        }
+
+    def register_command(
+        self, pattern: str, func=None, doc=None, doc_en=None, doc_ru=None
+    ):
         """Register a userbot command.  Raises ValueError / CommandConflictError on bad input."""
         cmd = pattern.lstrip("^\\" + self.custom_prefix).rstrip("$")
 
@@ -829,11 +840,23 @@ class Kernel:
         def _register(f):
             self.command_handlers[cmd] = f
             self.command_owners[cmd] = self.current_loading_module
+            if doc or doc_en or doc_ru:
+                docs = {}
+                if doc and isinstance(doc, dict):
+                    docs.update(doc)
+                if doc_en:
+                    docs["en"] = doc_en
+                if doc_ru:
+                    docs["ru"] = doc_ru
+                if docs:
+                    self.command_docs[cmd] = docs
             return f
 
         return _register(func) if func else _register
 
-    def register_command_bot(self, pattern: str, func=None):
+    def register_command_bot(
+        self, pattern: str, func=None, doc=None, doc_en=None, doc_ru=None
+    ):
         """Register a bot command (starting with /)."""
         if not pattern.startswith("/"):
             pattern = "/" + pattern
@@ -853,6 +876,16 @@ class Kernel:
         def _register(f):
             self.bot_command_handlers[cmd] = (pattern, f)
             self.bot_command_owners[cmd] = self.current_loading_module
+            if doc or doc_en or doc_ru:
+                docs = {}
+                if doc and isinstance(doc, dict):
+                    docs.update(doc)
+                if doc_en:
+                    docs["en"] = doc_en
+                if doc_ru:
+                    docs["ru"] = doc_ru
+                if docs:
+                    self.bot_command_docs[cmd] = docs
             return f
 
         return _register(func) if func else _register

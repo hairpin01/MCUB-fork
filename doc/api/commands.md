@@ -73,6 +73,43 @@ cmd_alias = kernel.register.get_command_alias('ping')
 
 `kernel.register.get_command_alias(command)` — Get the alias for a specific command.
 
+## Command Documentation
+
+You can add documentation for commands using the `doc`, `doc_en`, and `doc_ru` parameters.
+
+### Using `doc` (dict with multiple languages)
+
+```python
+@kernel.register.command('search', doc={
+    'ru': '[модуль] найди модули',
+    'en': '[modules] search modules',
+})
+async def search_modules(event):
+    await event.edit('Searching...')
+```
+
+### Using separate parameters
+
+```python
+@kernel.register.command('search', doc_en='[modules] search modules', doc_ru='[модуль] найди модули')
+async def search_modules(event):
+    await event.edit('Searching...')
+```
+
+### Getting command documentation
+
+```python
+cmd_info = kernel.register.get_command('search')
+# {
+#     'handler': <function>,
+#     'owner': 'loader',
+#     'docs': {'ru': '[модуль] найди модули', 'en': '[modules] search modules'}
+# }
+
+# Get just docs
+docs = cmd_info['docs']  # {'ru': '...', 'en': '...'}
+```
+
 ## Inline Bot Information
 
 ```python

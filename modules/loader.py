@@ -446,6 +446,7 @@ def register(kernel):
 
     # Get strings for current language
     lang_strings = strings.get(language, strings["en"])
+    lang = language
 
     def t(key: str, **kwargs: str) -> str:
         """Возвращает локализованную строку с подстановкой значений"""
@@ -1188,8 +1189,9 @@ def register(kernel):
                 conflicts = extra.get("conflicts", [])
                 if ok:
                     add_log(t("log_module_loaded_kernel"))
+                    lang = kernel.config.get("language", "ru")
                     commands, aliases_info, descriptions = (
-                        kernel._loader.get_module_commands(module_name)
+                        kernel._loader.get_module_commands(module_name, lang)
                     )
                     emoji = random.choice(RANDOM_EMOJIS)
                     commands_list = ""
@@ -1312,6 +1314,7 @@ def register(kernel):
                         os.remove(file_path)
                 return
 
+            lang = kernel.config.get("language", "ru")
             success, message_text = await kernel.load_module_from_file(
                 file_path,
                 module_name,
@@ -1323,7 +1326,7 @@ def register(kernel):
             if success:
                 add_log(t("log_module_loaded_kernel"))
                 commands, aliases_info, descriptions = (
-                    kernel._loader.get_module_commands(module_name)
+                    kernel._loader.get_module_commands(module_name, lang)
                 )
                 emoji = random.choice(RANDOM_EMOJIS)
 
@@ -1651,8 +1654,9 @@ def register(kernel):
 
             if success:
                 add_log(t("log_module_loaded"))
+                lang = kernel.config.get("language", "ru")
                 commands, aliases_info, descriptions = (
-                    kernel._loader.get_module_commands(module_name)
+                    kernel._loader.get_module_commands(module_name, lang)
                 )
 
                 emoji = random.choice(RANDOM_EMOJIS)
@@ -2503,7 +2507,8 @@ def register(kernel):
         )
 
         if success:
-            commands, _, _ = kernel._loader.get_module_commands(module_name)
+            lang = kernel.config.get("language", "ru")
+            commands, _, _ = kernel._loader.get_module_commands(module_name, lang)
             cmd_text = (
                 f"{CUSTOM_EMOJI['crystal']} {', '.join([f'<code>{kernel.custom_prefix}{cmd}</code>' for cmd in commands])}"
                 if commands

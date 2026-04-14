@@ -1764,12 +1764,18 @@ async def load_hikka_module(
         if isinstance(method, dict) or not callable(method):
             continue
 
-        if attr_name.endswith("cmd"):
-            cmd_name = attr_name[:-3]
-            if not cmd_name:
-                continue
-        elif getattr(method, "__hikka_command__", False):
-            cmd_name = attr_name
+        is_cmd = (
+            attr_name.endswith("cmd")
+            or getattr(method, "__hikka_command__", False)
+            or getattr(method, "is_command", False)
+        )
+        if is_cmd:
+            if attr_name.endswith("cmd"):
+                cmd_name = attr_name[:-3]
+                if not cmd_name:
+                    continue
+            else:
+                cmd_name = attr_name
         elif getattr(method, "__hikka_on_event__", None) is not None:
             event_type = method.__hikka_on_event__
             try:
@@ -1810,7 +1816,22 @@ async def load_hikka_module(
                 return await _maybe_await(_method(wrapped_event))
 
             _wrapped_handler._original = method
-            kernel.register_command(cmd_name, _wrapped_handler)
+
+            doc = getattr(method, "__doc__", None)
+            doc_en = getattr(method, "doc_en", None)
+            doc_ru = getattr(method, "doc_ru", None)
+            doc_dict = getattr(method, "doc", None)
+
+            if doc:
+                if isinstance(doc, dict):
+                    doc_dict = doc
+                    doc = None
+                else:
+                    doc_dict = {"en": doc}
+
+            kernel.register.command(
+                cmd_name, doc=doc_dict, doc_en=doc_en, doc_ru=doc_ru
+            )(_wrapped_handler)
             registered_cmds.append(cmd_name)
             alias = getattr(method, "alias", None)
             if alias:

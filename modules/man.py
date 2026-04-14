@@ -62,8 +62,10 @@ def _get_metadata_lock() -> asyncio.Lock:
     return lock
 
 
-def get_module_commands(module_name, kernel):
-    return kernel._loader.get_module_commands(module_name)
+def get_module_commands(module_name, kernel, lang=None):
+    if lang is None:
+        lang = kernel.config.get("language", "ru")
+    return kernel._loader.get_module_commands(module_name, lang)
 
 
 def resolve_module_path(name: str, typ: str, kernel) -> str:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 # author: @Hairpin00
 # version: 1.4.0-beta
-# description: Trusted users can execute owner commands
+# description: Trusted users can execute owner commands / Доверенные пользователи могут выполнять команды владельца
 
 
 import json
@@ -363,6 +363,14 @@ def register(kernel):
     async def save_expired_trusted(expired: dict):
         await kernel.db_set("trusted", "expired", json.dumps(expired))
 
+    async def is_sgroup_member(user_id: int) -> bool:
+        """Check if user is a member of any security group."""
+        groups = await get_sgroups()
+        for gdata in groups.values():
+            if user_id in gdata.get("users", []):
+                return True
+        return False
+
     async def get_sgroups() -> dict:
         """Get all security groups."""
         data = await kernel.db_get("trusted", "sgroups")
@@ -494,7 +502,10 @@ def register(kernel):
         """Build inline button rows using make_cb_button for temporary callbacks."""
 
         async def on_toggle(event, uid, cat_key):
-            if event.sender_id != kernel.ADMIN_ID:
+            sender = event.sender_id
+            is_admin = sender == kernel.ADMIN_ID
+            is_sgroup = await is_sgroup_member(sender) if not is_admin else True
+            if not is_admin and not is_sgroup:
                 await event.answer()
                 return
             cur = await get_access(uid)
@@ -520,7 +531,10 @@ def register(kernel):
                 pass
 
         async def on_preset(event, uid, preset_key):
-            if event.sender_id != kernel.ADMIN_ID:
+            sender = event.sender_id
+            is_admin = sender == kernel.ADMIN_ID
+            is_sgroup = await is_sgroup_member(sender) if not is_admin else True
+            if not is_admin and not is_sgroup:
                 await event.answer()
                 return
             preset = PRESETS[preset_key]
@@ -545,7 +559,10 @@ def register(kernel):
                 pass
 
         async def on_allow_all(event, uid):
-            if event.sender_id != kernel.ADMIN_ID:
+            sender = event.sender_id
+            is_admin = sender == kernel.ADMIN_ID
+            is_sgroup = await is_sgroup_member(sender) if not is_admin else True
+            if not is_admin and not is_sgroup:
                 await event.answer()
                 return
             full = {cat: True for cat in ACCESS_CATEGORIES}
@@ -569,7 +586,10 @@ def register(kernel):
                 pass
 
         async def on_deny_all(event, uid):
-            if event.sender_id != kernel.ADMIN_ID:
+            sender = event.sender_id
+            is_admin = sender == kernel.ADMIN_ID
+            is_sgroup = await is_sgroup_member(sender) if not is_admin else True
+            if not is_admin and not is_sgroup:
                 await event.answer()
                 return
             none_ = {cat: False for cat in ACCESS_CATEGORIES}
@@ -590,7 +610,10 @@ def register(kernel):
                 pass
 
         async def on_close(event, uid):
-            if event.sender_id != kernel.ADMIN_ID:
+            sender = event.sender_id
+            is_admin = sender == kernel.ADMIN_ID
+            is_sgroup = await is_sgroup_member(sender) if not is_admin else True
+            if not is_admin and not is_sgroup:
                 await event.answer()
                 return
             try:
@@ -647,7 +670,10 @@ def register(kernel):
         rows.append(preset_row)
 
         async def on_cmds(event, uid):
-            if event.sender_id != kernel.ADMIN_ID:
+            sender = event.sender_id
+            is_admin = sender == kernel.ADMIN_ID
+            is_sgroup = await is_sgroup_member(sender) if not is_admin else True
+            if not is_admin and not is_sgroup:
                 await event.answer()
                 return
             access = await get_access(uid)
@@ -719,7 +745,10 @@ def register(kernel):
         ITEMS_PER_PAGE = 10
 
         async def on_toggle_cmd(event, uid, cmd, current_allowed, current_page):
-            if event.sender_id != kernel.ADMIN_ID:
+            sender = event.sender_id
+            is_admin = sender == kernel.ADMIN_ID
+            is_sgroup = await is_sgroup_member(sender) if not is_admin else True
+            if not is_admin and not is_sgroup:
                 await event.answer()
                 return
             cmd_access = await get_cmd_access(uid)
@@ -731,7 +760,10 @@ def register(kernel):
             await event.edit(text, buttons=rows, parse_mode="html")
 
         async def on_back(event, uid):
-            if event.sender_id != kernel.ADMIN_ID:
+            sender = event.sender_id
+            is_admin = sender == kernel.ADMIN_ID
+            is_sgroup = await is_sgroup_member(sender) if not is_admin else True
+            if not is_admin and not is_sgroup:
                 await event.answer()
                 return
             access = await get_access(uid)
@@ -747,7 +779,10 @@ def register(kernel):
             await event.edit(text, buttons=buttons, parse_mode="html")
 
         async def on_prev(event, uid, current_page):
-            if event.sender_id != kernel.ADMIN_ID:
+            sender = event.sender_id
+            is_admin = sender == kernel.ADMIN_ID
+            is_sgroup = await is_sgroup_member(sender) if not is_admin else True
+            if not is_admin and not is_sgroup:
                 await event.answer()
                 return
             if current_page > 0:
@@ -760,7 +795,10 @@ def register(kernel):
                 await event.edit(text, buttons=rows, parse_mode="html")
 
         async def on_next(event, uid, current_page):
-            if event.sender_id != kernel.ADMIN_ID:
+            sender = event.sender_id
+            is_admin = sender == kernel.ADMIN_ID
+            is_sgroup = await is_sgroup_member(sender) if not is_admin else True
+            if not is_admin and not is_sgroup:
                 await event.answer()
                 return
             all_cmds = get_all_commands()
@@ -858,7 +896,11 @@ def register(kernel):
 
         return text, rows
 
-    @kernel.register.command("trustaccess")
+    @kernel.register.command(
+        "trustaccess",
+        doc_en="manage trusted user access permissions",
+        doc_ru="управление правами доступа доверенного пользователя",
+    )
     async def trustaccess_handler(event):
         """Manage trusted user's access permissions"""
         user_id = await get_user_id(event)
@@ -887,7 +929,12 @@ def register(kernel):
         await kernel.inline_form(event.chat_id, text, buttons=buttons, ttl=600)
         await event.delete()
 
-    @kernel.register.command("trust", alias=["addowner"])
+    @kernel.register.command(
+        "trust",
+        alias=["addowner"],
+        doc_en="add user to trusted list",
+        doc_ru="добавить пользователя в доверенные",
+    )
     async def trust_handler(event):
         """Add a user to the trusted list with confirmation and time options"""
 
@@ -1090,7 +1137,12 @@ def register(kernel):
         ]
         await kernel.inline_form(event.chat_id, text, buttons=rows)
 
-    @kernel.register.command("untrust", alias=["delowner"])
+    @kernel.register.command(
+        "untrust",
+        alias=["delowner"],
+        doc_en="remove user from trusted list",
+        doc_ru="удалить пользователя из доверенных",
+    )
     async def untrust_handler(event):
         """Remove a user from the trusted list"""
         if event.sender_id != kernel.ADMIN_ID:
@@ -1119,7 +1171,12 @@ def register(kernel):
         kernel.callback_permissions.prohibit(user_id)
         await event.edit(s["trust_removed"], parse_mode="html")
 
-    @kernel.register.command("trustlist", alias=["listowner"])
+    @kernel.register.command(
+        "trustlist",
+        alias=["listowner"],
+        doc_en="show list of trusted users",
+        doc_ru="показать список доверенных пользователей",
+    )
     async def trustlist_handler(event):
         """Show list of all trusted users"""
         trusted = await get_trusted_list()
@@ -1136,7 +1193,11 @@ def register(kernel):
 
         await event.edit("\n".join(lines), parse_mode="html")
 
-    @kernel.register.command("trustcmd")
+    @kernel.register.command(
+        "trustcmd",
+        doc_en="manage per-command access for trusted",
+        doc_ru="управление доступом к командам для доверенных",
+    )
     async def trustcmd_handler(event):
         """Manage per-command access for trusted users"""
         args = event.text.split(maxsplit=2)
@@ -1212,7 +1273,11 @@ def register(kernel):
             s["trustcmd_not_found"].format(cmd=cmd_name), parse_mode="html"
         )
 
-    @kernel.register.command("nonickuser")
+    @kernel.register.command(
+        "nonickuser",
+        doc_en="toggle NoNick mode for trusted user",
+        doc_ru="включить/выключить режим NoNick для доверенного",
+    )
     async def nonickuser_handler(event):
         """Toggle NoNick mode for a trusted user"""
         if event.sender_id != kernel.ADMIN_ID:
@@ -1245,7 +1310,11 @@ def register(kernel):
                 s["nonick_toggled_on"].format(name=name), parse_mode="html"
             )
 
-    @kernel.register.command("nonickusers")
+    @kernel.register.command(
+        "nonickusers",
+        doc_en="show list of users with NoNick",
+        doc_ru="показать список пользователей с NoNick",
+    )
     async def nonickusers_handler(event):
         """Show list of trusted users with NoNick enabled"""
         nonick_list = await get_nonick_list()
@@ -1260,7 +1329,11 @@ def register(kernel):
 
         await event.edit("\n".join(lines), parse_mode="html")
 
-    @kernel.register.command("watchers")
+    @kernel.register.command(
+        "watchers",
+        doc_en="show list of active watchers",
+        doc_ru="показать список активных вотчеров",
+    )
     async def watchers_handler(event):
         """Show list of all active watchers"""
         try:
@@ -1288,7 +1361,11 @@ def register(kernel):
         except Exception as e:
             await kernel.handle_error(e, source="watchers", event=event)
 
-    @kernel.register.command("watchersdebug")
+    @kernel.register.command(
+        "watchersdebug",
+        doc_en="debug watchers with filter",
+        doc_ru="отладка вотчеров с фильтром",
+    )
     async def watchers_debug_handler(event):
         """Debug watchers with optional filter"""
         try:
@@ -1394,7 +1471,11 @@ def register(kernel):
             parse_mode="html",
         )
 
-    @kernel.register.command("watcher")
+    @kernel.register.command(
+        "watcher",
+        doc_en="enable/disable specific watcher",
+        doc_ru="включить/выключить конкретный вотчер",
+    )
     async def watcher_toggle_handler(event):
         """Enable or disable a specific watcher"""
         await toggle_watcher_handler(event)
@@ -1580,7 +1661,11 @@ def register(kernel):
             await save_trusted_list(trusted)
             await save_expired_trusted(expired)
 
-    @kernel.register.command("timedtrusted")
+    @kernel.register.command(
+        "timedtrusted",
+        doc_en="show temporary trusted users with expiry",
+        doc_ru="показать временных доверенных с истечением",
+    )
     async def timedtrusted_handler(event):
         """Show list of temporary trusted users with expiry times"""
         expired = await get_expired_trusted()
@@ -1610,7 +1695,9 @@ def register(kernel):
 
         await event.edit("\n".join(lines), parse_mode="html")
 
-    @kernel.register.command("sgroup")
+    @kernel.register.command(
+        "sgroup", doc_en="manage access groups", doc_ru="управление группами доступа"
+    )
     async def sgroup_handler(event):
         """Manage access groups"""
         args = event.text.split(maxsplit=2)

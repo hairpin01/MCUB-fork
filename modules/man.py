@@ -2,7 +2,7 @@ from __future__ import annotations
 
 # author: @Hairpin00
 # version: 1.1.0
-# description: Module manager
+# description: Module manager / Менеджер модулей
 from telethon import Button
 import time
 import uuid
@@ -949,8 +949,11 @@ def register(kernel):
         )
         await event.answer([builder])
 
-    @kernel.register.command("man")
-    # [module/-f] — info about module or list (-f shows hidden)
+    @kernel.register.command(
+        "man",
+        doc_en="<name/None> show module info or list modules",
+        doc_ru="<name/None> показать информацию о модуле или список модулей",
+    )
     async def man_handler(event):
         try:
             args = event.text.split()
@@ -1037,8 +1040,11 @@ def register(kernel):
         except Exception as e:
             await kernel.handle_error(e, source="man", event=event)
 
-    @kernel.register.command("manhide")
-    # hide module from .man list
+    @kernel.register.command(
+        "manhide",
+        doc_en="<name> hide module from man list",
+        doc_ru="<name> скрыть модуль из списка man",
+    )
     async def manhide_handler(event):
         try:
             args = event.text.split(maxsplit=1)
@@ -1078,8 +1084,11 @@ def register(kernel):
         except Exception as e:
             await kernel.handle_error(e, source="manhide", event=event)
 
-    @kernel.register.command("manunhide")
-    # unhide module from hidden
+    @kernel.register.command(
+        "manunhide",
+        doc_en="<name> unhide module from man list",
+        doc_ru="<name> показать модуль в списке man",
+    )
     async def manunhide_handler(event):
         try:
             args = event.text.split(maxsplit=1)
@@ -1110,7 +1119,11 @@ def register(kernel):
         except Exception as e:
             await kernel.handle_error(e, source="manunhide", event=event)
 
-    @kernel.register.command("help")
+    @kernel.register.command(
+        "help",
+        doc_en="redirects to man",
+        doc_ru="перенаправляет на man",
+    )
     async def help_cmd(event):
         """Fallback help stub: redirect to man."""
         await event.edit(

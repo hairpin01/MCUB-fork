@@ -1,4 +1,9 @@
 from __future__ import annotations
+
+# author: @Hairpin00
+# version: 1.0.0
+# description: System and device info module / Модуль информации о системе
+
 import asyncio
 import os
 import time
@@ -285,7 +290,11 @@ def register(kernel):
 
         return cpu_usage, ram_usage
 
-    @kernel.register.command("info")
+    @kernel.register.command(
+        "info",
+        doc_en="show userbot info (version, uptime, ping)",
+        doc_ru="показать инфо о юзерботе (версия, аптайм, пинг)",
+    )
     async def info_cmd(event):
         """no args, info mcub-fork"""
         try:

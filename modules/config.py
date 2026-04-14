@@ -2,7 +2,7 @@ from __future__ import annotations
 
 # author: @Hairpin00
 # version: 1.3.0
-# description: config Kernel
+# description: Module config management / Управление конфигами модулей
 
 import json
 import html
@@ -3148,8 +3148,11 @@ def register(kernel):
             except Exception as e:
                 await event.answer(str(e)[:50], alert=True)
 
-    @kernel.register.command("cfg")
-    # <subcommand/None> <key>
+    @kernel.register.command(
+        "cfg",
+        doc_en="<subcommand> <key> - manage module configs",
+        doc_ru="<подкоманда> <ключ> - управление конфигами модулей",
+    )
     async def cfg_handler(event):
         await ensure_config_initialized()
         try:
@@ -3283,8 +3286,11 @@ def register(kernel):
         except Exception as e:
             await kernel.handle_error(e, source="cfg", event=event)
 
-    @kernel.register.command("fcfg")
-    # <list/dict/set/add> <key/subkey> <key/None>
+    @kernel.register.command(
+        "fcfg",
+        doc_en="<list/dict/set/add> <key> - manage flat config",
+        doc_ru="<list/dict/set/add> <ключ> - управление плоской конфигурацией",
+    )
     async def fcfg_handler(event):
         await ensure_config_initialized()
         try:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 # author: @Hairpin00
 # version: 1.0.6
-# description: Update module
+# description: Update module / Модуль обновлений
 import asyncio
 import os
 import re
@@ -86,7 +86,9 @@ def register(kernel):
         )
         return mcub_emoji
 
-    @kernel.register.command("restart")
+    @kernel.register.command(
+        "restart", doc_en="restart userbot", doc_ru="перезапустить юзербот"
+    )
     async def restart_handler(event):
         thread_id = None
         if event.reply_to:
@@ -105,7 +107,9 @@ def register(kernel):
             thread_id=thread_id,
         )
 
-    @kernel.register.command("update")
+    @kernel.register.command(
+        "update", doc_en="update MCUB-fork from git", doc_ru="обновить MCUB-fork из git"
+    )
     async def update_handler(event):
         msg = await event.edit("❄️")
         kernel.logger.info("Updating MCUB-fork")
@@ -222,7 +226,7 @@ def register(kernel):
                 parse_mode="html",
             )
 
-    @kernel.register.command("stop")
+    @kernel.register.command("stop", doc_en="stop userbot", doc_ru="остановить юзербот")
     async def stop_handler(event):
         kernel.shutdown_flag = True
         emoji = random.choice(emojis)
@@ -233,7 +237,11 @@ def register(kernel):
         await asyncio.sleep(1)
         await client.disconnect()
 
-    @kernel.register.command("rollback")
+    @kernel.register.command(
+        "rollback",
+        doc_en="rollback to previous version",
+        doc_ru="откатить к предыдущей версии",
+    )
     async def rollback_handler(event):
         if not os.path.exists(kernel.BACKUP_FILE):
             await event.edit(lang_strings["backup_not_found"], parse_mode="html")

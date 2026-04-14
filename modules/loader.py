@@ -2,7 +2,7 @@ from __future__ import annotations
 
 # author: @Hairpin00
 # version: 1.1.5
-# description: loader modules
+# description: Module loader
 import asyncio
 import html
 import inspect
@@ -1484,8 +1484,12 @@ def register(kernel):
             # Remove source info on error
             kernel._module_sources.pop(module_name, None)
 
-    @kernel.register.command("iload", alias="im")
-    # <reply> load module
+    @kernel.register.command(
+        "iload",
+        alias="im",
+        doc_en="<reply> load module from reply",
+        doc_ru="<ответ> загрузить модуль из ответа",
+    )
     async def install_module_handler(event: types.CallbackQuery) -> None:
         if not event.is_reply:
             await edit_with_emoji(
@@ -1813,8 +1817,11 @@ def register(kernel):
             if os.path.exists(file_path):
                 os.remove(file_path)
 
-    @kernel.register.command("dlm")
-    # <args> <URL/module> -s send as file, -list list modules
+    @kernel.register.command(
+        "dlm",
+        doc_en="<URL/[-send] [name]/[-list] [name/None]> download and install module from URL or repo",
+        doc_ru="<URL/[-send] [name]/[-list] [name/None]>  скачать и установить модуль из URL или репозитория",
+    )
     async def download_module_handler(event: types.Message) -> None:
         args = event.text.split()
 
@@ -1990,8 +1997,11 @@ def register(kernel):
             repo_index=repo_index,
         )
 
-    @kernel.register.command("um")
-    # <module> remove module
+    @kernel.register.command(
+        "um",
+        doc_en="<name> unload module by name",
+        doc_ru="<имя> выгрузить модуль по имени",
+    )
     async def unload_module_handler(event: types.Message) -> None:
         args = event.text.split()
         if len(args) < 2:
@@ -2090,8 +2100,11 @@ def register(kernel):
         kernel._module_sources.pop(module_name, None)
         await kernel.save_module_sources()
 
-    @kernel.register.command("unlm")
-    # <module> - upload as file
+    @kernel.register.command(
+        "unlm",
+        doc_en="<name> unload module as file",
+        doc_ru="<имя> выгрузить модуль виде файл",
+    )
     async def upload_module_handler(event: types.Message) -> None:
         args = event.text.split()
         if len(args) < 2:
@@ -2149,8 +2162,11 @@ def register(kernel):
             file=file_path,
         )
 
-    @kernel.register.command("reload")
-    # <modules> reload modules
+    @kernel.register.command(
+        "reload",
+        doc_en="<name/None> reload module(s)",
+        doc_ru="<имя/нечего> перезагрузить модуль или модули",
+    )
     async def reload_module_handler(event: types.Message) -> None:
         args = event.text.split()
         kernel.dedupe_event_builders(reason="reload_command_start_precheck")
@@ -2535,8 +2551,11 @@ def register(kernel):
                 msg, t("reload_error", warning=CUSTOM_EMOJI["warning"])
             )
 
-    @kernel.register.command("addrepo")
-    # <URL> add repo
+    @kernel.register.command(
+        "addrepo",
+        doc_en="<URL> add module repository URL",
+        doc_ru="<URL> добавить URL репозитория модулей",
+    )
     async def add_repo_handler(event: types.Message) -> None:
         args = event.text.split()
         if len(args) < 2:
@@ -2558,8 +2577,11 @@ def register(kernel):
         else:
             await edit_with_emoji(event, f"{CUSTOM_EMOJI['warning']} <b>{message}</b>")
 
-    @kernel.register.command("delrepo")
-    # <id> remove repo
+    @kernel.register.command(
+        "delrepo",
+        doc_en="<ID> remove module repository",
+        doc_ru="<ID> удалить репозиторий модулей",
+    )
     async def del_repo_handler(event: types.Message) -> None:
         args = event.text.split()
         if len(args) < 2:

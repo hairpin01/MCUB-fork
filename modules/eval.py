@@ -3,7 +3,7 @@ from __future__ import annotations
 # requires:
 # author: @Hairpin00
 # version: 1.0.3
-# description: Python code execution
+# description: Python code execution / Выполнение Python кода
 import html
 import traceback
 import sys
@@ -45,7 +45,11 @@ def register(kernel):
 
     lang_strings = strings.get(language, strings["en"])
 
-    @kernel.register.command("py")
+    @kernel.register.command(
+        "py",
+        doc_en="<code> - execute Python code",
+        doc_ru="<код> - выполнить Python код",
+    )
     async def python_exec_handler(event):
         code = unescape(event.text[len(kernel.custom_prefix) + 2 :].strip())
 
@@ -104,10 +108,10 @@ def register(kernel):
             result_file = io.BytesIO(result_text.encode("utf-8", errors="replace"))
             result_file.name = "eval_result.txt"
 
-            response = f"""{CUSTOM_EMOJI['🧿']} <b>{lang_strings['code']}</b>
+            response = f"""{CUSTOM_EMOJI["🧿"]} <b>{lang_strings["code"]}</b>
 <blockquote expandable><code>{code_display}</code></blockquote>
-{CUSTOM_EMOJI['🧬']} <b>{lang_strings['result_file']}</b>
-<blockquote>{CUSTOM_EMOJI['💠']} <i>{lang_strings['executed_in']}</i> <code>{elapsed}{lang_strings['ms']}</code></blockquote>"""
+{CUSTOM_EMOJI["🧬"]} <b>{lang_strings["result_file"]}</b>
+<blockquote>{CUSTOM_EMOJI["💠"]} <i>{lang_strings["executed_in"]}</i> <code>{elapsed}{lang_strings["ms"]}</code></blockquote>"""
             try:
                 await event.edit(
                     response,
@@ -136,11 +140,11 @@ def register(kernel):
                         pass
         else:
             result_display = html.escape(result_text)
-            response = f"""{CUSTOM_EMOJI['🧿']} <b>{lang_strings['code']}</b>
+            response = f"""{CUSTOM_EMOJI["🧿"]} <b>{lang_strings["code"]}</b>
 <blockquote expandable><code>{code_display}</code></blockquote>
-{CUSTOM_EMOJI['🧬']} <b>{lang_strings['result_in_message']}</b>
+{CUSTOM_EMOJI["🧬"]} <b>{lang_strings["result_in_message"]}</b>
 <blockquote expandable><code>{result_display}</code></blockquote>
-<blockquote>{CUSTOM_EMOJI['💠']} <i>{lang_strings['executed_in']}</i> <code>{elapsed}{lang_strings['ms']}</code></blockquote>"""
+<blockquote>{CUSTOM_EMOJI["💠"]} <i>{lang_strings["executed_in"]}</i> <code>{elapsed}{lang_strings["ms"]}</code></blockquote>"""
             try:
                 await event.edit(response, parse_mode="html")
             except:

@@ -3,7 +3,7 @@ from __future__ import annotations
 # requires:
 # author: @Hairpin00
 # version: 1.0.3
-# description: Translator using Google Translate API
+# description: Translator using Google Translate API / Переводчик через Google Translate API
 
 import asyncio
 import json
@@ -154,7 +154,11 @@ def register(kernel):
         except Exception as e:
             return f"{lang_strings['translation_error_generic']} {str(e)}"
 
-    @kernel.register.command("tr")
+    @kernel.register.command(
+        "tr",
+        doc_en="translate text using Google Translate",
+        doc_ru="перевести текст через Google Translate",
+    )
     async def tr_handler(event):
         try:
             quote_text = None

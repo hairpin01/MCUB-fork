@@ -2,7 +2,7 @@ from __future__ import annotations
 
 # author: @Hairpin00
 # version: 2.1.0-beta
-# description: Advanced API protection with deep request analytics + MCUB native protection
+# description: API protection with request analytics / Защита API с аналитикой запросов
 
 import asyncio
 import time
@@ -977,7 +977,11 @@ def register(kernel):
         except Exception:
             pass
 
-    @kernel.register.command("api_protection")
+    @kernel.register.command(
+        "api_protection",
+        doc_en="show/configure API protection",
+        doc_ru="показать/настроить защиту API",
+    )
     async def api_protection_handler(event):
         nonlocal protection_enabled
         args = event.text.split()
@@ -1035,7 +1039,11 @@ def register(kernel):
 
         persist_api_config()
 
-    @kernel.register.command("api_reset")
+    @kernel.register.command(
+        "api_reset",
+        doc_en="reset API protection stats",
+        doc_ru="сбросить статистику защиты API",
+    )
     async def api_reset_handler(event):
         nonlocal blocked_until
         request_log.clear()
@@ -1043,7 +1051,11 @@ def register(kernel):
         blocked_until = 0.0
         await event.edit(lang["api_reset_done"], parse_mode="html")
 
-    @kernel.register.command("api_suspend")
+    @kernel.register.command(
+        "api_suspend",
+        doc_en="<seconds> - temporarily suspend API protection",
+        doc_ru="<секунды> - приостановить защиту API",
+    )
     async def api_suspend_handler(event):
         nonlocal blocked_until
         args = event.text.split()

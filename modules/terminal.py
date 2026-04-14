@@ -3,7 +3,7 @@ from __future__ import annotations
 # requires:
 # author: @Hairpin00
 # version: 2.0.0
-# description: Terminal commands with real-time output streaming
+# description: Terminal commands with real-time output streaming / Терминал с потоковым выводом
 
 import asyncio
 import html
@@ -415,8 +415,11 @@ def register(kernel):
 
     terminal = TerminalModule()
 
-    @kernel.register.command("t")
-    # execute shell command and stream output in real-time
+    @kernel.register.command(
+        "t",
+        doc_en="execute shell command with real-time output",
+        doc_ru="выполнить shell команду с выводом в реальном времени",
+    )
     async def terminal_handler(event):
         args = event.text.split(maxsplit=1)
         if len(args) < 2:
@@ -427,7 +430,10 @@ def register(kernel):
             return
         await terminal.run_command(event.chat_id, args[1], event.id)
 
-    @kernel.register.command("tkill")
-    # stop the currently running command
+    @kernel.register.command(
+        "tkill",
+        doc_en="stop running terminal command",
+        doc_ru="остановить выполняемую команду терминала",
+    )
     async def terminal_kill_handler(event):
         await terminal.kill_command(event.chat_id, event.id)

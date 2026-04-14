@@ -1811,8 +1811,8 @@ async def load_hikka_module(
             from .inline_types import CompatMessage
 
             async def _wrapped_handler(event, _method=method):
-                from .inline_types import CompatMessage
-
+                if getattr(instance, "_self_suspended", False):
+                    return
                 wrapped_event = (
                     CompatMessage(event) if hasattr(event, "edit") else event
                 )

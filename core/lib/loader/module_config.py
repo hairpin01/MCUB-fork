@@ -7,7 +7,10 @@ Module configuration system for MCUB.
 Provides declarative configuration similar to Hikka.
 """
 
-from typing import Any, Callable, Dict, List, Optional, Union
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Any, List
 
 
 class Validator:
@@ -51,7 +54,7 @@ class Boolean(Validator):
 
 class Integer(Validator):
     def __init__(
-        self, default: Any = None, min: Optional[int] = None, max: Optional[int] = None
+        self, default: Any = None, min: int | None = None, max: int | None = None
     ):
         super().__init__(default)
         self.min = min
@@ -73,8 +76,8 @@ class Float(Validator):
     def __init__(
         self,
         default: Any = None,
-        min: Optional[float] = None,
-        max: Optional[float] = None,
+        min: float | None = None,
+        max: float | None = None,
     ):
         super().__init__(default)
         self.min = min
@@ -96,8 +99,8 @@ class String(Validator):
     def __init__(
         self,
         default: Any = None,
-        min_len: Optional[int] = None,
-        max_len: Optional[int] = None,
+        min_len: int | None = None,
+        max_len: int | None = None,
     ):
         super().__init__(default)
         self.min_len = min_len
@@ -117,7 +120,7 @@ class String(Validator):
 
 
 class Choice(Validator):
-    def __init__(self, choices: List[Any], default: Any = None):
+    def __init__(self, choices: list[Any], default: Any = None):
         super().__init__(default)
         self.choices = choices
 
@@ -130,11 +133,11 @@ class Choice(Validator):
 
 
 class MultiChoice(Validator):
-    def __init__(self, choices: List[Any], default: Optional[List[Any]] = None):
+    def __init__(self, choices: list[Any], default: list[Any] | None = None):
         super().__init__(default or [])
         self.choices = choices
 
-    def validate(self, value: Any) -> List[Any]:
+    def validate(self, value: Any) -> list[Any]:
         if not isinstance(value, (list, tuple, set)):
             raise ValidationError("Expected a list of choices")
         for item in value:
@@ -163,9 +166,9 @@ class List(Validator):
     def __init__(
         self,
         default: Any = None,
-        item_type: Optional[type] = None,
-        min_len: Optional[int] = None,
-        max_len: Optional[int] = None,
+        item_type: type | None = None,
+        min_len: int | None = None,
+        max_len: int | None = None,
     ):
         super().__init__(default or [])
         self.item_type = item_type
@@ -194,8 +197,8 @@ class DictType(Validator):
     def __init__(
         self,
         default: Any = None,
-        key_type: Optional[type] = None,
-        value_type: Optional[type] = None,
+        key_type: type | None = None,
+        value_type: type | None = None,
     ):
         super().__init__(default or {})
         self.key_type = key_type
@@ -228,10 +231,10 @@ class ConfigValue:
         self,
         key: str,
         default: Any,
-        description: Optional[Union[str, Callable]] = None,
-        validator: Optional[Validator] = None,
+        description: str | Callable | None = None,
+        validator: Validator | None = None,
         hidden: bool = False,
-        on_change: Optional[Callable] = None,
+        on_change: Callable | None = None,
     ):
         self.key = key
         self._default = default
@@ -284,7 +287,7 @@ class ModuleConfig:
     """
 
     def __init__(self, *config_values: ConfigValue):
-        self._values: Dict[str, ConfigValue] = {}
+        self._values: dict[str, ConfigValue] = {}
         for cv in config_values:
             self._values[cv.key] = cv
 
@@ -317,17 +320,17 @@ class ModuleConfig:
     def values(self):
         return [cv.get_value() for cv in self._values.values()]
 
-    def update(self, mapping: Dict[str, Any]):
+    def update(self, mapping: dict[str, Any]):
         for key, value in mapping.items():
             self[key] = value
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Return current config as plain dict (for saving)."""
         data = {key: cv.to_storage() for key, cv in self._values.items()}
         data["__mcub_config__"] = True
         return data
 
-    def from_dict(self, data: Dict[str, Any]):
+    def from_dict(self, data: dict[str, Any]):
         """Load config from dict (e.g., from database)."""
         for key, cv in self._values.items():
             if key in data and data[key] is not None:
@@ -335,7 +338,7 @@ class ModuleConfig:
             # If key not in data or value is None, keep the default
 
     @property
-    def schema(self) -> List[Dict]:
+    def schema(self) -> List[dict]:
         """Return schema for UI generation."""
         return [
             {

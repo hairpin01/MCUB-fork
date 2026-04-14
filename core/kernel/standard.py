@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+
 # ---- meta data ------ kernel ----------------------
 # author: @Hairpin00
 # description: kernel core — main Kernel class
@@ -29,10 +30,8 @@ except Exception as e:
 
     sys.exit(104)
 try:
-    from telethon import _check_mcub_installation
-    from telethon import install_uvloop
+    from telethon import _check_mcub_installation, install_uvloop
 
-    install_uvloop()
     _check_mcub_installation()
 except Exception:
     raise McubTelethonError(
@@ -58,6 +57,7 @@ try:
         setup_logging,
         setup_telegram_logging,
     )
+    from core.lib.utils.case_insensitive import CaseInsensitiveDict
     from ..version import VERSION, VersionManager
 except Exception as error_module:
     tb = traceback.format_exc()
@@ -140,9 +140,9 @@ class Kernel:
         self.start_time = time.time()
 
         # Module registries
-        self.loaded_modules: dict = {}
-        self._live_module_configs: dict = {}
-        self.system_modules: dict = {}
+        self.loaded_modules: CaseInsensitiveDict = CaseInsensitiveDict()
+        self._live_module_configs: CaseInsensitiveDict = CaseInsensitiveDict()
+        self.system_modules: CaseInsensitiveDict = CaseInsensitiveDict()
         self.command_handlers: dict = {}
         self.command_owners: dict = {}
         self.bot_command_handlers: dict = {}
@@ -1569,6 +1569,10 @@ class Kernel:
         """setup, connect, load modules, and run until disconnected."""
         import os
         import logging
+
+        _true = install_uvloop()
+        if not _true:
+            self.logger.info("failed install uvloop")
 
         no_web = not getattr(self, "web_enabled", True)  # True if --no-web
 

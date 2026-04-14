@@ -3,24 +3,26 @@
 
 from __future__ import annotations
 
+import asyncio
+import html
+
 # author: @Hairpin00
 # version: 1.0.1
 # description: Log bot module / Модуль логирования
 import io
+import json
 import os
 import subprocess
-import asyncio
-import json
-import html
+from datetime import datetime
+
 import aiohttp
-from datetime import datetime, timezone
 from telethon import Button
+from telethon.tl.functions.channels import EditPhotoRequest
 from telethon.tl.functions.messages import (
+    AddChatUserRequest,
     CreateChatRequest,
     ExportChatInviteRequest,
-    AddChatUserRequest,
 )
-from telethon.tl.functions.channels import EditPhotoRequest
 from telethon.tl.types import InputUserSelf
 
 
@@ -179,7 +181,7 @@ def register(kernel):
 
             try:
                 await asyncio.wait_for(run_git(["fetch", "origin"]), timeout=5)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 return lang_strings["git_timeout"]
 
             code, output = await run_git(["rev-list", "--count", "HEAD..@{u}"])
@@ -213,7 +215,7 @@ def register(kernel):
 
             try:
                 await asyncio.wait_for(run_git(["fetch", "origin"]), timeout=10)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 return None
 
             code, output = await run_git(
@@ -628,7 +630,7 @@ def register(kernel):
     async def send_startup_message():
         if not kernel.log_chat_id:
             return
-        commit_hash = await get_git_commit()
+        await get_git_commit()
         update_status = await get_update_status()
         image_path = None
         if os.path.exists("userbot.png"):

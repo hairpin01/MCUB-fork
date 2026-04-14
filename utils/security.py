@@ -3,30 +3,28 @@
 
 import hashlib
 import os
-import random
 import shutil
 import stat
 import sys
-from typing import Iterable, Optional
-
+from collections.abc import Iterable
 
 __all__ = [
-    "is_locked",
     "atomic_write",
-    "save_checksum",
-    "verify_checksum",
-    "get_mcub_dir",
-    "get_sessions_dir",
+    "audit_permissions",
+    "ensure_locked_after_write",
     "get_config_path",
-    "session_exists",
-    "get_session_path",
     "get_db_path",
-    "migrate_sessions_and_db",
+    "get_mcub_dir",
+    "get_session_path",
+    "get_sessions_dir",
+    "is_locked",
     "lock_file",
     "lock_sensitive_files",
-    "ensure_locked_after_write",
+    "migrate_sessions_and_db",
+    "save_checksum",
     "secure_delete",
-    "audit_permissions",
+    "session_exists",
+    "verify_checksum",
 ]
 
 
@@ -91,7 +89,7 @@ def verify_checksum(path: str) -> bool:
     try:
         with open(path, "rb") as f:
             current_hash = hashlib.sha256(f.read()).hexdigest()
-        with open(checksum_path, "r") as f:
+        with open(checksum_path) as f:
             saved_hash = f.read().strip()
         return current_hash == saved_hash
     except OSError:
@@ -166,7 +164,7 @@ def get_session_path(name: str, api_id: int, api_hash: str) -> str:
     return name
 
 
-def get_db_path(api_id: int = None, api_hash: str = None) -> str:
+def get_db_path(api_id: int | None = None, api_hash: str | None = None) -> str:
     """Get full path to the database file.
 
     Args:
@@ -182,7 +180,7 @@ def get_db_path(api_id: int = None, api_hash: str = None) -> str:
     return "userbot.db"
 
 
-def get_config_path(api_id: int = None, api_hash: str = None) -> str:
+def get_config_path(api_id: int | None = None, api_hash: str | None = None) -> str:
     """Get full path to the config.json file.
 
     Args:
@@ -285,8 +283,8 @@ def lock_file(path: str) -> bool:
 
 
 def lock_sensitive_files(
-    mcub_dir: Optional[str] = None,
-    extra: Optional[Iterable[str]] = None,
+    mcub_dir: str | None = None,
+    extra: Iterable[str] | None = None,
     logger=None,
 ) -> None:
     """Lock all known sensitive files + any *extra* paths.
@@ -402,7 +400,7 @@ def audit_permissions(mcub_dir: str, logger=None) -> dict:
         _log("audit_permissions: skipped (Windows)")
         return {"secure": secure, "insecure": insecure}
 
-    for root, dirs, files in os.walk(mcub_dir):
+    for root, _dirs, files in os.walk(mcub_dir):
         # Skip .git directory
         if ".git" in root:
             continue

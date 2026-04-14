@@ -7,7 +7,7 @@
 
 import configparser
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 _CFG_PATH = Path(__file__).parent / "config.cfg"
 
@@ -62,7 +62,7 @@ class ShellConfig:
         section: str,
         key: str,
         default: Any,
-        comment: Optional[str] = None,
+        comment: str | None = None,
     ) -> None:
         """
         Ensure a key exists in config.cfg.

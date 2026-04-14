@@ -4,7 +4,7 @@
 """Tests for callback permission manager."""
 
 import re
-import pytest
+
 from core.lib.base.permissions import CallbackPermissionManager
 
 

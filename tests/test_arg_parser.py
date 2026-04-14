@@ -6,12 +6,13 @@ Tests for utils arg_parser
 """
 
 import pytest
+
 from utils.arg_parser import (
-    parse_arguments,
-    extract_command,
-    split_args,
-    parse_kwargs,
     ArgumentValidator,
+    extract_command,
+    parse_arguments,
+    parse_kwargs,
+    split_args,
 )
 
 

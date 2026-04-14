@@ -3,13 +3,14 @@
 
 from __future__ import annotations
 
+import os
+import re
+from typing import Any
+
 # author: @Hairpin00
 # version: 1.0.3
 # description: SQLite database manager for the userbot.
 import aiosqlite
-import os
-import re
-from typing import Any
 
 from utils.security import ensure_locked_after_write
 
@@ -143,7 +144,7 @@ class DatabaseManager:
             (module, key, str(value)),
         )
         await self.conn.commit()
-        self.logger.debug(f"[DB] db_set done")
+        self.logger.debug("[DB] db_set done")
 
     async def db_get(self, module: str, key: str) -> str | None:
         """Get value for a module key."""

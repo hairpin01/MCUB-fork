@@ -6,32 +6,31 @@ from __future__ import annotations
 # author: @Hairpin00
 # version: 1.0.0
 # description: Tester module (ping, logs, freezing) / Тестер модуль (пинг, логи, заморозка)
-
 import asyncio
-import os
-import time
 import getpass
+import os
+import re
 import socket
 import subprocess
 import tempfile
-import re
+import time
 from datetime import datetime
 
 try:
     import psutil as _psutil
 except ImportError:
     _psutil = None
+
+from telethon import Button, functions
 from telethon.tl.types import InputMediaWebPage
-from telethon import functions
-from telethon import Button
-from copy import copy
-from utils import get_args
+
 from core.lib.loader.module_config import (
-    ModuleConfig,
-    ConfigValue,
     Boolean,
+    ConfigValue,
+    ModuleConfig,
     String,
 )
+from utils import get_args
 
 
 def _detect_branch_sync():
@@ -224,7 +223,7 @@ def register(kernel):
         keep_block = False
         wrote = False
         try:
-            with open(kernel_log_path, "r", encoding="utf-8", errors="ignore") as src:
+            with open(kernel_log_path, encoding="utf-8", errors="ignore") as src:
                 for line in src:
                     match = log_level_pattern.match(line)
                     if match:
@@ -580,12 +579,8 @@ def register(kernel):
                 banner_sent = False
 
                 chat = await event.get_chat()
-                reply_to = None
                 if hasattr(chat, "forum") and chat.forum and event.message.reply_to:
-                    reply_to = (
-                        event.message.reply_to.reply_to_top_id
-                        or event.message.reply_to.reply_to_msg_id
-                    )
+                    pass
 
                 if os.path.exists(banner_url):
                     try:
@@ -649,7 +644,7 @@ def register(kernel):
                         await event.edit(f"{CUSTOM_EMOJI['🗳']} {t('file_empty')}")
                         return
 
-                    with open(kernel_log_path, "w") as f:
+                    with open(kernel_log_path, "w"):
                         pass
 
                     await event.edit(

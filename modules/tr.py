@@ -7,18 +7,16 @@ from __future__ import annotations
 # author: @Hairpin00
 # version: 1.0.3
 # description: Translator using Google Translate API / Переводчик через Google Translate API
-
 import asyncio
 import json
+from urllib.error import HTTPError, URLError
 from urllib.parse import quote
-from urllib.request import urlopen, Request
-from urllib.error import URLError, HTTPError
+from urllib.request import Request, urlopen
 
 from core.lib.loader.module_config import (
-    ModuleConfig,
-    ConfigValue,
-    String,
     Choice,
+    ConfigValue,
+    ModuleConfig,
 )
 
 
@@ -55,7 +53,6 @@ def register(kernel):
     lang_strings = strings.get(language, strings["en"])
 
     EMOJI_LOADING = '<tg-emoji emoji-id="5323463142775202324">🏓</tg-emoji>'
-    EMOJI_SUCCESS = '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji>'
     EMOJI_ERROR = '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji>'
 
     config = ModuleConfig(
@@ -136,7 +133,7 @@ def register(kernel):
                         asyncio.create_task(
                             kernel._log.log_network(f"Translation API error: {e}")
                         )
-                    raise Exception(f"{lang_strings['network_error']} {str(e)}")
+                    raise Exception(f"{lang_strings['network_error']} {e!s}")
 
             loop = asyncio.get_running_loop()
             data = await loop.run_in_executor(None, sync_request)
@@ -150,12 +147,12 @@ def register(kernel):
             else:
                 return lang_strings["translation_failed"]
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return lang_strings["request_timeout"]
         except json.JSONDecodeError:
             return lang_strings["decode_error"]
         except Exception as e:
-            return f"{lang_strings['translation_error_generic']} {str(e)}"
+            return f"{lang_strings['translation_error_generic']} {e!s}"
 
     @kernel.register.command(
         "tr",

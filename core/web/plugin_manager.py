@@ -2,11 +2,12 @@
 # Copyright (c) 2026 Шмэлька | @hairpin01
 
 import importlib
-import pkgutil
 import logging
+import pkgutil
 from pathlib import Path
-from aiohttp import web
+
 import jinja2
+from aiohttp import web
 
 logger = logging.getLogger("web.plugin_manager")
 
@@ -89,7 +90,7 @@ class PluginManager:
             if isinstance(current_loader, jinja2.FileSystemLoader):
                 # Combine search paths: plugin templates first, then main
                 new_loader = jinja2.FileSystemLoader(
-                    [str(plugin_templates_dir)] + current_loader.searchpath
+                    [str(plugin_templates_dir), *current_loader.searchpath]
                 )
                 self.app["aiohttp_jinja2_environment"].loader = new_loader
             else:

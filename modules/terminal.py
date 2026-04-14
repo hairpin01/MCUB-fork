@@ -7,7 +7,6 @@ from __future__ import annotations
 # author: @Hairpin00
 # version: 2.0.0
 # description: Terminal commands with real-time output streaming / Терминал с потоковым выводом
-
 import asyncio
 import html
 import os
@@ -191,7 +190,7 @@ def register(kernel):
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                     preexec_fn=os.setsid if os.name != "nt" else None,
-                )  # noqa: S602, S607, B606
+                )
 
                 cmd_data["process"] = process
                 self.running_commands[chat_id] = cmd_data
@@ -304,7 +303,7 @@ def register(kernel):
                         asyncio.shield(cmd_data["data_event"].wait()),
                         timeout=float(interval),
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     pass
                 except asyncio.CancelledError:
                     break
@@ -389,7 +388,7 @@ def register(kernel):
 
                     try:
                         await asyncio.wait_for(process.wait(), timeout=5.0)
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         pass
 
                 # Process killed - read_output will catch EOF, send final

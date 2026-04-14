@@ -32,8 +32,8 @@ import asyncio
 import shutil
 import sys
 import traceback
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, List, Optional
 
 import aiohttp
 
@@ -41,27 +41,27 @@ import aiohttp
 try:
     from .config_parser import PackageConfig
     from .display import (
-        GREEN,
-        YELLOW,
+        BOLD,
         CYAN,
+        DIM,
+        GREEN,
         GREY,
         RESET,
-        BOLD,
-        DIM,
-        SYM_OK,
-        SYM_DL,
         SYM_DEL,
-        ok,
+        SYM_DL,
+        SYM_OK,
+        YELLOW,
         err,
-        warn,
-        info,
-        step,
+        format_installed_list,
+        format_pkg_info,
         h1,
+        info,
         kv,
+        ok,
         pkg_badge,
         progress_bar,
-        format_pkg_info,
-        format_installed_list,
+        step,
+        warn,
     )
     from .lockfile import LockFile
     from .resolver import DependencyResolver
@@ -70,27 +70,27 @@ except ImportError:
     sys.path.insert(0, str(base_dir))
     from config_parser import PackageConfig
     from display import (
-        GREEN,
-        YELLOW,
+        BOLD,
         CYAN,
+        DIM,
+        GREEN,
         GREY,
         RESET,
-        BOLD,
-        DIM,
-        SYM_OK,
-        SYM_DL,
         SYM_DEL,
-        ok,
+        SYM_DL,
+        SYM_OK,
+        YELLOW,
         err,
-        warn,
-        info,
-        step,
+        format_installed_list,
+        format_pkg_info,
         h1,
+        info,
         kv,
+        ok,
         pkg_badge,
         progress_bar,
-        format_pkg_info,
-        format_installed_list,
+        step,
+        warn,
     )
     from lockfile import LockFile
     from resolver import DependencyResolver
@@ -301,7 +301,7 @@ class PackageManager:
         output: OutputCB,
         verb: str = "install",
     ) -> bool:
-        pct_log: List[str] = []
+        pct_log: list[str] = []
         _pct = [0.0]
 
         def progress(pct: float, msg: str) -> None:
@@ -333,7 +333,9 @@ class PackageManager:
                 resolver = DependencyResolver(
                     progress_cb=lambda p, m: progress(0.18 + p * 0.25, m)
                 )
-                deps_ok, dep_errors = await resolver.resolve(cfg.pip_deps, cfg.sys_deps)
+                _deps_ok, dep_errors = await resolver.resolve(
+                    cfg.pip_deps, cfg.sys_deps
+                )
                 if dep_errors:
                     for e_msg in dep_errors:
                         output(warn(e_msg))
@@ -426,7 +428,7 @@ class PackageManager:
             output(err(traceback.format_exc().strip()))
             return False
 
-    async def _fetch_text(self, url: str) -> Optional[str]:
+    async def _fetch_text(self, url: str) -> str | None:
         """Download URL and return text, or None on error."""
         try:
             async with aiohttp.ClientSession() as session:
@@ -439,7 +441,7 @@ class PackageManager:
             pass
         return None
 
-    async def _fetch_config(self, name: str) -> Optional[PackageConfig]:
+    async def _fetch_config(self, name: str) -> PackageConfig | None:
         """Fetch and parse a package's config.cfg."""
         text = await self._fetch_text(f"{self.repo}/{name}/config.cfg")
         if text is None:
@@ -449,7 +451,7 @@ class PackageManager:
         except Exception:
             return None
 
-    async def _fetch_manifest(self, name: str) -> Optional[List[str]]:
+    async def _fetch_manifest(self, name: str) -> list[str] | None:
         """Fetch manifest.ini (one filename per line). Returns None if missing."""
         text = await self._fetch_text(f"{self.repo}/{name}/manifest.ini")
         if text is None:
@@ -458,7 +460,7 @@ class PackageManager:
             l.strip() for l in text.splitlines() if l.strip() and not l.startswith("#")
         ]
 
-    async def _fetch_packages_ini(self) -> Optional[List[str]]:
+    async def _fetch_packages_ini(self) -> list[str] | None:
         """Fetch the repository's root packages.ini."""
         text = await self._fetch_text(f"{self.repo}/packages.ini")
         if text is None:

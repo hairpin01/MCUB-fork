@@ -3,19 +3,21 @@
 
 from __future__ import annotations
 
+import asyncio
+import hashlib
+import html
+
 # author: @Hairpin00
 # version: 1.3.0
 # description: Module config management / Управление конфигами модулей
-
 import json
-import html
-import hashlib
 import re
-import uuid
 import time
-import asyncio
+import uuid
+
 from telethon import Button, events, types
-from telethon.tl.types import InputWebDocument, DocumentAttributeImageSize
+from telethon.tl.types import DocumentAttributeImageSize, InputWebDocument
+
 from core.lib.loader.module_config import ModuleConfig, ValidationError
 
 
@@ -264,10 +266,10 @@ def register(kernel):
         # Add cached modules that might not be in live configs anymore
         if cached and not force_refresh:
             modules_with_config.update(cached)
-            return sorted(list(modules_with_config))
+            return sorted(modules_with_config)
 
         # Cache miss or refresh - rebuild from live configs
-        result = sorted(list(modules_with_config))
+        result = sorted(modules_with_config)
         kernel.cache.set(cache_key, result, ttl=MODULES_WITH_CONFIG_CACHE_TTL)
         return result
 
@@ -687,7 +689,7 @@ def register(kernel):
     def create_kernel_buttons_grid(page_keys, page, total_pages):
         buttons = []
         row = []
-        for i, (key, value) in enumerate(page_keys):
+        for _i, (key, _value) in enumerate(page_keys):
             display_key = truncate_key(key)
             key_id = generate_key_id(key, page, "kernel")
             kernel.cache.set(f"cfg_view_{key_id}", (key, page, "kernel"), ttl=86400)
@@ -710,7 +712,7 @@ def register(kernel):
                     t("btn_next"), data=f"config_kernel_page_{page + 1}".encode()
                 )
             )
-        nav_buttons.append(Button.inline(t("btn_menu"), data="config_menu".encode()))
+        nav_buttons.append(Button.inline(t("btn_menu"), data=b"config_menu"))
         if nav_buttons:
             buttons.append(nav_buttons)
 
@@ -721,7 +723,7 @@ def register(kernel):
     def create_modules_buttons_grid(modules, page, total_pages):
         buttons = []
         row = []
-        for i, module_name in enumerate(modules):
+        for _i, module_name in enumerate(modules):
             display_name = truncate_module_name(module_name)
             key_id = generate_key_id(module_name, page, "module")
             kernel.cache.set(f"module_select_{key_id}", (module_name, page), ttl=86400)
@@ -746,7 +748,7 @@ def register(kernel):
                     t("btn_next"), data=f"config_modules_page_{page + 1}".encode()
                 )
             )
-        nav_buttons.append(Button.inline(t("btn_menu"), data="config_menu".encode()))
+        nav_buttons.append(Button.inline(t("btn_menu"), data=b"config_menu"))
         if nav_buttons:
             buttons.append(nav_buttons)
 
@@ -757,7 +759,7 @@ def register(kernel):
     def create_module_config_buttons(module_name, page_keys, page, total_pages):
         buttons = []
         row = []
-        for i, (key, value) in enumerate(page_keys):
+        for _i, (key, _value) in enumerate(page_keys):
             display_key = truncate_key(key)
             key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
             kernel.cache.set(
@@ -791,7 +793,7 @@ def register(kernel):
                 )
             )
         nav_buttons.append(
-            Button.inline(t("btn_modules"), data="config_modules_page_0".encode())
+            Button.inline(t("btn_modules"), data=b"config_modules_page_0")
         )
         if nav_buttons:
             buttons.append(nav_buttons)
@@ -922,7 +924,7 @@ def register(kernel):
         all_modules = list(kernel.system_modules.keys()) + list(
             kernel.loaded_modules.keys()
         )
-        all_modules = sorted(list(set(all_modules)))
+        all_modules = sorted(set(all_modules))
 
         page = 0
         if query.startswith("config_modules_"):
@@ -1915,7 +1917,6 @@ def register(kernel):
 
             is_module_scope = scope == "module"
             target_config = kernel.config
-            is_new_format = False
 
             if is_module_scope:
                 if not module_name:
@@ -2198,7 +2199,7 @@ def register(kernel):
                 )
                 return None, None, None
 
-            key, page, config_type = cached
+            key, _page, config_type = cached
             if config_type != "kernel":
                 await event.answer(
                     [event.builder.article("Error", text=t("fcfg_inline_id_not_found"))]
@@ -3321,7 +3322,7 @@ def register(kernel):
                 module_mode = True
                 module_name = args[2]
                 # Shift args: module <module_name> set key val -> set key val
-                args = [args[0]] + args[3:]
+                args = [args[0], *args[3:]]
                 action = args[1].lower() if len(args) > 1 else ""
 
             # Support for "-m module_name" flag (old format)

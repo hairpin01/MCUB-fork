@@ -2,16 +2,19 @@
 # Copyright (c) 2026 Шмэлька | @hairpin01
 
 from __future__ import annotations
-import uuid
-import time
+
 import sys
+import time
+import traceback
+import uuid
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from html import escape as html_escape
-from typing import TYPE_CHECKING, Any, Mapping, Sequence, Callable
-import traceback
+from typing import TYPE_CHECKING, Any
 
 from telethon import Button, events
 from telethon.errors import ChatSendInlineForbiddenError
+
 from core_inline.api.inline import make_cb_button
 
 if TYPE_CHECKING:
@@ -30,7 +33,7 @@ class _Session:
 class InlineManager:
     """Handles inline queries, callback handlers, and inline form creation."""
 
-    def __init__(self, kernel: "Kernel") -> None:
+    def __init__(self, kernel: Kernel) -> None:
         self.k = kernel
         self.k.logger.debug("[InlineManager] __init__ start")
         # Temporary storage for callback-driven UI (gallery/list and one-off views).
@@ -407,8 +410,8 @@ class InlineManager:
             k.logger.error(f"Callback registration error: {e}")
 
     def _format_telethon_buttons(self, buttons: Any) -> list[list[Any]]:
-        from telethon.tl.tlobject import TLObject
         from telethon.tl.custom.button import Button as TelethonButton
+        from telethon.tl.tlobject import TLObject
 
         if not buttons:
             return []
@@ -492,7 +495,7 @@ class InlineManager:
         buttons: list | None = None,
         silent: bool = False,
         reply_to: int | None = None,
-        form_sms: "Message | None" = None,
+        form_sms: Message | None = None,
         **kwargs,
     ):
         """Perform an inline query and automatically click the specified result.
@@ -884,7 +887,7 @@ class InlineMessage:
     def __init__(
         self,
         unit_id: str,
-        kernel: "Kernel",
+        kernel: Kernel,
     ) -> None:
         """Initialize InlineMessage.
 
@@ -897,7 +900,7 @@ class InlineMessage:
         self._form_data: dict | None = None
 
     @classmethod
-    def get(cls, unit_id: str, kernel: "Kernel") -> "InlineMessage | None":
+    def get(cls, unit_id: str, kernel: Kernel) -> InlineMessage | None:
         """Get an InlineMessage by unit/form ID or message ID.
 
         Args:
@@ -950,7 +953,7 @@ class InlineMessage:
         text: str | None = None,
         buttons: list | None = None,
         **kwargs,
-    ) -> "InlineMessage":
+    ) -> InlineMessage:
         """Edit the inline message.
 
         Args:
@@ -967,9 +970,10 @@ class InlineMessage:
             await msg.edit("New text", buttons=[[Button.callback("Click", "data")]])
             ```
         """
-        from core_inline.handlers import InlineHandlers
         from telethon.tl.functions.messages import EditInlineBotMessageRequest
         from telethon.tl.types import InputBotInlineMessageID
+
+        from core_inline.handlers import InlineHandlers
 
         handlers = InlineHandlers(self._kernel, self._kernel.bot_client)
         form_data = handlers.get_inline_form(self.unit_id)
@@ -1066,8 +1070,9 @@ class InlineMessage:
             await msg.delete()
             ```
         """
-        from core_inline.handlers import InlineHandlers
         from telethon.tl.functions.messages import DeleteBotCallbackMessage
+
+        from core_inline.handlers import InlineHandlers
 
         bot_client = getattr(self._kernel, "bot_client", None)
         user_client = getattr(self._kernel, "client", None)

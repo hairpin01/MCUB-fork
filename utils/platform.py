@@ -6,9 +6,9 @@
 # version: 1.0.0
 
 import os
-import sys
 import platform
 import subprocess
+import sys
 
 
 class PlatformDetector:
@@ -93,7 +93,7 @@ class PlatformDetector:
         """Checks if running in WSL (Windows Subsystem for Linux)"""
         # Method 1: Check kernel version
         try:
-            with open("/proc/version", "r") as f:
+            with open("/proc/version") as f:
                 version_info = f.read().lower()
                 if "microsoft" in version_info or "wsl" in version_info:
                     return True
@@ -102,7 +102,7 @@ class PlatformDetector:
 
         # Method 2: Check release info
         try:
-            with open("/proc/sys/kernel/osrelease", "r") as f:
+            with open("/proc/sys/kernel/osrelease") as f:
                 osrelease = f.read().lower()
                 if "microsoft" in osrelease or "wsl" in osrelease:
                     return True
@@ -123,7 +123,7 @@ class PlatformDetector:
         # WSL2 has /dev/pts directory with specific features
         try:
             # Check WSL version
-            with open("/proc/version", "r") as f:
+            with open("/proc/version") as f:
                 version_info = f.read().lower()
                 if "wsl2" in version_info:
                     return True
@@ -147,7 +147,7 @@ class PlatformDetector:
 
         # Method 2: Check cgroup
         try:
-            with open("/proc/1/cgroup", "r") as f:
+            with open("/proc/1/cgroup") as f:
                 cgroup_info = f.read().lower()
                 if "docker" in cgroup_info or "lxc" in cgroup_info:
                     return True
@@ -156,7 +156,7 @@ class PlatformDetector:
 
         # Method 3: Check process name
         try:
-            with open("/proc/self/cgroup", "r") as f:
+            with open("/proc/self/cgroup") as f:
                 content = f.read().lower()
                 if "docker" in content:
                     return True

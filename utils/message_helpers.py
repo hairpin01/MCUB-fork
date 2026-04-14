@@ -6,9 +6,10 @@
 # version: 1.2.0
 # description: Helpers for sending messages with HTML markup
 
-import re
 import html
-from .html_parser import parse_html, _utf16_len
+import re
+
+from .html_parser import _utf16_len, parse_html
 
 _CUSTOM_EMOJI_TAG_RE = re.compile(r"<tg-emoji[^>]*>(.*?)</tg-emoji>", re.IGNORECASE)
 _LEGACY_EMOJI_WITH_ALT_RE = re.compile(

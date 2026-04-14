@@ -5,11 +5,10 @@
 # version: 1.1.0
 # description: kernel restart
 
+import inspect
 import os
 import sys
 import time
-import inspect
-from typing import Optional
 
 ALLOWED_RESTART_ARGS = {"--no-web", "--proxy-web", "--port", "--host", "--core"}
 ARGS_WITH_VALUES = {"--proxy-web", "--port", "--host", "--core"}
@@ -49,8 +48,8 @@ async def _close_kernel_resources(kernel) -> None:
 
 
 def build_safe_restart_args(
-    argv: Optional[list[str]] = None,
-    entrypoint: Optional[str] = None,
+    argv: list[str] | None = None,
+    entrypoint: str | None = None,
 ) -> list[str]:
     """
     Build a sanitized argv list for process restart.
@@ -94,9 +93,7 @@ def build_safe_restart_args(
     return safe_args
 
 
-def safe_restart(
-    argv: Optional[list[str]] = None, entrypoint: Optional[str] = None
-) -> None:
+def safe_restart(argv: list[str] | None = None, entrypoint: str | None = None) -> None:
     """Restart current process with sanitized CLI args."""
     safe_args = build_safe_restart_args(argv=argv, entrypoint=entrypoint)
     os.execv(sys.executable, [sys.executable, *safe_args])
@@ -106,7 +103,7 @@ def write_restart_file(
     restart_file: str,
     chat_id: int,
     message_id: int,
-    thread_id: Optional[int] = None,
+    thread_id: int | None = None,
 ) -> None:
     """
     Persist restart context for post-restart notification.
@@ -121,9 +118,9 @@ def write_restart_file(
 
 async def restart_kernel(
     kernel,
-    chat_id: Optional[int] = None,
-    message_id: Optional[int] = None,
-    thread_id: Optional[int] = None,
+    chat_id: int | None = None,
+    message_id: int | None = None,
+    thread_id: int | None = None,
 ):
     """
     Выполняет перезагрузку процесса юзербота.

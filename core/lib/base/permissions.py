@@ -7,7 +7,7 @@
 
 import time
 from collections import defaultdict
-from typing import Dict, Optional, Pattern, Union
+from re import Pattern
 
 
 class CallbackPermissionManager:
@@ -28,9 +28,9 @@ class CallbackPermissionManager:
         Initialize the permission manager with empty permissions.
         """
         # {user_id: {pattern: expiry_time}}
-        self.permissions: Dict[int, Dict[str, float]] = defaultdict(dict)
+        self.permissions: dict[int, dict[str, float]] = defaultdict(dict)
 
-    def _to_str(self, val: Union[str, bytes, Pattern]) -> str:
+    def _to_str(self, val: str | bytes | Pattern) -> str:
         """
         Convert various input types to a normalized string pattern.
 
@@ -57,7 +57,7 @@ class CallbackPermissionManager:
     def allow(
         self,
         user_id: int,
-        pattern: Union[str, bytes, Pattern],
+        pattern: str | bytes | Pattern,
         duration_seconds: float = 60,
     ) -> None:
         """
@@ -81,7 +81,7 @@ class CallbackPermissionManager:
 
         self.permissions[user_id][pattern_str] = expiry_time
 
-    def is_allowed(self, user_id: int, pattern: Union[str, bytes, Pattern]) -> bool:
+    def is_allowed(self, user_id: int, pattern: str | bytes | Pattern) -> bool:
         """
         Check if a user has permission for a specific pattern.
 
@@ -121,7 +121,7 @@ class CallbackPermissionManager:
         return False
 
     def prohibit(
-        self, user_id: int, pattern: Optional[Union[str, bytes, Pattern]] = None
+        self, user_id: int, pattern: str | bytes | Pattern | None = None
     ) -> None:
         """
         Revoke permission(s) for a user.
@@ -191,7 +191,7 @@ class CallbackPermissionManager:
 
         return removed_count
 
-    def get_user_permissions(self, user_id: int) -> Dict[str, float]:
+    def get_user_permissions(self, user_id: int) -> dict[str, float]:
         """
         Get all active permissions for a specific user.
 
@@ -214,8 +214,8 @@ class CallbackPermissionManager:
         }
 
     def get_expiry_time(
-        self, user_id: int, pattern: Union[str, bytes, Pattern]
-    ) -> Optional[float]:
+        self, user_id: int, pattern: str | bytes | Pattern
+    ) -> float | None:
         """
         Get the expiry time for a specific user-pattern permission.
 
@@ -239,8 +239,8 @@ class CallbackPermissionManager:
         return expiry_time
 
     def remaining_time(
-        self, user_id: int, pattern: Union[str, bytes, Pattern]
-    ) -> Optional[float]:
+        self, user_id: int, pattern: str | bytes | Pattern
+    ) -> float | None:
         """
         Get remaining time (in seconds) for a specific permission.
 
@@ -266,7 +266,7 @@ class CallbackPermissionManager:
         """
         self.permissions.clear()
 
-    def get_all_permissions(self) -> Dict[int, Dict[str, float]]:
+    def get_all_permissions(self) -> dict[int, dict[str, float]]:
         """
         Get all permissions (including expired ones).
 

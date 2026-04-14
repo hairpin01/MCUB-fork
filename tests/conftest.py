@@ -5,11 +5,12 @@
 Test configuration and fixtures for MCUB
 """
 
-import pytest
 import asyncio
 import sys
 from pathlib import Path
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import pytest
 
 # Add parent directory to Python path (so core can be imported as a package)
 sys.path.insert(0, str(Path(__file__).parent.parent))

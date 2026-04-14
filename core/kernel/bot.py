@@ -9,11 +9,9 @@ from __future__ import annotations
 # --- meta data end ---------------------------------
 # 🌐 fork MCUBFB: https://github.com/Mitrichdfklwhcluio/MCUBFB
 # 🌐 github MCUB-fork: https://github.com/hairpin01/MCUB-fork
-
 import asyncio
 import html
 import os
-import sys
 import time
 import traceback
 from typing import Any
@@ -193,7 +191,7 @@ class Kernel(_StandardKernel):
 
             self._sync_client_middlewares()
 
-            bot_name = getattr(me, "username", None) or str(me.id)
+            getattr(me, "username", None) or str(me.id)
             return True
 
         except Exception as e:
@@ -335,7 +333,7 @@ class Kernel(_StandardKernel):
             os.remove(self.RESTART_FILE)
 
             me = await self.client.get_me()
-            bot_name = getattr(me, "username", None) or "bot"
+            getattr(me, "username", None) or "bot"
 
             mcub_label = (
                 '<tg-emoji emoji-id="5470015630302287916">🕳️</tg-emoji>'

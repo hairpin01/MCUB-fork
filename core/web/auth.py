@@ -7,7 +7,7 @@ Web panel authentication middleware.
 
 import hashlib
 import secrets
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from aiohttp import web
 
@@ -51,7 +51,7 @@ class AuthMiddleware:
 
     def __init__(self, app: web.Application):
         self.app = app
-        self.token_hash: Optional[str] = None
+        self.token_hash: str | None = None
         self.auth_enabled: bool = False
         self._setup_auth()
 
@@ -70,7 +70,7 @@ class AuthMiddleware:
                 import json
 
                 try:
-                    with open(config_path, "r") as f:
+                    with open(config_path) as f:
                         config = json.load(f)
                 except Exception:
                     pass

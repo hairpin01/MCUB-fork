@@ -5,10 +5,11 @@
 Tests for Register class
 """
 
-import pytest
 import asyncio
 import sys
 from unittest.mock import MagicMock
+
+import pytest
 
 
 class TestRegisterClass:
@@ -133,7 +134,7 @@ class TestGetOrCreateRegister:
         module = MagicMock()
         del module.register
 
-        reg = Register._get_or_create_register(module)
+        Register._get_or_create_register(module)
 
         assert hasattr(module, "register")
 

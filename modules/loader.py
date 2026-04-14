@@ -13,12 +13,12 @@ import logging
 import os
 import random
 import re
-import subprocess
 import sys
 import uuid
+from collections.abc import Callable
 from datetime import datetime
-from typing import TYPE_CHECKING, Callable
-
+from typing import TYPE_CHECKING
+import shutil
 import aiohttp
 from telethon import Button
 from telethon.types import InputMediaWebPage
@@ -27,9 +27,9 @@ if TYPE_CHECKING:
     from telethon import types
 
 from core.lib.loader.module_config import (
-    ModuleConfig,
-    ConfigValue,
     Boolean,
+    ConfigValue,
+    ModuleConfig,
 )
 
 try:
@@ -449,7 +449,6 @@ def register(kernel):
 
     # Get strings for current language
     lang_strings = strings.get(language, strings["en"])
-    lang = language
 
     def t(key: str, **kwargs: str) -> str:
         """Возвращает локализованную строку с подстановкой значений"""
@@ -518,7 +517,7 @@ def register(kernel):
             raise e
         except Exception as e:
             kernel.logger.error(f"Ошибка загрузки модуля {module_name}: {e}")
-            return False, f"Ошибка загрузки: {str(e)}"
+            return False, f"Ошибка загрузки: {e!s}"
 
     def detect_module_type(module: object) -> str:
         register = getattr(module, "register", None)
@@ -556,7 +555,7 @@ def register(kernel):
             if len(parts) >= 3 and parts[2].isdigit():
                 page = int(parts[2])
 
-            repos = [kernel.default_repo] + kernel.repositories
+            repos = [kernel.default_repo, *kernel.repositories]
 
             if repo_index < 0 or repo_index >= len(repos):
                 repo_index = 0
@@ -916,6 +915,7 @@ def register(kernel):
             module_name = module_or_url
 
         cfg = get_config()
+        force_unload = not (cfg and cfg.get("loader_protect_system", True))
         if cfg and cfg.get("loader_protect_system", True):
             if module_name in kernel.system_modules:
                 await edit_with_emoji(
@@ -974,6 +974,68 @@ def register(kernel):
             add_log(t("log_type", type="URL" if is_url else "из репозитория"))
 
             if is_url:
+                is_archive = kernel._loader.is_archive_url(module_or_url)
+
+                if is_archive:
+                    add_log(t("log_download_url", url=module_or_url))
+                    add_log("Detected archive file, using archive installer")
+
+                    success, msg, extra = await kernel._loader.install_from_archive(
+                        module_or_url, module_name
+                    )
+
+                    if success:
+                        add_log(f"Archive install success: {msg}")
+
+                        # Parse result from install_from_archive (returns tuple with extra info now)
+                        loaded_list = (
+                            extra.get("loaded", []) if isinstance(extra, dict) else []
+                        )
+
+                        if len(loaded_list) > 1:
+                            display_name = f"{len(loaded_list)} модулей"
+                            desc = "archive pack"
+                        else:
+                            display_name = module_name
+                            desc = metadata.get("description", "") if metadata else ""
+
+                        await edit_with_emoji(
+                            event,
+                            t(
+                                "module_loaded",
+                                success=CUSTOM_EMOJI["success"],
+                                module_name=display_name,
+                                emoji=CUSTOM_EMOJI["idea"],
+                                idea=CUSTOM_EMOJI["idea"],
+                                description=desc,
+                                version=(
+                                    metadata.get("version", "1.0.0")
+                                    if metadata
+                                    else "1.0.0"
+                                ),
+                                emoji_author=CUSTOM_EMOJI["author"],
+                                author=(
+                                    metadata.get("author", "unknown")
+                                    if metadata
+                                    else "unknown"
+                                ),
+                                commands_list="",
+                                source_link="",
+                            ),
+                        )
+                        return
+                    else:
+                        add_log(f"Archive install failed: {msg}")
+                        await edit_with_emoji(
+                            event,
+                            t(
+                                "module_not_found_repos",
+                                warning=CUSTOM_EMOJI["warning"],
+                                module_name=msg,
+                            ),
+                        )
+                        return
+
                 try:
                     add_log(t("log_download_url", url=module_or_url))
                     async with aiohttp.ClientSession() as session:
@@ -1005,7 +1067,7 @@ def register(kernel):
                     )
                     return
             elif code is None:
-                repos = [kernel.default_repo] + kernel.repositories
+                repos = [kernel.default_repo, *kernel.repositories]
                 add_log(t("log_checking_repos", count=len(repos)))
 
                 if repo_index is not None and 0 <= repo_index < len(repos):
@@ -1059,6 +1121,24 @@ def register(kernel):
             add_log(t("log_version", version=metadata["version"]))
             add_log(t("log_description", description=metadata["description"]))
 
+            if metadata.get("is_class_style") and metadata.get("class_name"):
+                class_name = metadata["class_name"]
+                if (
+                    class_name in kernel.system_modules
+                    and cfg
+                    and cfg.get("loader_protect_system", True)
+                ):
+                    await edit_with_emoji(
+                        event,
+                        t(
+                            "system_module_install_attempt",
+                            confused=CUSTOM_EMOJI["confused"],
+                            module_name=class_name,
+                            blocked=CUSTOM_EMOJI["blocked"],
+                        ),
+                    )
+                    return
+
             if send_mode:
                 action = t("downloading_module", download=CUSTOM_EMOJI["download"])
             else:
@@ -1092,6 +1172,28 @@ def register(kernel):
                 ),
                 f"{module_name}.py",
             )
+
+            for loaded_name, loaded_mod in list(kernel.loaded_modules.items()):
+                class_instance = getattr(loaded_mod, "_class_instance", None)
+                if class_instance is not None:
+                    class_display_name = getattr(type(class_instance), "name", None)
+                    if class_display_name == module_name and loaded_name != module_name:
+                        old_file_path = os.path.join(
+                            kernel.MODULES_LOADED_DIR, f"{loaded_name}.py"
+                        )
+                        new_file_path = os.path.join(
+                            kernel.MODULES_LOADED_DIR, f"{module_name}.py"
+                        )
+                        if os.path.exists(old_file_path):
+                            os.remove(old_file_path)
+                            kernel.logger.info(
+                                f"[loader] Removed old file {old_file_path} for class module {module_name}"
+                            )
+                        kernel.logger.info(
+                            f"[loader] Using existing path for class module: {new_file_path}"
+                        )
+                        file_path = new_file_path
+                        break
 
             if send_mode:
                 add_log(t("log_saving_for_send"))
@@ -1153,7 +1255,7 @@ def register(kernel):
 
             if is_update:
                 add_log(t("log_removing_old", module_name=module_name))
-                await kernel.unregister_module_commands(module_name)
+                await kernel.unregister_module_commands(module_name, force=force_unload)
 
             add_log(t("log_saving_file", file_path=file_path))
             with open(file_path, "w", encoding="utf-8") as f:
@@ -1318,7 +1420,7 @@ def register(kernel):
                 return
 
             lang = kernel.config.get("language", "ru")
-            success, message_text = await kernel.load_module_from_file(
+            result = await kernel.load_module_from_file(
                 file_path,
                 module_name,
                 False,
@@ -1326,10 +1428,40 @@ def register(kernel):
                 source_repo=repo_url if not is_url and repo_url else None,
             )
 
+            result_tuple = result
+            if len(result_tuple) >= 3:
+                success, message_text, loaded_module_name = result_tuple[:3]
+            elif len(result_tuple) == 2:
+                success, message_text = result_tuple
+                loaded_module_name = module_name
+            else:
+                success = False
+                message_text = "Unknown error"
+                loaded_module_name = module_name
+
             if success:
                 add_log(t("log_module_loaded_kernel"))
+
+                kernel._module_sources[loaded_module_name] = {
+                    "type": "url" if is_url else "repo",
+                    "url": module_or_url if is_url else None,
+                    "repo": repo_url if not is_url and repo_url else None,
+                }
+
+                class_instance = getattr(
+                    kernel.loaded_modules.get(loaded_module_name),
+                    "_class_instance",
+                    None,
+                )
+                if class_instance is not None:
+                    display_name = getattr(
+                        type(class_instance), "name", loaded_module_name
+                    )
+                else:
+                    display_name = loaded_module_name
+
                 commands, aliases_info, descriptions = (
-                    kernel._loader.get_module_commands(module_name, lang)
+                    kernel._loader.get_module_commands(loaded_module_name, lang)
                 )
                 emoji = random.choice(RANDOM_EMOJIS)
 
@@ -1372,7 +1504,7 @@ def register(kernel):
                                 )
                         commands_list += command_line + "\n"
 
-                inline_commands = kernel.get_module_inline_commands(module_name)
+                inline_commands = kernel.get_module_inline_commands(loaded_module_name)
                 if inline_commands:
                     inline_emoji = (
                         '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
@@ -1386,7 +1518,7 @@ def register(kernel):
                 final_msg = t(
                     "module_loaded",
                     success=CUSTOM_EMOJI["success"],
-                    module_name=module_name,
+                    module_name=display_name,
                     emoji=emoji,
                     idea=CUSTOM_EMOJI["idea"],
                     description=metadata["description"],
@@ -1394,10 +1526,10 @@ def register(kernel):
                     author=metadata.get("author", "unknown"),
                     emoji_author=CUSTOM_EMOJI["author"],
                     commands_list=commands_list,
-                    source_link=get_source_link(module_name),
+                    source_link=get_source_link(loaded_module_name),
                 )
 
-                kernel.logger.info(f"Модуль {module_name} скачан")
+                kernel.logger.info(f"Модуль {loaded_module_name} скачан")
 
                 banner_url = metadata.get("banner_url")
                 cfg = get_config()
@@ -1509,7 +1641,275 @@ def register(kernel):
             ),
             None,
         )
-        if not reply.document or not file_name or not file_name.endswith(".py"):
+
+        if not reply.document or not file_name:
+            await edit_with_emoji(
+                event, t("not_py_file", warning=CUSTOM_EMOJI["warning"])
+            )
+            return
+
+        install_log = []
+
+        def add_log(message):
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            log_entry = f"[{timestamp}] {message}"
+            install_log.append(log_entry)
+            kernel.logger.debug(log_entry)
+
+        is_archive = file_name.lower().endswith((".zip", ".tar.gz", ".tgz", ".tar"))
+
+        if is_archive:
+            add_log(f"Detected archive file: {file_name}")
+
+            temp_dir = os.path.join(kernel.MODULES_LOADED_DIR, "_temp_iload_archive")
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
+            os.makedirs(temp_dir, exist_ok=True)
+
+            try:
+                archive_path = os.path.join(temp_dir, file_name)
+                await reply.download_media(archive_path)
+                add_log(f"Archive downloaded to {archive_path}")
+
+                with open(archive_path, "rb") as f:
+                    archive_bytes = f.read()
+
+                result = await kernel._loader._archive_mgr.extract(
+                    archive_bytes, temp_dir
+                )
+                if not result.success:
+                    await edit_with_emoji(
+                        event,
+                        f"{CUSTOM_EMOJI['error']} <b>Archive extraction failed:</b> {result.error}",
+                    )
+                    return
+
+                add_log(
+                    f"Archive extracted, type={result.pack_type}, modules={[m.name for m in result.modules]}"
+                )
+
+                module_name = os.path.splitext(file_name)[0]
+                if result.metadata and result.metadata.name:
+                    module_name = result.metadata.name
+
+                cfg = get_config()
+                protect_system = cfg and cfg.get("loader_protect_system", True)
+
+                # Check for system module conflict
+                if protect_system and module_name in kernel.system_modules:
+                    await edit_with_emoji(
+                        event,
+                        t(
+                            "system_module_install_attempt",
+                            confused=CUSTOM_EMOJI["confused"],
+                            blocked=CUSTOM_EMOJI["blocked"],
+                            module_name=module_name,
+                        ),
+                    )
+                    return
+
+                deps = []
+                if result.metadata and result.metadata.dependencies:
+                    deps = result.metadata.dependencies
+                    add_log(f"Archive dependencies: {deps}")
+                    for dep in deps:
+                        bare = re.split(r"[>=<!]", dep)[0].strip()
+                        try:
+                            __import__(bare.replace("-", "_"))
+                        except ImportError:
+                            ok, msg = await kernel._loader.install_dependency(bare)
+                            if ok:
+                                add_log(f"Installed dependency: {dep}")
+                            else:
+                                add_log(f"Failed to install {dep}: {msg}")
+
+                target_dir = kernel.MODULES_LOADED_DIR
+                loaded_modules = []
+
+                if result.pack_type == "single":
+                    main_mod = next(
+                        (m for m in result.modules if m.is_main), result.modules[0]
+                    )
+                    source_file = os.path.join(temp_dir, main_mod.file_path)
+
+                    # Check for local imports
+                    with open(source_file, encoding="utf-8") as f:
+                        main_code = f.read()
+
+                    has_local_import = (
+                        "from . import" in main_code or "from .lib import" in main_code
+                    )
+
+                    if has_local_import:
+                        module_dir = os.path.join(target_dir, module_name)
+                        if os.path.exists(module_dir):
+                            shutil.rmtree(module_dir)
+                        os.makedirs(module_dir, exist_ok=True)
+
+                        # Copy all files
+                        for root, dirs, files in os.walk(temp_dir):
+                            rel_dir = os.path.relpath(root, temp_dir)
+                            if rel_dir == ".":
+                                continue
+                            target_subdir = os.path.join(module_dir, rel_dir)
+                            os.makedirs(target_subdir, exist_ok=True)
+                            for f in files:
+                                if f.endswith(".py"):
+                                    shutil.copy2(
+                                        os.path.join(root, f),
+                                        os.path.join(target_subdir, f),
+                                    )
+
+                        # Update imports
+                        main_in_package = os.path.join(module_dir, "__init__.py")
+                        with open(main_in_package, "w") as f:
+                            content = main_code
+                            content = re.sub(
+                                r"from \.([^\s]+) import",
+                                f"from {module_name}.\\1 import",
+                                content,
+                            )
+                            content = re.sub(
+                                r"from \. import", f"from {module_name} import", content
+                            )
+                            f.write(content)
+
+                        if target_dir not in sys.path:
+                            sys.path.insert(0, target_dir)
+
+                        result = await kernel._loader.load_module_from_file(
+                            main_in_package, module_name, False
+                        )
+                        success = result[0]
+                        msg = result[1] if len(result) >= 2 else ""
+                    else:
+                        target_file = os.path.join(target_dir, f"{module_name}.py")
+                        shutil.copy2(source_file, target_file)
+                        result = await kernel._loader.load_module_from_file(
+                            target_file, module_name, False
+                        )
+                        success = result[0]
+                        msg = result[1] if len(result) >= 2 else ""
+
+                    if success:
+                        loaded_modules.append(module_name)
+                        kernel._module_sources[module_name] = {
+                            "type": "archive",
+                            "pack_type": "single",
+                        }
+                    else:
+                        await edit_with_emoji(
+                            event,
+                            f"{CUSTOM_EMOJI['error']} <b>Failed to load module:</b> {msg}",
+                        )
+                        return
+                else:
+                    # Check system modules for pack
+                    if protect_system:
+                        system_conflicts = [
+                            mod.name
+                            for mod in result.modules
+                            if mod.name in kernel.system_modules
+                        ]
+                        if system_conflicts:
+                            await edit_with_emoji(
+                                event,
+                                f"{CUSTOM_EMOJI['confused']} <b>System module conflict:</b> {', '.join(system_conflicts)}",
+                            )
+                            return
+
+                    failed_modules = []
+                    for mod in result.modules:
+                        target_file = os.path.join(target_dir, f"{mod.name}.py")
+                        source_file = os.path.join(temp_dir, mod.file_path)
+
+                        if os.path.exists(source_file):
+                            shutil.copy2(source_file, target_file)
+                            result = await kernel._loader.load_module_from_file(
+                                target_file, mod.name, False
+                            )
+                            success = result[0]
+                            msg = result[1] if len(result) >= 2 else ""
+
+                            if success:
+                                loaded_modules.append(mod.name)
+                                kernel._module_sources[mod.name] = {
+                                    "type": "archive",
+                                    "pack_type": "pack",
+                                }
+                            else:
+                                failed_modules.append(f"{mod.name}: {msg}")
+                                add_log(f"Failed to load {mod.name}: {msg}")
+
+                await kernel.save_module_sources()
+
+                # Get metadata and commands for display
+                if result.pack_type == "single":
+                    code_for_meta = (
+                        main_code if has_local_import else open(source_file).read()
+                    )
+                    metadata = await kernel.get_module_metadata(code_for_meta)
+                else:
+                    metadata = await kernel.get_module_metadata("")
+
+                # Get commands from registered module
+                lang = kernel.config.get("language", "ru")
+                commands, aliases_info, descriptions = (
+                    kernel._loader.get_module_commands(module_name, lang)
+                )
+
+                commands_list = ""
+                if commands:
+                    for cmd in commands:
+                        cmd_desc = (
+                            descriptions.get(cmd)
+                            or metadata["commands"].get(cmd)
+                            or t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
+                        )
+                        command_line = t(
+                            "command_line",
+                            crystal=CUSTOM_EMOJI["crystal"],
+                            prefix=kernel.custom_prefix,
+                            cmd=cmd,
+                            desc=cmd_desc,
+                        )
+                        commands_list += command_line + "\n"
+
+                source_link = get_source_link(module_name)
+
+                await edit_with_emoji(
+                    event,
+                    t(
+                        "module_loaded",
+                        success=CUSTOM_EMOJI["success"],
+                        module_name=", ".join(loaded_modules),
+                        emoji=CUSTOM_EMOJI["idea"],
+                        idea=CUSTOM_EMOJI["idea"],
+                        description=metadata["description"],
+                        version=metadata["version"],
+                        emoji_author=CUSTOM_EMOJI["author"],
+                        author=metadata.get("author", "unknown"),
+                        commands_list=commands_list,
+                        source_link=source_link,
+                    ),
+                )
+                return
+
+            except Exception as e:
+                await kernel.handle_error(e, source="iload_archive", event=event)
+                await edit_with_emoji(
+                    event,
+                    f"{CUSTOM_EMOJI['error']} <b>Archive install error:</b> {str(e)[:200]}",
+                )
+                return
+            finally:
+                if os.path.exists(temp_dir):
+                    try:
+                        shutil.rmtree(temp_dir)
+                    except Exception:
+                        pass
+
+        if not file_name.endswith(".py"):
             await edit_with_emoji(
                 event, t("not_py_file", warning=CUSTOM_EMOJI["warning"])
             )
@@ -1543,6 +1943,15 @@ def register(kernel):
             module_name in kernel.loaded_modules or module_name in kernel.system_modules
         )
 
+        class_instance = getattr(
+            kernel.loaded_modules.get(module_name), "_class_instance", None
+        )
+        if class_instance is not None:
+            existing_class_name = getattr(type(class_instance), "name", None)
+            if existing_class_name:
+                is_update = True
+                module_name = existing_class_name
+
         old_version = None
         if is_update:
             old_file_path = kernel._loader.get_module_path(module_name)
@@ -1555,12 +1964,29 @@ def register(kernel):
 
         file_path = kernel._loader.get_module_path(module_name)
 
+        for loaded_name, loaded_mod in list(kernel.loaded_modules.items()):
+            class_instance = getattr(loaded_mod, "_class_instance", None)
+            if class_instance is not None:
+                class_display_name = getattr(type(class_instance), "name", None)
+                if class_display_name == module_name and loaded_name != module_name:
+                    old_file_path = kernel._loader.get_module_path(loaded_name)
+                    if os.path.exists(old_file_path):
+                        os.remove(old_file_path)
+                        kernel.logger.info(
+                            f"[loader] Removed old file {old_file_path} for class module {module_name}"
+                        )
+                    file_path = kernel._loader.get_module_path(module_name)
+                    kernel.logger.info(
+                        f"[loader] Using path {file_path} for class module {module_name}"
+                    )
+                    break
+
         try:
             add_log(t("log_downloading", file_path=file_path))
             await reply.download_media(file_path)
             add_log(t("log_downloaded"))
 
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 code = f.read()
             add_log(t("log_file_read"))
 
@@ -1570,6 +1996,26 @@ def register(kernel):
             add_log(t("log_author", author=metadata["author"]))
             add_log(t("log_version", version=metadata["version"]))
             add_log(t("log_description", description=metadata["description"]))
+
+            if metadata.get("is_class_style") and metadata.get("class_name"):
+                class_name = metadata["class_name"]
+                if (
+                    class_name in kernel.system_modules
+                    and cfg
+                    and cfg.get("loader_protect_system", True)
+                ):
+                    await edit_with_emoji(
+                        msg,
+                        t(
+                            "system_module_install_attempt",
+                            confused=CUSTOM_EMOJI["confused"],
+                            module_name=class_name,
+                            blocked=CUSTOM_EMOJI["blocked"],
+                        ),
+                    )
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                    return
 
             if is_update:
                 new_version = metadata["version"]
@@ -1601,7 +2047,7 @@ def register(kernel):
             )
             add_log(t("log_filename", filename=file_name))
 
-            mcub = await mcub_handler()
+            await mcub_handler()
             add_log(t("log_checking_compatibility"))
 
             dependencies = kernel._loader.parse_requires(code)
@@ -1655,15 +2101,35 @@ def register(kernel):
                 await kernel.unregister_module_commands(module_name)
 
             add_log(t("log_loading_module", module_name=module_name))
-            success, message_text = await kernel.load_module_from_file(
+            result = await kernel.load_module_from_file(
                 file_path, module_name, False, source_url=None, source_repo=None
             )
+            success = result[0]
+            message_text = result[1] if len(result) >= 2 else ""
+            loaded_module_name = result[2] if len(result) >= 3 else module_name
 
             if success:
                 add_log(t("log_module_loaded"))
+
+                kernel._module_sources[loaded_module_name] = {
+                    "type": "local",
+                }
+
+                class_instance = getattr(
+                    kernel.loaded_modules.get(loaded_module_name),
+                    "_class_instance",
+                    None,
+                )
+                if class_instance is not None:
+                    display_name = getattr(
+                        type(class_instance), "name", loaded_module_name
+                    )
+                else:
+                    display_name = loaded_module_name
+
                 lang = kernel.config.get("language", "ru")
                 commands, aliases_info, descriptions = (
-                    kernel._loader.get_module_commands(module_name, lang)
+                    kernel._loader.get_module_commands(loaded_module_name, lang)
                 )
 
                 emoji = random.choice(RANDOM_EMOJIS)
@@ -1707,7 +2173,7 @@ def register(kernel):
                                 )
                         commands_list += command_line + "\n"
 
-                inline_commands = kernel.get_module_inline_commands(module_name)
+                inline_commands = kernel.get_module_inline_commands(loaded_module_name)
                 if inline_commands:
                     inline_emoji = (
                         '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
@@ -1721,7 +2187,7 @@ def register(kernel):
                 final_msg = t(
                     "module_loaded",
                     success=CUSTOM_EMOJI["success"],
-                    module_name=module_name,
+                    module_name=display_name,
                     emoji=emoji,
                     idea=CUSTOM_EMOJI["idea"],
                     description=metadata["description"],
@@ -1729,10 +2195,10 @@ def register(kernel):
                     author=metadata.get("author", "unknown"),
                     emoji_author=CUSTOM_EMOJI["author"],
                     commands_list=commands_list,
-                    source_link=get_source_link(module_name),
+                    source_link=get_source_link(loaded_module_name),
                 )
 
-                kernel.logger.info(f"Модуль {module_name} установлен")
+                kernel.logger.info(f"Модуль {display_name} установлен")
 
                 banner_url = metadata.get("banner_url")
                 cfg = get_config()
@@ -1859,7 +2325,7 @@ def register(kernel):
                     event, t("dlm_list_loading", loading=CUSTOM_EMOJI["loading"])
                 )
 
-                repos = [kernel.default_repo] + kernel.repositories
+                repos = [kernel.default_repo, *kernel.repositories]
                 message_lines = []
                 errors = []
 
@@ -1906,7 +2372,7 @@ def register(kernel):
                     parse_mode="html",
                 )
 
-                repos = [kernel.default_repo] + kernel.repositories
+                repos = [kernel.default_repo, *kernel.repositories]
                 found = False
 
                 for repo in repos:
@@ -1980,7 +2446,7 @@ def register(kernel):
         )
 
         if not is_url and repo_index is None:
-            repos = [kernel.default_repo] + kernel.repositories
+            repos = [kernel.default_repo, *kernel.repositories]
             matches = await find_repo_matches(module_or_url, repos)
 
             if len(matches) > 1:
@@ -2039,7 +2505,7 @@ def register(kernel):
 
         try:
             await kernel.unregister_module_commands(module_name, force=force_unload)
-        except PermissionError as e:
+        except PermissionError:
             await edit_with_emoji(
                 event,
                 t(
@@ -2080,8 +2546,15 @@ def register(kernel):
         if os.path.exists(file_path):
             os.remove(file_path)
 
-        if module_name in sys.modules:
-            del sys.modules[module_name]
+        # Check for package directory (archive modules with local imports)
+        package_dir = os.path.join(kernel.MODULES_LOADED_DIR, module_name)
+        if os.path.isdir(package_dir):
+            shutil.rmtree(package_dir)
+
+        # Also clean up sys.modules for package submodules
+        for mod in list(sys.modules.keys()):
+            if mod == module_name or mod.startswith(f"{module_name}."):
+                del sys.modules[mod]
 
         if module_name in kernel.loaded_modules:
             del kernel.loaded_modules[module_name]
@@ -2257,13 +2730,14 @@ def register(kernel):
                 # Preserve source info on reload
                 old_source = kernel._module_sources.get(module_name)
 
-                success, _ = await kernel.load_module_from_file(
+                result = await kernel.load_module_from_file(
                     file_path,
                     module_name,
                     False,
                     source_url=old_source.get("url") if old_source else None,
                     source_repo=old_source.get("repo") if old_source else None,
                 )
+                success = result[0]
                 kernel.logger.debug(
                     "[reload] post-load bulk module=%r success=%s loaded=%s",
                     module_name,
@@ -2295,7 +2769,7 @@ def register(kernel):
 
             if failed:
                 failed_list = ""
-                for i, name in enumerate(failed[:10]):
+                for _i, name in enumerate(failed[:10]):
                     failed_list += t("failed_module", name=name)
                 if failed_count > 10:
                     failed_list += t("and_more", count=failed_count - 10)
@@ -2329,7 +2803,7 @@ def register(kernel):
                         t(
                             "reload_all_success_one",
                             success=CUSTOM_EMOJI["success"],
-                            count=f"1",
+                            count="1",
                             name=results[0],
                         ),
                     )
@@ -2396,7 +2870,7 @@ def register(kernel):
         )
 
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 code = f.read()
             dependencies = kernel._loader.parse_requires(code)
         except Exception as e:
@@ -2501,9 +2975,9 @@ def register(kernel):
                     module_name,
                 )
 
-        success, message_text = await kernel.load_module_from_file(
-            file_path, module_name, is_system
-        )
+        result = await kernel.load_module_from_file(file_path, module_name, is_system)
+        success = result[0]
+        message_text = result[1] if len(result) >= 2 else ""
         kernel.logger.debug(
             "[reload] single-post-load module=%r success=%s loaded=%s system=%s",
             module_name,

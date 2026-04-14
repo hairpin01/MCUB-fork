@@ -3,12 +3,12 @@
 
 from __future__ import annotations
 
+import os
+
 # author: @Hairpin00
 # version: 1.4.0
 # description: Entry point
-
 import sys
-import os
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -29,7 +29,7 @@ def _get_available_cores():
 _DEFAULT_CORE_FILE = Path(__file__).parent / ".default_core"
 
 
-def _get_default_core() -> "str | None":
+def _get_default_core() -> str | None:
     """Read the saved default core name, or None if not set."""
     if _DEFAULT_CORE_FILE.exists():
         value = _DEFAULT_CORE_FILE.read_text().strip()

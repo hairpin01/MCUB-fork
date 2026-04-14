@@ -8,9 +8,12 @@
 import asyncio
 import inspect
 import re
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from collections.abc import Callable
+from typing import Any
 
 from telethon import events
+
+from core.lib.utils.exceptions import CommandConflictError
 
 
 class InfiniteLoop:
@@ -35,7 +38,7 @@ class InfiniteLoop:
         self.interval = interval
         self.autostart = autostart
         self._wait_before = wait_before
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._kernel: Any = None
         self.status: bool = False
 
@@ -81,7 +84,7 @@ class InfiniteLoop:
         )
 
 
-def _watcher_passes_filters(event: Any, tags: Dict[str, Any]) -> bool:
+def _watcher_passes_filters(event: Any, tags: dict[str, Any]) -> bool:
     """Return True if *event* satisfies all tag filters."""
     msg = getattr(event, "message", event)
 
@@ -199,14 +202,14 @@ class Register:
 
     def __init__(self, kernel: Any) -> None:
         self.kernel = kernel
-        self._methods: Dict[str, Callable] = {}
-        self._method_modules: Dict[str, Any] = {}
+        self._methods: dict[str, Callable] = {}
+        self._method_modules: dict[str, Any] = {}
 
     def _get_disabled_watchers(self) -> set:
         disabled = getattr(self.kernel, "_disabled_watchers", None)
         if not isinstance(disabled, set):
             disabled = set()
-            setattr(self.kernel, "_disabled_watchers", disabled)
+            self.kernel._disabled_watchers = disabled
         return disabled
 
     @staticmethod
@@ -225,7 +228,7 @@ class Register:
             setattr(reg, attr, [])
         return getattr(reg, attr)
 
-    def method(self, func: Optional[Callable] = None) -> Callable:
+    def method(self, func: Callable | None = None) -> Callable:
         """
         Register a setup function on the module's register object.
 
@@ -253,7 +256,12 @@ class Register:
         return decorator(func)
 
     def event(
-        self, event_type: str, *args: Any, bot_client: bool = False, **kwargs: Any
+        self,
+        event_type: str,
+        *args: Any,
+        bot_client: bool = False,
+        module: Any = None,
+        **kwargs: Any,
     ) -> Callable:
         """
         Register a Telegram event handler tracked by the kernel.
@@ -270,6 +278,7 @@ class Register:
                         ``message``, ``edited``, ``read``, ``action``,
                         ``request``, ``callback`` …).
             bot_client: If True, register on bot_client instead of client.
+            module: Target module for registration (auto-detected).
             *args / **kwargs: Forwarded to the Telethon event constructor.
 
         Example:
@@ -289,7 +298,7 @@ class Register:
             >>> async def start(event):
             >>>     await event.reply("Hello from bot!")
         """
-        EVENT_TYPE_MAP: Dict[str, Any] = {
+        EVENT_TYPE_MAP: dict[str, Any] = {
             "newmessage": events.NewMessage,
             "message": events.NewMessage,
             "messageedited": events.MessageEdited,
@@ -313,14 +322,18 @@ class Register:
             "custom": events.Raw,
         }
 
-        frame = inspect.stack()[1][0]
-        module = inspect.getmodule(frame)
-        _mod_name = getattr(module, "__name__", "unknown") if module else "unknown"
+        _passed_module = module
+        if _passed_module is None:
+            frame = inspect.stack()[1][0]
+            _passed_module = inspect.getmodule(frame)
+        _mod_name = (
+            getattr(_passed_module, "__name__", "unknown")
+            if _passed_module
+            else "unknown"
+        )
 
         _key = event_type.lower()
 
-        # 1) inline / callback events must use bot_client=True.
-        #    User-accounts never receive InlineQuery or CallbackQuery updates.
         _BOT_ONLY_EVENTS = {"inlinequery", "inline", "callbackquery", "callback"}
         if _key in _BOT_ONLY_EVENTS and not bot_client:
             self.kernel.logger.warning(
@@ -331,10 +344,7 @@ class Register:
                 "likely never fire. Add bot_client=True to fix this."
             )
 
-        # 2) inline / callback handlers without a filter would match EVERY
-        #    query — that is never correct, so refuse outright.
         if _key in _BOT_ONLY_EVENTS:
-            # callbackquery uses `data=`, inlinequery uses `pattern=`
             _has_filter = "pattern" in kwargs or "data" in kwargs
             if not _has_filter:
                 raise ValueError(
@@ -364,10 +374,9 @@ class Register:
 
             tg_client.add_event_handler(handler, event_obj)
 
-            # track (handler, event_obj, tg_client) for clean removal
-            if module:
-                reg = self._get_or_create_register(module)
-                tracked: List[Tuple[Callable, Any, Any]] = self._ensure_list(
+            if _passed_module:
+                reg = self._get_or_create_register(_passed_module)
+                tracked: list[tuple[Callable, Any, Any]] = self._ensure_list(
                     reg, "__event_handlers__"
                 )
                 tracked.append((handler, event_obj, tg_client))
@@ -415,9 +424,12 @@ class Register:
                 )
 
             if cmd in self.kernel.command_handlers:
-                raise ValueError(
-                    f"Command '{cmd}' already registered by "
-                    f"'{self.kernel.command_owners.get(cmd)}'"
+                owner = self.kernel.command_owners.get(cmd)
+                kind = "system" if owner in self.kernel.system_modules else "user"
+                raise CommandConflictError(
+                    f"Command '{cmd}' already registered by '{owner}'",
+                    conflict_type=kind,
+                    command=cmd,
                 )
 
             self.kernel.command_handlers[cmd] = func
@@ -434,7 +446,11 @@ class Register:
             if alias:
                 if isinstance(alias, str):
                     if alias in self.kernel.command_handlers:
-                        raise ValueError(f"Alias '{alias}' already registered")
+                        raise CommandConflictError(
+                            f"Alias '{alias}' already registered as command",
+                            conflict_type="alias",
+                            command=alias,
+                        )
                     self.kernel.aliases[alias] = cmd
                     self.kernel.logger.debug(
                         "[register.command] alias=%r -> %r owner=%r total_aliases=%d",
@@ -446,7 +462,11 @@ class Register:
                 elif isinstance(alias, list):
                     for a in alias:
                         if a in self.kernel.command_handlers:
-                            raise ValueError(f"Alias '{a}' already registered")
+                            raise CommandConflictError(
+                                f"Alias '{a}' already registered as command",
+                                conflict_type="alias",
+                                command=a,
+                            )
                         self.kernel.aliases[a] = cmd
                         self.kernel.logger.debug(
                             "[register.command] alias=%r -> %r owner=%r total_aliases=%d",
@@ -504,9 +524,11 @@ class Register:
                 raise ValueError("No current module set for bot command registration.")
 
             if cmd in self.kernel.bot_command_handlers:
-                raise ValueError(
+                raise CommandConflictError(
                     f"Bot command '/{cmd}' already registered by "
-                    f"'{self.kernel.bot_command_owners.get(cmd)}'"
+                    f"'{self.kernel.bot_command_owners.get(cmd)}'",
+                    conflict_type="bot",
+                    command=cmd,
                 )
 
             self.kernel.bot_command_handlers[cmd] = (pattern, func)
@@ -533,7 +555,11 @@ class Register:
         return decorator
 
     def watcher(
-        self, func: Optional[Callable] = None, bot_client: bool = False, **tags: Any
+        self,
+        func: Callable | None = None,
+        bot_client: bool = False,
+        module: Any = None,
+        **tags: Any,
     ) -> Callable:
         """
         Register a passive message watcher.
@@ -544,6 +570,8 @@ class Register:
 
         Args:
             bot_client: If True, register on bot_client instead of client.
+            module: Target module for registration (auto-detected via
+                inspect.getmodule, but can be overridden for class-style).
 
         Available tags:
             out, incoming
@@ -578,13 +606,16 @@ class Register:
             >>>     ...
         """
         _use_bot_client = bot_client
+        _passed_module = module
 
         def decorator(f: Callable) -> Callable:
+            nonlocal _passed_module
             _tags = dict(tags)
-            frame = inspect.stack()[1][0]
-            module = inspect.getmodule(frame)
+            if _passed_module is None:
+                frame = inspect.stack()[1][0]
+                _passed_module = inspect.getmodule(frame)
             module_name = getattr(
-                module,
+                _passed_module,
                 "__name__",
                 self.kernel.current_loading_module or "unknown",
             )
@@ -597,6 +628,9 @@ class Register:
                 _use_bot_client,
                 _tags,
             )
+
+            bound_instance = getattr(f, "__bound_instance__", None)
+            raw_func = getattr(f, "__original__", f)
 
             async def _wrapper(event: Any) -> None:
                 event_text = getattr(getattr(event, "message", event), "text", None)
@@ -629,16 +663,19 @@ class Register:
                         module_name,
                         watcher_name,
                     )
-                    await f(event)
+                    if bound_instance is not None:
+                        await raw_func(bound_instance, event)
+                    else:
+                        await f(event)
                     self.kernel.logger.debug(
                         "[watcher] done module=%r watcher=%r",
                         module_name,
                         watcher_name,
                     )
                 except Exception as exc:
-                    self.kernel.logger.error(f"Watcher '{f.__name__}' raised: {exc}")
+                    self.kernel.logger.error(f"Watcher '{watcher_name}' raised: {exc}")
 
-            _wrapper.__name__ = f"watcher:{f.__name__}"
+            _wrapper.__name__ = f"watcher:{watcher_name}"
             _wrapper.__module__ = module_name
             _wrapper.__watcher_original__ = f
             _wrapper.__watcher_module__ = module_name
@@ -665,9 +702,9 @@ class Register:
                 type(event_obj).__name__,
             )
 
-            if module:
-                reg = self._get_or_create_register(module)
-                wlist: List[Tuple[Callable, Any, Any]] = self._ensure_list(
+            if _passed_module:
+                reg = self._get_or_create_register(_passed_module)
+                wlist: list[tuple[Callable, Any, Any]] = self._ensure_list(
                     reg, "__watchers__"
                 )
                 wlist.append(
@@ -695,6 +732,7 @@ class Register:
         interval: int = 60,
         autostart: bool = True,
         wait_before: bool = False,
+        module: Any = None,
     ) -> Callable:
         """
         Declare a managed background loop on the module.
@@ -703,12 +741,15 @@ class Register:
         ``autostart=True``) and stopped on unload — no ``on_load`` /
         ``uninstall`` boilerplate needed.
 
-        The decorated function receives the kernel as its only argument.
+        The decorated function receives the kernel as its only argument (or
+        the class instance for class-style modules via ``@loop`` decorator).
 
         Args:
             interval:    Seconds between iterations.
             autostart:   Start the loop right after the module loads.
             wait_before: Sleep *before* the first iteration instead of after.
+            module:      Target module for registration (auto-detected via
+                inspect.getmodule, but can be overridden for class-style).
 
         Returns:
             InfiniteLoop — can be used for manual ``start()`` / ``stop()``.
@@ -733,20 +774,31 @@ class Register:
         """
 
         def decorator(f: Callable) -> "InfiniteLoop":
-            il = InfiniteLoop(f, interval, autostart, wait_before)
+            nonlocal module
+            bound_instance = getattr(f, "__bound_instance__", None)
+            raw_func = getattr(f, "__original__", f)
 
-            frame = inspect.stack()[1][0]
-            module = inspect.getmodule(frame)
+            async def loop_caller(kernel: Any) -> None:
+                if bound_instance is not None:
+                    return await raw_func(bound_instance)
+                return await raw_func(kernel)
+
+            il = InfiniteLoop(loop_caller, interval, autostart, wait_before)
+
+            if module is None:
+                frame = inspect.stack()[1][0]
+                module = inspect.getmodule(frame)
+
             if module:
                 reg = self._get_or_create_register(module)
-                loops: List[InfiniteLoop] = self._ensure_list(reg, "__loops__")
+                loops: list[InfiniteLoop] = self._ensure_list(reg, "__loops__")
                 loops.append(il)
 
             return il
 
         return decorator
 
-    def on_load(self, func: Optional[Callable] = None) -> Callable:
+    def on_load(self, func: Callable | None = None) -> Callable:
         """
         Register a callback invoked after the module is fully loaded.
 
@@ -771,7 +823,7 @@ class Register:
             return decorator
         return decorator(func)
 
-    def on_install(self, func: Optional[Callable] = None) -> Callable:
+    def on_install(self, func: Callable | None = None) -> Callable:
         """
         Register a callback invoked **only the first time** the module is installed.
 
@@ -799,7 +851,7 @@ class Register:
             return decorator
         return decorator(func)
 
-    def uninstall(self, func: Optional[Callable] = None) -> Callable:
+    def uninstall(self, func: Callable | None = None) -> Callable:
         """
         Register a cleanup callback invoked when the module is unloaded.
 
@@ -825,14 +877,14 @@ class Register:
             return decorator
         return decorator(func)
 
-    def get_registered_methods(self) -> Dict[str, Callable]:
+    def get_registered_methods(self) -> dict[str, Callable]:
         """Return a copy of all functions registered via @method."""
         return self._methods.copy()
 
-    def get_commands(self) -> Dict[str, Callable]:
+    def get_commands(self) -> dict[str, Callable]:
         return self.kernel.command_handlers.copy()
 
-    def get_command(self, command: str) -> Dict[str, Any]:
+    def get_command(self, command: str) -> dict[str, Any]:
         result = {
             "handler": self.kernel.command_handlers.get(command),
             "owner": self.kernel.command_owners.get(command),
@@ -840,7 +892,7 @@ class Register:
         }
         return result
 
-    def get_bot_commands(self) -> Dict[str, Tuple[str, Callable]]:
+    def get_bot_commands(self) -> dict[str, tuple[str, Callable]]:
         """
         Get all registered Telegram bot commands.
 
@@ -849,7 +901,7 @@ class Register:
         """
         return self.kernel.bot_command_handlers.copy()
 
-    def get_watchers(self) -> List[Dict[str, Any]]:
+    def get_watchers(self) -> list[dict[str, Any]]:
         """
         Get all registered watchers from all modules.
 
@@ -934,7 +986,7 @@ class Register:
                 return True
         return False
 
-    def get_events(self) -> List[Tuple[Callable, Any, Any]]:
+    def get_events(self) -> list[tuple[Callable, Any, Any]]:
         """
         Get all registered event handlers from all modules.
 
@@ -942,7 +994,7 @@ class Register:
             List of (handler, event_obj, client) tuples.
         """
         events = []
-        for module_name, module in {
+        for _module_name, module in {
             **self.kernel.loaded_modules,
             **self.kernel.system_modules,
         }.items():
@@ -951,7 +1003,7 @@ class Register:
                 events.extend(reg.__event_handlers__)
         return events
 
-    def get_loops(self) -> List[InfiniteLoop]:
+    def get_loops(self) -> list[InfiniteLoop]:
         """
         Get all registered InfiniteLoop objects from all modules.
 
@@ -959,7 +1011,7 @@ class Register:
             List of InfiniteLoop instances.
         """
         loops = []
-        for module_name, module in {
+        for _module_name, module in {
             **self.kernel.loaded_modules,
             **self.kernel.system_modules,
         }.items():
@@ -1005,7 +1057,7 @@ class Register:
             return True
         return False
 
-    def get_all_aliases(self) -> Dict[str, str]:
+    def get_all_aliases(self) -> dict[str, str]:
         """
         Get all registered command aliases.
 
@@ -1014,7 +1066,7 @@ class Register:
         """
         return self.kernel.aliases.copy()
 
-    def get_command_alias(self, command: str) -> Optional[str]:
+    def get_command_alias(self, command: str) -> str | None:
         """
         Get the alias for a specific command.
 
@@ -1029,7 +1081,7 @@ class Register:
                 return alias
         return None
 
-    def get_use_bot(self) -> Dict[str, Any]:
+    def get_use_bot(self) -> dict[str, Any]:
         """
         Get information about inline bot usage.
 
@@ -1056,9 +1108,7 @@ class Register:
             "username": bot_username,
         }
 
-    def owner(
-        self, func: Optional[Callable] = None, only_admin: bool = False
-    ) -> Callable:
+    def owner(self, func: Callable | None = None, only_admin: bool = False) -> Callable:
         """
         Decorator to restrict a handler to the bot owner (admin) or trusted users.
 

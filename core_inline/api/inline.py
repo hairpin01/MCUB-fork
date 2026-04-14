@@ -1,15 +1,15 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлька | @hairpin01
 
-from typing import Any, Optional
 import threading
 import time
 import uuid
+from typing import Any
 
 from telethon import Button
 
 
-def get_button_emoji(btn: Any) -> Optional[str]:
+def get_button_emoji(btn: Any) -> str | None:
     if hasattr(btn, "style") and btn.style:
         if hasattr(btn.style, "icon") and btn.style.icon:
             return str(btn.style.icon)
@@ -26,7 +26,7 @@ def build_inline_keyboard_row(buttons: list[Any]) -> list[dict[str, Any]]:
 
 
 def build_inline_keyboard(
-    rows: list[list[Any]], resize: bool = None, one_time: bool = None
+    rows: list[list[Any]], resize: bool | None = None, one_time: bool | None = None
 ) -> dict[str, Any]:
     keyboard = []
     for row in rows:
@@ -43,14 +43,14 @@ def build_inline_keyboard(
     return result
 
 
-def build_inline_button(btn: Any) -> Optional[dict[str, Any]]:
+def build_inline_button(btn: Any) -> dict[str, Any] | None:
     from telethon.tl.types import (
         KeyboardButtonCallback,
-        KeyboardButtonUrl,
-        KeyboardButtonSwitchInline,
-        KeyboardButtonRequestPhone,
-        KeyboardButtonRequestGeoLocation,
         KeyboardButtonGame,
+        KeyboardButtonRequestGeoLocation,
+        KeyboardButtonRequestPhone,
+        KeyboardButtonSwitchInline,
+        KeyboardButtonUrl,
     )
 
     emoji = get_button_emoji(btn)
@@ -112,7 +112,7 @@ def build_inline_button(btn: Any) -> Optional[dict[str, Any]]:
 
 
 def build_button_callback(
-    text: str, data: str, emoji: Optional[str] = None
+    text: str, data: str, emoji: str | None = None
 ) -> dict[str, Any]:
     btn = {"text": text, "callback_data": data}
     if emoji:
@@ -120,9 +120,7 @@ def build_button_callback(
     return btn
 
 
-def build_button_url(
-    text: str, url: str, emoji: Optional[str] = None
-) -> dict[str, Any]:
+def build_button_url(text: str, url: str, emoji: str | None = None) -> dict[str, Any]:
     btn = {"text": text, "url": url}
     if emoji:
         btn["emoji"] = emoji
@@ -156,10 +154,10 @@ def make_cb_button(
     text: str,
     callback,
     *,
-    args: Optional[list] = None,
-    kwargs: Optional[dict] = None,
+    args: list | None = None,
+    kwargs: dict | None = None,
     ttl: int = 900,
-    token: Optional[str] = None,
+    token: str | None = None,
     icon: Any = None,
     style: Any = None,
 ):
@@ -180,7 +178,7 @@ def make_cb_button(
         cb_map = getattr(kernel, "inline_callback_map", None)
         if cb_map is None:
             cb_map = {}
-            setattr(kernel, "inline_callback_map", cb_map)
+            kernel.inline_callback_map = cb_map
 
         now = time.time()
         expired = [
@@ -203,7 +201,7 @@ def make_cb_button(
 
 
 def build_button_switch(
-    text: str, query: str, hint: str = "", emoji: Optional[str] = None
+    text: str, query: str, hint: str = "", emoji: str | None = None
 ) -> dict[str, Any]:
     btn = {"text": text, "switch_inline_query": query}
     if hint:
@@ -213,21 +211,21 @@ def build_button_switch(
     return btn
 
 
-def build_button_phone(text: str, emoji: Optional[str] = None) -> dict[str, Any]:
+def build_button_phone(text: str, emoji: str | None = None) -> dict[str, Any]:
     btn = {"text": text, "request_contact": True}
     if emoji:
         btn["emoji"] = emoji
     return btn
 
 
-def build_button_location(text: str, emoji: Optional[str] = None) -> dict[str, Any]:
+def build_button_location(text: str, emoji: str | None = None) -> dict[str, Any]:
     btn = {"text": text, "request_location": True}
     if emoji:
         btn["emoji"] = emoji
     return btn
 
 
-def build_button_game(text: str, emoji: Optional[str] = None) -> dict[str, Any]:
+def build_button_game(text: str, emoji: str | None = None) -> dict[str, Any]:
     btn = {"text": text, "callback_game": {}}
     if emoji:
         btn["emoji"] = emoji
@@ -236,8 +234,8 @@ def build_button_game(text: str, emoji: Optional[str] = None) -> dict[str, Any]:
 
 def build_input_message_content(
     text: str,
-    parse_mode: Optional[str] = None,
-    entities: Optional[list[dict[str, Any]]] = None,
+    parse_mode: str | None = None,
+    entities: list[dict[str, Any]] | None = None,
     disable_web_page_preview: bool = False,
 ) -> dict[str, Any]:
     content = {"message_text": text}
@@ -253,7 +251,7 @@ def build_input_message_content(
 def add_inline_keyboard_to_result(
     result: dict[str, Any],
     buttons: list[list[Any]],
-    parse_mode: Optional[str] = None,
+    parse_mode: str | None = None,
 ) -> dict[str, Any]:
     keyboard = build_inline_keyboard(buttons)
     result["reply_markup"] = keyboard

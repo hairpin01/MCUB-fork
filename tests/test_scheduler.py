@@ -5,10 +5,11 @@
 Tests for task scheduler
 """
 
-import pytest
 import asyncio
 import time
 from unittest.mock import MagicMock
+
+import pytest
 
 
 @pytest.mark.asyncio
@@ -309,7 +310,7 @@ class TestSchedulerTiming:
         async def timed_task():
             return time.time()
 
-        task_id = await scheduler.add_task(timed_task, delay_seconds=0.1)
+        await scheduler.add_task(timed_task, delay_seconds=0.1)
 
         await asyncio.sleep(0.15)
         await scheduler.stop()

@@ -3,32 +3,28 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
+import os
+from html import escape
+
 # author: @Hairpin00
 # version: 1.1.0
 # description: Module manager / Менеджер модулей
 from telethon import Button
-import time
-import uuid
-
-from core_inline.api.inline import make_cb_button
-import re
-import asyncio
-import os
-from html import escape
-import math
-import json
 from telethon.tl.types import (
-    InputWebDocument,
     DocumentAttributeImageSize,
     InputMediaWebPage,
+    InputWebDocument,
 )
 
 from core.lib.loader.module_config import (
-    ModuleConfig,
-    ConfigValue,
-    String,
     Boolean,
+    ConfigValue,
+    ModuleConfig,
+    String,
 )
+from core_inline.api.inline import make_cb_button
 
 CUSTOM_EMOJI = {
     "crystal": '<tg-emoji emoji-id="5361837567463399422">🔮</tg-emoji>',
@@ -73,11 +69,39 @@ def get_module_commands(module_name, kernel, lang=None):
 
 def resolve_module_path(name: str, typ: str, kernel) -> str:
     """Return module file path (system or user)."""
-    return (
-        f"{kernel.MODULES_DIR}/{name}.py"
-        if typ == "system"
-        else f"{kernel.MODULES_LOADED_DIR}/{name}.py"
-    )
+    if typ == "system":
+        return f"{kernel.MODULES_DIR}/{name}.py"
+
+    # Check for package directory (archive modules with local imports)
+    package_dir = f"{kernel.MODULES_LOADED_DIR}/{name}"
+    if os.path.isdir(package_dir):
+        init_file = os.path.join(package_dir, "__init__.py")
+        if os.path.exists(init_file):
+            return init_file
+
+    return f"{kernel.MODULES_LOADED_DIR}/{name}.py"
+
+    # Search for class-style modules by class attribute "name = '...'"
+    try:
+        for fname in os.listdir(kernel.MODULES_LOADED_DIR):
+            fpath = os.path.join(kernel.MODULES_LOADED_DIR, fname)
+            if not (os.path.isfile(fpath) and fname.endswith(".py")):
+                continue
+            try:
+                with open(fpath, "r", encoding="utf-8") as f:
+                    code = f.read()
+                pattern = (
+                    r'class\s+\w+\s*\([^)]*\):[^}]*?name\s*=\s*["\']([^"\']+)["\']'
+                )
+                for match in re.finditer(pattern, code, re.DOTALL):
+                    if match.group(1) == name:
+                        return fpath
+            except:
+                pass
+    except OSError:
+        pass
+
+    return default_path
 
 
 async def load_module_metadata(name: str, typ: str, kernel, strings) -> dict:
@@ -104,7 +128,7 @@ async def load_module_metadata(name: str, typ: str, kernel, strings) -> dict:
             return cached[1]
 
     try:
-        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+        with open(file_path, encoding="utf-8", errors="ignore") as f:
             code = f.read()
         metadata = await kernel.get_module_metadata(code)
     except Exception:
@@ -217,11 +241,18 @@ async def generate_detailed_page(search_term, kernel, strings, show_hidden=False
 
 async def _build_module_detail(match_tuple, kernel, strings):
     """Build a module detail page."""
-    name, typ, module = match_tuple
+    name, typ, _module = match_tuple
+
+    class_instance = getattr(_module, "_class_instance", None)
+    if class_instance is not None:
+        display_name = getattr(type(class_instance), "name", name)
+    else:
+        display_name = name
+
     commands, aliases_info, descriptions = get_module_commands(name, kernel)
     metadata = await load_module_metadata(name, typ, kernel, strings)
 
-    msg = f"{CUSTOM_EMOJI['dna']} <b>{strings['module']}</b> <code>{name}</code>:\n"
+    msg = f"{CUSTOM_EMOJI['dna']} <b>{strings['module']}</b> <code>{display_name}</code>:\n"
     msg += f"{CUSTOM_EMOJI['alembic']} <b>{strings['description']}:</b> <i>{metadata.get('description', strings['no_description'])}</i>\n"
     msg += f"{CUSTOM_EMOJI['snowflake']} <b>{strings['version']}:</b> <code>{metadata.get('version', '1.0.0')}</code>\n"
     msg += "<blockquote expandable>"
@@ -276,7 +307,6 @@ def get_paginated_data(
     close_cb=None,
     ttl: int = 900,
 ):
-    CHUNK_SIZE = 30
     MAX_MSG_LENGTH = 2000
     if hidden_list is None:
         hidden_list = []
@@ -287,6 +317,13 @@ def get_paginated_data(
         return [n for n in names if n not in hidden_list]
 
     def render_module_line(name):
+        module_obj = kernel.loaded_modules.get(name)
+        class_instance = getattr(module_obj, "_class_instance", None)
+        if class_instance is not None:
+            display_name = getattr(type(class_instance), "name", name)
+        else:
+            display_name = name
+
         commands, aliases_info, _ = get_module_commands(name, kernel)
         hidden_mark = (
             f" {CUSTOM_EMOJI['eye_off']}"
@@ -331,7 +368,7 @@ def get_paginated_data(
                     inline_cmds += f" (+{len(inline_commands) - 3})"
                 cmd_text += f" {inline_cmds}"
 
-            return f"<b>{name}</b>{hidden_mark}: {cmd_text}\n"
+            return f"<b>{display_name}</b>{hidden_mark}: {cmd_text}\n"
         elif inline_commands:
             inline_emoji = '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
             inline_cmds = ", ".join(
@@ -339,10 +376,10 @@ def get_paginated_data(
             )
             if len(inline_commands) > 3:
                 inline_cmds += f" (+{len(inline_commands) - 3})"
-            return f"<b>{name}</b>{hidden_mark}: {inline_cmds}\n"
+            return f"<b>{display_name}</b>{hidden_mark}: {inline_cmds}\n"
         else:
             no_cmd_emoji = '<tg-emoji emoji-id="5431895003821513760">❄️</tg-emoji>'
-            return f"<b>{name}</b>{hidden_mark}: {no_cmd_emoji} <i>{strings.get('no_commands', 'no commands')}</i>\n"
+            return f"<b>{display_name}</b>{hidden_mark}: {no_cmd_emoji} <i>{strings.get('no_commands', 'no commands')}</i>\n"
 
     def chunk_by_size(items, start_msg=""):
         chunks = []
@@ -520,7 +557,7 @@ def register(kernel):
             "search_error_desc": "An error occurred",
             "module_hidden": f"{CUSTOM_EMOJI['eye_off']} <b>Модуль скрыт из списка.</b>",
             "module_already_hidden": f"{CUSTOM_EMOJI['blocked']} Модуль уже скрыт.",
-            "module_unhidden": f"✅ <b>Модуль убран из скрытых.</b>",
+            "module_unhidden": "✅ <b>Модуль убран из скрытых.</b>",
             "module_not_hidden": f"{CUSTOM_EMOJI['blocked']} Этот модуль не скрыт.",
             "manhide_usage": f"{CUSTOM_EMOJI['confused']} Использование: <code>.manhide [модуль]</code>",
             "manunhide_usage": f"{CUSTOM_EMOJI['confused']} Использование: <code>.manunhide [модуль]</code>",
@@ -558,7 +595,7 @@ def register(kernel):
             "search_error_desc": "An error occurred",
             "module_hidden": f"{CUSTOM_EMOJI['eye_off']} <b>Module hidden from list.</b>",
             "module_already_hidden": f"{CUSTOM_EMOJI['blocked']} Module is already hidden.",
-            "module_unhidden": f"✅ <b>Module removed from hidden.</b>",
+            "module_unhidden": "✅ <b>Module removed from hidden.</b>",
             "module_not_hidden": f"{CUSTOM_EMOJI['blocked']} This module is not hidden.",
             "manhide_usage": f"{CUSTOM_EMOJI['confused']} Usage: <code>.manhide [module]</code>",
             "manunhide_usage": f"{CUSTOM_EMOJI['confused']} Usage: <code>.manunhide [module]</code>",
@@ -703,7 +740,7 @@ def register(kernel):
                 scored_modules.append((score, (name, typ, module)))
                 continue
 
-            commands, _, descriptions = get_module_commands(name, kernel)
+            commands, _, _descriptions = get_module_commands(name, kernel)
             cmd_match = False
             for cmd in commands:
                 cmd_lower = cmd.lower()
@@ -760,8 +797,8 @@ def register(kernel):
 
     async def generate_module_article(module_info, kernel, strings):
         """Generate article for a single module (inline)."""
-        name, typ, module = module_info
-        commands, aliases_info, descriptions = get_module_commands(name, kernel)
+        name, typ, _module = module_info
+        commands, _aliases_info, descriptions = get_module_commands(name, kernel)
         metadata = await load_module_metadata(name, typ, kernel, strings)
 
         msg = f"<blockquote>{CUSTOM_EMOJI['dna']} <b>{strings['module']}</b> <code>{name}</code></blockquote>\n"
@@ -886,7 +923,7 @@ def register(kernel):
                             articles.append(article)
 
                         for module_info in similar_modules[:10]:
-                            name, typ, _ = module_info
+                            name, _typ, _ = module_info
                             msg = await generate_module_article(
                                 module_info, kernel, lang_strings
                             )

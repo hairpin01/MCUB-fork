@@ -6,12 +6,11 @@
 
 import textwrap
 import traceback
-from typing import List
 
 DESCRIPTION = "Execute Python code (asynchronous context available, can use 'await')"
 
 
-async def run(shell, args: List[str]):
+async def run(shell, args: list[str]):
     """
     Выполняет переданный код Python в асинхронном контексте.
     В пространстве имён доступны:

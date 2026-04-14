@@ -6,22 +6,21 @@ from __future__ import annotations
 # author: @Hairpin00
 # version: 1.0.4
 # description: Settings module (prefix, aliases, language) / Модуль настроек (префикс, алиасы, язык)
-
 import asyncio
 import json
 import os
 import shutil
+
 from telethon import Button
 
 from core.lib.loader.module_config import (
-    ModuleConfig,
-    ConfigValue,
     Boolean,
+    ConfigValue,
+    ModuleConfig,
 )
 
 
 def register(kernel):
-    client = kernel.client
 
     strings = {
         "ru": {
@@ -373,7 +372,7 @@ def register(kernel):
         await event.edit(_("lang_changed", lang=new_lang), parse_mode="html")
 
     async def _show_danger_confirm(event, action: str, text: str):
-        success, form_message = await kernel.inline_form(
+        success, _form_message = await kernel.inline_form(
             event.chat_id,
             text,
             buttons=[

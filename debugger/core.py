@@ -8,14 +8,13 @@ MCUB Debugger Core - Main analysis engine.
 import ast
 import sys
 import time
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Any, Dict, List, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     from debugger.rules import RuleRegistry
 
-from debugger.types import Warning, DebugResult
+from debugger.types import DebugResult, Warning
 
 
 class SourceAnalyzer(ast.NodeVisitor):
@@ -45,7 +44,7 @@ class SourceAnalyzer(ast.NodeVisitor):
             if "# noqa" in line or "#noqa" in line:
                 import re
 
-                matches = re.findall(r"MCUB\d+", line)
+                re.findall(r"MCUB\d+", line)
                 noqa_lines.add(i)
         return noqa_lines
 
@@ -56,7 +55,7 @@ class SourceAnalyzer(ast.NodeVisitor):
         if rule_id is None:
             return True
         line = self.source_lines[lineno - 1] if lineno <= len(self.source_lines) else ""
-        return rule_id in line or f"MCUB" in line
+        return rule_id in line or "MCUB" in line
 
     def _push_scope(self):
         self.symbol_stack.append({})

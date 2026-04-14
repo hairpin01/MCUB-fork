@@ -6,29 +6,28 @@ from __future__ import annotations
 # author: @Hairpin00
 # version: 1.0.0
 # description: System and device info module / Модуль информации о системе
-
 import asyncio
-import os
-import time
-import platform
-import psutil
 import getpass
+import os
+import platform
 import socket
 import subprocess
-from datetime import datetime
-
-from utils.platform import get_platform, is_wsl, is_termux
-from telethon.tl.types import MessageEntityTextUrl, InputMediaWebPage
-from telethon import functions
-from pathlib import Path
+import time
 from copy import copy
+from datetime import datetime
+from pathlib import Path
+
+import psutil
+from telethon import functions
+from telethon.tl.types import InputMediaWebPage, MessageEntityTextUrl
 
 from core.lib.loader.module_config import (
-    ModuleConfig,
-    ConfigValue,
-    String,
     Boolean,
+    ConfigValue,
+    ModuleConfig,
+    String,
 )
+from utils.platform import get_platform, is_termux, is_wsl
 
 
 def _detect_branch_sync():
@@ -226,7 +225,7 @@ def register(kernel):
 
             try:
                 await asyncio.wait_for(run_git(["fetch", "origin"]), timeout=10)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 return False
 
             code, output = await run_git(["rev-list", "--count", "HEAD..@{u}"])
@@ -256,7 +255,7 @@ def register(kernel):
                 if os.path.exists(proc_stat_path) and os.access(
                     proc_stat_path, os.R_OK
                 ):
-                    with open(proc_stat_path, "r") as f:
+                    with open(proc_stat_path) as f:
                         for line in f:
                             if line.startswith("cpu "):
                                 parts = line.split()
@@ -272,7 +271,7 @@ def register(kernel):
                     proc_meminfo_path, os.R_OK
                 ):
                     meminfo = {}
-                    with open(proc_meminfo_path, "r") as f:
+                    with open(proc_meminfo_path) as f:
                         for line in f:
                             if ":" in line:
                                 key, value = line.split(":", 1)
@@ -387,7 +386,7 @@ def register(kernel):
                         distro_name = "Unknown"
                         try:
                             if os.path.exists("/etc/os-release"):
-                                with open("/etc/os-release", "r") as f:
+                                with open("/etc/os-release") as f:
                                     for line in f:
                                         if "PRETTY_NAME" in line:
                                             distro_name = (
@@ -588,7 +587,7 @@ def register(kernel):
                     distro_name = "Unknown"
                     try:
                         if os.path.exists("/etc/os-release"):
-                            with open("/etc/os-release", "r") as f:
+                            with open("/etc/os-release") as f:
                                 for line in f:
                                     if "PRETTY_NAME" in line:
                                         distro_name = (

@@ -5,8 +5,9 @@
 Tests for command system
 """
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock
 
 
 class TestCommandRegistration:
@@ -282,7 +283,6 @@ class TestCommandPermissions:
     def test_no_permission_required(self, kernel_with_permissions):
         """Test command with no permission requirements"""
         cmd = "public_cmd"
-        user_id = 123
 
         has_restriction = cmd in kernel_with_permissions.command_owners
         assert has_restriction is False

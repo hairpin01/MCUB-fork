@@ -35,8 +35,8 @@ def _redact(value: object, visible: int = 2) -> str:
 
 def _build_setup_status(app: web.Application) -> dict:
     """Collect setup status shared by /status and /api/setup/state."""
-    import os
     import json
+    import os
 
     state = app.get("setup_state") or {}
 
@@ -48,7 +48,7 @@ def _build_setup_status(app: web.Application) -> dict:
 
     if os.path.exists(config_path):
         try:
-            with open(config_path, "r") as f:
+            with open(config_path) as f:
                 cfg = json.load(f)
             api_id = cfg.get("api_id")
             api_hash = cfg.get("api_hash")
@@ -57,7 +57,7 @@ def _build_setup_status(app: web.Application) -> dict:
 
                 if not session_exists(api_id, api_hash):
                     needs_reauth = True
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             pass
     else:
         needs_reauth = os.path.exists(config_path) and not os.path.exists(
@@ -106,8 +106,8 @@ def setup_routes(app: web.Application) -> None:
 async def index(request: web.Request) -> web.Response:
     """Show setup wizard, or re-auth if config exists but session is missing,
     or redirect to dashboard if MCUB is already configured."""
-    import os
     import json
+    import os
 
     config_path = "config.json"
 
@@ -118,13 +118,13 @@ async def index(request: web.Request) -> web.Response:
     api_hash = None
     if has_config:
         try:
-            with open(config_path, "r") as f:
+            with open(config_path) as f:
                 cfg = json.load(f)
             api_id = cfg.get("api_id")
             api_hash = cfg.get("api_hash")
             if api_id and api_hash and cfg.get("phone"):
                 config_valid = True
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             pass
 
     from utils.security import session_exists
@@ -234,7 +234,7 @@ async def api_send_code(request: web.Request) -> web.Response:
         retry_delay=2,
         timeout=30,
     )
-
+    client.set_protection_mode("off")
     try:
         log.debug("[setup] Connecting to Telegram in send_code")
         await client.connect()
@@ -295,8 +295,7 @@ async def api_qr_login(request: web.Request) -> web.Response:
     _remove_session_files(_SETUP_SESSION)
 
     try:
-        from telethon import TelegramClient
-        from telethon import functions, types
+        from telethon import TelegramClient, functions, types
     except ImportError:
         return _err("telethon is not installed — run: pip install telethon")
 
@@ -314,7 +313,7 @@ async def api_qr_login(request: web.Request) -> web.Response:
         retry_delay=2,
         timeout=30,
     )
-
+    client.set_protection_mode("off")
     try:
         log.debug("[setup] Connecting to Telegram for QR")
         await client.connect()
@@ -487,14 +486,13 @@ async def api_verify_code(request: web.Request) -> web.Response:
     )
 
     from telethon.errors import (
-        PhoneCodeInvalidError,
-        PhoneCodeExpiredError,
-        SessionPasswordNeededError,
-        PasswordHashInvalidError,
         FloodWaitError,
+        PasswordHashInvalidError,
+        PhoneCodeExpiredError,
+        PhoneCodeInvalidError,
+        SessionPasswordNeededError,
     )
 
-    # ── 2FA-only second call (works for both code and QR login) ──
     if state.get("awaiting_2fa") and not code:
         if not password:
             return _err("Password is required")
@@ -642,7 +640,7 @@ async def setup_reset(request: web.Request) -> web.Response:
         try:
             import json
 
-            with open(config_path, "r") as f:
+            with open(config_path) as f:
                 cfg = json.load(f)
             api_id = cfg.get("api_id")
             api_hash = cfg.get("api_hash")
@@ -726,7 +724,7 @@ def _rename_session(src: str, dst: str) -> None:
     api_hash = None
     if os.path.exists(config_path):
         try:
-            with open(config_path, "r") as f:
+            with open(config_path) as f:
                 cfg = json.load(f)
             api_id = cfg.get("api_id")
             api_hash = cfg.get("api_hash")
@@ -838,7 +836,7 @@ async def api_bot_save_token(request: web.Request) -> web.Response:
     if kernel is None:
         config_path = "config.json"
         if os.path.exists(config_path):
-            with open(config_path, "r", encoding="utf-8") as f:
+            with open(config_path, encoding="utf-8") as f:
                 config = json.load(f)
         else:
             config = {}
@@ -873,7 +871,7 @@ async def api_bot_auto_create(request: web.Request) -> web.Response:
 
         config_path = "config.json"
         if os.path.exists(config_path):
-            with open(config_path, "r", encoding="utf-8") as f:
+            with open(config_path, encoding="utf-8") as f:
                 config = json.load(f)
         else:
             config = {}
@@ -932,7 +930,7 @@ async def api_setup_prefill(request: web.Request) -> web.Response:
     if not os.path.exists(config_path):
         return web.json_response({"ok": False})
     try:
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             cfg = json.load(f)
         return web.json_response(
             {
@@ -992,7 +990,7 @@ async def api_auth_generate_token(request: web.Request) -> web.Response:
     config_path = "config.json"
     config = {}
     if os.path.exists(config_path):
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             config = json.load(f)
 
     config["web_panel_token"] = new_token

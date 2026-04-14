@@ -19,9 +19,9 @@ Usage:
     assert test_kernel.last_response is not None
 """
 
-from unittest.mock import AsyncMock, Mock, patch
-from typing import Callable, Optional
 import asyncio
+from collections.abc import Callable
+from unittest.mock import AsyncMock, Mock, patch
 
 
 class MockEvent:
@@ -181,13 +181,13 @@ class TestKernel:
 
     Kernel = None  # Alias for compatibility
 
-    def __init__(self, module_path: Optional[str] = None):
+    def __init__(self, module_path: str | None = None):
         self.client = MockTelegramClient()
         self.kernel = None
         self.module_path = module_path
 
-        self.last_response: Optional[str] = None
-        self.last_event: Optional[MockEvent] = None
+        self.last_response: str | None = None
+        self.last_event: MockEvent | None = None
         self.response_history = []
 
     async def setup(self):

@@ -5,9 +5,10 @@
 Tests for database operations - extended
 """
 
-import pytest
 import json
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 
 class TestDatabaseOperations:

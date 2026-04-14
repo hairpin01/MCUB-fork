@@ -15,7 +15,7 @@ class InlineManager:
             self.kernel.ADMIN_ID
         )
 
-    async def is_allowed(self, user_id: int, command: str = None) -> bool:
+    async def is_allowed(self, user_id: int, command: str | None = None) -> bool:
         if await self.is_admin(user_id):
             return True
 
@@ -32,7 +32,7 @@ class InlineManager:
 
         return False
 
-    async def allow_user(self, user_id: int, command: str = None) -> bool:
+    async def allow_user(self, user_id: int, command: str | None = None) -> bool:
         try:
             all_users = await self.kernel.db_get(self.MODULE, "allowed_users")
             allowed = json.loads(all_users) if all_users else {"global": []}
@@ -50,7 +50,7 @@ class InlineManager:
             self.kernel.logger.error(f"InlineManager allow_user error: {e}")
             return False
 
-    async def deny_user(self, user_id: int, command: str = None) -> bool:
+    async def deny_user(self, user_id: int, command: str | None = None) -> bool:
         try:
             all_users = await self.kernel.db_get(self.MODULE, "allowed_users")
             if not all_users:
@@ -70,7 +70,7 @@ class InlineManager:
             self.kernel.logger.error(f"InlineManager deny_user error: {e}")
             return False
 
-    async def get_allowed_users(self, command: str = None) -> list:
+    async def get_allowed_users(self, command: str | None = None) -> list:
         try:
             all_users = await self.kernel.db_get(self.MODULE, "allowed_users")
             if not all_users:

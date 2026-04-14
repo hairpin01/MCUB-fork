@@ -17,7 +17,8 @@ Zen Kernel — simple is better than complex.
 Flat is better than nested. Readability counts.
 """
 
-# noqa: E402 - conditional imports for dependency checking
+
+import asyncio
 import html
 import importlib.util
 import logging
@@ -27,13 +28,13 @@ import signal
 import sys
 import time
 import traceback
-import asyncio
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Dict, Tuple
 
 try:
-    from core.lib.utils.exceptions import McubTelethonError
     from telethon import events
+
+    from core.lib.utils.exceptions import McubTelethonError
 except ImportError as e:
     sys.exit(f"[kernel] missing dependency: {e}\nRun: pip install -r requirements.txt")
 
@@ -48,22 +49,23 @@ except Exception:
     )
 
 try:
-    from ..lib.utils.colors import Colors
-    from ..lib.utils.exceptions import CommandConflictError
-    from ..lib.time.cache import TTLCache
-    from ..lib.time.scheduler import TaskScheduler
-    from ..lib.loader.register import Register
-    from ..lib.base.permissions import CallbackPermissionManager
-    from ..lib.base.database import DatabaseManager
-    from ..version import VersionManager, VERSION
-    from ..lib.loader.loader import ModuleLoader
-    from ..lib.loader.repository import RepositoryManager
-    from ..lib.utils.logger import KernelLogger, setup_logging
-    from ..lib.base.config import ConfigManager
+    from core.lib.utils.case_insensitive import CaseInsensitiveDict
+
     from ..lib.base.client import ClientManager
+    from ..lib.base.config import ConfigManager
+    from ..lib.base.database import DatabaseManager
+    from ..lib.base.permissions import CallbackPermissionManager
     from ..lib.loader.inline import InlineManager
     from ..lib.loader.inline import InlineMessage as _InlineMessage
-    from core.lib.utils.case_insensitive import CaseInsensitiveDict
+    from ..lib.loader.loader import ModuleLoader
+    from ..lib.loader.register import Register
+    from ..lib.loader.repository import RepositoryManager
+    from ..lib.time.cache import TTLCache
+    from ..lib.time.scheduler import TaskScheduler
+    from ..lib.utils.colors import Colors
+    from ..lib.utils.exceptions import CommandConflictError
+    from ..lib.utils.logger import KernelLogger, setup_logging
+    from ..version import VERSION, VersionManager
 except ImportError as e:
     sys.exit(
         f"[kernel] failed to import internal modules: {e}\n{traceback.format_exc()}"
@@ -74,8 +76,8 @@ try:
     from utils.message_helpers import (
         edit_with_html,
         reply_with_html,
-        send_with_html,
         send_file_with_html,
+        send_with_html,
     )
 
     HTML_PARSER_AVAILABLE = True
@@ -122,7 +124,7 @@ _LOGO = (
     "|_|  |_|\\____|\\___/|____/\n"
 )
 
-_STRINGS: Dict[str, Dict[str, str]] = {
+_STRINGS: dict[str, dict[str, str]] = {
     "ru": {
         "success": "Перезагрузка <b>успешна!</b>",
         "loading": "но модули ещё загружаются...",
@@ -165,7 +167,7 @@ def _validate_regex(pattern: str) -> tuple[bool, str]:
     return True, "ok"
 
 
-def _strings(lang: str) -> Dict[str, str]:
+def _strings(lang: str) -> dict[str, str]:
     return _STRINGS.get(lang, _STRINGS["en"])
 
 
@@ -296,8 +298,8 @@ class Kernel:
             Path(d).mkdir(parents=True, exist_ok=True)
 
     def check_dependencies(self) -> None:
-        import subprocess
         import itertools
+        import subprocess
         import threading
 
         _REQUIREMENTS = [
@@ -500,7 +502,7 @@ class Kernel:
 
     async def download_module_from_repo(
         self, repo_url: str, module_name: str
-    ) -> "str | None":
+    ) -> str | None:
         return await self._repo.download_module(repo_url, module_name)
 
     def set_loading_module(self, module_name: str, module_type: str) -> None:
@@ -523,7 +525,7 @@ class Kernel:
         )
 
     async def install_from_url(
-        self, url: str, module_name: "str | None" = None, auto_dependencies: bool = True
+        self, url: str, module_name: str | None = None, auto_dependencies: bool = True
     ) -> tuple:
         return await self._loader.install_from_url(url, module_name, auto_dependencies)
 
@@ -972,7 +974,7 @@ class Kernel:
 
     def _mark_command_event_processed(self, event) -> None:
         msg = getattr(event, "message", event)
-        setattr(msg, "_mcub_command_processed", True)
+        msg._mcub_command_processed = True
 
     def is_bot_available(self) -> bool:
         return (
@@ -1006,7 +1008,7 @@ class Kernel:
     async def get_latest_kernel_version(self) -> str:
         return await self.version_manager.get_latest_kernel_version()
 
-    async def _check_kernel_version_compatibility(self, code: str) -> Tuple[bool, str]:
+    async def _check_kernel_version_compatibility(self, code: str) -> tuple[bool, str]:
         return await self.version_manager.check_module_compatibility(code)
 
     async def init_scheduler(self) -> None:
@@ -1136,7 +1138,7 @@ class Kernel:
             pass
         return f"ID: {user_id}"
 
-    async def get_thread_id(self, event) -> "int | None":
+    async def get_thread_id(self, event) -> int | None:
         if not event:
             return None
         if hasattr(event, "reply_to") and event.reply_to:
@@ -1218,6 +1220,7 @@ class Kernel:
         if needs_setup:
             try:
                 from aiohttp import web
+
                 from core.web.app import create_app
 
                 done = asyncio.Event()
@@ -1465,7 +1468,7 @@ class Kernel:
                     send_kwargs["reply_to"] = thread_id
                 await self.client.send_message(chat_id, body, **send_kwargs)
 
-        except (FileNotFoundError, IOError, ValueError) as e:
+        except (OSError, FileNotFoundError, ValueError) as e:
             self.logger.error(f"restart file error: {e}")
             try:
                 os.remove(self.RESTART_FILE)

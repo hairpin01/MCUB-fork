@@ -6,8 +6,9 @@ Tests for event handling
 """
 
 import re
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 
 class TestMiddlewareChain:
@@ -315,7 +316,10 @@ class TestEventProcessing:
             for mw in reversed(chain):
                 current_mw = mw
                 current_next = next_handler
-                next_handler = lambda e, mw=current_mw, nh=current_next: mw(e, nh)
+
+                def next_handler(e, mw=current_mw, nh=current_next):
+                    return mw(e, nh)
+
             return await next_handler(event)
 
         result = await run_chain()

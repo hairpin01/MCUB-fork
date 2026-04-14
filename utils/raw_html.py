@@ -7,29 +7,31 @@
 # Fixed: Line breaks now preserved as \n, improved entity handling
 
 import html
-from typing import Tuple, List, Dict, Any
+from typing import Any
+
 from telethon.tl.types import (
+    MessageEntityBankCard,
+    MessageEntityBlockquote,
     MessageEntityBold,
-    MessageEntityItalic,
+    MessageEntityBotCommand,
+    MessageEntityCashtag,
     MessageEntityCode,
+    MessageEntityCustomEmoji,
+    MessageEntityEmail,
+    MessageEntityHashtag,
+    MessageEntityItalic,
+    MessageEntityMention,
+    MessageEntityMentionName,
+    MessageEntityPhone,
     MessageEntityPre,
+    MessageEntitySpoiler,
+    MessageEntityStrike,
     MessageEntityTextUrl,
     MessageEntityUnderline,
-    MessageEntityStrike,
-    MessageEntityBlockquote,
-    MessageEntityCustomEmoji,
-    MessageEntitySpoiler,
-    MessageEntityEmail,
-    MessageEntityMentionName,
-    MessageEntityMention,
-    MessageEntityHashtag,
-    MessageEntityCashtag,
-    MessageEntityBotCommand,
-    MessageEntityUrl,
-    MessageEntityBankCard,
-    MessageEntityPhone,
     MessageEntityUnknown,
+    MessageEntityUrl,
 )
+
 from .html_parser import _utf16_len, _utf16_slice
 
 
@@ -69,7 +71,7 @@ class RawHTMLConverter:
         # issues with leading spaces after newlines
         return escaped
 
-    def _build_html_tag(self, tag_name: str, attributes: Dict[str, Any]) -> str:
+    def _build_html_tag(self, tag_name: str, attributes: dict[str, Any]) -> str:
         """
         Build an opening HTML tag with safely escaped attributes.
 
@@ -93,7 +95,7 @@ class RawHTMLConverter:
 
         return f"<{tag_name} {' '.join(attrs)}>"
 
-    def _entity_to_html(self, entity: Any, entity_text: str) -> Tuple[str, str]:
+    def _entity_to_html(self, entity: Any, entity_text: str) -> tuple[str, str]:
         """
         Converts a Telegram entity into opening and closing HTML tags.
 
@@ -186,7 +188,7 @@ class RawHTMLConverter:
         opening_tag = self._build_html_tag(tag_name, attributes)
         return opening_tag, f"</{tag_name}>"
 
-    def _process_entities(self, text: str, entities: List) -> str:
+    def _process_entities(self, text: str, entities: list) -> str:
         """
         Smart entity processing. Builds a clean tag tree,
         avoiding duplication and properly nesting entities.
@@ -421,7 +423,7 @@ def extract_raw_html(message, escape: bool = False) -> str:
     return html_content
 
 
-def debug_entities(message) -> List[Dict]:
+def debug_entities(message) -> list[dict]:
     """
     Debug helper to inspect message entities.
 
@@ -476,9 +478,9 @@ raw_html_converter = RawHTMLConverter()
 
 __all__ = [
     "RawHTMLConverter",
-    "message_to_html",
+    "debug_entities",
     "event_to_html",
     "extract_raw_html",
-    "debug_entities",
+    "message_to_html",
     "raw_html_converter",
 ]

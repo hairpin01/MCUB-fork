@@ -7,19 +7,21 @@ Tests for utils helpers
 
 import datetime
 import time
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
+
 from utils.helpers import (
-    format_time,
-    format_date,
-    format_relative_time,
     escape_html,
     escape_quotes,
-    make_button,
-    make_buttons,
+    format_date,
+    format_relative_time,
+    format_time,
     get_args,
     get_args_raw,
     get_chat_id,
+    make_button,
+    make_buttons,
 )
 
 

@@ -4,7 +4,7 @@
 import time
 from collections import deque
 
-from modules.api_protection import RequestAnalyzer, DEFAULT_CONFIG, LIMIT_PROFILES
+from modules.api_protection import DEFAULT_CONFIG, LIMIT_PROFILES, RequestAnalyzer
 
 
 class TestRequestAnalyzer:

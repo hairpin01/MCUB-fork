@@ -6,7 +6,6 @@ from __future__ import annotations
 # author: @Hairpin00
 # version: 1.0.0
 # description: MCUB command argument parser
-
 import shlex
 from typing import Any
 
@@ -284,7 +283,9 @@ class ArgumentValidator:
         if len(types) < len(parser.args):
             return False
 
-        for i, (arg, expected_type) in enumerate(zip(parser.args, types)):
+        for _i, (arg, expected_type) in enumerate(
+            zip(parser.args, types, strict=False)
+        ):
             if not isinstance(arg, expected_type):
                 try:
                     expected_type(arg)

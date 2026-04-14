@@ -28,7 +28,6 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
 
 _LOCK_FILE = Path("console/packages/installed.json")
 
@@ -41,7 +40,7 @@ class LockFile:
 
     def __init__(self, path: Path | str = _LOCK_FILE) -> None:
         self._path = Path(path)
-        self._data: Dict[str, dict] = {}
+        self._data: dict[str, dict] = {}
         self._load()
 
     def _load(self) -> None:
@@ -66,13 +65,13 @@ class LockFile:
     def is_installed(self, name: str) -> bool:
         return name in self._data
 
-    def get(self, name: str) -> Optional[dict]:
+    def get(self, name: str) -> dict | None:
         return self._data.get(name)
 
-    def all_packages(self) -> List[dict]:
+    def all_packages(self) -> list[dict]:
         return list(self._data.values())
 
-    def names(self) -> List[str]:
+    def names(self) -> list[str]:
         return list(self._data.keys())
 
     def register(
@@ -84,10 +83,10 @@ class LockFile:
         description: str,
         pip_deps: list,
         sys_deps: list,
-        bin_file: Optional[str],
+        bin_file: str | None,
         src_files: list,
         repo_url: str,
-        entry_file: Optional[str] = None,
+        entry_file: str | None = None,
     ) -> None:
         """Add or update a package entry and persist immediately."""
         now = datetime.now().isoformat(timespec="seconds")

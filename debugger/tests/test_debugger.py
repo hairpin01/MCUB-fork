@@ -5,21 +5,17 @@
 Tests for MCUB Debugger rules and core functionality.
 """
 
-import pytest
-from pathlib import Path
-import tempfile
 import ast
+import tempfile
+from pathlib import Path
+
+import pytest
 
 from debugger.core import ModuleDebugger, SourceAnalyzer
-from debugger.types import Warning, DebugResult
 from debugger.rules import (
-    RuleRegistry,
     get_default_rules,
-    EventEditWithButtonsRule,
-    CallbackWithoutPatternRule,
-    EventAnswerShowAlertRule,
-    RegisterTypoRule,
 )
+from debugger.types import DebugResult, Warning
 
 
 class TestEventEditWithButtonsRule:

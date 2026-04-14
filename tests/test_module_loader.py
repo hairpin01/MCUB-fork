@@ -5,10 +5,11 @@
 Tests for module loader
 """
 
-import pytest
-import os
 import inspect
-from unittest.mock import MagicMock, AsyncMock, patch
+import os
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 
 class TestModuleLoading:
@@ -104,7 +105,7 @@ class TestDetectModuleType:
         params = list(sig.parameters.values())
 
         assert len(params) == 1
-        param = list(params)[0]
+        param = next(iter(params))
         assert param.name == "kernel", f"Expected 'kernel', got '{param.name}'"
 
 
@@ -274,7 +275,7 @@ class TestInstallFromUrl:
         loader = ModuleLoader(kernel)
 
         try:
-            result = await loader.install_from_url(
+            await loader.install_from_url(
                 "https://example.com/test_module.py",
                 "test_module",
                 auto_dependencies=False,
@@ -359,6 +360,7 @@ class TestIsInVirtualEnv:
     def test_detects_virtualenv(self):
         """Test virtual environment detection"""
         import sys
+
         from core.lib.loader.loader import ModuleLoader
 
         kernel = MagicMock()
@@ -535,3 +537,388 @@ class TestHikkaModuleConfigSchema:
         schema = config.schema
         assert len(schema) == 1
         assert schema[0]["secret"] is True
+
+
+class TestClassStyleModule:
+    """Test class-style module support"""
+
+    @pytest.mark.asyncio
+    @pytest.mark.asyncio
+    async def test_detect_class_style_module(self):
+        """Test detection of class-style module (inherits from ModuleBase)"""
+        from core.lib.loader.loader import ModuleLoader
+        from core.lib.loader.module_base import ModuleBase, command
+
+        kernel = MagicMock()
+        loader = ModuleLoader(kernel)
+
+        class TestMod(ModuleBase):
+            name = "Test"
+
+            @command("ping")
+            async def ping(self, event):
+                pass
+
+        module = MagicMock(spec=[])
+        module.__dict__["TestMod"] = TestMod
+
+        result = await loader.detect_module_type(module)
+        assert result == "class"
+
+    @pytest.mark.asyncio
+    async def test_class_style_file_map_populated(self):
+        """Test that _class_style_file_map is populated on class-style module registration"""
+        from core.lib.loader.loader import ModuleLoader
+        from core.lib.loader.module_base import ModuleBase, command
+
+        kernel = MagicMock()
+        kernel._class_module_instances = {}
+        kernel.loaded_modules = {}
+        kernel.system_modules = {}
+        kernel.client = MagicMock()
+        kernel.register = MagicMock()
+        kernel.logger = MagicMock()
+
+        loader = ModuleLoader(kernel)
+
+        class TestModClass(ModuleBase):
+            name = "MyCustomName"
+
+            @command("ping")
+            async def ping(self, event):
+                pass
+
+        module = MagicMock(spec=[])
+        module.__dict__["TestModClass"] = TestModClass
+
+        result = await loader.register_module(module, "class", "test_class_mod")
+
+        assert result is True
+        assert "test_class_mod" in kernel._class_module_instances
+
+    @pytest.mark.asyncio
+    async def test_find_module_base_class(self):
+        """Test _find_module_base_class returns the correct class"""
+        from core.lib.loader.loader import ModuleLoader
+        from core.lib.loader.module_base import ModuleBase, command
+
+        kernel = MagicMock()
+        loader = ModuleLoader(kernel)
+
+        class TestMod(ModuleBase):
+            name = "Test"
+
+            @command("ping")
+            async def ping(self, event):
+                pass
+
+        class OtherClass:
+            pass
+
+        module = MagicMock(spec=[])
+        module.__dict__["TestMod"] = TestMod
+        module.__dict__["OtherClass"] = OtherClass
+
+        result = loader._find_module_base_class(module)
+        assert result == TestMod
+
+    @pytest.mark.asyncio
+    async def test_register_class_module_creates_instance(self):
+        """Test that register_module creates an instance for class-style modules"""
+        from core.lib.loader.loader import ModuleLoader
+        from core.lib.loader.module_base import ModuleBase, command
+
+        kernel = MagicMock()
+        kernel._class_module_instances = {}
+        kernel.client = MagicMock()
+        kernel.register = MagicMock()
+
+        loader = ModuleLoader(kernel)
+
+        class TestMod(ModuleBase):
+            name = "Unnamed"
+
+            @command("ping")
+            async def ping(self, event):
+                pass
+
+        module = MagicMock(spec=[])
+        module.__dict__["TestMod"] = TestMod
+
+        result = await loader.register_module(module, "class", "test_mod_file")
+
+        assert result is True
+        assert "test_mod_file" in kernel._class_module_instances
+        instance = kernel._class_module_instances["test_mod_file"]
+        assert isinstance(instance, TestMod)
+        assert instance.kernel == kernel
+        assert instance.client == kernel.client
+
+    @pytest.mark.asyncio
+    async def test_class_module_instance_has_attributes(self):
+        """Test that class-style module instance has expected attributes"""
+        from core.lib.loader.loader import ModuleLoader
+        from core.lib.loader.module_base import ModuleBase, command
+
+        kernel = MagicMock()
+        kernel._class_module_instances = {}
+        kernel.client = MagicMock()
+        kernel.register = MagicMock()
+
+        loader = ModuleLoader(kernel)
+
+        class TestMod(ModuleBase):
+            name = "Unnamed"
+
+            @command("ping")
+            async def ping(self, event):
+                pass
+
+        module = MagicMock(spec=[])
+        module.__dict__["TestMod"] = TestMod
+
+        await loader.register_module(module, "class", "test_mod_file")
+
+        instance = kernel._class_module_instances["test_mod_file"]
+        assert hasattr(instance, "log")
+        assert hasattr(instance, "db")
+        assert hasattr(instance, "cache")
+        assert hasattr(instance, "_loaded")
+        assert hasattr(instance, "_loops")
+
+    @pytest.mark.asyncio
+    async def test_class_module_command_registered(self):
+        """Test that @command decorator registers command via register"""
+        from core.lib.loader.loader import ModuleLoader
+        from core.lib.loader.module_base import ModuleBase, command
+
+        kernel = MagicMock()
+        kernel._class_module_instances = {}
+        kernel.client = MagicMock()
+        kernel.register = MagicMock()
+
+        loader = ModuleLoader(kernel)
+
+        class TestMod(ModuleBase):
+            name = "Test"
+
+            @command("ping", doc_ru="пинг")
+            async def ping(self, event):
+                pass
+
+        module = MagicMock(spec=[])
+        module.__dict__["TestMod"] = TestMod
+
+        await loader.register_module(module, "class", "TestMod")
+
+        kernel.register.command.assert_called()
+        call_args = kernel.register.command.call_args
+        assert call_args[0][0] == "ping"
+
+    @pytest.mark.asyncio
+    async def test_class_module_isolation(self):
+        """Test that multiple class-style modules don't share command registrations"""
+        from core.lib.loader.loader import ModuleLoader
+        from core.lib.loader.module_base import ModuleBase, command
+
+        kernel = MagicMock()
+        kernel._class_module_instances = {}
+        kernel.client = MagicMock()
+        kernel.register = MagicMock()
+
+        loader = ModuleLoader(kernel)
+
+        class ModA(ModuleBase):
+            name = "A"
+
+            @command("ping_a")
+            async def ping(self, event):
+                pass
+
+        class ModB(ModuleBase):
+            name = "B"
+
+            @command("ping_b")
+            async def ping(self, event):
+                pass
+
+        module_a = MagicMock(spec=[])
+        module_a.__dict__["ModA"] = ModA
+        module_b = MagicMock(spec=[])
+        module_b.__dict__["ModB"] = ModB
+
+        await loader.register_module(module_a, "class", "ModA")
+        await loader.register_module(module_b, "class", "ModB")
+
+        assert kernel.register.command.call_count == 2
+        calls = kernel.register.command.call_args_list
+        patterns = [call[0][0] for call in calls]
+        assert "ping_a" in patterns
+        assert "ping_b" in patterns
+
+    @pytest.mark.asyncio
+    async def test_class_module_command_with_all_options(self):
+        """Test @command with alias, doc, doc_ru, doc_en"""
+        from core.lib.loader.loader import ModuleLoader
+        from core.lib.loader.module_base import ModuleBase, command
+
+        kernel = MagicMock()
+        kernel._class_module_instances = {}
+        kernel.client = MagicMock()
+        kernel.register = MagicMock()
+
+        loader = ModuleLoader(kernel)
+
+        class TestMod(ModuleBase):
+            name = "Test"
+
+            @command("hello", alias=["hi", "h"], doc_ru="привет", doc_en="hello")
+            async def hello(self, event):
+                pass
+
+        module = MagicMock(spec=[])
+        module.__dict__["TestMod"] = TestMod
+
+        await loader.register_module(module, "class", "TestMod")
+
+        kernel.register.command.assert_called_once()
+        call_kwargs = kernel.register.command.call_args[1]
+        assert call_kwargs["alias"] == ["hi", "h"]
+        assert call_kwargs["doc_ru"] == "привет"
+        assert call_kwargs["doc_en"] == "hello"
+
+
+class TestClassStyleMetadata:
+    """Test metadata parsing for class-style modules"""
+
+    @pytest.mark.asyncio
+    async def test_get_module_metadata_class_style(self):
+        """Test that get_module_metadata extracts class-style metadata"""
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel = MagicMock()
+        loader = ModuleLoader(kernel)
+
+        code = """
+from core.lib.loader.module_base import ModuleBase, command
+
+class TestMod(ModuleBase):
+    name = "TestModule"
+    version = "2.0.0"
+    author = "@tester"
+    description = {"ru": "Тест", "en": "Test"}
+
+    @command("ping")
+    async def ping(self, event):
+        pass
+"""
+
+        metadata = await loader.get_module_metadata(code)
+
+        assert metadata["is_class_style"] is True
+        assert metadata["version"] == "2.0.0"
+        assert metadata["author"] == "@tester"
+        assert metadata["description"] == "Тест"
+
+    @pytest.mark.asyncio
+    async def test_get_module_metadata_class_style_dependencies(self):
+        """Test that get_module_metadata extracts dependencies"""
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel = MagicMock()
+        loader = ModuleLoader(kernel)
+
+        code = """
+from core.lib.loader.module_base import ModuleBase, command
+
+class TestMod(ModuleBase):
+    name = "TestModule"
+    dependencies = ["requests", "bs4"]
+
+    @command("ping")
+    async def ping(self, event):
+        pass
+"""
+
+        metadata = await loader.get_module_metadata(code)
+
+        assert metadata["is_class_style"] is True
+        assert "dependencies" in metadata
+        assert "requests" in metadata["dependencies"]
+        assert "bs4" in metadata["dependencies"]
+
+    @pytest.mark.asyncio
+    async def test_get_module_metadata_class_style_banner(self):
+        """Test that get_module_metadata extracts banner_url"""
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel = MagicMock()
+        loader = ModuleLoader(kernel)
+
+        code = """
+from core.lib.loader.module_base import ModuleBase, command
+
+class TestMod(ModuleBase):
+    name = "TestModule"
+    banner_url = "https://example.com/banner.png"
+
+    @command("ping")
+    async def ping(self, event):
+        pass
+"""
+
+        metadata = await loader.get_module_metadata(code)
+
+        assert metadata["is_class_style"] is True
+        assert metadata["banner_url"] == "https://example.com/banner.png"
+
+
+class TestClassStylePreInstallRequirements:
+    """Test pre_install_requirements for class-style modules"""
+
+    @pytest.mark.asyncio
+    async def test_pre_install_class_dependencies(self):
+        """Test that class-style dependencies are parsed"""
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel = MagicMock()
+        kernel.logger = MagicMock()
+        loader = ModuleLoader(kernel)
+
+        code = """
+from core.lib.loader.module_base import ModuleBase, command
+
+class TestMod(ModuleBase):
+    name = "Test"
+    dependencies = ["requests", "bs4"]
+
+    @command("ping")
+    async def ping(self, event):
+        pass
+"""
+
+        await loader.pre_install_requirements(code, "test_module")
+
+    @pytest.mark.asyncio
+    async def test_pre_install_combines_requires_and_dependencies(self):
+        """Test that both # requires: and class dependencies are parsed"""
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel = MagicMock()
+        kernel.logger = MagicMock()
+        loader = ModuleLoader(kernel)
+
+        code = """
+# requires: numpy
+from core.lib.loader.module_base import ModuleBase, command
+
+class TestMod(ModuleBase):
+    name = "Test"
+    dependencies = ["requests"]
+
+    @command("ping")
+    async def ping(self, event):
+        pass
+"""
+
+        await loader.pre_install_requirements(code, "test_module")

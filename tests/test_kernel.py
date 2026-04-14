@@ -5,9 +5,10 @@
 Tests for Kernel - additional functionality
 """
 
-import pytest
 import time
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 
 class TestKernelCore:

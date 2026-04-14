@@ -5,42 +5,40 @@
 # version: 1.0.1
 # description: utils package initialization
 
+from . import platform
+from .helpers import (
+    answer,
+    answer_file,
+    escape_html,
+    escape_quotes,
+    format_date,
+    format_relative_time,
+    format_time,
+    get_admins,
+    get_args,
+    get_args_html,
+    get_args_raw,
+    get_chat_id,
+    get_sender_info,
+    get_thread_id,
+    make_button,
+    make_buttons,
+    relocate_entities,
+    resolve_peer,
+)
 from .platform import (
     PlatformDetector,
     get_platform,
     get_platform_info,
     get_platform_name,
-    is_termux,
-    is_wsl,
-    is_vds,
+    is_desktop,
     is_docker,
     is_mobile,
-    is_desktop,
+    is_termux,
+    is_vds,
     is_virtualized,
+    is_wsl,
 )
-
-from .helpers import (
-    get_args,
-    get_args_raw,
-    get_args_html,
-    answer,
-    answer_file,
-    escape_html,
-    escape_quotes,
-    get_chat_id,
-    get_sender_info,
-    get_thread_id,
-    relocate_entities,
-    format_time,
-    format_date,
-    format_relative_time,
-    get_admins,
-    resolve_peer,
-    make_button,
-    make_buttons,
-)
-
-from . import platform
 from .restart import restart_kernel
 
 try:
@@ -61,8 +59,8 @@ try:
     from .message_helpers import (
         edit_with_html,
         reply_with_html,
-        send_with_html,
         send_file_with_html,
+        send_with_html,
     )
 
     MESSAGE_HELPERS_AVAILABLE = True
@@ -72,11 +70,11 @@ except ImportError:
 try:
     from .arg_parser import (
         ArgumentParser,
-        parse_arguments,
-        extract_command,
-        split_args,
-        parse_kwargs,
         ArgumentValidator,
+        extract_command,
+        parse_arguments,
+        parse_kwargs,
+        split_args,
     )
 
     ARG_PARSER_AVAILABLE = True
@@ -88,18 +86,18 @@ __all__ = [
     "get_platform",
     "get_platform_info",
     "get_platform_name",
-    "is_termux",
-    "is_wsl",
-    "is_vds",
+    "is_desktop",
     "is_docker",
     "is_mobile",
-    "is_desktop",
+    "is_termux",
+    "is_vds",
     "is_virtualized",
+    "is_wsl",
     "platform",
 ]
 
 if HTML_PARSER_AVAILABLE:
-    __all__.extend(["parse_html", "telegram_to_html", "html_parser"])
+    __all__.extend(["html_parser", "parse_html", "telegram_to_html"])
 
 if EMOJI_PARSER_AVAILABLE:
     __all__.extend(["emoji_parser"])
@@ -108,10 +106,10 @@ if MESSAGE_HELPERS_AVAILABLE:
     __all__.extend(
         [
             "edit_with_html",
-            "reply_with_html",
-            "send_with_html",
-            "send_file_with_html",
             "message_helpers",
+            "reply_with_html",
+            "send_file_with_html",
+            "send_with_html",
         ]
     )
 
@@ -119,24 +117,24 @@ if ARG_PARSER_AVAILABLE:
     __all__.extend(
         [
             "ArgumentParser",
-            "parse_arguments",
-            "extract_command",
-            "split_args",
-            "parse_kwargs",
             "ArgumentValidator",
             "arg_parser",
+            "extract_command",
+            "parse_arguments",
+            "parse_kwargs",
+            "split_args",
         ]
     )
 
 try:
     from .raw_html import (
         RawHTMLConverter,
-        message_to_html,
+        debug_entities,
         event_to_html,
         extract_raw_html,
-        debug_entities,
-        save_html_to_file,
+        message_to_html,
         raw_html_converter,
+        save_html_to_file,
     )
 
     RAW_HTML_AVAILABLE = True
@@ -147,36 +145,36 @@ if RAW_HTML_AVAILABLE:
     __all__.extend(
         [
             "RawHTMLConverter",
-            "message_to_html",
+            "debug_entities",
             "event_to_html",
             "extract_raw_html",
-            "debug_entities",
-            "save_html_to_file",
-            "raw_html_converter",
+            "message_to_html",
             "raw_html",
+            "raw_html_converter",
+            "save_html_to_file",
         ]
     )
 
 __all__.extend(
     [
-        "get_args",
-        "get_args_raw",
-        "get_args_html",
         "answer",
         "answer_file",
         "escape_html",
         "escape_quotes",
+        "format_date",
+        "format_relative_time",
+        "format_time",
+        "get_admins",
+        "get_args",
+        "get_args_html",
+        "get_args_raw",
         "get_chat_id",
         "get_sender_info",
         "get_thread_id",
-        "relocate_entities",
-        "format_time",
-        "format_date",
-        "format_relative_time",
-        "get_admins",
-        "resolve_peer",
         "make_button",
         "make_buttons",
+        "relocate_entities",
+        "resolve_peer",
     ]
 )
 

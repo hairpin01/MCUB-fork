@@ -8,10 +8,12 @@ from __future__ import annotations
 # description: Update module / Модуль обновлений
 import asyncio
 import os
-import re
 import random
-import aiohttp
+import re
 import subprocess
+
+import aiohttp
+
 from utils.restart import restart_kernel
 
 
@@ -186,7 +188,7 @@ def register(kernel):
                                     os.path.dirname(os.path.dirname(__file__)),
                                     "kernel.py",
                                 )
-                                with open(kernel_file, "r", encoding="utf-8") as f:
+                                with open(kernel_file, encoding="utf-8") as f:
                                     current_code = f.read()
                                 with open(
                                     kernel.BACKUP_FILE, "w", encoding="utf-8"
@@ -256,7 +258,7 @@ def register(kernel):
         )
 
         try:
-            with open(kernel.BACKUP_FILE, "r", encoding="utf-8") as f:
+            with open(kernel.BACKUP_FILE, encoding="utf-8") as f:
                 backup_code = f.read()
 
             with open(__file__, "w", encoding="utf-8") as f:

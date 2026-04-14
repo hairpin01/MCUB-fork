@@ -8,8 +8,7 @@ MCUB Debugger Rules - Detection rules for common MCUB errors.
 import ast
 import re
 from abc import abstractmethod
-from dataclasses import dataclass
-from typing import Optional, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from debugger.core import SourceAnalyzer
@@ -535,7 +534,7 @@ class AsyncWithoutAwaitRule(WarningRule):
                         else len(analyzer.get_line(node.lineno))
                     ),
                     code_snippet=analyzer.get_code_snippet(node.lineno),
-                    fix_suggestion=f"Remove 'async' or add 'await' keyword if calling async code",
+                    fix_suggestion="Remove 'async' or add 'await' keyword if calling async code",
                 )
             )
 
@@ -611,7 +610,7 @@ class ButtonInlineFormatRule(WarningRule):
                         if keyword.arg == "buttons":
                             if self._is_invalid_buttons(keyword.value, analyzer):
                                 line = child.lineno
-                                code = analyzer.get_line(line)
+                                analyzer.get_line(line)
 
                                 warnings.append(
                                     Warning(
@@ -768,7 +767,7 @@ class ClientDeleteMessagesRule(WarningRule):
                     ):
                         if child.func.value.id == "event":
                             line = child.lineno
-                            code = analyzer.get_line(line)
+                            analyzer.get_line(line)
 
                             warnings.append(
                                 Warning(
@@ -812,7 +811,7 @@ class RawEventInHandlerRule(WarningRule):
                                 if isinstance(child.value, ast.Name):
                                     if child.value.id == "event":
                                         line = child.lineno
-                                        code = analyzer.get_line(line)
+                                        analyzer.get_line(line)
 
                                         warnings.append(
                                             Warning(
@@ -857,7 +856,7 @@ class EventEditInCallbackRule(WarningRule):
                     ):
                         if child.func.value.id == "event":
                             line = child.lineno
-                            code = analyzer.get_line(line)
+                            analyzer.get_line(line)
 
                             warnings.append(
                                 Warning(

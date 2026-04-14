@@ -9,7 +9,6 @@ from __future__ import annotations
 # --- meta data end ---------------------------------
 # 🌐 fork MCUBFB: https://github.com/Mitrichdfklwhcluio/MCUBFB
 # 🌐 github MCUB-fork: https://github.com/hairpin01/MCUB-fork
-
 import asyncio
 import os
 import time
@@ -63,14 +62,15 @@ class Kernel(_StandardKernel):
         self._telegram_handler = telegram_handler
         self._kernel_logger = kernel_logger
 
-        from telethon import events
         import html
         import traceback
+
+        from telethon import events
 
         async def message_handler(event):
             _tele = '<tg-emoji emoji-id="5429283852684124412">🔭</tg-emoji>'
             _note = '<tg-emoji emoji-id="5334882760735598374">📝</tg-emoji>'
-            msg = getattr(event, "message", event)
+            getattr(event, "message", event)
 
             if not self.should_process_command_event(event):
                 return
@@ -127,7 +127,6 @@ class Kernel(_StandardKernel):
                 with open(self.RESTART_FILE) as f:
                     data = f.read().split(",")
                 if len(data) >= 3:
-                    from ..lib.utils.colors import Colors as _Colors
 
                     restart_chat_id = int(data[0])
                     restart_msg_id = int(data[1])

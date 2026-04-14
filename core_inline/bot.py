@@ -19,16 +19,17 @@ import aiohttp
 from telethon import TelegramClient, events
 
 try:
-    from aiogram import Bot as AioBot, Dispatcher
+    from aiogram import Bot as AioBot
+    from aiogram import Dispatcher
     from aiogram.client.default import DefaultBotProperties
     from aiogram.filters import Filter
-    from aiogram.types import BotCommand, InlineQuery, CallbackQuery
     from aiogram.methods import (
-        AnswerInlineQuery,
         AnswerCallbackQuery,
-        SendMessage,
+        AnswerInlineQuery,
         EditMessageText,
+        SendMessage,
     )
+    from aiogram.types import BotCommand, CallbackQuery, InlineQuery
     from aiogram.utils import markdown as md
 except Exception:  # pragma: no cover - optional dependency at runtime
     AioBot = None
@@ -485,7 +486,7 @@ class InlineBot:
                 username=actual_username,
                 created=True,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return BotProvisionResult(
                 success=False,
                 error="Timed out waiting for BotFather response",

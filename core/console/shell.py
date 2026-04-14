@@ -4,24 +4,23 @@
 # MCUB interactive shell - runs inside the kernel's asyncio event loop.
 # Commands live in console/bin/<n>.py and expose run(shell, args).
 
-import os
-import sys
-import tty
-import time
-import termios
-import logging
 import asyncio
-import importlib.util
-import traceback
 import fcntl
+import importlib.util
+import logging
+import os
 import pty
 import select
 import struct
+import sys
 import tempfile
+import termios
 import threading
+import time
+import traceback
+import tty
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from .config import ShellConfig
 
@@ -251,7 +250,7 @@ class _SpinnerCtx:
         self._delay = delay
         self._stop = threading.Event()
         self._started = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
 
     def __enter__(self):
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -780,7 +779,7 @@ class Shell:
         self.cwd = Path.cwd()
         self._history: list = []
         self._last_ok: bool = True  # last command exit status
-        self._log_handler: Optional[ShellLogHandler] = None
+        self._log_handler: ShellLogHandler | None = None
         self._original_stdout = None
         self._original_stderr = None
 
@@ -791,7 +790,7 @@ class Shell:
         self.running = False
         asyncio.ensure_future(self.run())
 
-    def attach_logging(self, logger: Optional[logging.Logger] = None) -> None:
+    def attach_logging(self, logger: logging.Logger | None = None) -> None:
         if self._log_handler is not None:
             return
         target = logger or logging.getLogger()
@@ -804,7 +803,7 @@ class Shell:
             if h is not self._log_handler and isinstance(h, logging.StreamHandler):
                 target.removeHandler(h)
 
-    def detach_logging(self, logger: Optional[logging.Logger] = None) -> None:
+    def detach_logging(self, logger: logging.Logger | None = None) -> None:
         if self._log_handler is None:
             return
         (logger or logging.getLogger()).removeHandler(self._log_handler)

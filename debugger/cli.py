@@ -9,9 +9,9 @@ import argparse
 import sys
 from pathlib import Path
 
-from debugger.types import DebugResult
-from debugger.core import ModuleDebugger
 from debugger import __version__
+from debugger.core import ModuleDebugger
+from debugger.types import DebugResult
 
 
 def create_parser() -> argparse.ArgumentParser:

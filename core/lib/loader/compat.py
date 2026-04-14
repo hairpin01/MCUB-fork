@@ -2,7 +2,6 @@
 # Copyright (c) 2026 Шмэлька | @hairpin01
 
 import shutil
-from typing import List, Tuple
 
 from core.version import VersionManager
 
@@ -18,7 +17,7 @@ class ModuleCompatChecker:
         self.version_manager: VersionManager = kernel.version_manager
 
     @staticmethod
-    def _parse_scop_directives(code: str) -> List[Tuple[str, str]]:
+    def _parse_scop_directives(code: str) -> list[tuple[str, str]]:
         """
         Scans module source code and returns all '# scop:' directives
         as a list of (scope, params) tuples.
@@ -27,7 +26,7 @@ class ModuleCompatChecker:
             '# scop: kernel min v1.0.2'  →  ('kernel', 'min v1.0.2')
             '# scop: inline'             →  ('inline', '')
         """
-        directives: List[Tuple[str, str]] = []
+        directives: list[tuple[str, str]] = []
 
         for line in code.split("\n"):
             stripped = line.strip()
@@ -48,8 +47,8 @@ class ModuleCompatChecker:
         self,
         params: str,
         current_version: str,
-        latest_version_cache: List,  # mutable 1-element list used as a lazy cache
-    ) -> Tuple[bool, str]:
+        latest_version_cache: list,  # mutable 1-element list used as a lazy cache
+    ) -> tuple[bool, str]:
         """
         Handles '# scop: kernel ...' directives.
 
@@ -109,7 +108,7 @@ class ModuleCompatChecker:
 
         return True, ""
 
-    def _check_inline_scope(self) -> Tuple[bool, str]:
+    def _check_inline_scope(self) -> tuple[bool, str]:
         """
         Handles '# scop: inline'.
         Verifies that bot_client exists and is connected.
@@ -127,7 +126,7 @@ class ModuleCompatChecker:
         return True, ""
 
     @staticmethod
-    def _check_ffmpeg_scope() -> Tuple[bool, str]:
+    def _check_ffmpeg_scope() -> tuple[bool, str]:
         """
         Handles '# scop: ffmpeg'.
         Verifies that ffmpeg is present on the system PATH.
@@ -136,7 +135,7 @@ class ModuleCompatChecker:
             return False, "Module requires ffmpeg to be installed on the system"
         return True, ""
 
-    async def check_module_compatibility(self, code: str) -> Tuple[bool, str]:
+    async def check_module_compatibility(self, code: str) -> tuple[bool, str]:
         """
         Parses all '# scop:' directives in the module source code
         and verifies each one against the current environment.

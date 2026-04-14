@@ -136,10 +136,47 @@ def process_buttons(
                             cb_map = {}
                             setattr(kernel, "inline_callback_map", cb_map)
 
+                        from .inline_types import InlineCall
+
+                        cb_id = btn_copy["_callback_data"]
+                        cb_handler = btn_copy["callback"]
+                        cb_args = btn_copy.get("args", ())
+                        cb_kwargs = btn_copy.get("kwargs", {})
+
+                        async def _hikka_callback_wrapper(
+                            event,
+                            _id=cb_id,
+                            _h=cb_handler,
+                            _a=cb_args,
+                            _k=cb_kwargs,
+                            _proxy=inline_proxy,
+                        ):
+                            from_user_id = getattr(
+                                getattr(event, "from_user", None), "id", None
+                            )
+                            inline_message_id = getattr(
+                                event, "inline_message_id", None
+                            )
+                            chat_id = getattr(event, "chat_instance", None)
+                            message_id = getattr(event, "message_id", None)
+                            data_str = event.data.decode() if event.data else ""
+
+                            call_obj = InlineCall(
+                                data_str,
+                                unit_id="",
+                                inline_proxy=_proxy,
+                                original_call=event,
+                                inline_message_id=inline_message_id,
+                                chat_id=chat_id,
+                                message_id=message_id,
+                                from_user_id=from_user_id,
+                            )
+                            return await _h(call_obj, *_a, **_k)
+
                         cb_map[btn_copy["_callback_data"]] = {
-                            "handler": btn_copy["callback"],
-                            "args": btn_copy.get("args", ()),
-                            "kwargs": btn_copy.get("kwargs", {}),
+                            "handler": _hikka_callback_wrapper,
+                            "args": (),
+                            "kwargs": {},
                             "expires_at": time.time() + ttl,
                         }
 

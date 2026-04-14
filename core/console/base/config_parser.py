@@ -27,7 +27,6 @@ ConfigParser is used so the format is forgiving (comments, extra blanks, etc.)
 from __future__ import annotations
 
 import configparser
-from typing import List, Optional
 
 
 class PackageConfig:
@@ -38,11 +37,11 @@ class PackageConfig:
         self.version: str = "0.0.0"
         self.author: str = "unknown"
         self.description: str = ""
-        self.pip_deps: List[str] = []
-        self.sys_deps: List[str] = []
-        self.bin_file: Optional[str] = None  # e.g. "studio.bin"
-        self.entry_file: Optional[str] = None  # script to run on install
-        self.src_files: List[str] = []  # files in src/ to copy
+        self.pip_deps: list[str] = []
+        self.sys_deps: list[str] = []
+        self.bin_file: str | None = None  # e.g. "studio.bin"
+        self.entry_file: str | None = None  # script to run on install
+        self.src_files: list[str] = []  # files in src/ to copy
 
     def to_dict(self) -> dict:
         return {
@@ -58,7 +57,7 @@ class PackageConfig:
         }
 
     @classmethod
-    def from_text(cls, text: str) -> "PackageConfig":
+    def from_text(cls, text: str) -> PackageConfig:
         """Parse raw INI text and return a PackageConfig instance."""
         cfg = configparser.ConfigParser(
             allow_no_value=True,
@@ -96,7 +95,7 @@ class PackageConfig:
         return obj
 
     @classmethod
-    def from_dict(cls, d: dict) -> "PackageConfig":
+    def from_dict(cls, d: dict) -> PackageConfig:
         obj = cls()
         obj.name = d.get("name", "")
         obj.version = d.get("version", "0.0.0")
@@ -110,7 +109,7 @@ class PackageConfig:
         return obj
 
 
-def _split_list(raw: str) -> List[str]:
+def _split_list(raw: str) -> list[str]:
     """Split a comma/newline separated list, strip blanks."""
     if not raw:
         return []

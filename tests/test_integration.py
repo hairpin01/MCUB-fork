@@ -5,9 +5,10 @@
 Integration tests
 """
 
-import pytest
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 
 @pytest.mark.integration

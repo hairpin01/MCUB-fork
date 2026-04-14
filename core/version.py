@@ -4,12 +4,12 @@
 # author: @Hairpin00
 # version: 1.0.1
 # description: Version
-import time
-import aiohttp
 import asyncio
-import subprocess
-from typing import Tuple
 import shutil
+import subprocess
+import time
+
+import aiohttp
 
 # version kenrel MCUB
 __version__ = "1.1.6.1"
@@ -70,16 +70,12 @@ class VersionManager:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout, stderr = await process.communicate()
+            stdout, _stderr = await process.communicate()
             if process.returncode == 0:
                 branch = stdout.decode().strip()
                 if branch:
                     return branch
-        except (
-            FileNotFoundError,
-            asyncio.TimeoutError,
-            subprocess.SubprocessError,
-        ) as e:
+        except (TimeoutError, FileNotFoundError, subprocess.SubprocessError) as e:
             self.logger.debug(f"Git branch detection failed: {e}")
 
         config_branch = self.kernel.config.get("branch")
@@ -103,15 +99,11 @@ class VersionManager:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout, stderr = await process.communicate()
+            stdout, _stderr = await process.communicate()
             if process.returncode == 0:
                 sha = stdout.decode().strip()
                 return sha[:7] if short else sha
-        except (
-            FileNotFoundError,
-            asyncio.TimeoutError,
-            subprocess.SubprocessError,
-        ) as e:
+        except (TimeoutError, FileNotFoundError, subprocess.SubprocessError) as e:
             self.logger.debug(f"Git commit SHA detection failed: {e}")
         return "unknown"
 
@@ -177,7 +169,7 @@ class VersionManager:
 
         return self.kernel.VERSION
 
-    async def check_module_compatibility(self, code: str) -> Tuple[bool, str]:
+    async def check_module_compatibility(self, code: str) -> tuple[bool, str]:
         """
         Анализирует исходный код модуля на наличие директив '# scop: ...'
         и проверяет выполнение всех требований.

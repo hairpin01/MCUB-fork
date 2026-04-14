@@ -6,24 +6,24 @@ from __future__ import annotations
 # author: @Hairpin00
 # version: 2.1.0-beta
 # description: API protection with request analytics / Защита API с аналитикой запросов
-
 import asyncio
-import time
+import datetime
 import json
 import math
-import datetime
-from collections import deque, defaultdict
+import time
+from collections import defaultdict, deque
+
 from telethon import Button
 from telethon.tl import TLRequest
 
 from core.lib.loader.module_config import (
-    ModuleConfig,
-    ConfigValue,
-    String,
     Boolean,
-    Integer,
-    Float,
     Choice,
+    ConfigValue,
+    Float,
+    Integer,
+    ModuleConfig,
+    String,
 )
 
 DEFAULT_CONFIG = {
@@ -283,7 +283,7 @@ class RequestAnalyzer:
         vec_p = [profile.get(m, 0) / total_p for m in all_methods]
         vec_c = [current.get(m, 0) / total_c for m in all_methods]
 
-        dot = sum(a * b for a, b in zip(vec_p, vec_c))
+        dot = sum(a * b for a, b in zip(vec_p, vec_c, strict=False))
         mag_p = math.sqrt(sum(a * a for a in vec_p))
         mag_c = math.sqrt(sum(b * b for b in vec_c))
 
@@ -318,7 +318,7 @@ class RequestAnalyzer:
         self.last_trigger_at = 0.0
 
     def full_report(self, now: float, threshold: int, lang: dict) -> str:
-        ignore = self._ignore_set()
+        self._ignore_set()
         windows = self.window_counts(now)
         z = self.zscore(now)
         eta = self.predict_eta(now, threshold)
@@ -674,8 +674,8 @@ def register(kernel):
     request_log = deque(maxlen=10000)
     last_predict_alert = 0.0
     last_warn_alert = 0.0
-    predict_cooldown = api_config.get("predict_alert_cooldown", 10)
-    warn_cooldown = api_config.get("warn_alert_cooldown", 30)
+    api_config.get("predict_alert_cooldown", 10)
+    api_config.get("warn_alert_cooldown", 30)
 
     analyzer = RequestAnalyzer(
         request_log=request_log,
@@ -755,7 +755,7 @@ def register(kernel):
         sender,
         request: TLRequest,
         ordered: bool = False,
-        flood_sleep_threshold: int = None,
+        flood_sleep_threshold: int | None = None,
     ):
         nonlocal blocked_until, protection_enabled
 
@@ -943,7 +943,8 @@ def register(kernel):
             methods=methods_str,
         )
 
-        import io, csv
+        import csv
+        import io
 
         filtered_log = [(ts, m) for m, ts in request_log if ts > cutoff]
         filtered_log.sort(key=lambda x: x[0])

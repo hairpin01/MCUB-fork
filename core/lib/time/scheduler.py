@@ -7,8 +7,9 @@
 
 import asyncio
 import traceback
+from collections.abc import Callable
 from datetime import datetime, timedelta
-from typing import Any, Callable, List, Optional
+from typing import Any
 
 
 class TaskScheduler:
@@ -32,7 +33,7 @@ class TaskScheduler:
                     Must have a `log_error` method for error reporting.
         """
         self.kernel = kernel
-        self.tasks: List[asyncio.Task] = []
+        self.tasks: list[asyncio.Task] = []
         self.running = False
         if hasattr(kernel, "logger"):
             kernel.logger.debug("[Scheduler] __init__")
@@ -167,7 +168,7 @@ class TaskScheduler:
         task = asyncio.create_task(wrapper(), name=task_name)
         self.tasks.append(task)
 
-    def get_active_tasks(self) -> List[asyncio.Task]:
+    def get_active_tasks(self) -> list[asyncio.Task]:
         """
         Get a list of all currently scheduled tasks.
 
@@ -184,7 +185,7 @@ class TaskScheduler:
         self,
         func: Callable[[], Any],
         delay_seconds: float,
-        task_id: Optional[str] = None,
+        task_id: str | None = None,
     ) -> str:
         """
         Schedule a one-shot function to run after a delay.
@@ -248,10 +249,11 @@ class TaskScheduler:
         for task in list(self.tasks):
             if not task.done():
                 task.cancel()
+        self.tasks.clear()
         if hasattr(self, "_task_registry"):
             self._task_registry.clear()
 
-    def get_tasks(self) -> List[dict]:
+    def get_tasks(self) -> list[dict]:
         """
         Return a status summary of all scheduled tasks.
 

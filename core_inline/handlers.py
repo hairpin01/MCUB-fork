@@ -5,47 +5,43 @@ from __future__ import annotations
 
 import asyncio
 import html
+import inspect
 import json
 import threading
 import time
 import traceback
 import uuid
-import inspect
 from typing import Any
 
 import aiohttp
 from telethon import Button, events
 from telethon.tl.types import (
-    InputWebDocument,
     InputBotInlineMessageID,
-    KeyboardButtonCallback,
-    KeyboardButtonUrl,
+    InputWebDocument,
 )
 
+from .api import (
+    add_inline_keyboard_to_result,
+    build_button_callback,
+    build_button_game,
+    build_button_location,
+    build_button_phone,
+    build_button_switch,
+    build_button_url,
+    build_inline_result_media,
+    build_inline_result_text,
+)
 from .lib import InlineManager
 from .strings import get_strings
-from .api import (
-    build_inline_result_text,
-    build_inline_result_media,
-    add_inline_keyboard_to_result,
-    build_inline_keyboard,
-    build_button_callback,
-    build_button_url,
-    build_button_switch,
-    build_button_phone,
-    build_button_location,
-    build_button_game,
-    build_input_message_content,
-)
 
 try:
     from aiogram import Bot as AioBot
     from aiogram.client.default import DefaultBotProperties
     from aiogram.types import (
+        InlineKeyboardButton,
+        InlineKeyboardMarkup,
         InlineQueryResultArticle,
         InputTextMessageContent,
-        InlineKeyboardMarkup,
-        InlineKeyboardButton,
     )
 except Exception:  # pragma: no cover - optional dependency at runtime
     AioBot = None
@@ -59,7 +55,7 @@ except Exception:  # pragma: no cover - optional dependency at runtime
 class _TelethonInlineQueryAdapter:
     """Thin Telethon-compatible wrapper around aiogram InlineQuery."""
 
-    __slots__ = ("_q", "_api_bot", "text", "sender_id")
+    __slots__ = ("_api_bot", "_q", "sender_id", "text")
 
     def __init__(self, q: Any, api_bot: Any | None) -> None:
         self._q = q
@@ -164,13 +160,13 @@ class _TelethonCallbackAdapter:
     """Thin Telethon-compatible wrapper around aiogram CallbackQuery."""
 
     __slots__ = (
-        "_q",
         "_api_bot",
-        "data",
-        "sender_id",
-        "message",
-        "chat_instance",
         "_kernel",
+        "_q",
+        "chat_instance",
+        "data",
+        "message",
+        "sender_id",
     )
 
     def __init__(self, q: Any, api_bot: Any | None, kernel: Any) -> None:
@@ -640,7 +636,7 @@ class InlineHandlers:
         """
         _bot_token = self._get_bot_token()
 
-        form_id = self.create_inline_form(
+        self.create_inline_form(
             text=text,
             buttons=buttons,
             media=media,
@@ -986,7 +982,7 @@ class InlineHandlers:
                     cb_map = getattr(self.kernel, "inline_callback_map", None)
                     if cb_map is None:
                         cb_map = {}
-                        setattr(self.kernel, "inline_callback_map", cb_map)
+                        self.kernel.inline_callback_map = cb_map
 
                     cb_map[token] = {
                         "handler": callback,
@@ -1306,7 +1302,12 @@ class InlineHandlers:
                     )
                 return
 
-            await event.answer()
+            try:
+                await event.answer()
+            except Exception as answer_error:
+                self.kernel.logger.debug(
+                    f"Inline query answer (empty) failed: {answer_error}"
+                )
 
         except Exception as e:
             error_traceback = "".join(
@@ -1320,17 +1321,22 @@ class InlineHandlers:
                 mime_type="image/jpeg",
                 attributes=[],
             )
-            await event.answer(
-                [
-                    event.builder.article(
-                        "Error",
-                        text=f"🃏 {self.lang['error']}:\n <pre>{html.escape(error_traceback)}</pre>",
-                        description=f"{self.lang['error_description']}: {str(e)[:50]}",
-                        parse_mode="html",
-                        thumb=thumb,
-                    )
-                ]
-            )
+            try:
+                await event.answer(
+                    [
+                        event.builder.article(
+                            "Error",
+                            text=f"🃏 {self.lang['error']}:\n <pre>{html.escape(error_traceback)}</pre>",
+                            description=f"{self.lang['error_description']}: {str(e)[:50]}",
+                            parse_mode="html",
+                            thumb=thumb,
+                        )
+                    ]
+                )
+            except Exception as answer_error:
+                self.kernel.logger.debug(
+                    f"Inline query error answer failed: {answer_error}"
+                )
 
     async def process_callback_query(self, event: Any) -> None:
         """Process a callback query event.
@@ -1522,7 +1528,7 @@ class InlineHandlers:
         """Route to a user inline handler once, supporting hikka proxy if needed."""
         self.kernel.logger.debug(f"[InlineHandlers] _dispatch_inline_handler cmd={cmd}")
         if not cmd or cmd not in self.kernel.inline_handlers:
-            self.kernel.logger.debug(f"[InlineHandlers] cmd not in inline_handlers")
+            self.kernel.logger.debug("[InlineHandlers] cmd not in inline_handlers")
             return False
 
         handler = self.kernel.inline_handlers[cmd]
@@ -1557,23 +1563,47 @@ class InlineHandlers:
                     inline_proxy=inline_proxy,
                     original_event=event,
                 )
-                result = handler(iq_obj)
+                try:
+                    result = handler(iq_obj)
+                except Exception as handler_error:
+                    self.kernel.logger.debug(
+                        f"[InlineHandlers] hikka handler error: {handler_error}"
+                    )
+                    result = None
                 self.kernel.logger.debug(
                     f"[InlineHandlers] handler result type: {type(result)}"
                 )
             elif sig and len(sig.parameters) == 1:
-                result = handler(event)
+                try:
+                    result = handler(event)
+                except Exception as handler_error:
+                    self.kernel.logger.debug(
+                        f"[InlineHandlers] handler error: {handler_error}"
+                    )
+                    result = None
                 self.kernel.logger.debug(
                     f"[InlineHandlers] handler result type: {type(result)}"
                 )
             else:
-                result = handler(event)
+                try:
+                    result = handler(event)
+                except Exception as handler_error:
+                    self.kernel.logger.debug(
+                        f"[InlineHandlers] handler error: {handler_error}"
+                    )
+                    result = None
                 self.kernel.logger.debug(
                     f"[InlineHandlers] handler result type: {type(result)}"
                 )
 
             if asyncio.iscoroutine(result):
-                result = await result
+                try:
+                    result = await result
+                except Exception as await_error:
+                    self.kernel.logger.debug(
+                        f"[InlineHandlers] await error: {await_error}"
+                    )
+                    result = None
                 self.kernel.logger.debug(
                     f"[InlineHandlers] awaited result: {type(result)}"
                 )
@@ -1629,7 +1659,12 @@ class InlineHandlers:
                 self.kernel.logger.debug(
                     f"[InlineHandlers] converted result: {result}, len={len(result) if result else 0}"
                 )
-                await event.answer(result)
+                try:
+                    await event.answer(result)
+                except Exception as answer_error:
+                    self.kernel.logger.debug(
+                        f"Inline handler event.answer failed: {answer_error}"
+                    )
                 return True
         except Exception:
             self.kernel.logger.error(

@@ -36,6 +36,34 @@ class CompatMessage:
     async def edit(self, *args, **kwargs):
         if "parse_mode" not in kwargs:
             kwargs["parse_mode"] = "html"
+
+        reply_markup = kwargs.get("reply_markup")
+        if reply_markup is not None:
+            try:
+                from telethon.tl.custom.button import Button as TelethonButton
+                from telethon.tl.tlobject import TLObject
+
+                def is_telethon_buttons(obj):
+                    if isinstance(obj, list):
+                        for item in obj:
+                            if isinstance(item, list):
+                                for btn in item:
+                                    if isinstance(btn, (TLObject, TelethonButton)):
+                                        return True
+                    return False
+
+                if not is_telethon_buttons(reply_markup):
+                    inline_proxy = getattr(self._message, "_inline_proxy", None)
+                    if inline_proxy and hasattr(inline_proxy, "_to_telethon_buttons"):
+                        telethon_buttons = inline_proxy._to_telethon_buttons(
+                            reply_markup
+                        )
+                        if telethon_buttons is not None:
+                            kwargs.pop("reply_markup", None)
+                            kwargs["buttons"] = telethon_buttons
+            except Exception:
+                pass
+
         return await self._message.edit(*args, **kwargs)
 
     async def respond(self, *args, **kwargs):
@@ -113,6 +141,33 @@ class InlineMessage:
 
         if "parse_mode" not in kwargs and self._default_parse_mode is not None:
             kwargs["parse_mode"] = self._default_parse_mode
+
+        reply_markup = kwargs.get("reply_markup")
+        if reply_markup is not None:
+            try:
+                from telethon.tl.custom.button import Button as TelethonButton
+                from telethon.tl.tlobject import TLObject
+
+                def is_telethon_buttons(obj):
+                    if isinstance(obj, list):
+                        for item in obj:
+                            if isinstance(item, list):
+                                for btn in item:
+                                    if isinstance(btn, (TLObject, TelethonButton)):
+                                        return True
+                    return False
+
+                if not is_telethon_buttons(reply_markup):
+                    inline_proxy = getattr(self, "_inline_proxy", None)
+                    if inline_proxy and hasattr(inline_proxy, "_to_telethon_buttons"):
+                        telethon_buttons = inline_proxy._to_telethon_buttons(
+                            reply_markup
+                        )
+                        if telethon_buttons is not None:
+                            kwargs.pop("reply_markup", None)
+                            kwargs["buttons"] = telethon_buttons
+            except Exception:
+                pass
 
         manager = self.inline_manager
         edit_unit = getattr(manager, "_edit_unit", None) if manager else None
@@ -207,6 +262,33 @@ class BotMessage:
         if "parse_mode" not in kwargs and self._default_parse_mode is not None:
             kwargs["parse_mode"] = self._default_parse_mode
 
+        reply_markup = kwargs.get("reply_markup")
+        if reply_markup is not None:
+            try:
+                from telethon.tl.custom.button import Button as TelethonButton
+                from telethon.tl.tlobject import TLObject
+
+                def is_telethon_buttons(obj):
+                    if isinstance(obj, list):
+                        for item in obj:
+                            if isinstance(item, list):
+                                for btn in item:
+                                    if isinstance(btn, (TLObject, TelethonButton)):
+                                        return True
+                    return False
+
+                if not is_telethon_buttons(reply_markup):
+                    inline_proxy = getattr(self, "_inline_proxy", None)
+                    if inline_proxy and hasattr(inline_proxy, "_to_telethon_buttons"):
+                        telethon_buttons = inline_proxy._to_telethon_buttons(
+                            reply_markup
+                        )
+                        if telethon_buttons is not None:
+                            kwargs.pop("reply_markup", None)
+                            kwargs["buttons"] = telethon_buttons
+            except Exception:
+                pass
+
         manager = self.inline_manager
         edit_unit = getattr(manager, "_edit_unit", None) if manager else None
         if callable(edit_unit):
@@ -283,7 +365,9 @@ class InlineCall:
             else None
         )
         self.from_user = (
-            types.SimpleNamespace(id=from_user_id) if from_user_id else None
+            types.SimpleNamespace(id=from_user_id)
+            if from_user_id
+            else types.SimpleNamespace(id=0)
         )
 
     async def answer(

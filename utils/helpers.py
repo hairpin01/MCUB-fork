@@ -3,17 +3,17 @@
 
 from __future__ import annotations
 
+import datetime
+import html as html_escape
+
 # author: @Hairpin00
 # version: 1.0.2
 # description: helper utilities for modules (arguments, replies, files, formatting)
-
 import shlex
-import html as html_escape
-import datetime
 import time as time_module
 from typing import TYPE_CHECKING, Any
 
-from telethon import events, Button
+from telethon import Button, events
 from telethon.tl.custom import Message
 from telethon.tl.types import TypeMessageEntity
 
@@ -21,8 +21,8 @@ if TYPE_CHECKING:
     pass
 
 # Local imports from the same utils package
-from .html_parser import telegram_to_html
 from .emoji_parser import emoji_parser
+from .html_parser import telegram_to_html
 
 
 def get_args(event: Union[Message, events.NewMessage.Event]) -> list[str]:

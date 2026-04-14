@@ -2,15 +2,15 @@
 # Copyright (c) 2026 Шмэлька | @hairpin01
 
 import uuid
-from typing import Any, Optional
+from typing import Any
 
 
 def build_inline_result_text(
     title: str,
     text: str,
-    description: Optional[str] = None,
+    description: str | None = None,
     parse_mode: str = "HTML",
-    result_id: Optional[str] = None,
+    result_id: str | None = None,
 ) -> dict[str, Any]:
     result = {
         "type": "article",
@@ -32,10 +32,10 @@ def build_inline_result_photo(
     photo_url: str,
     text: str,
     title: str,
-    description: Optional[str] = None,
+    description: str | None = None,
     parse_mode: str = "HTML",
-    thumb_url: Optional[str] = None,
-    result_id: Optional[str] = None,
+    thumb_url: str | None = None,
+    result_id: str | None = None,
 ) -> dict[str, Any]:
     result = {
         "type": "photo",
@@ -56,10 +56,10 @@ def build_inline_result_video(
     text: str,
     title: str,
     mime_type: str = "video/mp4",
-    thumb_url: Optional[str] = None,
-    description: Optional[str] = None,
+    thumb_url: str | None = None,
+    description: str | None = None,
     parse_mode: str = "HTML",
-    result_id: Optional[str] = None,
+    result_id: str | None = None,
 ) -> dict[str, Any]:
     result = {
         "type": "video",
@@ -81,10 +81,10 @@ def build_inline_result_document(
     text: str,
     title: str,
     mime_type: str = "application/octet-stream",
-    thumb_url: Optional[str] = None,
-    description: Optional[str] = None,
+    thumb_url: str | None = None,
+    description: str | None = None,
     parse_mode: str = "HTML",
-    result_id: Optional[str] = None,
+    result_id: str | None = None,
 ) -> dict[str, Any]:
     result = {
         "type": "document",
@@ -105,10 +105,10 @@ def build_inline_result_gif(
     gif_url: str,
     text: str,
     title: str,
-    thumb_url: Optional[str] = None,
-    description: Optional[str] = None,
+    thumb_url: str | None = None,
+    description: str | None = None,
     parse_mode: str = "HTML",
-    result_id: Optional[str] = None,
+    result_id: str | None = None,
 ) -> dict[str, Any]:
     result = {
         "type": "mpeg4_gif",
@@ -129,9 +129,9 @@ def build_inline_result_media(
     media_type: str,
     text: str,
     title: str,
-    description: Optional[str] = None,
+    description: str | None = None,
     parse_mode: str = "HTML",
-    result_id: Optional[str] = None,
+    result_id: str | None = None,
 ) -> dict[str, Any]:
     media_type = media_type.lower()
 
@@ -213,9 +213,9 @@ def build_inline_result_poll(
     question: str,
     options: list[str],
     title: str,
-    description: Optional[str] = None,
+    description: str | None = None,
     is_multiple: bool = False,
-    correct_option: Optional[int] = None,
+    correct_option: int | None = None,
 ) -> dict[str, Any]:
     result = {
         "type": "poll",
@@ -239,8 +239,8 @@ def build_inline_result_location(
     latitude: float,
     longitude: float,
     title: str,
-    description: Optional[str] = None,
-    result_id: Optional[str] = None,
+    description: str | None = None,
+    result_id: str | None = None,
 ) -> dict[str, Any]:
     result = {
         "type": "location",
@@ -259,11 +259,11 @@ def build_inline_result_venue(
     longitude: float,
     title: str,
     address: str,
-    provider: Optional[str] = None,
-    venue_id: Optional[str] = None,
-    venue_type: Optional[str] = None,
-    description: Optional[str] = None,
-    result_id: Optional[str] = None,
+    provider: str | None = None,
+    venue_id: str | None = None,
+    venue_type: str | None = None,
+    description: str | None = None,
+    result_id: str | None = None,
 ) -> dict[str, Any]:
     result = {
         "type": "venue",
@@ -287,10 +287,10 @@ def build_inline_result_venue(
 def build_inline_result_contact(
     phone_number: str,
     first_name: str,
-    last_name: Optional[str] = None,
-    title: Optional[str] = None,
-    description: Optional[str] = None,
-    result_id: Optional[str] = None,
+    last_name: str | None = None,
+    title: str | None = None,
+    description: str | None = None,
+    result_id: str | None = None,
 ) -> dict[str, Any]:
     result = {
         "type": "contact",
@@ -311,11 +311,11 @@ def build_inline_result_audio(
     audio_url: str,
     text: str,
     title: str,
-    performer: Optional[str] = None,
-    duration: Optional[int] = None,
-    description: Optional[str] = None,
+    performer: str | None = None,
+    duration: int | None = None,
+    description: str | None = None,
     parse_mode: str = "HTML",
-    result_id: Optional[str] = None,
+    result_id: str | None = None,
 ) -> dict[str, Any]:
     result = {
         "type": "audio",
@@ -338,10 +338,10 @@ def build_inline_result_voice(
     voice_url: str,
     text: str,
     title: str,
-    duration: Optional[int] = None,
-    description: Optional[str] = None,
+    duration: int | None = None,
+    description: str | None = None,
     parse_mode: str = "HTML",
-    result_id: Optional[str] = None,
+    result_id: str | None = None,
 ) -> dict[str, Any]:
     result = {
         "type": "voice",
@@ -360,10 +360,10 @@ def build_inline_result_voice(
 
 def build_inline_result_sticker(
     sticker_url: str,
-    text: Optional[str] = None,
-    title: Optional[str] = None,
-    description: Optional[str] = None,
-    result_id: Optional[str] = None,
+    text: str | None = None,
+    title: str | None = None,
+    description: str | None = None,
+    result_id: str | None = None,
 ) -> dict[str, Any]:
     result = {
         "type": "sticker",
@@ -382,9 +382,9 @@ def build_inline_result_sticker(
 def build_inline_result_game(
     game_short_name: str,
     title: str,
-    description: Optional[str] = None,
-    text: Optional[str] = None,
-    result_id: Optional[str] = None,
+    description: str | None = None,
+    text: str | None = None,
+    result_id: str | None = None,
 ) -> dict[str, Any]:
     result = {
         "type": "game",
@@ -400,10 +400,10 @@ def build_inline_result_game(
 def build_inline_result_article(
     title: str,
     text: str,
-    url: Optional[str] = None,
+    url: str | None = None,
     hide_url: bool = False,
-    description: Optional[str] = None,
-    thumb_url: Optional[str] = None,
+    description: str | None = None,
+    thumb_url: str | None = None,
     parse_mode: str = "HTML",
 ) -> dict[str, Any]:
     result = {

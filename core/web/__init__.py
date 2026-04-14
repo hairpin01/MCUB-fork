@@ -7,7 +7,7 @@ Provides a simple asynchronous HTTP server with basic kernel info.
 """
 
 from .app import create_app
-from .routes import setup_routes
 from .plugin_manager import PluginManager
+from .routes import setup_routes
 
-__all__ = ["create_app", "setup_routes", "PluginManager"]
+__all__ = ["PluginManager", "create_app", "setup_routes"]

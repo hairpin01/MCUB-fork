@@ -2,6 +2,7 @@
 # Copyright (c) 2026 Шмэлька | @hairpin01
 
 from __future__ import annotations
+
 import asyncio
 import hashlib
 import html
@@ -280,7 +281,7 @@ class ErrorFormatter:
             )
             src_part = (
                 f'<blockquote><tg-emoji emoji-id="5379679518740978720">🎯</tg-emoji>'
-                f' <b>Source:</b> <code>{html.escape(filename or "")}:{lineno or ""}</code>'
+                f" <b>Source:</b> <code>{html.escape(filename or '')}:{lineno or ''}</code>"
                 f" <b>in</b> <code>{html.escape(name or '')}</code></blockquote>\n"
                 if filename
                 else ""
@@ -316,7 +317,7 @@ class RichException:
         exc_value: Exception,
         tb: TracebackType | None,
         comment: str | None = None,
-    ) -> "RichException":
+    ) -> RichException:
         message, full_stack = ErrorFormatter.format_exception(
             exc_type, exc_value, tb, comment
         )
@@ -385,7 +386,7 @@ def setup_logging() -> logging.Logger:
 class _SyncToAsyncBridge(logging.Handler):
     """Bridge that forwards sync log records to async TelegramLogHandler."""
 
-    def __init__(self, telegram_handler: "TelegramLogHandler") -> None:
+    def __init__(self, telegram_handler: TelegramLogHandler) -> None:
         super().__init__(level=logging.WARNING)
         self._telegram_handler = telegram_handler
 
@@ -399,13 +400,13 @@ class _SyncToAsyncBridge(logging.Handler):
 
 def setup_telegram_logging(
     logger: logging.Logger,
-    kernel_logger: "KernelLogger",
+    kernel_logger: KernelLogger,
     *,
     batch_size: int = _TELEGRAM_LOG_BATCH_SIZE,
     batch_interval: float = _TELEGRAM_LOG_BATCH_INTERVAL,
     rate_limit: int = _TELEGRAM_LOG_RATE_LIMIT,
     rate_window: int = _TELEGRAM_LOG_RATE_WINDOW,
-) -> "TelegramLogHandler":
+) -> TelegramLogHandler:
     """Attach a TelegramLogHandler to a logger for WARNING and ERROR level messages."""
     handler = TelegramLogHandler(
         kernel_logger,
@@ -431,11 +432,11 @@ class KernelLogger:
 
     def __init__(
         self,
-        kernel: "Kernel",
+        kernel: Kernel,
         *,
         log_chat_id: int | None = None,
-        client: "TelegramClient | None" = None,
-        bot_client: "TelegramClient | None" = None,
+        client: TelegramClient | None = None,
+        bot_client: TelegramClient | None = None,
         cache: object | None = None,
     ) -> None:
         self.k = kernel
@@ -454,11 +455,11 @@ class KernelLogger:
         return getattr(self.k, "log_chat_id", None)
 
     @property
-    def client(self) -> "TelegramClient":
+    def client(self) -> TelegramClient:
         return self._client or self.k.client
 
     @property
-    def bot_client(self) -> "TelegramClient | None":
+    def bot_client(self) -> TelegramClient | None:
         if self._bot_client is not None:
             return self._bot_client
         return getattr(self.k, "bot_client", None)
@@ -546,7 +547,7 @@ class KernelLogger:
             return []
         return list(cache.get(f"similar:{func_hash}") or [])  # type: ignore[arg-type]
 
-    async def _get_client(self) -> "TelegramClient":
+    async def _get_client(self) -> TelegramClient:
         """Pick bot_client when available and authorised, else fall back to user client."""
         now = datetime.now()
 
@@ -666,8 +667,11 @@ class KernelLogger:
                 )
 
         if error_type and source:
+            short_source = source[:50] if len(source) > 50 else source
             buttons.append(
-                Button.inline("🔕 Mute 1h", data=f"mute_err:{error_type}:{source}")
+                Button.inline(
+                    "🔕 Mute 1h", data=f"mute_err:{error_type}:{short_source}"
+                )
             )
 
         safe_body = mask_sensitive_data(body)
@@ -809,7 +813,7 @@ class KernelLogger:
             except Exception:
                 pass
 
-        safe_stack = strip_html(mask_sensitive_data(rich.full_stack[:500]))
+        strip_html(mask_sensitive_data(rich.full_stack[:500]))
 
         # Read repeat count BEFORE _get_lifetime_info increments it again
         raw_count = self.cache.get(f"err_count:{sig_key}") if self.cache else 0
@@ -825,7 +829,7 @@ class KernelLogger:
         )
         await self._maybe_attach_log_file(source, repeat_count)
 
-    async def log(self, message: str, emoji: str = "ℹ️") -> None:  # noqa: RUF001
+    async def log(self, message: str, emoji: str = "ℹ️") -> None:
         """Send an event to the log chat and write it to the rotating log file."""
         # mask_sensitive_data is called once here; send_log_message does NOT mask again
         safe_message = mask_sensitive_data(message)
@@ -873,7 +877,7 @@ class KernelLogger:
 
         body = f"{lifetime_html}{rich.message}"
 
-        safe_stack = strip_html(mask_sensitive_data(rich.full_stack[:500]))
+        strip_html(mask_sensitive_data(rich.full_stack[:500]))
 
         raw_count = self.cache.get(f"err_count:{sig_key}") if self.cache else 0
         repeat_count = int(raw_count or 0)

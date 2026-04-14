@@ -2,16 +2,17 @@
 # Copyright (c) 2026 Шмэлька | @hairpin01
 
 from __future__ import annotations
-import os
+
 import logging
+import os
 
 import aiohttp_jinja2
 import jinja2
 from aiohttp import web
 
-from .routes import setup_routes
-from .plugin_manager import PluginManager
 from .auth import AuthMiddleware
+from .plugin_manager import PluginManager
+from .routes import setup_routes
 
 logger = logging.getLogger("mcub.web.app")
 

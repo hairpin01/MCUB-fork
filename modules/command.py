@@ -6,9 +6,9 @@ from __future__ import annotations
 # author: @Hairpin00
 # version: 1.2.0
 # description: Bot command handlers with localization / Обработчики команд бота с локализацией
-
 import asyncio
-from telethon import events, Button
+
+from telethon import Button
 
 
 def register(kernel):
@@ -203,7 +203,6 @@ def register(kernel):
         try:
             user = event.sender
 
-            user_id = user.id
             first_name = user.first_name or ""
             last_name = user.last_name or ""
 
@@ -239,7 +238,7 @@ def register(kernel):
             ):
                 return
 
-            hello_bot = await kernel.db_get("kernel", "HELLO_BOT")
+            await kernel.db_get("kernel", "HELLO_BOT")
 
             await kernel.bot_client.send_file(
                 event.chat_id, file="https://x0.at/Y4ie.mp4"

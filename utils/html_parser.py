@@ -10,20 +10,19 @@ Fixed: Correctly handles nested entities, multi-byte characters, and preserves \
 import html
 from collections import deque
 from html.parser import HTMLParser
-from typing import Optional, Tuple, List, Union
 
 from telethon.tl.types import (
+    MessageEntityBlockquote,
     MessageEntityBold,
-    MessageEntityItalic,
     MessageEntityCode,
+    MessageEntityCustomEmoji,
+    MessageEntityEmail,
+    MessageEntityItalic,
     MessageEntityPre,
+    MessageEntitySpoiler,
+    MessageEntityStrike,
     MessageEntityTextUrl,
     MessageEntityUnderline,
-    MessageEntityStrike,
-    MessageEntityBlockquote,
-    MessageEntityCustomEmoji,
-    MessageEntitySpoiler,
-    MessageEntityEmail,
 )
 
 
@@ -63,7 +62,7 @@ class TelegramHTMLParser(HTMLParser):
         self._tag_stack = deque()
         self._utf16_offset = 0
 
-    def handle_starttag(self, tag: str, attrs: List[Tuple[str, str]]) -> None:
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str]]) -> None:
         """Handle opening HTML tags."""
         attrs_dict = dict(attrs)
         self._tag_stack.appendleft(tag)
@@ -124,7 +123,7 @@ class TelegramHTMLParser(HTMLParser):
         self.text += data
         self._utf16_offset += _utf16_len(data)
 
-    def handle_startendtag(self, tag: str, attrs: List[Tuple[str, str]]) -> None:
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str]]) -> None:
         """Handle self-closing tags like <br/>."""
         if tag == "br":
             self.handle_data("\n")
@@ -142,7 +141,7 @@ class HTMLDecorator:
     Properly handles nested entities and preserves line breaks as \n.
     """
 
-    def unparse(self, text: str, entities: List) -> str:
+    def unparse(self, text: str, entities: list) -> str:
         """Convert text with entities to HTML markup."""
         if not entities:
             return html.escape(text, quote=False)
@@ -192,7 +191,7 @@ class HTMLDecorator:
 
             # Reconcile current tags with logical stack
             common = 0
-            for c, logical in zip(current_tags, logical_stack):
+            for c, logical in zip(current_tags, logical_stack, strict=False):
                 if c is logical:
                     common += 1
                 else:
@@ -276,7 +275,7 @@ class HTMLDecorator:
         return tag, attrs
 
 
-def parse_html(html_text: str) -> Tuple[str, List]:
+def parse_html(html_text: str) -> tuple[str, list]:
     """
     Parse HTML text and extract Telegram entities.
 
@@ -292,7 +291,7 @@ def parse_html(html_text: str) -> Tuple[str, List]:
     return parser.text, parser.entities
 
 
-def telegram_to_html(text: str, entities: List) -> str:
+def telegram_to_html(text: str, entities: list) -> str:
     """
     Convert Telegram text with entities to HTML markup.
 
@@ -308,8 +307,8 @@ def telegram_to_html(text: str, entities: List) -> str:
 
 
 def format_message(
-    text: str, entities: Optional[List] = None, as_html: bool = False
-) -> Union[str, Tuple[str, List]]:
+    text: str, entities: list | None = None, as_html: bool = False
+) -> str | tuple[str, list]:
     """
     Format a message either as HTML or parse HTML to entities.
 
@@ -331,11 +330,11 @@ def format_message(
 
 
 __all__ = [
-    "TelegramHTMLParser",
-    "parse_html",
-    "telegram_to_html",
-    "format_message",
     "HTMLDecorator",
+    "TelegramHTMLParser",
     "_utf16_len",
     "_utf16_slice",
+    "format_message",
+    "parse_html",
+    "telegram_to_html",
 ]

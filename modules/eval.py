@@ -8,10 +8,10 @@ from __future__ import annotations
 # version: 1.0.3
 # description: Python code execution / Выполнение Python кода
 import html
-import traceback
-import sys
 import io
+import sys
 import time
+import traceback
 from html import unescape
 
 CUSTOM_EMOJI = {
@@ -90,7 +90,7 @@ def register(kernel):
             exec(
                 "async def __exec():\n    " + "\n    ".join(code.split("\n")),
                 local_vars,
-            )  # noqa: S102
+            )
             result = await local_vars["__exec"]()
             complete = output.getvalue()
             if result is not None:

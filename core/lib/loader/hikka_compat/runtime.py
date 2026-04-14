@@ -1209,10 +1209,45 @@ class InlineProxy:
                     ttl = getattr(self, "_current_form_ttl", 3600)
                     import time as _time
 
+                    from .inline_types import InlineCall
+
+                    cb_id = cb_data
+                    cb_handler = cb
+                    cb_args = tuple(raw_args)
+                    cb_kwargs = dict(raw_kwargs)
+
+                    async def _hikka_callback_wrapper(
+                        event,
+                        _id=cb_id,
+                        _h=cb_handler,
+                        _a=cb_args,
+                        _k=cb_kwargs,
+                        _proxy=self,
+                    ):
+                        from_user_id = getattr(
+                            getattr(event, "from_user", None), "id", None
+                        )
+                        inline_message_id = getattr(event, "inline_message_id", None)
+                        chat_id = getattr(event, "chat_instance", None)
+                        message_id = getattr(event, "message_id", None)
+                        data_str = event.data.decode() if event.data else ""
+
+                        call_obj = InlineCall(
+                            data_str,
+                            unit_id="",
+                            inline_proxy=_proxy,
+                            original_call=event,
+                            inline_message_id=inline_message_id,
+                            chat_id=chat_id,
+                            message_id=message_id,
+                            from_user_id=from_user_id,
+                        )
+                        return await _h(call_obj, *_a, **_k)
+
                     cb_map[cb_data] = {
-                        "handler": cb,
-                        "args": tuple(raw_args),
-                        "kwargs": dict(raw_kwargs),
+                        "handler": _hikka_callback_wrapper,
+                        "args": (),
+                        "kwargs": {},
                         "expires_at": _time.time() + ttl,
                     }
                 elif isinstance(cb, str):
@@ -2628,9 +2663,13 @@ class Module:
         from .loader import USER_INSTALL, VALID_PIP_PACKAGES
         from .types import SelfSuspend, StringLoader
 
+        _suspended = False
+
         async def _raise(exc: Exception):
+            nonlocal _suspended
             if suspend_on_error:
-                raise SelfSuspend("Required library is not available or is corrupted.")
+                _suspended = True
+                return
             raise exc
 
         try:
@@ -2642,6 +2681,8 @@ class Module:
                     code = await response.text()
         except Exception as e:
             await _raise(e)
+        if _suspended:
+            return None
 
         module_name = (
             f"__hikka_mcub_library__."
@@ -2662,6 +2703,8 @@ class Module:
             if _did_requirements:
                 sys.modules.pop(module_name, None)
                 await _raise(e)
+                if _suspended:
+                    return None
 
             requirements = []
             match = VALID_PIP_PACKAGES.search(code)
@@ -2677,6 +2720,8 @@ class Module:
             if not requirements:
                 sys.modules.pop(module_name, None)
                 await _raise(e)
+                if _suspended:
+                    return None
 
             proc = await asyncio.create_subprocess_exec(
                 sys.executable,
@@ -2697,6 +2742,8 @@ class Module:
             importlib.invalidate_caches()
             if rc != 0:
                 await _raise(e)
+                if _suspended:
+                    return None
             return await self.import_lib(
                 normalized_url,
                 suspend_on_error=suspend_on_error,
@@ -2705,6 +2752,8 @@ class Module:
         except Exception as e:
             sys.modules.pop(module_name, None)
             await _raise(e)
+            if _suspended:
+                return None
 
         lib_obj = next(
             (
@@ -2720,6 +2769,8 @@ class Module:
         if lib_obj is None:
             sys.modules.pop(module_name, None)
             await _raise(ImportError("Invalid library. No Library subclass found"))
+            if _suspended:
+                return None
 
         libraries = getattr(self._kernel, "_hikka_compat_libraries", None)
         if not isinstance(libraries, list):
@@ -2748,6 +2799,8 @@ class Module:
             except Exception as e:
                 sys.modules.pop(module_name, None)
                 await _raise(e)
+                if _suspended:
+                    return None
 
         libraries.append(lib_obj)
         return lib_obj

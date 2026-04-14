@@ -180,6 +180,7 @@ class ClientManager:
             catch_up=False,
             auto_reconnect=True,
         )
+        k.client.set_protection_mode("off")
 
         try:
             k.logger.debug("Starting Telegram client authorization phone=%r", k.PHONE)

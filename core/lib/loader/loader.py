@@ -2,19 +2,24 @@
 # Copyright (c) 2026 Шмэлька | @hairpin01
 
 from __future__ import annotations
-import sys
-import re
+
 import asyncio
-import inspect
 import importlib.util
+import inspect
+import re
 import subprocess
+import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Tuple
+from typing import TYPE_CHECKING, Any
+import os
 
 from ..utils.exceptions import CommandConflictError
 
 if TYPE_CHECKING:
     from kernel import Kernel
+
+from .archive import ArchiveManager
+from .module_base import ModuleBase
 
 
 _IMPORT_TO_PIP: dict[str, str] = {
@@ -98,9 +103,6 @@ _NON_INSTALLABLE: set[str] = {
     "csv",
     "sqlite3",
     "xml",
-    "html",
-    "urllib",
-    "http",
     "ftplib",
     "imaplib",
     "smtplib",
@@ -127,8 +129,9 @@ _NON_INSTALLABLE: set[str] = {
 class ModuleLoader:
     """Handles dynamic loading, registration, and unloading of modules."""
 
-    def __init__(self, kernel: "Kernel") -> None:
+    def __init__(self, kernel: Kernel) -> None:
         self.k = kernel
+        self._archive_mgr = ArchiveManager(kernel)
 
     def _build_module(self, spec, file_path: str, module_name: str):
         """Create a module object preloaded with kernel context."""
@@ -173,7 +176,7 @@ class ModuleLoader:
         else:
             fn(arg)
 
-    async def _check_module_compatibility(self, code: str) -> Tuple[bool, str]:
+    async def _check_module_compatibility(self, code: str) -> tuple[bool, str]:
         """Proxy compatibility checks through the kernel version manager."""
         return await self.k.version_manager.check_module_compatibility(code)
 
@@ -187,7 +190,7 @@ class ModuleLoader:
             hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix
         )
 
-    async def install_dependency(self, package_name: str) -> Tuple[bool, str]:
+    async def install_dependency(self, package_name: str) -> tuple[bool, str]:
         """Install a Python package via pip.
 
         Args:
@@ -241,7 +244,7 @@ class ModuleLoader:
         file_path: str,
         module_name: str,
         is_system: bool,
-    ) -> Tuple[bool, str]:
+    ) -> tuple[bool, str]:
         """Attempt auto-installation when a module import fails.
 
         Returns:
@@ -282,7 +285,7 @@ class ModuleLoader:
         return False, f"Failed to install {missing}: {msg}"
 
     async def pre_install_requirements(self, code: str, module_name: str) -> None:
-        """Install packages listed in ``# requires:`` comments before loading.
+        """Install packages listed in ``# requires:`` comments or class dependencies before loading.
 
         Args:
             code: Module source code.
@@ -291,11 +294,29 @@ class ModuleLoader:
         reqs = re.findall(
             r"^\s*#\s*requires?:\s*(.+)$", code, re.MULTILINE | re.IGNORECASE
         )
-        if not reqs:
-            return
+
+        class_deps = []
+        if "from core.lib.loader.module_base import ModuleBase" in code:
+            class_match = re.search(
+                r"class\s+\w+\s*\(\s*ModuleBase\s*\):(.*?)(?=\n(?:class\s|\Z))",
+                code,
+                re.DOTALL,
+            )
+            if class_match:
+                class_body = class_match.group(1)
+                deps_m = re.search(r"dependencies\s*=\s*\[([^\]]*)\]", class_body)
+                if deps_m:
+                    deps_str = deps_m.group(1)
+                    class_deps = [
+                        d.strip().strip("'\"") for d in deps_str.split(",") if d.strip()
+                    ]
+
+        all_reqs = list(reqs)
+        if class_deps:
+            all_reqs.append(", ".join(class_deps))
 
         deps = []
-        for line in reqs:
+        for line in all_reqs:
             for dep in line.split(","):
                 dep = dep.strip()
                 if not dep:
@@ -401,15 +422,27 @@ class ModuleLoader:
                 new_spec, new_mod, file_path, module_name, code, _retry + 1, _tried
             )
 
+    def _find_module_base_class(self, module) -> type | None:
+        """Return the first class in *module* that inherits from ModuleBase, or None."""
+        for name, obj in inspect.getmembers(module, inspect.isclass):
+            if issubclass(obj, ModuleBase) and obj is not ModuleBase:
+                return obj
+        return None
+
     async def detect_module_type(self, module) -> str:
         """Detect the registration pattern used by a module.
 
         Returns:
-            'method' | 'new' | 'old' | 'none'
+            'class' | 'method' | 'new' | 'old' | 'none'
         """
         self.k.logger.debug(
             f"[Loader] detect_module_type start module={getattr(module, '__name__', 'unknown')}"
         )
+
+        if self._find_module_base_class(module) is not None:
+            self.k.logger.debug("[Loader] detect_module_type result=class")
+            return "class"
+
         if not hasattr(module, "register"):
             self.k.logger.debug(
                 "[Loader] detect_module_type result=none (no register attr)"
@@ -445,6 +478,68 @@ class ModuleLoader:
                 module_type,
                 getattr(module, "register", None),
             )
+
+            if module_type == "class":
+                cls = self._find_module_base_class(module)
+                if cls is None:
+                    return False
+
+                module_class_name = getattr(cls, "name", module_name)
+
+                saved_loading_module = k.current_loading_module
+                k.current_loading_module = module_class_name
+
+                if not hasattr(k, "_class_module_instances"):
+                    k._class_module_instances = {}
+
+                old_instance = None
+                old_module_file = None
+                for fname, inst in list(k._class_module_instances.items()):
+                    if getattr(type(inst), "name", None) == module_class_name:
+                        old_instance = inst
+                        old_module_file = fname
+                        break
+
+                if old_instance is not None:
+                    k.logger.info(
+                        f"[loader] Updating class module '{module_class_name}' "
+                        f"(was: {old_module_file}, now: {module_name})"
+                    )
+
+                    old_module_obj = k.loaded_modules.get(old_module_file)
+                    if old_module_obj is None:
+                        for fname, mobj in list(k.loaded_modules.items()):
+                            if (
+                                getattr(
+                                    type(getattr(mobj, "_class_instance", None)),
+                                    "name",
+                                    None,
+                                )
+                                == module_class_name
+                            ):
+                                old_module_obj = mobj
+                                old_module_file = fname
+                                break
+
+                    await self.unregister_module_commands(old_module_file)
+                    if old_module_file in k._class_module_instances:
+                        del k._class_module_instances[old_module_file]
+
+                instance = cls(k, k.client, k.register)
+                k.logger.debug(
+                    "[loader.register_module] class instance created module=%r class=%r",
+                    module_name,
+                    cls.__name__,
+                )
+                if not hasattr(k, "_class_module_instances"):
+                    k._class_module_instances = {}
+                k._class_module_instances[module_name] = instance
+                module._class_instance = instance
+
+                k.current_loading_module = saved_loading_module
+
+                return True
+
             if module_type == "method":
                 methods = self._iter_register_methods(getattr(module, "register", None))
                 if not methods:
@@ -502,6 +597,56 @@ class ModuleLoader:
             len(getattr(reg, "__event_handlers__", [])),
         )
 
+        instance = getattr(module, "_class_instance", None)
+        if instance is not None:
+            for loop in getattr(reg, "__loops__", []):
+                loop._kernel = k
+                instance._loops.append(loop)
+                if loop.autostart:
+                    try:
+                        loop.start()
+                        k.logger.debug(
+                            f"Autostarted loop '{loop.func.__name__}' ({module_name})"
+                        )
+                    except Exception as e:
+                        k.logger.error(f"Error autostarting loop in {module_name}: {e}")
+
+            try:
+                if inspect.iscoroutinefunction(instance.on_load):
+                    await instance.on_load()
+                else:
+                    result = instance.on_load()
+                    if asyncio.iscoroutine(result):
+                        await result
+                instance._loaded = True
+                k.logger.debug(f"on_load called for class module: {module_name}")
+            except Exception as e:
+                k.logger.error(f"on_load error in {module_name}: {e}")
+
+            if is_install:
+                try:
+                    if inspect.iscoroutinefunction(instance.on_install):
+                        await instance.on_install()
+                    else:
+                        result = instance.on_install()
+                        if asyncio.iscoroutine(result):
+                            await result
+                    k.logger.debug(f"on_install called for class module: {module_name}")
+                except Exception as e:
+                    k.logger.error(f"on_install error in {module_name}: {e}")
+
+            for il in instance._loops:
+                if il.autostart:
+                    try:
+                        il.start()
+                        k.logger.debug(
+                            f"Autostarted loop '{il.func.__name__}' ({module_name})"
+                        )
+                    except Exception as e:
+                        k.logger.error(f"Error autostarting loop in {module_name}: {e}")
+
+            return
+
         for loop in getattr(reg, "__loops__", []):
             loop._kernel = k
             if loop.autostart:
@@ -541,7 +686,7 @@ class ModuleLoader:
         file_path: str,
         module_name: str,
         is_system: bool = False,
-    ) -> Tuple[bool, str]:
+    ) -> tuple[bool, str]:
         """Load a Python module from *file_path* and register it with the kernel.
 
         Args:
@@ -557,7 +702,7 @@ class ModuleLoader:
         """
         k = self.k
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 code = f.read()
             k.logger.debug(
                 "[loader.load] start module=%r path=%r system=%s size=%d",
@@ -601,10 +746,11 @@ class ModuleLoader:
             for pat in incompatible:
                 if pat in code:
                     try:
+                        import os as _os
+
                         from core.lib.loader.hikka_compat import (
                             load_hikka_module,
                         )
-                        import os as _os
 
                         abs_path = (
                             file_path
@@ -628,8 +774,6 @@ class ModuleLoader:
             module = self._build_module(spec, file_path, module_name)
             sys.modules[module_name] = module
 
-            k.set_loading_module(module_name, "system" if is_system else "user")
-
             try:
                 module = await self.exec_with_auto_deps(
                     spec, module, file_path, module_name, code
@@ -651,15 +795,54 @@ class ModuleLoader:
                 mod_type,
                 hasattr(module, "register"),
             )
+
+            k.set_loading_module(module_name, "system" if is_system else "user")
+
             if not await self.register_module(module, mod_type, module_name):
+                k.clear_loading_module()
                 return False, "Module registration failed"
 
-            if is_system:
-                k.system_modules[module_name] = module
-                k.logger.info(f"System module loaded: {module_name}")
+            class_display_name = None
+            if mod_type == "class":
+                cls = self._find_module_base_class(module)
+                class_display_name = getattr(cls, "name", None) if cls else None
+
+                if (
+                    class_display_name
+                    and class_display_name != "Unnamed"
+                    and class_display_name != module_name
+                ):
+                    import os
+
+                    old_path = file_path
+                    new_path = os.path.join(
+                        os.path.dirname(file_path), f"{class_display_name}.py"
+                    )
+
+                    if not os.path.exists(new_path):
+                        try:
+                            os.rename(old_path, new_path)
+                            k.logger.info(
+                                f"Renamed module file: {module_name} -> {class_display_name}"
+                            )
+                            file_path = new_path
+                        except Exception as e:
+                            k.logger.warning(f"Failed to rename module file: {e}")
+
+                    module_name = class_display_name
+
+                k.logger.info(f"Module loaded [class-style]: {module_name}")
+                if is_system:
+                    k.system_modules[module_name] = module
+                else:
+                    k.loaded_modules[module_name] = module
             else:
-                k.loaded_modules[module_name] = module
-                k.logger.info(f"User module loaded: {module_name}")
+                if is_system:
+                    k.system_modules[module_name] = module
+                    k.logger.info(f"System module loaded: {module_name}")
+                else:
+                    k.loaded_modules[module_name] = module
+                    k.logger.info(f"User module loaded: {module_name}")
 
             await self.run_post_load(module, module_name, is_install=True)
             k.logger.debug(
@@ -684,7 +867,14 @@ class ModuleLoader:
                 except Exception as e:
                     k.logger.error(f"Module {module_name} init() failed: {e}")
 
-            return True, f"Module {module_name} loaded ({mod_type} type)"
+            final_module_name = (
+                class_display_name if mod_type == "class" else module_name
+            )
+            return (
+                True,
+                f"Module {final_module_name} loaded ({mod_type} type)",
+                final_module_name,
+            )
 
         except CommandConflictError:
             raise
@@ -711,7 +901,7 @@ class ModuleLoader:
             module_name = file_name[:-3]
             file_path = os.path.join(k.MODULES_DIR, file_name)
             try:
-                with open(file_path, "r", encoding="utf-8") as f:
+                with open(file_path, encoding="utf-8") as f:
                     code = f.read()
 
                 await self.pre_install_requirements(code, module_name)
@@ -726,6 +916,51 @@ class ModuleLoader:
                 )
 
                 if not hasattr(module, "register"):
+                    cls = self._find_module_base_class(module)
+                    if cls is not None:
+                        class_display_name = getattr(cls, "name", None)
+
+                        if (
+                            class_display_name
+                            and class_display_name != "Unnamed"
+                            and class_display_name != module_name
+                            and class_display_name not in k.system_modules
+                        ):
+                            import os
+
+                            old_path = file_path
+                            new_path = os.path.join(
+                                k.MODULES_DIR, f"{class_display_name}.py"
+                            )
+
+                            if not os.path.exists(new_path):
+                                try:
+                                    os.rename(old_path, new_path)
+                                    k.logger.info(
+                                        f"Renamed system module file: {module_name} -> {class_display_name}"
+                                    )
+                                    file_path = new_path
+                                except Exception as e:
+                                    k.logger.warning(
+                                        f"Failed to rename system module file: {e}"
+                                    )
+
+                            module_name = class_display_name
+
+                        k.set_loading_module(module_name, "system")
+
+                        instance = cls(k, k.client, k.register)
+                        if not hasattr(k, "_class_module_instances"):
+                            k._class_module_instances = {}
+                        k._class_module_instances[module_name] = instance
+                        module._class_instance = instance
+
+                        k.system_modules[module_name] = module
+                        k.logger.info(
+                            f"System module loaded [class-style]: {module_name}"
+                        )
+                        await self.run_post_load(module, module_name, is_install=False)
+                        continue
                     k.logger.error(f"No register() in system module: {module_name}")
                     k.error_load_modules += 1
                     continue
@@ -742,9 +977,32 @@ class ModuleLoader:
             except CommandConflictError as e:
                 k.logger.error(f"Command conflict loading {module_name}: {e}")
                 if hasattr(k, "_log") and k._log:
-                    await k._log.log_error_from_exc(
-                        f"load_system_module_conflict:{module_name}"
-                    )
+                    try:
+                        await asyncio.wait_for(
+                            k._log.log_error_from_exc(
+                                f"load_system_module_conflict:{module_name}"
+                            ),
+                            timeout=5.0,
+                        )
+                    except asyncio.TimeoutError:
+                        k.logger.warning("log_error_from_exc timed out")
+                    except Exception as log_err:
+                        k.logger.error(f"log_error_from_exc failed: {log_err}")
+                k.error_load_modules += 1
+            except Exception as e:
+                k.logger.error(f"Error loading system module {file_name}: {e}")
+                if hasattr(k, "_log") and k._log:
+                    try:
+                        await asyncio.wait_for(
+                            k._log.log_error_from_exc(
+                                f"load_system_module:{file_name}"
+                            ),
+                            timeout=5.0,
+                        )
+                    except asyncio.TimeoutError:
+                        k.logger.warning("log_error_from_exc timed out")
+                    except Exception as log_err:
+                        k.logger.error(f"log_error_from_exc failed: {log_err}")
                 k.error_load_modules += 1
             except Exception as e:
                 k.logger.error(f"Error loading system module {file_name}: {e}")
@@ -773,12 +1031,30 @@ class ModuleLoader:
             files.insert(0, "log_bot.py")
 
         for file_name in files:
+            # Check for package directories (modules with local imports)
+            module_path = os.path.join(k.MODULES_LOADED_DIR, file_name)
+            if os.path.isdir(module_path):
+                init_file = os.path.join(module_path, "__init__.py")
+                if os.path.exists(init_file):
+                    # Check if it's an archive-installed package
+                    source_info = k._module_sources.get(file_name, {})
+                    if (
+                        source_info.get("type") == "archive"
+                        and source_info.get("pack_type") == "single"
+                    ):
+                        try:
+                            await self._load_package_module(file_name, init_file, k)
+                        except Exception as e:
+                            k.logger.error(f"Error loading package {file_name}: {e}")
+                            k.error_load_modules += 1
+                    continue
+
             if not file_name.endswith(".py"):
                 continue
             module_name = file_name[:-3]
             file_path = os.path.join(k.MODULES_LOADED_DIR, file_name)
             try:
-                with open(file_path, "r", encoding="utf-8") as f:
+                with open(file_path, encoding="utf-8") as f:
                     code = f.read()
 
                 if _hikka_compat and is_hikka_module(code):
@@ -809,6 +1085,51 @@ class ModuleLoader:
                 )
 
                 if not hasattr(module, "register"):
+                    cls = self._find_module_base_class(module)
+                    if cls is not None:
+                        if not inject_kernel:
+                            module.kernel = k
+                            module.client = k.client
+                            module.custom_prefix = k.custom_prefix
+                        instance = cls(k, k.client, k.register)
+                        if not hasattr(k, "_class_module_instances"):
+                            k._class_module_instances = {}
+                        k._class_module_instances[module_name] = instance
+                        module._class_instance = instance
+
+                        class_display_name = getattr(cls, "name", None)
+                        if (
+                            class_display_name
+                            and class_display_name != "Unnamed"
+                            and class_display_name != module_name
+                        ):
+                            import os
+
+                            old_path = file_path
+                            new_path = os.path.join(
+                                k.MODULES_LOADED_DIR, f"{class_display_name}.py"
+                            )
+
+                            if not os.path.exists(new_path):
+                                try:
+                                    os.rename(old_path, new_path)
+                                    k.logger.info(
+                                        f"Renamed module file: {module_name} -> {class_display_name}"
+                                    )
+                                    file_path = new_path
+                                except Exception as e:
+                                    k.logger.warning(
+                                        f"Failed to rename module file: {e}"
+                                    )
+
+                            module_name = class_display_name
+
+                        k.loaded_modules[module_name] = module
+                        k.logger.info(
+                            f"Module loaded [user class-style]: {module_name}"
+                        )
+                        await self.run_post_load(module, module_name, is_install=False)
+                        continue
                     continue
 
                 if inspect.iscoroutinefunction(module.register):
@@ -824,15 +1145,87 @@ class ModuleLoader:
             except CommandConflictError as e:
                 k.logger.error(f"Command conflict loading {file_name}: {e}")
                 if hasattr(k, "_log") and k._log:
-                    await k._log.log_error_from_exc(f"load_module_conflict:{file_name}")
+                    try:
+                        await asyncio.wait_for(
+                            k._log.log_error_from_exc(
+                                f"load_module_conflict:{file_name}"
+                            ),
+                            timeout=5.0,
+                        )
+                    except asyncio.TimeoutError:
+                        k.logger.warning("log_error_from_exc timed out")
+                    except Exception as log_err:
+                        k.logger.error(f"log_error_from_exc failed: {log_err}")
                 k.error_load_modules += 1
             except Exception as e:
                 k.logger.error(f"Error loading module {file_name}: {e}")
                 if hasattr(k, "_log") and k._log:
-                    await k._log.log_error_from_exc(f"load_module:{file_name}")
+                    try:
+                        await asyncio.wait_for(
+                            k._log.log_error_from_exc(f"load_module:{file_name}"),
+                            timeout=5.0,
+                        )
+                    except asyncio.TimeoutError:
+                        k.logger.warning("log_error_from_exc timed out")
+                    except Exception as log_err:
+                        k.logger.error(f"log_error_from_exc failed: {log_err}")
                 k.error_load_modules += 1
             finally:
                 k.clear_loading_module()
+
+    async def _load_package_module(
+        self, module_name: str, init_file: str, k: "Kernel"
+    ) -> None:
+        """Load a module that was installed as a package (from archive with local imports)."""
+        import sys
+
+        # Add parent directory to sys.path
+        parent_dir = os.path.dirname(k.MODULES_LOADED_DIR.rstrip("/"))
+        for p in [k.MODULES_LOADED_DIR, parent_dir]:
+            if p and p not in sys.path:
+                sys.path.insert(0, p)
+
+        # Ensure parent package is importable
+        if module_name in sys.modules:
+            del sys.modules[module_name]
+
+        # Remove any submodule cached entries
+        for mod in list(sys.modules.keys()):
+            if mod.startswith(f"{module_name}."):
+                del sys.modules[mod]
+
+        spec = importlib.util.spec_from_file_location(module_name, init_file)
+        if spec is None:
+            raise Exception(f"Cannot create spec for {module_name}")
+
+        module = importlib.util.module_from_spec(spec)
+        module.kernel = k
+        module.client = k.client
+        module.custom_prefix = k.custom_prefix
+        module.__file__ = init_file
+        module.__name__ = module_name
+        sys.modules[module_name] = module
+
+        k.set_loading_module(module_name, "user")
+
+        try:
+            spec.loader.exec_module(module)
+        except Exception as e:
+            raise Exception(f"Failed to execute module: {e}")
+
+        if not hasattr(module, "register"):
+            raise Exception(f"Module {module_name} has no register function")
+
+        if inspect.iscoroutinefunction(module.register):
+            await module.register(k)
+        else:
+            module.register(k)
+
+        k.loaded_modules[module_name] = module
+        k.logger.info(f"Module loaded [user (archive package)]: {module_name}")
+
+        await self.run_post_load(module, module_name, is_install=False)
+        k.clear_loading_module()
 
     async def install_from_url(
         self,
@@ -841,7 +1234,7 @@ class ModuleLoader:
         auto_dependencies: bool = True,
         expected_hash: str | None = None,
         verify_signature: bool = False,
-    ) -> Tuple[bool, str]:
+    ) -> tuple[bool, str]:
         """Download a module from *url* and load it.
 
         SECURITY WARNING: Loading code from remote URLs without verification
@@ -857,11 +1250,12 @@ class ModuleLoader:
         Returns:
             (success, message)
         """
+        import hashlib
         import os
         import tempfile
-        import aiohttp
-        import hashlib
         from urllib.parse import urlparse
+
+        import aiohttp
 
         k = self.k
         k.logger.debug(
@@ -936,9 +1330,9 @@ class ModuleLoader:
                     if auto_dependencies:
                         await self.pre_install_requirements(code, module_name)
 
-                    success, message = await self.load_module_from_file(
-                        tmp, module_name, False
-                    )
+                    result = await self.load_module_from_file(tmp, module_name, False)
+                    success = result[0]
+                    message = result[1] if len(result) >= 2 else ""
                     if success:
                         target = os.path.join(k.MODULES_LOADED_DIR, f"{module_name}.py")
                         os.makedirs(os.path.dirname(target), exist_ok=True)
@@ -954,6 +1348,266 @@ class ModuleLoader:
         except Exception as e:
             return False, f"Install from URL failed: {e}"
 
+    async def install_from_archive(
+        self,
+        url: str,
+        module_name: str | None = None,
+        auto_dependencies: bool = True,
+    ) -> tuple[bool, str]:
+        """Download and install a module from an archive (zip/tar.gz).
+
+        Args:
+            url: Direct URL to the archive file.
+            module_name: Override the module name (default: derived from URL or pyproject).
+            auto_dependencies: Parse and install dependencies from pyproject/requirements.
+
+        Returns:
+            (success, message)
+        """
+        import os
+        import shutil
+
+        k = self.k
+        k.logger.debug(
+            f"[Loader] install_from_archive start url={url} module_name={module_name}"
+        )
+
+        archive_bytes = await self._archive_mgr.download(url)
+        if not archive_bytes:
+            return False, "Failed to download archive"
+
+        if not self._archive_mgr.validate(archive_bytes):
+            return False, "Invalid archive: no Python modules found"
+
+        if not module_name:
+            temp_dir = os.path.join(k.MODULES_LOADED_DIR, "_temp_archive_extract")
+        else:
+            temp_dir = os.path.join(k.MODULES_LOADED_DIR, "_temp_archive_extract")
+
+        try:
+            result = await self._archive_mgr.extract(archive_bytes, temp_dir)
+            if not result.success:
+                return False, result.error
+
+            metadata = result.metadata
+            pack_type = result.pack_type
+            modules = result.modules
+
+            if not module_name:
+                module_name = (
+                    metadata.name
+                    if metadata and metadata.name
+                    else url.rstrip("/").split("/")[-1].split(".")[0]
+                )
+
+            if module_name in k.system_modules:
+                return False, f"Module '{module_name}' is a system module"
+
+            k.logger.debug(
+                f"[Loader] archive type={pack_type} modules={[m.name for m in modules]}"
+            )
+
+            if auto_dependencies:
+                deps = []
+                if metadata and metadata.dependencies:
+                    deps.extend(metadata.dependencies)
+                if not deps:
+                    for mod in modules:
+                        full_path = os.path.join(temp_dir, mod.file_path)
+                        if os.path.exists(full_path):
+                            try:
+                                with open(full_path, encoding="utf-8") as f:
+                                    code = f.read()
+                                reqs = re.findall(
+                                    r"^\s*#\s*requires?:\s*(.+)$",
+                                    code,
+                                    re.MULTILINE | re.IGNORECASE,
+                                )
+                                for line in reqs:
+                                    for dep in line.split(","):
+                                        dep = dep.strip()
+                                        if dep:
+                                            bare = re.split(r"[>=<!]", dep)[0].strip()
+                                            if re.match(r"^[A-Za-z0-9_\-\.]+$", bare):
+                                                deps.append(dep)
+                            except Exception:
+                                pass
+
+                if deps:
+                    k.logger.info(f"[Loader] Installing archive dependencies: {deps}")
+                    for dep in deps:
+                        bare = re.split(r"[>=<!]", dep)[0].strip()
+                        try:
+                            __import__(bare.replace("-", "_"))
+                        except ImportError:
+                            ok, msg = await self.install_dependency(bare)
+                            if not ok:
+                                k.logger.warning(
+                                    f"[Loader] Could not install {dep}: {msg}"
+                                )
+
+            target_dir = k.MODULES_LOADED_DIR
+
+            if pack_type == "single":
+                main_module = next((m for m in modules if m.is_main), modules[0])
+                target_file = os.path.join(target_dir, f"{module_name}.py")
+                source_file = os.path.join(temp_dir, main_module.file_path)
+
+                if os.path.exists(target_file):
+                    os.remove(target_file)
+
+                # Check if main.py imports from local lib/ directory
+                with open(source_file, encoding="utf-8") as f:
+                    main_code = f.read()
+
+                has_local_import = (
+                    "from . import" in main_code or "from .lib import" in main_code
+                )
+
+                if has_local_import:
+                    # Copy entire directory structure for single modules with local imports
+                    for root, dirs, files in os.walk(temp_dir):
+                        rel_dir = os.path.relpath(root, temp_dir)
+                        if rel_dir == ".":
+                            continue
+
+                        target_subdir = os.path.join(target_dir, module_name, rel_dir)
+                        os.makedirs(target_subdir, exist_ok=True)
+
+                        for f in files:
+                            if f.endswith(".py"):
+                                src = os.path.join(root, f)
+                                dst = os.path.join(target_subdir, f)
+                                if os.path.exists(dst):
+                                    os.remove(dst)
+                                shutil.copy2(src, dst)
+
+                    # Create __init__.py in module directory
+                    init_file = os.path.join(target_dir, module_name, "__init__.py")
+                    if not os.path.exists(init_file):
+                        with open(init_file, "w") as f:
+                            f.write("")
+
+                    # Update main.py to convert relative imports to absolute
+                    main_in_package = os.path.join(
+                        target_dir, module_name, "__init__.py"
+                    )
+                    main_src = os.path.join(temp_dir, main_module.file_path)
+                    if os.path.exists(main_src):
+                        with open(main_src, encoding="utf-8") as f:
+                            content = f.read()
+                        content = re.sub(
+                            r"from \.([^\s]+) import",
+                            f"from {module_name}.\\1 import",
+                            content,
+                        )
+                        content = re.sub(
+                            r"from \. import", f"from {module_name} import", content
+                        )
+                        with open(main_in_package, "w") as f:
+                            f.write(content)
+
+                    # Add parent directory to sys.path for proper package import
+                    parent_dir = os.path.dirname(target_dir.rstrip("/"))
+                    for p in [target_dir, parent_dir]:
+                        if p and p not in sys.path:
+                            sys.path.insert(0, p)
+
+                    # Ensure package is importable
+                    if module_name in sys.modules:
+                        del sys.modules[module_name]
+
+                    result = await self.load_module_from_file(
+                        main_in_package, module_name, False
+                    )
+                    success = result[0]
+                    msg = result[1] if len(result) >= 2 else ""
+                else:
+                    shutil.copy2(source_file, target_file)
+                    result = await self.load_module_from_file(
+                        target_file, module_name, False
+                    )
+                    success = result[0]
+                    msg = result[1] if len(result) >= 2 else ""
+
+                if success:
+                    k._module_sources[module_name] = {
+                        "url": url,
+                        "type": "archive",
+                        "pack_type": "single",
+                    }
+                    await k.save_module_sources()
+                    return (
+                        True,
+                        f"Module '{module_name}' installed from archive",
+                        {"loaded": [module_name], "failed": []},
+                    )
+
+                return False, f"Load error: {msg}", {"loaded": [], "failed": [msg]}
+
+            else:
+                loaded_modules = []
+                failed_modules = []
+
+                for mod in modules:
+                    target_file = os.path.join(target_dir, f"{mod.name}.py")
+                    source_file = os.path.join(temp_dir, mod.file_path)
+
+                    if not os.path.exists(source_file):
+                        continue
+
+                    if os.path.exists(target_file):
+                        os.remove(target_file)
+                    shutil.copy2(source_file, target_file)
+
+                    result = await self.load_module_from_file(
+                        target_file, mod.name, False
+                    )
+                    success = result[0]
+                    msg = result[1] if len(result) >= 2 else ""
+
+                    if success:
+                        loaded_modules.append(mod.name)
+                        k._module_sources[mod.name] = {
+                            "url": url,
+                            "type": "archive",
+                            "pack_type": "pack",
+                            "parent_name": module_name,
+                        }
+                    else:
+                        failed_modules.append(f"{mod.name}: {msg}")
+
+                await k.save_module_sources()
+
+                if loaded_modules:
+                    msg = f"Installed {len(loaded_modules)} module(s) from pack"
+                    if failed_modules:
+                        msg += f", failed: {len(failed_modules)}"
+                    return (
+                        True,
+                        msg,
+                        {"loaded": loaded_modules, "failed": failed_modules},
+                    )
+
+                return False, f"Failed to load any module: {failed_modules}"
+
+        except Exception as e:
+            k.logger.error(f"[Loader] install_from_archive error: {e}")
+            return False, f"Install from archive failed: {e}"
+        finally:
+            if os.path.exists(temp_dir):
+                try:
+                    shutil.rmtree(temp_dir)
+                except Exception:
+                    pass
+
+    def is_archive_url(self, url: str) -> bool:
+        """Check if URL points to an archive file."""
+        url_lower = url.lower()
+        return any(
+            url_lower.endswith(ext) for ext in [".zip", ".tar.gz", ".tgz", ".tar"]
+        )
+
     async def unregister_module_commands(self, module_name: str) -> None:
         """Stop loops, remove event handlers, and unregister all commands for a module.
 
@@ -961,7 +1615,9 @@ class ModuleLoader:
             module_name: Name of the module to unregister.
         """
         k = self.k
+
         module = k.loaded_modules.get(module_name) or k.system_modules.get(module_name)
+
         k.logger.debug(
             "[loader.unregister] start module=%r loaded=%s system=%s commands=%r aliases=%r",
             module_name,
@@ -976,6 +1632,30 @@ class ModuleLoader:
         )
 
         reg = getattr(module, "register", None) if module is not None else None
+
+        instance = getattr(module, "_class_instance", None)
+        if instance is not None:
+            if instance._loaded:
+                instance._loaded = False
+                try:
+                    if inspect.iscoroutinefunction(instance.on_unload):
+                        await instance.on_unload()
+                    else:
+                        result = instance.on_unload()
+                        if asyncio.iscoroutine(result):
+                            await result
+                    k.logger.debug(f"on_unload called for class module: {module_name}")
+                except Exception as e:
+                    k.logger.error(f"on_unload error in {module_name}: {e}")
+
+            if hasattr(k, "_class_module_instances"):
+                k._class_module_instances.pop(module_name, None)
+
+            k.logger.debug(
+                "[loader.unregister] class module instance removed module=%r",
+                module_name,
+            )
+
         if module is not None:
             if reg is None:
                 k.logger.debug(
@@ -1175,24 +1855,56 @@ class ModuleLoader:
         """Return the filesystem path for a module file.
 
         System modules are resolved from ``MODULES_DIR``; user modules from
-        ``MODULES_LOADED_DIR``.
+        ``MODULES_LOADED_DIR``. For archive packages, returns __init__.py path.
 
         Args:
-            module_name: Bare module name without ``.py`` extension.
+            module_name: Module name.
 
         Returns:
-            Absolute-ish path string to ``<module_name>.py``.
+            Absolute path string to the module file.
         """
         import os
 
         k = self.k
         if module_name in k.system_modules:
             return os.path.join(k.MODULES_DIR, f"{module_name}.py")
+
+        # Check for package directory (archive modules with local imports)
+        package_dir = os.path.join(k.MODULES_LOADED_DIR, module_name)
+        if os.path.isdir(package_dir):
+            init_file = os.path.join(package_dir, "__init__.py")
+            if os.path.exists(init_file):
+                return init_file
+
         return os.path.join(k.MODULES_LOADED_DIR, f"{module_name}.py")
 
-    def find_module_case_insensitive(
-        self, name: str
-    ) -> "tuple[str | None, str | None]":
+        # Search for class-style modules by class attribute "name = '...'"
+        try:
+            for fname in os.listdir(k.MODULES_LOADED_DIR):
+                fpath = os.path.join(k.MODULES_LOADED_DIR, fname)
+                if not (os.path.isfile(fpath) and fname.endswith(".py")):
+                    continue
+                try:
+                    with open(fpath, "r", encoding="utf-8") as f:
+                        code = f.read()
+                    # Look for class with name attribute matching module_name
+                    import re
+
+                    # Match: class SomeClass(ModuleBase): ... name = "ModuleName"
+                    pattern = (
+                        r'class\s+\w+\s*\([^)]*\):[^}]*?name\s*=\s*["\']([^"\']+)["\']'
+                    )
+                    for match in re.finditer(pattern, code, re.DOTALL):
+                        if match.group(1) == module_name:
+                            return fpath
+                except:
+                    pass
+        except OSError:
+            pass
+
+        return default_path
+
+    def find_module_case_insensitive(self, name: str) -> tuple[str | None, str | None]:
         """Look up a module by name ignoring case across loaded and system dicts.
 
         Args:
@@ -1288,7 +2000,7 @@ class ModuleLoader:
 
     async def get_module_version_from_file(self, file_path: str) -> str:
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 code = f.read()
             m = re.search(r"#\s*version\s*:\s*(.+)", code, re.IGNORECASE)
             if m:
@@ -1296,6 +2008,21 @@ class ModuleLoader:
             m = re.search(r"__version__\s*=\s*['\"]([^'\"]+)['\"]", code)
             if m:
                 return m.group(1).strip()
+            if "from core.lib.loader.module_base import ModuleBase" in code:
+                class_match = re.search(
+                    r"class\s+(\w+)\s*\(\s*ModuleBase\s*\):(.*?)(?=\n(?:class\s|\Z))",
+                    code,
+                    re.DOTALL,
+                )
+                if class_match:
+                    class_body = class_match.group(2)
+                    version_m = re.search(
+                        r"^\s{0,8}version\s*=\s*['\"]([^'\"]+)['\"]",
+                        class_body,
+                        re.MULTILINE,
+                    )
+                    if version_m:
+                        return version_m.group(1).strip()
             return "?.?.?"
         except Exception:
             return "?.?.?"
@@ -1312,7 +2039,59 @@ class ModuleLoader:
             "description": "no description",
             "commands": {},
             "banner_url": None,
+            "is_class_style": False,
         }
+
+        if "from core.lib.loader.module_base import ModuleBase" in code:
+            class_match = re.search(
+                r"class\s+(\w+)\s*\(\s*ModuleBase\s*\):(.*?)(?=\n(?:class\s|\Z))",
+                code,
+                re.DOTALL,
+            )
+            if class_match:
+                class_body = class_match.group(2)
+                metadata["is_class_style"] = True
+
+                name_m = re.search(r"name\s*=\s*['\"]([^'\"]+)['\"]", class_body)
+                if name_m:
+                    metadata["class_name"] = name_m.group(1)
+
+                version_m = re.search(r"version\s*=\s*['\"]([^'\"]+)['\"]", class_body)
+                if version_m:
+                    metadata["version"] = version_m.group(1).strip()
+
+                author_m = re.search(r"author\s*=\s*['\"]([^'\"]+)['\"]", class_body)
+                if author_m:
+                    metadata["author"] = author_m.group(1).strip()
+
+                desc_m = re.search(
+                    r"description\s*=\s*\{([^}]+)\}", class_body, re.DOTALL
+                )
+                if desc_m:
+                    desc_block = desc_m.group(1)
+                    for lang_pat in [
+                        r"['\"]ru['\"]\s*:\s*['\"]([^'\"]+)['\"]",
+                        r"['\"]en['\"]\s*:\s*['\"]([^'\"]+)['\"]",
+                    ]:
+                        d = re.search(lang_pat, desc_block)
+                        if d:
+                            metadata["description"] = d.group(1).strip()
+                            break
+
+                banner_m = re.search(
+                    r"banner_url\s*=\s*['\"]([^'\"]+)['\"]", class_body
+                )
+                if banner_m:
+                    metadata["banner_url"] = banner_m.group(1).strip()
+
+                deps_m = re.search(r"dependencies\s*=\s*\[([^\]]*)\]", class_body)
+                if deps_m:
+                    deps_str = deps_m.group(1)
+                    deps = [
+                        d.strip().strip("'\"") for d in deps_str.split(",") if d.strip()
+                    ]
+                    if deps:
+                        metadata["dependencies"] = deps
 
         for key, pat in {
             "author": r"#\s*author\s*:\s*(.+)",
@@ -1463,6 +2242,8 @@ class ModuleLoader:
                 r"kernel\.register_command\s*\(\s*['\"]([^'\"]+)['\"]",
                 r"@kernel\.register\.bot_command\s*\(\s*['\"]([^'\"]+)['\"]",
                 r"@register\.bot_command\s*\(\s*['\"]([^'\"]+)['\"]",
+                # Class-style @command decorator
+                r"@command\s*\(\s*['\"]([^'\"]+)['\"]",
             ):
                 for match in re.findall(pat, code, re.IGNORECASE):
                     cmd = (match[0] if isinstance(match, tuple) else match).lstrip(
@@ -1495,7 +2276,7 @@ class ModuleLoader:
             return "🫨 No description"
 
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 code = f.read()
             meta = await self.get_module_metadata(code)
             return meta["commands"].get(command, "🫨 No description")
@@ -1504,7 +2285,7 @@ class ModuleLoader:
 
     def get_module_commands(
         self, module_name: str, lang: str = "ru"
-    ) -> Tuple[list, dict, dict]:
+    ) -> tuple[list, dict, dict]:
         """Get commands, aliases and descriptions for a module.
 
         Args:
@@ -1529,8 +2310,17 @@ class ModuleLoader:
             module = k.loaded_modules[module_name]
 
         if module:
+            class_instance = getattr(module, "_class_instance", None)
+            if class_instance is not None:
+                class_name = getattr(type(class_instance), "name", None)
+                lookup_names = {module_name}
+                if class_name:
+                    lookup_names.add(class_name)
+            else:
+                lookup_names = {module_name}
+
             for cmd, owner in k.command_owners.items():
-                if owner == module_name:
+                if owner in lookup_names:
                     commands.append(cmd)
 
             command_docs = getattr(k, "command_docs", {})
@@ -1556,7 +2346,7 @@ class ModuleLoader:
 
             if file_path and os.path.exists(file_path):
                 try:
-                    with open(file_path, "r", encoding="utf-8") as f:
+                    with open(file_path, encoding="utf-8") as f:
                         code = f.read()
 
                     patterns = [

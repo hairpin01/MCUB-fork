@@ -7,7 +7,7 @@
 
 import time
 from collections import OrderedDict
-from typing import Any, Optional
+from typing import Any
 
 
 class TTLCache:
@@ -36,7 +36,7 @@ class TTLCache:
         self.max_size = max_size
         self.ttl = ttl
 
-    def set(self, key: Any, value: Any, ttl: Optional[int] = None) -> None:
+    def set(self, key: Any, value: Any, ttl: int | None = None) -> None:
         """
         Add or update a key-value pair in the cache.
 
@@ -59,7 +59,7 @@ class TTLCache:
         self.cache[key] = (expire_time, value)
         self.cache.move_to_end(key)
 
-    def get(self, key: Any) -> Optional[Any]:
+    def get(self, key: Any) -> Any | None:
         """
         Retrieve a value from the cache by key.
 

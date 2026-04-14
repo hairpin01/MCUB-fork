@@ -11,7 +11,6 @@ from __future__ import annotations
 # 🌐 github MCUB-fork: https://github.com/hairpin01/MCUB-fork
 # [🌐 https://github.com/hairpin01, 🌐 https://github.com/Mitrichdfklwhcluio, 🌐 https://t.me/HenerTLG]
 # ----------------------- end -----------------------
-
 import asyncio
 import html
 import importlib.util
@@ -34,6 +33,8 @@ except Exception as e:
 try:
     from telethon import _check_mcub_installation, install_uvloop
 
+    # from telethon.client.protection import ProtectionPolicy
+
     _check_mcub_installation()
 except Exception:
     raise McubTelethonError(
@@ -41,6 +42,8 @@ except Exception:
     ) from None
 
 try:
+    from core.lib.utils.case_insensitive import CaseInsensitiveDict
+
     from ..lib.base.client import ClientManager
     from ..lib.base.config import ConfigManager
     from ..lib.base.database import DatabaseManager
@@ -53,13 +56,11 @@ try:
     from ..lib.time.cache import TTLCache
     from ..lib.time.scheduler import TaskScheduler
     from ..lib.utils.colors import Colors
-    from ..lib.utils.exceptions import CommandConflictError
     from ..lib.utils.logger import (
         KernelLogger,
         setup_logging,
         setup_telegram_logging,
     )
-    from core.lib.utils.case_insensitive import CaseInsensitiveDict
     from ..version import VERSION, VersionManager
 except Exception as error_module:
     tb = traceback.format_exc()
@@ -401,7 +402,7 @@ class Kernel:
 
     def _mark_command_event_processed(self, event: Any) -> None:
         msg = getattr(event, "message", event)
-        setattr(msg, "_mcub_command_processed", True)
+        msg._mcub_command_processed = True
 
     def is_bot_available(self) -> bool:
         """Return True if the inline bot client is connected and ready."""
@@ -1455,6 +1456,7 @@ class Kernel:
 
     async def run_panel(self) -> None:
         """Start web panel. If config.json is missing, run setup wizard first."""
+
         host = (
             getattr(self, "web_host", None)
             or os.environ.get("MCUB_HOST")
@@ -1508,17 +1510,15 @@ class Kernel:
         try:
             from core.web.app import start_web_panel
 
-            _task = asyncio.create_task(
-                start_web_panel(self, host, port)
-            )  # noqa: RUF006
+            _task = asyncio.create_task(start_web_panel(self, host, port))
         except Exception as e:
             self.logger.error(f"Failed to start web panel: {e}")
             await self.log_error_async(f"Failed to start web panel: {e}")
 
     async def run(self) -> None:
         """setup, connect, load modules, and run until disconnected."""
-        import os
         import logging
+        import os
 
         _true = install_uvloop()
         if not _true:
@@ -1736,7 +1736,7 @@ class Kernel:
                     )
             except Exception:
                 pass
-
+        self.client.set_protection_mode("safe")
         modules_start = time.time()
         await self.load_system_modules()
         await self.load_module_sources()

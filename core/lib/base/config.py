@@ -4,10 +4,11 @@
 import json
 import os
 import sys
-from typing import TYPE_CHECKING, Any, Dict, List
+from typing import TYPE_CHECKING, Any
+
+from utils.security import ensure_locked_after_write
 
 from ..utils.colors import Colors
-from utils.security import ensure_locked_after_write, lock_sensitive_files
 
 if TYPE_CHECKING:
     from kernel import Kernel
@@ -39,13 +40,13 @@ class ConfigManager:
         return env_config
 
     @staticmethod
-    def _validate_config(cfg: Dict[str, Any]) -> List[str]:
+    def _validate_config(cfg: dict[str, Any]) -> list[str]:
         """Validate required config fields and basic types.
 
         Returns a list of human-readable error strings; empty when valid.
         """
 
-        errors: List[str] = []
+        errors: list[str] = []
 
         for field in ("api_id", "api_hash", "phone"):
             if field not in cfg or cfg.get(field) in (None, ""):
@@ -107,7 +108,7 @@ class ConfigManager:
         # version of the code was deployed)
         ensure_locked_after_write(k.CONFIG_FILE, getattr(k, "logger", None))
 
-        with open(k.CONFIG_FILE, "r", encoding="utf-8") as f:
+        with open(k.CONFIG_FILE, encoding="utf-8") as f:
             k.config = json.load(f)
         if logger:
             logger.debug(
@@ -224,7 +225,7 @@ class ConfigManager:
                     "2fa_enabled": False,
                     "healthcheck_interval": 30,
                     "developer_chat_id": None,
-                    "language": "ru",
+                    "language": "en",
                     "theme": "default",
                     "proxy": None,
                     "inline_bot_token": None,

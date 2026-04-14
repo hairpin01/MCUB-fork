@@ -16,14 +16,14 @@ import asyncio
 import importlib
 import shutil
 import sys
-from typing import Callable, List, Optional, Tuple
+from collections.abc import Callable
 
 ProgressCB = Callable[[float, str], None]
 
 
 class DependencyResolver:
 
-    def __init__(self, progress_cb: Optional[ProgressCB] = None) -> None:
+    def __init__(self, progress_cb: ProgressCB | None = None) -> None:
         self._cb = progress_cb or (lambda p, m: None)
 
     def _report(self, pct: float, msg: str) -> None:
@@ -31,16 +31,16 @@ class DependencyResolver:
 
     async def resolve(
         self,
-        pip_deps: List[str],
-        sys_deps: List[str],
-    ) -> Tuple[bool, List[str]]:
+        pip_deps: list[str],
+        sys_deps: list[str],
+    ) -> tuple[bool, list[str]]:
         """
         Check and install all dependencies.
 
         Returns:
             (all_ok: bool, errors: List[str])
         """
-        errors: List[str] = []
+        errors: list[str] = []
 
         for i, prog in enumerate(sys_deps):
             pct = 0.05 + 0.15 * (i / max(len(sys_deps), 1))
@@ -95,7 +95,7 @@ class DependencyResolver:
             return False
 
     @staticmethod
-    async def _pip_install(pkg: str) -> Tuple[bool, str]:
+    async def _pip_install(pkg: str) -> tuple[bool, str]:
         """Run `pip install <pkg> --break-system-packages` asynchronously."""
         cmd = [
             sys.executable,
@@ -116,7 +116,7 @@ class DependencyResolver:
             if proc.returncode == 0:
                 return True, ""
             return False, stderr.decode(errors="replace").strip()
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return False, "Timed out after 120s"
         except Exception as e:
             return False, str(e)

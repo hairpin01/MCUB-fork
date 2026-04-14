@@ -6,7 +6,6 @@
 # description: Localization helper for MCUB modules
 
 from __future__ import annotations
-from typing import Optional
 
 __all__ = ["Strings"]
 
@@ -82,7 +81,7 @@ class Strings:
     def __call__(self, key: str, **kwargs) -> str:
         return self._lookup(key).format_map(kwargs)
 
-    def get(self, key: str, default: Optional[str] = None) -> Optional[str]:
+    def get(self, key: str, default: str | None = None) -> str | None:
         value = self._active.get(key)
         if value is not None:
             return value

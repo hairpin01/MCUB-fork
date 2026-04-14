@@ -2,8 +2,9 @@
 # Copyright (c) 2026 Шмэлька | @hairpin01
 
 from __future__ import annotations
-import json
+
 import ipaddress
+import json
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
@@ -25,7 +26,7 @@ class RepositoryManager:
         "::1",
     }
 
-    def __init__(self, kernel: "Kernel") -> None:
+    def __init__(self, kernel: Kernel) -> None:
         self.k = kernel
         self.k.logger.debug("[RepoManager] __init__")
 

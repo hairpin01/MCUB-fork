@@ -10,7 +10,7 @@ import sys
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch, mock_open
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 def _make_telethon_stubs():
@@ -66,7 +66,7 @@ def _make_telethon_stubs():
 
 _telethon, _errors = _make_telethon_stubs()
 
-import importlib, os
+import importlib
 
 _root = Path(__file__).parent.parent
 if str(_root) not in sys.path:
@@ -74,19 +74,19 @@ if str(_root) not in sys.path:
 
 _logger_mod = importlib.import_module("core.lib.utils.logger")
 
+import logging
+
 from core.lib.utils.logger import (  # noqa: E402
+    ErrorFormatter,
     KernelLogger,
     RichException,
-    ErrorFormatter,
     TelegramLogHandler,
     _SyncToAsyncBridge,
-    setup_logging,
-    setup_telegram_logging,
     mask_sensitive_data,
     override_text,
+    setup_telegram_logging,
     strip_html,
 )
-import logging
 
 _logger_mod.FloodWaitError = _errors.FloodWaitError
 _logger_mod.NetworkMigrateError = _errors.NetworkMigrateError
@@ -662,7 +662,7 @@ class TestLogErrorFromExc(unittest.TestCase):
     def test_no_exc_info_returns_early(self):
         k = _make_kernel()
         kl = KernelLogger(k)
-        result = run(kl.log_error_from_exc("src"))
+        run(kl.log_error_from_exc("src"))
         k.bot_client.send_message.assert_not_called()
 
 

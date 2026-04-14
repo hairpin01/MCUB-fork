@@ -6,12 +6,10 @@ from __future__ import annotations
 # author: @Hairpin00
 # version: 1.4.0-beta
 # description: Trusted users can execute owner commands / Доверенные пользователи могут выполнять команды владельца
-
-
 import json
-from telethon import Button
-from core_inline.lib.manager import InlineManager
+
 from core_inline.api.inline import make_cb_button
+from core_inline.lib.manager import InlineManager
 
 ACCESS_CATEGORIES = {
     "modules": {
@@ -391,7 +389,7 @@ def register(kernel):
         """Return per-user access dict. Defaults: all False."""
         data = await kernel.db_get("trusted_access", str(user_id))
         if not data:
-            return {cat: False for cat in ACCESS_CATEGORIES}
+            return dict.fromkeys(ACCESS_CATEGORIES, False)
         try:
             stored = (
                 json.loads(data) if isinstance(data, str) else json.loads(str(data))
@@ -399,7 +397,7 @@ def register(kernel):
             # Fill any missing keys with False
             return {cat: stored.get(cat, False) for cat in ACCESS_CATEGORIES}
         except Exception:
-            return {cat: False for cat in ACCESS_CATEGORIES}
+            return dict.fromkeys(ACCESS_CATEGORIES, False)
 
     async def save_access(user_id: int, access: dict):
         await kernel.db_set("trusted_access", str(user_id), json.dumps(access))
@@ -467,7 +465,7 @@ def register(kernel):
         return _CMD_TO_CAT.get(cmd, "modules")
 
     def _build_access_text(
-        user_display: str, access: dict, group_access: dict = None
+        user_display: str, access: dict, group_access: dict | None = None
     ) -> str:
         lines = [s["trustaccess_title"].format(user=user_display)]
         body_lines = []
@@ -475,7 +473,7 @@ def register(kernel):
             allowed = access.get(cat_key, False)
             group_allowed = False
             if group_access is not None:
-                for gname, gdata in group_access.items():
+                for _gname, gdata in group_access.items():
                     if gdata.get("access", {}).get(cat_key, False):
                         group_allowed = True
                         break
@@ -500,7 +498,7 @@ def register(kernel):
         return "\n".join(lines)
 
     def _build_access_buttons(
-        kernel, user_id: int, access: dict, msg_ref, group_access: dict = None
+        kernel, user_id: int, access: dict, msg_ref, group_access: dict | None = None
     ) -> list:
         """Build inline button rows using make_cb_button for temporary callbacks."""
 
@@ -568,7 +566,7 @@ def register(kernel):
             if not is_admin and not is_sgroup:
                 await event.answer()
                 return
-            full = {cat: True for cat in ACCESS_CATEGORIES}
+            full = dict.fromkeys(ACCESS_CATEGORIES, True)
             await save_access(uid, full)
             if full.get("inline", False):
                 await inline_manager.allow_user(uid)
@@ -595,7 +593,7 @@ def register(kernel):
             if not is_admin and not is_sgroup:
                 await event.answer()
                 return
-            none_ = {cat: False for cat in ACCESS_CATEGORIES}
+            none_ = dict.fromkeys(ACCESS_CATEGORIES, False)
             await save_access(uid, none_)
             await inline_manager.deny_user(uid)
             name = await get_user_display(uid)
@@ -637,7 +635,7 @@ def register(kernel):
 
                 group_allowed = False
                 if group_access is not None:
-                    for gname, gdata in group_access.items():
+                    for _gname, gdata in group_access.items():
                         if gdata.get("access", {}).get(cat_key, False):
                             group_allowed = True
                             break
@@ -951,7 +949,7 @@ def register(kernel):
             await event.edit(s["trust_already"], parse_mode="html")
             return
 
-        name = await get_user_display(user_id)
+        await get_user_display(user_id)
 
         async def on_time_select(event, uid, seconds):
             if event.sender_id != kernel.ADMIN_ID:
@@ -1049,7 +1047,7 @@ def register(kernel):
                 nonick_list.remove(uid)
                 await save_nonick_list(nonick_list)
 
-            name = await get_user_display(uid)
+            await get_user_display(uid)
             if timed:
                 time_str = _format_duration(seconds)
                 await event.edit(
@@ -1540,7 +1538,7 @@ def register(kernel):
         if resolved_cmd in cmd_access:
             if not cmd_access[resolved_cmd]:
                 groups = await get_sgroups()
-                for gname, gdata in groups.items():
+                for _gname, gdata in groups.items():
                     if sender_id in gdata.get("users", []):
                         if gdata.get("access", {}).get(category, False):
                             user_has_access = True
@@ -1551,7 +1549,7 @@ def register(kernel):
                 user_has_access = True
         elif not access.get(category, False):
             groups = await get_sgroups()
-            for gname, gdata in groups.items():
+            for _gname, gdata in groups.items():
                 if sender_id in gdata.get("users", []):
                     if gdata.get("access", {}).get(category, False):
                         user_has_access = True
@@ -1723,7 +1721,7 @@ def register(kernel):
                 return
             groups[name] = {
                 "users": [],
-                "access": {cat: False for cat in ACCESS_CATEGORIES},
+                "access": dict.fromkeys(ACCESS_CATEGORIES, False),
             }
             await save_sgroups(groups)
             await event.edit(s["sgroup_created"].format(name=name), parse_mode="html")
@@ -1843,7 +1841,7 @@ def register(kernel):
             async def on_allow_all_sg(event, gname):
                 groups = await get_sgroups()
                 if gname in groups:
-                    groups[gname]["access"] = {cat: True for cat in ACCESS_CATEGORIES}
+                    groups[gname]["access"] = dict.fromkeys(ACCESS_CATEGORIES, True)
                     await save_sgroups(groups)
                 access = groups[gname]["access"]
                 text = _build_sgroup_access_text(gname, access)
@@ -1853,7 +1851,7 @@ def register(kernel):
             async def on_deny_all_sg(event, gname):
                 groups = await get_sgroups()
                 if gname in groups:
-                    groups[gname]["access"] = {cat: False for cat in ACCESS_CATEGORIES}
+                    groups[gname]["access"] = dict.fromkeys(ACCESS_CATEGORIES, False)
                     await save_sgroups(groups)
                 access = groups[gname]["access"]
                 text = _build_sgroup_access_text(gname, access)
@@ -2045,7 +2043,7 @@ def register(kernel):
         if access_on:
             lines.append(f"\n<b>Access:</b> {', '.join(access_on)}")
         else:
-            lines.append(f"\n<b>Access:</b> " + s["sgroup_info_access_empty"])
+            lines.append("\n<b>Access:</b> " + s["sgroup_info_access_empty"])
 
         text = "\n".join(lines)
 
@@ -2128,7 +2126,7 @@ def register(kernel):
         async def on_allow_all_sg(event, gname):
             groups = await get_sgroups()
             if gname in groups:
-                groups[gname]["access"] = {cat: True for cat in ACCESS_CATEGORIES}
+                groups[gname]["access"] = dict.fromkeys(ACCESS_CATEGORIES, True)
                 await save_sgroups(groups)
             g_access = groups[gname]["access"]
             text = _build_sgroup_access_text(gname, g_access)
@@ -2138,7 +2136,7 @@ def register(kernel):
         async def on_deny_all_sg(event, gname):
             groups = await get_sgroups()
             if gname in groups:
-                groups[gname]["access"] = {cat: False for cat in ACCESS_CATEGORIES}
+                groups[gname]["access"] = dict.fromkeys(ACCESS_CATEGORIES, False)
                 await save_sgroups(groups)
             g_access = groups[gname]["access"]
             text = _build_sgroup_access_text(gname, g_access)

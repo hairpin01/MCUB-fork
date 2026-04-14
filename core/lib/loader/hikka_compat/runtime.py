@@ -819,6 +819,21 @@ class _CompatLoaderProxy:
             return getattr(self._module, name)
         raise AttributeError(name)
 
+    async def load_module(
+        self,
+        path: str,
+        module_name: str,
+        *args,
+        origin: str = "",
+        save_fs: bool = True,
+        is_system: bool = False,
+        **kwargs,
+    ):
+        loader = getattr(self._kernel, "loader", None)
+        if loader is not None and hasattr(loader, "load_module_from_file"):
+            return await loader.load_module_from_file(path, module_name, is_system)
+        return (False, "Loader not available")
+
     async def install_packages(self, packages) -> bool:
         logger.warning(
             "[hikka_compat] install_packages() is not supported on this platform: %s",
@@ -1521,10 +1536,20 @@ class InlineProxy:
                     success, sent_msg = result
                     if success and sent_msg:
                         self._bind_unit_message(unit_id, sent_msg)
+                        inline_msg_id = getattr(sent_msg, "inline_message_id", None)
+                        if inline_msg_id:
+                            if hasattr(inline_msg_id, "dc_id"):
+                                inline_msg_id = f"{inline_msg_id.dc_id}:{inline_msg_id.id}:{inline_msg_id.access_hash}"
+                            else:
+                                inline_msg_id = str(inline_msg_id)
+                        else:
+                            inline_msg_id = ""
                         return _InlineMessage(
-                            inline_message_id=str(getattr(sent_msg, "id", "") or ""),
+                            inline_message_id=inline_msg_id,
                             unit_id=unit_id,
                             inline_proxy=self,
+                            chat_id=chat_id,
+                            message_id=getattr(sent_msg, "id", None),
                         )
                 return False
             except Exception as e:
@@ -1543,10 +1568,20 @@ class InlineProxy:
             self._units.pop(unit_id, None)
             return False
         self._bind_unit_message(unit_id, sent)
+        inline_msg_id = getattr(sent, "inline_message_id", None)
+        if inline_msg_id:
+            if hasattr(inline_msg_id, "dc_id"):
+                inline_msg_id = f"{inline_msg_id.dc_id}:{inline_msg_id.id}:{inline_msg_id.access_hash}"
+            else:
+                inline_msg_id = str(inline_msg_id)
+        else:
+            inline_msg_id = ""
         return _InlineMessage(
-            inline_message_id=str(getattr(sent, "id", "") or ""),
+            inline_message_id=inline_msg_id,
             unit_id=unit_id,
             inline_proxy=self,
+            chat_id=chat_id,
+            message_id=getattr(sent, "id", None),
         )
 
     async def list(
@@ -2117,6 +2152,7 @@ class _AllModulesStub:
         self._libraries = getattr(kernel, "_hikka_compat_libraries", [])
         self.aliases = getattr(kernel, "aliases", {})
         self.secure_boot = bool(getattr(kernel, "secure_boot", False))
+        self._patched_register = None
 
     def lookup(self, name: str):
         _, inst = _find_kernel_module(self._kernel, name)
@@ -2200,7 +2236,17 @@ class _AllModulesStub:
             return target, self.commands[target]
         return command, None
 
-    async def register_module(self, spec, *args, **kwargs):
+    @property
+    def register_module(self):
+        if self._patched_register is not None:
+            return self._patched_register
+        return self._register_module
+
+    @register_module.setter
+    def register_module(self, value):
+        self._patched_register = value
+
+    async def _register_module(self, spec, *args, **kwargs):
         del args
         origin = (
             kwargs.get("origin") or getattr(spec, "origin", "")

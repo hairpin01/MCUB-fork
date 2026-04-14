@@ -145,8 +145,10 @@ class Kernel:
         self.system_modules: CaseInsensitiveDict = CaseInsensitiveDict()
         self.command_handlers: dict = {}
         self.command_owners: dict = {}
+        self.command_docs: dict = {}  # {cmd: {lang: description}}
         self.bot_command_handlers: dict = {}
         self.bot_command_owners: dict = {}
+        self.bot_command_docs: dict = {}  # {cmd: {lang: description}}
         self.inline_handlers: dict = {}
         self.inline_handlers_owners: dict = {}
         self.callback_handlers: dict = {}

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Шмэлька | @hairpin01
+
 import re
 import html
 from telethon.tl.types import MessageEntityCustomEmoji

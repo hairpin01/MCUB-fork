@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Шмэлька | @hairpin01
+
 """Тесты для утилит modules/man.py."""
 
 from types import SimpleNamespace

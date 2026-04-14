@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Шмэлька | @hairpin01
+
 # author: @Hairpin00
 # version: 1.0.1
 # description: utils package initialization

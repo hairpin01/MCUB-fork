@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Шмэлька | @hairpin01
+
 # Shell command: watchers
 # Show watcher state tracked by the kernel.
 

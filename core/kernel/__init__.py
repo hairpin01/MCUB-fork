@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Шмэлька | @hairpin01
+
 from core.kernel.standard import Kernel
 from core.lib.base.database import DatabaseManager
 from core.lib.base.config import ConfigManager

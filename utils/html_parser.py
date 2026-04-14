@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Шмэлька | @hairpin01
+
 """
 Telegram HTML Parser - Bidirectional HTML to Telegram Entities Converter
 Supports parsing HTML to Telegram message entities and converting entities back to HTML.

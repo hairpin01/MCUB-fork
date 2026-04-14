@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Шмэлька | @hairpin01
+
 # utils/message_helpers.py
 # author: @Hairpin00
 # version: 1.2.0

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Шмэлька | @hairpin01
+
 # author: @Hairpin00
 # version: 1.3.0
 # description: raw_html for extracting HTML markup from Telethon messages

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Шмэлька | @hairpin01
+
 # console/config.py
 # Manages console/config.cfg with read/write support.
 # Commands can register their own keys via ShellConfig.register().

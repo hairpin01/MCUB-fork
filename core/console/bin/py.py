@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Шмэлька | @hairpin01
+
 # console/bin/py.py
 # Execute Python code asynchronously with kernel access.
 

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Шмэлька | @hairpin01
+
 import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch

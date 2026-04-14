@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Шмэлька | @hairpin01
+
 # MCUB interactive shell - runs inside the kernel's asyncio event loop.
 # Commands live in console/bin/<n>.py and expose run(shell, args).
 

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Шмэлька | @hairpin01
+
 """
 MCUB Debugger Rules - Detection rules for common MCUB errors.
 """

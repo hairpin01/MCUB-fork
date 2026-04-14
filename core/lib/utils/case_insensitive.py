@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Шмэлька | @hairpin01
+
+
 class CaseInsensitiveDict(dict):
     def __init__(self, *args, **kwargs):
         self._lower_keys = {}

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Шмэлька | @hairpin01
+
 # console/base/display.py
 """
 Terminal output helpers for the `base` package manager.

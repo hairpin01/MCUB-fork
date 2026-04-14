@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Шмэлька | @hairpin01
+
 from .core import (
     build_inline_result_text,
     build_inline_result_photo,

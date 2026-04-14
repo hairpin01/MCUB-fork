@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Шмэлька | @hairpin01
+
 # requires: cryptography
 # author: @Hairpin00
 # version: 2.0.0

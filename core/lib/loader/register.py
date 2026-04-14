@@ -459,6 +459,22 @@ class Register:
                     self.kernel.command_metadata = {}
                 self.kernel.command_metadata[cmd] = more
 
+            doc = kwargs.get("doc")
+            doc_en = kwargs.get("doc_en")
+            doc_ru = kwargs.get("doc_ru")
+            if doc or doc_en or doc_ru:
+                if not hasattr(self.kernel, "command_docs"):
+                    self.kernel.command_docs = {}
+                docs = {}
+                if doc and isinstance(doc, dict):
+                    docs.update(doc)
+                if doc_en:
+                    docs["en"] = doc_en
+                if doc_ru:
+                    docs["ru"] = doc_ru
+                if docs:
+                    self.kernel.command_docs[cmd] = docs
+
             return func
 
         return decorator
@@ -492,6 +508,23 @@ class Register:
 
             self.kernel.bot_command_handlers[cmd] = (pattern, func)
             self.kernel.bot_command_owners[cmd] = self.kernel.current_loading_module
+
+            doc = kwargs.get("doc")
+            doc_en = kwargs.get("doc_en")
+            doc_ru = kwargs.get("doc_ru")
+            if doc or doc_en or doc_ru:
+                if not hasattr(self.kernel, "bot_command_docs"):
+                    self.kernel.bot_command_docs = {}
+                docs = {}
+                if doc and isinstance(doc, dict):
+                    docs.update(doc)
+                if doc_en:
+                    docs["en"] = doc_en
+                if doc_ru:
+                    docs["ru"] = doc_ru
+                if docs:
+                    self.kernel.bot_command_docs[cmd] = docs
+
             return func
 
         return decorator
@@ -794,13 +827,15 @@ class Register:
         return self._methods.copy()
 
     def get_commands(self) -> Dict[str, Callable]:
-        """
-        Get all registered userbot commands.
-
-        Returns:
-            Dict mapping command names to handler functions.
-        """
         return self.kernel.command_handlers.copy()
+
+    def get_command(self, command: str) -> Dict[str, Any]:
+        result = {
+            "handler": self.kernel.command_handlers.get(command),
+            "owner": self.kernel.command_owners.get(command),
+            "docs": getattr(self.kernel, "command_docs", {}).get(command, {}),
+        }
+        return result
 
     def get_bot_commands(self) -> Dict[str, Tuple[str, Callable]]:
         """

@@ -1,4 +1,9 @@
 from __future__ import annotations
+
+# author: @Hairpin00
+# version: 1.0.0
+# description: Tester module (ping, logs, freezing) / Тестер модуль (пинг, логи, заморозка)
+
 import asyncio
 import os
 import time
@@ -336,7 +341,9 @@ def register(kernel):
         )
         return mcub_emoji
 
-    @kernel.register.command("ping")
+    @kernel.register.command(
+        "ping", doc_en="check bot latency", doc_ru="проверить задержку бота"
+    )
     async def ping_handler(event):
         """ping mcub"""
         try:
@@ -610,7 +617,9 @@ def register(kernel):
             )
             await kernel.handle_error(e, source="ping", event=event)
 
-    @kernel.register.command("logs")
+    @kernel.register.command(
+        "logs", doc_en="show/clear kernel logs", doc_ru="показать/очистить логи ядра"
+    )
     async def logs_handler(event):
         """[clear] - cleared logs kernel"""
         try:
@@ -794,7 +803,11 @@ def register(kernel):
     kernel.register_callback_handler("tester_logs:cancel", tester_logs_callback)
     kernel.register_callback_handler("tester_logs:back", tester_logs_back_callback)
 
-    @kernel.register.command("freezing")
+    @kernel.register.command(
+        "freezing",
+        doc_en="freeze userbot for N seconds",
+        doc_ru="заморозить юзербот на N секунд",
+    )
     async def freezing_handler(event):
         """[int] freezing userbot"""
         try:

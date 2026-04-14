@@ -2,7 +2,7 @@ from __future__ import annotations
 
 # author: @Hairpin00
 # version: 1.0.1
-# description: logs send bot
+# description: Log bot module / Модуль логирования
 import io
 import os
 import subprocess
@@ -548,7 +548,9 @@ def register(kernel):
             traceback.print_exc()
             return False
 
-    @kernel.register.command("log_setup")
+    @kernel.register.command(
+        "log_setup", doc_en="setup logging chat", doc_ru="настроить чат для логов"
+    )
     async def log_setup_handler(event):
         await event.edit(lang_strings["log_setup_title"])
         if await setup_log_chat():
@@ -558,7 +560,9 @@ def register(kernel):
         else:
             await event.edit(lang_strings["log_setup_fail"])
 
-    @kernel.register.command("test_log")
+    @kernel.register.command(
+        "test_log", doc_en="test log sending", doc_ru="тест отправки логов"
+    )
     async def test_log_handler(event):
         try:
             await event.edit(f"<i>{lang_strings['test_title']}</i>", parse_mode="html")
@@ -581,7 +585,9 @@ def register(kernel):
                 parse_mode="html",
             )
 
-    @kernel.register.command("log_status")
+    @kernel.register.command(
+        "log_status", doc_en="show logging status", doc_ru="показать статус логирования"
+    )
     async def log_status_handler(event):
         status = (
             lang_strings["log_status_on"]

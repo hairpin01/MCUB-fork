@@ -1499,11 +1499,14 @@ class ModuleLoader:
         except Exception:
             return "🫨 No description"
 
-    def get_module_commands(self, module_name: str) -> Tuple[list, dict, dict]:
+    def get_module_commands(
+        self, module_name: str, lang: str = "ru"
+    ) -> Tuple[list, dict, dict]:
         """Get commands, aliases and descriptions for a module.
 
         Args:
             module_name: Name of the module.
+            lang: Language for doc (default: ru).
 
         Returns:
             Tuple of (commands list, aliases dict {cmd: [aliases]}, descriptions dict {cmd: str})
@@ -1527,12 +1530,19 @@ class ModuleLoader:
                 if owner == module_name:
                     commands.append(cmd)
 
+            command_docs = getattr(k, "command_docs", {})
             for cmd in commands:
-                handler = k.command_handlers.get(cmd)
-                if handler:
-                    doc = getattr(handler, "__doc__", None)
-                    if doc:
-                        descriptions[cmd] = doc.strip()
+                docs = command_docs.get(cmd, {})
+                if docs:
+                    descriptions[cmd] = (
+                        docs.get(lang) or docs.get("en") or docs.get("ru") or ""
+                    )
+                else:
+                    handler = k.command_handlers.get(cmd)
+                    if handler:
+                        doc = getattr(handler, "__doc__", None)
+                        if doc:
+                            descriptions[cmd] = doc.strip()
 
         file_path = None
         if not commands:

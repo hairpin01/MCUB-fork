@@ -1,7 +1,7 @@
 # requires: cryptography
 # author: @Hairpin00
 # version: 2.0.0
-# description: Advanced backup
+# description: Advanced backup / Расширенное резервное копирование
 
 from __future__ import annotations
 
@@ -1098,8 +1098,11 @@ def register(kernel):
         finally:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
-    @kernel.register.command("backup")
-    # create backup: .backup [config|db|modules] [in <time>] [cleanup] [cloud]
+    @kernel.register.command(
+        "backup",
+        doc_en="create backup  [config|db|modules] [in <time>] [cleanup] [cloud]",
+        doc_ru="создать бэкап  [config|db|modules] [in <time>] [cleanup] [cloud]",
+    )
     async def backup_handler(event):
         raw = event.message.text.strip()
         parts = raw.split()
@@ -1190,8 +1193,11 @@ def register(kernel):
         else:
             await event.edit(lang_strings["backup_failed"], parse_mode="html")
 
-    @kernel.register.command("restore")
-    # restore backup: reply to backup file OR use .restore list
+    @kernel.register.command(
+        "restore",
+        doc_en="<relpy> or list. restore from backup file or list",
+        doc_ru="<ответ> или list, восстановить из бэкапа или показать список",
+    )
     async def restore_handler(event):
         raw = event.message.text.strip()
         parts = raw.split()
@@ -1236,8 +1242,11 @@ def register(kernel):
         reply = await event.get_reply_message()
         await _restore_from_backup_message(reply, event)
 
-    @kernel.register.command("restore_with")
-    # restore encrypted backup: reply + provide password
+    @kernel.register.command(
+        "restore_with",
+        doc_en="<reply> restore encrypted backup with password",
+        doc_ru="<ответ> восстановить зашифрованный бэкап с паролем",
+    )
     async def restore_with_handler(event):
         raw = event.message.text.strip()
         parts = raw.split(maxsplit=1)
@@ -1255,36 +1264,6 @@ def register(kernel):
 
         reply = await event.get_reply_message()
         await _restore_from_backup_message(reply, event, password=password)
-
-    @kernel.register.command("backup_verify")
-    # verify SHA256 of a backup: reply to backup message
-    async def verify_handler(event):
-        if not event.is_reply:
-            await event.edit(lang_strings["reply_to_backup"], parse_mode="html")
-            return
-
-        reply = await event.get_reply_message()
-        caption = getattr(reply, "message", "") or ""
-        m = re.search(r"SHA256: ([a-f0-9]{64})", caption)
-        if not m:
-            await event.edit(lang_strings["hash_unknown"], parse_mode="html")
-            return
-
-        expected = m.group(1)
-        await event.edit(lang_strings["processing"], parse_mode="html")
-        tmp = Path(tempfile.mkdtemp(prefix="mcub_verify_"))
-        try:
-            dl_path = tmp / "backup_verify"
-            await reply.download_media(dl_path)
-            actual = _sha256_of_file(dl_path)
-            if actual == expected:
-                await event.edit(lang_strings["hash_ok"], parse_mode="html")
-            else:
-                await event.edit(lang_strings["hash_mismatch"], parse_mode="html")
-        except Exception as e:
-            await event.edit(f"{emojis['cross']} {e}", parse_mode="html")
-        finally:
-            shutil.rmtree(tmp, ignore_errors=True)
 
     async def backup_interval_callback(event):
         try:

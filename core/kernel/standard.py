@@ -29,10 +29,8 @@ except Exception as e:
 
     sys.exit(104)
 try:
-    from telethon import _check_mcub_installation
-    from telethon import install_uvloop
+    from telethon import _check_mcub_installation, install_uvloop
 
-    install_uvloop()
     _check_mcub_installation()
 except Exception:
     raise McubTelethonError(
@@ -58,6 +56,7 @@ try:
         setup_logging,
         setup_telegram_logging,
     )
+    from core.lib.utils.case_insensitive import CaseInsensitiveDict
     from ..version import VERSION, VersionManager
 except Exception as error_module:
     tb = traceback.format_exc()
@@ -140,13 +139,15 @@ class Kernel:
         self.start_time = time.time()
 
         # Module registries
-        self.loaded_modules: dict = {}
-        self._live_module_configs: dict = {}
-        self.system_modules: dict = {}
+        self.loaded_modules: CaseInsensitiveDict = CaseInsensitiveDict()
+        self._live_module_configs: CaseInsensitiveDict = CaseInsensitiveDict()
+        self.system_modules: CaseInsensitiveDict = CaseInsensitiveDict()
         self.command_handlers: dict = {}
         self.command_owners: dict = {}
+        self.command_docs: dict = {}  # {cmd: {lang: description}}
         self.bot_command_handlers: dict = {}
         self.bot_command_owners: dict = {}
+        self.bot_command_docs: dict = {}  # {cmd: {lang: description}}
         self.inline_handlers: dict = {}
         self.inline_handlers_owners: dict = {}
         self.callback_handlers: dict = {}
@@ -962,67 +963,13 @@ class Kernel:
         """Get the description for a command registered by a module."""
         return await self._loader.get_command_description(module_name, command)
 
-    def register_command(self, pattern: str, func: Any | None = None) -> Any:
-        """Register a userbot command, raising CommandConflictError on collisions.
-
-        Args:
-            pattern: Command pattern string (with or without prefix).
-            func: Handler function; if None, returns a decorator.
-        """
-        cmd = pattern.lstrip("^\\" + self.custom_prefix).rstrip("$")
-
-        if cmd != pattern:
-            valid, error = self._validate_regex_pattern(cmd)
-            if not valid:
-                raise ValueError(f"Invalid command pattern: {error}")
-
-        if self.current_loading_module is None:
-            raise ValueError("No loading module context set")
-
-        if cmd in self.command_handlers:
-            owner = self.command_owners.get(cmd)
-            kind = "system" if owner in self.system_modules else "user"
-            raise CommandConflictError(
-                f"Command '{cmd}' already registered by '{owner}'",
-                conflict_type=kind,
-                command=cmd,
-            )
-
-        def _register(f):
-            self.command_handlers[cmd] = f
-            self.command_owners[cmd] = self.current_loading_module
-            return f
-
-        return _register(func) if func else _register
-
-    def register_command_bot(self, pattern: str, func: Any | None = None) -> Any:
-        """Register a bot command (starting with /).
-
-        Args:
-            pattern: Command pattern, with or without leading /.
-            func: Handler; if None, returns a decorator.
-        """
-        if not pattern.startswith("/"):
-            pattern = "/" + pattern
-        cmd = pattern.lstrip("/").split()[0] if " " in pattern else pattern.lstrip("/")
-
-        if self.current_loading_module is None:
-            raise ValueError("No loading module context set")
-
-        if cmd in self.bot_command_handlers:
-            owner = self.bot_command_owners.get(cmd)
-            raise CommandConflictError(
-                f"Bot command '/{cmd}' already registered by '{owner}'",
-                conflict_type="bot",
-                command=cmd,
-            )
-
-        def _register(f):
-            self.bot_command_handlers[cmd] = (pattern, f)
-            self.bot_command_owners[cmd] = self.current_loading_module
-            return f
-
-        return _register(func) if func else _register
+    def get_command(self, command: str) -> dict:
+        """Get command info including handler, owner and docs."""
+        return {
+            "handler": self.command_handlers.get(command),
+            "owner": self.command_owners.get(command),
+            "docs": getattr(self, "command_docs", {}).get(command, {}),
+        }
 
     def unregister_module_bot_commands(self, module_name: str) -> None:
         """Remove all bot commands registered by *module_name*."""
@@ -1569,6 +1516,10 @@ class Kernel:
         """setup, connect, load modules, and run until disconnected."""
         import os
         import logging
+
+        _true = install_uvloop()
+        if not _true:
+            self.logger.info("failed install uvloop")
 
         no_web = not getattr(self, "web_enabled", True)  # True if --no-web
 

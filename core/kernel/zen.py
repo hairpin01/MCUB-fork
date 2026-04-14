@@ -35,7 +35,7 @@ except ImportError as e:
     sys.exit(f"[kernel] missing dependency: {e}\nRun: pip install -r requirements.txt")
 
 try:
-    from telethon import _check_mcub_installation
+    from telethon import _check_mcub_installation, install_uvloop
 
     _check_mcub_installation()
 except Exception:
@@ -60,6 +60,7 @@ try:
     from ..lib.base.client import ClientManager
     from ..lib.loader.inline import InlineManager
     from ..lib.loader.inline import InlineMessage as _InlineMessage
+    from core.lib.utils.case_insensitive import CaseInsensitiveDict
 except ImportError as e:
     sys.exit(
         f"[kernel] failed to import internal modules: {e}\n{traceback.format_exc()}"
@@ -178,13 +179,15 @@ class Kernel:
         self.start_time = time.time()
         self.Colors = Colors
 
-        self.loaded_modules: dict = {}
-        self._live_module_configs: dict = {}
-        self.system_modules: dict = {}
+        self.loaded_modules: CaseInsensitiveDict = CaseInsensitiveDict()
+        self._live_module_configs: CaseInsensitiveDict = CaseInsensitiveDict()
+        self.system_modules: CaseInsensitiveDict = CaseInsensitiveDict()
         self.command_handlers: dict = {}
         self.command_owners: dict = {}
+        self.command_docs: dict = {}  # {cmd: {lang: description}}
         self.bot_command_handlers: dict = {}
         self.bot_command_owners: dict = {}
+        self.bot_command_docs: dict = {}  # {cmd: {lang: description}}
         self.inline_handlers: dict = {}
         self.inline_handlers_owners: dict = {}
         self.callback_handlers: dict = {}
@@ -802,7 +805,16 @@ class Kernel:
     async def get_command_description(self, module_name: str, command: str) -> str:
         return await self._loader.get_command_description(module_name, command)
 
-    def register_command(self, pattern: str, func=None):
+    def get_command(self, command: str) -> dict:
+        return {
+            "handler": self.command_handlers.get(command),
+            "owner": self.command_owners.get(command),
+            "docs": getattr(self, "command_docs", {}).get(command, {}),
+        }
+
+    def register_command(
+        self, pattern: str, func=None, doc=None, doc_en=None, doc_ru=None
+    ):
         """Register a userbot command.  Raises ValueError / CommandConflictError on bad input."""
         cmd = pattern.lstrip("^\\" + self.custom_prefix).rstrip("$")
 
@@ -828,11 +840,23 @@ class Kernel:
         def _register(f):
             self.command_handlers[cmd] = f
             self.command_owners[cmd] = self.current_loading_module
+            if doc or doc_en or doc_ru:
+                docs = {}
+                if doc and isinstance(doc, dict):
+                    docs.update(doc)
+                if doc_en:
+                    docs["en"] = doc_en
+                if doc_ru:
+                    docs["ru"] = doc_ru
+                if docs:
+                    self.command_docs[cmd] = docs
             return f
 
         return _register(func) if func else _register
 
-    def register_command_bot(self, pattern: str, func=None):
+    def register_command_bot(
+        self, pattern: str, func=None, doc=None, doc_en=None, doc_ru=None
+    ):
         """Register a bot command (starting with /)."""
         if not pattern.startswith("/"):
             pattern = "/" + pattern
@@ -852,6 +876,16 @@ class Kernel:
         def _register(f):
             self.bot_command_handlers[cmd] = (pattern, f)
             self.bot_command_owners[cmd] = self.current_loading_module
+            if doc or doc_en or doc_ru:
+                docs = {}
+                if doc and isinstance(doc, dict):
+                    docs.update(doc)
+                if doc_en:
+                    docs["en"] = doc_en
+                if doc_ru:
+                    docs["ru"] = doc_ru
+                if docs:
+                    self.bot_command_docs[cmd] = docs
             return f
 
         return _register(func) if func else _register
@@ -1210,7 +1244,9 @@ class Kernel:
     async def run(self) -> None:
         """Boot sequence: config → scheduler → client → modules → event loop."""
         no_web = not getattr(self, "web_enabled", True)  # True если --no-web
-
+        _true = install_uvloop()
+        if not _true:
+            self.logger.info("failed install uvloop")
         if not no_web:
             web_via_env = os.environ.get("MCUB_WEB", "0") == "1"
             web_via_config = self.config.get("web_panel_enabled", False)
@@ -1233,7 +1269,6 @@ class Kernel:
         self.load_repositories()
         logging.basicConfig(level=logging.INFO)
         await self.init_scheduler()
-
         if not await self.init_client():
             return
 

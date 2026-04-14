@@ -2,7 +2,7 @@ from __future__ import annotations
 
 # author: @Hairpin00
 # version: 1.1.0
-# description: Module manager
+# description: Module manager / Менеджер модулей
 from telethon import Button
 import time
 import uuid
@@ -62,8 +62,10 @@ def _get_metadata_lock() -> asyncio.Lock:
     return lock
 
 
-def get_module_commands(module_name, kernel):
-    return kernel._loader.get_module_commands(module_name)
+def get_module_commands(module_name, kernel, lang=None):
+    if lang is None:
+        lang = kernel.config.get("language", "ru")
+    return kernel._loader.get_module_commands(module_name, lang)
 
 
 def resolve_module_path(name: str, typ: str, kernel) -> str:
@@ -288,6 +290,8 @@ def get_paginated_data(
             if (show_hidden and name in hidden_list)
             else ""
         )
+        inline_commands = kernel.get_module_inline_commands(name)
+
         if commands:
             cmd_display = []
             for cmd in commands[:3]:
@@ -312,7 +316,6 @@ def get_paginated_data(
             if len(commands) > 3:
                 cmd_text += f" (+{len(commands) - 3})"
 
-            inline_commands = kernel.get_module_inline_commands(name)
             if inline_commands:
                 inline_emoji = '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
                 inline_cmds = ", ".join(
@@ -326,7 +329,17 @@ def get_paginated_data(
                 cmd_text += f" {inline_cmds}"
 
             return f"<b>{name}</b>{hidden_mark}: {cmd_text}\n"
-        return None
+        elif inline_commands:
+            inline_emoji = '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
+            inline_cmds = ", ".join(
+                [f"{inline_emoji} <code>{cmd}</code>" for cmd, _ in inline_commands[:3]]
+            )
+            if len(inline_commands) > 3:
+                inline_cmds += f" (+{len(inline_commands) - 3})"
+            return f"<b>{name}</b>{hidden_mark}: {inline_cmds}\n"
+        else:
+            no_cmd_emoji = '<tg-emoji emoji-id="5431895003821513760">❄️</tg-emoji>'
+            return f"<b>{name}</b>{hidden_mark}: {no_cmd_emoji} <i>{strings.get('no_commands', 'no commands')}</i>\n"
 
     def chunk_by_size(items, start_msg=""):
         chunks = []
@@ -335,8 +348,6 @@ def get_paginated_data(
 
         for item in items:
             line = render_module_line(item)
-            if line is None:
-                continue
             line_len = len(line)
 
             if current_chunk and current_len + line_len > MAX_MSG_LENGTH:
@@ -371,9 +382,7 @@ def get_paginated_data(
             msg += f" ({page + 1}/{len(sys_chunks)})"
         msg += "<blockquote expandable>"
         for name in sys_chunks[page]:
-            line = render_module_line(name)
-            if line:
-                msg += line
+            msg += render_module_line(name)
         msg += "</blockquote>"
     else:
         usr_page = page - len(sys_chunks)
@@ -384,9 +393,7 @@ def get_paginated_data(
             msg += f" ({usr_page + 1}/{len(usr_chunks)})"
         msg += "<blockquote expandable>"
         for name in current_chunk:
-            line = render_module_line(name)
-            if line:
-                msg += line
+            msg += render_module_line(name)
         msg += "</blockquote>"
 
     buttons = []
@@ -942,8 +949,11 @@ def register(kernel):
         )
         await event.answer([builder])
 
-    @kernel.register.command("man")
-    # [module/-f] — info about module or list (-f shows hidden)
+    @kernel.register.command(
+        "man",
+        doc_en="<name/None> show module info or list modules",
+        doc_ru="<name/None> показать информацию о модуле или список модулей",
+    )
     async def man_handler(event):
         try:
             args = event.text.split()
@@ -953,8 +963,6 @@ def register(kernel):
             clean_args = [a for a in args[1:] if a != "-f"]
 
             if not clean_args:
-                await event.delete()
-
                 try:
                     success, sent = await kernel.inline_query_and_click(
                         chat_id=event.chat_id,
@@ -962,10 +970,11 @@ def register(kernel):
                         reply_to=event.reply_to_msg_id,
                     )
                     if not success:
-                        await client.send_message(
-                            event.chat_id, lang_strings["no_inline_results"]
-                        )
+                        await event.edit(lang_strings["no_inline_results"])
                         return
+                    else:
+                        await event.delete()
+                        await sent.click(1)
 
                     if get_config().get("man_invert_media", False):
                         try:
@@ -1031,8 +1040,11 @@ def register(kernel):
         except Exception as e:
             await kernel.handle_error(e, source="man", event=event)
 
-    @kernel.register.command("manhide")
-    # hide module from .man list
+    @kernel.register.command(
+        "manhide",
+        doc_en="<name> hide module from man list",
+        doc_ru="<name> скрыть модуль из списка man",
+    )
     async def manhide_handler(event):
         try:
             args = event.text.split(maxsplit=1)
@@ -1072,8 +1084,11 @@ def register(kernel):
         except Exception as e:
             await kernel.handle_error(e, source="manhide", event=event)
 
-    @kernel.register.command("manunhide")
-    # unhide module from hidden
+    @kernel.register.command(
+        "manunhide",
+        doc_en="<name> unhide module from man list",
+        doc_ru="<name> показать модуль в списке man",
+    )
     async def manunhide_handler(event):
         try:
             args = event.text.split(maxsplit=1)
@@ -1104,7 +1119,11 @@ def register(kernel):
         except Exception as e:
             await kernel.handle_error(e, source="manunhide", event=event)
 
-    @kernel.register.command("help")
+    @kernel.register.command(
+        "help",
+        doc_en="redirects to man",
+        doc_ru="перенаправляет на man",
+    )
     async def help_cmd(event):
         """Fallback help stub: redirect to man."""
         await event.edit(

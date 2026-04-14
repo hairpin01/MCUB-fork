@@ -2,7 +2,7 @@ from __future__ import annotations
 
 # author: @Hairpin00
 # version: 1.0.4
-# description: settings
+# description: Settings module (prefix, aliases, language) / Модуль настроек (префикс, алиасы, язык)
 
 import asyncio
 import json
@@ -197,7 +197,11 @@ def register(kernel):
 
     asyncio.create_task(startup())
 
-    @kernel.register.command("setprefix")
+    @kernel.register.command(
+        "setprefix",
+        doc_en="[prefix] - change command prefix",
+        doc_ru="[префикс] - изменить префикс команд",
+    )
     async def setprefix_handler(event):
         """[prefix] - switch prefix userbot"""
         args = event.text.split()
@@ -224,7 +228,11 @@ def register(kernel):
             parse_mode="html",
         )
 
-    @kernel.register.command("addalias")
+    @kernel.register.command(
+        "addalias",
+        doc_en="[alias]=[command] - add command alias",
+        doc_ru="[алиас]=[команда] - добавить алиас команды",
+    )
     async def alias_handler(event):
         """[alias] = [command]"""
         parts_text = event.text.split(None, 1)
@@ -269,7 +277,11 @@ def register(kernel):
             parse_mode="html",
         )
 
-    @kernel.register.command("delalias")
+    @kernel.register.command(
+        "delalias",
+        doc_en="[alias] - delete command alias",
+        doc_ru="[алиас] - удалить алиас команды",
+    )
     async def delalias_handler(event):
         """[alias] del alias"""
         args = event.text[len(kernel.custom_prefix) + 8 :].strip()
@@ -299,7 +311,11 @@ def register(kernel):
             parse_mode="html",
         )
 
-    @kernel.register.command("aliases")
+    @kernel.register.command(
+        "aliases",
+        doc_en="list all command aliases",
+        doc_ru="показать все алиасы команд",
+    )
     async def aliases_handler(event):
         """list all aliases"""
         if not kernel.aliases:
@@ -317,7 +333,11 @@ def register(kernel):
             f"<blockquote expandable>{text}</blockquote>", parse_mode="html"
         )
 
-    @kernel.register.command("lang")
+    @kernel.register.command(
+        "lang",
+        doc_en="[ru/en] - switch userbot language",
+        doc_ru="[ru/en] - сменить язык юзербота",
+    )
     async def lang_handler(event):
         """[ru/en] - switch languages userbot"""
         args = event.text.split()
@@ -415,12 +435,18 @@ def register(kernel):
             kernel.cache.clear()
         return _("clearcache_done")
 
-    @kernel.register.command("cleardb")
+    @kernel.register.command(
+        "cleardb", doc_en="delete database file", doc_ru="удалить файл базы данных"
+    )
     async def cleardb_handler(event):
         """delete db file with inline confirmation"""
         await _show_danger_confirm(event, "db", _("cleardb_confirm"))
 
-    @kernel.register.command("clearmodules")
+    @kernel.register.command(
+        "clearmodules",
+        doc_en="delete all user modules",
+        doc_ru="удалить все пользовательские модули",
+    )
     async def clearmodules_handler(event):
         """delete all files from modules_loaded"""
         await _show_danger_confirm(
@@ -429,7 +455,9 @@ def register(kernel):
             _("clearmodules_confirm", path=os.path.abspath(kernel.MODULES_LOADED_DIR)),
         )
 
-    @kernel.register.command("clearcache")
+    @kernel.register.command(
+        "clearcache", doc_en="clear kernel cache", doc_ru="очистить кэш ядра"
+    )
     async def clearcache_handler(event):
         """clear kernel cache"""
         await _show_danger_confirm(event, "cache", _("clearcache_confirm"))
@@ -472,7 +500,11 @@ def register(kernel):
         await event.edit(text, parse_mode="html", buttons=None)
         await event.answer()
 
-    @kernel.register.command("mcubinfo")
+    @kernel.register.command(
+        "mcubinfo",
+        doc_en="what is a userbot",
+        doc_ru="что такое юзербот",
+    )
     async def mcubinfo_cmd(event):
         """FAO, 'why userbot'"""
         try:

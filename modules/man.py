@@ -953,8 +953,6 @@ def register(kernel):
             clean_args = [a for a in args[1:] if a != "-f"]
 
             if not clean_args:
-                await event.delete()
-
                 try:
                     success, sent = await kernel.inline_query_and_click(
                         chat_id=event.chat_id,
@@ -962,10 +960,11 @@ def register(kernel):
                         reply_to=event.reply_to_msg_id,
                     )
                     if not success:
-                        await client.send_message(
-                            event.chat_id, lang_strings["no_inline_results"]
-                        )
+                        await event.edit(lang_strings["no_inline_results"])
                         return
+                    else:
+                        await event.delete()
+                        await sent.click(1)
 
                     if get_config().get("man_invert_media", False):
                         try:

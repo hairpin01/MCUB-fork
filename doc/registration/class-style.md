@@ -389,38 +389,103 @@ async def on_install(self):
 > [!IMPORTANT]
 > In userbot mode, buttons require an **inline form** message. Use `self.kernel.inline_form()` to create a message with buttons.
 
-### `self.callback_button(text, callback_func, *, ttl=900, **kwargs)`
+### `self.Button` - Button Factory
 
-Create an inline button with auto-generated callback token.
+Class-style modules provide a `Button` factory accessed via `self.Button`. This factory creates various button types with optional `icon` and `style` parameters.
 
 ```python
 @command("menu")
 async def cmd_menu(self, event):
-    btn_a = self.callback_button("Option A", self.handle_a)
-    btn_b = self.callback_button("Option B", self.handle_b)
-    # Userbot requires inline form for buttons
-    await self.kernel.inline_form(
-        event.chat_id,
-        "Choose:",
-        buttons=[[btn_a, btn_b]]
-    )
-
-@callback(ttl=300)
-async def handle_a(self, event):
-    await event.answer("A pressed!", alert=True)
-
-@callback(ttl=300)
-async def handle_b(self, event):
-    await event.answer("B pressed!", alert=True)
+    buttons = [
+        [self.Button.inline("Option A", self.handle_a, icon=0x1F4E0)],
+        [self.Button.inline("Option B", self.handle_b, icon=0x1F4E1)],
+        [self.Button.url("Website", "https://example.com", icon=0x1F310)],
+        [self.Button.text("Text Only", icon=0x1F4CB)],
+    ]
+    await self.kernel.inline_form(event.chat_id, "Choose:", buttons=buttons)
 ```
 
-**Parameters:**
-- `text` (str): Button label
-- `callback_func`: Method decorated with `@callback`
-- `ttl` (int): Token lifetime in seconds
-- `**kwargs`: Additional button options (icon, etc.)
+### Button Types
 
-**For userbot:** Always wrap buttons in `self.kernel.inline_form()` or use `event.edit(..., buttons=...)` in inline-capable contexts.
+All buttons support `icon` (int) and `style` parameters:
+
+| Method | Description |
+|--------|-------------|
+| `Button.inline(text, callback, *, ttl=900, args=(), kwargs={}, data={}, pass_event=True, auto_answer=None, icon=None)` | Callback button |
+| `Button.url(text, url, *, new_tab=False, icon=None)` | URL link button |
+| `Button.text(text, *, resize=True, selective=False, icon=None)` | Text button |
+| `Button.switch(text, query="", *, same_peer=True, icon=None)` | Inline query switch |
+| `Button.copy(text="Copy", *, payload=None, icon=None)` | Copy to clipboard |
+| `Button.request_phone(text="Share Phone", *, request_title=None, icon=None)` | Request phone |
+| `Button.request_location(text="Share Location", *, request_title=None, live_period=None, icon=None)` | Request location |
+| `Button.request_poll(text="Create Poll", *, request_title=None, quiz=False, icon=None)` | Request poll |
+| `Button.game(text, *, game=None, icon=None)` | Game button |
+| `Button.mention(text, user=None, *, icon=None)` | User mention |
+| `Button.unknown(data, text="Button", *, icon=None)` | Custom/unknown type |
+
+### Button Helpers
+
+| Method | Description |
+|--------|-------------|
+| `Button.with_icon(btn, icon)` | Add icon to existing button |
+| `Button.style(btn, style)` | Apply style to button |
+
+### Callback Buttons with Data
+
+```python
+@command("menu")
+async def cmd_menu(self, event):
+    btn = self.Button.inline(
+        "Click Me",
+        self.handle_click,
+        args=(1, 2, 3),           # positional args
+        kwargs={"key": "value"},  # keyword args
+        data={"extra": "info"},   # stored data
+        ttl=300,                   # token lifetime
+        auto_answer="Done!"       # auto answer message
+    )
+    await event.edit("Press the button!", buttons=[[btn]])
+
+@callback(ttl=300)
+async def handle_click(self, event, *args, **kwargs):
+    # args = (1, 2, 3)
+    # kwargs = {"key": "value"}
+    await event.answer(f"Got: {args}, {kwargs}", alert=True)
+```
+
+### Icons
+
+Icons use Telegram emoji codes (integers). Common icons:
+- `0x1F300`-`0x1F320`: Miscellaneous symbols
+- `0x1F4E0`-`0x1F4E9`: Office icons
+- `0x1F680`-`0x1F6C5`: Transport icons
+
+Example:
+```python
+self.Button.inline("Settings", self.handle_settings, icon=0x1F527)  # wrench
+self.Button.url("GitHub", "https://github.com", icon=0x1F4BB)      # laptop
+```
+
+### Example with All Button Types
+
+```python
+@command("buttons")
+async def cmd_buttons(self, event):
+    await self.kernel.inline_form(
+        event.chat_id,
+        "Button Demo",
+        buttons=[
+            [self.Button.inline("Callback", self.handle_cb, icon=0x1F4E0)],
+            [self.Button.url("URL", "https://example.com", icon=0x1F310)],
+            [self.Button.text("Text", icon=0x1F4CB)],
+            [self.Button.switch("Search", "test query", icon=0x1F50D)],
+            [self.Button.copy("Copy", icon=0x1F4CB)],
+            [self.Button.request_phone("Share Phone", icon=0x1F4F1)],
+            [self.Button.request_location("Share Location", icon=0x1F4CD)],
+            [self.Button.request_poll("Create Poll", icon=0x1F4CA)],
+        ]
+    )
+```
 
 ## Full Example
 
@@ -455,8 +520,8 @@ class CounterModule(ModuleBase):
 
     @command("menu")
     async def cmd_menu(self, event):
-        inc_btn = self.callback_button("+1", self.handle_inc)
-        dec_btn = self.callback_button("-1", self.handle_dec)
+        inc_btn = self.Button.inline("+1", self.handle_inc, icon=0x2795)
+        dec_btn = self.Button.inline("-1", self.handle_dec, icon=0x2796)
         await self.kernel.inline_form(
             event.chat_id,
             f"Count: {self._counter}",

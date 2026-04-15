@@ -711,13 +711,37 @@ class ModuleBase(ABC):
         self._callback_tokens.append(tok)
 
     def callback_button(
-        self, text: str, callback_func: Callable, *, ttl: int = 900, **kwargs
+        self,
+        text: str,
+        callback_func: Callable,
+        *,
+        ttl: int = 900,
+        args: tuple = (),
+        kwargs: dict | None = None,
+        data: dict | None = None,
+        pass_event: bool = True,
+        auto_answer: bool | None = None,
+        **button_kwargs,
     ) -> Any:
-        """Create a callback button with auto-generated token."""
+        """Create a callback button with auto-generated token.
+
+        Args:
+            text: Button label text.
+            callback_func: Function to call when button is clicked.
+            ttl: Time-to-live in seconds (default: 900). None for no expiry.
+            args: Positional arguments to pass to callback.
+            kwargs: Keyword arguments to pass to callback.
+            data: Additional data to store with callback (accessible in cb_map["data"]).
+            pass_event: Whether to pass event as first argument (default: True).
+            auto_answer: Auto-answer callback query (default: None, no action).
+            **button_kwargs: Additional arguments for Button.inline.
+        """
         from telethon import Button
 
         raw_func = getattr(callback_func, "__original__", callback_func)
         instance = self
+        _kwargs = kwargs or {}
+        _data = data or {}
 
         tok = uuid.uuid4().hex
 
@@ -736,20 +760,29 @@ class ModuleBase(ABC):
         for k in expired:
             cb_map.pop(k, None)
 
-        async def wrapper(event: Any, *args: Any, **kwargs: Any) -> None:
-            return await raw_func(instance, event)
+        async def wrapper(event: Any, *a: Any, **kw: Any) -> None:
+            if pass_event:
+                result = raw_func(instance, event, *_kwargs, *_data, *a, **kw)
+            else:
+                result = raw_func(instance, *_kwargs, *_data, *a, **kw)
+            if asyncio.iscoroutine(result):
+                result = await result
+            if auto_answer is not None:
+                await event.answer(auto_answer)
 
         cb_map[tok] = {
             "handler": wrapper,
-            "args": [],
-            "kwargs": {},
+            "args": args,
+            "kwargs": _kwargs,
+            "data": _data,
             "expires_at": now + ttl if ttl else None,
+            "auto_answer": auto_answer,
         }
 
         self._callback_tokens = getattr(self, "_callback_tokens", [])
         self._callback_tokens.append(tok)
 
-        return Button.inline(text, tok.encode(), **kwargs)
+        return Button.inline(text, tok.encode(), **button_kwargs)
 
     async def on_load(self) -> None:
         """Called after the module is fully loaded.

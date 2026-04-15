@@ -397,10 +397,10 @@ Class-style modules provide a `Button` factory accessed via `self.Button`. This 
 @command("menu")
 async def cmd_menu(self, event):
     buttons = [
-        [self.Button.inline("Option A", self.handle_a, icon=0x1F4E0)],
-        [self.Button.inline("Option B", self.handle_b, icon=0x1F4E1)],
-        [self.Button.url("Website", "https://example.com", icon=0x1F310)],
-        [self.Button.text("Text Only", icon=0x1F4CB)],
+        [self.Button.inline("Option A", self.handle_a, icon=5325942077639384815)],
+        [self.Button.inline("Option B", self.handle_b, icon=5325942077639384816)],
+        [self.Button.url("Website", "https://example.com", icon=5325942077639384817)],
+        [self.Button.text("Text Only", icon=5325942077639384818)],
     ]
     await self.kernel.inline_form(event.chat_id, "Choose:", buttons=buttons)
 ```
@@ -455,15 +455,12 @@ async def handle_click(self, event, *args, **kwargs):
 
 ### Icons
 
-Icons use Telegram emoji codes (integers). Common icons:
-- `0x1F300`-`0x1F320`: Miscellaneous symbols
-- `0x1F4E0`-`0x1F4E9`: Office icons
-- `0x1F680`-`0x1F6C5`: Transport icons
+Icons use Telegram premade emoji IDs (integers). Example: `5325942077639384815`.
 
 Example:
 ```python
-self.Button.inline("Settings", self.handle_settings, icon=0x1F527)  # wrench
-self.Button.url("GitHub", "https://github.com", icon=0x1F4BB)      # laptop
+self.Button.inline("Settings", self.handle_settings, icon=5325942077639384815)
+self.Button.url("GitHub", "https://github.com", icon=5325942077639384816)
 ```
 
 ### Example with All Button Types
@@ -475,14 +472,14 @@ async def cmd_buttons(self, event):
         event.chat_id,
         "Button Demo",
         buttons=[
-            [self.Button.inline("Callback", self.handle_cb, icon=0x1F4E0)],
-            [self.Button.url("URL", "https://example.com", icon=0x1F310)],
-            [self.Button.text("Text", icon=0x1F4CB)],
-            [self.Button.switch("Search", "test query", icon=0x1F50D)],
-            [self.Button.copy("Copy", icon=0x1F4CB)],
-            [self.Button.request_phone("Share Phone", icon=0x1F4F1)],
-            [self.Button.request_location("Share Location", icon=0x1F4CD)],
-            [self.Button.request_poll("Create Poll", icon=0x1F4CA)],
+            [self.Button.inline("Callback", self.handle_cb, icon=5325942077639384815)],
+            [self.Button.url("URL", "https://example.com", icon=5325942077639384816)],
+            [self.Button.text("Text", icon=5325942077639384817)],
+            [self.Button.switch("Search", "test query", icon=5325942077639384818)],
+            [self.Button.copy("Copy", icon=5325942077639384819)],
+            [self.Button.request_phone("Share Phone", icon=5325942077639384820)],
+            [self.Button.request_location("Share Location", icon=5325942077639384821)],
+            [self.Button.request_poll("Create Poll", icon=5325942077639384822)],
         ]
     )
 ```
@@ -520,8 +517,8 @@ class CounterModule(ModuleBase):
 
     @command("menu")
     async def cmd_menu(self, event):
-        inc_btn = self.Button.inline("+1", self.handle_inc, icon=0x2795)
-        dec_btn = self.Button.inline("-1", self.handle_dec, icon=0x2796)
+        inc_btn = self.Button.inline("+1", self.handle_inc, icon=5325942077639384820)
+        dec_btn = self.Button.inline("-1", self.handle_dec, icon=5325942077639384821)
         await self.kernel.inline_form(
             event.chat_id,
             f"Count: {self._counter}",

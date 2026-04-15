@@ -819,21 +819,11 @@ class ModuleBase(ABC):
             data: dict | None = None,
             pass_event: bool = True,
             auto_answer: bool | None = None,
+            icon: int | None = None,
             **btn_kwargs,
         ) -> Any:
-            """Create an inline/callback button.
-
-            Args:
-                text: Button label.
-                callback_func: Function to call on click.
-                ttl: Time-to-live in seconds (default: 900).
-                args: Positional args for callback.
-                kwargs: Keyword args for callback.
-                data: Additional data to store.
-                pass_event: Pass event to callback (default: True).
-                auto_answer: Auto-answer callback query.
-            """
-            return self._outer._make_callback_button(
+            """Create an inline/callback button."""
+            btn = self._outer._make_callback_button(
                 text,
                 callback_func,
                 ttl=ttl,
@@ -842,34 +832,83 @@ class ModuleBase(ABC):
                 data=data,
                 pass_event=pass_event,
                 auto_answer=auto_answer,
-                **btn_kwargs,
             )
+            if icon is not None:
+                return self._telethon_button.with_icon(btn, icon=icon)
+            return btn
 
-        def url(self, text: str, url: str, *, new_tab: bool = False) -> Any:
+        def url(
+            self,
+            text: str,
+            url: str,
+            *,
+            new_tab: bool = False,
+            icon: int | None = None,
+            style: Any = None,
+        ) -> Any:
             """Create a URL button."""
-            return self._telethon_button.url(text, url, new_tab=new_tab)
+            btn = self._telethon_button.url(text, url, new_tab=new_tab)
+            if icon is not None:
+                btn = self._telethon_button.with_icon(btn, icon=icon)
+            return btn
 
         def text(
-            self, text: str, *, resize: bool = True, selective: bool = False
+            self,
+            text: str,
+            *,
+            resize: bool = True,
+            selective: bool = False,
+            icon: int | None = None,
+            style: Any = None,
         ) -> Any:
             """Create a text button."""
-            return self._telethon_button.text(text, resize=resize, selective=selective)
+            btn = self._telethon_button.text(text, resize=resize, selective=selective)
+            if icon is not None:
+                btn = self._telethon_button.with_icon(btn, icon=icon)
+            return btn
 
-        def switch(self, text: str, query: str = "", *, same_peer: bool = True) -> Any:
+        def switch(
+            self,
+            text: str,
+            query: str = "",
+            *,
+            same_peer: bool = True,
+            icon: int | None = None,
+            style: Any = None,
+        ) -> Any:
             """Create a switch button."""
-            return self._telethon_button.switch(text, query, same_peer=same_peer)
+            btn = self._telethon_button.switch(text, query, same_peer=same_peer)
+            if icon is not None:
+                btn = self._telethon_button.with_icon(btn, icon=icon)
+            return btn
 
-        def copy(self, text: str = "Copy", *, payload: bytes | None = None) -> Any:
+        def copy(
+            self,
+            text: str = "Copy",
+            *,
+            payload: bytes | None = None,
+            icon: int | None = None,
+            style: Any = None,
+        ) -> Any:
             """Create a copy button."""
-            return self._telethon_button.copy(text, payload=payload)
+            btn = self._telethon_button.copy(text, payload=payload)
+            if icon is not None:
+                btn = self._telethon_button.with_icon(btn, icon=icon)
+            return btn
 
         def request_phone(
-            self, text: str = "Share Phone", *, request_title: str | None = None
+            self,
+            text: str = "Share Phone",
+            *,
+            request_title: str | None = None,
+            icon: int | None = None,
+            style: Any = None,
         ) -> Any:
             """Create a request phone button."""
-            return self._telethon_button.request_phone(
-                text, request_title=request_title
-            )
+            btn = self._telethon_button.request_phone(text, request_title=request_title)
+            if icon is not None:
+                btn = self._telethon_button.with_icon(btn, icon=icon)
+            return btn
 
         def request_location(
             self,
@@ -877,11 +916,16 @@ class ModuleBase(ABC):
             *,
             request_title: str | None = None,
             live_period: int | None = None,
+            icon: int | None = None,
+            style: Any = None,
         ) -> Any:
             """Create a request location button."""
-            return self._telethon_button.request_location(
+            btn = self._telethon_button.request_location(
                 text, request_title=request_title, live_period=live_period
             )
+            if icon is not None:
+                btn = self._telethon_button.with_icon(btn, icon=icon)
+            return btn
 
         def request_poll(
             self,
@@ -889,25 +933,70 @@ class ModuleBase(ABC):
             *,
             request_title: str | None = None,
             quiz: bool = False,
+            icon: int | None = None,
+            style: Any = None,
         ) -> Any:
             """Create a request poll button."""
-            return self._telethon_button.request_poll(
+            btn = self._telethon_button.request_poll(
                 text, request_title=request_title, quiz=quiz
             )
+            if icon is not None:
+                btn = self._telethon_button.with_icon(btn, icon=icon)
+            return btn
 
-        def game(self, text: str, *, game: Any = None) -> Any:
+        def game(
+            self,
+            text: str,
+            *,
+            game: Any = None,
+            icon: int | None = None,
+            style: Any = None,
+        ) -> Any:
             """Create a game button."""
-            if game:
-                return self._telethon_button.game(text, game=game)
-            return self._telethon_button.game(text)
+            btn = (
+                self._telethon_button.game(text, game=game)
+                if game
+                else self._telethon_button.game(text)
+            )
+            if icon is not None:
+                btn = self._telethon_button.with_icon(btn, icon=icon)
+            return btn
 
-        def unknown(self, data: bytes, text: str = "Button") -> Any:
+        def unknown(
+            self,
+            data: bytes,
+            text: str = "Button",
+            *,
+            icon: int | None = None,
+            style: Any = None,
+        ) -> Any:
             """Create an unknown/custom button."""
-            return self._telethon_button.unknown(text, data)
+            btn = self._telethon_button.unknown(text, data)
+            if icon is not None:
+                btn = self._telethon_button.with_icon(btn, icon=icon)
+            return btn
 
-        def mention(self, text: str, user: int | str | None = None) -> Any:
+        def mention(
+            self,
+            text: str,
+            user: int | str | None = None,
+            *,
+            icon: int | None = None,
+            style: Any = None,
+        ) -> Any:
             """Create a mention button."""
-            return self._telethon_button.mention(text, user=user)
+            btn = self._telethon_button.mention(text, user=user)
+            if icon is not None:
+                btn = self._telethon_button.with_icon(btn, icon=icon)
+            return btn
+
+        def with_icon(self, btn: Any, icon: int) -> Any:
+            """Add icon to an existing button."""
+            return self._telethon_button.with_icon(btn, icon=icon)
+
+        def style(self, btn: Any, style: Any) -> Any:
+            """Apply style to an existing button."""
+            return self._telethon_button.style(btn, style)
 
     @property
     def Button(self) -> type["ModuleBase.Button"]:

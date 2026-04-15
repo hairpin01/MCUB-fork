@@ -1173,11 +1173,15 @@ def register(kernel):
                 f"{module_name}.py",
             )
 
+            new_class_name = metadata.get("class_name")
             for loaded_name, loaded_mod in list(kernel.loaded_modules.items()):
                 class_instance = getattr(loaded_mod, "_class_instance", None)
                 if class_instance is not None:
                     class_display_name = getattr(type(class_instance), "name", None)
-                    if class_display_name == module_name and loaded_name != module_name:
+                    if (
+                        class_display_name == module_name
+                        or class_display_name == new_class_name
+                    ) and loaded_name != module_name:
                         old_file_path = os.path.join(
                             kernel.MODULES_LOADED_DIR, f"{loaded_name}.py"
                         )
@@ -1193,6 +1197,10 @@ def register(kernel):
                             f"[loader] Using existing path for class module: {new_file_path}"
                         )
                         file_path = new_file_path
+                        is_update = True
+                        await kernel.unregister_module_commands(
+                            loaded_name, force=force_unload
+                        )
                         break
 
             if send_mode:
@@ -1926,6 +1934,7 @@ def register(kernel):
             kernel.logger.debug(log_entry)
 
         cfg = get_config()
+        force_unload = not (cfg and cfg.get("loader_protect_system", True))
         if cfg and cfg.get("loader_protect_system", True):
             if module_name in kernel.system_modules:
                 await edit_with_emoji(
@@ -1964,11 +1973,18 @@ def register(kernel):
 
         file_path = kernel._loader.get_module_path(module_name)
 
+        new_class_name = None
         for loaded_name, loaded_mod in list(kernel.loaded_modules.items()):
             class_instance = getattr(loaded_mod, "_class_instance", None)
             if class_instance is not None:
                 class_display_name = getattr(type(class_instance), "name", None)
-                if class_display_name == module_name and loaded_name != module_name:
+                if (
+                    class_display_name == module_name
+                    or (
+                        new_class_name is not None
+                        and class_display_name == new_class_name
+                    )
+                ) and loaded_name != module_name:
                     old_file_path = kernel._loader.get_module_path(loaded_name)
                     if os.path.exists(old_file_path):
                         os.remove(old_file_path)
@@ -1979,6 +1995,7 @@ def register(kernel):
                     kernel.logger.info(
                         f"[loader] Using path {file_path} for class module {module_name}"
                     )
+                    is_update = True
                     break
 
         try:
@@ -2016,6 +2033,28 @@ def register(kernel):
                     if os.path.exists(file_path):
                         os.remove(file_path)
                     return
+                if not is_update:
+                    for loaded_name, loaded_mod in list(kernel.loaded_modules.items()):
+                        class_instance = getattr(loaded_mod, "_class_instance", None)
+                        if class_instance is not None:
+                            existing_class = getattr(type(class_instance), "name", None)
+                            if existing_class == class_name:
+                                old_file_path = kernel._loader.get_module_path(
+                                    loaded_name
+                                )
+                                if os.path.exists(old_file_path):
+                                    os.remove(old_file_path)
+                                    kernel.logger.info(
+                                        f"[loader] Removed old file {old_file_path} for class module {class_name}"
+                                    )
+                                is_update = True
+                                await kernel.unregister_module_commands(
+                                    loaded_name, force=force_unload
+                                )
+                                kernel.logger.info(
+                                    f"[loader] Detected update via class name match: {class_name}"
+                                )
+                                break
 
             if is_update:
                 new_version = metadata["version"]

@@ -12,7 +12,7 @@ import time
 import aiohttp
 
 # version kenrel MCUB
-__version__ = "1.1.6.1"
+__version__ = "1.2.6"
 VERSION = __version__
 
 

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2026 MCUB Team
+# Copyright (c) 2026 Шмэлька | @hairpin01
 
 """
 Stress tests for scheduler

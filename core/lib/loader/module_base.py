@@ -784,6 +784,208 @@ class ModuleBase(ABC):
 
         return Button.inline(text, tok.encode(), **button_kwargs)
 
+    def inline_button(
+        self,
+        text: str,
+        callback_func: Callable,
+        *,
+        ttl: int = 900,
+        args: tuple = (),
+        kwargs: dict | None = None,
+        data: dict | None = None,
+        pass_event: bool = True,
+        auto_answer: bool | None = None,
+        style: str | None = None,
+        **button_kwargs,
+    ) -> Any:
+        """Create an inline/callback button.
+
+        Alias for callback_button with optional style parameter.
+        """
+        return self.callback_button(
+            text,
+            callback_func,
+            ttl=ttl,
+            args=args,
+            kwargs=kwargs,
+            data=data,
+            pass_event=pass_event,
+            auto_answer=auto_answer,
+            **button_kwargs,
+        )
+
+    def url_button(
+        self,
+        text: str,
+        url: str,
+        *,
+        new_tab: bool = False,
+    ) -> Any:
+        """Create a URL button that opens a link when clicked.
+
+        Args:
+            text: Button label text.
+            url: URL to open.
+            new_tab: Open in new tab (default: False).
+        """
+        from telethon import Button
+
+        return Button.url(text, url, new_tab=new_tab)
+
+    def text_button(
+        self,
+        text: str,
+        *,
+        resize: bool = True,
+        selective: bool = False,
+    ) -> Any:
+        """Create a text button (no callback, just displays text).
+
+        Args:
+            text: Button label text.
+            resize: Allow button to resize (default: True).
+            selective: Force selective context (default: False).
+        """
+        from telethon import Button
+
+        return Button.text(text, resize=resize, selective=selective)
+
+    def switch_button(
+        self,
+        text: str,
+        query: str = "",
+        *,
+        same_peer: bool = True,
+    ) -> Any:
+        """Create a switch button that switches to inline query.
+
+        Args:
+            text: Button label text.
+            query: Inline query to switch to (default: empty).
+            same_peer: Keep same peer (default: True).
+        """
+        from telethon import Button
+
+        return Button.switch(text, query, same_peer=same_peer)
+
+    def copy_button(
+        self,
+        text: str = "Copy",
+        *,
+        payload: bytes | None = None,
+    ) -> Any:
+        """Create a copy button that copies text to clipboard.
+
+        Args:
+            text: Button label text (default: "Copy").
+            payload: Data to copy (default: None, copies nothing).
+        """
+        from telethon import Button
+
+        return Button.copy(text, payload=payload)
+
+    def request_phone_button(
+        self,
+        text: str = "Share Phone",
+        *,
+        request_title: str | None = None,
+    ) -> Any:
+        """Create a button requesting user's phone number.
+
+        Args:
+            text: Button label text.
+            request_title: Title for the request dialog.
+        """
+        from telethon import Button
+
+        return Button.request_phone(text, request_title=request_title)
+
+    def request_location_button(
+        self,
+        text: str = "Share Location",
+        *,
+        request_title: str | None = None,
+        live_period: int | None = None,
+    ) -> Any:
+        """Create a button requesting user's location.
+
+        Args:
+            text: Button label text.
+            request_title: Title for the request dialog.
+            live_period: Live location duration in seconds (if supported).
+        """
+        from telethon import Button
+
+        return Button.request_location(
+            text, request_title=request_title, live_period=live_period
+        )
+
+    def request_poll_button(
+        self,
+        text: str = "Create Poll",
+        *,
+        request_title: str | None = None,
+        quiz: bool = False,
+    ) -> Any:
+        """Create a button requesting user to create a poll.
+
+        Args:
+            text: Button label text.
+            request_title: Title for the request dialog.
+            quiz: Request quiz poll instead of regular (default: False).
+        """
+        from telethon import Button
+
+        return Button.request_poll(text, request_title=request_title, quiz=quiz)
+
+    def game_button(
+        self,
+        text: str,
+        *,
+        game: Any = None,
+    ) -> Any:
+        """Create a game button.
+
+        Args:
+            text: Button label text.
+            game: Game short name (if using bot API game).
+        """
+        from telethon import Button
+
+        if game:
+            return Button.game(text, game=game)
+        return Button.game(text)
+
+    def unknown_button(
+        self,
+        data: bytes,
+        text: str = "Button",
+    ) -> Any:
+        """Create an unknown/custom type button.
+
+        Args:
+            data: Raw button data.
+            text: Button label text.
+        """
+        from telethon import Button
+
+        return Button.unknown(text, data)
+
+    def mention_button(
+        self,
+        text: str,
+        user: int | str | None = None,
+    ) -> Any:
+        """Create a mention button.
+
+        Args:
+            text: Button label text.
+            user: User ID or username to mention.
+        """
+        from telethon import Button
+
+        return Button.mention(text, user=user)
+
     async def on_load(self) -> None:
         """Called after the module is fully loaded.
 

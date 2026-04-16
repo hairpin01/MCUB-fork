@@ -107,6 +107,8 @@ class String(Validator):
         self.max_len = max_len
 
     def validate(self, value: Any) -> str:
+        if value is None:
+            return value
         if not isinstance(value, str):
             try:
                 value = str(value)

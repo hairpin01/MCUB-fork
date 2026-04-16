@@ -54,12 +54,15 @@ Class attributes define module metadata:
 | `name` | `str` | `"Unnamed"` | Display name (used as filename) |
 | `version` | `str` | `"1.0.0"` | Semantic version |
 | `author` | `str` | `"unknown"` | Author identifier |
-| `description` | `dict` | `{}` | Localized descriptions `{"ru": "...", "en": "..."}` |
+| `description` | `dict \| str` | `{}` | Localized descriptions (`{"ru": "...", "en": "..."}`) or plain string |
 | `dependencies` | `list` | `[]` | Pip packages to install |
 | `banner_url` | `str` | `None` | Banner image URL |
 
 > [!NOTE]
 > The `name` attribute determines the module filename. If `name = "MyModule"`, the file will be renamed to `MyModule.py`.
+
+> [!NOTE]
+> For localized `description` dicts, loader/man pick text by current kernel language (`language` config), then fallback to `en`, then `ru`, then first non-empty value.
 
 ## Decorators
 
@@ -134,6 +137,9 @@ Use with `self.callback_button()` to create buttons.
 
 > [!NOTE]
 > When the module is unloaded, all callback tokens are automatically cleaned up from `kernel.inline_callback_map`. This prevents memory leaks.
+
+> [!NOTE]
+> `data` is optional for callback handlers. If your handler has `data` parameter (or `**kwargs`), button `data` is passed there; otherwise it is ignored.
 
 ### `@inline(pattern)`
 
@@ -366,6 +372,8 @@ async def on_load(self):
     self.log.info("Module initialized")
 ```
 
+If you use `@method`, call `await super().on_load()` inside your override.
+
 ### `async def on_unload()`
 
 Called before the module is unloaded. Use for cleanup.
@@ -375,6 +383,8 @@ async def on_unload(self):
     self.log.info("Cleanup complete")
 ```
 
+If you use `@uninstall`, call `await super().on_unload()` inside your override.
+
 ### `async def on_install()`
 
 Called only on first installation (not on reload). Use for one-time setup.
@@ -383,6 +393,8 @@ Called only on first installation (not on reload). Use for one-time setup.
 async def on_install(self):
     await self.db.set("module", "installed", True)
 ```
+
+If you use `@on_install`, call `await super().on_install()` inside your override.
 
 ## Buttons
 
@@ -411,7 +423,7 @@ All buttons support `icon` (int) and `style` parameters:
 
 | Method | Description |
 |--------|-------------|
-| `Button.inline(text, callback, *, ttl=900, args=(), kwargs={}, data={}, pass_event=True, auto_answer=None, icon=None)` | Callback button |
+| `Button.inline(text, callback, *, ttl=900, args=(), kwargs=None, data=None, pass_event=True, auto_answer=None, icon=None)` | Callback button |
 | `Button.url(text, url, *, new_tab=False, icon=None)` | URL link button |
 | `Button.text(text, *, resize=True, selective=False, icon=None)` | Text button |
 | `Button.switch(text, query="", *, same_peer=True, icon=None)` | Inline query switch |
@@ -451,6 +463,14 @@ async def handle_click(self, event, *args, **kwargs):
     # args = (1, 2, 3)
     # kwargs = {"key": "value"}
     await event.answer(f"Got: {args}, {kwargs}", alert=True)
+```
+
+Optional `data` handler variant:
+```python
+@callback
+async def handle_click(self, event, data=None):
+    # data is dict or None
+    await event.answer(f"Data: {data}", alert=True)
 ```
 
 ### Icons

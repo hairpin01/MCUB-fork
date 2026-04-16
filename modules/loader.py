@@ -456,6 +456,18 @@ def register(kernel):
             return key
         return lang_strings[key].format(**kwargs)
 
+    def module_description(metadata: dict | None) -> str:
+        """Resolve localized module description from metadata."""
+        if not metadata:
+            return ""
+        current_lang = kernel.config.get("language", "en")
+        fallback = metadata.get("description") or t("no_description")
+        return kernel._loader.pick_localized_text(
+            metadata.get("description_i18n"),
+            current_lang,
+            fallback,
+        )
+
     async def mcub_handler() -> str:
         me = await kernel.client.get_me()
         mcub_emoji = (
@@ -997,7 +1009,7 @@ def register(kernel):
                             desc = "archive pack"
                         else:
                             display_name = module_name
-                            desc = metadata.get("description", "") if metadata else ""
+                            desc = module_description(metadata)
 
                         await edit_with_emoji(
                             event,
@@ -1119,7 +1131,7 @@ def register(kernel):
             add_log(t("log_getting_metadata"))
             add_log(t("log_author", author=metadata["author"]))
             add_log(t("log_version", version=metadata["version"]))
-            add_log(t("log_description", description=metadata["description"]))
+            add_log(t("log_description", description=module_description(metadata)))
 
             if metadata.get("is_class_style") and metadata.get("class_name"):
                 class_name = metadata["class_name"]
@@ -1223,7 +1235,7 @@ def register(kernel):
                         file=CUSTOM_EMOJI["file"],
                         module_name=module_name,
                         idea=CUSTOM_EMOJI["idea"],
-                        description=metadata["description"],
+                        description=module_description(metadata),
                         crystal=CUSTOM_EMOJI["crystal"],
                         version=metadata["version"],
                         angel=CUSTOM_EMOJI["angel"],
@@ -1366,7 +1378,7 @@ def register(kernel):
                                     module_name=module_name,
                                     emoji=emoji,
                                     idea=CUSTOM_EMOJI["idea"],
-                                    description=metadata["description"],
+                                    description=module_description(metadata),
                                     version=metadata["version"],
                                     author=metadata.get("author", "unknown"),
                                     emoji_author=CUSTOM_EMOJI["author"],
@@ -1387,7 +1399,7 @@ def register(kernel):
                                     module_name=module_name,
                                     emoji=emoji,
                                     idea=CUSTOM_EMOJI["idea"],
-                                    description=metadata["description"],
+                                    description=module_description(metadata),
                                     version=metadata["version"],
                                     author=metadata.get("author", "unknown"),
                                     emoji_author=CUSTOM_EMOJI["author"],
@@ -1403,7 +1415,7 @@ def register(kernel):
                                 module_name=module_name,
                                 emoji=emoji,
                                 idea=CUSTOM_EMOJI["idea"],
-                                description=metadata["description"],
+                                description=module_description(metadata),
                                 version=metadata["version"],
                                 author=metadata.get("author", "unknown"),
                                 emoji_author=CUSTOM_EMOJI["author"],
@@ -1529,7 +1541,7 @@ def register(kernel):
                     module_name=display_name,
                     emoji=emoji,
                     idea=CUSTOM_EMOJI["idea"],
-                    description=metadata["description"],
+                    description=module_description(metadata),
                     version=metadata["version"],
                     author=metadata.get("author", "unknown"),
                     emoji_author=CUSTOM_EMOJI["author"],
@@ -1893,7 +1905,7 @@ def register(kernel):
                         module_name=", ".join(loaded_modules),
                         emoji=CUSTOM_EMOJI["idea"],
                         idea=CUSTOM_EMOJI["idea"],
-                        description=metadata["description"],
+                        description=module_description(metadata),
                         version=metadata["version"],
                         emoji_author=CUSTOM_EMOJI["author"],
                         author=metadata.get("author", "unknown"),
@@ -1973,31 +1985,6 @@ def register(kernel):
 
         file_path = kernel._loader.get_module_path(module_name)
 
-        new_class_name = None
-        for loaded_name, loaded_mod in list(kernel.loaded_modules.items()):
-            class_instance = getattr(loaded_mod, "_class_instance", None)
-            if class_instance is not None:
-                class_display_name = getattr(type(class_instance), "name", None)
-                if (
-                    class_display_name == module_name
-                    or (
-                        new_class_name is not None
-                        and class_display_name == new_class_name
-                    )
-                ) and loaded_name != module_name:
-                    old_file_path = kernel._loader.get_module_path(loaded_name)
-                    if os.path.exists(old_file_path):
-                        os.remove(old_file_path)
-                        kernel.logger.info(
-                            f"[loader] Removed old file {old_file_path} for class module {module_name}"
-                        )
-                    file_path = kernel._loader.get_module_path(module_name)
-                    kernel.logger.info(
-                        f"[loader] Using path {file_path} for class module {module_name}"
-                    )
-                    is_update = True
-                    break
-
         try:
             add_log(t("log_downloading", file_path=file_path))
             await reply.download_media(file_path)
@@ -2009,10 +1996,39 @@ def register(kernel):
 
             add_log(t("log_getting_metadata"))
             metadata = await kernel.get_module_metadata(code)
+
+            new_class_name = metadata.get("class_name")
+            for loaded_name, loaded_mod in list(kernel.loaded_modules.items()):
+                class_instance = getattr(loaded_mod, "_class_instance", None)
+                if class_instance is not None:
+                    class_display_name = getattr(type(class_instance), "name", None)
+                    if (
+                        class_display_name == module_name
+                        or (
+                            new_class_name is not None
+                            and class_display_name == new_class_name
+                        )
+                    ) and loaded_name != module_name:
+                        old_file_path = kernel._loader.get_module_path(loaded_name)
+                        if os.path.exists(old_file_path):
+                            os.remove(old_file_path)
+                            kernel.logger.info(
+                                f"[loader] Removed old file {old_file_path} for class module {class_display_name}"
+                            )
+                        target_name = (
+                            new_class_name or class_display_name or module_name
+                        )
+                        file_path = kernel._loader.get_module_path(target_name)
+                        kernel.logger.info(
+                            f"[loader] Using path {file_path} for class module {target_name}"
+                        )
+                        is_update = True
+                        break
+
             dependencies = []
             add_log(t("log_author", author=metadata["author"]))
             add_log(t("log_version", version=metadata["version"]))
-            add_log(t("log_description", description=metadata["description"]))
+            add_log(t("log_description", description=module_description(metadata)))
 
             if metadata.get("is_class_style") and metadata.get("class_name"):
                 class_name = metadata["class_name"]
@@ -2229,7 +2245,7 @@ def register(kernel):
                     module_name=display_name,
                     emoji=emoji,
                     idea=CUSTOM_EMOJI["idea"],
-                    description=metadata["description"],
+                    description=module_description(metadata),
                     version=metadata["version"],
                     author=metadata.get("author", "unknown"),
                     emoji_author=CUSTOM_EMOJI["author"],
@@ -2427,7 +2443,7 @@ def register(kernel):
                                 file=CUSTOM_EMOJI["file"],
                                 module_name=module_name,
                                 idea=CUSTOM_EMOJI["idea"],
-                                description=metadata["description"],
+                                description=module_description(metadata),
                                 crystal=CUSTOM_EMOJI["crystal"],
                                 version=metadata["version"],
                                 angel=CUSTOM_EMOJI["angel"],

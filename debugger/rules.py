@@ -2073,9 +2073,507 @@ def get_default_rules() -> RuleRegistry:
         BareOrUnsafeExceptRule(),
         LoggerWithoutAwaitRule(),
         MissingParseModeForHtmlRule(),
+        ClassStyleModuleBaseRule(),
+        ClassStyleStringsRule(),
+        ClassStyleOwnerWithoutAdminCheckRule(),
+        ClassStyleConfigRule(),
+        ClassStyleDecoratorsRule(),
+        ClassStyleVersionFormatRule(),
+        ClassStyleNameRule(),
+        ClassStyleAuthorRule(),
+        ClassStyleCommandDecoratorRule(),
+        ClassStyleMethodNamingRule(),
+        ClassStyleDocstringRule(),
     ]
 
     for rule in rules:
         registry.register(rule)
 
     return registry
+
+
+class ClassStyleModuleBaseRule(WarningRule):
+    """Check that class-style modules inherit from ModuleBase."""
+
+    rule_id = "MCUB050"
+    severity = "error"
+    message = "Class-style module must inherit from 'ModuleBase'."
+
+    def check(
+        self, analyzer: "SourceAnalyzer", node: ast.FunctionDef | ast.AsyncFunctionDef
+    ) -> list[Warning]:
+        warnings = []
+        if not isinstance(node, ast.ClassDef):
+            return warnings
+
+        for base in node.bases:
+            if isinstance(base, ast.Name):
+                if base.id == "ModuleBase":
+                    return warnings
+            elif isinstance(base, ast.Attribute):
+                if base.attr == "ModuleBase":
+                    return warnings
+
+        for dec in analyzer.current_decorators:
+            if "register.command" in str(dec):
+                warnings.append(
+                    Warning(
+                        rule_id=self.rule_id,
+                        severity=self.severity,
+                        message=self.message,
+                        file_path=analyzer.file_path,
+                        line=node.lineno,
+                        column=node.col_offset + 1,
+                        code_snippet=analyzer.get_code_snippet(node.lineno),
+                        fix_suggestion="class MyModule(ModuleBase):",
+                    )
+                )
+                break
+
+        return warnings
+
+
+class ClassStyleStringsRule(WarningRule):
+    """Check that class-style modules define strings dict."""
+
+    rule_id = "MCUB051"
+    severity = "warning"
+    message = "Class-style module should define 'strings' class attribute for localization support."
+
+    def check(
+        self, analyzer: "SourceAnalyzer", node: ast.FunctionDef | ast.AsyncFunctionDef
+    ) -> list[Warning]:
+        warnings = []
+        if not isinstance(node, ast.ClassDef):
+            return warnings
+
+        has_strings = False
+        has_base = False
+
+        for base in node.bases:
+            if isinstance(base, ast.Name):
+                if base.id == "ModuleBase":
+                    has_base = True
+            elif isinstance(base, ast.Attribute):
+                if base.attr == "ModuleBase":
+                    has_base = True
+
+        if not has_base:
+            return warnings
+
+        for item in node.body:
+            if isinstance(item, ast.Assign):
+                for target in item.targets:
+                    if isinstance(target, ast.Name):
+                        if target.id == "strings":
+                            has_strings = True
+                            break
+
+        if not has_strings:
+            warnings.append(
+                Warning(
+                    rule_id=self.rule_id,
+                    severity=self.severity,
+                    message=self.message,
+                    file_path=analyzer.file_path,
+                    line=node.lineno,
+                    column=node.col_offset + 1,
+                    code_snippet=analyzer.get_code_snippet(node.lineno),
+                    fix_suggestion="strings = {'en': {...}, 'ru': {...}}",
+                )
+            )
+
+        return warnings
+
+
+class ClassStyleOwnerWithoutAdminCheckRule(WarningRule):
+    """Check that @owner decorated methods have admin check implemented in class-style modules."""
+
+    rule_id = "MCUB052"
+    severity = "warning"
+    message = (
+        "@owner decorator in class-style module requires proper admin check in handler."
+    )
+
+    def check(
+        self, analyzer: "SourceAnalyzer", node: ast.FunctionDef | ast.AsyncFunctionDef
+    ) -> list[Warning]:
+        warnings = []
+        return warnings
+
+
+class ClassStyleConfigRule(WarningRule):
+    """Check that class-style modules define config properly."""
+
+    rule_id = "MCUB053"
+    severity = "warning"
+    message = "Class-style module config should be defined using ModuleConfig from core.lib.loader.module_config."
+
+    def check(
+        self, analyzer: "SourceAnalyzer", node: ast.FunctionDef | ast.AsyncFunctionDef
+    ) -> list[Warning]:
+        warnings = []
+        return warnings
+
+
+class ClassStyleDecoratorsRule(WarningRule):
+    """Check for proper decorator usage in class-style modules."""
+
+    rule_id = "MCUB054"
+    severity = "error"
+    message = (
+        "Class-style modules should use @command, @event decorators, not @register.*"
+    )
+
+    def check(
+        self, analyzer: "SourceAnalyzer", node: ast.FunctionDef | ast.AsyncFunctionDef
+    ) -> list[Warning]:
+        warnings = []
+        if not isinstance(node, ast.ClassDef):
+            return warnings
+
+        for item in node.body:
+            if isinstance(item, ast.FunctionDef):
+                for dec in item.decorator_list:
+                    dec_name = self._get_decorator_name(dec)
+                    if (
+                        dec_name
+                        and dec_name.startswith("register.")
+                        and dec_name != "register.command"
+                    ):
+                        warnings.append(
+                            Warning(
+                                rule_id=self.rule_id,
+                                severity=self.severity,
+                                message=self.message,
+                                file_path=analyzer.file_path,
+                                line=item.lineno,
+                                column=item.col_offset + 1,
+                                code_snippet=analyzer.get_code_snippet(item.lineno),
+                                fix_suggestion=f"Use @{dec_name.replace('register.', '')} instead of @{dec_name}",
+                            )
+                        )
+
+        return warnings
+
+    def _get_decorator_name(self, dec) -> str | None:
+        if isinstance(dec, ast.Name):
+            return dec.id
+        if isinstance(dec, ast.Attribute):
+            return dec.attr
+        if isinstance(dec, ast.Call):
+            if isinstance(dec.func, ast.Name):
+                return dec.func.id
+            if isinstance(dec.func, ast.Attribute):
+                return dec.func.attr
+        return None
+
+
+class ClassStyleVersionFormatRule(WarningRule):
+    """Check that version follows semver-like format (not 'v1' or '1.0.0v')."""
+
+    rule_id = "MCUB055"
+    severity = "warning"
+    message = "Version '{version}' should be in semver format like '1.0.0', not 'v1.0.0' or just 'v1'."
+
+    _version_pattern = re.compile(r"^\d+\.\d+\.\d+$")
+
+    def check(
+        self, analyzer: "SourceAnalyzer", node: ast.FunctionDef | ast.AsyncFunctionDef
+    ) -> list[Warning]:
+        warnings = []
+        if not isinstance(node, ast.ClassDef):
+            return warnings
+
+        for item in node.body:
+            if isinstance(item, ast.Assign):
+                for target in item.targets:
+                    if isinstance(target, ast.Name):
+                        if target.id == "version":
+                            if isinstance(item.value, ast.Constant):
+                                version_val = str(item.value.value)
+                                if version_val and not self._version_pattern.match(
+                                    version_val
+                                ):
+                                    warnings.append(
+                                        Warning(
+                                            rule_id=self.rule_id,
+                                            severity=self.severity,
+                                            message=self.message.format(
+                                                version=version_val
+                                            ),
+                                            file_path=analyzer.file_path,
+                                            line=item.lineno,
+                                            column=item.col_offset + 1,
+                                            code_snippet=analyzer.get_code_snippet(
+                                                item.lineno
+                                            ),
+                                            fix_suggestion="Use version = '1.0.0' (without 'v' prefix)",
+                                        )
+                                    )
+
+        return warnings
+
+
+class ClassStyleNameRule(WarningRule):
+    """Check that class-style module has required 'name' attribute."""
+
+    rule_id = "MCUB056"
+    severity = "error"
+    message = "Class-style module must define 'name' class attribute."
+
+    def check(
+        self, analyzer: "SourceAnalyzer", node: ast.FunctionDef | ast.AsyncFunctionDef
+    ) -> list[Warning]:
+        warnings = []
+        if not isinstance(node, ast.ClassDef):
+            return warnings
+
+        has_name = False
+        has_base = False
+
+        for base in node.bases:
+            if isinstance(base, ast.Name):
+                if base.id == "ModuleBase":
+                    has_base = True
+            elif isinstance(base, ast.Attribute):
+                if base.attr == "ModuleBase":
+                    has_base = True
+
+        if not has_base:
+            return warnings
+
+        for item in node.body:
+            if isinstance(item, ast.Assign):
+                for target in item.targets:
+                    if isinstance(target, ast.Name):
+                        if target.id == "name":
+                            has_name = True
+                            break
+
+        if not has_name:
+            warnings.append(
+                Warning(
+                    rule_id=self.rule_id,
+                    severity=self.severity,
+                    message=self.message,
+                    file_path=analyzer.file_path,
+                    line=node.lineno,
+                    column=node.col_offset + 1,
+                    code_snippet=analyzer.get_code_snippet(node.lineno),
+                    fix_suggestion="name = 'MyModule'",
+                )
+            )
+
+        return warnings
+
+
+class ClassStyleAuthorRule(WarningRule):
+    """Check that class-style module has 'author' attribute."""
+
+    rule_id = "MCUB057"
+    severity = "warning"
+    message = "Class-style module should define 'author' class attribute."
+
+    def check(
+        self, analyzer: "SourceAnalyzer", node: ast.FunctionDef | ast.AsyncFunctionDef
+    ) -> list[Warning]:
+        warnings = []
+        if not isinstance(node, ast.ClassDef):
+            return warnings
+
+        has_author = False
+        has_base = False
+
+        for base in node.bases:
+            if isinstance(base, ast.Name):
+                if base.id == "ModuleBase":
+                    has_base = True
+            elif isinstance(base, ast.Attribute):
+                if base.attr == "ModuleBase":
+                    has_base = True
+
+        if not has_base:
+            return warnings
+
+        for item in node.body:
+            if isinstance(item, ast.Assign):
+                for target in item.targets:
+                    if isinstance(target, ast.Name):
+                        if target.id == "author":
+                            has_author = True
+                            break
+
+        if not has_author:
+            warnings.append(
+                Warning(
+                    rule_id=self.rule_id,
+                    severity=self.severity,
+                    message=self.message,
+                    file_path=analyzer.file_path,
+                    line=node.lineno,
+                    column=node.col_offset + 1,
+                    code_snippet=analyzer.get_code_snippet(node.lineno),
+                    fix_suggestion="author = '@username'",
+                )
+            )
+
+        return warnings
+
+
+class ClassStyleCommandDecoratorRule(WarningRule):
+    """Check that class-style modules use @command decorator for commands."""
+
+    rule_id = "MCUB058"
+    severity = "warning"
+    message = "Class-style modules should use @command decorator for command handlers."
+
+    def check(
+        self, analyzer: "SourceAnalyzer", node: ast.FunctionDef | ast.AsyncFunctionDef
+    ) -> list[Warning]:
+        warnings = []
+        if not isinstance(node, ast.ClassDef):
+            return warnings
+
+        has_base = False
+
+        for base in node.bases:
+            if isinstance(base, ast.Name):
+                if base.id == "ModuleBase":
+                    has_base = True
+            elif isinstance(base, ast.Attribute):
+                if base.attr == "ModuleBase":
+                    has_base = True
+
+        if not has_base:
+            return warnings
+
+        has_command = False
+        for item in node.body:
+            if isinstance(item, ast.FunctionDef):
+                for dec in item.decorator_list:
+                    if isinstance(dec, ast.Name):
+                        if dec.id == "command":
+                            has_command = True
+                            break
+                    elif isinstance(dec, ast.Attribute):
+                        if dec.attr == "command":
+                            has_command = True
+                            break
+
+        if not has_command:
+            warnings.append(
+                Warning(
+                    rule_id=self.rule_id,
+                    severity=self.severity,
+                    message=self.message,
+                    file_path=analyzer.file_path,
+                    line=node.lineno,
+                    column=node.col_offset + 1,
+                    code_snippet=analyzer.get_code_snippet(node.lineno),
+                    fix_suggestion="@command('cmd') async def handler(self, event):",
+                )
+            )
+
+        return warnings
+
+
+class ClassStyleMethodNamingRule(WarningRule):
+    """Check for proper method naming in class-style modules (cmd_* or handler_*)."""
+
+    rule_id = "MCUB059"
+    severity = "info"
+    message = "Method '{name}' should follow naming convention: cmd_* for commands, handler_* for events."
+
+    _valid_prefixes = ("cmd_", "handler_", "on_", "_on_")
+
+    def check(
+        self, analyzer: "SourceAnalyzer", node: ast.FunctionDef | ast.AsyncFunctionDef
+    ) -> list[Warning]:
+        warnings = []
+        if not isinstance(node, ast.ClassDef):
+            return warnings
+
+        has_base = False
+
+        for base in node.bases:
+            if isinstance(base, ast.Name):
+                if base.id == "ModuleBase":
+                    has_base = True
+            elif isinstance(base, ast.Attribute):
+                if base.attr == "ModuleBase":
+                    has_base = True
+
+        if not has_base:
+            return warnings
+
+        for item in node.body:
+            if isinstance(item, ast.FunctionDef):
+                name = item.name
+                if not any(name.startswith(prefix) for prefix in self._valid_prefixes):
+                    if not name.startswith("_"):
+                        warnings.append(
+                            Warning(
+                                rule_id=self.rule_id,
+                                severity=self.severity,
+                                message=self.message.format(name=name),
+                                file_path=analyzer.file_path,
+                                line=item.lineno,
+                                column=item.col_offset + 1,
+                                code_snippet=analyzer.get_code_snippet(item.lineno),
+                                fix_suggestion="Rename to cmd_* or handler_*",
+                            )
+                        )
+
+        return warnings
+
+
+class ClassStyleDocstringRule(WarningRule):
+    """Check that class-style modules have docstring."""
+
+    rule_id = "MCUB060"
+    severity = "info"
+    message = "Class-style module should have a docstring describing its purpose."
+
+    def check(
+        self, analyzer: "SourceAnalyzer", node: ast.FunctionDef | ast.AsyncFunctionDef
+    ) -> list[Warning]:
+        warnings = []
+        if not isinstance(node, ast.ClassDef):
+            return warnings
+
+        has_base = False
+
+        for base in node.bases:
+            if isinstance(base, ast.Name):
+                if base.id == "ModuleBase":
+                    has_base = True
+            elif isinstance(base, ast.Attribute):
+                if base.attr == "ModuleBase":
+                    has_base = True
+
+        if not has_base:
+            return warnings
+
+        has_docstring = False
+        if node.docstring:
+            has_docstring = True
+        elif node.body and isinstance(node.body[0], ast.Expr):
+            if isinstance(node.body[0].value, ast.Constant):
+                has_docstring = True
+
+        if not has_docstring:
+            warnings.append(
+                Warning(
+                    rule_id=self.rule_id,
+                    severity=self.severity,
+                    message=self.message,
+                    file_path=analyzer.file_path,
+                    line=node.lineno,
+                    column=node.col_offset + 1,
+                    code_snippet=analyzer.get_code_snippet(node.lineno),
+                    fix_suggestion='"""Module description."""',
+                )
+            )
+
+        return warnings

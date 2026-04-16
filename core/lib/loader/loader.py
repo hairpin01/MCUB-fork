@@ -296,7 +296,7 @@ class ModuleLoader:
         )
 
         class_deps = []
-        if "from core.lib.loader.module_base import ModuleBase" in code:
+        if re.search(r"class\s+\w+\s*\(\s*ModuleBase\s*\):", code):
             class_match = re.search(
                 r"class\s+\w+\s*\(\s*ModuleBase\s*\):(.*?)(?=\n(?:class\s|\Z))",
                 code,
@@ -1876,7 +1876,9 @@ class ModuleLoader:
             if os.path.exists(init_file):
                 return init_file
 
-        return os.path.join(k.MODULES_LOADED_DIR, f"{module_name}.py")
+        default_path = os.path.join(k.MODULES_LOADED_DIR, f"{module_name}.py")
+        if os.path.exists(default_path):
+            return default_path
 
         # Search for class-style modules by class attribute "name = '...'"
         try:
@@ -1903,6 +1905,32 @@ class ModuleLoader:
             pass
 
         return default_path
+
+    @staticmethod
+    def pick_localized_text(
+        values: dict[str, str] | None,
+        lang: str | None,
+        fallback: str = "",
+    ) -> str:
+        """Pick localized text by language with safe fallbacks."""
+        if not isinstance(values, dict) or not values:
+            return fallback
+
+        normalized = (lang or "en").lower()
+        candidates = [normalized]
+        if "-" in normalized:
+            candidates.append(normalized.split("-", 1)[0])
+        candidates.extend(["en", "ru"])
+
+        for key in candidates:
+            value = values.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+
+        for value in values.values():
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return fallback
 
     def find_module_case_insensitive(self, name: str) -> tuple[str | None, str | None]:
         """Look up a module by name ignoring case across loaded and system dicts.
@@ -2008,7 +2036,7 @@ class ModuleLoader:
             m = re.search(r"__version__\s*=\s*['\"]([^'\"]+)['\"]", code)
             if m:
                 return m.group(1).strip()
-            if "from core.lib.loader.module_base import ModuleBase" in code:
+            if re.search(r"class\s+\w+\s*\(\s*ModuleBase\s*\):", code):
                 class_match = re.search(
                     r"class\s+(\w+)\s*\(\s*ModuleBase\s*\):(.*?)(?=\n(?:class\s|\Z))",
                     code,
@@ -2037,12 +2065,13 @@ class ModuleLoader:
             "author": "unknown",
             "version": "X.X.X",
             "description": "no description",
+            "description_i18n": {},
             "commands": {},
             "banner_url": None,
             "is_class_style": False,
         }
 
-        if "from core.lib.loader.module_base import ModuleBase" in code:
+        if re.search(r"class\s+\w+\s*\(\s*ModuleBase\s*\):", code):
             class_match = re.search(
                 r"class\s+(\w+)\s*\(\s*ModuleBase\s*\):(.*?)(?=\n(?:class\s|\Z))",
                 code,
@@ -2064,19 +2093,32 @@ class ModuleLoader:
                 if author_m:
                     metadata["author"] = author_m.group(1).strip()
 
-                desc_m = re.search(
-                    r"description\s*=\s*\{([^}]+)\}", class_body, re.DOTALL
+                desc_map_m = re.search(
+                    r"description\s*=\s*\{([^}]*)\}", class_body, re.DOTALL
                 )
-                if desc_m:
-                    desc_block = desc_m.group(1)
-                    for lang_pat in [
-                        r"['\"]ru['\"]\s*:\s*['\"]([^'\"]+)['\"]",
-                        r"['\"]en['\"]\s*:\s*['\"]([^'\"]+)['\"]",
-                    ]:
-                        d = re.search(lang_pat, desc_block)
-                        if d:
-                            metadata["description"] = d.group(1).strip()
-                            break
+                if desc_map_m:
+                    desc_block = desc_map_m.group(1)
+                    localized = {}
+                    for key, value in re.findall(
+                        r"['\"]([a-zA-Z_-]+)['\"]\s*:\s*['\"]([^'\"]+)['\"]",
+                        desc_block,
+                    ):
+                        localized[key.lower()] = value.strip()
+                    if localized:
+                        metadata["description_i18n"] = localized
+                        metadata["description"] = self.pick_localized_text(
+                            localized,
+                            getattr(getattr(self, "k", None), "config", {}).get(
+                                "language", "en"
+                            ),
+                            metadata["description"],
+                        )
+                else:
+                    desc_text_m = re.search(
+                        r"description\s*=\s*['\"]([^'\"]+)['\"]", class_body
+                    )
+                    if desc_text_m:
+                        metadata["description"] = desc_text_m.group(1).strip()
 
                 banner_m = re.search(
                     r"banner_url\s*=\s*['\"]([^'\"]+)['\"]", class_body

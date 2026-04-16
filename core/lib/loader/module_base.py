@@ -2,6 +2,7 @@
 # Copyright (c) 2026 Шмелька | @hairpin00
 
 import asyncio
+import inspect
 from abc import ABC
 from typing import Any, Callable
 
@@ -432,6 +433,8 @@ class ModuleBase(ABC):
     dependencies: list = []
     banner_url: str | None = None
 
+    strings: dict = {}
+
     config: Any = None
 
     _cmd_registry: list = []
@@ -538,13 +541,63 @@ class ModuleBase(ABC):
                     self._config = val
                     break
 
-        for pattern, func, kwargs_cmd in type(self)._cmd_registry:
+        self._strings = None
+        module_class = type(self)
+        strings_dict = None
+        for klass in module_class.__mro__:
+            if "strings" in klass.__dict__:
+                val = klass.__dict__["strings"]
+                if not isinstance(val, property):
+                    strings_dict = val
+                    break
+        if strings_dict:
+            from utils.strings import Strings
 
-            async def wrapper(event: Any, f=func) -> None:
-                return await f(self, event)
+            self._strings = Strings(
+                self.kernel,
+                strings_dict,
+            )
+
+        owner_map = {}
+        for func, owner_info in type(self)._owner_registry:
+            owner_map[func.__name__] = owner_info
+
+        for pattern, func, kwargs_cmd in type(self)._cmd_registry:
+            method_name = func.__name__
+
+            async def wrapper(event: Any, f=func, instance=self) -> None:
+                return await f(instance, event)
 
             wrapper.__original__ = func
-            self._register.command(pattern, **kwargs_cmd)(wrapper)
+
+            if method_name in owner_map:
+                only_admin = owner_map[method_name].get("only_admin", False)
+
+                async def owner_wrapper(
+                    event: Any, f=wrapper, only_admin=only_admin
+                ) -> None:
+                    admin_id = getattr(self.kernel, "ADMIN_ID", None)
+                    sender_id = getattr(event, "sender_id", None)
+                    if admin_id is None or sender_id is None:
+                        return
+
+                    is_admin = int(sender_id) == int(admin_id)
+                    if only_admin:
+                        if not is_admin:
+                            return
+                    else:
+                        no_owner_method = getattr(event, "no_owner", None)
+                        if no_owner_method is not None and no_owner_method():
+                            return
+                        if not is_admin:
+                            return
+
+                    return await f(event)
+
+                owner_wrapper.__original__ = func
+                self._register.command(pattern, **kwargs_cmd)(owner_wrapper)
+            else:
+                self._register.command(pattern, **kwargs_cmd)(wrapper)
 
         for pattern, func in type(self)._inline_registry:
 
@@ -591,11 +644,6 @@ class ModuleBase(ABC):
 
             wrapper.__original__ = func
             self._register.bot_command(cmd_info["pattern"], **kwargs_cmd)(wrapper)
-
-        for func, owner_info in type(self)._owner_registry:
-            if not hasattr(self, "_owner_methods"):
-                self._owner_methods = {}
-            self._owner_methods[func.__name__] = owner_info
 
     def _register_event(
         self,
@@ -691,100 +739,27 @@ class ModuleBase(ABC):
         lock = getattr(self.kernel, "_inline_cb_lock")
         cb_map = self.kernel.inline_callback_map
 
-        now = time.time()
-        expired = [
-            k
-            for k, v in list(cb_map.items())
-            if v.get("expires_at") and v["expires_at"] < now
-        ]
-        for k in expired:
-            cb_map.pop(k, None)
+        with lock:
+            now = time.time()
+            expired = [
+                k
+                for k, v in list(cb_map.items())
+                if v.get("expires_at") and v["expires_at"] < now
+            ]
+            for k in expired:
+                cb_map.pop(k, None)
 
-        cb_map[tok] = {
-            "handler": wrapper,
-            "args": [],
-            "kwargs": {},
-            "expires_at": now + ttl if ttl else None,
-        }
-
-        self._callback_tokens = getattr(self, "_callback_tokens", [])
-        self._callback_tokens.append(tok)
-
-    def callback_button(
-        self,
-        text: str,
-        callback_func: Callable,
-        *,
-        ttl: int = 900,
-        args: tuple = (),
-        kwargs: dict | None = None,
-        data: dict | None = None,
-        pass_event: bool = True,
-        auto_answer: bool | None = None,
-        **button_kwargs,
-    ) -> Any:
-        """Create a callback button with auto-generated token.
-
-        Args:
-            text: Button label text.
-            callback_func: Function to call when button is clicked.
-            ttl: Time-to-live in seconds (default: 900). None for no expiry.
-            args: Positional arguments to pass to callback.
-            kwargs: Keyword arguments to pass to callback.
-            data: Additional data to store with callback (accessible in cb_map["data"]).
-            pass_event: Whether to pass event as first argument (default: True).
-            auto_answer: Auto-answer callback query (default: None, no action).
-            **button_kwargs: Additional arguments for Button.inline.
-        """
-        from telethon import Button
-
-        raw_func = getattr(callback_func, "__original__", callback_func)
-        instance = self
-        _kwargs = kwargs or {}
-        _data = data or {}
-
-        tok = uuid.uuid4().hex
-
-        import threading
-        import time
-
-        lock = getattr(self.kernel, "_inline_cb_lock")
-        cb_map = self.kernel.inline_callback_map
-
-        now = time.time()
-        expired = [
-            k
-            for k, v in list(cb_map.items())
-            if v.get("expires_at") and v["expires_at"] < now
-        ]
-        for k in expired:
-            cb_map.pop(k, None)
-
-        async def wrapper(event: Any, *a: Any, **kw: Any) -> None:
-            if pass_event:
-                result = raw_func(instance, event, *_kwargs, *_data, *a, **kw)
-            else:
-                result = raw_func(instance, *_kwargs, *_data, *a, **kw)
-            if asyncio.iscoroutine(result):
-                result = await result
-            if auto_answer is not None:
-                await event.answer(auto_answer)
-
-        cb_map[tok] = {
-            "handler": wrapper,
-            "args": args,
-            "kwargs": _kwargs,
-            "data": _data,
-            "expires_at": now + ttl if ttl else None,
-            "auto_answer": auto_answer,
-        }
+            cb_map[tok] = {
+                "handler": wrapper,
+                "args": [],
+                "kwargs": {},
+                "expires_at": now + ttl if ttl else None,
+            }
 
         self._callback_tokens = getattr(self, "_callback_tokens", [])
         self._callback_tokens.append(tok)
 
-        return Button.inline(text, tok.encode(), **button_kwargs)
-
-    class Button:
+    class ButtonFactory:
         """Button factory for creating various button types.
 
         Usage::
@@ -999,10 +974,16 @@ class ModuleBase(ABC):
             return self._telethon_button.style(btn, style)
 
     @property
-    def Button(self) -> type["ModuleBase.Button"]:
+    def Button(self) -> "ModuleBase.ButtonFactory":
         """Access button factory for creating various button types."""
         if not hasattr(self, "_button_factory"):
-            self._button_factory = self.Button(self)
+            button_class = getattr(type(self), "ButtonFactory", None)
+            if isinstance(button_class, type) and issubclass(
+                button_class, ModuleBase.ButtonFactory
+            ):
+                self._button_factory = button_class(self)
+            else:
+                self._button_factory = ModuleBase.ButtonFactory(self)
         return self._button_factory
 
     def callback_button(
@@ -1046,47 +1027,77 @@ class ModuleBase(ABC):
     ) -> Any:
         """Internal method to create callback button."""
         from telethon import Button
+        import threading
+        import time
+
+        if not hasattr(self.kernel, "inline_callback_map"):
+            self.kernel._inline_cb_lock = threading.Lock()
+            self.kernel.inline_callback_map = {}
 
         raw_func = getattr(callback_func, "__original__", callback_func)
         instance = self
         _kwargs = kwargs or {}
         _data = data or {}
+        is_bound_method = (
+            inspect.ismethod(raw_func)
+            and getattr(raw_func, "__self__", None) is not None
+        )
+        accepts_var_kw = False
+        accepts_data_kw = False
+        try:
+            sig = inspect.signature(raw_func)
+            accepts_var_kw = any(
+                p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
+            )
+            accepts_data_kw = "data" in sig.parameters
+        except (TypeError, ValueError):
+            pass
 
         tok = uuid.uuid4().hex
-
-        import threading
-        import time
 
         lock = getattr(self.kernel, "_inline_cb_lock")
         cb_map = self.kernel.inline_callback_map
 
-        now = time.time()
-        expired = [
-            k
-            for k, v in list(cb_map.items())
-            if v.get("expires_at") and v["expires_at"] < now
-        ]
-        for k in expired:
-            cb_map.pop(k, None)
+        with lock:
+            now = time.time()
+            expired = [
+                k
+                for k, v in list(cb_map.items())
+                if v.get("expires_at") and v["expires_at"] < now
+            ]
+            for k in expired:
+                cb_map.pop(k, None)
 
         async def wrapper(event: Any, *a: Any, **kw: Any) -> None:
+            call_kwargs = dict(kw)
+            if accepts_data_kw and "data" not in call_kwargs:
+                call_kwargs["data"] = _data or None
+            elif _data and accepts_var_kw and "data" not in call_kwargs:
+                call_kwargs["data"] = _data
             if pass_event:
-                result = raw_func(instance, event, *_kwargs, *_data, *a, **kw)
+                if is_bound_method:
+                    result = raw_func(event, *a, **call_kwargs)
+                else:
+                    result = raw_func(instance, event, *a, **call_kwargs)
             else:
-                result = raw_func(instance, *_kwargs, *_data, *a, **kw)
+                if is_bound_method:
+                    result = raw_func(*a, **call_kwargs)
+                else:
+                    result = raw_func(instance, *a, **call_kwargs)
             if asyncio.iscoroutine(result):
                 result = await result
             if auto_answer is not None:
                 await event.answer(auto_answer)
 
-        cb_map[tok] = {
-            "handler": wrapper,
-            "args": args,
-            "kwargs": _kwargs,
-            "data": _data,
-            "expires_at": now + ttl if ttl else None,
-            "auto_answer": auto_answer,
-        }
+        with lock:
+            cb_map[tok] = {
+                "handler": wrapper,
+                "args": args,
+                "kwargs": _kwargs,
+                "data": _data,
+                "expires_at": now + ttl if ttl else None,
+                "auto_answer": auto_answer,
+            }
 
         self._callback_tokens = getattr(self, "_callback_tokens", [])
         self._callback_tokens.append(tok)
@@ -1158,6 +1169,11 @@ class ModuleBase(ABC):
         """Expose config object to module methods."""
         return self._config
 
+    @property
+    def strings(self) -> Any:
+        """Expose strings object to module methods."""
+        return self._strings
+
     async def save_config(self) -> None:
         """Save config to database when it changes."""
         if self._config is not None:
@@ -1169,3 +1185,47 @@ class ModuleBase(ABC):
                     self.kernel._live_module_configs[self.name] = self._config
             except Exception as e:
                 self.log.warning(f"Failed to save config for {self.name}: {e}")
+
+    async def import_lib(self, url: str, *, name: str | None = None) -> Any:
+        """
+        Download and import external library from URL.
+
+        Downloads Python code from URL and imports it as a module.
+        Useful for importing shared libraries like xlib.
+
+        Args:
+            url: URL to download the library from.
+            name: Optional module name (defaults to last path component).
+
+        Returns:
+            Imported module.
+
+        Examples:
+            self.xlib = await self.import_lib("https://raw.githubusercontent.com/...")
+            text = self.xlib.format_size(1024)
+        """
+        import sys
+        import types
+        import urllib.request
+
+        if name is None:
+            name = url.split("/")[-1]
+            if name.endswith(".py"):
+                name = name[:-3]
+            elif not name:
+                name = "xlib"
+
+        try:
+            with urllib.request.urlopen(url) as response:
+                code = response.read().decode("utf-8")
+
+            module = types.ModuleType(name)
+            sys.modules[name] = module
+
+            exec(code, module.__dict__)
+            self.log.info(f"Imported library: {name} from {url}")
+            return module
+
+        except Exception as e:
+            self.log.error(f"Failed to import lib {name}: {e}")
+            raise

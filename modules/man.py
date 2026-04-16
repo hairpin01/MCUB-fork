@@ -67,10 +67,22 @@ def get_module_commands(module_name, kernel, lang=None):
     return kernel._loader.get_module_commands(module_name, lang)
 
 
+def pick_description(metadata: dict, kernel, strings: dict) -> str:
+    """Return module description using current kernel language."""
+    lang = kernel.config.get("language", "ru")
+    i18n = metadata.get("description_i18n")
+    fallback = metadata.get("description", strings["no_description"])
+    return kernel._loader.pick_localized_text(i18n, lang, fallback)
+
+
 def resolve_module_path(name: str, typ: str, kernel) -> str:
     """Return module file path (system or user)."""
     if typ == "system":
         return f"{kernel.MODULES_DIR}/{name}.py"
+
+    resolved = kernel._loader.get_module_path(name)
+    if resolved:
+        return resolved
 
     # Check for package directory (archive modules with local imports)
     package_dir = f"{kernel.MODULES_LOADED_DIR}/{name}"
@@ -80,28 +92,6 @@ def resolve_module_path(name: str, typ: str, kernel) -> str:
             return init_file
 
     return f"{kernel.MODULES_LOADED_DIR}/{name}.py"
-
-    # Search for class-style modules by class attribute "name = '...'"
-    try:
-        for fname in os.listdir(kernel.MODULES_LOADED_DIR):
-            fpath = os.path.join(kernel.MODULES_LOADED_DIR, fname)
-            if not (os.path.isfile(fpath) and fname.endswith(".py")):
-                continue
-            try:
-                with open(fpath, "r", encoding="utf-8") as f:
-                    code = f.read()
-                pattern = (
-                    r'class\s+\w+\s*\([^)]*\):[^}]*?name\s*=\s*["\']([^"\']+)["\']'
-                )
-                for match in re.finditer(pattern, code, re.DOTALL):
-                    if match.group(1) == name:
-                        return fpath
-            except:
-                pass
-    except OSError:
-        pass
-
-    return default_path
 
 
 async def load_module_metadata(name: str, typ: str, kernel, strings) -> dict:
@@ -115,6 +105,7 @@ async def load_module_metadata(name: str, typ: str, kernel, strings) -> dict:
         return {
             "commands": {},
             "description": strings["no_description"],
+            "description_i18n": {},
             "version": "?.?.?",
             "author": strings["unknown"],
             "banner_url": None,
@@ -135,6 +126,7 @@ async def load_module_metadata(name: str, typ: str, kernel, strings) -> dict:
         metadata = {
             "commands": {},
             "description": strings["no_description"],
+            "description_i18n": {},
             "version": "?.?.?",
             "author": strings["unknown"],
             "banner_url": None,
@@ -253,7 +245,8 @@ async def _build_module_detail(match_tuple, kernel, strings):
     metadata = await load_module_metadata(name, typ, kernel, strings)
 
     msg = f"{CUSTOM_EMOJI['dna']} <b>{strings['module']}</b> <code>{display_name}</code>:\n"
-    msg += f"{CUSTOM_EMOJI['alembic']} <b>{strings['description']}:</b> <i>{metadata.get('description', strings['no_description'])}</i>\n"
+    description = pick_description(metadata, kernel, strings)
+    msg += f"{CUSTOM_EMOJI['alembic']} <b>{strings['description']}:</b> <i>{description}</i>\n"
     msg += f"{CUSTOM_EMOJI['snowflake']} <b>{strings['version']}:</b> <code>{metadata.get('version', '1.0.0')}</code>\n"
     msg += "<blockquote expandable>"
     if commands:

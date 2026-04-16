@@ -175,7 +175,6 @@ def register(kernel):
             },
         )
         config.from_dict(config_dict)
-        await kernel.save_module_config(__name__, config.to_dict())
         kernel.store_module_config_schema(__name__, config)
 
     asyncio.create_task(startup())

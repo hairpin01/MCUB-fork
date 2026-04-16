@@ -119,3 +119,100 @@ class TestDatabaseManagerHard:
             await db.db_set("bad module", "k", "v")
         with pytest.raises(ValueError):
             await db.db_get("module", "bad key")
+
+    async def test_db_query_blocks_semicolon(self):
+        db = DatabaseManager(_make_kernel())
+        db.conn = AsyncMock()
+
+        with pytest.raises(PermissionError):
+            await db.db_query("SELECT 1; SELECT 2")
+        with pytest.raises(PermissionError):
+            await db.db_query("SELECT 1; SELECT 2; SELECT 3")
+
+    async def test_db_query_allows_trailing_semicolon(self):
+        db = DatabaseManager(_make_kernel())
+        db.conn = AsyncMock()
+        cursor = AsyncMock()
+        cursor.fetchall = AsyncMock(return_value=[("ok",)])
+        db.conn.execute = AsyncMock(return_value=cursor)
+
+        rows = await db.db_query("SELECT 1;")
+        assert rows == [("ok",)]
+
+    async def test_db_query_strips_comments(self):
+        db = DatabaseManager(_make_kernel())
+        db.conn = AsyncMock()
+        cursor = AsyncMock()
+        cursor.fetchall = AsyncMock(return_value=[("ok",)])
+        db.conn.execute = AsyncMock(return_value=cursor)
+
+        await db.db_query("SELECT/**/ 1")
+        db.conn.execute.assert_awaited()
+
+        db.conn.execute.reset_mock()
+        await db.db_query("SELECT-- comment\n 1")
+        db.conn.execute.assert_awaited()
+
+    async def test_db_query_blocks_drop_via_comment_with_semicolon(self):
+        db = DatabaseManager(_make_kernel())
+        db.conn = AsyncMock()
+
+        with pytest.raises(PermissionError):
+            await db.db_query("SELECT/**/; DROP TABLE users")
+
+    async def test_db_query_blocks_inline_comment_injection(self):
+        db = DatabaseManager(_make_kernel())
+        db.conn = AsyncMock()
+
+        with pytest.raises(PermissionError):
+            await db.db_query("SELECT 1 -- comment\n; DROP TABLE users")
+
+    async def test_db_query_blocks_dangerous_pragma(self):
+        db = DatabaseManager(_make_kernel())
+        db.conn = AsyncMock()
+
+        with pytest.raises(PermissionError):
+            await db.db_query("PRAGMA journal_mode=WAL")
+        with pytest.raises(PermissionError):
+            await db.db_query("PRAGMA writable_schema=1")
+
+    async def test_db_query_blocks_safe_pragma(self):
+        db = DatabaseManager(_make_kernel())
+        db.conn = AsyncMock()
+        cursor = AsyncMock()
+        cursor.fetchall = AsyncMock(return_value=[])
+        db.conn.execute = AsyncMock(return_value=cursor)
+
+        await db.db_query("PRAGMA table_info(module_data)")
+        db.conn.execute.assert_awaited()
+
+    async def test_db_query_blocks_sqlite_master_access(self):
+        db = DatabaseManager(_make_kernel())
+        db.conn = AsyncMock()
+
+        with pytest.raises(PermissionError):
+            await db.db_query("SELECT * FROM sqlite_master")
+
+    async def test_db_query_blocks_sqlite_temp_master(self):
+        db = DatabaseManager(_make_kernel())
+        db.conn = AsyncMock()
+
+        with pytest.raises(PermissionError):
+            await db.db_query("SELECT * FROM sqlite_temp_master")
+
+    async def test_db_query_blocks_pragma_without_space(self):
+        db = DatabaseManager(_make_kernel())
+        db.conn = AsyncMock()
+
+        with pytest.raises(PermissionError):
+            await db.db_query('PRAGMA"writable_schema"=ON')
+
+    async def test_db_query_allows_semicolon_in_string(self):
+        db = DatabaseManager(_make_kernel())
+        db.conn = AsyncMock()
+        cursor = AsyncMock()
+        cursor.fetchall = AsyncMock(return_value=[("",)])
+        db.conn.execute = AsyncMock(return_value=cursor)
+
+        rows = await db.db_query("SELECT '; DROP TABLE users'")
+        assert rows == [("",)]

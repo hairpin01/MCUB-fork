@@ -321,3 +321,130 @@ self.xlib.format_size(1024, "ru")  # "1 КБ"
 self.xlib.format_duration(3600, locale="ru")  # "1 час"
 self.xlib.format_delta(time.time() - 300, "ru")  # "5 мин назад"
 ```
+
+---
+
+## Menu Class
+
+Hierarchical inline menu with callback binding.
+
+### `Menu(module, title="", cols=2, show_back=True)`
+
+Create menu instance.
+
+```python
+menu = Menu(self, "Main Menu")
+```
+
+### `menu.add(label, callback)`
+
+Add action item.
+
+```python
+menu.add("Settings", self.show_settings)
+menu.add("Profile", self.show_profile)  # callback = callable
+```
+
+### `menu.add_submenu(label, submenu)`
+
+Add submenu.
+
+```python
+profile_menu = Menu(self, "Profile")
+menu.add_submenu("Profile", profile_menu)
+```
+
+### `menu.add_url(label, url)`
+
+Add URL button.
+
+```python
+menu.add_url("Help", "https://example.com")
+```
+
+### `await menu.show(event, edit=True)`
+
+Show menu. Use `edit=True` for `event.edit()`, `False` for `event.reply()`.
+
+```python
+await menu.show(event)
+```
+
+### Callback Handling
+
+In your callback handler, call `menu.handle_callback()`:
+
+```python
+@kernel.register.event("callbackquery")
+async def on_callback(event):
+    data = event.data.decode()
+    if data.startswith("menu:"):
+        await self.main_menu.handle_callback(event, data)
+```
+
+---
+
+## Paginator Class
+
+Customizable pagination.
+
+### `Paginator(module, items, per_page=10)`
+
+Create paginator.
+
+```python
+paginator = Paginator(self, items, per_page=10)
+```
+
+### `paginator.format_item(item, index)` (override)
+
+Custom item format.
+
+```python
+paginator.format_item = lambda item, i: f"{i+1}. {item['name']}"
+```
+
+### `paginator.get_buttons(page, total)` (override)
+
+Custom buttons.
+
+```python
+paginator.get_buttons = lambda p, page: [
+    [Button.inline("◀", f"prev:{page-1}"), Button.inline("▶", f"next:{page+1}")]
+]
+]
+```
+
+### `await paginator.show(event, edit=True)`
+
+Show current page.
+
+```python
+await paginator.show(event)
+```
+
+---
+
+## ask Function
+
+Wait for user answer AFTER you've sent the question.
+
+Does NOT send message - you must send the question manually first.
+
+### `await ask(module, event, timeout=60, cancel_word="cancel")`
+
+Returns:
+    asyncio.Future - await this to get the event, or None if cancel/timeout.
+
+```python
+# 1. Send question manually
+await event.edit("Your name?")
+
+# 2. Wait for answer
+msg_event = await ask(self, event)
+
+if msg_event:
+    # msg_event is the message event from user
+    await event.respond(f"Hello, {msg_event.raw_text}!")
+# If user typed "cancel" or timeout -> msg_event is None
+```

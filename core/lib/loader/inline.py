@@ -555,10 +555,6 @@ class InlineManager:
                 k.logger.debug("[inline] result_index reset to 0")
 
             click_kwargs = {}
-            if buttons:
-                rows = self._format_telethon_buttons(buttons)
-                if rows:
-                    click_kwargs["buttons"] = rows
             if silent:
                 click_kwargs["silent"] = silent
             if reply_to:

@@ -125,6 +125,59 @@ async def cmd_admin(self, event):
 **Parameters:**
 - `only_admin` (bool): If True, only bot admins can use this command (default: False)
 
+### `@permission(**tags)`
+
+Decorator for applying event filters to handlers, similar to `@watcher`. Can be stacked on commands, bot commands, watchers, and events.
+
+```python
+@command("secret")
+@permission(only_pm=True, out=True)
+async def cmd_secret(self, event):
+    await event.reply("Secret!")
+
+@command("group")
+@permission(only_groups=True, contains="!stats")
+async def cmd_stats(self, event):
+    await event.reply("Stats!")
+```
+
+**Available tags:** Same as `@watcher`:
+- Direction: `incoming`, `out`
+- Chat type: `only_pm`, `no_pm`, `only_groups`, `no_groups`, `only_channels`, `no_channels`
+- Content: `only_media`, `no_media`, `only_photos`, `no_videos`, `only_audios`, `only_docs`, `only_stickers`
+- Other: `only_forwards`, `no_forwards`, `only_reply`, `no_reply`
+- Text matching: `regex="pattern"`, `startswith="text"`, `endswith="text"`, `contains="text"`
+- IDs: `from_id=<int>`, `chat_id=<int>`
+
+**Use cases:**
+- Filter commands to specific chat types
+- Add regex/text matching conditions to commands
+- Combine with `@owner` for both permission and chat type filtering
+
+### `@error_handler(*, log_level="error", reraise=False, message=None)`
+
+Decorator for automatic error handling in module methods. Catches exceptions and logs them with optional custom message.
+
+```python
+@error_handler(log_level="warning", message="Command {func} failed: {exc}")
+async def cmd_risky(self, event):
+    await self.process(event)
+
+@error_handler(reraise=True)
+async def cmd_critical(self, event):
+    await self.critical_operation()
+```
+
+**Parameters:**
+- `log_level` (str): Logging level — "error", "warning", "info" (default: "error")
+- `reraise` (bool): If True, reraise exception after logging (default: False)
+- `message` (str): Custom message template with `{exc}`, `{func}`, `{module}` placeholders
+
+**Use cases:**
+- Graceful error logging without breaking command flow
+- Custom error messages for debugging
+- Conditional reraise for critical operations
+
 ### `@callback(ttl=900)`
 
 Decorator for inline callback handlers. Generates a uuid and registers the handler in `kernel.inline_callback_map`.
@@ -271,13 +324,14 @@ async def status_checker(self):
     # Manual start via button
     ...
 
-# Store loop references for reliable access
-heartbeat_loop = heartbeat
-status_checker_loop = status_checker
-
+# Loop is automatically bound to instance as attribute
 @command("startcheck")
 async def cmd_start(self, event):
-    self.status_checker_loop.start()
+    self.status_checker.start()  # Start the loop by name
+
+@command("stopcheck")
+async def cmd_stop(self, event):
+    self.status_checker.stop()  # Stop the loop
 ```
 
 **Parameters:**
@@ -285,28 +339,47 @@ async def cmd_start(self, event):
 - `autostart` (bool): Start automatically on load (default: True)
 - `wait_before` (bool): Sleep before first iteration (default: False)
 
-**Instance attribute:** `self._loops` - List of `InfiniteLoop` instances.
+**Loop Instance Attributes:**
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `loop.start()` | method | Start the loop |
+| `loop.stop()` | method | Stop the loop gracefully |
+| `loop.restart()` | method | Restart (stop + start) |
+| `loop.is_running` | property | True if loop is active |
+| `loop.interval` | int | Seconds between iterations |
+| `loop.status` | bool | Loop running state |
+| `loop.last_run` | float | Timestamp of last iteration |
+| `loop.last_error` | Exception | Last exception raised |
+| `loop.fail_count` | int | Consecutive failure count |
 
 ```python
-# Store loop reference as class attribute for reliable access
-@loop(interval=300, autostart=False)
-async def heartbeat(self):
-    await self.client.send_message("me", "Heartbeat!")
+@loop(interval=60, autostart=True)
+async def worker(self):
+    try:
+        await self.do_work()
+    except Exception as e:
+        self.log.error(f"Work failed: {e}")
 
-# Store the loop object
-heartbeat_loop = heartbeat
+@command("status")
+async def cmd_status(self, event):
+    w = self.worker  # Access loop by method name
+    await event.edit(
+        f"Worker: running={w.is_running}, "
+        f"last_run={w.last_run}, "
+        f"failures={w.fail_count}"
+    )
 
-@command("startbeat")
-async def cmd_startbeat(self, event):
-    self.heartbeat_loop.start()  # Start the loop
-
-@command("stopbeat")
-async def cmd_stopbeat(self, event):
-    self.heartbeat_loop.stop()  # Stop the loop
+@command("restart_worker")
+async def cmd_restart(self, event):
+    self.worker.restart()
+    await event.edit("Worker restarted!")
 ```
 
 > [!TIP]
-> Avoid `self._loops[0]` — loop order depends on class definition. Use a named reference instead.
+> Loops are bound to the instance automatically. Use `self.loop_name` to access loop control methods.
+
+**Instance attribute:** `self._loops` - List of `InfiniteLoop` instances.
 
 ## Instance Attributes
 
@@ -317,11 +390,119 @@ The `__init__` method provides convenient access to kernel resources:
 | `self.kernel` | Kernel instance |
 | `self.client` | Userbot client |
 | `self._register` | Register instance |
-| `self.log` | Logger (`kernel.logger`) |
+| `self.log` | Logger with module name prefix (`[ModuleName] message`) |
 | `self.db` | Database manager |
 | `self.cache` | Cache instance |
 | `self._loaded` | Load state flag |
 | `self._loops` | List of InfiniteLoop instances |
+
+### Logger with Module Prefix
+
+The `self.log` attribute automatically adds the module name as a prefix to all log messages.
+
+```python
+class MyModule(ModuleBase):
+    name = "MyModule"
+
+    async def on_load(self):
+        # Output: [MyModule] Module initialized
+        self.log.info("Module initialized")
+
+    @command("test")
+    async def cmd_test(self, event):
+        # Output: [MyModule] Command executed
+        self.log.debug("Command executed")
+```
+
+This helps identify which module produced log entries when troubleshooting.
+
+### Runtime Helpers
+
+Class-style modules provide convenient runtime helpers for common tasks.
+
+#### Text and Arguments
+
+```python
+@command("demo")
+async def cmd_demo(self, event):
+    # Parse arguments from event text
+    parser = self.args(event)
+    # parser.command - command name (without prefix)
+    # parser.args - list of positional arguments
+    # parser.get(0, default) - get positional arg by index
+    # parser.get_flag("flag") - check if flag exists
+    # parser.get_kwarg("key") - get named argument
+    # parser.kwargs - dict of all kwargs
+
+    # Raw argument string
+    raw = self.args_raw(event)
+
+    # Arguments preserving HTML formatting
+    html = self.args_html(event)
+```
+
+#### Prefix and Language
+
+```python
+@command("test")
+async def cmd_test(self, event):
+    # Get current command prefix
+    prefix = self.get_prefix()  # e.g., "."
+
+    # Get current language
+    lang = self.get_lang()  # e.g., "ru" or "en"
+```
+
+#### Message Helpers
+
+```python
+@command("reply")
+async def cmd_reply(self, event):
+    # Unified answer - detects edit/reply/send automatically
+    await self.answer(event, "Hello!")
+
+    # Edit existing message (or send if not editable)
+    await self.edit(event, "Updated!")
+
+    # Reply to message
+    await self.reply(event, "Replied!")
+
+# All helpers support HTML and buttons
+await self.answer(event, "<b>Bold</b>", as_html=True)
+await self.edit(event, "Text", reply_markup=[[btn]], as_html=True)
+```
+
+#### Module Lookup
+
+```python
+@command("call")
+async def cmd_call(self, event):
+    # Lookup another loaded module by name
+    notes = self.lookup_module("Notes")
+
+    # Require a module (raises LookupError if not found)
+    notes = self.require_module("Notes")
+    # Use the required module's methods
+    await notes.add_note(event, "text")
+```
+
+**Helper methods:**
+
+| Method | Description |
+|--------|-------------|
+| `self.args(event)` | Returns `ArgumentParser` for command arguments |
+| `self.args_raw(event)` | Raw argument string after command |
+| `self.args_html(event)` | Arguments with HTML preserved |
+| `self.get_prefix()` | Current command prefix (e.g., `.`) |
+| `self.get_lang()` | Current language code |
+| `self.answer(event, text, **kwargs)` | Universal send/edit/reply |
+| `self.edit(event, text, **kwargs)` | Edit or send message |
+| `self.reply(event, text, **kwargs)` | Reply to message |
+| `self.lookup_module(name)` | Find module by name (returns `None` if not found) |
+| `self.require_module(name)` | Find module or raise `LookupError` |
+| `self.get_prefix()` | Get current command prefix |
+| `self.get_lang()` | Get current language |
+| `self.inline(chat_id, title, ...)` | Send inline form message |
 
 ### Database and Cache Usage
 
@@ -384,6 +565,34 @@ class MyModule(ModuleBase):
 - Fallback to `ru` if key not found in current locale
 - Formatting via `self.strings("key", var=value)`
 - Attribute access via `self.strings["key"]`
+- **Flat mode**: Simple strings auto-expand to all locales
+
+**Flat Mode:**
+
+For simple modules, you can use flat string dictionaries without nested locale:
+
+```python
+class MyModule(ModuleBase):
+    name = "MyModule"
+    # Flat mode - auto-expands to all locales
+    strings = {
+        "hello": "Hello {name}!",
+        "bye": "Goodbye!",
+    }
+
+    @command("hi")
+    async def cmd_hi(self, event):
+        await self.edit(self.strings("hello", name="World"))
+```
+
+This automatically expands to:
+```python
+strings = {
+    "ru": {"hello": "Hello {name}!", "bye": "Goodbye!"},
+    "en": {"hello": "Hello {name}!", "bye": "Goodbye!"},
+    # ... other locales
+}
+```
 
 **Methods:**
 
@@ -485,6 +694,53 @@ async def on_install(self) -> None:
 ```
 
 If you use `@on_install`, call `await super().on_install()` inside your override.
+
+### `async def on_reload()`
+
+Called after the module is reloaded via the `reload` command (but not on initial load).
+
+```python
+async def on_reload(self) -> None:
+    self.log.info("Module reloaded, refreshing state...")
+    # Re-initialize any runtime state
+```
+
+**When to use:**
+- Reset transient state that doesn't persist across reloads
+- Refresh cached data from database
+- Log reload events for debugging
+
+> [!NOTE]
+> `on_reload` is only called during `.reload` command execution, not during initial module load. Use `on_load` for initial setup.
+
+### `async def on_config_update(key, old_value, new_value)`
+
+Called when kernel config is updated at runtime.
+
+```python
+async def on_config_update(self, key: str, old_value: Any, new_value: Any) -> None:
+    self.log.info(f"Config {key} changed: {old_value} -> {new_value}")
+    if key == "prefix":
+        self._prefix = new_value
+```
+
+**Parameters:**
+- `key`: Config key that changed
+- `old_value`: Previous value
+- `new_value`: New value
+
+### `async def on_language_change(new_lang)`
+
+Called when the bot language changes.
+
+```python
+async def on_language_change(self, new_lang: str) -> None:
+    self.log.info(f"Language switched to: {new_lang}")
+    # Refresh any cached strings
+```
+
+**Parameters:**
+- `new_lang`: New language code (e.g., "ru", "en")
 
 ## Buttons
 

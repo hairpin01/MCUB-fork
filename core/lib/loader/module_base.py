@@ -2,11 +2,19 @@
 # Copyright (c) 2026 Шмелька | @hairpin00
 
 import asyncio
+import copy
 import inspect
+import logging
 from abc import ABC
 from typing import Any, Callable
 
 import uuid
+
+
+class _ModuleLoggerAdapter(logging.LoggerAdapter):
+    def process(self, msg: str, kwargs: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+        module_name = self.extra.get("module_name", "Unnamed")
+        return f"[{module_name}] {msg}", kwargs
 
 
 def command(
@@ -391,6 +399,55 @@ def owner(only_admin: bool = False) -> Callable:
     return decorator
 
 
+def permission(**tags: Any) -> Callable:
+    """Apply watcher-style event filters to class-style handlers.
+
+    Supports the same tag names as ``@watcher(...)`` and can be stacked on
+    commands, bot commands, watchers, and custom events.
+    """
+
+    def decorator(f: Callable) -> Callable:
+        if not hasattr(f, "_mcub_permissions"):
+            f._mcub_permissions = []
+        f._mcub_permissions.append(tags)
+        return f
+
+    return decorator
+
+
+def error_handler(
+    *,
+    log_level: str = "error",
+    reraise: bool = False,
+    message: str | None = None,
+) -> Callable:
+    """Decorator for automatic error handling in module methods.
+
+    Catches exceptions and logs them with optional custom message.
+    Can optionally reraise the exception after logging.
+
+    Args:
+        log_level: Logging level for the error ("error", "warning", "info")
+        reraise: If True, reraise the exception after logging
+        message: Custom error message template (supports {exc}, {func}, {module})
+
+    Example:
+        @error_handler(log_level="warning", message="Command {func} failed: {exc}")
+        async def cmd_test(self, event):
+            ...
+    """
+
+    def decorator(f: Callable) -> Callable:
+        if not hasattr(f, "_mcub_error_handler"):
+            f._mcub_error_handler = []
+        f._mcub_error_handler.append(
+            {"log_level": log_level, "reraise": reraise, "message": message}
+        )
+        return f
+
+    return decorator
+
+
 class ModuleBase(ABC):
     """
     Base class for class-style MCUB modules.
@@ -448,6 +505,21 @@ class ModuleBase(ABC):
     _uninstall_registry: list = []
     _bot_cmd_registry: list = []
     _owner_registry: list = []
+    _permission_registry: list = []
+    _error_handler_registry: list = []
+
+    def __getattribute__(self, name: str) -> Any:
+        if name == "config":
+            try:
+                return object.__getattribute__(self, "_get_config")()
+            except AttributeError:
+                pass
+        if name == "strings":
+            try:
+                return object.__getattribute__(self, "_get_strings")()
+            except AttributeError:
+                pass
+        return object.__getattribute__(self, name)
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
@@ -462,6 +534,8 @@ class ModuleBase(ABC):
         cls._uninstall_registry = []
         cls._bot_cmd_registry = []
         cls._owner_registry = []
+        cls._permission_registry = []
+        cls._error_handler_registry = []
 
         for name_attr, attr in cls.__dict__.items():
             if not callable(attr):
@@ -513,6 +587,12 @@ class ModuleBase(ABC):
             if hasattr(attr, "_mcub_owner"):
                 for owner_info in attr._mcub_owner:
                     cls._owner_registry.append((attr, owner_info))
+            if hasattr(attr, "_mcub_permissions"):
+                for permission_info in attr._mcub_permissions:
+                    cls._permission_registry.append((attr, permission_info))
+            if hasattr(attr, "_mcub_error_handler"):
+                for handler_info in attr._mcub_error_handler:
+                    cls._error_handler_registry.append((attr, handler_info))
 
     def __init__(self, kernel: Any, client: Any, register: Any) -> None:
         self.kernel = kernel
@@ -532,6 +612,7 @@ class ModuleBase(ABC):
 
         self._config = None
         self.name = type(self).name
+        self.log = _ModuleLoggerAdapter(kernel.logger, {"module_name": self.name})
 
         module_class = type(self)
         for klass in module_class.__mro__:
@@ -550,22 +631,68 @@ class ModuleBase(ABC):
                 if not isinstance(val, property):
                     strings_dict = val
                     break
-        if strings_dict:
-            from utils.strings import Strings
+        if strings_dict and len(strings_dict) > 0:
+            try:
+                kernel.logger.debug(
+                    f"[strings] Found strings_dict keys: {list(strings_dict.keys())}"
+                )
+                from utils.strings import Strings
 
-            self._strings = Strings(
-                self.kernel,
-                strings_dict,
+                if all(isinstance(v, dict) for v in strings_dict.values()):
+                    problems = Strings.validate(strings_dict)
+                    for problem in problems:
+                        self.log.warning(f"strings validation: {problem}")
+
+                self._strings = Strings(
+                    self.kernel,
+                    copy.deepcopy(strings_dict),
+                )
+                kernel.logger.debug(
+                    f"[strings] Init OK for {self.name}: locale={self._strings.locale}, keys={list(self._strings.keys())}"
+                )
+            except Exception as e:
+                import traceback
+
+                kernel.logger.error(
+                    f"[strings] FAIL to init {self.name}: {e}\n{traceback.format_exc()}"
+                )
+                self._strings = None
+        else:
+            kernel.logger.debug(
+                f"[strings] NO strings_dict for {self.name} MRO={[k.__name__ for k in module_class.__mro__]}"
             )
+            self._strings = None
 
         owner_map = {}
         for func, owner_info in type(self)._owner_registry:
             owner_map[func.__name__] = owner_info
 
+        permission_map: dict[str, dict[str, Any]] = {}
+        for func, permission_info in type(self)._permission_registry:
+            permission_map.setdefault(func.__name__, {}).update(permission_info)
+
+        error_handler_map: dict[str, dict[str, Any]] = {}
+        for func, handler_info in type(self)._error_handler_registry:
+            error_handler_map[func.__name__] = handler_info
+
         for pattern, func, kwargs_cmd in type(self)._cmd_registry:
             method_name = func.__name__
 
-            async def wrapper(event: Any, f=func, instance=self) -> None:
+            async def wrapper(
+                event: Any,
+                f=func,
+                instance=self,
+                permission_tags=permission_map.get(method_name),
+                error_handler=error_handler_map.get(method_name),
+            ) -> None:
+                if permission_tags and not instance._passes_permission_tags(
+                    event, permission_tags
+                ):
+                    return
+                if error_handler:
+                    return await instance._run_with_error_handler(
+                        f, instance, event, error_handler
+                    )
                 return await f(instance, event)
 
             wrapper.__original__ = func
@@ -614,11 +741,21 @@ class ModuleBase(ABC):
             self._register_loop(func, interval, autostart, wait_before)
 
         for func, bot_client, tags in type(self)._watcher_registry:
-            self._register_watcher(func, bot_client, **tags)
+            self._register_watcher(
+                func,
+                bot_client,
+                permission_tags=permission_map.get(func.__name__),
+                **tags,
+            )
 
         for func, event_type, args, bot_client, kwargs in type(self)._event_registry:
             self._register_event(
-                func, event_type, *args, bot_client=bot_client, **kwargs
+                func,
+                event_type,
+                *args,
+                bot_client=bot_client,
+                permission_tags=permission_map.get(func.__name__),
+                **kwargs,
             )
 
         for func in type(self)._method_registry:
@@ -639,7 +776,15 @@ class ModuleBase(ABC):
             }
             kwargs_cmd = {k: v for k, v in kwargs_cmd.items() if v is not None}
 
-            async def wrapper(event: Any, f=func) -> None:
+            async def wrapper(
+                event: Any,
+                f=func,
+                permission_tags=permission_map.get(func.__name__),
+            ) -> None:
+                if permission_tags and not self._passes_permission_tags(
+                    event, permission_tags
+                ):
+                    return
                 return await f(self, event)
 
             wrapper.__original__ = func
@@ -651,6 +796,7 @@ class ModuleBase(ABC):
         event_type: str,
         *args: Any,
         bot_client: bool = False,
+        permission_tags: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
         """Register a custom event handler via register.py."""
@@ -659,6 +805,10 @@ class ModuleBase(ABC):
             user_module.register = type("RegisterObject", (), {})()
 
         async def bound_wrapper(event: Any) -> None:
+            if permission_tags and not self._passes_permission_tags(
+                event, permission_tags
+            ):
+                return
             return await func(self, event)
 
         bound_wrapper.__original__ = func
@@ -686,10 +836,15 @@ class ModuleBase(ABC):
             interval, autostart, wait_before, module=user_module
         )(bound_wrapper)
         self._loops.append(loop)
+        setattr(self, func.__name__, loop)
         return loop
 
     def _register_watcher(
-        self, func: Callable, bot_client: bool = False, **tags: Any
+        self,
+        func: Callable,
+        bot_client: bool = False,
+        permission_tags: dict[str, Any] | None = None,
+        **tags: Any,
     ) -> None:
         """Register a message watcher via register.py."""
         user_module = self._get_user_module()
@@ -697,6 +852,10 @@ class ModuleBase(ABC):
             user_module.register = type("RegisterObject", (), {})()
 
         async def bound_wrapper(event: Any) -> None:
+            if permission_tags and not self._passes_permission_tags(
+                event, permission_tags
+            ):
+                return
             return await func(self, event)
 
         bound_wrapper.__original__ = func
@@ -712,6 +871,190 @@ class ModuleBase(ABC):
         import sys
 
         return sys.modules.get(type(self).__module__)
+
+    def _passes_permission_tags(self, event: Any, tags: dict[str, Any]) -> bool:
+        from core.lib.loader.register import _watcher_passes_filters
+
+        try:
+            return _watcher_passes_filters(event, tags)
+        except Exception as e:
+            self.log.warning(f"permission filter failed for {tags}: {e}")
+            return False
+
+    async def _run_with_error_handler(
+        self,
+        func: Callable,
+        instance: Any,
+        event: Any,
+        handler_config: dict[str, Any],
+    ) -> None:
+        """Run a function with error handling based on decorator config."""
+        try:
+            return await func(instance, event)
+        except Exception as e:
+            log_level = handler_config.get("log_level", "error")
+            reraise = handler_config.get("reraise", False)
+            message_template = handler_config.get("message")
+
+            log_msg = (
+                message_template.format(
+                    exc=str(e),
+                    func=func.__name__,
+                    module=self.name,
+                )
+                if message_template
+                else f"Error in {func.__name__}: {e}"
+            )
+
+            log_func = getattr(self.log, log_level, self.log.error)
+            log_func(log_msg)
+
+            if reraise:
+                raise
+
+    def get_prefix(self) -> str:
+        return getattr(self.kernel, "custom_prefix", ".")
+
+    def get_lang(self) -> str:
+        config = getattr(self.kernel, "config", {})
+        getter = getattr(config, "get", None)
+        if callable(getter):
+            return getter("language", "ru") or "ru"
+        return "ru"
+
+    def args(self, event: Any) -> Any:
+        import utils
+
+        text = getattr(event, "text", None) or getattr(event, "raw_text", "") or ""
+        return utils.parse_arguments(text, prefix=self.get_prefix())
+
+    def args_raw(self, event: Any) -> str:
+        import utils
+
+        return utils.get_args_raw(event)
+
+    def args_html(self, event: Any) -> str:
+        import utils
+
+        return utils.get_args_html(event)
+
+    async def answer(self, event: Any, text: str, **kwargs: Any) -> Any:
+        import utils
+
+        return await utils.answer(event, text, **kwargs)
+
+    async def edit(self, event: Any, text: str, **kwargs: Any) -> Any:
+        reply_markup = kwargs.pop("reply_markup", None)
+        as_html = kwargs.pop("as_html", False)
+        if reply_markup is not None:
+            kwargs["buttons"] = reply_markup
+        if hasattr(event, "edit") and callable(event.edit):
+            if as_html:
+                return await event.edit(text, parse_mode="html", **kwargs)
+            return await event.edit(text, **kwargs)
+        return await self.answer(
+            event, text, reply_markup=reply_markup, as_html=as_html, **kwargs
+        )
+
+    async def reply(self, event: Any, text: str, **kwargs: Any) -> Any:
+        reply_markup = kwargs.pop("reply_markup", None)
+        as_html = kwargs.pop("as_html", False)
+        if reply_markup is not None:
+            kwargs["buttons"] = reply_markup
+        if as_html and hasattr(self.kernel, "reply_with_html"):
+            return await self.kernel.reply_with_html(event, text, **kwargs)
+        if hasattr(event, "reply") and callable(event.reply):
+            if as_html:
+                kwargs["parse_mode"] = "html"
+            return await event.reply(text, **kwargs)
+        return await self.answer(
+            event, text, reply_markup=reply_markup, as_html=as_html, **kwargs
+        )
+
+    async def inline(
+        self,
+        chat_id: int | Any,
+        title: str,
+        fields: list[dict[str, Any]] | None = None,
+        buttons: list[Any] | None = None,
+        auto_send: bool = True,
+        ttl: int = 200,
+        **kwargs,
+    ) -> Any:
+        """Send an inline form message.
+
+        Args:
+            chat_id: Target chat ID
+            title: Form title text
+            fields: Optional form fields (list of {"key": "...", "value": "..."})
+            buttons: Button layout
+            auto_send: If True, send immediately; if False, return form for editing
+            ttl: Time-to-live for callback buttons
+            **kwargs: Additional args passed to kernel.inline_form
+
+        Returns:
+            Inline form result or message
+
+        Example:
+            await self.inline(event.chat_id, "Menu", buttons=[[btn]])
+        """
+        return await self.kernel.inline_form(
+            chat_id,
+            title,
+            fields=fields,
+            buttons=buttons,
+            auto_send=auto_send,
+            ttl=ttl,
+            **kwargs,
+        )
+
+    def lookup_module(self, module_name: str) -> Any:
+        needle = str(module_name).lower()
+
+        class_instances = getattr(self.kernel, "_class_module_instances", {}) or {}
+        for name, instance in class_instances.items():
+            if (
+                str(name).lower() == needle
+                or str(getattr(instance, "name", "")).lower() == needle
+            ):
+                return instance
+
+        for collection_name in ("loaded_modules", "system_modules"):
+            collection = getattr(self.kernel, collection_name, {}) or {}
+            for name, module in collection.items():
+                instance = getattr(module, "_class_instance", None)
+                target = instance or module
+                names = {
+                    str(name).lower(),
+                    str(getattr(target, "name", "")).lower(),
+                    str(getattr(module, "__name__", "")).lower(),
+                }
+                if needle in names:
+                    return target
+
+        compat_allmodules = getattr(self.kernel, "_hikka_compat_allmodules_proxy", None)
+        if compat_allmodules is not None and hasattr(compat_allmodules, "lookup"):
+            return compat_allmodules.lookup(module_name)
+
+        return None
+
+    def require_module(self, module_name: str) -> Any:
+        module = self.lookup_module(module_name)
+        if module is None:
+            raise LookupError(f"Required module '{module_name}' is not loaded")
+        return module
+
+    def _cleanup_callback_tokens(self) -> None:
+        tokens = getattr(self, "_callback_tokens", None) or []
+        cb_map = getattr(self.kernel, "inline_callback_map", None)
+        lock = getattr(self.kernel, "_inline_cb_lock", None)
+        if not tokens or cb_map is None or lock is None:
+            return
+
+        with lock:
+            for tok in tokens:
+                cb_map.pop(tok, None)
+        self._callback_tokens = []
 
     def _register_callback(self, func: Callable, ttl: int) -> None:
         """Register a callback handler with auto-generated uuid."""
@@ -1148,6 +1491,31 @@ class ModuleBase(ABC):
                     f"@on_install error in {type(self).__name__}.{func.__name__}: {e}"
                 )
 
+    async def on_reload(self) -> None:
+        """Called after the module is reloaded via the loader reload flow."""
+
+    async def on_config_update(self, key: str, old_value: Any, new_value: Any) -> None:
+        """Called when kernel config is updated.
+
+        Override to handle config changes at runtime.
+
+        Args:
+            key: Config key that changed
+            old_value: Previous value
+            new_value: New value
+        """
+        pass
+
+    async def on_language_change(self, new_lang: str) -> None:
+        """Called when the bot language changes.
+
+        Override to handle language switch at runtime.
+
+        Args:
+            new_lang: New language code (e.g., "ru", "en")
+        """
+        pass
+
     async def on_unload(self) -> None:
         """Called before the module is unloaded.
 
@@ -1167,11 +1535,46 @@ class ModuleBase(ABC):
     @property
     def config(self) -> Any:
         """Expose config object to module methods."""
+        return self._get_config()
+
+    def _get_config(self) -> Any:
         return self._config
 
     @property
     def strings(self) -> Any:
         """Expose strings object to module methods."""
+        return self._get_strings()
+
+    def _get_strings(self) -> Any:
+        from utils.strings import Strings
+
+        if isinstance(self._strings, dict):
+            strings_dict = copy.deepcopy(self._strings)
+
+            flat_keys = {k for k, v in strings_dict.items() if isinstance(v, str)}
+            if flat_keys:
+                self.log.debug(
+                    f"[strings] Flat mode detected for {self.name}, expanding to all locales"
+                )
+                expanded = {}
+                for lang in ("ru", "en", "uk", "de", "es", "fr", "it", "pt"):
+                    expanded[lang] = {k: v for k, v in strings_dict.items()}
+                strings_dict = expanded
+
+            self._strings = Strings(self.kernel, strings_dict)
+        if self._strings is None:
+            self.kernel.logger.error(
+                f"[FATAL] {self.name}.strings is None! "
+                f"type(self).__name__={type(self).__name__}, "
+                f"class has strings={'strings' in type(self).__dict__}"
+            )
+            raise AttributeError(
+                f"strings is not initialized for {self.name}. "
+                "Make sure the module defines 'strings' as a class dict attribute."
+            )
+        self.kernel.logger.debug(
+            f"[strings] Access {self.name}.strings: type={type(self._strings).__name__} loc={getattr(self._strings, 'locale', 'N/A')}"
+        )
         return self._strings
 
     async def save_config(self) -> None:

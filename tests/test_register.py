@@ -235,6 +235,34 @@ class TestInfiniteLoop:
         assert "my_func" in repr_str
         assert "60" in repr_str
 
+    @pytest.mark.asyncio
+    async def test_loop_tracks_runtime_metadata_and_restart(self):
+        """Test loop metadata helpers exposed on InfiniteLoop."""
+        from core.lib.loader.register import InfiniteLoop
+
+        async def failing_func(kernel):
+            raise RuntimeError("boom")
+
+        loop = InfiniteLoop(
+            failing_func, interval=0.01, autostart=False, wait_before=False
+        )
+        loop._kernel = MagicMock()
+
+        loop.start()
+        await asyncio.sleep(0.03)
+
+        assert loop.is_running is True
+        assert loop.last_run is not None
+        assert isinstance(loop.last_error, RuntimeError)
+        assert loop.fail_count >= 1
+
+        loop.stop()
+        loop.restart()
+        await asyncio.sleep(0.02)
+        assert loop.is_running is True
+
+        loop.stop()
+
 
 class TestWatcherFilters:
     """Test _watcher_passes_filters function"""

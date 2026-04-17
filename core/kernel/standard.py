@@ -628,6 +628,7 @@ class Kernel:
         file_path: str,
         module_name: str,
         is_system: bool = False,
+        is_reload: bool = False,
         source_url: str | None = None,
         source_repo: str | None = None,
     ) -> tuple:
@@ -641,7 +642,7 @@ class Kernel:
             source_repo: Repo URL if installed from repo (dlm with module name).
         """
         result = await self._loader.load_module_from_file(
-            file_path, module_name, is_system
+            file_path, module_name, is_system, is_reload=is_reload
         )
 
         # Track source if provided

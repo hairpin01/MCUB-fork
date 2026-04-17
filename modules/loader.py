@@ -2837,6 +2837,7 @@ def register(kernel):
                     file_path,
                     module_name,
                     False,
+                    is_reload=True,
                     source_url=old_source.get("url") if old_source else None,
                     source_repo=old_source.get("repo") if old_source else None,
                 )
@@ -3078,7 +3079,9 @@ def register(kernel):
                     module_name,
                 )
 
-        result = await kernel.load_module_from_file(file_path, module_name, is_system)
+        result = await kernel.load_module_from_file(
+            file_path, module_name, is_system, is_reload=True
+        )
         success = result[0]
         message_text = result[1] if len(result) >= 2 else ""
         kernel.logger.debug(

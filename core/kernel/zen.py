@@ -518,10 +518,14 @@ class Kernel:
         return await self._loader.detect_module_type(module)
 
     async def load_module_from_file(
-        self, file_path: str, module_name: str, is_system: bool = False
+        self,
+        file_path: str,
+        module_name: str,
+        is_system: bool = False,
+        is_reload: bool = False,
     ) -> tuple:
         return await self._loader.load_module_from_file(
-            file_path, module_name, is_system
+            file_path, module_name, is_system, is_reload=is_reload
         )
 
     async def install_from_url(

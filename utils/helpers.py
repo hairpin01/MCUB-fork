@@ -107,6 +107,42 @@ def get_args_html(event: Union[Message, events.NewMessage.Event]) -> str:
     return telegram_to_html(args_text, shifted_entities)
 
 
+def get_prefix(target: Any = None) -> str:
+    """Return the active command prefix for an event, kernel, or module."""
+    if target is None:
+        return "."
+
+    kernel = getattr(target, "kernel", None)
+    if kernel is None:
+        kernel = _get_kernel(target)
+    if kernel is None and hasattr(target, "custom_prefix"):
+        kernel = target
+
+    if kernel is not None:
+        return getattr(kernel, "custom_prefix", ".") or "."
+
+    return "."
+
+
+def get_lang(target: Any = None, default: str = "ru") -> str:
+    """Return the active language for an event, kernel, or module."""
+    if target is None:
+        return default
+
+    kernel = getattr(target, "kernel", None)
+    if kernel is None:
+        kernel = _get_kernel(target)
+    if kernel is None and hasattr(target, "config"):
+        kernel = target
+
+    config = getattr(kernel, "config", None) if kernel is not None else None
+    getter = getattr(config, "get", None)
+    if callable(getter):
+        return getter("language", default) or default
+
+    return default
+
+
 async def answer(
     event: Union[Message, events.NewMessage.Event, Any],
     text: str,

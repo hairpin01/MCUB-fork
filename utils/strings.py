@@ -51,9 +51,18 @@ class Strings:
                 self._locale = fallback
 
         # Resolve active locale dict with fallback chain
-        self._active: dict[str, str] = (
-            data.get(self._locale) or data.get(fallback) or next(iter(data.values()))
-        )
+        active = data.get(self._locale) or data.get(fallback)
+        if not active:
+            for v in data.values():
+                if v:
+                    active = v
+                    break
+        if not active:
+            raise ValueError(
+                f"Strings: no valid locale data found. "
+                f"Requested: {self._locale}, fallback: {fallback}, available: {list(data.keys())}"
+            )
+        self._active: dict[str, str] = active
 
     @property
     def locale(self) -> str:
@@ -64,19 +73,24 @@ class Strings:
         if value is not None:
             return value
 
-        # Try fallback locale
-        fallback_dict = self._data.get(self._fallback, {})
-        value = fallback_dict.get(key)
-        if value is not None:
-            return value
+        for locale, locale_dict in self._data.items():
+            if locale_dict and key in locale_dict:
+                return locale_dict[key]
 
         if self._strict:
-            raise KeyError(f"Strings: missing key {key!r} in locale {self._locale!r}")
+            raise KeyError(
+                f"Strings: missing key {key!r} in locale {self._locale!r} (fallback: {self._fallback})"
+            )
 
         return _MissingKey(f"[{key}]")
 
     def __getitem__(self, key: str) -> str:
-        return self._lookup(key)
+        result = self._lookup(key)
+        if isinstance(result, _MissingKey):
+            raise KeyError(
+                f"Missing key '{key}'. Available keys: {list(self._active.keys())}"
+            )
+        return result
 
     def __call__(self, key: str, **kwargs) -> str:
         return self._lookup(key).format_map(kwargs)

@@ -576,7 +576,11 @@ class ModuleLoader:
             raise
 
     async def run_post_load(
-        self, module: Any, module_name: str, is_install: bool = False
+        self,
+        module: Any,
+        module_name: str,
+        is_install: bool = False,
+        is_reload: bool = False,
     ) -> None:
         """Run autostart loops, on_load, and on_install callbacks after registration.
 
@@ -622,6 +626,18 @@ class ModuleLoader:
                 k.logger.debug(f"on_load called for class module: {module_name}")
             except Exception as e:
                 k.logger.error(f"on_load error in {module_name}: {e}")
+
+            if is_reload:
+                try:
+                    if inspect.iscoroutinefunction(instance.on_reload):
+                        await instance.on_reload()
+                    else:
+                        result = instance.on_reload()
+                        if asyncio.iscoroutine(result):
+                            await result
+                    k.logger.debug(f"on_reload called for class module: {module_name}")
+                except Exception as e:
+                    k.logger.error(f"on_reload error in {module_name}: {e}")
 
             if is_install:
                 try:
@@ -676,6 +692,7 @@ class ModuleLoader:
         file_path: str,
         module_name: str,
         is_system: bool = False,
+        is_reload: bool = False,
     ) -> tuple[bool, str]:
         """Load a Python module from *file_path* and register it with the kernel.
 
@@ -834,7 +851,12 @@ class ModuleLoader:
                     k.loaded_modules[module_name] = module
                     k.logger.info(f"User module loaded: {module_name}")
 
-            await self.run_post_load(module, module_name, is_install=True)
+            await self.run_post_load(
+                module,
+                module_name,
+                is_install=not is_reload,
+                is_reload=is_reload,
+            )
             k.logger.debug(
                 "[loader.load] finished module=%r commands=%r aliases=%r",
                 module_name,
@@ -1637,6 +1659,15 @@ class ModuleLoader:
                     k.logger.debug(f"on_unload called for class module: {module_name}")
                 except Exception as e:
                     k.logger.error(f"on_unload error in {module_name}: {e}")
+
+                cleanup_callback_tokens = getattr(
+                    instance, "_cleanup_callback_tokens", None
+                )
+                if callable(cleanup_callback_tokens):
+                    try:
+                        cleanup_callback_tokens()
+                    except Exception as e:
+                        k.logger.error(f"callback cleanup error in {module_name}: {e}")
 
             if hasattr(k, "_class_module_instances"):
                 k._class_module_instances.pop(module_name, None)

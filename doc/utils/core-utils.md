@@ -552,6 +552,61 @@ if HTML_PARSER_AVAILABLE:
 
 ---
 
+## Prefix and Language
+
+### `get_prefix(target=None)`
+
+Return the active command prefix from an event, kernel, or module.
+
+**Parameters:**
+- `target` — Event, kernel, module, or None (defaults to ".")
+
+**Returns:** Command prefix string (e.g., "." or "!")
+
+```python
+from utils import get_prefix
+
+# Get from event
+prefix = get_prefix(event)
+
+# Get from kernel
+prefix = get_prefix(kernel)
+
+# Get from module (class-style)
+prefix = get_prefix(module_instance)
+
+# Default
+prefix = get_prefix()  # "."
+```
+
+### `get_lang(target=None, default='ru')`
+
+Return the active language from an event, kernel, or module.
+
+**Parameters:**
+- `target` — Event, kernel, module, or None
+- `default` — Fallback language (default: "ru")
+
+**Returns:** Language code (e.g., "ru" or "en")
+
+```python
+from utils import get_lang
+
+# Get from event
+lang = get_lang(event)
+
+# Get from kernel
+lang = get_lang(kernel)
+
+# Get from module with custom fallback
+lang = get_lang(module_instance, default="en")
+```
+
+> [!NOTE]
+> These functions work with both function-based and class-style modules.
+
+---
+
 ## Quick Reference
 
 ```python
@@ -577,4 +632,7 @@ from utils import get_platform, is_docker, is_termux
 
 # Advanced parsing
 from utils import ArgumentParser, parse_arguments, extract_command
+
+# Prefix and Language
+from utils import get_prefix, get_lang
 ```

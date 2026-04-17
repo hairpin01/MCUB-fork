@@ -8,6 +8,7 @@
 import asyncio
 import inspect
 import re
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -41,12 +42,24 @@ class InfiniteLoop:
         self._task: asyncio.Task | None = None
         self._kernel: Any = None
         self.status: bool = False
+        self.last_run: float | None = None
+        self.last_error: Exception | None = None
+        self.fail_count: int = 0
+
+    @property
+    def is_running(self) -> bool:
+        return bool(self._task and not self._task.done() and self.status)
 
     def start(self) -> None:
         """Start the loop. No-op if already running."""
         if self._task and not self._task.done():
             return
         self._task = asyncio.ensure_future(self._run())
+
+    def restart(self) -> None:
+        """Restart the loop regardless of its current state."""
+        self.stop()
+        self.start()
 
     def stop(self) -> None:
         """Stop the loop gracefully."""
@@ -64,10 +77,15 @@ class InfiniteLoop:
                 if not self.status:
                     break
                 try:
+                    self.last_run = time.time()
                     await self.func(self._kernel)
+                    self.last_error = None
+                    self.fail_count = 0
                 except asyncio.CancelledError:
                     break
                 except Exception as exc:
+                    self.last_error = exc
+                    self.fail_count += 1
                     if self._kernel:
                         self._kernel.logger.error(
                             f"InfiniteLoop error in '{self.func.__name__}': {exc}"

@@ -181,3 +181,7 @@ __all__.extend(
 __all__.append("RAW_HTML_AVAILABLE")
 __all__.append("get_utils_status")
 __all__.extend(["restart_kernel"])
+
+from .strings import Strings
+
+__all__.append("Strings")

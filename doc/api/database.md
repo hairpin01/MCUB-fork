@@ -2,117 +2,127 @@
 
 ← [Index](../../API_DOC.md)
 
-> [!IMPORTANT]
-> There is no `kernel.db` object in current kernels. Use the methods below.
+MCUB uses SQLite for module data storage. Access via `self.db` (class-style) or `kernel.db_manager` (function-style).
 
-## Query Methods
+> [!TIP]
+> For class-style modules, see [Class-Style Modules](../registration/class-style.md) for complete examples.
 
-`kernel.db_query(query, parameters)`
-Execute a read-only SQL query.
+## Key-Value Storage
+
+Simple `(module, key)` storage — module manages its own data.
+
+### `db.db_set(module, key, value)`
+
+Store a value.
+
+```python
+await self.db.db_set("mymodule", "counter", 0)
+await self.db.db_set("mymodule", "data", {"key": "value"})
+```
 
 **Parameters:**
-- `query` (str): SQL query (`SELECT`, `PRAGMA`, or `EXPLAIN`)
-- `parameters` (tuple): Query parameters
+- `module` (str): Namespace (usually `self.name`)
+- `key` (str): Key
+- `value` (Any): Any value (converted to string)
 
-**Returns:** list of rows
+### `db.db_get(module, key)`
 
-**Security notes:**
-- Only `SELECT` / `PRAGMA` / `EXPLAIN` are allowed.
-- Write operations like `INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `CREATE`, etc. are blocked.
+Retrieve a value.
 
-**Usage:**
 ```python
-rows = await kernel.db_query(
-    "SELECT module, key, value FROM module_data WHERE module = ?",
+value = await self.db.db_get("mymodule", "counter")
+# value = "0" (string!) or None
+```
+
+**Returns:** `str | None`
+
+### `db.db_delete(module, key)`
+
+Delete a value.
+
+```python
+await self.db.db_delete("mymodule", "counter")
+```
+
+## Raw SQL (read-only)
+
+### `db.db_query(query, parameters)`
+
+Execute SQL query (SELECT/PRAGMA/EXPLAIN only).
+
+```python
+rows = await self.db.db_query(
+    "SELECT key, value FROM module_data WHERE module = ?",
     ("mymodule",),
 )
 ```
 
-`kernel.db_conn`
-Get the raw database connection.
+> [!CAUTION]
+> Write operations `INSERT`, `UPDATE`, `DELETE`, `DROP` are blocked for security.
 
-**Returns:** `aiosqlite.Connection | None`
+## Module-Level Access
 
-**Usage:**
+For function-style modules use `kernel.db_manager`:
+
 ```python
-conn = kernel.db_conn
+from typing import Any
+from telethon import events
+
+def register(kernel: Any) -> None:
+    @kernel.register.command("save")
+    async def save_cmd(event: events.NewMessage.Event) -> None:
+        await kernel.db_manager.db_set("mymodule", "key", "value")
+
+    @kernel.register.command("load")
+    async def load_cmd(event: events.NewMessage.Event) -> None:
+        value: str | None = await kernel.db_manager.db_get("mymodule", "key")
+        await event.edit(f"Value: {value}")
 ```
 
----
+## Examples
 
-## Key-Value Database API
+### Persistent Counter (class-style)
 
-A simpler high-level API built on top of the raw SQL database. Stores arbitrary values under a `(module, key)` pair — no table management required.
-
-### `kernel.db_set(module, key, value)`
-
-Store a value.
-
-**Parameters:**
-- `module` (str): Namespace — typically your module name
-- `key` (str): Key
-- `value` (Any): Will be stored as string (`str(value)`)
-
-**Notes:**
-- `module` and `key` must match `^[a-zA-Z0-9_-]+$`
-- Max length for `module`/`key`: 64
-- Raises `ValueError` on invalid identifiers
-
-**Usage:**
 ```python
-await kernel.db_set('mymodule', 'last_run', '2024-01-01')
+from typing import Self
+from telethon import events
+from core.lib.loader.module_base import ModuleBase, command
+
+class CounterModule(ModuleBase):
+    name = "Counter"
+
+    @command("count")
+    async def cmd_count(self, event: events.NewMessage.Event) -> None:
+        count: int = 0
+        saved: str | None = await self.db.db_get(self.name, "count")
+        if saved:
+            count = int(saved)
+        count += 1
+        await self.db.db_set(self.name, "count", count)
+        await event.edit(f"Count: {count}")
 ```
 
-### `kernel.db_get(module, key)`
+### Storing Complex Data (class-style)
 
-Retrieve a stored value.
-
-**Returns:** str | None (via await)
-
-**Usage:**
 ```python
-value = await kernel.db_get('mymodule', 'last_run')
+import json
+from telethon import events
+from core.lib.loader.module_base import ModuleBase, command
+
+class RememberModule(ModuleBase):
+    name = "Remember"
+
+    @command("remember")
+    async def cmd_remember(self, event: events.NewMessage.Event) -> None:
+        args: list[str] = event.text.split(maxsplit=1)
+        if len(args) < 2:
+            await event.edit("Usage: remember <text>")
+            return
+
+        saved: str | None = await self.db.db_get(self.name, "memory")
+        memory: list[str] = json.loads(saved) if saved else []
+        memory.append(args[1])
+        await self.db.db_set(self.name, "memory", json.dumps(memory))
+        await event.edit(f"Saved! Total: {len(memory)}")
 ```
-
-### `kernel.db_delete(module, key)`
-
-Delete a stored value.
-
-**Usage:**
-```python
-await kernel.db_delete('mymodule', 'last_run')
-```
-
----
-
-## Usage Examples
-
-### Storing User Data
-
-```python
-@kernel.register.command('remember')
-async def remember(event):
-    args = event.text.split()
-    if len(args) < 2:
-        await event.edit("Usage: .remember <key> <value>")
-        return
-
-    key = args[1]
-    value = ' '.join(args[2:])
-    await kernel.db_set('mymodule', key, value)
-    await event.edit(f"Saved: {key} = {value}")
-
-@kernel.register.command('recall')
-async def recall(event):
-    args = event.text.split()
-    if len(args) < 2:
-        await event.edit("Usage: .recall <key>")
-        return
-
-    key = args[1]
-    value = await kernel.db_get('mymodule', key)
-    if value:
-        await event.edit(f"{key} = {value}")
-    else:
-        await event.edit("Key not found")
 ```

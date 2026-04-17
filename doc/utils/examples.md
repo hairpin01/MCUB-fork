@@ -1,102 +1,103 @@
-# Example Module
+# Example Module (Function-Style)
 
 ← [Index](../../API_DOC.md)
 
-Complete example demonstrating various features:
+Complete example demonstrating function-style module with typing:
 
 ```python
-# requires: aiohttp
-# author: MCUB Developer
-# version: 1.0.0
-# description: Complete example module with all features
+from typing import Any
+from telethon import events
+from utils import Strings, get_args, answer, reply_with_html, ArgumentParser
 
-import aiohttp
-from utils import get_args, answer, ArgumentParser
+def register(kernel: Any) -> None:
+    strings = Strings(
+        kernel,
+        {
+            "ru": {
+                "hello": "Привет, {name}!",
+                "no_args": "Укажите аргумент",
+                "saved": "Сохранено: {key} = {value}",
+            },
+            "en": {
+                "hello": "Hello, {name}!",
+                "no_args": "Please provide an argument",
+                "saved": "Saved: {key} = {value}",
+            },
+        },
+    )
 
-def register(kernel):
-    @kernel.register.command('hello', alias='hi')
-    # Simple command
-    async def hello_handler(event):
+    @kernel.register.command("hello", doc_ru="<имя> Приветствие", doc_en="<name> Greeting")
+    async def hello_handler(event: events.NewMessage.Event) -> None:
         try:
-            args = get_args(event)
-            name = args[0] if args else 'World'
-            await answer(event, f"Hello, {name}!")
+            args: list[str] = get_args(event)
+            if not args:
+                await event.edit(strings["no_args"])
+                return
+
+            name: str = args[0]
+            await answer(event, strings("hello", name=name))
+
         except Exception as e:
             await kernel.handle_error(e, source=f"{__name__}:hello", event=event)
 
 
-    @kernel.register.command('fetch')
-    # Command with API call
-    async def fetch_handler(event):
+    @kernel.register.command("echo", doc_ru="<текст> Повторить", doc_en="<text> Echo")
+    async def echo_handler(event: events.NewMessage.Event) -> None:
         try:
-            await event.edit("Fetching data...")
+            args: list[str] = get_args(event)
+            text: str = " ".join(args)
+            await reply_with_html(kernel, event, f"<b>{text}</b>")
 
-            async with aiohttp.ClientSession() as session:
-                async with session.get("https://api.example.com", timeout=30) as resp:
-                    data = await resp.json()
-
-            await answer(event, f'<b>Result:</b>\n<code>{data}</code>', as_html=True)
-
-        except aiohttp.ClientError as e:
-            await kernel.logger.error(f"API request failed: {e}")
-            await event.edit("Failed to fetch data")
         except Exception as e:
-            await kernel.handle_error(e, source=f"{__name__}:fetch", event=event)
+            await kernel.handle_error(e, source=f"{__name__}:echo", event=event)
 
 
-    @kernel.register.command('save')
-    # Command with database
-    async def save_handler(event):
+    @kernel.register.command("save", doc_ru="<ключ> <значение> Сохранить", doc_en="<key> <value> Save")
+    async def save_handler(event: events.NewMessage.Event) -> None:
         try:
-            args = get_args(event)
+            args: list[str] = get_args(event)
             if len(args) < 2:
                 await event.edit("Usage: .save <key> <value>")
                 return
 
-            key, value = args[0], ' '.join(args[1:])
-            await kernel.db_set(__name__, key, value)
-            await event.edit(f"Saved: {key} = {value}")
+            key: str = args[0]
+            value: str = " ".join(args[1:])
+            await kernel.db_manager.db_set(__name__, key, value)
+            await answer(event, strings("saved", key=key, value=value))
 
         except Exception as e:
             await kernel.handle_error(e, source=f"{__name__}:save", event=event)
 
 
-    @kernel.register.command('deploy')
-    # Command with advanced argument parsing
-    async def deploy_handler(event):
+    @kernel.register.command("deploy", doc_ru="<сервис> Деплой", doc_en="<service> Deploy")
+    async def deploy_handler(event: events.NewMessage.Event) -> None:
         try:
-            parser = ArgumentParser(event.text, kernel.custom_prefix)
-            service = parser.get(0)
+            parser: ArgumentParser = ArgumentParser(event.text, kernel.custom_prefix)
+            service: str | None = parser.get(0)
+
             if not service:
                 await event.edit("Usage: .deploy <service> [--env=production]")
                 return
 
-            environment = parser.get_kwarg('env', 'production')
-            verbose = parser.get_flag('verbose')
-
-            await event.edit(f"Deploying {service} to {environment}...")
-            await asyncio.sleep(2)
-            await event.edit(f"Deployed {service} to {environment}")
+            env: str = parser.get_kwarg("env", "production")
+            await event.edit(f"Deploying {service} to {env}...")
 
         except Exception as e:
             await kernel.handle_error(e, source=f"{__name__}:deploy", event=event)
 
 
-    async def example_inline_handler(event):
+    @kernel.register.loop(interval=300, autostart=True)
+    async def heartbeat_loop(kernel: Any) -> None:
+        """Autostarting background loop."""
+        kernel.logger.debug("Heartbeat")
+
+
+    async def inline_handler(event: events.InlineQuery.Event) -> None:
         builder = event.builder.article(
-            title="Example Result",
-            text=f"You searched for: {event.text}",
-            description="Click to send"
+            title="Example",
+            text=f"Query: {event.text}",
         )
         await event.answer([builder])
 
-    async def example_callback_handler(event):
-        data = event.data.decode('utf-8')
-        if data == 'btn1':
-            await event.edit("Button 1 clicked")
-        elif data == 'btn2':
-            await event.edit("Button 2 clicked")
-
-    kernel.register_inline_handler('example', example_inline_handler)
-    kernel.register_callback_handler('example_', example_callback_handler)
+    kernel.register_inline_handler("example", inline_handler)
 ```

@@ -599,6 +599,7 @@ class ModuleLoader:
 
         instance = getattr(module, "_class_instance", None)
         if instance is not None:
+            instance._loops.clear()
             for loop in getattr(reg, "__loops__", []):
                 loop._kernel = k
                 instance._loops.append(loop)
@@ -634,16 +635,6 @@ class ModuleLoader:
                     k.logger.debug(f"on_install called for class module: {module_name}")
                 except Exception as e:
                     k.logger.error(f"on_install error in {module_name}: {e}")
-
-            for il in instance._loops:
-                if il.autostart:
-                    try:
-                        il.start()
-                        k.logger.debug(
-                            f"Autostarted loop '{il.func.__name__}' ({module_name})"
-                        )
-                    except Exception as e:
-                        k.logger.error(f"Error autostarting loop in {module_name}: {e}")
 
             return
 

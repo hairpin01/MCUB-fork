@@ -53,7 +53,7 @@ def _get_metadata_lock() -> asyncio.Lock:
 class ManModule(ModuleBase):
     name = "man"
     version = "1.1.0"
-    author = "@hairpin01"
+    author = "@hairpin00"
     description = {"ru": "Менеджер модулей", "en": "Module manager"}
 
     strings = {

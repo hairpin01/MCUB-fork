@@ -17,7 +17,7 @@ from core.lib.loader.module_config import Choice, ConfigValue, ModuleConfig
 class TrModule(ModuleBase):
     name = "tr"
     version = "1.0.3"
-    author = "@hairpin01"
+    author = "@hairpin00"
     description = {
         "ru": "Переводчик через Google Translate",
         "en": "Translator using Google Translate API",

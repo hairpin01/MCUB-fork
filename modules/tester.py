@@ -71,7 +71,7 @@ CUSTOM_EMOJI = {
 class TesterMod(ModuleBase):
     name = "tester"
     version = "1.0.0"
-    author = "@hairpin01"
+    author = "@hairpin00"
 
     async def on_load(self) -> None:
         branch = _detect_branch_sync()

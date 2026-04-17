@@ -26,7 +26,7 @@ CUSTOM_EMOJI = {
 class EvalModule(ModuleBase):
     name = "eval"
     version = "1.0.3"
-    author = "@hairpin01"
+    author = "@hairpin00"
     description = {"ru": "Выполнение Python кода", "en": "Python code execution"}
 
     strings = {

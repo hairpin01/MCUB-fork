@@ -1132,12 +1132,15 @@ class ModuleBase(ABC):
             callback_func: Callable,
             *,
             ttl: int = 900,
+            allow_user: int | list[int] | str | None = None,
+            allow_ttl: int = 100,
             args: tuple = (),
             kwargs: dict | None = None,
             data: dict | None = None,
             pass_event: bool = True,
             auto_answer: bool | None = None,
             icon: int | None = None,
+            style: Any = None,
             **btn_kwargs,
         ) -> Any:
             """Create an inline/callback button."""
@@ -1145,14 +1148,16 @@ class ModuleBase(ABC):
                 text,
                 callback_func,
                 ttl=ttl,
+                allow_user=allow_user,
+                allow_ttl=allow_ttl,
                 args=args,
                 kwargs=kwargs,
                 data=data,
                 pass_event=pass_event,
                 auto_answer=auto_answer,
+                style=style,
+                icon=icon,
             )
-            if icon is not None:
-                return self._telethon_button.with_icon(btn, icon=icon)
             return btn
 
         def url(
@@ -1165,10 +1170,9 @@ class ModuleBase(ABC):
             style: Any = None,
         ) -> Any:
             """Create a URL button."""
-            btn = self._telethon_button.url(text, url, new_tab=new_tab)
-            if icon is not None:
-                btn = self._telethon_button.with_icon(btn, icon=icon)
-            return btn
+            return self._telethon_button.url(
+                text, url, new_tab=new_tab, style=style, icon=icon
+            )
 
         def text(
             self,
@@ -1180,10 +1184,9 @@ class ModuleBase(ABC):
             style: Any = None,
         ) -> Any:
             """Create a text button."""
-            btn = self._telethon_button.text(text, resize=resize, selective=selective)
-            if icon is not None:
-                btn = self._telethon_button.with_icon(btn, icon=icon)
-            return btn
+            return self._telethon_button.text(
+                text, resize=resize, selective=selective, style=style, icon=icon
+            )
 
         def switch(
             self,
@@ -1195,10 +1198,9 @@ class ModuleBase(ABC):
             style: Any = None,
         ) -> Any:
             """Create a switch button."""
-            btn = self._telethon_button.switch(text, query, same_peer=same_peer)
-            if icon is not None:
-                btn = self._telethon_button.with_icon(btn, icon=icon)
-            return btn
+            return self._telethon_button.switch(
+                text, query, same_peer=same_peer, style=style, icon=icon
+            )
 
         def copy(
             self,
@@ -1209,10 +1211,9 @@ class ModuleBase(ABC):
             style: Any = None,
         ) -> Any:
             """Create a copy button."""
-            btn = self._telethon_button.copy(text, payload=payload)
-            if icon is not None:
-                btn = self._telethon_button.with_icon(btn, icon=icon)
-            return btn
+            return self._telethon_button.copy(
+                text, payload=payload, style=style, icon=icon
+            )
 
         def request_phone(
             self,
@@ -1223,10 +1224,9 @@ class ModuleBase(ABC):
             style: Any = None,
         ) -> Any:
             """Create a request phone button."""
-            btn = self._telethon_button.request_phone(text, request_title=request_title)
-            if icon is not None:
-                btn = self._telethon_button.with_icon(btn, icon=icon)
-            return btn
+            return self._telethon_button.request_phone(
+                text, request_title=request_title, style=style, icon=icon
+            )
 
         def request_location(
             self,
@@ -1238,12 +1238,13 @@ class ModuleBase(ABC):
             style: Any = None,
         ) -> Any:
             """Create a request location button."""
-            btn = self._telethon_button.request_location(
-                text, request_title=request_title, live_period=live_period
+            return self._telethon_button.request_location(
+                text,
+                request_title=request_title,
+                live_period=live_period,
+                style=style,
+                icon=icon,
             )
-            if icon is not None:
-                btn = self._telethon_button.with_icon(btn, icon=icon)
-            return btn
 
         def request_poll(
             self,
@@ -1255,12 +1256,9 @@ class ModuleBase(ABC):
             style: Any = None,
         ) -> Any:
             """Create a request poll button."""
-            btn = self._telethon_button.request_poll(
-                text, request_title=request_title, quiz=quiz
+            return self._telethon_button.request_poll(
+                text, request_title=request_title, quiz=quiz, style=style, icon=icon
             )
-            if icon is not None:
-                btn = self._telethon_button.with_icon(btn, icon=icon)
-            return btn
 
         def game(
             self,
@@ -1271,14 +1269,11 @@ class ModuleBase(ABC):
             style: Any = None,
         ) -> Any:
             """Create a game button."""
-            btn = (
-                self._telethon_button.game(text, game=game)
+            return (
+                self._telethon_button.game(text, game=game, style=style, icon=icon)
                 if game
-                else self._telethon_button.game(text)
+                else self._telethon_button.game(text, style=style, icon=icon)
             )
-            if icon is not None:
-                btn = self._telethon_button.with_icon(btn, icon=icon)
-            return btn
 
         def unknown(
             self,
@@ -1289,10 +1284,7 @@ class ModuleBase(ABC):
             style: Any = None,
         ) -> Any:
             """Create an unknown/custom button."""
-            btn = self._telethon_button.unknown(text, data)
-            if icon is not None:
-                btn = self._telethon_button.with_icon(btn, icon=icon)
-            return btn
+            return self._telethon_button.unknown(text, data, style=style, icon=icon)
 
         def mention(
             self,
@@ -1303,18 +1295,17 @@ class ModuleBase(ABC):
             style: Any = None,
         ) -> Any:
             """Create a mention button."""
-            btn = self._telethon_button.mention(text, user=user)
-            if icon is not None:
-                btn = self._telethon_button.with_icon(btn, icon=icon)
-            return btn
+            return self._telethon_button.mention(
+                text, user=user, style=style, icon=icon
+            )
 
         def with_icon(self, btn: Any, icon: int) -> Any:
-            """Add icon to an existing button."""
-            return self._telethon_button.with_icon(btn, icon=icon)
+            """Add icon to an existing button - DEPRECATED: use icon parameter directly."""
+            return btn
 
         def style(self, btn: Any, style: Any) -> Any:
-            """Apply style to an existing button."""
-            return self._telethon_button.style(btn, style)
+            """Apply style to an existing button - DEPRECATED: use style parameter directly."""
+            return btn
 
     @property
     def Button(self) -> "ModuleBase.ButtonFactory":
@@ -1361,11 +1352,15 @@ class ModuleBase(ABC):
         callback_func: Callable,
         *,
         ttl: int = 900,
+        allow_user: int | list[int] | str | None = None,
+        allow_ttl: int = 100,
         args: tuple = (),
         kwargs: dict | None = None,
         data: dict | None = None,
         pass_event: bool = True,
         auto_answer: bool | None = None,
+        style: Any = None,
+        icon: int | None = None,
         **button_kwargs,
     ) -> Any:
         """Internal method to create callback button."""
@@ -1376,6 +1371,11 @@ class ModuleBase(ABC):
         if not hasattr(self.kernel, "inline_callback_map"):
             self.kernel._inline_cb_lock = threading.Lock()
             self.kernel.inline_callback_map = {}
+
+        if not hasattr(self.kernel, "callback_permissions"):
+            from core.lib.base.permissions import CallbackPermissionManager
+
+            self.kernel.callback_permissions = CallbackPermissionManager()
 
         raw_func = getattr(callback_func, "__original__", callback_func)
         instance = self
@@ -1440,12 +1440,24 @@ class ModuleBase(ABC):
                 "data": _data,
                 "expires_at": now + ttl if ttl else None,
                 "auto_answer": auto_answer,
+                "allow_user": allow_user,
             }
+
+        if allow_user is not None:
+            if allow_user == "all":
+                cb_map[tok]["allow_all"] = True
+            elif isinstance(allow_user, int):
+                self.kernel.callback_permissions.allow(allow_user, tok, allow_ttl)
+            elif isinstance(allow_user, list):
+                for uid in allow_user:
+                    self.kernel.callback_permissions.allow(uid, tok, allow_ttl)
 
         self._callback_tokens = getattr(self, "_callback_tokens", [])
         self._callback_tokens.append(tok)
 
-        return Button.inline(text, tok.encode(), **button_kwargs)
+        return Button.inline(
+            text, tok.encode(), style=style, icon=icon, **button_kwargs
+        )
 
     async def on_load(self) -> None:
         """Called after the module is fully loaded.

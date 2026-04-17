@@ -14,7 +14,7 @@ class MyModule(ModuleBase):
 
     async def startup(self):
         # Import from MCUB repo
-        self.xlib = await self.import_lib("https://raw.githubusercontent.com/hairpin01/MCUB-fork/main/xlib.py")
+        self.xlib = await self.import_lib("https://raw.githubusercontent.com/hairpin01/repo-MCUB-fork/refs/heads/main/lib/xlib.py")
 ```
 
 Or import from any URL:

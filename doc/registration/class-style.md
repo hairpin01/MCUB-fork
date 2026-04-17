@@ -611,21 +611,44 @@ strings = {
 
 Class-style modules can define a `config` attribute using `ModuleConfig` from `core.lib.module_config`.
 
+See [ModuleConfig API](../api/module-config.md) for detailed documentation.
+
 ```python
 from __future__ import annotations
 
 from typing import Any
 from telethon import events
 
-from core.lib.loader.module_config import ModuleConfig, Integer, Boolean, String
+from core.lib.loader.module_config import ModuleConfig, ConfigValue, Integer, Boolean, String, Choice
 from core.lib.loader.module_base import ModuleBase, command
 
 class MyModule(ModuleBase):
     name = "MyModule"
     config = ModuleConfig(
-        Integer("max_count", default=100, min=1, max=1000),
-        Boolean("enabled", default=True),
-        String("greeting", default="Hello!"),
+        ConfigValue(
+            "enabled",
+            True,
+            description="Enable module",
+            validator=Boolean(default=True),
+        ),
+        ConfigValue(
+            "max_count",
+            100,
+            description="Maximum count",
+            validator=Integer(default=100, min=1, max=1000),
+        ),
+        ConfigValue(
+            "greeting",
+            "Hello!",
+            description="Greeting message",
+            validator=String(default="Hello!"),
+        ),
+        ConfigValue(
+            "mode",
+            "default",
+            description="Operation mode",
+            validator=Choice(choices=["default", "fast", "safe"], default="default"),
+        ),
     )
 
     @command("status")
@@ -640,18 +663,7 @@ class MyModule(ModuleBase):
 - Config is automatically loaded from database on module load
 - Changes via `self.config["key"] = value` are saved automatically
 - Kernel UI (`config` command) displays config schema and allows editing
-- Supported types: `Integer`, `Boolean`, `String`, `Float`, `Password`, etc.
-
-**Config types available:**
-
-| Type | Description |
-|------|-------------|
-| `Integer(key, default, min, max)` | Integer with validation |
-| `Boolean(key, default)` | True/False toggle |
-| `String(key, default)` | Text string |
-| `Float(key, default)` | Floating point |
-| `Password(key, default)` | Masked password |
-| `Choice(key, choices, default)` | Dropdown selection |
+- Use `ConfigValue` with validator for type-safe configuration |
 
 ## Lifecycle Methods
 

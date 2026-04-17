@@ -3,25 +3,25 @@
 
 from __future__ import annotations
 
-# requires:
-# author: @Hairpin00
-# version: 1.0.3
-# description: Translator using Google Translate API / Переводчик через Google Translate API
 import asyncio
 import json
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
+from telethon import events
 
-from core.lib.loader.module_config import (
-    Choice,
-    ConfigValue,
-    ModuleConfig,
-)
+from core.lib.loader.module_base import ModuleBase, command
+from core.lib.loader.module_config import Choice, ConfigValue, ModuleConfig
 
 
-def register(kernel):
-    language = kernel.config.get("language", "en")
+class TrModule(ModuleBase):
+    name = "tr"
+    version = "1.0.3"
+    author = "@hairpin01"
+    description = {
+        "ru": "Переводчик через Google Translate",
+        "en": "Translator using Google Translate API",
+    }
 
     strings = {
         "ru": {
@@ -49,8 +49,6 @@ def register(kernel):
             "translation_error_generic": "Translation error:",
         },
     }
-
-    lang_strings = strings.get(language, strings["en"])
 
     EMOJI_LOADING = '<tg-emoji emoji-id="5323463142775202324">🏓</tg-emoji>'
     EMOJI_ERROR = '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji>'
@@ -80,26 +78,21 @@ def register(kernel):
         ),
     )
 
-    def get_config():
-        live_cfg = getattr(kernel, "_live_module_configs", {}).get(__name__)
-        if live_cfg:
-            return live_cfg
-        return config
-
-    async def startup():
-        config_dict = await kernel.get_module_config(
-            __name__,
+    async def on_load(self) -> None:
+        config_dict = await self.kernel.get_module_config(
+            self.name,
             {"tr_lang": "ru"},
         )
-        config.from_dict(config_dict)
-        config_dict_clean = {k: v for k, v in config.to_dict().items() if v is not None}
+        self.config.from_dict(config_dict)
+        config_dict_clean = {
+            k: v for k, v in self.config.to_dict().items() if v is not None
+        }
         if config_dict_clean:
-            await kernel.save_module_config(__name__, config_dict_clean)
-        kernel.store_module_config_schema(__name__, config)
+            await self.kernel.save_module_config(self.name, config_dict_clean)
+        self.kernel.store_module_config_schema(self.name, self.config)
 
-    asyncio.create_task(startup())
-
-    async def translate_text(text: str, dest: str = "ru") -> str:
+    async def _translate_text(self, text: str, dest: str = "ru") -> str:
+        s = self.strings
         try:
             encoded_text = quote(text)
             url = "https://translate.googleapis.com/translate_a/single"
@@ -129,11 +122,7 @@ def register(kernel):
                         decoded_data = data.decode("utf-8")
                         return json.loads(decoded_data)
                 except (URLError, HTTPError) as e:
-                    if hasattr(kernel, "_log") and kernel._log:
-                        asyncio.create_task(
-                            kernel._log.log_network(f"Translation API error: {e}")
-                        )
-                    raise Exception(f"{lang_strings['network_error']} {e!s}")
+                    raise Exception(f"{s['network_error']} {e!s}")
 
             loop = asyncio.get_running_loop()
             data = await loop.run_in_executor(None, sync_request)
@@ -145,101 +134,100 @@ def register(kernel):
                         translated_parts.append(str(sentence[0]))
                 return "".join(translated_parts)
             else:
-                return lang_strings["translation_failed"]
+                return s["translation_failed"]
 
         except TimeoutError:
-            return lang_strings["request_timeout"]
+            return s["request_timeout"]
         except json.JSONDecodeError:
-            return lang_strings["decode_error"]
+            return s["decode_error"]
         except Exception as e:
-            return f"{lang_strings['translation_error_generic']} {e!s}"
+            return f"{s['translation_error_generic']} {e!s}"
 
-    @kernel.register.command(
+    @command(
         "tr",
-        doc_en="translate text using Google Translate",
         doc_ru="перевести текст через Google Translate",
+        doc_en="translate text using Google Translate",
     )
-    async def tr_handler(event):
+    async def cmd_tr(self, event: events.NewMessage.Event) -> None:
         try:
+            s = self.strings
             quote_text = None
             if event.reply_to and hasattr(event.reply_to, "quote_text"):
                 quote_text = event.reply_to.quote_text
 
-            args = event.text.split(maxsplit=2)
+            args = self.args_raw(event).split()
 
-            cfg = get_config()
+            cfg = self.config
             target_lang = cfg.get("tr_lang", "ru") if cfg else "ru"
             text_to_translate = None
 
             if quote_text:
                 text_to_translate = quote_text
 
-                if len(args) > 1:
-                    lang_arg = args[1]
+                if len(args) > 0:
+                    lang_arg = args[0]
                     if len(lang_arg) == 2 and lang_arg.isalpha():
                         target_lang = lang_arg
-
-                elif len(args) > 2:
-                    lang_arg = args[1]
-                    if len(lang_arg) == 2 and lang_arg.isalpha():
-                        target_lang = lang_arg
-                        text_to_translate = args[2]
+                        if len(args) > 1:
+                            text_to_translate = " ".join(args[1:])
 
             elif not text_to_translate:
                 reply = await event.get_reply_message()
                 reply_text = reply.text if reply else None
 
-                if len(args) == 1:
+                if len(args) == 0:
                     if reply_text:
                         text_to_translate = reply_text
                     else:
-                        await event.edit(lang_strings["no_args"])
+                        await self.edit(event, s["no_args"])
                         return
 
-                elif len(args) == 2:
-                    arg1 = args[1]
+                elif len(args) == 1:
+                    arg1 = args[0]
 
                     if len(arg1) == 2 and arg1.isalpha():
                         if reply_text:
                             target_lang = arg1
                             text_to_translate = reply_text
                         else:
-                            await event.edit(
-                                f"{EMOJI_ERROR} <b>{lang_strings['specify_text']}</b>",
+                            await self.edit(
+                                event,
+                                f"{self.EMOJI_ERROR} <b>{s['specify_text']}</b>",
                                 parse_mode="html",
                             )
                             return
                     else:
                         text_to_translate = arg1
 
-                elif len(args) >= 3:
-                    arg1 = args[1]
+                elif len(args) >= 2:
+                    arg1 = args[0]
                     if len(arg1) == 2 and arg1.isalpha():
                         target_lang = arg1
-                        text_to_translate = args[2]
-                    else:
                         text_to_translate = " ".join(args[1:])
+                    else:
+                        text_to_translate = " ".join(args)
 
             if not text_to_translate:
-                await event.edit(
-                    f"{EMOJI_ERROR} <b>{lang_strings['no_text']}</b>",
+                await self.edit(
+                    event,
+                    f"{self.EMOJI_ERROR} <b>{s['no_text']}</b>",
                     parse_mode="html",
                 )
                 return
 
-            status_msg = await event.edit(
-                f"{EMOJI_LOADING} <b>{lang_strings['loading']}</b>", parse_mode="html"
+            status_msg = await self.edit(
+                event, f"{self.EMOJI_LOADING} <b>{s['loading']}</b>", parse_mode="html"
             )
 
-            translated = await translate_text(text_to_translate, target_lang)
+            translated = await self._translate_text(text_to_translate, target_lang)
 
-            result_text = translated
-
-            await status_msg.edit(result_text)
+            await status_msg.edit(translated)
 
         except Exception as e:
-            await kernel.handle_error(e, source="tr_handler", event=event)
-            await event.edit(
-                f"{EMOJI_ERROR} <b>{lang_strings['translation_error']}</b>\n<code>{str(e)[:200]}</code>",
+            await self.kernel.handle_error(e, source="tr", event=event)
+            s = self.strings
+            await self.edit(
+                event,
+                f"{self.EMOJI_ERROR} <b>{s['translation_error']}</b>\n<code>{str(e)[:200]}</code>",
                 parse_mode="html",
             )

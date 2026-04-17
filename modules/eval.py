@@ -3,16 +3,17 @@
 
 from __future__ import annotations
 
-# requires:
-# author: @Hairpin00
-# version: 1.0.3
-# description: Python code execution / Выполнение Python кода
 import html
 import io
 import sys
 import time
 import traceback
-from html import unescape
+from typing import Any
+from telethon import events
+
+
+from core.lib.loader.module_base import ModuleBase, command
+import core.lib.loader.module_base as loader
 
 CUSTOM_EMOJI = {
     "🧿": '<tg-emoji emoji-id="5426900601101374618">🧿</tg-emoji>',
@@ -22,10 +23,11 @@ CUSTOM_EMOJI = {
 }
 
 
-def register(kernel):
-    client = kernel.client
-
-    language = kernel.config.get("language", "en")
+class EvalModule(ModuleBase):
+    name = "eval"
+    version = "1.0.3"
+    author = "@hairpin01"
+    description = {"ru": "Выполнение Python кода", "en": "Python code execution"}
 
     strings = {
         "ru": {
@@ -46,37 +48,38 @@ def register(kernel):
         },
     }
 
-    lang_strings = strings.get(language, strings["en"])
-
-    @kernel.register.command(
+    @command(
         "py",
-        doc_en="<code> - execute Python code",
-        doc_ru="<код> - выполнить Python код",
+        doc_ru="<код> выполнить Python код",
+        doc_en="<code> execute Python code",
     )
-    async def python_exec_handler(event):
-        code = unescape(event.text[len(kernel.custom_prefix) + 2 :].strip())
+    async def cmd_py(self, event: events.NewMessage.Event) -> None:
+        code = html.unescape(self.args_raw(event).strip())
 
         start_time = time.time()
 
         old_stdout = sys.stdout
         old_stderr = sys.stderr
         sys.stdout = sys.stderr = output = io.StringIO()
-        me = await client.get_me()
-        m = event
-        bot = kernel.bot_client
-        reply = await m.get_reply_message()
-        r_text = html.unescape(kernel.raw_text(reply))
 
-        local_vars = {
+        me = await self.client.get_me()
+        m = event
+        bot = self.kernel.bot_client
+        reply = await m.get_reply_message()
+        r_text = html.unescape(self.kernel.raw_text(reply))
+
+        local_vars: dict[str, Any] = {
+            "loader": loader,
+            "self": self,
             "r_text": r_text,
             "r": reply,
-            "c": client,
+            "c": self.client,
             "m": m,
             "me": me,
             "start_time": start_time,
-            "kernel": kernel,
-            "k": kernel,
-            "client": client,
+            "kernel": self.kernel,
+            "k": self.kernel,
+            "client": self.client,
             "bot": bot,
             "event": event,
             "utils": __import__("utils"),
@@ -107,28 +110,27 @@ def register(kernel):
         code_display = html.escape(code[:1000]) + ("..." if len(code) > 1000 else "")
         result_text = complete if complete else "[no output]"
 
+        s = self.strings
+
         if len(result_text) > 4000:
             result_file = io.BytesIO(result_text.encode("utf-8", errors="replace"))
             result_file.name = "eval_result.txt"
 
-            response = f"""{CUSTOM_EMOJI["🧿"]} <b>{lang_strings["code"]}</b>
+            response = f"""{CUSTOM_EMOJI["🧿"]} <b>{s["code"]}</b>
 <blockquote expandable><code>{code_display}</code></blockquote>
-{CUSTOM_EMOJI["🧬"]} <b>{lang_strings["result_file"]}</b>
-<blockquote>{CUSTOM_EMOJI["💠"]} <i>{lang_strings["executed_in"]}</i> <code>{elapsed}{lang_strings["ms"]}</code></blockquote>"""
+{CUSTOM_EMOJI["🧬"]} <b>{s["result_file"]}</b>
+<blockquote>{CUSTOM_EMOJI["💠"]} <i>{s["executed_in"]}</i> <code>{elapsed}{s["ms"]}</code></blockquote>"""
             try:
-                await event.edit(
-                    response,
-                    file=result_file,
-                    parse_mode="html",
-                    force_document=True,
+                await self.edit(
+                    event, response, file=result_file, as_html=True, force_document=True
                 )
             except Exception:
                 try:
                     result_file.seek(0)
-                except:
+                except Exception:
                     pass
                 try:
-                    await client.send_file(
+                    await self.client.send_file(
                         event.chat_id,
                         file=result_file,
                         caption=response,
@@ -136,19 +138,19 @@ def register(kernel):
                         reply_to=event.id,
                         force_document=True,
                     )
-                except:
+                except Exception:
                     try:
-                        await event.edit(response, parse_mode="html")
-                    except:
+                        await self.edit(event, response, as_html=True)
+                    except Exception:
                         pass
         else:
             result_display = html.escape(result_text)
-            response = f"""{CUSTOM_EMOJI["🧿"]} <b>{lang_strings["code"]}</b>
+            response = f"""{CUSTOM_EMOJI["🧿"]} <b>{s["code"]}</b>
 <blockquote expandable><code>{code_display}</code></blockquote>
-{CUSTOM_EMOJI["🧬"]} <b>{lang_strings["result_in_message"]}</b>
+{CUSTOM_EMOJI["🧬"]} <b>{s["result_in_message"]}</b>
 <blockquote expandable><code>{result_display}</code></blockquote>
-<blockquote>{CUSTOM_EMOJI["💠"]} <i>{lang_strings["executed_in"]}</i> <code>{elapsed}{lang_strings["ms"]}</code></blockquote>"""
+<blockquote>{CUSTOM_EMOJI["💠"]} <i>{s["executed_in"]}</i> <code>{elapsed}{s["ms"]}</code></blockquote>"""
             try:
-                await event.edit(response, parse_mode="html")
-            except:
+                await self.edit(event, response, as_html=True)
+            except Exception:
                 pass

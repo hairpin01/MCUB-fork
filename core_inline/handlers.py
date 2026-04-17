@@ -1361,13 +1361,30 @@ class InlineHandlers:
                 else str(event.data)
             )
 
-            if not await self.check_admin(event) and (
-                not hasattr(self.kernel, "callback_permissions")
-                or not self.kernel.callback_permissions.is_allowed(
-                    event.sender_id, data_str
-                )
-            ):
-                return await event.answer(self.lang["no_access"], alert=False)
+            # Check auto-generated callback tokens first for allow_all
+            self._cleanup_inline_callback_map()
+            with self._cb_lock:
+                cb_map = getattr(self.kernel, "inline_callback_map", None) or {}
+
+            entry = None
+            is_allowed = False
+
+            if data_str in cb_map:
+                entry = cb_map[data_str]
+                if entry.get("allow_all"):
+                    is_allowed = True
+
+            if not is_allowed:
+                if not await self.check_admin(event) and (
+                    not hasattr(self.kernel, "callback_permissions")
+                    or not self.kernel.callback_permissions.is_allowed(
+                        event.sender_id, data_str
+                    )
+                ):
+                    if entry is None:
+                        return await event.answer(self.lang["no_access"], alert=False)
+                    elif not entry.get("allow_user"):
+                        return await event.answer(self.lang["no_access"], alert=False)
 
             # 1. Built-in service callbacks
             if data_str.startswith("show_tb:"):
@@ -1377,14 +1394,10 @@ class InlineHandlers:
             elif data_str.startswith("mute_err:"):
                 await self._handle_mute_error(event, data_str)
 
-            # 2. Auto-generated callback tokens
-            self._cleanup_inline_callback_map()
-            with self._cb_lock:
-                cb_map = getattr(self.kernel, "inline_callback_map", None) or {}
+            if entry is None:
+                entry = cb_map.get(data_str)
 
-            if data_str in cb_map:
-                entry = cb_map[data_str]
-
+            if entry:
                 if entry.get("expires_at") and entry["expires_at"] < time.time():
                     with self._cb_lock:
                         cb_map.pop(data_str, None)

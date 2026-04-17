@@ -13,8 +13,7 @@ class SearchModule(ModuleBase):
     version = "1.0.0"
     author = "@yourname"
     description = {"ru": "Поиск по базе знаний", "en": "Knowledge base search"}
-
-    strings: dict[str, dict[str, str]] = {
+    strings = {
         "ru": {
             "search_placeholder": "Введите запрос для поиска...",
             "no_results": "Ничего не найдено по запросу: {query}",

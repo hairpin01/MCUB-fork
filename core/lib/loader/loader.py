@@ -21,7 +21,6 @@ if TYPE_CHECKING:
 from .archive import ArchiveManager
 from .module_base import ModuleBase
 
-
 _IMPORT_TO_PIP: dict[str, str] = {
     "PIL": "Pillow",
     "cv2": "opencv-python",

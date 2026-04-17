@@ -11,7 +11,7 @@ import time
 
 import aiohttp
 
-# version kenrel MCUB
+# version kernel MCUB
 __version__ = "1.2.7"
 VERSION = __version__
 

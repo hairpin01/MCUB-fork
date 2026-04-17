@@ -483,6 +483,24 @@ def register(kernel):
         elif hasattr(kernel, "send_log_message"):
             await kernel.send_log_message(f"{CUSTOM_EMOJI['crystal']} {text}")
 
+    def restore_backup_and_cleanup(
+        backup_content: str | None,
+        backup_path: str | None,
+        new_file_path: str,
+        add_log_fn,
+    ) -> None:
+        if os.path.exists(new_file_path):
+            os.remove(new_file_path)
+        if backup_content and backup_path:
+            try:
+                with open(backup_path, "w", encoding="utf-8") as f:
+                    f.write(backup_content)
+                add_log_fn(f"=> Backup restored: {backup_path}")
+                kernel.logger.info(f"[loader] Backup restored to {backup_path}")
+            except Exception as e:
+                kernel.logger.error(f"[loader] Failed to restore backup: {e}")
+                add_log_fn(f"=X Failed to restore backup: {e}")
+
     async def edit_with_emoji(
         message: types.Message,
         text: str,
@@ -1185,6 +1203,9 @@ def register(kernel):
                 f"{module_name}.py",
             )
 
+            old_file_backup = None
+            old_file_backup_path = None
+
             new_class_name = metadata.get("class_name")
             for loaded_name, loaded_mod in list(kernel.loaded_modules.items()):
                 class_instance = getattr(loaded_mod, "_class_instance", None)
@@ -1201,6 +1222,9 @@ def register(kernel):
                             kernel.MODULES_LOADED_DIR, f"{module_name}.py"
                         )
                         if os.path.exists(old_file_path):
+                            with open(old_file_path, "r", encoding="utf-8") as f:
+                                old_file_backup = f.read()
+                            old_file_backup_path = old_file_path
                             os.remove(old_file_path)
                             kernel.logger.info(
                                 f"[loader] Removed old file {old_file_path} for class module {module_name}"
@@ -1275,6 +1299,10 @@ def register(kernel):
 
             if is_update:
                 add_log(t("log_removing_old", module_name=module_name))
+                if old_file_backup is None and os.path.exists(file_path):
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        old_file_backup = f.read()
+                    old_file_backup_path = file_path
                 await kernel.unregister_module_commands(module_name, force=force_unload)
 
             add_log(t("log_saving_file", file_path=file_path))
@@ -1435,8 +1463,9 @@ def register(kernel):
                             log=html.escape(log_text),
                         ),
                     )
-                    if os.path.exists(file_path):
-                        os.remove(file_path)
+                    restore_backup_and_cleanup(
+                        old_file_backup, old_file_backup_path, file_path, add_log
+                    )
                 return
 
             lang = kernel.config.get("language", "ru")
@@ -1581,9 +1610,9 @@ def register(kernel):
                         log=html.escape(log_text),
                     ),
                 )
-                if os.path.exists(file_path):
-                    add_log(t("log_deleting_due_error"))
-                    os.remove(file_path)
+                restore_backup_and_cleanup(
+                    old_file_backup, old_file_backup_path, file_path, add_log
+                )
 
         except CommandConflictError as e:
             add_log(t("log_conflict", error=e))
@@ -1609,10 +1638,9 @@ def register(kernel):
                     ),
                 )
 
-            file_path = kernel._loader.get_module_path(module_name)
-            if os.path.exists(file_path):
-                add_log(t("log_deleting_due_conflict"))
-                os.remove(file_path)
+            restore_backup_and_cleanup(
+                old_file_backup, old_file_backup_path, file_path, add_log
+            )
 
         except Exception as e:
             add_log(t("log_critical", error=str(e)))
@@ -1631,10 +1659,9 @@ def register(kernel):
                 ),
             )
 
-            file_path = kernel._loader.get_module_path(module_name)
-            if os.path.exists(file_path):
-                add_log(t("log_deleting_due_error"))
-                os.remove(file_path)
+            restore_backup_and_cleanup(
+                old_file_backup, old_file_backup_path, file_path, add_log
+            )
 
             # Remove source info on error
             kernel._module_sources.pop(module_name, None)
@@ -1974,6 +2001,8 @@ def register(kernel):
                 module_name = existing_class_name
 
         old_version = None
+        old_file_backup = None
+        old_file_backup_path = None
         if is_update:
             old_file_path = kernel._loader.get_module_path(module_name)
             old_version = await kernel._loader.get_module_version_from_file(
@@ -2011,6 +2040,9 @@ def register(kernel):
                     ) and loaded_name != module_name:
                         old_file_path = kernel._loader.get_module_path(loaded_name)
                         if os.path.exists(old_file_path):
+                            with open(old_file_path, "r", encoding="utf-8") as f:
+                                old_file_backup = f.read()
+                            old_file_backup_path = old_file_path
                             os.remove(old_file_path)
                             kernel.logger.info(
                                 f"[loader] Removed old file {old_file_path} for class module {class_display_name}"
@@ -2046,8 +2078,9 @@ def register(kernel):
                             blocked=CUSTOM_EMOJI["blocked"],
                         ),
                     )
-                    if os.path.exists(file_path):
-                        os.remove(file_path)
+                    restore_backup_and_cleanup(
+                        old_file_backup, old_file_backup_path, file_path, add_log
+                    )
                     return
                 if not is_update:
                     for loaded_name, loaded_mod in list(kernel.loaded_modules.items()):
@@ -2059,6 +2092,12 @@ def register(kernel):
                                     loaded_name
                                 )
                                 if os.path.exists(old_file_path):
+                                    if old_file_backup is None:
+                                        with open(
+                                            old_file_path, "r", encoding="utf-8"
+                                        ) as f:
+                                            old_file_backup = f.read()
+                                        old_file_backup_path = old_file_path
                                     os.remove(old_file_path)
                                     kernel.logger.info(
                                         f"[loader] Removed old file {old_file_path} for class module {class_name}"
@@ -2116,16 +2155,18 @@ def register(kernel):
                         msg,
                         t("hikka_disabled", warning=CUSTOM_EMOJI["warning"]),
                     )
-                    if os.path.exists(file_path):
-                        os.remove(file_path)
+                    restore_backup_and_cleanup(
+                        old_file_backup, old_file_backup_path, file_path, add_log
+                    )
                     return
                 if not HIKKA_COMPAT:
                     await edit_with_emoji(
                         msg,
                         t("hikka_no_compat", warning=CUSTOM_EMOJI["warning"]),
                     )
-                    if os.path.exists(file_path):
-                        os.remove(file_path)
+                    restore_backup_and_cleanup(
+                        old_file_backup, old_file_backup_path, file_path, add_log
+                    )
                     return
 
                 await edit_with_emoji(
@@ -2153,6 +2194,10 @@ def register(kernel):
 
             if is_update:
                 add_log(t("log_removing_old", module_name=module_name))
+                if old_file_backup is None and os.path.exists(file_path):
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        old_file_backup = f.read()
+                    old_file_backup_path = file_path
                 await kernel.unregister_module_commands(module_name)
 
             add_log(t("log_loading_module", module_name=module_name))
@@ -2287,8 +2332,9 @@ def register(kernel):
                     ),
                 )
 
-                if os.path.exists(file_path):
-                    os.remove(file_path)
+                restore_backup_and_cleanup(
+                    old_file_backup, old_file_backup_path, file_path, add_log
+                )
 
         except CommandConflictError as e:
             add_log(t("log_conflict", error=e))
@@ -2318,8 +2364,9 @@ def register(kernel):
                         log=html.escape(log_text),
                     ),
                 )
-            if os.path.exists(file_path):
-                os.remove(file_path)
+            restore_backup_and_cleanup(
+                old_file_backup, old_file_backup_path, file_path, add_log
+            )
 
         except Exception as e:
             add_log(t("log_critical", error=str(e)))
@@ -2338,8 +2385,9 @@ def register(kernel):
                 ),
             )
             await kernel.handle_error(e, source="install_module_handler", event=event)
-            if os.path.exists(file_path):
-                os.remove(file_path)
+            restore_backup_and_cleanup(
+                old_file_backup, old_file_backup_path, file_path, add_log
+            )
 
     @kernel.register.command(
         "dlm",

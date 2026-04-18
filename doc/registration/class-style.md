@@ -477,14 +477,25 @@ await self.edit(event, "Text", reply_markup=[[btn]], as_html=True)
 ```python
 @command("call")
 async def cmd_call(self, event):
-    # Lookup another loaded module by name
+    # Lookup another loaded module by name (returns None if not found)
     notes = self.lookup_module("Notes")
+    if notes:
+        await notes.add_note(event, "text")
 
     # Require a module (raises LookupError if not found)
     notes = self.require_module("Notes")
     # Use the required module's methods
     await notes.add_note(event, "text")
 ```
+
+**Lookup methods:**
+
+| Method | Description |
+|--------|-------------|
+| `self.lookup_module(name)` | Find module by name, returns `None` if not found |
+| `self.require_module(name)` | Find module or raise `LookupError` if not found |
+| `self.get_prefix()` | Current command prefix |
+| `self.get_lang()` | Current language |
 
 **Helper methods:**
 
@@ -498,10 +509,6 @@ async def cmd_call(self, event):
 | `self.answer(event, text, **kwargs)` | Universal send/edit/reply |
 | `self.edit(event, text, **kwargs)` | Edit or send message |
 | `self.reply(event, text, **kwargs)` | Reply to message |
-| `self.lookup_module(name)` | Find module by name (returns `None` if not found) |
-| `self.require_module(name)` | Find module or raise `LookupError` |
-| `self.get_prefix()` | Get current command prefix |
-| `self.get_lang()` | Get current language |
 | `self.inline(chat_id, title, ...)` | Send inline form message |
 
 ### Database and Cache Usage

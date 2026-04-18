@@ -1818,6 +1818,20 @@ class ModuleLoader:
                 del k.command_owners[cmd]
             k.logger.debug(f"Unregistered command: {cmd}")
 
+        # Unregister bot commands
+        if hasattr(k, "bot_command_handlers"):
+            bot_to_remove = [
+                cmd
+                for cmd, owner in k.bot_command_owners.items()
+                if owner == module_name
+            ]
+            for cmd in bot_to_remove:
+                if cmd in k.bot_command_handlers:
+                    del k.bot_command_handlers[cmd]
+                if cmd in k.bot_command_owners:
+                    del k.bot_command_owners[cmd]
+                k.logger.debug(f"Unregistered bot command: {cmd}")
+
         # Don't remove aliases on unregister - they persist across reloads
         # aliases_to_remove = [
         #     alias

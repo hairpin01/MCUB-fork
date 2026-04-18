@@ -1165,14 +1165,11 @@ class ModuleBase(ABC):
             text: str,
             url: str,
             *,
-            new_tab: bool = False,
             icon: int | None = None,
             style: Any = None,
         ) -> Any:
             """Create a URL button."""
-            return self._telethon_button.url(
-                text, url, new_tab=new_tab, style=style, icon=icon
-            )
+            return self._telethon_button.url(text, url, style=style, icon=icon)
 
         def text(
             self,

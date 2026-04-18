@@ -4,6 +4,7 @@
 """Тесты для утилит modules/man.py."""
 
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -17,26 +18,20 @@ async def test_load_module_metadata_uses_cache(tmp_path, monkeypatch):
     kernel = SimpleNamespace()
     kernel.MODULES_DIR = str(tmp_path)
     kernel.MODULES_LOADED_DIR = str(tmp_path)
+    kernel.get_module_metadata = AsyncMock(return_value={"description": "ok"})
 
-    # Файл модуля
     module_file = tmp_path / "demo.py"
     module_file.write_text("# dummy", encoding="utf-8")
 
-    async def _metadata(_):
-        return {"description": "ok"}
+    module_instance = man.ManModule.__new__(man.ManModule)
+    module_instance.kernel = kernel
+    module_instance.strings = {"no_description": "нет", "unknown": "?"}
 
-    kernel.get_module_metadata = _metadata
-
-    strings = {"no_description": "нет", "unknown": "?"}
-
-    # Очистить кеш между тестами
     man._METADATA_CACHE.clear()
 
-    first = await man.load_module_metadata("demo", "system", kernel, strings)
+    first = await module_instance._load_module_metadata("demo", "system")
     assert first["description"] == "ok"
 
-    # Сдвиг mtime не происходит, поэтому вызов должен взять из кеша
-    # подменяем метод, чтобы убедиться, что он не зовётся
     called = False
 
     async def _fail(_):
@@ -46,7 +41,7 @@ async def test_load_module_metadata_uses_cache(tmp_path, monkeypatch):
 
     kernel.get_module_metadata = _fail
 
-    second = await man.load_module_metadata("demo", "system", kernel, strings)
+    second = await module_instance._load_module_metadata("demo", "system")
     assert second == first
     assert called is False
 
@@ -59,10 +54,13 @@ def test_gather_all_modules_hides_modules():
         loaded_modules={"user": object()},
     )
 
+    module_instance = man.ManModule.__new__(man.ManModule)
+    module_instance.kernel = kernel
+
     hidden = ["user"]
 
-    result = man.gather_all_modules(kernel, show_hidden=False, hidden=hidden)
+    result = module_instance._gather_all_modules(show_hidden=False, hidden=hidden)
     assert "user" not in result and "sys" in result
 
-    result_shown = man.gather_all_modules(kernel, show_hidden=True, hidden=hidden)
+    result_shown = module_instance._gather_all_modules(show_hidden=True, hidden=hidden)
     assert "user" in result_shown and "sys" in result_shown

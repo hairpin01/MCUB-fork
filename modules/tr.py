@@ -222,6 +222,7 @@ class TrModule(ModuleBase):
             translated = await self._translate_text(text_to_translate, target_lang)
 
             await status_msg.edit(translated)
+            return event
 
         except Exception as e:
             await self.kernel.handle_error(e, source="tr", event=event)

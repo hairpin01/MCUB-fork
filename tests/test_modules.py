@@ -136,13 +136,6 @@ class TestEvalModule:
         assert hasattr(eval_module, "CUSTOM_EMOJI")
         assert isinstance(eval_module.CUSTOM_EMOJI, dict)
 
-    def test_eval_has_register(self):
-        """Test eval module has register function"""
-        import modules.eval as eval_module
-
-        assert hasattr(eval_module, "register")
-        assert callable(eval_module.register)
-
 
 class TestTrustedModule:
     """Tests for modules/trusted.py"""
@@ -176,13 +169,6 @@ class TestTrModule:
 
         assert tr_module is not None
 
-    def test_tr_has_register(self):
-        """Test tr module has register function"""
-        import modules.tr as tr_module
-
-        assert hasattr(tr_module, "register")
-        assert callable(tr_module.register)
-
     def test_tr_has_module_config(self):
         """Test tr module has ModuleConfig"""
         import modules.tr as tr_module
@@ -206,13 +192,6 @@ class TestMcubInfoModule:
 
         assert hasattr(mcub_info_module, "CUSTOM_EMOJI")
         assert isinstance(mcub_info_module.CUSTOM_EMOJI, dict)
-
-    def test_mcub_info_has_register(self):
-        """Test MCUB_info module has register function"""
-        import modules.MCUB_info as mcub_info_module
-
-        assert hasattr(mcub_info_module, "register")
-        assert callable(mcub_info_module.register)
 
 
 class TestUpdatesModule:
@@ -271,20 +250,11 @@ class TestManModule:
         assert hasattr(man_module, "CUSTOM_EMOJI")
         assert isinstance(man_module.CUSTOM_EMOJI, dict)
 
-    def test_man_has_register(self):
-        """Test man module has register function"""
+    def test_man_has_man_module_class(self):
+        """Test man module has ManModule class"""
         import modules.man as man_module
 
-        assert hasattr(man_module, "register")
-        assert callable(man_module.register)
-
-    def test_man_has_helper_functions(self):
-        """Test man module has helper functions"""
-        import modules.man as man_module
-
-        assert hasattr(man_module, "gather_all_modules")
-        assert hasattr(man_module, "load_module_metadata")
-        assert hasattr(man_module, "get_paginated_data")
+        assert hasattr(man_module, "ManModule")
 
 
 class TestApiProtectionModule:
@@ -326,13 +296,6 @@ class TestTesterModule:
         assert hasattr(tester_module, "CUSTOM_EMOJI")
         assert isinstance(tester_module.CUSTOM_EMOJI, dict)
 
-    def test_tester_has_register(self):
-        """Test tester module has register function"""
-        import modules.tester as tester_module
-
-        assert hasattr(tester_module, "register")
-        assert callable(tester_module.register)
-
 
 class TestAllModulesHaveRegister:
     """Test that all modules have register function"""
@@ -341,15 +304,10 @@ class TestAllModulesHaveRegister:
         "loader",
         "command",
         "config",
-        "eval",
         "trusted",
-        "tr",
-        "MCUB_info",
         "updates",
         "settings",
-        "man",
         "api_protection",
-        "tester",
     ]
 
     @pytest.mark.parametrize("module_name", MODULES)

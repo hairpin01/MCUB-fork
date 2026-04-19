@@ -199,6 +199,43 @@ Use with `self.callback_button()` to create buttons.
 > [!NOTE]
 > `data` is optional for callback handlers. If your handler has `data` parameter (or `**kwargs`), button `data` is passed there; otherwise it is ignored.
 
+### `@inline_temp(ttl=300, allow_user=None, allow_ttl=100, article=None, data=None)`
+
+Decorator for temporary inline command handlers. When a user enters `@bot <uuid> <args>`, the article is shown. When they send it, the handler is called with `(event, args, data)`.
+
+```python
+@inline_temp(ttl=600)
+async def handle_search(self, event, args, data=None):
+    await event.answer(f"Search: {args}")
+
+@inline_temp(ttl=300, article=lambda e: e.builder.article("Search", text="Search..."))
+async def handle_custom(self, event, args):
+    await event.answer(f"Result for: {args}")
+```
+
+**Parameters:**
+- `ttl` (int): Time-to-live in seconds (default: 300)
+- `allow_user` (int | list[int] | str): User ID, list of IDs, or `"all"` to restrict access (default: None)
+- `allow_ttl` (int): TTL for user permission in seconds (default: 100)
+- `article` (callable): Optional callable that receives event and returns an article builder
+- `data` (any): Optional arbitrary data passed to the handler
+
+**Getting form_id:**
+```python
+async def on_load(self):
+    form_id = self.get_inline_temp_id("handle_search")
+    # or with explicit module name:
+    form_id = self.get_inline_temp_id("handle_search", "MyModule")
+```
+
+**Using in buttons:**
+```python
+await event.edit("Search", buttons=[[self.Button.switch("Search", f"{form_id} ")]])
+```
+
+> [!NOTE]
+> The form_id is 8 characters long. User enters `@bot <form_id> <args>` to trigger. When they send the article, your handler receives the full query args string.
+
 ### `@inline(pattern)`
 
 Register an inline query handler.

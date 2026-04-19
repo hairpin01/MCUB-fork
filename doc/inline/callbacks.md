@@ -90,3 +90,75 @@ await inline_mgr.allow_user(123456789, "search")
 # List allowed users
 users = await inline_mgr.get_allowed_users()
 ```
+
+---
+
+## Temporary Inline Commands
+
+MCUB supports temporary inline command handlers via `kernel.register.inline_temp()`.
+
+### Register.register_inline_temp()
+
+```python
+form_id = kernel.register.inline_temp(
+    handler,              # async callable
+    ttl=300,            # time-to-live in seconds
+    article=None,        # callable returning article builder
+    data=None,           # arbitrary data passed to handler
+    allow_user=None,     # int, list[int], or "all"
+    allow_ttl=100,      # permission TTL
+)
+```
+
+**Parameters:**
+- `handler`: Async function `async def handler(event, args, data=None)` or `async def handler(event, args)`
+- `ttl`: Seconds before handler expires (default: 300)
+- `article`: Optional `lambda event: event.builder.article(...)`
+- `data`: Any data accessible in handler
+- `allow_user`: Restrict to specific user(s) or "all"
+- `allow_ttl`: Permission duration in seconds
+
+**Returns:**
+- 8-character uuid string used as inline command
+
+### Usage
+
+```python
+@kernel.register.method
+async def setup(kernel):
+    form_id = kernel.register.inline_temp(
+        self.handle_search,
+        ttl=600,
+        article=lambda e: e.builder.article("Search", text="Enter query..."),
+        data={"timeout": 30}
+    )
+    # form_id = "a1b2c3d4"
+
+async def handle_search(self, event, args, data=None):
+    # args = "query text" (everything after form_id)
+    await event.answer(f"Searching: {args}")
+```
+
+### Triggering
+
+1. User types: `@bot <form_id> <args>`
+2. Bot shows article
+3. User sends article → handler called with `(event, args, data)`
+
+### Class-Style Usage
+
+```python
+from core.lib.loader.module_base import ModuleBase, inline_temp
+
+class MyModule(ModuleBase):
+    name = "MyModule"
+
+    @inline_temp(ttl=600)
+    async def handle_search(self, event, args, data=None):
+        await event.answer(f"Result: {args}")
+
+    async def on_load(self):
+        form_id = self.get_inline_temp_id("handle_search")
+        # Use in buttons:
+        await event.edit("Search", buttons=[[self.Button.switch("Search", f"{form_id} ")]])
+```

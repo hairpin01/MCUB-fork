@@ -242,6 +242,61 @@ def event(
     return decorator
 
 
+def inline_temp(
+    func: Callable | None = None,
+    *,
+    ttl: int = 300,
+    allow_user: int | list[int] | str | None = None,
+    allow_ttl: int = 100,
+    article: Callable | None = None,
+    data: Any | None = None,
+) -> Callable:
+    """
+    Class-level decorator for registering temporary inline command handlers.
+
+    When a user enters @bot <uuid> <args>, the article is shown. When they
+    send it, the handler is called with (event, args, data).
+
+    Usage::
+
+        from core.lib.loader.module_base import ModuleBase, inline_temp
+
+        class MyModule(ModuleBase):
+            @inline_temp(ttl=600)
+            async def handle_search(self, event, args, data=None):
+                await event.answer(f"Search: {args}")
+
+            @inline_temp(ttl=300, article=lambda e: e.builder.article("Search", text="..."))
+            async def handle_search_custom(self, event, args):
+                ...
+
+    Args:
+        ttl: Time-to-live in seconds (default: 300).
+        allow_user: User ID, list of IDs, or "all" to allow.
+        allow_ttl: TTL for user permission (default: 100).
+        article: Optional callable that returns an article builder.
+        data: Optional arbitrary data to pass to the handler.
+    """
+
+    def decorator(f: Callable) -> Callable:
+        if not hasattr(f, "_mcub_inline_temp"):
+            f._mcub_inline_temp = []
+        f._mcub_inline_temp.append(
+            {
+                "ttl": ttl,
+                "allow_user": allow_user,
+                "allow_ttl": allow_ttl,
+                "article": article,
+                "data": data,
+            }
+        )
+        return f
+
+    if func is not None:
+        return decorator(func)
+    return decorator
+
+
 def method(func: Callable | None = None) -> Callable:
     """
     Class-level decorator for registering generic methods.
@@ -507,6 +562,7 @@ class ModuleBase(ABC):
     _owner_registry: list = []
     _permission_registry: list = []
     _error_handler_registry: list = []
+    _inline_temp_registry: list = []
 
     def __getattribute__(self, name: str) -> Any:
         if name == "config":
@@ -536,6 +592,7 @@ class ModuleBase(ABC):
         cls._owner_registry = []
         cls._permission_registry = []
         cls._error_handler_registry = []
+        cls._inline_temp_registry = []
 
         for name_attr, attr in cls.__dict__.items():
             if not callable(attr):
@@ -577,6 +634,18 @@ class ModuleBase(ABC):
                     )
             if hasattr(attr, "_mcub_methods"):
                 cls._method_registry.append(attr)
+            if hasattr(attr, "_mcub_inline_temp"):
+                for temp_info in attr._mcub_inline_temp:
+                    cls._inline_temp_registry.append(
+                        (
+                            attr,
+                            temp_info["ttl"],
+                            temp_info.get("allow_user"),
+                            temp_info.get("allow_ttl"),
+                            temp_info["article"],
+                            temp_info["data"],
+                        )
+                    )
             if hasattr(attr, "_mcub_on_install"):
                 cls._on_install_registry.append(attr)
             if hasattr(attr, "_mcub_uninstall"):
@@ -761,6 +830,16 @@ class ModuleBase(ABC):
         for func in type(self)._method_registry:
             self._method_funcs.append(func)
 
+        self._inline_temp_ids = {}
+        module_name = self.name
+        for func, ttl, allow_user, allow_ttl, article, data in type(
+            self
+        )._inline_temp_registry:
+            form_id = self._register_inline_temp(
+                func, ttl, allow_user, allow_ttl, article, data
+            )
+            self._inline_temp_ids[f"{module_name}:{func.__name__}"] = form_id
+
         for func in type(self)._on_install_registry:
             self._on_install_funcs.append(func)
 
@@ -838,6 +917,34 @@ class ModuleBase(ABC):
         self._loops.append(loop)
         setattr(self, func.__name__, loop)
         return loop
+
+    def _register_inline_temp(
+        self,
+        func: Callable,
+        ttl: int,
+        allow_user: Any,
+        allow_ttl: int,
+        article: Any,
+        data: Any,
+    ) -> str:
+        """Register a temporary inline handler via register.py."""
+        user_module = self._get_user_module()
+        if user_module and not hasattr(user_module, "register"):
+            user_module.register = type("RegisterObject", (), {})()
+
+        async def bound_wrapper(event: Any, args: str, data: Any = None) -> None:
+            return await func(self, event, args, data)
+
+        bound_wrapper.__original__ = func
+        bound_wrapper.__bound_instance__ = self
+
+        form_id = self.kernel.register.inline_temp(
+            bound_wrapper,
+            ttl=ttl,
+            article=article,
+            data=data,
+        )
+        return form_id
 
     def _register_watcher(
         self,
@@ -1007,6 +1114,55 @@ class ModuleBase(ABC):
             ttl=ttl,
             **kwargs,
         )
+
+    def inline_temp(
+        self,
+        func: Callable,
+        ttl: int = 300,
+        allow_user: int | list[int] | str | None = None,
+        allow_ttl: int = 100,
+        article: Callable | None = None,
+        data: Any | None = None,
+    ) -> str:
+        """Register a temporary inline command handler.
+
+        Usage:
+            form_id = self.inline_temp(
+                self.handle_search,
+                ttl=600,
+                article=lambda e: e.builder.article("Search", text="..."),
+                data={"key": "value"}
+            )
+            # then use form_id in buttons or pass to users
+        """
+
+        async def bound_wrapper(event: Any, *a: Any, **kw: Any) -> None:
+            return await func(self, event, *a, **kw)
+
+        bound_wrapper.__original__ = func
+        bound_wrapper.__bound_instance__ = self
+
+        return self.kernel.register.inline_temp(
+            bound_wrapper,
+            ttl=ttl,
+            article=article,
+            data=data,
+        )
+
+    def get_inline_temp_id(
+        self, method_name: str, module_name: str | None = None
+    ) -> str | None:
+        """Get the form_id for a decorated inline_temp method.
+
+        Args:
+            method_name: Name of the method decorated with @inline_temp
+            module_name: Optional module name. If not specified, uses self.name
+
+        Returns:
+            The form_id uuid or None if not found.
+        """
+        key = f"{module_name or self.name}:{method_name}"
+        return getattr(self, "_inline_temp_ids", {}).get(key)
 
     def lookup_module(self, module_name: str) -> Any:
         needle = str(module_name).lower()
@@ -1195,8 +1351,8 @@ class ModuleBase(ABC):
             style: Any = None,
         ) -> Any:
             """Create a switch button."""
-            return self._telethon_button.switch(
-                text, query, same_peer=same_peer, style=style, icon=icon
+            return self._telethon_button.switch_inline(
+                text, query=query, same_peer=same_peer, style=style, icon=icon
             )
 
         def copy(

@@ -717,6 +717,13 @@ class Kernel:
             )
 
         restored = []
+        central_watchers = []
+        central_events = []
+        reg_self = getattr(self, "register", None)
+        if reg_self:
+            central_watchers = getattr(reg_self, "_all_watchers", [])
+            central_events = getattr(reg_self, "_all_event_handlers", [])
+
         for module_name, module in {
             **self.loaded_modules,
             **self.system_modules,
@@ -792,6 +799,44 @@ class Kernel:
                 restored.append(
                     f"event:{module_name}:{getattr(handler, '__name__', repr(handler))}"
                 )
+
+        seen_watchers = set()
+        for entry in central_watchers:
+            wrapper, event_obj = entry[0], entry[1]
+            meta = entry[3] if len(entry) > 3 else {}
+            module_name = meta.get("module", "unknown")
+            seen_key = (
+                getattr(wrapper, "__name__", repr(wrapper)),
+                type(event_obj).__name__,
+            )
+            if seen_key in seen_watchers:
+                continue
+            seen_watchers.add(seen_key)
+            if _has_binding(wrapper, event_obj):
+                continue
+            client = entry[2] if len(entry) > 2 else self.client
+            client.add_event_handler(wrapper, event_obj)
+            restored.append(
+                f"central_watcher:{module_name}:{getattr(wrapper, '__name__', repr(wrapper))}"
+            )
+
+        seen_events = set()
+        for entry in central_events:
+            handler, event_obj = entry[0], entry[1]
+            seen_key = (
+                getattr(handler, "__name__", repr(handler)),
+                type(event_obj).__name__,
+            )
+            if seen_key in seen_events:
+                continue
+            seen_events.add(seen_key)
+            if _has_binding(handler, event_obj):
+                continue
+            client = entry[2] if len(entry) > 2 else self.client
+            client.add_event_handler(handler, event_obj)
+            restored.append(
+                f"central_event:{getattr(handler, '__name__', repr(handler))}"
+            )
 
         if restored:
             self.logger.warning(

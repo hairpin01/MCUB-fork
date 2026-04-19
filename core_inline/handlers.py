@@ -494,6 +494,69 @@ class InlineHandlers:
                             event.id, form_data, ttl=form_data.get("_ttl", 3600)
                         )
 
+                temp_uuid = str(event.id)
+                cache_key = f"inline_temp_{temp_uuid}"
+                temp_data = (
+                    self.kernel.cache.get(cache_key)
+                    if hasattr(self.kernel, "cache")
+                    else None
+                )
+
+                if temp_data:
+                    allow_user = temp_data.get("allow_user")
+                    user_id = getattr(event, "user_id", None)
+
+                    if allow_user:
+                        if allow_user != "all":
+                            is_allowed = False
+                            if hasattr(self.kernel, "callback_permissions"):
+                                is_allowed = (
+                                    self.kernel.callback_permissions.is_allowed(
+                                        user_id, temp_uuid
+                                    )
+                                )
+                            if not is_allowed:
+                                if hasattr(event, "answer"):
+                                    await event.answer("Not allowed", alert=True)
+                                return
+
+                    handler = temp_data.get("handler")
+                    data = temp_data.get("data")
+                    query_args = temp_data.get("query_args", "")
+
+                    if handler:
+                        try:
+                            is_bound = (
+                                hasattr(handler, "__bound_instance__")
+                                and handler.__bound_instance__ is not None
+                            )
+
+                            if is_bound:
+                                await handler(event, query_args, data)
+                            else:
+                                sig = None
+                                try:
+                                    sig = inspect.signature(handler)
+                                except (TypeError, ValueError):
+                                    pass
+
+                                if is_bound and sig and len(sig.parameters) >= 3:
+                                    await handler(event, query_args, data)
+                                elif is_bound and sig and len(sig.parameters) >= 2:
+                                    await handler(event, query_args)
+                                elif is_bound:
+                                    await handler(event)
+                                elif sig and len(sig.parameters) >= 3:
+                                    await handler(event, query_args, data)
+                                elif sig and len(sig.parameters) >= 2:
+                                    await handler(event, query_args)
+                                else:
+                                    await handler(event)
+                        except Exception as e:
+                            self.kernel.logger.error(f"inline_temp handler error: {e}")
+                            if hasattr(event, "answer"):
+                                await event.answer(f"Error: {e}", alert=True)
+
     async def close(self) -> None:
         """Close aiohttp session on bot shutdown."""
         if self._cleanup_task is not None:
@@ -1085,6 +1148,48 @@ class InlineHandlers:
                     f"[InlineHandlers] cleaned {len(expired)} expired callbacks"
                 )
 
+    async def _save_inline_temp_data(
+        self, temp_uuid: str, query_args: str, entry: dict
+    ) -> None:
+        """Save inline_temp data to cache for later retrieval on UpdateBotInlineSend."""
+        if not hasattr(self.kernel, "cache"):
+            return
+        temp_data = {
+            "handler": entry.get("handler"),
+            "data": entry.get("data"),
+            "query_args": query_args,
+            "module_name": entry.get("module_name"),
+            "allow_user": entry.get("allow_user"),
+            "allow_ttl": entry.get("allow_ttl", 100),
+        }
+        self.kernel.cache.set(
+            f"inline_temp_{temp_uuid}", temp_data, ttl=entry.get("expires_at", 300)
+        )
+
+    def _cleanup_inline_temp(self, force: bool = False) -> int:
+        """Clean up expired temporary inline handlers."""
+        if not hasattr(self.kernel, "_inline_temp_map"):
+            return 0
+
+        now = time.time()
+        removed = 0
+
+        for temp_uuid in list(self.kernel._inline_temp_map.keys()):
+            entry = self.kernel._inline_temp_map.get(temp_uuid)
+            if not entry:
+                continue
+            expires_at = entry.get("expires_at")
+            if force or (expires_at and expires_at < now):
+                del self.kernel._inline_temp_map[temp_uuid]
+                self.kernel.cache.pop(f"inline_temp_{temp_uuid}", None)
+                removed += 1
+
+        if removed:
+            self.kernel.logger.debug(
+                f"[InlineHandlers] cleaned {removed} expired inline_temp handlers"
+            )
+        return removed
+
     async def _start_cleanup_task(self) -> None:
         """Start background task for periodic cleanup."""
 
@@ -1092,6 +1197,7 @@ class InlineHandlers:
             while True:
                 await asyncio.sleep(60)
                 self._cleanup_inline_callback_map(force=True)
+                self._cleanup_inline_temp(force=False)
 
         self._cleanup_task = asyncio.create_task(_periodic_cleanup())
 
@@ -1230,9 +1336,40 @@ class InlineHandlers:
                 return
 
             query_cmd = query.lower().split()[0] if query.strip() else ""
+            query_args = ""
+            if query.strip() and " " in query:
+                query_args = query.split(" ", 1)[1]
             self.kernel.logger.debug(
                 f"[InlineHandlers] query_cmd={query_cmd}, query={query}"
             )
+
+            temp_map = getattr(self.kernel, "_inline_temp_map", None)
+            if temp_map and query_cmd in temp_map:
+                entry = temp_map[query_cmd]
+                article_callable = entry.get("article")
+                try:
+                    if article_callable:
+                        builder = article_callable(event)
+                        if hasattr(builder, "id"):
+                            builder.id = query_cmd
+                    else:
+                        builder = event.builder.article(
+                            id=query_cmd,
+                            title="Do not delete ID!",
+                            text="I send a request to the module...",
+                        )
+
+                    entry["user_id"] = event.sender_id
+                    await self._save_inline_temp_data(query_cmd, query_args, entry)
+                    await event.answer([builder])
+                    return
+                except Exception as e:
+                    self.kernel.logger.error(f"inline_temp article error: {e}")
+                    await event.answer(
+                        [event.builder.article("Error", text=f"Error: {e}")]
+                    )
+                    return
+
             if await self._dispatch_inline_handler(query_cmd, query, event):
                 return
 

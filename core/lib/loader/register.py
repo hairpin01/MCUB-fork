@@ -9,6 +9,7 @@ import asyncio
 import inspect
 import re
 import time
+import uuid
 from collections.abc import Callable
 from typing import Any
 
@@ -222,6 +223,8 @@ class Register:
         self.kernel = kernel
         self._methods: dict[str, Callable] = {}
         self._method_modules: dict[str, Any] = {}
+        self._all_watchers: list[tuple] = []
+        self._all_event_handlers: list[tuple] = []
 
     def _get_disabled_watchers(self) -> set:
         disabled = getattr(self.kernel, "_disabled_watchers", None)
@@ -393,11 +396,7 @@ class Register:
             tg_client.add_event_handler(handler, event_obj)
 
             if _passed_module:
-                reg = self._get_or_create_register(_passed_module)
-                tracked: list[tuple[Callable, Any, Any]] = self._ensure_list(
-                    reg, "__event_handlers__"
-                )
-                tracked.append((handler, event_obj, tg_client))
+                self._all_event_handlers.append((handler, event_obj, tg_client))
 
             return handler
 
@@ -693,7 +692,7 @@ class Register:
                 except Exception as exc:
                     self.kernel.logger.error(f"Watcher '{watcher_name}' raised: {exc}")
 
-            _wrapper.__name__ = f"watcher:{watcher_name}"
+            _wrapper.__name__ = f"watcher:{module_name}:{watcher_name}"
             _wrapper.__module__ = module_name
             _wrapper.__watcher_original__ = f
             _wrapper.__watcher_module__ = module_name
@@ -721,11 +720,7 @@ class Register:
             )
 
             if _passed_module:
-                reg = self._get_or_create_register(_passed_module)
-                wlist: list[tuple[Callable, Any, Any]] = self._ensure_list(
-                    reg, "__watchers__"
-                )
-                wlist.append(
+                self._all_watchers.append(
                     (
                         _wrapper,
                         event_obj,
@@ -1182,3 +1177,104 @@ class Register:
         if func is not None and callable(func):
             return decorator(func)
         return decorator
+
+    def inline_temp(
+        self,
+        func: Callable,
+        ttl: int = 300,
+        article: Callable | None = None,
+        data: Any | None = None,
+        allow_user: Any | None = None,
+        allow_ttl: int = 100,
+    ) -> str:
+        """Register a temporary inline command handler.
+
+        When a user enters @bot <uuid> <args>, the article is shown. When they
+        send it, the handler is called with (event, args, data).
+
+        Args:
+            func: Async callable to handle the inline. Signature is inspected
+                  to determine which args to pass: (event,), (event, args),
+                  or (event, args, data).
+            ttl: Time-to-live in seconds before the handler expires.
+            article: Optional callable that returns an article builder.
+            data: Optional arbitrary data to pass to the handler.
+            allow_user: User ID, list of IDs, or "all" to restrict access.
+            allow_ttl: TTL for user permission (default: 100).
+
+        Returns:
+            8-character uuid string that can be used as inline command.
+
+        Example:
+            >>> form_id = kernel.register.inline_temp(
+            ...     self.handle_search,
+            ...     ttl=600,
+            ...     article=lambda e: e.builder.article("Search", text="..."),
+            ...     data={"timeout": 30}
+            ... )
+            >>> # User: @bot a1b2c3d4 query
+            >>> # On send: handle_search(event, "query", {"timeout": 30})
+        """
+        if not hasattr(self.kernel, "_inline_temp_map"):
+            self.kernel._inline_temp_map = {}
+
+        if not hasattr(self.kernel, "_inline_temp_uuids"):
+            self.kernel._inline_temp_uuids = []
+
+        temp_uuid = uuid.uuid4().hex[:8]
+        now = time.time()
+
+        module_name = self.kernel.current_loading_module
+
+        self.kernel._inline_temp_map[temp_uuid] = {
+            "handler": func,
+            "article": article,
+            "data": data,
+            "expires_at": now + ttl if ttl else None,
+            "module_name": module_name,
+            "allow_user": None,
+            "allow_ttl": allow_ttl,
+        }
+        self.kernel._inline_temp_uuids.append(temp_uuid)
+
+        self.kernel.logger.debug(
+            f"[register.inline_temp] uuid={temp_uuid} ttl={ttl} module={module_name}"
+        )
+        return temp_uuid
+
+    def cleanup_inline_temp(self, force: bool = False) -> int:
+        """Clean up expired temporary inline handlers.
+
+        Args:
+            force: If True, remove all. If False, only expired.
+
+        Returns:
+            Number of handlers removed.
+        """
+        if not hasattr(self.kernel, "_inline_temp_map"):
+            return 0
+
+        now = time.time()
+        removed = 0
+
+        for temp_uuid in list(self.kernel._inline_temp_map.keys()):
+            entry = self.kernel._inline_temp_map.get(temp_uuid)
+            if not entry:
+                continue
+
+            expires_at = entry.get("expires_at")
+            if force or (expires_at and expires_at < now):
+                del self.kernel._inline_temp_map[temp_uuid]
+                removed += 1
+
+                if hasattr(self.kernel, "_inline_temp_uuids"):
+                    try:
+                        self.kernel._inline_temp_uuids.remove(temp_uuid)
+                    except ValueError:
+                        pass
+
+        if removed:
+            self.kernel.logger.debug(
+                f"[register.cleanup_inline_temp] removed={removed}"
+            )
+        return removed

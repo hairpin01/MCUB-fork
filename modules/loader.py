@@ -6,6 +6,7 @@ from __future__ import annotations
 # author: @Hairpin00
 # version: 1.1.5
 # description: Module loader
+
 import asyncio
 import html
 import inspect
@@ -17,15 +18,17 @@ import sys
 import uuid
 from collections.abc import Callable
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 import shutil
+
 import aiohttp
-from telethon import Button
+from telethon import Button, events
 from telethon.types import InputMediaWebPage
 
 if TYPE_CHECKING:
     from telethon import types
 
+from core.lib.loader.module_base import ModuleBase, command
 from core.lib.loader.module_config import (
     Boolean,
     ConfigValue,
@@ -58,6 +61,17 @@ except ImportError:
         return False
 
 
+try:
+    from core.kernel import CommandConflictError
+except ImportError:
+
+    class CommandConflictError(Exception):
+        def __init__(self, message, conflict_type=None, command=None):
+            super().__init__(message)
+            self.conflict_type = conflict_type
+            self.command = command
+
+
 async def safe_edit(msg, *args, **kwargs):
     """Edit message, ignoring MessageNotModifiedError."""
     try:
@@ -74,7 +88,6 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
 
-# Custom emoji
 CUSTOM_EMOJI = {
     "loading": '<tg-emoji emoji-id="5893368370530621889">🔜</tg-emoji>',
     "dependencies": '<tg-emoji emoji-id="5328311576736833844">🟠</tg-emoji>',
@@ -106,7 +119,6 @@ CUSTOM_EMOJI = {
     "link": '<tg-emoji emoji-id="5411527152212411235">🔗</tg-emoji>',
 }
 
-# Random completion emojis
 RANDOM_EMOJIS = [
     "ಠ_ಠ",
     "( ཀ ʖ̯ ཀ)",
@@ -120,22 +132,15 @@ RANDOM_EMOJIS = [
     "(づ￣ ³￣)づ",
 ]
 
-try:
-    from core.kernel import CommandConflictError
-except ImportError:
 
-    class CommandConflictError(Exception):
-        def __init__(self, message, conflict_type=None, command=None):
-            super().__init__(message)
-            self.conflict_type = conflict_type
-            self.command = command
-
-
-def register(kernel):
-    kernel.logger.debug("[LoaderModule] register start")
-    client = kernel.client
-    language = kernel.config.get("language", "en")
-    kernel.logger.debug(f"[LoaderModule] register language={language}")
+class Loader(ModuleBase):
+    name = "loader"
+    version = "1.1.5"
+    author = "@Hairpin00"
+    description: dict[str, str] = {
+        "ru": "Загрузчик модулей",
+        "en": "Module loader",
+    }
 
     config = ModuleConfig(
         ConfigValue(
@@ -158,36 +163,6 @@ def register(kernel):
         ),
     )
 
-    def get_config():
-        live_cfg = getattr(kernel, "_live_module_configs", {}).get(__name__)
-        if live_cfg:
-            return live_cfg
-        return config
-
-    async def startup():
-        config_dict = await kernel.get_module_config(
-            __name__,
-            {
-                "loader_protect_system": True,
-                "loader_show_banners": True,
-                "loader_allow_hikka_modules": True,
-            },
-        )
-        config.from_dict(config_dict)
-        kernel.store_module_config_schema(__name__, config)
-        config_dict_clean = {k: v for k, v in config.to_dict().items() if v is not None}
-        if config_dict_clean:
-            await kernel.save_module_config(__name__, config_dict_clean)
-
-    asyncio.create_task(startup())
-
-    def allow_hikka_modules() -> bool:
-        cfg = get_config()
-        if cfg is None:
-            return True
-        return cfg.get("loader_allow_hikka_modules", True)
-
-    # Localized strings
     strings = {
         "en": {
             "wait": "{wait} <b>Please wait...</b>",
@@ -221,8 +196,19 @@ def register(kernel):
             "log_loading_module": "=- Loading module {module_name}...",
             "log_module_loaded": "=> Module loaded successfully",
             "log_commands_found": "=> Commands found: {count}",
-            "module_loaded": "{success} <b>Module {module_name} loaded!</b> {emoji}\n<blockquote expandable>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote expandable>{commands_list}</blockquote>\n<blockquote>{emoji_author} Author: {author}</blockquote>\n{source_link}",
-            "module_loaded_no_cmds": "{success} <b>Module {module_name} loaded!</b> {emoji}\n<blockquote>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote>{emoji_author} Author: {author}</blockquote>\n{source_link}",
+            "module_loaded": (
+                "{success} <b>Module</b> <code>{module_name}</code> <b>loaded!</b> (<code>{version}</code>) {emoji}\n"
+                "<blockquote expandable>{idea} <b>Description:</b> {description}</blockquote>\n"
+                "<blockquote expandable>{commands_list}</blockquote>\n"
+                "<blockquote>{emoji_author} Author: {author}</blockquote>\n"
+                "{source_link}"
+            ),
+            "module_loaded_no_cmds": (
+                "{success} <b>Module</b> <code>{module_name}</code> <b>loaded!</b> (<code>{version}</code>) {emoji}\n"
+                "<blockquote expandable>{idea} <b>Description:</b> {description}</blockquote>\n"
+                "<blockquote>{emoji_author} Author: {author}</blockquote>\n"
+                "<blockquote>{source_link}</blockquote>"
+            ),
             "no_cmd_desc": "{no_cmd} Command has no description",
             "command_line": "{crystal} <code>{prefix}{cmd}</code> – <b>{desc}</b>",
             "aliases_text": " (Aliases: {alias_text})",
@@ -349,8 +335,8 @@ def register(kernel):
             "log_loading_module": "=- Загружаю модуль {module_name}...",
             "log_module_loaded": "=> Модуль успешно загружен",
             "log_commands_found": "=> Найдено команд: {count}",
-            "module_loaded": "{success} <b>Модуль {module_name} загружен!</b> {emoji}\n<blockquote expandable>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote expandable>{commands_list}</blockquote>\n<blockquote>{emoji_author} Author: {author}</blockquote>\n{source_link}",
-            "module_loaded_no_cmds": "{success} <b>Модуль {module_name} загружен!</b> {emoji}\n<blockquote>{idea} <i>D: {description}</i> | V: <code>{version}</code></blockquote>\n<blockquote>{emoji_author} Author: {author}</blockquote>\n{source_link}",
+            "module_loaded": "{success} <b>Модуль</b> <code>{module_name}</code> <b>загружен!</b> (<code>{version}</code>) {emoji}\n<blockquote expandable>{idea} <b>Описание:</b> {description}</blockquote>\n<blockquote expandable>{commands_list}</blockquote>\n<blockquote>{emoji_author} Автор: {author}</blockquote>\n{source_link}",
+            "module_loaded_no_cmds": "{success} <b>Модуль</b> <code>{module_name}</code> <b>загружен!</b> (<code>{version}</code>) {emoji}\n<blockquote expandable>{idea} <b>Описание:</b> {description}</blockquote>\n<blockquote>{emoji_author} Автор: {author}</blockquote>\n{source_link}",
             "no_cmd_desc": "{no_cmd} У команды нету описания",
             "command_line": "{crystal} <code>{prefix}{cmd}</code> – <b>{desc}</b>",
             "aliases_text": " (Aliases: {alias_text})",
@@ -447,47 +433,74 @@ def register(kernel):
         },
     }
 
-    # Get strings for current language
-    lang_strings = strings.get(language, strings["en"])
+    async def on_load(self) -> None:
+        await super().on_load()
 
-    def t(key: str, **kwargs: str) -> str:
-        """Возвращает локализованную строку с подстановкой значений"""
-        if key not in lang_strings:
-            return key
-        return lang_strings[key].format(**kwargs)
+        defaults = {
+            "loader_protect_system": True,
+            "loader_show_banners": True,
+            "loader_allow_hikka_modules": True,
+        }
+        config_dict = await self.kernel.get_module_config(self.name, defaults)
+        self.config.from_dict(config_dict)
+        self.kernel.store_module_config_schema(self.name, self.config)
+        clean = {k: v for k, v in self.config.to_dict().items() if v is not None}
+        if clean:
+            await self.kernel.save_module_config(self.name, clean)
 
-    def module_description(metadata: dict | None) -> str:
-        """Resolve localized module description from metadata."""
+        self.kernel.register_inline_handler("catalog", self._catalog_inline_handler)
+        self.kernel.register_callback_handler(
+            "catalog_", self._catalog_callback_handler
+        )
+
+    async def on_unload(self) -> None:
+        pass
+
+    def get_config(self):
+        live = getattr(self.kernel, "_live_module_configs", {}).get(self.name)
+        return live if live else self.config
+
+    def _allow_hikka_modules(self) -> bool:
+        cfg = self.get_config()
+        if cfg is None:
+            return True
+        return cfg.get("loader_allow_hikka_modules", True)
+
+    def _module_description(self, metadata: dict | None) -> str:
         if not metadata:
             return ""
-        current_lang = kernel.config.get("language", "en")
-        fallback = metadata.get("description") or t("no_description")
-        return kernel._loader.pick_localized_text(
+        current_lang = self.kernel.config.get("language", "en")
+        fallback = metadata.get("description") or ""
+        return self.kernel._loader.pick_localized_text(
             metadata.get("description_i18n"),
             current_lang,
             fallback,
         )
 
-    async def mcub_handler() -> str:
-        me = await kernel.client.get_me()
+    async def _mcub_handler(self) -> str:
+        me = await self.kernel.client.get_me()
         mcub_emoji = (
-            '<tg-emoji emoji-id="5470015630302287916">🔮</tg-emoji><tg-emoji emoji-id="5469945764069280010">🔮</tg-emoji><tg-emoji emoji-id="5469943045354984820">🔮</tg-emoji><tg-emoji emoji-id="5469879466954098867">🔮</tg-emoji>'
+            '<tg-emoji emoji-id="5470015630302287916">🔮</tg-emoji>'
+            '<tg-emoji emoji-id="5469945764069280010">🔮</tg-emoji>'
+            '<tg-emoji emoji-id="5469943045354984820">🔮</tg-emoji>'
+            '<tg-emoji emoji-id="5469879466954098867">🔮</tg-emoji>'
             if me.premium
             else "MCUB"
         )
         return mcub_emoji
 
-    async def log_to_bot(text: str) -> None:
-        if hasattr(kernel, "_log") and kernel._log:
-            await kernel._log.log_module(text)
-        elif hasattr(kernel, "send_log_message"):
-            await kernel.send_log_message(f"{CUSTOM_EMOJI['crystal']} {text}")
+    async def _log_to_bot(self, text: str) -> None:
+        if hasattr(self.kernel, "_log") and self.kernel._log:
+            await self.kernel._log.log_module(text)
+        elif hasattr(self.kernel, "send_log_message"):
+            await self.kernel.send_log_message(f"{CUSTOM_EMOJI['crystal']} {text}")
 
-    def restore_backup_and_cleanup(
+    @staticmethod
+    def _restore_backup_and_cleanup(
         backup_content: str | None,
         backup_path: str | None,
         new_file_path: str,
-        add_log_fn,
+        add_log_fn: Callable,
     ) -> None:
         if os.path.exists(new_file_path):
             os.remove(new_file_path)
@@ -496,13 +509,14 @@ def register(kernel):
                 with open(backup_path, "w", encoding="utf-8") as f:
                     f.write(backup_content)
                 add_log_fn(f"=> Backup restored: {backup_path}")
-                kernel.logger.info(f"[loader] Backup restored to {backup_path}")
+                logger.info(f"[loader] Backup restored to {backup_path}")
             except Exception as e:
-                kernel.logger.error(f"[loader] Failed to restore backup: {e}")
+                logger.error(f"[loader] Failed to restore backup: {e}")
                 add_log_fn(f"=X Failed to restore backup: {e}")
 
-    async def edit_with_emoji(
-        message: types.Message,
+    @staticmethod
+    async def _edit_with_emoji(
+        message,
         text: str,
         parse_mode: str = "html",
         **kwargs,
@@ -513,52 +527,34 @@ def register(kernel):
         except Exception:
             return False
 
-    async def send_with_emoji(
-        chat_id: int | str,
-        text: str,
-        **kwargs,
-    ) -> types.Message:
+    async def _send_with_emoji(self, chat_id: int | str, text: str, **kwargs) -> Any:
         try:
             if "<emoji" in text:
                 text = text.replace("<emoji document_id=", "<tg-emoji emoji-id=")
                 text = text.replace("</emoji>", "</tg-emoji>")
             if "<tg-emoji" in text or re.search(r"<[^>]+>", text):
                 parse_mode = kwargs.pop("parse_mode", "html")
-                return await client.send_message(
+                return await self.client.send_message(
                     chat_id, text, parse_mode=parse_mode, **kwargs
                 )
             else:
-                return await client.send_message(chat_id, text, **kwargs)
+                return await self.client.send_message(chat_id, text, **kwargs)
         except Exception as e:
-            await kernel.handle_error(e, source="send_with_emoji")
-            fallback_text = re.sub(r"<tg-emoji[^>]*>.*?</tg-emoji>", "", text)
-            fallback_text = re.sub(r"<emoji[^>]*>.*?</emoji>", "", fallback_text)
-            fallback_text = re.sub(r"<[^>]+>", "", fallback_text)
-            return await client.send_message(chat_id, fallback_text, **kwargs)
+            await self.kernel.handle_error(e, source="send_with_emoji")
+            fallback = re.sub(r"<tg-emoji[^>]*>.*?</tg-emoji>", "", text)
+            fallback = re.sub(r"<emoji[^>]*>.*?</emoji>", "", fallback)
+            fallback = re.sub(r"<[^>]+>", "", fallback)
+            return await self.client.send_message(chat_id, fallback, **kwargs)
 
-    async def load_module_from_file(
-        file_path: str,
-        module_name: str,
-        is_system: bool = False,
-    ) -> tuple[bool, str] | None:
-        try:
-            return await kernel.load_module_from_file(file_path, module_name, is_system)
-        except CommandConflictError as e:
-            raise e
-        except Exception as e:
-            kernel.logger.error(f"Ошибка загрузки модуля {module_name}: {e}")
-            return False, f"Ошибка загрузки: {e!s}"
-
-    def detect_module_type(module: object) -> str:
+    @staticmethod
+    def _detect_module_type(module: object) -> str:
         register = getattr(module, "register", None)
         if register is None:
             return "none"
-
         try:
             params = list(inspect.signature(register).parameters.keys())
         except (TypeError, ValueError):
             return "unknown"
-
         if len(params) == 0:
             return "unknown"
         if len(params) == 1:
@@ -569,10 +565,42 @@ def register(kernel):
                 return "old"
         return "unknown"
 
-    async def handle_catalog(
-        event: types.Message,
-        query_or_data: str,
-    ) -> tuple[str, list[list[Button]]]:
+    def _get_source_link(self, module_name: str) -> str:
+        source = self.kernel._module_sources.get(module_name)
+        if source:
+            url = source.get("url")
+            repo = source.get("repo")
+            if url:
+                return f'<blockquote><tg-emoji emoji-id="5411527152212411235">🔗</tg-emoji> Source link {url}</blockquote>'
+            elif repo:
+                repo = repo.rstrip("/")
+                return f'<blockquote><tg-emoji emoji-id="5411527152212411235">🔗</tg-emoji> Source link {repo}/{module_name}.py</blockquote>'
+        return ""
+
+    async def _get_inline_bot_username(self) -> str | None:
+        username = self.kernel.config.get("inline_bot_username")
+        if username:
+            return username.lstrip("@")
+        if self.kernel.is_bot_available():
+            try:
+                bot_info = await self.kernel.bot_client.get_me()
+                return bot_info.username
+            except Exception as e:
+                self.log.error(f"Error getting inline bot username: {e}")
+        return None
+
+    async def _open_inline_result(self, event, query: str) -> bool:
+        bot_username = await self._get_inline_bot_username()
+        if not bot_username:
+            return False
+        results = await self.client.inline_query(bot_username, query)
+        if not results:
+            return False
+        await results[0].click(event.chat_id, reply_to=event.reply_to_msg_id)
+        await event.delete()
+        return True
+
+    async def _handle_catalog(self, event, query_or_data: str) -> tuple[str, list]:
         try:
             parts = query_or_data.split("_")
 
@@ -581,18 +609,17 @@ def register(kernel):
 
             if len(parts) >= 2 and parts[1].isdigit():
                 repo_index = int(parts[1])
-
             if len(parts) >= 3 and parts[2].isdigit():
                 page = int(parts[2])
 
-            repos = [kernel.default_repo, *kernel.repositories]
+            repos = [self.kernel.default_repo, *self.kernel.repositories]
 
             if repo_index < 0 or repo_index >= len(repos):
                 repo_index = 0
 
             repo_url = repos[repo_index]
             cache_key = f"catalog:{repo_url}"
-            cached = kernel.cache.get(cache_key)
+            cached = self.kernel.cache.get(cache_key)
 
             if cached is not None:
                 modules, repo_name = cached
@@ -600,56 +627,49 @@ def register(kernel):
                 try:
                     async with aiohttp.ClientSession() as session:
                         async with session.get(f"{repo_url}/modules.ini") as resp:
-                            if resp.status == 200:
-                                modules_text = await resp.text()
-                                modules = [
-                                    line.strip()
-                                    for line in modules_text.split("\n")
-                                    if line.strip()
+                            modules = (
+                                [
+                                    l.strip()
+                                    for l in (await resp.text()).split("\n")
+                                    if l.strip()
                                 ]
-                            else:
-                                modules = []
-
+                                if resp.status == 200
+                                else []
+                            )
                         async with session.get(f"{repo_url}/name.ini") as resp:
-                            if resp.status == 200:
-                                repo_name = await resp.text()
-                                repo_name = repo_name.strip()
-                            else:
-                                repo_name = (
+                            repo_name = (
+                                (await resp.text()).strip()
+                                if resp.status == 200
+                                else (
                                     repo_url.split("/")[-2]
                                     if "/" in repo_url
                                     else repo_url
                                 )
-
-                        kernel.cache.set(cache_key, (modules, repo_name), ttl=300)
+                            )
+                        self.kernel.cache.set(cache_key, (modules, repo_name), ttl=300)
                 except Exception:
                     modules = []
                     repo_name = repo_url.split("/")[-2] if "/" in repo_url else repo_url
 
             per_page = 8
             total_pages = (len(modules) + per_page - 1) // per_page if modules else 1
-
-            if page < 1:
-                page = 1
-            if page > total_pages:
-                page = total_pages
-
+            page = max(1, min(page, total_pages))
             start_idx = (page - 1) * per_page
-            end_idx = start_idx + per_page
-            page_modules = modules[start_idx:end_idx] if modules else []
+            page_modules = modules[start_idx : start_idx + per_page] if modules else []
 
-            if repo_index == 0:
-                msg = t("catalog_title", repo_url=repo_url)
-            else:
-                msg = t("catalog_custom", repo_name=repo_name, repo_url=repo_url)
-
-            if page_modules:
-                modules_text = " | ".join([f"<code>{m}</code>" for m in page_modules])
-                msg += modules_text
-            else:
-                msg += t("no_modules_catalog")
-
-            msg += f"\n\n{t('catalog_page', page=page, total_pages=total_pages)}"
+            msg = (
+                self.strings("catalog_title", repo_url=repo_url)
+                if repo_index == 0
+                else self.strings(
+                    "catalog_custom", repo_name=repo_name, repo_url=repo_url
+                )
+            )
+            msg += (
+                " | ".join([f"<code>{m}</code>" for m in page_modules])
+                if page_modules
+                else self.strings["no_modules_catalog"]
+            )
+            msg += f"\n\n{self.strings('catalog_page', page=page, total_pages=total_pages)}"
 
             buttons = []
             nav_buttons = []
@@ -657,33 +677,31 @@ def register(kernel):
             if page > 1:
                 nav_buttons.append(
                     Button.inline(
-                        t("btn_back"),
+                        self.strings["btn_back"],
                         f"catalog_{repo_index}_{page - 1}".encode(),
                         style="primary",
                     )
                 )
-
             if page < total_pages:
                 nav_buttons.append(
                     Button.inline(
-                        t("btn_next"),
+                        self.strings["btn_next"],
                         f"catalog_{repo_index}_{page + 1}".encode(),
                         style="primary",
                     )
                 )
-
             if nav_buttons:
                 buttons.append(nav_buttons)
 
             if len(repos) > 1:
-                repo_buttons = []
-                for i in range(len(repos)):
-                    repo_buttons.append(
+                buttons.append(
+                    [
                         Button.inline(
                             f"{i + 1}", f"catalog_{i}_1".encode(), style="primary"
                         )
-                    )
-                buttons.append(repo_buttons)
+                        for i in range(len(repos))
+                    ]
+                )
 
             return msg, buttons
 
@@ -692,93 +710,93 @@ def register(kernel):
             import traceback
 
             traceback.print_exc()
-            return t("catalog_error", error=str(e)[:100]), []
+            return self.strings("catalog_error", error=str(e)[:100]), []
 
-    async def get_inline_bot_username() -> str | None:
-        username = kernel.config.get("inline_bot_username")
-        if username:
-            return username.lstrip("@")
+    async def _catalog_inline_handler(self, event) -> None:
+        try:
+            query = event.text or ""
+            if not query or query == "catalog":
+                query = "catalog_0_1"
 
-        if kernel.is_bot_available():
-            try:
-                bot_info = await kernel.bot_client.get_me()
-                return bot_info.username
-            except Exception as e:
-                kernel.logger.error(f"Error getting inline bot username: {e}")
+            msg, buttons = await self._handle_catalog(event, query)
 
-        return None
+            builder = (
+                event.builder.article(
+                    "Catalog", text=msg, buttons=buttons, parse_mode="html"
+                )
+                if buttons
+                else event.builder.article("Catalog", text=msg, parse_mode="html")
+            )
+            await event.answer([builder])
+        except Exception as e:
+            logger.error(f"Ошибка в catalog_inline_handler: {e}")
 
-    async def open_inline_result(
-        event: types.Message,
-        query: str,
-    ) -> bool:
-        bot_username = await get_inline_bot_username()
-        if not bot_username:
-            return False
+    async def _catalog_callback_handler(self, event) -> None:
+        try:
+            data_str = (
+                event.data.decode("utf-8")
+                if isinstance(event.data, bytes)
+                else str(event.data)
+            )
+            msg, buttons = await self._handle_catalog(event, data_str)
+            await event.edit(
+                msg, buttons=buttons if buttons else None, parse_mode="html"
+            )
+        except Exception as e:
+            logger.error(f"Ошибка в catalog_callback_handler: {e}")
+            await event.answer(f"Ошибка: {str(e)[:50]}", alert=True)
 
-        results = await client.inline_query(bot_username, query)
-        if not results:
-            return False
-
-        await results[0].click(event.chat_id, reply_to=event.reply_to_msg_id)
-        await event.delete()
-        return True
-
-    async def find_repo_matches(
+    async def _find_repo_matches(
+        self,
         module_name: str,
         repos: list[str],
         add_log: Callable | None = None,
-    ) -> list[dict[str, int | str]]:
+    ) -> list[dict]:
         matches = []
         normalized = module_name.lower()
 
         for i, repo in enumerate(repos):
             try:
                 if add_log:
-                    add_log(t("log_checking_repo", index=i + 1, repo=repo))
-                modules = await kernel.get_repo_modules_list(repo)
+                    add_log(self.strings("log_checking_repo", index=i + 1, repo=repo))
+                modules = await self.kernel.get_repo_modules_list(repo)
                 if modules and any(name.lower() == normalized for name in modules):
-                    repo_name = await kernel.get_repo_name(repo)
-                    matches.append(
-                        {
-                            "repo_index": i,
-                            "repo_name": repo_name,
-                        }
-                    )
+                    repo_name = await self.kernel.get_repo_name(repo)
+                    matches.append({"repo_index": i, "repo_name": repo_name})
                     if add_log:
-                        add_log(t("log_found_in_repo"))
+                        add_log(self.strings["log_found_in_repo"])
                 elif add_log:
-                    add_log(t("log_not_found_in_repo"))
+                    add_log(self.strings["log_not_found_in_repo"])
             except Exception as e:
                 if add_log:
-                    add_log(t("log_repo_error", repo=repo, error=str(e)[:100]))
-                await kernel.log_error(
+                    add_log(
+                        self.strings("log_repo_error", repo=repo, error=str(e)[:100])
+                    )
+                await self.kernel.log_error(
                     f"Ошибка поиска модуля {module_name} в репозитории {repo}: {e}"
                 )
 
         return matches
 
-    async def open_repo_choice_form(
-        event: types.Message,
+    async def _open_repo_choice_form(
+        self,
+        event,
         module_name: str,
         send_mode: bool,
-        matches: list[dict[str, int | str]],
+        matches: list[dict],
     ) -> bool:
         from core_inline.api.inline import make_cb_button
 
         session_uuid = str(uuid.uuid4())[:8]
         session_key = f"dlm:{session_uuid}"
-        kernel._inline._session_put(
+        self.kernel._inline._session_put(
             session_key,
             {
                 "module_name": module_name,
                 "send_mode": send_mode,
                 "user_id": event.sender_id,
                 "matches": [
-                    {
-                        "repo_index": item["repo_index"],
-                        "repo_name": item["repo_name"],
-                    }
+                    {"repo_index": item["repo_index"], "repo_name": item["repo_name"]}
                     for item in matches
                 ],
             },
@@ -791,9 +809,9 @@ def register(kernel):
             buttons.append(
                 [
                     make_cb_button(
-                        kernel,
+                        self.kernel,
                         f"{item['repo_index'] + 1}. {clean_name}",
-                        dlm_repo_session_callback,
+                        self._dlm_repo_session_callback,
                         args=[session_uuid, str(item["repo_index"])],
                         ttl=300,
                     )
@@ -802,9 +820,9 @@ def register(kernel):
         buttons.append(
             [
                 make_cb_button(
-                    kernel,
-                    re.sub(r"<[^>]+>", "", t("dlm_repo_choice_cancel")),
-                    dlm_repo_session_callback,
+                    self.kernel,
+                    re.sub(r"<[^>]+>", "", self.strings["dlm_repo_choice_cancel"]),
+                    self._dlm_repo_session_callback,
                     args=[session_uuid, "cancel"],
                     ttl=300,
                 )
@@ -816,14 +834,14 @@ def register(kernel):
             if send_mode
             else "dlm_repo_choice_action_install"
         )
-        title = t(
+        title = self.strings(
             "dlm_repo_choice_title",
             cloud="🧩",
             module_name=module_name,
-            action=t(action_key),
+            action=self.strings[action_key],
         )
 
-        success, _ = await kernel.inline_form(
+        success, _ = await self.kernel.inline_form(
             event.chat_id,
             title=title,
             buttons=buttons,
@@ -836,105 +854,52 @@ def register(kernel):
             return True
         return False
 
-    async def dlm_repo_session_callback(event: types.CallbackQuery, *args) -> None:
+    async def _dlm_repo_session_callback(
+        self, event: events.CallbackQuery.Event, *args
+    ) -> None:
         if not args:
             return
 
         session_uuid = args[0]
         action = args[1] if len(args) > 1 else ""
-
         session_key = f"dlm:{session_uuid}"
-        select_data = kernel._inline._session_get(session_key, pop=True)
+        select_data = self.kernel._inline._session_get(session_key, pop=True)
 
         if not select_data:
-            await event.answer(t("dlm_repo_choice_expired"), alert=True)
+            await event.answer(self.strings["dlm_repo_choice_expired"], alert=True)
             return
 
         if action == "cancel":
-            await event.edit(t("dlm_repo_choice_cancelled"), parse_mode="html")
+            await event.edit(
+                self.strings["dlm_repo_choice_cancelled"], parse_mode="html"
+            )
             return
 
         if select_data.get("user_id") != event.sender_id:
-            await event.answer(t("dlm_repo_choice_expired"), alert=True)
+            await event.answer(self.strings["dlm_repo_choice_expired"], alert=True)
             return
 
         repo_index = int(action)
-        await run_dlm_install(
+        await self._run_dlm_install(
             event,
             select_data["module_name"],
             send_mode=select_data.get("send_mode", False),
             repo_index=repo_index,
         )
 
-    async def catalog_inline_handler(event: types.InlineQuery) -> None:
-        try:
-            query = event.text or ""
-
-            if not query or query == "catalog":
-                query = "catalog_0_1"
-
-            msg, buttons = await handle_catalog(event, query)
-
-            if buttons:
-                builder = event.builder.article(
-                    "Catalog", text=msg, buttons=buttons, parse_mode="html"
-                )
-            else:
-                builder = event.builder.article("Catalog", text=msg, parse_mode="html")
-
-            await event.answer([builder])
-
-        except Exception as e:
-            logger.error(f"Ошибка в catalog_inline_handler: {e}")
-
-    async def catalog_callback_handler(event: types.CallbackQuery) -> None:
-        try:
-            data_str = (
-                event.data.decode("utf-8")
-                if isinstance(event.data, bytes)
-                else str(event.data)
-            )
-
-            msg, buttons = await handle_catalog(event, data_str)
-
-            await event.edit(
-                msg, buttons=buttons if buttons else None, parse_mode="html"
-            )
-
-        except Exception as e:
-            logger.error(f"Ошибка в catalog_callback_handler: {e}")
-            await event.answer(f"Ошибка: {str(e)[:50]}", alert=True)
-
-    kernel.register_inline_handler("catalog", catalog_inline_handler)
-    kernel.register_callback_handler("catalog_", catalog_callback_handler)
-
-    def get_source_link(module_name: str) -> str:
-        """Generate source link string for module."""
-        source = kernel._module_sources.get(module_name)
-        if source:
-            url = source.get("url")
-            repo = source.get("repo")
-            if url:
-                return f'<blockquote><tg-emoji emoji-id="5411527152212411235">🔗</tg-emoji> {url}</blockquote>'
-            elif repo:
-                # Normalize URL to avoid double slashes
-                repo = repo.rstrip("/")
-                return f'<blockquote><tg-emoji emoji-id="5411527152212411235">🔗</tg-emoji> {repo}/{module_name}.py</blockquote>'
-        return ""
-
-    async def run_dlm_install(
-        event: types.Message,
+    async def _run_dlm_install(
+        self,
+        event,
         module_or_url: str,
         send_mode: bool = False,
         repo_index: int | None = None,
         preloaded_code: str | None = None,
         preloaded_repo_url: str | None = None,
-    ) -> None:
-        is_url = False
-        if module_or_url.startswith(
+    ) -> str | None:
+        is_url = module_or_url.startswith(
             ("http://", "https://", "raw.githubusercontent.com")
-        ):
-            is_url = True
+        )
+        if is_url:
             if module_or_url.endswith(".py"):
                 module_name = os.path.basename(module_or_url)[:-3]
             else:
@@ -944,46 +909,46 @@ def register(kernel):
         else:
             module_name = module_or_url
 
-        cfg = get_config()
+        cfg = self.get_config()
         force_unload = not (cfg and cfg.get("loader_protect_system", True))
         if cfg and cfg.get("loader_protect_system", True):
-            if module_name in kernel.system_modules:
-                await edit_with_emoji(
+            if module_name in self.kernel.system_modules:
+                await self._edit_with_emoji(
                     event,
-                    t(
+                    self.strings(
                         "system_module_install_attempt",
                         confused=CUSTOM_EMOJI["confused"],
                         module_name=module_name,
                         blocked=CUSTOM_EMOJI["blocked"],
                     ),
                 )
-                return
+                return None
 
         is_update = (
-            module_name in kernel.loaded_modules or module_name in kernel.system_modules
+            module_name in self.kernel.loaded_modules
+            or module_name in self.kernel.system_modules
         )
-
         old_version = None
         if is_update:
             old_file_path = os.path.join(
                 (
-                    kernel.MODULES_DIR
-                    if module_name in kernel.system_modules
-                    else kernel.MODULES_LOADED_DIR
+                    self.kernel.MODULES_DIR
+                    if module_name in self.kernel.system_modules
+                    else self.kernel.MODULES_LOADED_DIR
                 ),
                 f"{module_name}.py",
             )
-            old_version = await kernel._loader.get_module_version_from_file(
+            old_version = await self.kernel._loader.get_module_version_from_file(
                 old_file_path
             )
 
-        install_log = []
+        install_log: list[str] = []
 
-        def add_log(message):
+        def add_log(message: str) -> None:
             timestamp = datetime.now().strftime("%H:%M:%S")
             log_entry = f"[{timestamp}] {message}"
             install_log.append(log_entry)
-            kernel.logger.debug(log_entry)
+            self.kernel.logger.debug(log_entry)
 
         try:
             code = preloaded_code
@@ -994,90 +959,93 @@ def register(kernel):
                 return event
 
             add_log(
-                t(
+                self.strings(
                     "log_start",
                     action="скачивание" if send_mode else "установку",
                     module_name=module_name,
                 )
             )
-            add_log(t("log_mode", mode="отправка" if send_mode else "установка"))
-            add_log(t("log_type", type="URL" if is_url else "из репозитория"))
+            add_log(
+                self.strings("log_mode", mode="отправка" if send_mode else "установка")
+            )
+            add_log(
+                self.strings("log_type", type="URL" if is_url else "из репозитория")
+            )
 
             if is_url:
-                is_archive = kernel._loader.is_archive_url(module_or_url)
+                is_archive = self.kernel._loader.is_archive_url(module_or_url)
 
                 if is_archive:
-                    add_log(t("log_download_url", url=module_or_url))
+                    add_log(self.strings("log_download_url", url=module_or_url))
                     add_log("Detected archive file, using archive installer")
 
-                    success, msg, extra = await kernel._loader.install_from_archive(
-                        module_or_url, module_name
+                    success, msg_txt, extra = (
+                        await self.kernel._loader.install_from_archive(
+                            module_or_url, module_name
+                        )
                     )
 
                     if success:
-                        add_log(f"Archive install success: {msg}")
-
-                        # Parse result from install_from_archive (returns tuple with extra info now)
+                        add_log(f"Archive install success: {msg_txt}")
                         loaded_list = (
                             extra.get("loaded", []) if isinstance(extra, dict) else []
                         )
-
                         if len(loaded_list) > 1:
                             display_name = f"{len(loaded_list)} модулей"
                             desc = "archive pack"
                         else:
                             display_name = module_name
-                            desc = module_description(metadata)
+                            desc = self._module_description(None)
 
-                        await edit_with_emoji(
+                        await self._edit_with_emoji(
                             event,
-                            t(
+                            self.strings(
                                 "module_loaded",
                                 success=CUSTOM_EMOJI["success"],
                                 module_name=display_name,
                                 emoji=CUSTOM_EMOJI["idea"],
                                 idea=CUSTOM_EMOJI["idea"],
                                 description=desc,
-                                version=(
-                                    metadata.get("version", "1.0.0")
-                                    if metadata
-                                    else "1.0.0"
-                                ),
+                                version="1.0.0",
                                 emoji_author=CUSTOM_EMOJI["author"],
-                                author=(
-                                    metadata.get("author", "unknown")
-                                    if metadata
-                                    else "unknown"
-                                ),
+                                author="unknown",
                                 commands_list="",
                                 source_link="",
                             ),
                         )
                         return
                     else:
-                        add_log(f"Archive install failed: {msg}")
-                        await edit_with_emoji(
+                        add_log(f"Archive install failed: {msg_txt}")
+                        await self._edit_with_emoji(
                             event,
-                            t(
+                            self.strings(
                                 "module_not_found_repos",
                                 warning=CUSTOM_EMOJI["warning"],
-                                module_name=msg,
+                                module_name=msg_txt,
                             ),
                         )
                         return
 
                 try:
-                    add_log(t("log_download_url", url=module_or_url))
+                    add_log(self.strings("log_download_url", url=module_or_url))
                     async with aiohttp.ClientSession() as session:
                         async with session.get(module_or_url) as resp:
                             if resp.status == 200:
                                 code = await resp.text()
-                                add_log(t("log_download_success", status=resp.status))
+                                add_log(
+                                    self.strings(
+                                        "log_download_success", status=resp.status
+                                    )
+                                )
                             else:
-                                add_log(t("log_download_failed", status=resp.status))
-                                await edit_with_emoji(
+                                add_log(
+                                    self.strings(
+                                        "log_download_failed", status=resp.status
+                                    )
+                                )
+                                await self._edit_with_emoji(
                                     msg or event,
-                                    t(
+                                    self.strings(
                                         "url_download_error",
                                         warning=CUSTOM_EMOJI["warning"],
                                         status=resp.status,
@@ -1085,59 +1053,66 @@ def register(kernel):
                                 )
                                 return
                 except Exception as e:
-                    add_log(t("log_download_exception", error=str(e)))
-                    await kernel.handle_error(e, source="install_for_url", event=event)
-                    await edit_with_emoji(
+                    add_log(self.strings("log_download_exception", error=str(e)))
+                    await self.kernel.handle_error(
+                        e, source="install_for_url", event=event
+                    )
+                    await self._edit_with_emoji(
                         event,
-                        t(
+                        self.strings(
                             "url_exception",
                             warning=CUSTOM_EMOJI["warning"],
                             error=str(e)[:100],
                         ),
                     )
                     return
+
             elif code is None:
-                repos = [kernel.default_repo, *kernel.repositories]
-                add_log(t("log_checking_repos", count=len(repos)))
+                repos = [self.kernel.default_repo, *self.kernel.repositories]
+                add_log(self.strings("log_checking_repos", count=len(repos)))
 
                 if repo_index is not None and 0 <= repo_index < len(repos):
                     repo_url = repos[repo_index]
-                    add_log(t("log_using_repo", repo=repo_url))
-                    code = await kernel.download_module_from_repo(repo_url, module_name)
-                    if code:
-                        add_log(t("log_found_in_repo"))
-                    else:
-                        add_log(t("log_not_found_in_repo"))
+                    add_log(self.strings("log_using_repo", repo=repo_url))
+                    code = await self.kernel.download_module_from_repo(
+                        repo_url, module_name
+                    )
+                    add_log(
+                        self.strings["log_found_in_repo"]
+                        if code
+                        else self.strings["log_not_found_in_repo"]
+                    )
                 else:
                     for i, repo in enumerate(repos):
                         try:
-                            add_log(t("log_checking_repo", index=i + 1, repo=repo))
-                            code = await kernel.download_module_from_repo(
+                            add_log(
+                                self.strings(
+                                    "log_checking_repo", index=i + 1, repo=repo
+                                )
+                            )
+                            code = await self.kernel.download_module_from_repo(
                                 repo, module_name
                             )
                             if code:
                                 repo_url = repo
-                                add_log(t("log_found_in_repo"))
+                                add_log(self.strings["log_found_in_repo"])
                                 break
                             else:
-                                add_log(t("log_not_found_in_repo"))
+                                add_log(self.strings["log_not_found_in_repo"])
                         except Exception as e:
                             add_log(
-                                t(
-                                    "log_repo_error",
-                                    repo=repo,
-                                    error=str(e)[:100],
+                                self.strings(
+                                    "log_repo_error", repo=repo, error=str(e)[:100]
                                 )
                             )
-                            await kernel.log_error(
+                            await self.kernel.log_error(
                                 f"Ошибка скачивания модуля {module_name} из {repo}: {e}"
                             )
-                            continue
 
             if not code:
-                await edit_with_emoji(
+                await self._edit_with_emoji(
                     event,
-                    t(
+                    self.strings(
                         "module_not_found_repos",
                         warning=CUSTOM_EMOJI["warning"],
                         module_name=module_name,
@@ -1145,22 +1120,26 @@ def register(kernel):
                 )
                 return
 
-            metadata = await kernel.get_module_metadata(code)
-            add_log(t("log_getting_metadata"))
-            add_log(t("log_author", author=metadata["author"]))
-            add_log(t("log_version", version=metadata["version"]))
-            add_log(t("log_description", description=module_description(metadata)))
+            metadata = await self.kernel.get_module_metadata(code)
+            add_log(self.strings["log_getting_metadata"])
+            add_log(self.strings("log_author", author=metadata["author"]))
+            add_log(self.strings("log_version", version=metadata["version"]))
+            add_log(
+                self.strings(
+                    "log_description", description=self._module_description(metadata)
+                )
+            )
 
             if metadata.get("is_class_style") and metadata.get("class_name"):
                 class_name = metadata["class_name"]
                 if (
-                    class_name in kernel.system_modules
+                    class_name in self.kernel.system_modules
                     and cfg
                     and cfg.get("loader_protect_system", True)
                 ):
-                    await edit_with_emoji(
+                    await self._edit_with_emoji(
                         event,
-                        t(
+                        self.strings(
                             "system_module_install_attempt",
                             confused=CUSTOM_EMOJI["confused"],
                             module_name=class_name,
@@ -1170,35 +1149,40 @@ def register(kernel):
                     return
 
             if send_mode:
-                action = t("downloading_module", download=CUSTOM_EMOJI["download"])
+                action = self.strings(
+                    "downloading_module", download=CUSTOM_EMOJI["download"]
+                )
             else:
                 if is_update:
                     new_version = metadata["version"]
-                    kernel.logger.info(
+                    self.kernel.logger.info(
                         f"[loader] update check: {module_name} old={old_version} new={new_version}"
                     )
-                    if old_version != new_version:
-                        action = t(
+                    action = (
+                        self.strings(
                             "updating_version",
-                            reload=CUSTOM_EMOJI["reload"],
+                            reload=CUSTOM_EMOJI["loading"],
                             old_version=old_version,
                             new_version=new_version,
                         )
-                    else:
-                        action = t("updating", reload=CUSTOM_EMOJI["reload"])
+                        if old_version != new_version
+                        else self.strings("updating", reload=CUSTOM_EMOJI["loading"])
+                    )
                 else:
-                    action = t("installing", test=CUSTOM_EMOJI["loading"])
+                    action = self.strings("installing", test=CUSTOM_EMOJI["loading"])
 
             msg = await event.edit(
-                t("starting_install", action=action, module_name=module_name),
+                self.strings(
+                    "starting_install", action=action, module_name=module_name
+                ),
                 parse_mode="html",
             )
 
             file_path = os.path.join(
                 (
-                    kernel.MODULES_DIR
-                    if module_name in kernel.system_modules
-                    else kernel.MODULES_LOADED_DIR
+                    self.kernel.MODULES_DIR
+                    if module_name in self.kernel.system_modules
+                    else self.kernel.MODULES_LOADED_DIR
                 ),
                 f"{module_name}.py",
             )
@@ -1207,7 +1191,7 @@ def register(kernel):
             old_file_backup_path = None
 
             new_class_name = metadata.get("class_name")
-            for loaded_name, loaded_mod in list(kernel.loaded_modules.items()):
+            for loaded_name, loaded_mod in list(self.kernel.loaded_modules.items()):
                 class_instance = getattr(loaded_mod, "_class_instance", None)
                 if class_instance is not None:
                     class_display_name = getattr(type(class_instance), "name", None)
@@ -1215,51 +1199,47 @@ def register(kernel):
                         class_display_name == module_name
                         or class_display_name == new_class_name
                     ) and loaded_name != module_name:
-                        old_file_path = os.path.join(
-                            kernel.MODULES_LOADED_DIR, f"{loaded_name}.py"
+                        old_file_path_cls = os.path.join(
+                            self.kernel.MODULES_LOADED_DIR, f"{loaded_name}.py"
                         )
-                        new_file_path = os.path.join(
-                            kernel.MODULES_LOADED_DIR, f"{module_name}.py"
+                        new_file_path_cls = os.path.join(
+                            self.kernel.MODULES_LOADED_DIR, f"{module_name}.py"
                         )
-                        if os.path.exists(old_file_path):
-                            with open(old_file_path, "r", encoding="utf-8") as f:
+                        if os.path.exists(old_file_path_cls):
+                            with open(old_file_path_cls, "r", encoding="utf-8") as f:
                                 old_file_backup = f.read()
-                            old_file_backup_path = old_file_path
-                            os.remove(old_file_path)
-                            kernel.logger.info(
-                                f"[loader] Removed old file {old_file_path} for class module {module_name}"
+                            old_file_backup_path = old_file_path_cls
+                            os.remove(old_file_path_cls)
+                            self.kernel.logger.info(
+                                f"[loader] Removed old file {old_file_path_cls} for class module {module_name}"
                             )
-                        kernel.logger.info(
-                            f"[loader] Using existing path for class module: {new_file_path}"
-                        )
-                        file_path = new_file_path
+                        file_path = new_file_path_cls
                         is_update = True
-                        await kernel.unregister_module_commands(
+                        await self.kernel.unregister_module_commands(
                             loaded_name, force=force_unload
                         )
                         break
 
             if send_mode:
-                add_log(t("log_saving_for_send"))
+                add_log(self.strings["log_saving_for_send"])
                 with open(file_path, "w", encoding="utf-8") as f:
                     f.write(code)
 
-                await edit_with_emoji(
+                await self._edit_with_emoji(
                     target_message(),
-                    t(
+                    self.strings(
                         "sending_module",
                         upload=CUSTOM_EMOJI["upload"],
                         module_name=module_name,
                     ),
                 )
-
                 await event.edit(
-                    t(
+                    self.strings(
                         "file_sent_caption",
                         file=CUSTOM_EMOJI["file"],
                         module_name=module_name,
                         idea=CUSTOM_EMOJI["idea"],
-                        description=module_description(metadata),
+                        description=self._module_description(metadata),
                         crystal=CUSTOM_EMOJI["crystal"],
                         version=metadata["version"],
                         angel=CUSTOM_EMOJI["angel"],
@@ -1270,111 +1250,88 @@ def register(kernel):
                     file=file_path,
                     parse_mode="html",
                 )
-
-                add_log(t("log_file_sent"))
+                add_log(self.strings["log_file_sent"])
                 os.remove(file_path)
                 return
 
-            add_log(t("log_install_mode"))
+            add_log(self.strings["log_install_mode"])
 
-            dependencies = kernel._loader.parse_requires(code)
+            dependencies = self.kernel._loader.parse_requires(code)
             if dependencies:
-                add_log(t("log_deps_found", deps=", ".join(dependencies)))
-
-            if dependencies:
+                add_log(self.strings("log_deps_found", deps=", ".join(dependencies)))
                 deps_with_emoji = "\n".join(
                     f"{CUSTOM_EMOJI['lib']} {dep}" for dep in dependencies
                 )
-                await edit_with_emoji(
+                await self._edit_with_emoji(
                     target_message(),
-                    t(
+                    self.strings(
                         "installing_deps",
                         dependencies=CUSTOM_EMOJI["dependencies"],
                         deps_list=deps_with_emoji,
                     ),
                 )
-                await kernel._loader.install_dependencies_batch(
+                await self.kernel._loader.install_dependencies_batch(
                     dependencies, log_fn=add_log
                 )
 
             if is_update:
-                add_log(t("log_removing_old", module_name=module_name))
+                add_log(self.strings("log_removing_old", module_name=module_name))
                 if old_file_backup is None and os.path.exists(file_path):
                     with open(file_path, "r", encoding="utf-8") as f:
                         old_file_backup = f.read()
                     old_file_backup_path = file_path
-                await kernel.unregister_module_commands(module_name, force=force_unload)
+                await self.kernel.unregister_module_commands(
+                    module_name, force=force_unload
+                )
 
-            add_log(t("log_saving_file", file_path=file_path))
+            add_log(self.strings("log_saving_file", file_path=file_path))
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(code)
 
-            add_log(t("log_loading_to_kernel"))
+            add_log(self.strings["log_loading_to_kernel"])
 
             if is_hikka_module(code):
-                add_log(t("log_hikka_detected"))
-                if not allow_hikka_modules():
-                    await edit_with_emoji(
+                add_log(self.strings["log_hikka_detected"])
+                if not self._allow_hikka_modules():
+                    await self._edit_with_emoji(
                         target_message(),
-                        t("hikka_disabled", warning=CUSTOM_EMOJI["warning"]),
+                        self.strings("hikka_disabled", warning=CUSTOM_EMOJI["warning"]),
                     )
                     if os.path.exists(file_path):
                         os.remove(file_path)
                     return
                 if not HIKKA_COMPAT:
-                    await edit_with_emoji(
+                    await self._edit_with_emoji(
                         target_message(),
-                        t("hikka_no_compat", warning=CUSTOM_EMOJI["warning"]),
+                        self.strings(
+                            "hikka_no_compat", warning=CUSTOM_EMOJI["warning"]
+                        ),
                     )
                     if os.path.exists(file_path):
                         os.remove(file_path)
                     return
 
-                await edit_with_emoji(
-                    target_message(),
-                    t(
-                        "starting_install",
-                        action=t("installing", test=CUSTOM_EMOJI["loading"]),
-                    ),
+                ok, err, extra = await load_hikka_module(
+                    self.kernel, file_path, module_name
                 )
-                ok, err, extra = await load_hikka_module(kernel, file_path, module_name)
                 extra = extra or {}
                 conflicts = extra.get("conflicts", [])
+
                 if ok:
-                    add_log(t("log_module_loaded_kernel"))
-                    lang = kernel.config.get("language", "ru")
+                    add_log(self.strings["log_module_loaded_kernel"])
+                    lang = self.kernel.config.get("language", "ru")
                     commands, aliases_info, descriptions = (
-                        kernel._loader.get_module_commands(module_name, lang)
+                        self.kernel._loader.get_module_commands(module_name, lang)
                     )
                     emoji = random.choice(RANDOM_EMOJIS)
-                    commands_list = ""
-                    if commands:
-                        add_log(t("log_commands_found", count=len(commands)))
-                        for cmd in commands:
-                            cmd_desc = (
-                                descriptions.get(cmd)
-                                or metadata["commands"].get(cmd)
-                                or t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
-                            )
-                            command_line = t(
-                                "command_line",
-                                crystal=CUSTOM_EMOJI["crystal"],
-                                prefix=kernel.custom_prefix,
-                                cmd=cmd,
-                                desc=cmd_desc,
-                            )
-                            commands_list += command_line + "\n"
-
-                    inline_commands = kernel.get_module_inline_commands(module_name)
-                    if inline_commands:
-                        inline_emoji = (
-                            '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
-                        )
-                        for cmd, desc in inline_commands:
-                            if desc:
-                                commands_list += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>\n"
-                            else:
-                                commands_list += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code>\n"
+                    commands_list = self._build_commands_list(
+                        module_name,
+                        commands,
+                        aliases_info,
+                        descriptions,
+                        metadata,
+                        add_log,
+                    )
 
                     conflict_text = ""
                     if conflicts:
@@ -1385,91 +1342,33 @@ def register(kernel):
                             owner = cf.get("owner") or "unknown"
                             conflict_text += f"<code>{cf['command']}</code> — registered by <code>{owner}</code>\n"
 
-                    kernel.logger.info(f"Hikka модуль {module_name} установлен")
-
-                    banner_url = metadata.get("banner_url")
-                    cfg = get_config()
-                    show_banners = (
-                        cfg.get("loader_show_banners", False) if cfg else False
+                    self.kernel.logger.info(f"Hikka модуль {module_name} установлен")
+                    await self._send_module_loaded(
+                        msg or event,
+                        metadata,
+                        module_name,
+                        commands_list + conflict_text,
+                        emoji,
                     )
-                    if (
-                        show_banners
-                        and banner_url
-                        and banner_url.startswith(("http://", "https://"))
-                    ):
-                        try:
-                            media = InputMediaWebPage(banner_url, optional=True)
-                            await msg.edit(
-                                t(
-                                    "module_loaded",
-                                    success=CUSTOM_EMOJI["success"],
-                                    module_name=module_name,
-                                    emoji=emoji,
-                                    idea=CUSTOM_EMOJI["idea"],
-                                    description=module_description(metadata),
-                                    version=metadata["version"],
-                                    author=metadata.get("author", "unknown"),
-                                    emoji_author=CUSTOM_EMOJI["author"],
-                                    commands_list=commands_list + conflict_text,
-                                    source_link=get_source_link(module_name),
-                                ),
-                                file=media,
-                                parse_mode="html",
-                                invert_media=True,
-                            )
-                        except Exception as e:
-                            kernel.logger.error(f"Banner edit error: {e}")
-                            await edit_with_emoji(
-                                target_message(),
-                                t(
-                                    "module_loaded",
-                                    success=CUSTOM_EMOJI["success"],
-                                    module_name=module_name,
-                                    emoji=emoji,
-                                    idea=CUSTOM_EMOJI["idea"],
-                                    description=module_description(metadata),
-                                    version=metadata["version"],
-                                    author=metadata.get("author", "unknown"),
-                                    emoji_author=CUSTOM_EMOJI["author"],
-                                    commands_list=commands_list + conflict_text,
-                                ),
-                            )
-                    else:
-                        await edit_with_emoji(
-                            target_message(),
-                            t(
-                                "module_loaded",
-                                success=CUSTOM_EMOJI["success"],
-                                module_name=module_name,
-                                emoji=emoji,
-                                idea=CUSTOM_EMOJI["idea"],
-                                description=module_description(metadata),
-                                version=metadata["version"],
-                                author=metadata.get("author", "unknown"),
-                                emoji_author=CUSTOM_EMOJI["author"],
-                                commands_list=commands_list + conflict_text,
-                                source_link=get_source_link(module_name),
-                            ),
-                        )
                 else:
-                    add_log(t("log_install_error", error=err))
+                    add_log(self.strings("log_install_error", error=err))
                     log_text = "\n".join(install_log)
-                    await edit_with_emoji(
+                    await self._edit_with_emoji(
                         msg,
-                        t(
+                        self.strings(
                             "install_failed",
                             blocked=CUSTOM_EMOJI["blocked"],
                             idea=CUSTOM_EMOJI["idea"],
                             log=html.escape(log_text),
                         ),
                     )
-                    restore_backup_and_cleanup(
+                    self._restore_backup_and_cleanup(
                         old_file_backup, old_file_backup_path, file_path, add_log
                     )
                 return
 
-            lang = kernel.config.get("language", "ru")
-            result = await kernel.load_module_from_file(
+            lang = self.kernel.config.get("language", "ru")
+            result = await self.kernel.load_module_from_file(
                 file_path,
                 module_name,
                 False,
@@ -1484,144 +1383,76 @@ def register(kernel):
                 success, message_text = result_tuple
                 loaded_module_name = module_name
             else:
-                success = False
-                message_text = "Unknown error"
-                loaded_module_name = module_name
+                success, message_text, loaded_module_name = (
+                    False,
+                    "Unknown error",
+                    module_name,
+                )
 
             if success:
-                add_log(t("log_module_loaded_kernel"))
-
-                kernel._module_sources[loaded_module_name] = {
+                add_log(self.strings["log_module_loaded_kernel"])
+                self.kernel._module_sources[loaded_module_name] = {
                     "type": "url" if is_url else "repo",
                     "url": module_or_url if is_url else None,
                     "repo": repo_url if not is_url and repo_url else None,
                 }
 
                 class_instance = getattr(
-                    kernel.loaded_modules.get(loaded_module_name),
+                    self.kernel.loaded_modules.get(loaded_module_name),
                     "_class_instance",
                     None,
                 )
-                if class_instance is not None:
-                    display_name = getattr(
-                        type(class_instance), "name", loaded_module_name
-                    )
-                else:
-                    display_name = loaded_module_name
+                display_name = (
+                    getattr(type(class_instance), "name", loaded_module_name)
+                    if class_instance is not None
+                    else loaded_module_name
+                )
 
                 commands, aliases_info, descriptions = (
-                    kernel._loader.get_module_commands(loaded_module_name, lang)
+                    self.kernel._loader.get_module_commands(loaded_module_name, lang)
                 )
                 emoji = random.choice(RANDOM_EMOJIS)
-
-                commands_list = ""
-                if commands:
-                    add_log(t("log_commands_found", count=len(commands)))
-                    for cmd in commands:
-                        cmd_desc = (
-                            descriptions.get(cmd)
-                            or metadata["commands"].get(cmd)
-                            or t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
-                        )
-
-                        command_line = t(
-                            "command_line",
-                            crystal=CUSTOM_EMOJI["crystal"],
-                            prefix=kernel.custom_prefix,
-                            cmd=cmd,
-                            desc=cmd_desc,
-                        )
-
-                        if cmd in aliases_info:
-                            aliases = aliases_info[cmd]
-                            if isinstance(aliases, str):
-                                aliases = [aliases]
-                            if aliases:
-                                alias_text = ", ".join(
-                                    [
-                                        f"<code>{kernel.custom_prefix}{a}</code>"
-                                        for a in aliases
-                                    ]
-                                )
-                                command_line += t("aliases_text", alias_text=alias_text)
-                                add_log(
-                                    t(
-                                        "log_aliases_found",
-                                        cmd=cmd,
-                                        aliases=", ".join(aliases),
-                                    )
-                                )
-                        commands_list += command_line + "\n"
-
-                inline_commands = kernel.get_module_inline_commands(loaded_module_name)
-                if inline_commands:
-                    inline_emoji = (
-                        '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
-                    )
-                    for cmd, desc in inline_commands:
-                        if desc:
-                            commands_list += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>\n"
-                        else:
-                            commands_list += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code>\n"
-
-                final_msg = t(
-                    "module_loaded",
-                    success=CUSTOM_EMOJI["success"],
-                    module_name=display_name,
-                    emoji=emoji,
-                    idea=CUSTOM_EMOJI["idea"],
-                    description=module_description(metadata),
-                    version=metadata["version"],
-                    author=metadata.get("author", "unknown"),
-                    emoji_author=CUSTOM_EMOJI["author"],
-                    commands_list=commands_list,
-                    source_link=get_source_link(loaded_module_name),
+                commands_list = self._build_commands_list(
+                    loaded_module_name,
+                    commands,
+                    aliases_info,
+                    descriptions,
+                    metadata,
+                    add_log,
                 )
 
-                kernel.logger.info(f"Модуль {loaded_module_name} скачан")
-
-                banner_url = metadata.get("banner_url")
-                cfg = get_config()
-                show_banners = cfg.get("loader_show_banners", False) if cfg else False
-                if (
-                    show_banners
-                    and banner_url
-                    and banner_url.startswith(("http://", "https://"))
-                ):
-                    try:
-                        media = InputMediaWebPage(banner_url, optional=True)
-                        await msg.edit(
-                            final_msg, file=media, parse_mode="html", invert_media=True
-                        )
-                    except Exception as e:
-                        kernel.logger.error(f"Banner edit error: {e}")
-                        await edit_with_emoji(msg, final_msg)
-                else:
-                    await edit_with_emoji(target_message(), final_msg)
+                self.kernel.logger.info(f"Модуль {loaded_module_name} скачан")
+                await self._send_module_loaded(
+                    event,
+                    metadata,
+                    display_name,
+                    commands_list,
+                    emoji,
+                    source_link=self._get_source_link(loaded_module_name),
+                )
             else:
-                add_log(t("log_install_error", error=message_text))
+                self._restore_backup_and_cleanup(
+                    old_file_backup, old_file_backup_path, file_path, add_log
+                )
                 log_text = "\n".join(install_log)
-                await edit_with_emoji(
+                await self._edit_with_emoji(
                     target_message(),
-                    t(
+                    self.strings(
                         "install_failed",
                         blocked=CUSTOM_EMOJI["blocked"],
                         idea=CUSTOM_EMOJI["idea"],
                         log=html.escape(log_text),
                     ),
                 )
-                restore_backup_and_cleanup(
-                    old_file_backup, old_file_backup_path, file_path, add_log
-                )
 
         except CommandConflictError as e:
-            add_log(t("log_conflict", error=e))
+            add_log(self.strings("log_conflict", error=e))
             log_text = "\n".join(install_log)
 
             if e.conflict_type == "system":
-                await edit_with_emoji(
+                await self._edit_with_emoji(
                     target_message(),
-                    t(
+                    self.strings(
                         "conflict_system_alt",
                         shield=CUSTOM_EMOJI["shield"],
                         command=e.command,
@@ -1629,53 +1460,155 @@ def register(kernel):
                     ),
                 )
             elif e.conflict_type == "user":
-                await edit_with_emoji(
+                await self._edit_with_emoji(
                     target_message(),
-                    t(
+                    self.strings(
                         "conflict_user_alt",
                         error=CUSTOM_EMOJI["error"],
                         log=html.escape(log_text),
                     ),
                 )
 
-            restore_backup_and_cleanup(
+            self._restore_backup_and_cleanup(
                 old_file_backup, old_file_backup_path, file_path, add_log
             )
 
         except Exception as e:
-            add_log(t("log_critical", error=str(e)))
+            add_log(self.strings("log_critical", error=str(e)))
             import traceback
 
-            add_log(t("log_traceback", traceback=traceback.format_exc()))
+            add_log(self.strings("log_traceback", traceback=traceback.format_exc()))
 
             log_text = "\n".join(install_log)
-            await edit_with_emoji(
+            await self._edit_with_emoji(
                 msg or event,
-                t(
+                self.strings(
                     "install_failed",
                     blocked=CUSTOM_EMOJI["blocked"],
                     idea=CUSTOM_EMOJI["idea"],
                     log=html.escape(log_text),
                 ),
             )
-
-            restore_backup_and_cleanup(
+            self._restore_backup_and_cleanup(
                 old_file_backup, old_file_backup_path, file_path, add_log
             )
+            self.kernel._module_sources.pop(module_name, None)
 
-            # Remove source info on error
-            kernel._module_sources.pop(module_name, None)
+    def _build_commands_list(
+        self,
+        module_name: str,
+        commands: list[str],
+        aliases_info: dict,
+        descriptions: dict,
+        metadata: dict,
+        add_log: Callable,
+    ) -> str:
+        commands_list = ""
+        if not commands:
+            return commands_list
 
-    @kernel.register.command(
+        add_log(self.strings("log_commands_found", count=len(commands)))
+
+        for cmd in commands:
+            cmd_desc = (
+                descriptions.get(cmd)
+                or (metadata or {}).get("commands", {}).get(cmd)
+                or self.strings("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
+            )
+            command_line = self.strings(
+                "command_line",
+                crystal=CUSTOM_EMOJI["crystal"],
+                prefix=self.get_prefix(),
+                cmd=cmd,
+                desc=cmd_desc,
+            )
+
+            if cmd in aliases_info:
+                aliases = aliases_info[cmd]
+                if isinstance(aliases, str):
+                    aliases = [aliases]
+                if aliases:
+                    alias_text = ", ".join(
+                        [f"<code>{self.get_prefix()}{a}</code>" for a in aliases]
+                    )
+                    command_line += self.strings("aliases_text", alias_text=alias_text)
+                    add_log(
+                        self.strings(
+                            "log_aliases_found", cmd=cmd, aliases=", ".join(aliases)
+                        )
+                    )
+
+            commands_list += command_line + "\n"
+
+        # Inline commands
+        inline_commands = self.kernel.get_module_inline_commands(module_name)
+        if inline_commands:
+            inline_emoji = '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
+            bot_username = self.kernel.config.get("inline_bot_username", "bot")
+            for cmd, desc in inline_commands:
+                if desc:
+                    commands_list += f"{inline_emoji} <code>@{bot_username} {cmd}</code> – <b>{desc}</b>\n"
+                else:
+                    commands_list += (
+                        f"{inline_emoji} <code>@{bot_username} {cmd}</code>\n"
+                    )
+
+        return commands_list
+
+    async def _send_module_loaded(
+        self,
+        message,
+        metadata: dict,
+        display_name: str,
+        commands_list: str,
+        emoji: str,
+        source_link: str = "",
+    ) -> None:
+        cfg = self.get_config()
+        show_banners = cfg.get("loader_show_banners", False) if cfg else False
+        banner_url = metadata.get("banner_url") if metadata else None
+
+        final_msg = self.strings(
+            "module_loaded",
+            success=CUSTOM_EMOJI["success"],
+            module_name=display_name,
+            emoji=emoji,
+            idea=CUSTOM_EMOJI["idea"],
+            description=self._module_description(metadata),
+            version=(metadata or {}).get("version", "?"),
+            author=(metadata or {}).get("author", "unknown"),
+            emoji_author=CUSTOM_EMOJI["author"],
+            commands_list=commands_list,
+            source_link=source_link,
+        )
+
+        if (
+            show_banners
+            and banner_url
+            and banner_url.startswith(("http://", "https://"))
+        ):
+            try:
+                media = InputMediaWebPage(banner_url, optional=True)
+                await message.edit(
+                    final_msg, file=media, parse_mode="html", invert_media=True
+                )
+                return
+
+            except Exception as e:
+                self.log.error(f"Banner edit error: {e}")
+
+        await self.edit(message, final_msg, as_html=True)
+
+    @command(
         "iload",
         alias="im",
         doc_en="<reply> load module from reply",
         doc_ru="<ответ> загрузить модуль из ответа",
     )
-    async def install_module_handler(event: types.CallbackQuery) -> None:
+    async def cmd_iload(self, event) -> None:
         if not event.is_reply:
-            await edit_with_emoji(
-                event, t("reply_to_py", warning=CUSTOM_EMOJI["warning"])
+            await self._edit_with_emoji(
+                event, self.strings("reply_to_py", warning=CUSTOM_EMOJI["warning"])
             )
             return
 
@@ -1690,25 +1623,27 @@ def register(kernel):
         )
 
         if not reply.document or not file_name:
-            await edit_with_emoji(
-                event, t("not_py_file", warning=CUSTOM_EMOJI["warning"])
+            await self._edit_with_emoji(
+                event, self.strings("not_py_file", warning=CUSTOM_EMOJI["warning"])
             )
             return
 
-        install_log = []
+        install_log: list[str] = []
 
-        def add_log(message):
+        def add_log(message: str) -> None:
             timestamp = datetime.now().strftime("%H:%M:%S")
             log_entry = f"[{timestamp}] {message}"
             install_log.append(log_entry)
-            kernel.logger.debug(log_entry)
+            self.kernel.logger.debug(log_entry)
 
         is_archive = file_name.lower().endswith((".zip", ".tar.gz", ".tgz", ".tar"))
 
         if is_archive:
             add_log(f"Detected archive file: {file_name}")
 
-            temp_dir = os.path.join(kernel.MODULES_LOADED_DIR, "_temp_iload_archive")
+            temp_dir = os.path.join(
+                self.kernel.MODULES_LOADED_DIR, "_temp_iload_archive"
+            )
             if os.path.exists(temp_dir):
                 shutil.rmtree(temp_dir)
             os.makedirs(temp_dir, exist_ok=True)
@@ -1721,11 +1656,11 @@ def register(kernel):
                 with open(archive_path, "rb") as f:
                     archive_bytes = f.read()
 
-                result = await kernel._loader._archive_mgr.extract(
+                result = await self.kernel._loader._archive_mgr.extract(
                     archive_bytes, temp_dir
                 )
                 if not result.success:
-                    await edit_with_emoji(
+                    await self._edit_with_emoji(
                         event,
                         f"{CUSTOM_EMOJI['error']} <b>Archive extraction failed:</b> {result.error}",
                     )
@@ -1739,14 +1674,13 @@ def register(kernel):
                 if result.metadata and result.metadata.name:
                     module_name = result.metadata.name
 
-                cfg = get_config()
+                cfg = self.get_config()
                 protect_system = cfg and cfg.get("loader_protect_system", True)
 
-                # Check for system module conflict
-                if protect_system and module_name in kernel.system_modules:
-                    await edit_with_emoji(
+                if protect_system and module_name in self.kernel.system_modules:
+                    await self._edit_with_emoji(
                         event,
-                        t(
+                        self.strings(
                             "system_module_install_attempt",
                             confused=CUSTOM_EMOJI["confused"],
                             blocked=CUSTOM_EMOJI["blocked"],
@@ -1764,14 +1698,17 @@ def register(kernel):
                         try:
                             __import__(bare.replace("-", "_"))
                         except ImportError:
-                            ok, msg = await kernel._loader.install_dependency(bare)
-                            if ok:
-                                add_log(f"Installed dependency: {dep}")
-                            else:
-                                add_log(f"Failed to install {dep}: {msg}")
+                            ok, msg_txt = await self.kernel._loader.install_dependency(
+                                bare
+                            )
+                            add_log(
+                                f"Installed dependency: {dep}"
+                                if ok
+                                else f"Failed to install {dep}: {msg_txt}"
+                            )
 
-                target_dir = kernel.MODULES_LOADED_DIR
-                loaded_modules = []
+                target_dir = self.kernel.MODULES_LOADED_DIR
+                loaded_modules: list[str] = []
 
                 if result.pack_type == "single":
                     main_mod = next(
@@ -1779,7 +1716,6 @@ def register(kernel):
                     )
                     source_file = os.path.join(temp_dir, main_mod.file_path)
 
-                    # Check for local imports
                     with open(source_file, encoding="utf-8") as f:
                         main_code = f.read()
 
@@ -1793,21 +1729,19 @@ def register(kernel):
                             shutil.rmtree(module_dir)
                         os.makedirs(module_dir, exist_ok=True)
 
-                        # Copy all files
                         for root, dirs, files in os.walk(temp_dir):
                             rel_dir = os.path.relpath(root, temp_dir)
                             if rel_dir == ".":
                                 continue
                             target_subdir = os.path.join(module_dir, rel_dir)
                             os.makedirs(target_subdir, exist_ok=True)
-                            for f in files:
-                                if f.endswith(".py"):
+                            for fname_item in files:
+                                if fname_item.endswith(".py"):
                                     shutil.copy2(
-                                        os.path.join(root, f),
-                                        os.path.join(target_subdir, f),
+                                        os.path.join(root, fname_item),
+                                        os.path.join(target_subdir, fname_item),
                                     )
 
-                        # Update imports
                         main_in_package = os.path.join(module_dir, "__init__.py")
                         with open(main_in_package, "w") as f:
                             content = main_code
@@ -1824,127 +1758,121 @@ def register(kernel):
                         if target_dir not in sys.path:
                             sys.path.insert(0, target_dir)
 
-                        result = await kernel._loader.load_module_from_file(
+                        res = await self.kernel._loader.load_module_from_file(
                             main_in_package, module_name, False
                         )
-                        success = result[0]
-                        msg = result[1] if len(result) >= 2 else ""
+                        success = res[0]
+                        msg_txt = res[1] if len(res) >= 2 else ""
                     else:
                         target_file = os.path.join(target_dir, f"{module_name}.py")
                         shutil.copy2(source_file, target_file)
-                        result = await kernel._loader.load_module_from_file(
+                        res = await self.kernel._loader.load_module_from_file(
                             target_file, module_name, False
                         )
-                        success = result[0]
-                        msg = result[1] if len(result) >= 2 else ""
+                        success = res[0]
+                        msg_txt = res[1] if len(res) >= 2 else ""
 
                     if success:
                         loaded_modules.append(module_name)
-                        kernel._module_sources[module_name] = {
+                        self.kernel._module_sources[module_name] = {
                             "type": "archive",
                             "pack_type": "single",
                         }
                     else:
-                        await edit_with_emoji(
+                        await self._edit_with_emoji(
                             event,
-                            f"{CUSTOM_EMOJI['error']} <b>Failed to load module:</b> {msg}",
+                            f"{CUSTOM_EMOJI['error']} <b>Failed to load module:</b> {msg_txt}",
                         )
                         return
                 else:
-                    # Check system modules for pack
                     if protect_system:
                         system_conflicts = [
                             mod.name
                             for mod in result.modules
-                            if mod.name in kernel.system_modules
+                            if mod.name in self.kernel.system_modules
                         ]
                         if system_conflicts:
-                            await edit_with_emoji(
+                            await self._edit_with_emoji(
                                 event,
                                 f"{CUSTOM_EMOJI['confused']} <b>System module conflict:</b> {', '.join(system_conflicts)}",
                             )
                             return
 
-                    failed_modules = []
+                    failed_modules: list[str] = []
                     for mod in result.modules:
                         target_file = os.path.join(target_dir, f"{mod.name}.py")
                         source_file = os.path.join(temp_dir, mod.file_path)
-
                         if os.path.exists(source_file):
                             shutil.copy2(source_file, target_file)
-                            result = await kernel._loader.load_module_from_file(
+                            res = await self.kernel._loader.load_module_from_file(
                                 target_file, mod.name, False
                             )
-                            success = result[0]
-                            msg = result[1] if len(result) >= 2 else ""
-
+                            success = res[0]
+                            msg_txt = res[1] if len(res) >= 2 else ""
                             if success:
                                 loaded_modules.append(mod.name)
-                                kernel._module_sources[mod.name] = {
+                                self.kernel._module_sources[mod.name] = {
                                     "type": "archive",
                                     "pack_type": "pack",
                                 }
                             else:
-                                failed_modules.append(f"{mod.name}: {msg}")
-                                add_log(f"Failed to load {mod.name}: {msg}")
+                                failed_modules.append(f"{mod.name}: {msg_txt}")
+                                add_log(f"Failed to load {mod.name}: {msg_txt}")
 
-                await kernel.save_module_sources()
+                await self.kernel.save_module_sources()
 
-                # Get metadata and commands for display
+                lang = self.kernel.config.get("language", "ru")
+                commands, aliases_info, descriptions = (
+                    self.kernel._loader.get_module_commands(module_name, lang)
+                )
+
                 if result.pack_type == "single":
                     code_for_meta = (
                         main_code if has_local_import else open(source_file).read()
                     )
-                    metadata = await kernel.get_module_metadata(code_for_meta)
+                    metadata = await self.kernel.get_module_metadata(code_for_meta)
                 else:
-                    metadata = await kernel.get_module_metadata("")
-
-                # Get commands from registered module
-                lang = kernel.config.get("language", "ru")
-                commands, aliases_info, descriptions = (
-                    kernel._loader.get_module_commands(module_name, lang)
-                )
+                    metadata = await self.kernel.get_module_metadata("")
 
                 commands_list = ""
-                if commands:
-                    for cmd in commands:
-                        cmd_desc = (
-                            descriptions.get(cmd)
-                            or metadata["commands"].get(cmd)
-                            or t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
-                        )
-                        command_line = t(
+                for cmd in commands:
+                    cmd_desc = (
+                        descriptions.get(cmd)
+                        or metadata["commands"].get(cmd)
+                        or self.strings("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
+                    )
+                    commands_list += (
+                        self.strings(
                             "command_line",
                             crystal=CUSTOM_EMOJI["crystal"],
-                            prefix=kernel.custom_prefix,
+                            prefix=self.get_prefix(),
                             cmd=cmd,
                             desc=cmd_desc,
                         )
-                        commands_list += command_line + "\n"
+                        + "\n"
+                    )
 
-                source_link = get_source_link(module_name)
-
-                await edit_with_emoji(
+                await self._edit_with_emoji(
                     event,
-                    t(
+                    self.strings(
                         "module_loaded",
                         success=CUSTOM_EMOJI["success"],
                         module_name=", ".join(loaded_modules),
                         emoji=CUSTOM_EMOJI["idea"],
                         idea=CUSTOM_EMOJI["idea"],
-                        description=module_description(metadata),
+                        description=self._module_description(metadata),
                         version=metadata["version"],
                         emoji_author=CUSTOM_EMOJI["author"],
                         author=metadata.get("author", "unknown"),
                         commands_list=commands_list,
-                        source_link=source_link,
+                        source_link=self._get_source_link(module_name),
                     ),
                 )
                 return
 
             except Exception as e:
-                await kernel.handle_error(e, source="iload_archive", event=event)
-                await edit_with_emoji(
+                await self.kernel.handle_error(e, source="iload_archive", event=event)
+                await self._edit_with_emoji(
                     event,
                     f"{CUSTOM_EMOJI['error']} <b>Archive install error:</b> {str(e)[:200]}",
                 )
@@ -1957,8 +1885,8 @@ def register(kernel):
                         pass
 
         if not file_name.endswith(".py"):
-            await edit_with_emoji(
-                event, t("not_py_file", warning=CUSTOM_EMOJI["warning"])
+            await self._edit_with_emoji(
+                event, self.strings("not_py_file", warning=CUSTOM_EMOJI["warning"])
             )
             return
 
@@ -1966,19 +1894,20 @@ def register(kernel):
 
         install_log = []
 
-        def add_log(message):
+        def add_log(message: str) -> None:  # noqa: F811
             timestamp = datetime.now().strftime("%H:%M:%S")
             log_entry = f"[{timestamp}] {message}"
             install_log.append(log_entry)
-            kernel.logger.debug(log_entry)
+            self.kernel.logger.debug(log_entry)
 
-        cfg = get_config()
+        cfg = self.get_config()
         force_unload = not (cfg and cfg.get("loader_protect_system", True))
+
         if cfg and cfg.get("loader_protect_system", True):
-            if module_name in kernel.system_modules:
-                await edit_with_emoji(
+            if module_name in self.kernel.system_modules:
+                await self._edit_with_emoji(
                     event,
-                    t(
+                    self.strings(
                         "system_module_update_attempt",
                         confused=CUSTOM_EMOJI["confused"],
                         module_name=module_name,
@@ -1988,11 +1917,12 @@ def register(kernel):
                 return
 
         is_update = (
-            module_name in kernel.loaded_modules or module_name in kernel.system_modules
+            module_name in self.kernel.loaded_modules
+            or module_name in self.kernel.system_modules
         )
 
         class_instance = getattr(
-            kernel.loaded_modules.get(module_name), "_class_instance", None
+            self.kernel.loaded_modules.get(module_name), "_class_instance", None
         )
         if class_instance is not None:
             existing_class_name = getattr(type(class_instance), "name", None)
@@ -2003,31 +1933,32 @@ def register(kernel):
         old_version = None
         old_file_backup = None
         old_file_backup_path = None
+
         if is_update:
-            old_file_path = kernel._loader.get_module_path(module_name)
-            old_version = await kernel._loader.get_module_version_from_file(
+            old_file_path = self.kernel._loader.get_module_path(module_name)
+            old_version = await self.kernel._loader.get_module_version_from_file(
                 old_file_path
             )
-            kernel.logger.info(
+            self.kernel.logger.info(
                 f"[loader] BEFORE download - old_file={old_file_path} old_version={old_version}"
             )
 
-        file_path = kernel._loader.get_module_path(module_name)
+        file_path = self.kernel._loader.get_module_path(module_name)
 
         try:
-            add_log(t("log_downloading", file_path=file_path))
+            add_log(self.strings("log_downloading", file_path=file_path))
             await reply.download_media(file_path)
-            add_log(t("log_downloaded"))
+            add_log(self.strings["log_downloaded"])
 
             with open(file_path, encoding="utf-8") as f:
                 code = f.read()
-            add_log(t("log_file_read"))
+            add_log(self.strings["log_file_read"])
 
-            add_log(t("log_getting_metadata"))
-            metadata = await kernel.get_module_metadata(code)
+            add_log(self.strings["log_getting_metadata"])
+            metadata = await self.kernel.get_module_metadata(code)
 
             new_class_name = metadata.get("class_name")
-            for loaded_name, loaded_mod in list(kernel.loaded_modules.items()):
+            for loaded_name, loaded_mod in list(self.kernel.loaded_modules.items()):
                 class_instance = getattr(loaded_mod, "_class_instance", None)
                 if class_instance is not None:
                     class_display_name = getattr(type(class_instance), "name", None)
@@ -2038,170 +1969,180 @@ def register(kernel):
                             and class_display_name == new_class_name
                         )
                     ) and loaded_name != module_name:
-                        old_file_path = kernel._loader.get_module_path(loaded_name)
-                        if os.path.exists(old_file_path):
-                            with open(old_file_path, "r", encoding="utf-8") as f:
+                        old_file_path_cls = self.kernel._loader.get_module_path(
+                            loaded_name
+                        )
+                        if os.path.exists(old_file_path_cls):
+                            with open(old_file_path_cls, "r", encoding="utf-8") as f:
                                 old_file_backup = f.read()
-                            old_file_backup_path = old_file_path
-                            os.remove(old_file_path)
-                            kernel.logger.info(
-                                f"[loader] Removed old file {old_file_path} for class module {class_display_name}"
+                            old_file_backup_path = old_file_path_cls
+                            os.remove(old_file_path_cls)
+                            self.kernel.logger.info(
+                                f"[loader] Removed old file {old_file_path_cls} for class module {class_display_name}"
                             )
                         target_name = (
                             new_class_name or class_display_name or module_name
                         )
-                        file_path = kernel._loader.get_module_path(target_name)
-                        kernel.logger.info(
+                        file_path = self.kernel._loader.get_module_path(target_name)
+                        self.kernel.logger.info(
                             f"[loader] Using path {file_path} for class module {target_name}"
                         )
                         is_update = True
                         break
 
-            dependencies = []
-            add_log(t("log_author", author=metadata["author"]))
-            add_log(t("log_version", version=metadata["version"]))
-            add_log(t("log_description", description=module_description(metadata)))
+            add_log(self.strings("log_author", author=metadata["author"]))
+            add_log(self.strings("log_version", version=metadata["version"]))
+            add_log(
+                self.strings(
+                    "log_description", description=self._module_description(metadata)
+                )
+            )
 
             if metadata.get("is_class_style") and metadata.get("class_name"):
                 class_name = metadata["class_name"]
                 if (
-                    class_name in kernel.system_modules
+                    class_name in self.kernel.system_modules
                     and cfg
                     and cfg.get("loader_protect_system", True)
                 ):
-                    await edit_with_emoji(
-                        msg,
-                        t(
+                    await self._edit_with_emoji(
+                        event,
+                        self.strings(
                             "system_module_install_attempt",
                             confused=CUSTOM_EMOJI["confused"],
                             module_name=class_name,
                             blocked=CUSTOM_EMOJI["blocked"],
                         ),
                     )
-                    restore_backup_and_cleanup(
+                    self._restore_backup_and_cleanup(
                         old_file_backup, old_file_backup_path, file_path, add_log
                     )
                     return
                 if not is_update:
-                    for loaded_name, loaded_mod in list(kernel.loaded_modules.items()):
+                    for loaded_name, loaded_mod in list(
+                        self.kernel.loaded_modules.items()
+                    ):
                         class_instance = getattr(loaded_mod, "_class_instance", None)
                         if class_instance is not None:
                             existing_class = getattr(type(class_instance), "name", None)
                             if existing_class == class_name:
-                                old_file_path = kernel._loader.get_module_path(
+                                old_file_path_cls = self.kernel._loader.get_module_path(
                                     loaded_name
                                 )
-                                if os.path.exists(old_file_path):
+                                if os.path.exists(old_file_path_cls):
                                     if old_file_backup is None:
                                         with open(
-                                            old_file_path, "r", encoding="utf-8"
+                                            old_file_path_cls, "r", encoding="utf-8"
                                         ) as f:
                                             old_file_backup = f.read()
-                                        old_file_backup_path = old_file_path
-                                    os.remove(old_file_path)
-                                    kernel.logger.info(
-                                        f"[loader] Removed old file {old_file_path} for class module {class_name}"
+                                        old_file_backup_path = old_file_path_cls
+                                    os.remove(old_file_path_cls)
+                                    self.kernel.logger.info(
+                                        f"[loader] Removed old file {old_file_path_cls} for class module {class_name}"
                                     )
                                 is_update = True
-                                await kernel.unregister_module_commands(
+                                await self.kernel.unregister_module_commands(
                                     loaded_name, force=force_unload
                                 )
-                                kernel.logger.info(
+                                self.kernel.logger.info(
                                     f"[loader] Detected update via class name match: {class_name}"
                                 )
                                 break
 
             if is_update:
                 new_version = metadata["version"]
-                kernel.logger.info(
+                self.kernel.logger.info(
                     f"[loader] update check: {module_name} old={old_version} new={new_version}"
                 )
-                if old_version != new_version:
-                    action = t(
+                action = (
+                    self.strings(
                         "updating_version",
                         reload=CUSTOM_EMOJI["loading"],
                         old_version=old_version,
                         new_version=new_version,
                     )
-                else:
-                    action = t("updating", reload=CUSTOM_EMOJI["loading"])
+                    if old_version != new_version
+                    else self.strings("updating", reload=CUSTOM_EMOJI["loading"])
+                )
             else:
-                action = t("installing", test=CUSTOM_EMOJI["loading"])
+                action = self.strings("installing", test=CUSTOM_EMOJI["loading"])
 
             msg = await event.edit(
-                t("starting_install", action=action), parse_mode="html"
+                self.strings("starting_install", action=action), parse_mode="html"
             )
-
             add_log(
-                t(
+                self.strings(
                     "log_start",
                     action="обновление" if is_update else "установку",
                     module_name=module_name,
                 )
             )
-            add_log(t("log_filename", filename=file_name))
+            add_log(self.strings("log_filename", filename=file_name))
 
-            await mcub_handler()
-            add_log(t("log_checking_compatibility"))
+            await self._mcub_handler()
+            add_log(self.strings["log_checking_compatibility"])
 
-            dependencies = kernel._loader.parse_requires(code)
+            dependencies = self.kernel._loader.parse_requires(code)
             if dependencies:
-                add_log(t("log_deps_found", deps=", ".join(dependencies)))
+                add_log(self.strings("log_deps_found", deps=", ".join(dependencies)))
 
             if is_hikka_module(code):
-                add_log(t("log_hikka_detected"))
-                if not allow_hikka_modules():
-                    await edit_with_emoji(
+                add_log(self.strings["log_hikka_detected"])
+                if not self._allow_hikka_modules():
+                    await self._edit_with_emoji(
                         msg,
-                        t("hikka_disabled", warning=CUSTOM_EMOJI["warning"]),
+                        self.strings("hikka_disabled", warning=CUSTOM_EMOJI["warning"]),
                     )
-                    restore_backup_and_cleanup(
+                    self._restore_backup_and_cleanup(
                         old_file_backup, old_file_backup_path, file_path, add_log
                     )
                     return
                 if not HIKKA_COMPAT:
-                    await edit_with_emoji(
+                    await self._edit_with_emoji(
                         msg,
-                        t("hikka_no_compat", warning=CUSTOM_EMOJI["warning"]),
+                        self.strings(
+                            "hikka_no_compat", warning=CUSTOM_EMOJI["warning"]
+                        ),
                     )
-                    restore_backup_and_cleanup(
+                    self._restore_backup_and_cleanup(
                         old_file_backup, old_file_backup_path, file_path, add_log
                     )
                     return
 
-                await edit_with_emoji(
+                await self._edit_with_emoji(
                     msg,
-                    t(
+                    self.strings(
                         "starting_install",
-                        action=t("installing", test=CUSTOM_EMOJI["loading"]),
+                        action=self.strings("installing", test=CUSTOM_EMOJI["loading"]),
                     ),
                 )
+
             if dependencies:
                 deps_with_emoji = "\n".join(
                     f"{CUSTOM_EMOJI['lib']} {dep}" for dep in dependencies
                 )
-                await edit_with_emoji(
+                await self._edit_with_emoji(
                     msg,
-                    t(
+                    self.strings(
                         "installing_deps",
                         dependencies=CUSTOM_EMOJI["dependencies"],
                         deps_list=deps_with_emoji,
                     ),
                 )
-                await kernel._loader.install_dependencies_batch(
+                await self.kernel._loader.install_dependencies_batch(
                     dependencies, log_fn=add_log
                 )
 
             if is_update:
-                add_log(t("log_removing_old", module_name=module_name))
+                add_log(self.strings("log_removing_old", module_name=module_name))
                 if old_file_backup is None and os.path.exists(file_path):
                     with open(file_path, "r", encoding="utf-8") as f:
                         old_file_backup = f.read()
                     old_file_backup_path = file_path
-                await kernel.unregister_module_commands(module_name)
+                await self.kernel.unregister_module_commands(module_name)
 
-            add_log(t("log_loading_module", module_name=module_name))
-            result = await kernel.load_module_from_file(
+            add_log(self.strings("log_loading_module", module_name=module_name))
+            result = await self.kernel.load_module_from_file(
                 file_path, module_name, False, source_url=None, source_repo=None
             )
             success = result[0]
@@ -2209,310 +2150,250 @@ def register(kernel):
             loaded_module_name = result[2] if len(result) >= 3 else module_name
 
             if success:
-                add_log(t("log_module_loaded"))
-
-                kernel._module_sources[loaded_module_name] = {
-                    "type": "local",
-                }
+                add_log(self.strings["log_module_loaded"])
+                self.kernel._module_sources[loaded_module_name] = {"type": "local"}
 
                 class_instance = getattr(
-                    kernel.loaded_modules.get(loaded_module_name),
+                    self.kernel.loaded_modules.get(loaded_module_name),
                     "_class_instance",
                     None,
                 )
-                if class_instance is not None:
-                    display_name = getattr(
-                        type(class_instance), "name", loaded_module_name
-                    )
-                else:
-                    display_name = loaded_module_name
-
-                lang = kernel.config.get("language", "ru")
-                commands, aliases_info, descriptions = (
-                    kernel._loader.get_module_commands(loaded_module_name, lang)
+                display_name = (
+                    getattr(type(class_instance), "name", loaded_module_name)
+                    if class_instance is not None
+                    else loaded_module_name
                 )
 
+                lang = self.kernel.config.get("language", "ru")
+                commands, aliases_info, descriptions = (
+                    self.kernel._loader.get_module_commands(loaded_module_name, lang)
+                )
                 emoji = random.choice(RANDOM_EMOJIS)
+                commands_list = self._build_commands_list(
+                    loaded_module_name,
+                    commands,
+                    aliases_info,
+                    descriptions,
+                    metadata,
+                    add_log,
+                )
 
-                commands_list = ""
-                if commands:
-                    add_log(t("log_commands_found", count=len(commands)))
-                    for cmd in commands:
-                        cmd_desc = (
-                            descriptions.get(cmd)
-                            or metadata["commands"].get(cmd)
-                            or t("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
-                        )
-
-                        command_line = t(
-                            "command_line",
-                            crystal=CUSTOM_EMOJI["crystal"],
-                            prefix=kernel.custom_prefix,
-                            cmd=cmd,
-                            desc=cmd_desc,
-                        )
-
-                        if cmd in aliases_info:
-                            aliases = aliases_info[cmd]
-                            if isinstance(aliases, str):
-                                aliases = [aliases]
-                            if aliases:
-                                alias_text = ", ".join(
-                                    [
-                                        f"<code>{kernel.custom_prefix}{a}</code>"
-                                        for a in aliases
-                                    ]
-                                )
-                                command_line += t("aliases_text", alias_text=alias_text)
-                                add_log(
-                                    t(
-                                        "log_aliases_found",
-                                        cmd=cmd,
-                                        aliases=", ".join(aliases),
-                                    )
-                                )
-                        commands_list += command_line + "\n"
-
-                inline_commands = kernel.get_module_inline_commands(loaded_module_name)
-                if inline_commands:
-                    inline_emoji = (
-                        '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
-                    )
-                    for cmd, desc in inline_commands:
-                        if desc:
-                            commands_list += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>\n"
-                        else:
-                            commands_list += f"{inline_emoji} <code>@{kernel.config.get('inline_bot_username', 'bot')} {cmd}</code>\n"
-
-                final_msg = t(
+                self.kernel.logger.info(f"Модуль {display_name} установлен")
+                return_str = self.strings(
                     "module_loaded",
                     success=CUSTOM_EMOJI["success"],
                     module_name=display_name,
                     emoji=emoji,
                     idea=CUSTOM_EMOJI["idea"],
-                    description=module_description(metadata),
-                    version=metadata["version"],
-                    author=metadata.get("author", "unknown"),
+                    description=self._module_description(metadata),
+                    version=(metadata or {}).get("version", "?"),
+                    author=(metadata or {}).get("author", "unknown"),
                     emoji_author=CUSTOM_EMOJI["author"],
                     commands_list=commands_list,
-                    source_link=get_source_link(loaded_module_name),
+                    source_link=self._get_source_link(loaded_module_name),
                 )
-
-                kernel.logger.info(f"Модуль {display_name} установлен")
-
-                banner_url = metadata.get("banner_url")
-                cfg = get_config()
-                show_banners = cfg.get("loader_show_banners", False) if cfg else False
-                if (
-                    show_banners
-                    and banner_url
-                    and banner_url.startswith(("http://", "https://"))
-                ):
-                    try:
-                        media = InputMediaWebPage(banner_url, optional=True)
-                        await msg.edit(
-                            final_msg, file=media, parse_mode="html", invert_media=True
-                        )
-                    except Exception as e:
-                        kernel.logger.error(f"Banner edit error: {e}")
-                        await edit_with_emoji(msg, final_msg)
-                else:
-                    await edit_with_emoji(msg, final_msg)
-
-            else:
-                add_log(t("log_install_error", error=message_text))
-                log_text = "\n".join(install_log)
-                await edit_with_emoji(
+                await self._send_module_loaded(
                     msg,
-                    t(
+                    metadata,
+                    display_name,
+                    commands_list,
+                    emoji,
+                    source_link=self._get_source_link(loaded_module_name),
+                )
+            else:
+                add_log(self.strings("log_install_error", error=message_text))
+                log_text = "\n".join(install_log)
+                await self._edit_with_emoji(
+                    msg,
+                    self.strings(
                         "install_failed",
                         blocked=CUSTOM_EMOJI["blocked"],
                         idea=CUSTOM_EMOJI["idea"],
                         log=html.escape(log_text),
                     ),
                 )
-
-                restore_backup_and_cleanup(
+                self._restore_backup_and_cleanup(
                     old_file_backup, old_file_backup_path, file_path, add_log
                 )
 
         except CommandConflictError as e:
-            add_log(t("log_conflict", error=e))
+            add_log(self.strings("log_conflict", error=e))
             log_text = "\n".join(install_log)
 
             if e.conflict_type == "system":
-                await edit_with_emoji(
+                await self._edit_with_emoji(
                     msg,
-                    t(
+                    self.strings(
                         "conflict_system",
                         shield=CUSTOM_EMOJI["shield"],
-                        prefix=kernel.custom_prefix,
+                        prefix=self.get_prefix(),
                         command=e.command,
                         log=html.escape(log_text),
                     ),
                 )
             elif e.conflict_type == "user":
-                owner_module = kernel.command_owners.get(e.command, "unknown")
-                await edit_with_emoji(
+                owner_module = self.kernel.command_owners.get(e.command, "unknown")
+                await self._edit_with_emoji(
                     msg,
-                    t(
+                    self.strings(
                         "conflict_user",
                         error=CUSTOM_EMOJI["error"],
-                        prefix=kernel.custom_prefix,
+                        prefix=self.get_prefix(),
                         command=e.command,
                         owner_module=owner_module,
                         log=html.escape(log_text),
                     ),
                 )
-            restore_backup_and_cleanup(
+            self._restore_backup_and_cleanup(
                 old_file_backup, old_file_backup_path, file_path, add_log
             )
 
         except Exception as e:
-            add_log(t("log_critical", error=str(e)))
+            add_log(self.strings("log_critical", error=str(e)))
             import traceback
 
-            add_log(t("log_traceback", traceback=traceback.format_exc()))
-
+            add_log(self.strings("log_traceback", traceback=traceback.format_exc()))
             log_text = "\n".join(install_log)
-            await edit_with_emoji(
+            await self._edit_with_emoji(
                 msg,
-                t(
+                self.strings(
                     "install_failed",
                     blocked=CUSTOM_EMOJI["blocked"],
                     idea=CUSTOM_EMOJI["idea"],
                     log=html.escape(log_text),
                 ),
             )
-            await kernel.handle_error(e, source="install_module_handler", event=event)
-            restore_backup_and_cleanup(
+            await self.kernel.handle_error(
+                e, source="install_module_handler", event=event
+            )
+            self._restore_backup_and_cleanup(
                 old_file_backup, old_file_backup_path, file_path, add_log
             )
 
-    @kernel.register.command(
+        return None
+
+    @command(
         "dlm",
         doc_en="<URL/[-send] [name]/[-list] [name/None]> download and install module from URL or repo",
-        doc_ru="<URL/[-send] [name]/[-list] [name/None]>  скачать и установить модуль из URL или репозитория",
+        doc_ru="<URL/[-send] [name]/[-list] [name/None]> скачать и установить модуль из URL или репозитория",
     )
-    async def download_module_handler(event: types.Message) -> None:
+    async def cmd_dlm(self, event) -> None:
         args = event.text.split()
 
         if len(args) < 2:
             try:
-                if await open_inline_result(event, "catalog"):
+                if await self._open_inline_result(event, "catalog"):
                     return
             except Exception as e:
-                kernel.logger.error(f"Error calling inline catalog: {e}")
+                self.kernel.logger.error(f"Error calling inline catalog: {e}")
 
-            await edit_with_emoji(
+            await self._edit_with_emoji(
                 event,
-                t(
+                self.strings(
                     "dlm_usage",
                     warning=CUSTOM_EMOJI["warning"],
-                    prefix=kernel.custom_prefix,
+                    prefix=self.get_prefix(),
                 ),
             )
             return
 
-        await edit_with_emoji(
-            event,
-            t(
-                "wait",
-                wait=CUSTOM_EMOJI["wait"],
-            ),
+        await self._edit_with_emoji(
+            event, self.strings("wait", wait=CUSTOM_EMOJI["wait"])
         )
 
         if args[1] == "-list":
             if len(args) == 2:
-                await edit_with_emoji(
-                    event, t("dlm_list_loading", loading=CUSTOM_EMOJI["loading"])
+                await self._edit_with_emoji(
+                    event,
+                    self.strings("dlm_list_loading", loading=CUSTOM_EMOJI["loading"]),
                 )
-
-                repos = [kernel.default_repo, *kernel.repositories]
+                repos = [self.kernel.default_repo, *self.kernel.repositories]
                 message_lines = []
                 errors = []
 
                 for i, repo in enumerate(repos):
                     try:
-                        modules = await kernel.get_repo_modules_list(repo)
-                        repo_name = await kernel.get_repo_name(repo)
-
+                        modules = await self.kernel.get_repo_modules_list(repo)
+                        repo_name = await self.kernel.get_repo_name(repo)
                         if modules:
-                            module_list = " | ".join(modules)
-                            message_lines.append(f"<b>{repo_name}</b>: {module_list}")
+                            message_lines.append(
+                                f"<b>{repo_name}</b>: {' | '.join(modules)}"
+                            )
                         else:
                             errors.append(f"{i + 1}. {repo_name}: пустой список")
                     except Exception as e:
                         errors.append(f"{i + 1}. {repo}: ошибка - {str(e)[:50]}")
 
                 if message_lines:
-                    msg_text = "\n".join(message_lines)
-                    final_msg = t(
-                        "dlm_list_title", folder=CUSTOM_EMOJI["folder"], list=msg_text
+                    final_msg = self.strings(
+                        "dlm_list_title",
+                        folder=CUSTOM_EMOJI["folder"],
+                        list="\n".join(message_lines),
                     )
-
                     if errors:
-                        final_msg += t(
+                        final_msg += self.strings(
                             "dlm_list_errors",
                             warning=CUSTOM_EMOJI["warning"],
                             errors="<br>".join(errors),
                         )
                 else:
-                    final_msg = t("dlm_list_failed", warning=CUSTOM_EMOJI["warning"])
+                    final_msg = self.strings(
+                        "dlm_list_failed", warning=CUSTOM_EMOJI["warning"]
+                    )
                     if errors:
                         final_msg += f"\n<blockquote expandable>{'<br>'.join(errors)}</blockquote>"
 
-                await edit_with_emoji(event, final_msg)
+                await self._edit_with_emoji(event, final_msg)
                 return
             else:
                 module_name = args[2]
                 msg = await event.edit(
-                    t(
+                    self.strings(
                         "dlm_searching",
                         loading=CUSTOM_EMOJI["loading"],
                         module_name=module_name,
                     ),
                     parse_mode="html",
                 )
-
-                repos = [kernel.default_repo, *kernel.repositories]
+                repos = [self.kernel.default_repo, *self.kernel.repositories]
                 found = False
 
                 for repo in repos:
                     try:
-                        code = await kernel.download_module_from_repo(repo, module_name)
+                        code = await self.kernel.download_module_from_repo(
+                            repo, module_name
+                        )
                         if code:
                             found = True
-                            metadata = await kernel.get_module_metadata(code)
-                            size = len(code.encode("utf-8"))
-
-                            info = t(
-                                "module_info",
-                                file=CUSTOM_EMOJI["file"],
-                                module_name=module_name,
-                                idea=CUSTOM_EMOJI["idea"],
-                                description=module_description(metadata),
-                                crystal=CUSTOM_EMOJI["crystal"],
-                                version=metadata["version"],
-                                angel=CUSTOM_EMOJI["angel"],
-                                author=metadata["author"],
-                                folder=CUSTOM_EMOJI["folder"],
-                                size=size,
-                                cloud=CUSTOM_EMOJI["cloud"],
-                                repo=repo,
+                            metadata = await self.kernel.get_module_metadata(code)
+                            await self._edit_with_emoji(
+                                msg,
+                                self.strings(
+                                    "module_info",
+                                    file=CUSTOM_EMOJI["file"],
+                                    module_name=module_name,
+                                    idea=CUSTOM_EMOJI["idea"],
+                                    description=self._module_description(metadata),
+                                    crystal=CUSTOM_EMOJI["crystal"],
+                                    version=metadata["version"],
+                                    angel=CUSTOM_EMOJI["angel"],
+                                    author=metadata["author"],
+                                    folder=CUSTOM_EMOJI["folder"],
+                                    size=len(code.encode("utf-8")),
+                                    cloud=CUSTOM_EMOJI["cloud"],
+                                    repo=repo,
+                                ),
                             )
-                            await edit_with_emoji(msg, info)
                             break
                     except Exception as e:
-                        await kernel.log_error(
+                        await self.kernel.log_error(
                             f"Ошибка поиска модуля {module_name} в {repo}: {e}"
                         )
-                        continue
 
                 if not found:
-                    await edit_with_emoji(
+                    await self._edit_with_emoji(
                         msg,
-                        t(
+                        self.strings(
                             "module_not_found",
                             warning=CUSTOM_EMOJI["warning"],
                             module_name=module_name,
@@ -2526,12 +2407,12 @@ def register(kernel):
 
         if args[1] in ["-send", "-s", "--send"]:
             if len(args) < 3:
-                await edit_with_emoji(
+                await self._edit_with_emoji(
                     event,
-                    t(
+                    self.strings(
                         "dlm_send_usage",
                         warning=CUSTOM_EMOJI["warning"],
-                        prefix=kernel.custom_prefix,
+                        prefix=self.get_prefix(),
                     ),
                 )
                 return
@@ -2543,17 +2424,17 @@ def register(kernel):
             module_or_url = args[1]
             if len(args) > 2 and args[2].isdigit():
                 repo_index = int(args[2]) - 1
-            send_mode = False
+
         is_url = module_or_url.startswith(
             ("http://", "https://", "raw.githubusercontent.com")
         )
 
         if not is_url and repo_index is None:
-            repos = [kernel.default_repo, *kernel.repositories]
-            matches = await find_repo_matches(module_or_url, repos)
+            repos = [self.kernel.default_repo, *self.kernel.repositories]
+            matches = await self._find_repo_matches(module_or_url, repos)
 
             if len(matches) > 1:
-                opened = await open_repo_choice_form(
+                opened = await self._open_repo_choice_form(
                     event, module_or_url, send_mode, matches
                 )
                 if opened:
@@ -2562,38 +2443,34 @@ def register(kernel):
             if len(matches) == 1:
                 repo_index = matches[0]["repo_index"]
 
-        await run_dlm_install(
-            event,
-            module_or_url,
-            send_mode=send_mode,
-            repo_index=repo_index,
+        await self._run_dlm_install(
+            event, module_or_url, send_mode=send_mode, repo_index=repo_index
         )
 
-    @kernel.register.command(
+    @command(
         "um",
-        doc_en="<name> unload module by name",
+        doc_en="<n> unload module by name",
         doc_ru="<имя> выгрузить модуль по имени",
     )
-    async def unload_module_handler(event: types.Message) -> None:
+    async def cmd_um(self, event) -> None:
         args = event.text.split()
         if len(args) < 2:
-            await edit_with_emoji(
+            await self._edit_with_emoji(
                 event,
-                t(
+                self.strings(
                     "um_usage",
                     warning=CUSTOM_EMOJI["warning"],
-                    prefix=kernel.custom_prefix,
+                    prefix=self.get_prefix(),
                 ),
             )
             return
 
         module_name = args[1]
-
-        actual_name, _ = kernel._loader.find_module_case_insensitive(module_name)
+        actual_name, _ = self.kernel._loader.find_module_case_insensitive(module_name)
         if actual_name is None:
-            await edit_with_emoji(
+            await self._edit_with_emoji(
                 event,
-                t(
+                self.strings(
                     "module_not_found_um",
                     warning=CUSTOM_EMOJI["warning"],
                     module_name=module_name,
@@ -2602,16 +2479,17 @@ def register(kernel):
             return
 
         module_name = actual_name
-
-        cfg = get_config()
+        cfg = self.get_config()
         force_unload = not (cfg and cfg.get("loader_protect_system", True))
 
         try:
-            await kernel.unregister_module_commands(module_name, force=force_unload)
+            await self.kernel.unregister_module_commands(
+                module_name, force=force_unload
+            )
         except PermissionError:
-            await edit_with_emoji(
+            await self._edit_with_emoji(
                 event,
-                t(
+                self.strings(
                     "system_module_unload_attempt",
                     confused=CUSTOM_EMOJI["confused"],
                     blocked=CUSTOM_EMOJI["blocked"],
@@ -2620,21 +2498,23 @@ def register(kernel):
             )
             return
 
-        instance = kernel.loaded_modules.get(module_name)
+        instance = self.kernel.loaded_modules.get(module_name)
         if instance and getattr(instance, "_hikka_compat", False):
-            await unload_hikka_module(kernel, module_name)
+            await unload_hikka_module(self.kernel, module_name)
         else:
             commands_to_remove = [
                 cmd
-                for cmd, owner in kernel.command_owners.items()
+                for cmd, owner in self.kernel.command_owners.items()
                 if owner == module_name
             ]
             try:
-                await kernel.unregister_module_commands(module_name, force=force_unload)
+                await self.kernel.unregister_module_commands(
+                    module_name, force=force_unload
+                )
             except PermissionError:
-                await edit_with_emoji(
+                await self._edit_with_emoji(
                     event,
-                    t(
+                    self.strings(
                         "system_module_unload_attempt",
                         confused=CUSTOM_EMOJI["confused"],
                         blocked=CUSTOM_EMOJI["blocked"],
@@ -2642,68 +2522,61 @@ def register(kernel):
                     ),
                 )
                 return
+            self.kernel._loader.remove_module_aliases(module_name, commands_to_remove)
 
-            kernel._loader.remove_module_aliases(module_name, commands_to_remove)
-
-        file_path = kernel._loader.get_module_path(module_name)
+        file_path = self.kernel._loader.get_module_path(module_name)
         if os.path.exists(file_path):
             os.remove(file_path)
 
-        # Check for package directory (archive modules with local imports)
-        package_dir = os.path.join(kernel.MODULES_LOADED_DIR, module_name)
+        package_dir = os.path.join(self.kernel.MODULES_LOADED_DIR, module_name)
         if os.path.isdir(package_dir):
             shutil.rmtree(package_dir)
 
-        # Also clean up sys.modules for package submodules
         for mod in list(sys.modules.keys()):
             if mod == module_name or mod.startswith(f"{module_name}."):
                 del sys.modules[mod]
 
-        if module_name in kernel.loaded_modules:
-            del kernel.loaded_modules[module_name]
+        if module_name in self.kernel.loaded_modules:
+            del self.kernel.loaded_modules[module_name]
+        if module_name in self.kernel.system_modules:
+            del self.kernel.system_modules[module_name]
 
-        if module_name in kernel.system_modules:
-            del kernel.system_modules[module_name]
-
-        await log_to_bot(f"Модуль {module_name} удалён")
-        await edit_with_emoji(
+        await self._log_to_bot(f"Модуль {module_name} удалён")
+        await self._edit_with_emoji(
             event,
-            t(
+            self.strings(
                 "module_unloaded",
                 success=CUSTOM_EMOJI["success"],
                 module_name=module_name,
             ),
         )
+        self.kernel._module_sources.pop(module_name, None)
+        await self.kernel.save_module_sources()
 
-        # Remove source info and save
-        kernel._module_sources.pop(module_name, None)
-        await kernel.save_module_sources()
-
-    @kernel.register.command(
+    @command(
         "unlm",
-        doc_en="<name> unload module as file",
+        doc_en="<n> unload module as file",
         doc_ru="<имя> выгрузить модуль виде файл",
     )
-    async def upload_module_handler(event: types.Message) -> None:
+    async def cmd_unlm(self, event) -> None:
         args = event.text.split()
         if len(args) < 2:
-            await edit_with_emoji(
+            await self._edit_with_emoji(
                 event,
-                t(
+                self.strings(
                     "unlm_usage",
                     warning=CUSTOM_EMOJI["warning"],
-                    prefix=kernel.custom_prefix,
+                    prefix=self.get_prefix(),
                 ),
             )
             return
 
         module_name = args[1]
-
-        actual_name, _ = kernel._loader.find_module_case_insensitive(module_name)
+        actual_name, _ = self.kernel._loader.find_module_case_insensitive(module_name)
         if actual_name is None:
-            await edit_with_emoji(
+            await self._edit_with_emoji(
                 event,
-                t(
+                self.strings(
                     "module_not_found_um",
                     warning=CUSTOM_EMOJI["warning"],
                     module_name=module_name,
@@ -2712,89 +2585,89 @@ def register(kernel):
             return
 
         module_name = actual_name
-
-        file_path = kernel._loader.get_module_path(module_name)
+        file_path = self.kernel._loader.get_module_path(module_name)
 
         if not os.path.exists(file_path):
-            await edit_with_emoji(
-                event, t("module_file_not_found", warning=CUSTOM_EMOJI["warning"])
+            await self._edit_with_emoji(
+                event,
+                self.strings("module_file_not_found", warning=CUSTOM_EMOJI["warning"]),
             )
             return
 
-        await edit_with_emoji(
+        await self._edit_with_emoji(
             event,
-            t(
+            self.strings(
                 "uploading_module",
                 upload=CUSTOM_EMOJI["upload"],
                 module_name=module_name,
             ),
         )
         await event.edit(
-            t(
+            self.strings(
                 "file_upload_caption",
                 file=CUSTOM_EMOJI["file"],
                 module_name=module_name,
-                prefix=kernel.custom_prefix,
-                source_link=get_source_link(module_name),
+                prefix=self.get_prefix(),
+                source_link=self._get_source_link(module_name),
             ),
             parse_mode="html",
             file=file_path,
         )
 
-    @kernel.register.command(
+    @command(
         "reload",
         doc_en="<name/None> reload module(s)",
         doc_ru="<имя/нечего> перезагрузить модуль или модули",
     )
-    async def reload_module_handler(event: types.Message) -> None:
+    async def cmd_reload(self, event) -> None:
         args = event.text.split()
-        kernel.dedupe_event_builders(reason="reload_command_start_precheck")
-        kernel.ensure_core_message_handlers(reason="reload_command_start")
-        kernel.ensure_registered_module_handlers(reason="reload_command_start")
-        kernel.logger.debug(
+        self.kernel.dedupe_event_builders(reason="reload_command_start_precheck")
+        self.kernel.ensure_core_message_handlers(reason="reload_command_start")
+        self.kernel.ensure_registered_module_handlers(reason="reload_command_start")
+        self.kernel.logger.debug(
             "[reload] request text=%r loaded=%r system=%r",
             event.text,
-            list(kernel.loaded_modules.keys()),
-            list(kernel.system_modules.keys()),
+            list(self.kernel.loaded_modules.keys()),
+            list(self.kernel.system_modules.keys()),
         )
 
         if len(args) < 2:
-            modules_to_reload = list(kernel.loaded_modules.keys())
+            # Reload all
+            modules_to_reload = list(self.kernel.loaded_modules.keys())
             if not modules_to_reload:
-                kernel.logger.debug("[reload] no-loaded-modules")
-                await edit_with_emoji(
-                    event,
-                    t("no_modules", folder=CUSTOM_EMOJI["folder"]),
+                self.kernel.logger.debug("[reload] no-loaded-modules")
+                await self._edit_with_emoji(
+                    event, self.strings("no_modules", folder=CUSTOM_EMOJI["folder"])
                 )
                 return
 
             msg = await event.edit(
-                t("reload_all", reload=CUSTOM_EMOJI["reload"]),
+                self.strings("reload_all", reload=CUSTOM_EMOJI["reload"]),
                 parse_mode="html",
             )
 
-            results = []
-            failed = []
+            results: list[str] = []
+            failed: list[str] = []
 
-            cfg = get_config()
+            cfg = self.get_config()
             force_unload = not (cfg and cfg.get("loader_protect_system", True))
 
             for module_name in modules_to_reload:
-                kernel.logger.debug(
+                self.kernel.logger.debug(
                     "[reload] reloading-from-bulk module=%r", module_name
                 )
 
                 file_path = os.path.join(
                     (
-                        kernel.MODULES_DIR
-                        if module_name in kernel.system_modules
-                        else kernel.MODULES_LOADED_DIR
+                        self.kernel.MODULES_DIR
+                        if module_name in self.kernel.system_modules
+                        else self.kernel.MODULES_LOADED_DIR
                     ),
                     f"{module_name}.py",
                 )
 
                 if not os.path.exists(file_path):
-                    kernel.logger.debug(
+                    self.kernel.logger.debug(
                         "[reload] missing-file bulk module=%r file=%r",
                         module_name,
                         file_path,
@@ -2803,37 +2676,23 @@ def register(kernel):
                     continue
 
                 if module_name in sys.modules:
-                    kernel.logger.debug(
-                        "[reload] removing-sys-module module=%r", module_name
-                    )
                     del sys.modules[module_name]
 
                 try:
-                    await kernel.unregister_module_commands(
+                    await self.kernel.unregister_module_commands(
                         module_name, force=force_unload
                     )
                 except PermissionError:
-                    kernel.logger.debug(
+                    self.kernel.logger.debug(
                         "[reload] skipped-system-module module=%r", module_name
                     )
                     continue
-                kernel.logger.debug(
-                    "[reload] after-unregister module=%r commands=%r aliases=%r",
-                    module_name,
-                    list(kernel.command_handlers.keys()),
-                    dict(kernel.aliases),
-                )
 
-                if module_name in kernel.loaded_modules:
-                    kernel.logger.debug(
-                        "[reload] dropping-loaded-module module=%r", module_name
-                    )
-                    del kernel.loaded_modules[module_name]
+                if module_name in self.kernel.loaded_modules:
+                    del self.kernel.loaded_modules[module_name]
 
-                # Preserve source info on reload
-                old_source = kernel._module_sources.get(module_name)
-
-                result = await kernel.load_module_from_file(
+                old_source = self.kernel._module_sources.get(module_name)
+                result = await self.kernel.load_module_from_file(
                     file_path,
                     module_name,
                     False,
@@ -2842,25 +2701,14 @@ def register(kernel):
                     source_repo=old_source.get("repo") if old_source else None,
                 )
                 success = result[0]
-                kernel.logger.debug(
-                    "[reload] post-load bulk module=%r success=%s loaded=%s",
-                    module_name,
-                    success,
-                    module_name in kernel.loaded_modules,
-                )
-                kernel.dedupe_event_builders(reason=f"reload_bulk_after_{module_name}")
-                kernel.ensure_core_message_handlers(
+                self.kernel.dedupe_event_builders(
                     reason=f"reload_bulk_after_{module_name}"
                 )
-                kernel.ensure_registered_module_handlers(
+                self.kernel.ensure_core_message_handlers(
                     reason=f"reload_bulk_after_{module_name}"
                 )
-                kernel.logger.debug(
-                    "[reload] bulk-result module=%r success=%s commands=%r aliases=%r",
-                    module_name,
-                    success,
-                    list(kernel.command_handlers.keys()),
-                    dict(kernel.aliases),
+                self.kernel.ensure_registered_module_handlers(
+                    reason=f"reload_bulk_after_{module_name}"
                 )
 
                 if success:
@@ -2873,15 +2721,15 @@ def register(kernel):
 
             if failed:
                 failed_list = ""
-                for _i, name in enumerate(failed[:10]):
-                    failed_list += t("failed_module", name=name)
+                for name in failed[:10]:
+                    failed_list += self.strings("failed_module", name=name)
                 if failed_count > 10:
-                    failed_list += t("and_more", count=failed_count - 10)
+                    failed_list += self.strings("and_more", count=failed_count - 10)
 
                 if success_count > 0:
-                    await edit_with_emoji(
+                    await self._edit_with_emoji(
                         msg,
-                        t(
+                        self.strings(
                             "reload_all_partial",
                             success=CUSTOM_EMOJI["success"],
                             success_count=f"✓ {success_count}",
@@ -2891,9 +2739,9 @@ def register(kernel):
                         ),
                     )
                 else:
-                    await edit_with_emoji(
+                    await self._edit_with_emoji(
                         msg,
-                        t(
+                        self.strings(
                             "reload_all_failed",
                             warning=CUSTOM_EMOJI["warning"],
                             count=failed_count,
@@ -2902,9 +2750,9 @@ def register(kernel):
                     )
             else:
                 if success_count == 1:
-                    await edit_with_emoji(
+                    await self._edit_with_emoji(
                         msg,
-                        t(
+                        self.strings(
                             "reload_all_success_one",
                             success=CUSTOM_EMOJI["success"],
                             count="1",
@@ -2912,32 +2760,33 @@ def register(kernel):
                         ),
                     )
                 else:
-                    await edit_with_emoji(
+                    await self._edit_with_emoji(
                         msg,
-                        t(
+                        self.strings(
                             "reload_all_success",
                             success=CUSTOM_EMOJI["success"],
                             count=f"✓ {success_count}",
                         ),
                     )
-            kernel.dedupe_event_builders(reason="reload_bulk_complete")
-            kernel.ensure_core_message_handlers(reason="reload_bulk_complete")
-            kernel.ensure_registered_module_handlers(reason="reload_bulk_complete")
+
+            self.kernel.dedupe_event_builders(reason="reload_bulk_complete")
+            self.kernel.ensure_core_message_handlers(reason="reload_bulk_complete")
+            self.kernel.ensure_registered_module_handlers(reason="reload_bulk_complete")
             return
 
+        # Single module reload
         module_name = args[1]
-
-        actual_name, _ = kernel._loader.find_module_case_insensitive(module_name)
+        actual_name, _ = self.kernel._loader.find_module_case_insensitive(module_name)
         if actual_name is None:
-            kernel.logger.debug(
+            self.kernel.logger.debug(
                 "[reload] module-not-found requested=%r loaded=%r system=%r",
                 module_name,
-                list(kernel.loaded_modules.keys()),
-                list(kernel.system_modules.keys()),
+                list(self.kernel.loaded_modules.keys()),
+                list(self.kernel.system_modules.keys()),
             )
-            await edit_with_emoji(
+            await self._edit_with_emoji(
                 event,
-                t(
+                self.strings(
                     "module_not_found_um",
                     warning=CUSTOM_EMOJI["warning"],
                     module_name=module_name,
@@ -2946,27 +2795,29 @@ def register(kernel):
             return
 
         module_name = actual_name
-
-        file_path = kernel._loader.get_module_path(module_name)
-        is_system = module_name in kernel.system_modules
+        file_path = self.kernel._loader.get_module_path(module_name)
+        is_system = module_name in self.kernel.system_modules
 
         if not os.path.exists(file_path):
-            kernel.logger.debug(
+            self.kernel.logger.debug(
                 "[reload] single-missing-file module=%r file=%r system=%s",
                 module_name,
                 file_path,
                 is_system,
             )
-            await edit_with_emoji(
-                event, t("module_file_not_found", warning=CUSTOM_EMOJI["warning"])
+            await self._edit_with_emoji(
+                event,
+                self.strings("module_file_not_found", warning=CUSTOM_EMOJI["warning"]),
             )
             return
 
         msg = await event.edit(
-            t("reloading", reload=CUSTOM_EMOJI["reload"], module_name=module_name),
+            self.strings(
+                "reloading", reload=CUSTOM_EMOJI["reload"], module_name=module_name
+            ),
             parse_mode="html",
         )
-        kernel.logger.debug(
+        self.kernel.logger.debug(
             "[reload] single-start module=%r system=%s file=%r",
             module_name,
             is_system,
@@ -2976,10 +2827,10 @@ def register(kernel):
         try:
             with open(file_path, encoding="utf-8") as f:
                 code = f.read()
-            dependencies = kernel._loader.parse_requires(code)
+            dependencies = self.kernel._loader.parse_requires(code)
         except Exception as e:
             dependencies = []
-            kernel.logger.warning(
+            self.kernel.logger.warning(
                 "[reload] failed to parse dependencies for %s: %s", module_name, e
             )
 
@@ -2987,23 +2838,23 @@ def register(kernel):
             deps_with_emoji = "\n".join(
                 f"{CUSTOM_EMOJI['lib']} {dep}" for dep in dependencies
             )
-            await edit_with_emoji(
+            await self._edit_with_emoji(
                 msg,
-                t(
+                self.strings(
                     "installing_deps",
                     dependencies=CUSTOM_EMOJI["dependencies"],
                     deps_list=deps_with_emoji,
                 ),
             )
             try:
-                await kernel._loader.install_dependencies_batch(dependencies)
+                await self.kernel._loader.install_dependencies_batch(dependencies)
             except Exception as e:
-                kernel.logger.error(
+                self.kernel.logger.error(
                     "[reload] deps install failed for %s: %s", module_name, e
                 )
-                await edit_with_emoji(
+                await self._edit_with_emoji(
                     msg,
-                    t(
+                    self.strings(
                         "install_failed",
                         blocked=CUSTOM_EMOJI["blocked"],
                         idea=CUSTOM_EMOJI["idea"],
@@ -3012,23 +2863,27 @@ def register(kernel):
                 )
                 return
 
-        instance = kernel.loaded_modules.get(module_name) or kernel.system_modules.get(
+        instance = self.kernel.loaded_modules.get(
             module_name
-        )
+        ) or self.kernel.system_modules.get(module_name)
         if instance and getattr(instance, "_hikka_compat", False):
-            kernel.logger.debug("[reload] single-hikka-compat module=%r", module_name)
+            self.kernel.logger.debug(
+                "[reload] single-hikka-compat module=%r", module_name
+            )
             if HIKKA_COMPAT:
-                await unload_hikka_module(kernel, module_name)
+                await unload_hikka_module(self.kernel, module_name)
                 await asyncio.sleep(0)
         else:
-            cfg = get_config()
+            cfg = self.get_config()
             force_unload = not (cfg and cfg.get("loader_protect_system", True))
             try:
-                await kernel.unregister_module_commands(module_name, force=force_unload)
+                await self.kernel.unregister_module_commands(
+                    module_name, force=force_unload
+                )
             except PermissionError:
-                await edit_with_emoji(
+                await self._edit_with_emoji(
                     msg,
-                    t(
+                    self.strings(
                         "system_module_unload_attempt",
                         confused=CUSTOM_EMOJI["confused"],
                         blocked=CUSTOM_EMOJI["blocked"],
@@ -3037,88 +2892,44 @@ def register(kernel):
                 )
                 return
 
-            kernel.logger.debug(
-                "[reload] single-after-unregister module=%r commands=%r aliases=%r",
-                module_name,
-                list(kernel.command_handlers.keys()),
-                dict(kernel.aliases),
-            )
-
         if module_name in sys.modules:
-            kernel.logger.debug(
-                "[reload] single-remove-sys-module module=%r", module_name
-            )
             del sys.modules[module_name]
-
-        if module_name in kernel.loaded_modules:
-            kernel.logger.debug(
-                "[reload] single-drop-loaded-module module=%r", module_name
-            )
-            del kernel.loaded_modules[module_name]
-        else:
-            kernel.logger.debug(
-                "[reload] single-loaded-module-absent module=%r", module_name
-            )
+        if module_name in self.kernel.loaded_modules:
+            del self.kernel.loaded_modules[module_name]
 
         if is_system:
-            cfg = get_config()
+            cfg = self.get_config()
             if cfg and cfg.get("loader_protect_system", True):
-                if module_name in kernel.system_modules:
-                    kernel.logger.debug(
-                        "[reload] single-drop-system-module module=%r", module_name
-                    )
-                    del kernel.system_modules[module_name]
-                else:
-                    kernel.logger.debug(
-                        "[reload] single-system-module-already-absent module=%r",
-                        module_name,
-                    )
-            else:
-                kernel.logger.debug(
-                    "[reload] single-keep-system-module module=%r (protect disabled)",
-                    module_name,
-                )
+                if module_name in self.kernel.system_modules:
+                    del self.kernel.system_modules[module_name]
 
-        result = await kernel.load_module_from_file(
+        result = await self.kernel.load_module_from_file(
             file_path, module_name, is_system, is_reload=True
         )
         success = result[0]
         message_text = result[1] if len(result) >= 2 else ""
-        kernel.logger.debug(
-            "[reload] single-post-load module=%r success=%s loaded=%s system=%s",
-            module_name,
-            success,
-            module_name in kernel.loaded_modules,
-            module_name in kernel.system_modules,
-        )
-        kernel.dedupe_event_builders(reason=f"reload_single_after_{module_name}")
-        kernel.ensure_core_message_handlers(reason=f"reload_single_after_{module_name}")
-        kernel.ensure_registered_module_handlers(
+
+        self.kernel.dedupe_event_builders(reason=f"reload_single_after_{module_name}")
+        self.kernel.ensure_core_message_handlers(
             reason=f"reload_single_after_{module_name}"
         )
-        kernel.logger.debug(
-            "[reload] single-result module=%r success=%s message=%r commands=%r aliases=%r",
-            module_name,
-            success,
-            message_text,
-            list(kernel.command_handlers.keys()),
-            dict(kernel.aliases),
+        self.kernel.ensure_registered_module_handlers(
+            reason=f"reload_single_after_{module_name}"
         )
 
         if success:
-            lang = kernel.config.get("language", "ru")
-            commands, _, _ = kernel._loader.get_module_commands(module_name, lang)
+            lang = self.kernel.config.get("language", "ru")
+            commands, _, _ = self.kernel._loader.get_module_commands(module_name, lang)
             cmd_text = (
-                f"{CUSTOM_EMOJI['crystal']} {', '.join([f'<code>{kernel.custom_prefix}{cmd}</code>' for cmd in commands])}"
+                f"{CUSTOM_EMOJI['crystal']} {', '.join([f'<code>{self.get_prefix()}{cmd}</code>' for cmd in commands])}"
                 if commands
-                else t("no_commands")
+                else self.strings["no_commands"]
             )
-
             emoji = random.choice(RANDOM_EMOJIS)
-            kernel.logger.info(f"Модуль {module_name} перезагружен")
-            await edit_with_emoji(
+            self.kernel.logger.info(f"Модуль {module_name} перезагружен")
+            await self._edit_with_emoji(
                 msg,
-                t(
+                self.strings(
                     "reload_success",
                     success=CUSTOM_EMOJI["success"],
                     module_name=module_name,
@@ -3127,60 +2938,59 @@ def register(kernel):
                 ),
             )
         else:
-            await kernel.handle_error(
+            await self.kernel.handle_error(
                 Exception(message_text), source="reload_module_handler", event=event
             )
-            await edit_with_emoji(
-                msg, t("reload_error", warning=CUSTOM_EMOJI["warning"])
+            await self._edit_with_emoji(
+                msg, self.strings("reload_error", warning=CUSTOM_EMOJI["warning"])
             )
 
-    @kernel.register.command(
+    @command(
         "addrepo",
         doc_en="<URL> add module repository URL",
         doc_ru="<URL> добавить URL репозитория модулей",
     )
-    async def add_repo_handler(event: types.Message) -> None:
+    async def cmd_addrepo(self, event) -> None:
         args = event.text.split()
         if len(args) < 2:
-            await edit_with_emoji(
+            await self._edit_with_emoji(
                 event,
-                t(
+                self.strings(
                     "addrepo_usage",
                     warning=CUSTOM_EMOJI["warning"],
-                    prefix=kernel.custom_prefix,
+                    prefix=self.get_prefix(),
                 ),
             )
             return
 
         url = args[1].strip()
-        success, message = await kernel.add_repository(url)
+        success, message = await self.kernel.add_repository(url)
 
-        if success:
-            await edit_with_emoji(event, f"{CUSTOM_EMOJI['success']} <b>{message}</b>")
-        else:
-            await edit_with_emoji(event, f"{CUSTOM_EMOJI['warning']} <b>{message}</b>")
+        await self._edit_with_emoji(
+            event,
+            f"{CUSTOM_EMOJI['success'] if success else CUSTOM_EMOJI['warning']} <b>{message}</b>",
+        )
 
-    @kernel.register.command(
+    @command(
         "delrepo",
         doc_en="<ID> remove module repository",
         doc_ru="<ID> удалить репозиторий модулей",
     )
-    async def del_repo_handler(event: types.Message) -> None:
+    async def cmd_delrepo(self, event) -> None:
         args = event.text.split()
         if len(args) < 2:
-            await edit_with_emoji(
+            await self._edit_with_emoji(
                 event,
-                t(
+                self.strings(
                     "delrepo_usage",
                     warning=CUSTOM_EMOJI["warning"],
-                    prefix=kernel.custom_prefix,
+                    prefix=self.get_prefix(),
                 ),
             )
             return
 
-        success, message = await kernel.remove_repository(args[1])
-
-        if success:
-            await edit_with_emoji(event, f"{CUSTOM_EMOJI['success']} <b>{message}</b>")
-        else:
-            await edit_with_emoji(event, f"{CUSTOM_EMOJI['warning']} <b>{message}</b>")
+        success, message = await self.kernel.remove_repository(args[1])
+        await self._edit_with_emoji(
+            event,
+            f"{CUSTOM_EMOJI['success'] if success else CUSTOM_EMOJI['warning']} <b>{message}</b>",
+        )

@@ -172,6 +172,8 @@ def register(kernel):
                 )
                 return
 
+            piped = False
+
             try:
                 data_event = asyncio.Event()
                 cmd_data = {
@@ -182,7 +184,8 @@ def register(kernel):
                     "return_code": None,
                     "process": None,
                     "start_time": time.time(),
-                    "data_event": data_event,  # signal about new data
+                    "data_event": data_event,
+                    "piped": piped,
                 }
 
                 process = await asyncio.create_subprocess_shell(
@@ -224,6 +227,23 @@ def register(kernel):
                     await client.send_message(chat_id, error_msg, parse_mode="html")
                 self.running_commands.pop(chat_id, None)
                 await kernel.handle_error(e, source="terminal:run_command")
+
+        async def run_command_piped(
+            self, chat_id, command, message_id=None, quiet=False
+        ):
+            try:
+                process = await asyncio.create_subprocess_shell(
+                    command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await process.communicate()
+                output = stdout.decode("utf-8", errors="ignore")
+                if not quiet:
+                    output += stderr.decode("utf-8", errors="ignore")
+                return output
+            except Exception as e:
+                return f"Error: {str(e)}"
 
         async def _read_output(self, chat_id):
             """Reads stdout/stderr in chunks and signals update_loop about new data."""
@@ -336,13 +356,26 @@ def register(kernel):
             if chat_id not in self.running_commands:
                 return
             cmd_data = self.running_commands[chat_id]
+
+            piped = cmd_data.get("piped", False)
+
             try:
-                await client.edit_message(
-                    chat_id,
-                    cmd_data["message_id"],
-                    self._build_message(cmd_data, final=True),
-                    parse_mode="html",
-                )
+                if piped:
+                    stdout = cmd_data["stdout"].decode("utf-8", errors="ignore")
+                    stderr = cmd_data["stderr"].decode("utf-8", errors="ignore")
+                    output = stdout + stderr
+                    await client.edit_message(
+                        chat_id,
+                        cmd_data["message_id"],
+                        output,
+                    )
+                else:
+                    await client.edit_message(
+                        chat_id,
+                        cmd_data["message_id"],
+                        self._build_message(cmd_data, final=True),
+                        parse_mode="html",
+                    )
             except Exception as e:
                 logger.error(f"terminal: final edit error: {e}")
 
@@ -419,18 +452,37 @@ def register(kernel):
 
     @kernel.register.command(
         "t",
-        doc_en="execute shell command with real-time output",
-        doc_ru="выполнить shell команду с выводом в реальном времени",
+        doc_en="[command] execute shell command",
+        doc_ru="[команда] выполнить shell команду",
     )
     async def terminal_handler(event):
         args = event.text.split(maxsplit=1)
+        pipe_input = getattr(event, "pipe_input", None)
+        piped = getattr(event, "piped", False)
+
         if len(args) < 2:
             await event.edit(
                 f"{CUSTOM_EMOJI['🗯']} <i>{lang['command_not_specified']}</i>",
                 parse_mode="html",
             )
             return
-        await terminal.run_command(event.chat_id, args[1], event.id)
+
+        cmd = args[1]
+        quiet = False
+        if cmd.startswith("-q "):
+            quiet = True
+            cmd = cmd[3:]
+
+        if pipe_input:
+            cmd = f"{pipe_input}\n{cmd}"
+
+        if piped:
+            output = await terminal.run_command_piped(
+                event.chat_id, cmd, event.id, quiet
+            )
+            await event.edit(output if output else "done")
+        else:
+            await terminal.run_command(event.chat_id, cmd, event.id)
 
     @kernel.register.command(
         "tkill",

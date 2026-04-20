@@ -94,6 +94,8 @@ class ManModule(ModuleBase):
             "manhide_usage": f"{CUSTOM_EMOJI['confused']} Использование: <code>.manhide [модуль]</code>",
             "manunhide_usage": f"{CUSTOM_EMOJI['confused']} Использование: <code>.manunhide [модуль]</code>",
             "system_module_note": f"{CUSTOM_EMOJI['blocked']} <b>Это системный модуль, и его просто так нельзя выгрузить loader'ом</b>",
+            "kernel_not_full_loaded": f"{CUSTOM_EMOJI['blocked']}"
+            + " <b>Ядро ещё не полностью загрузила все модули</b> (<code>{status}</code>)",
         },
         "en": {
             "help_not_command": "Did you mean ",
@@ -132,6 +134,8 @@ class ManModule(ModuleBase):
             "manhide_usage": f"{CUSTOM_EMOJI['confused']} Usage: <code>.manhide [module]</code>",
             "manunhide_usage": f"{CUSTOM_EMOJI['confused']} Usage: <code>.manunhide [module]</code>",
             "system_module_note": f"{CUSTOM_EMOJI['blocked']} <b>This is a system module, and it cannot simply be unloaded with a loader</b>",
+            "kernel_not_full_loaded": f"{CUSTOM_EMOJI['blocked']}"
+            + " <b>The kernel has not yet fully loaded all modules</b> (<code>{status}</code>)",
         },
     }
 
@@ -154,6 +158,24 @@ class ManModule(ModuleBase):
             description="Invert media colors",
             validator=Boolean(default=False),
         ),
+        ConfigValue(
+            "man_emoji_system_list",
+            "▫️",
+            description="emoji for list system module",
+            validator=String(default="▫️"),
+        ),
+        ConfigValue(
+            "man_emoji_user_list",
+            "▪️",
+            description="emoji for list user module",
+            validator=String(default="▪️"),
+        ),
+        ConfigValue(
+            "man_emoji",
+            CUSTOM_EMOJI["crystal"],
+            description="emoji main inline panel",
+            validator=String(default=str(CUSTOM_EMOJI["crystal"])),
+        ),
     )
 
     async def on_load(self) -> None:
@@ -163,6 +185,9 @@ class ManModule(ModuleBase):
                 "man_quote_media": True,
                 "man_banner_url": "",
                 "man_invert_media": False,
+                "man_emoji_user_list": "▪️",
+                "man_emoji_system_list": "▫️",
+                "man_emoji": CUSTOM_EMOJI["crystal"],
             },
         )
         self.config.from_dict(config_dict)
@@ -436,16 +461,20 @@ class ManModule(ModuleBase):
         close_cb=None,
         ttl: int = 900,
     ) -> tuple[str, list]:
-        MAX_MSG_LENGTH = 2000
+        MAX_MSG_LENGTH = 3000
         if hidden_list is None:
             hidden_list = []
         s = self.strings
         kernel = self.kernel
+        cfg = self.config
 
         def filter_modules(names: list) -> list:
             if show_hidden:
                 return names
             return [n for n in names if n not in hidden_list]
+
+        sys_modules = sorted(filter_modules(list(kernel.system_modules.keys())))
+        usr_modules = sorted(filter_modules(list(kernel.loaded_modules.keys())))
 
         def render_module_line(name: str) -> str:
             module_obj = kernel.loaded_modules.get(name)
@@ -454,7 +483,10 @@ class ManModule(ModuleBase):
                 display_name = getattr(type(class_instance), "name", name)
             else:
                 display_name = name
-
+            if name in sys_modules:
+                emoji = cfg.get("man_emoji_system_list", "▫️")
+            else:
+                emoji = cfg.get("man_emoji_user_list", "▪️")
             commands, aliases_info, _ = self._get_module_commands(name)
             hidden_mark = (
                 f" {CUSTOM_EMOJI['eye_off']}"
@@ -497,7 +529,7 @@ class ManModule(ModuleBase):
                         inline_cmds += f" (+{len(inline_commands) - 3})"
                     cmd_text += f" {inline_cmds}"
 
-                return f"<b>{display_name}</b>{hidden_mark}: {cmd_text}\n"
+                return f"{emoji} <b>{display_name}</b>{hidden_mark}: {cmd_text}\n"
             elif inline_commands:
                 inline_emoji = '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
                 inline_cmds = ", ".join(
@@ -532,12 +564,10 @@ class ManModule(ModuleBase):
                 chunks.append(current_chunk)
             return chunks
 
-        sys_modules = sorted(filter_modules(list(kernel.system_modules.keys())))
-        usr_modules = sorted(filter_modules(list(kernel.loaded_modules.keys())))
-
+        emoji_man = cfg.get("man_emoji", CUSTOM_EMOJI["crystal"])
         if page == 0:
             header_len = len(
-                f"{CUSTOM_EMOJI['crystal']} <b>{s['system_modules']}:</b> <code>{len(sys_modules)}</code><blockquote expandable>\n</blockquote>"
+                f"{emoji_man} <b>{s['system_modules']}:</b> <code>{len(sys_modules)}</code><blockquote expandable>\n</blockquote>"
             )
             sys_chunks = chunk_by_size(sys_modules, " " * header_len)
         else:
@@ -547,7 +577,7 @@ class ManModule(ModuleBase):
         total_pages = len(sys_chunks) + len(usr_chunks)
 
         if page < len(sys_chunks):
-            msg = f"{CUSTOM_EMOJI['crystal']} <b>{s['system_modules']}:</b> <code>{len(sys_modules)}</code>"
+            msg = f"{emoji_man} <b>{s['system_modules']}:</b> <code>{len(sys_modules)}</code>"
             if len(sys_chunks) > 1:
                 msg += f" ({page + 1}/{len(sys_chunks)})"
             msg += "<blockquote expandable>"
@@ -558,7 +588,7 @@ class ManModule(ModuleBase):
             usr_page = page - len(sys_chunks)
             current_chunk = usr_chunks[usr_page] if usr_page < len(usr_chunks) else []
 
-            msg = f"{CUSTOM_EMOJI['crystal']} <b>{s['user_modules_page'].format(page=usr_page + 1, count=len(usr_modules))}:</b>"
+            msg = f"{emoji_man} <b>{s['user_modules_page'].format(page=usr_page + 1, count=len(usr_modules))}:</b>"
             if len(usr_chunks) > 1:
                 msg += f" ({usr_page + 1}/{len(usr_chunks)})"
             msg += "<blockquote expandable>"
@@ -647,6 +677,10 @@ class ManModule(ModuleBase):
         else:
             buttons.append([Button.inline("❌ " + s["close"], data="man_close")])
 
+        if getattr(self.kernel, "load_kernel"):
+            if self.kernel.load_kernel != "full":
+                msg += f"<blockquote>{self.strings('kernel_not_full_loaded', status=self.kernel.load_kernel)}</blockquote>"
+
         return msg, buttons
 
     @command(
@@ -660,6 +694,25 @@ class ManModule(ModuleBase):
             show_hidden = "-f" in args
             clean_args = [a for a in args if a != "-f"]
 
+            if getattr(event, "piped", False) and not clean_args:
+                kernel = self.kernel
+                cmds_by_mod = {}
+
+                for cmd, handler in kernel.command_handlers.items():
+                    mod_name = kernel.command_owners.get(cmd, "unknown")
+                    if mod_name not in cmds_by_mod:
+                        cmds_by_mod[mod_name] = []
+                    cmds_by_mod[mod_name].append(cmd)
+
+                lines = []
+                for mod_name in sorted(cmds_by_mod.keys()):
+                    cmds = cmds_by_mod[mod_name]
+                    lines.append(f"{mod_name} ({', '.join(cmds)})")
+
+                result_text = "\n".join(lines) if lines else "Нет модулей с командами"
+                await self.edit(event, result_text)
+                return
+
             if not clean_args:
                 try:
                     success, sent = await self.kernel.inline_query_and_click(
@@ -672,7 +725,10 @@ class ManModule(ModuleBase):
                         return
                     else:
                         await self.client.delete_messages(event.chat_id, [event.id])
-                        await sent.click(1)
+                        if self.config.get("man_banner_url", False) and self.config.get(
+                            "man_quote_media", False
+                        ):
+                            await sent.click(1)
 
                     if self.config.get("man_invert_media", False):
                         try:

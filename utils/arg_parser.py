@@ -8,6 +8,7 @@ from __future__ import annotations
 # description: MCUB command argument parser
 import shlex
 from typing import Any
+from dataclasses import dataclass
 
 
 class ArgumentParser:
@@ -311,3 +312,125 @@ class ArgumentValidator:
             return True
         except (ValueError, TypeError):
             return False
+
+
+@dataclass
+class PipelineSegment:
+    """One command stage inside a pipeline expression."""
+
+    command: str
+    """Raw command text (stripped, prefix included)."""
+
+    operator: str | None
+    """Operator that PRECEDES this segment.
+    None  = first segment (no preceding operator)
+    '|'   = pipe from previous output
+    '&&'  = new-message sequential (run after previous finishes)
+    '&'   = same-message sequential (no pipe)
+    '||'  = conditional: run only if previous command returned an error
+    """
+
+    def __repr__(self) -> str:
+        return f"PipelineSegment(op={self.operator!r}, cmd={self.command!r})"
+
+
+class PipelineParser:
+    """Parse a full MCUB command expression into pipeline segments.
+
+    Operators are matched left-to-right with longest-match priority:
+      ' && ' before ' & ', ' || ' before ' | '
+    Escape sequences (\\) and quoted strings are handled so that operators
+    inside quotes are treated as literal text.
+
+    Example::
+
+        pp = PipelineParser("1man | 1grep foo | 1export bar && 1import bar | 1wc -l")
+        for seg in pp.segments:
+            print(seg)
+    """
+
+    _OPERATORS: list[tuple[str, str]] = [
+        (" && ", "&&"),
+        (" || ", "||"),
+        (" | ", "|"),
+        (" & ", "&"),
+    ]
+
+    def __init__(self, text: str) -> None:
+        self.text = text
+        self.segments: list[PipelineSegment] = self._parse()
+
+    def _parse(self) -> list[PipelineSegment]:
+        segments: list[PipelineSegment] = []
+        buf: list[str] = []
+        pending_op: str | None = None
+        i = 0
+        length = len(self.text)
+        in_quotes = False
+        quote_char: str | None = None
+
+        while i < length:
+            ch = self.text[i]
+
+            if ch == "\\" and not in_quotes:
+                buf.append(ch)
+                i += 1
+                if i < length:
+                    buf.append(self.text[i])
+                    i += 1
+                continue
+
+            if ch in ('"', "'"):
+                if in_quotes and ch == quote_char:
+                    in_quotes = False
+                    quote_char = None
+                elif not in_quotes:
+                    in_quotes = True
+                    quote_char = ch
+                buf.append(ch)
+                i += 1
+                continue
+
+            if in_quotes:
+                buf.append(ch)
+                i += 1
+                continue
+
+            matched_str: str | None = None
+            matched_key: str | None = None
+            for op_str, op_key in self._OPERATORS:
+                if self.text[i : i + len(op_str)] == op_str:
+                    matched_str = op_str
+                    matched_key = op_key
+                    break
+
+            if matched_str and matched_key:
+                seg = "".join(buf).strip()
+                if seg:
+                    segments.append(PipelineSegment(command=seg, operator=pending_op))
+                pending_op = matched_key
+                buf = []
+                i += len(matched_str)
+                continue
+
+            buf.append(ch)
+            i += 1
+
+        # trailing segment
+        seg = "".join(buf).strip()
+        if seg:
+            segments.append(PipelineSegment(command=seg, operator=pending_op))
+
+        return segments
+
+    def is_simple(self) -> bool:
+        """True when there are no pipeline operators (single command)."""
+        return len(self.segments) <= 1
+
+    def __repr__(self) -> str:
+        return f"PipelineParser(segments={self.segments!r})"
+
+
+def parse_pipeline(text: str) -> PipelineParser:
+    """Parse *text* into a :class:`PipelineParser`.  Convenience wrapper."""
+    return PipelineParser(text)

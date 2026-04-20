@@ -109,7 +109,9 @@ class EvalModule(ModuleBase):
 
         code_display = html.escape(code[:1000]) + ("..." if len(code) > 1000 else "")
         result_text = complete if complete else "[no output]"
-
+        if getattr(event, "piped", False):
+            await self.edit(event, result_text)
+            return
         s = self.strings
 
         if len(result_text) > 4000:

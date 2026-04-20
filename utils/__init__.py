@@ -27,6 +27,7 @@ from .helpers import (
     make_buttons,
     relocate_entities,
     resolve_peer,
+    pipe_edit,
 )
 from .platform import (
     PlatformDetector,
@@ -179,6 +180,7 @@ __all__.extend(
         "make_buttons",
         "relocate_entities",
         "resolve_peer",
+        "pipe_edit",
     ]
 )
 

@@ -719,20 +719,33 @@ class Register:
                 type(event_obj).__name__,
             )
 
-            if _passed_module:
-                self._all_watchers.append(
-                    (
-                        _wrapper,
-                        event_obj,
-                        tg_client,
-                        {
-                            "module": module_name,
-                            "method": watcher_name,
-                            "tags": dict(_tags),
-                            "bot_client": _use_bot_client,
-                        },
-                    )
+            self._all_watchers.append(
+                (
+                    _wrapper,
+                    event_obj,
+                    tg_client,
+                    {
+                        "module": module_name,
+                        "method": watcher_name,
+                        "tags": dict(_tags),
+                        "bot_client": _use_bot_client,
+                    },
                 )
+            )
+            target_module = None
+            if _passed_module is not None:
+                target_module = _passed_module
+            else:
+                for mod in {
+                    **self.kernel.loaded_modules,
+                    **self.kernel.system_modules,
+                }.values():
+                    reg = getattr(mod, "register", None)
+                    if reg is not None:
+                        target_module = mod
+                        break
+            if target_module is not None:
+                target_module.register = self
 
             return f
 
@@ -928,8 +941,43 @@ class Register:
             **self.kernel.system_modules,
         }.items():
             reg = getattr(module, "register", None)
-            if reg and hasattr(reg, "__watchers__"):
-                for entry in reg.__watchers__:
+            if reg is self:
+                if hasattr(self, "_all_watchers"):
+                    for entry in self._all_watchers:
+                        wrapper, event_obj = entry[0], entry[1]
+                        client = entry[2] if len(entry) > 2 else self.kernel.client
+                        meta = (
+                            entry[3]
+                            if len(entry) > 3 and isinstance(entry[3], dict)
+                            else {}
+                        )
+                        watcher_module = meta.get(
+                            "module",
+                            getattr(wrapper, "__watcher_module__", module_name),
+                        )
+                        watcher_name = meta.get(
+                            "method",
+                            getattr(
+                                wrapper,
+                                "__watcher_name__",
+                                getattr(wrapper, "__name__", "unknown"),
+                            ),
+                        )
+                        watcher_key = self._watcher_key(watcher_module, watcher_name)
+                        watchers.append(
+                            {
+                                "module": watcher_module,
+                                "method": watcher_name,
+                                "enabled": watcher_key not in disabled,
+                                "tags": dict(meta.get("tags", {})),
+                                "bot_client": bool(meta.get("bot_client", False)),
+                                "wrapper": wrapper,
+                                "event": event_obj,
+                                "client": client,
+                            }
+                        )
+            elif reg and hasattr(reg, "_all_watchers"):
+                for entry in reg._all_watchers:
                     wrapper, event_obj = entry[0], entry[1]
                     client = entry[2] if len(entry) > 2 else self.kernel.client
                     meta = (

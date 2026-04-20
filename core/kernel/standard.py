@@ -163,7 +163,9 @@ class Kernel:
         self._module_sources: dict = {}
 
         # Runtime state
-        self.custom_prefix = "."
+        self.custom_prefix = (
+            "."  # PREFIX CAN BE CHANGED, (settings module, cmd setprefix {prefix})
+        )
         self.config: dict = {}
         self.client = None
         self.inline_bot = None
@@ -172,6 +174,7 @@ class Kernel:
         self.shutdown_flag = False
         self.power_save_mode = False
         self.error_load_modules = 0
+        self.load_kernel = "kernel"
         self.current_loading_module = None
         self.current_loading_module_type = None
         self.repositories: list = []
@@ -1227,13 +1230,48 @@ class Kernel:
                 return False
         return await handler(event)
 
+    def _set_event_text(self, event: Any, text: str) -> None:
+        """Set event text on both the event and its inner message object."""
+        event.text = text
+        if hasattr(event, "message"):
+            event.message.message = text
+            event.message.text = text
+
     async def process_command(self, event: Any, depth: int = 0) -> bool:
         """Match and dispatch an outgoing message event to a command handler.
 
         Resolves aliases recursively (max depth 5).
 
+        Pipeline operators (all require surrounding spaces):
+          |    pipe — captures previous output, passes as ``event.pipe_input``
+                      to the next command; auto-appended to args unless
+                      the command has the ``-n`` / ``--no-input`` flag.
+          &&   new-message sequential — executes next command in a freshly
+                      sent message.
+          &    same-message sequential — executes next command on the same
+                      message/event; resets the pipe chain.
+          ||   error-conditional — executes next command ONLY when the
+                      previous command set ``event.pipe_exit_code != 0``.
+
+        Event attributes injected / expected:
+          event.piped              True  while output will be piped further.
+          event.pipe_input         Captured plain-text output of the previous
+                                   stage (str | None).
+          event.pipe_output        Set by a module to explicitly control what
+                                   gets passed to the next stage.  Falls back
+                                   to intercepted ``event.edit`` text.
+          event.pipe_exit_code     0 (success) or non-zero (error).  Drives
+                                   the ``||`` operator.
+          event.no_add_args_to_input
+                                   When True the kernel does NOT auto-append
+                                   pipe_input to the command text.  Modules
+                                   receive pipe_input via ``event.pipe_input``
+                                   and handle it themselves.
+                                   Also activated by ``-n`` / ``--no-input``
+                                   in the command args.
+
         Returns:
-            True if a handler was called.
+            True if at least one handler was called.
         """
         if depth > 5:
             self.logger.error(f"Alias recursion limit reached: {event.text}")
@@ -1258,6 +1296,264 @@ class Kernel:
             )
             return False
 
+        try:
+            from utils.arg_parser import PipelineParser
+
+            pipeline = PipelineParser(text)
+        except ImportError:
+            pipeline = None
+
+        piped_enabled = self.config.get("piped", True)
+        if pipeline is not None and not pipeline.is_simple() and piped_enabled:
+            return await self._execute_pipeline(event, pipeline, depth)
+        return await self._dispatch_single_command(event, depth)
+
+    def _make_simple_event(self, msg: Any, text: str, chat_id: int) -> Any:
+        """Build a lightweight event object wrapping a freshly sent message.
+
+        The ``edit`` method tries ``client.edit_message`` first; on failure it
+        falls back to sending a new message so the output is never silently lost.
+        """
+        kernel = self
+
+        class _SimpleEvent:
+            def __init__(inner_self) -> None:
+                inner_self.id = getattr(msg, "id", None)
+                inner_self.message_id = inner_self.id
+                inner_self.chat_id = chat_id
+                inner_self.text = text
+                inner_self.message = msg
+                inner_self.sender_id = getattr(msg, "sender_id", None)
+                inner_self.reply_to_msg_id = getattr(msg, "reply_to_msg_id", None)
+                inner_self._client = kernel.client
+                # pipeline attrs
+                inner_self.pipe_input: str | None = None
+                inner_self.pipe_output: str | None = None
+                inner_self.pipe_exit_code: int = 0
+                inner_self.piped: bool = False
+                inner_self.no_add_args_to_input: bool = False
+
+            async def edit(inner_self, new_text, *args, parse_mode=None, **kwargs):
+                try:
+                    return await inner_self._client.edit_message(
+                        inner_self.chat_id,
+                        inner_self.id,
+                        new_text,
+                        parse_mode=parse_mode,
+                    )
+                except Exception as _err:
+                    kernel.logger.debug(
+                        "[SimpleEvent.edit] edit failed (%s), falling back to send_message",
+                        _err,
+                    )
+                    try:
+                        sent = await inner_self._client.send_message(
+                            inner_self.chat_id,
+                            new_text,
+                            parse_mode=parse_mode,
+                        )
+                        # Update id so subsequent edits on this event work
+                        if sent and hasattr(sent, "id"):
+                            inner_self.id = sent.id
+                            inner_self.message_id = sent.id
+                        return sent
+                    except Exception as _err2:
+                        kernel.logger.debug(
+                            "[SimpleEvent.edit] fallback send also failed: %s", _err2
+                        )
+                        return None
+
+        return _SimpleEvent()
+
+    def _wrap_edit_with_fallback(self, ev: Any, chat_id: int) -> None:
+        """Wrap *ev*.edit so that on failure it falls back to ``send_message``.
+
+        Used by the ``&`` (same-message) operator: the original message may have
+        been deleted by a previous command, so we need a safety net.
+        If a new message is sent the fallback updates ``ev.id`` / ``ev.message_id``
+        so subsequent edits on the same event context target the new message.
+        """
+        original_edit = getattr(ev, "edit", None)
+        kernel = self
+
+        async def _fallback_edit(new_text, *args, parse_mode=None, **kwargs):
+            if original_edit is not None:
+                try:
+                    return await original_edit(
+                        new_text, *args, parse_mode=parse_mode, **kwargs
+                    )
+                except Exception as _err:
+                    kernel.logger.debug(
+                        "[& edit-fallback] edit failed (%s), sending new message", _err
+                    )
+            # fallback — send a new message and re-anchor the event to it
+            try:
+                sent = await kernel.client.send_message(
+                    chat_id, new_text, parse_mode=parse_mode
+                )
+                if sent and hasattr(sent, "id"):
+                    ev.id = sent.id
+                    ev.message_id = sent.id
+                return sent
+            except Exception as _err2:
+                kernel.logger.debug(
+                    "[& edit-fallback] send_message also failed: %s", _err2
+                )
+                return None
+
+        ev.edit = _fallback_edit
+
+    async def _run_and_capture(self, ev: Any, depth: int) -> str | None:
+        """Run *ev* through :meth:`process_command` and return the text passed
+        to ``event.edit`` (i.e. the command's output).
+
+        Prefers ``ev.pipe_output`` if the module set it explicitly.
+        """
+        captured: list[str] = []
+        orig_edit = getattr(ev, "edit", None)
+
+        class _FakeMsg:
+            async def edit(inner_self, *a, **kw):
+                return inner_self
+
+        async def _cap(new_text, *args, **kwargs):
+            if isinstance(new_text, str):
+                captured.append(new_text)
+            return _FakeMsg()
+
+        ev.edit = _cap
+        try:
+            await self.process_command(ev, depth=depth)
+        finally:
+            if orig_edit is not None:
+                ev.edit = orig_edit
+            else:
+                try:
+                    del ev.edit
+                except AttributeError:
+                    pass
+
+        # Prefer explicit pipe_output; fall back to intercepted edit text
+        explicit = getattr(ev, "pipe_output", None)
+        return (
+            explicit if explicit is not None else (captured[-1] if captured else None)
+        )
+
+    async def _execute_pipeline(self, event: Any, pipeline: Any, depth: int) -> bool:
+        """Execute a multi-segment pipeline expression.
+
+        Iterates pipeline segments left-to-right, routing execution according
+        to each segment's preceding operator (``|``, ``&&``, ``&``, ``||``).
+        """
+        segments = pipeline.segments
+        if not segments:
+            return False
+
+        original_edit = getattr(event, "edit", None)
+        original_text = event.text
+        original_piped = getattr(event, "piped", False)
+        original_pipe_input = getattr(event, "pipe_input", None)
+        chat_id = getattr(event, "chat_id", None)
+
+        # Running state
+        current_event: Any = event  # may switch to _SimpleEvent after &&
+        pipe_input: str | None = None  # carried between | stages
+        exit_code: int = 0  # updated after each stage
+
+        for i, seg in enumerate(segments):
+            next_seg = segments[i + 1] if i + 1 < len(segments) else None
+
+            if seg.operator == "||":
+                if exit_code == 0:
+                    # previous succeeded — skip this branch
+                    self.logger.debug("[pipeline ||] skipped (exit_code=0)")
+                    continue
+                # on error: keep pipe_input to pass error to next command
+
+            elif seg.operator == "&&":
+                pipe_input = None  # && resets pipe chain
+                if not chat_id:
+                    self.logger.debug("[pipeline &&] no chat_id, skipping")
+                    continue
+                try:
+                    sent = await self.client.send_message(chat_id, seg.command)
+                    if not sent:
+                        exit_code = 1
+                        continue
+                    new_ev = self._make_simple_event(sent, seg.command, chat_id)
+                    new_ev.pipe_input = None
+                    # determine if this new-message stage is itself piped
+                    is_piped = next_seg is not None and next_seg.operator == "|"
+                    new_ev.piped = is_piped
+                    if is_piped:
+                        pipe_input = await self._run_and_capture(new_ev, depth + 1)
+                    else:
+                        await self.process_command(new_ev, depth=depth + 1)
+                    exit_code = getattr(new_ev, "pipe_exit_code", 0) or 0
+                    current_event = new_ev  # subsequent stages use new message context
+                except Exception as _e:
+                    self.logger.debug("[pipeline &&] error: %s", _e)
+                    exit_code = 1
+                continue
+
+            elif seg.operator == "&":
+                pipe_input = None  # & resets pipe chain
+                self._wrap_edit_with_fallback(current_event, chat_id)
+
+            is_piped = next_seg is not None and next_seg.operator == "|"
+            if getattr(current_event, "no_add_args_to_input", False):
+                is_not_add_args = (
+                    current_event.no_add_args_to_input if not None else True
+                )
+                current_event.no_add_args_to_input = is_not_add_args
+                if not current_event.no_add_args_to_input:
+                    cmd_text = f"{cmd_text} {pipe_input}"
+
+            cmd_text = seg.command
+            current_event.piped = is_piped
+            current_event.pipe_input = pipe_input
+
+            self._set_event_text(current_event, cmd_text)
+
+            if is_piped:
+                # Capture this stage's output for the next stage
+                pipe_input = await self._run_and_capture(current_event, depth)
+                exit_code = getattr(current_event, "pipe_exit_code", 0) or 0
+            else:
+                # Last stage (or && / & separator) — restore real edit
+                if current_event is event and original_edit is not None:
+                    current_event.edit = original_edit
+                await self.process_command(current_event, depth=depth)
+                exit_code = getattr(current_event, "pipe_exit_code", 0) or 0
+                pipe_input = None  # non-pipe stage resets pipe chain
+
+        event.piped = original_piped
+        event.pipe_input = original_pipe_input
+        if original_edit is not None:
+            event.edit = original_edit
+        self._set_event_text(event, original_text)
+        return True
+
+    async def _dispatch_single_command(self, event: Any, depth: int) -> bool:
+        """Dispatch a single (non-pipeline) command to its handler.
+
+        Handles alias resolution (recursive, max depth 5).
+        Guarantees pipeline attributes exist on *event* before dispatching.
+        """
+        text = event.text
+
+        # Guarantee pipeline attributes exist for every handler
+        if not hasattr(event, "piped"):
+            event.piped = False
+        if not hasattr(event, "pipe_input"):
+            event.pipe_input = None
+        if not hasattr(event, "pipe_output"):
+            event.pipe_output = None
+        if not hasattr(event, "pipe_exit_code"):
+            event.pipe_exit_code = 0
+        if not hasattr(event, "no_add_args_to_input"):
+            event.no_add_args_to_input = False
+
         cmd = (
             text[len(self.custom_prefix) :].split()[0]
             if " " in text
@@ -1272,7 +1568,6 @@ class Kernel:
                 alias,
                 text,
             )
-            # Extract just the command name (first word) from alias for the check
             alias_cmd = alias.split()[0] if " " in alias else alias
             if alias_cmd not in self.command_handlers and alias_cmd not in self.aliases:
                 self.logger.warning(
@@ -1283,14 +1578,9 @@ class Kernel:
                     await self.command_handlers[cmd](event)
                     return True
                 return False
-            # Always use recursive text replacement for aliases with args
             args = text[len(self.custom_prefix) + len(cmd) :]
-            # Use full alias (with its args) plus user args
             new_text = self.custom_prefix + alias + args
-            event.text = new_text
-            if hasattr(event, "message"):
-                event.message.message = new_text
-                event.message.text = new_text
+            self._set_event_text(event, new_text)
             return await self.process_command(event, depth + 1)
 
         if cmd in self.command_handlers:
@@ -1784,8 +2074,10 @@ class Kernel:
                 pass
         self.client.set_protection_mode("safe")
         modules_start = time.time()
+        self.load_kernel = "system"
         await self.load_system_modules()
         await self.load_module_sources()
+        self.load_kernel = "user"
         await self.load_user_modules()
         modules_end = time.time()
 
@@ -1817,6 +2109,7 @@ class Kernel:
         del logo
 
         if os.path.exists(self.RESTART_FILE):
+            self.load_kernel = "full"
             await self._handle_restart_notification(modules_start, modules_end)
 
         async def _run_with_reconnect():

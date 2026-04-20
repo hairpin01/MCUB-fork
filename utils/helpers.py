@@ -107,6 +107,17 @@ def get_args_html(event: Union[Message, events.NewMessage.Event]) -> str:
     return telegram_to_html(args_text, shifted_entities)
 
 
+async def pipe_edit(event, raw: str, pretty: str) -> None:
+    """
+    In the pipe → gives raw (captured by the kernel).
+    Otherwise → edits the message with pretty.
+    """
+    if getattr(event, "piped", False):
+        await event.edit(raw)
+    else:
+        await event.edit(pretty)
+
+
 def get_prefix(target: Any = None) -> str:
     """Return the active command prefix for an event, kernel, or module."""
     if target is None:

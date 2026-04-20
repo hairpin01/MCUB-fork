@@ -49,6 +49,8 @@ ACCESS_CATEGORIES = {
             "clearmodules",
             "clearcache",
             "api_protection",
+            "piped",
+            "api_reset",
         ],
     },
     "backup": {
@@ -85,9 +87,6 @@ ACCESS_CATEGORIES = {
             "timedtrusted",
             "nonickuser",
             "nonickusers",
-            "addowner",
-            "delowner",
-            "listowner",
         ],
     },
     "system": {

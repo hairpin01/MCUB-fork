@@ -86,6 +86,9 @@ def register(kernel):
             "btn_russian": "Русский",
             "btn_english": "English",
             "select_language": "🌐 Выберите язык",
+            "piped_usage": "❌ Использование: {prefix}piped [on/off]",
+            "piped_on": '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Pipeline <b>включен</b>\n<blockquote>Команды будут выполняться последовательно через |</blockquote>',
+            "piped_off": '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Pipeline <b>выключен</b>\n<blockquote>Обычный режим работы</blockquote>',
         },
         "en": {
             "prefix_usage": "❌ Usage: {prefix}setprefix [symbol]",
@@ -137,6 +140,9 @@ def register(kernel):
             "btn_russian": "Русский",
             "btn_english": "English",
             "settings_inline_title": "⚙️ Settings",
+            "piped_usage": "❌ Usage: {prefix}piped [on/off]",
+            "piped_on": '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Pipeline <b>enabled</b>\n<blockquote>Commands will execute sequentially via |</blockquote>',
+            "piped_off": '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Pipeline <b>disabled</b>\n<blockquote>Normal mode</blockquote>',
             "settings_inline_description": "Userbot settings panel",
             "btn_reset_prefix": "reset prefix",
             "btn_reset_alias": "reset alias",
@@ -207,17 +213,40 @@ def register(kernel):
     async def setprefix_handler(event):
         """[prefix] - switch prefix userbot"""
         args = event.text.split()
-        if len(args) < 2:
+
+        if getattr(event, "piped", False):
+            if len(args) < 2:
+                await event.edit(kernel.custom_prefix)
+                return
+            new_prefix = args[1]
+        else:
+            if len(args) < 2:
+                await event.edit(
+                    _("prefix_usage", prefix=kernel.custom_prefix), parse_mode="html"
+                )
+                return
+            new_prefix = args[1]
+            cfg = get_config()
+            any_prefix = cfg.get("settings_any_prefix", False) if cfg else False
+            if not any_prefix and len(new_prefix) != 1:
+                await event.edit(_("prefix_one_char"), parse_mode="html")
+                return
+            prefix_old = kernel.custom_prefix
+            kernel.custom_prefix = new_prefix
+            kernel.config["command_prefix"] = new_prefix
+
+            kernel.save_config()
+
             await event.edit(
-                _("prefix_usage", prefix=kernel.custom_prefix), parse_mode="html"
+                _("prefix_changed", prefix=new_prefix, prefix_old=prefix_old),
+                parse_mode="html",
             )
             return
-        new_prefix = args[1]
-        cfg = get_config()
-        any_prefix = cfg.get("settings_any_prefix", False) if cfg else False
-        if not any_prefix and len(new_prefix) != 1:
+
+        if len(new_prefix) != 1:
             await event.edit(_("prefix_one_char"), parse_mode="html")
             return
+
         prefix_old = kernel.custom_prefix
         kernel.custom_prefix = new_prefix
         kernel.config["command_prefix"] = new_prefix
@@ -320,19 +349,34 @@ def register(kernel):
     )
     async def aliases_handler(event):
         """list all aliases"""
+        piped = getattr(event, "piped", False)
+
         if not kernel.aliases:
+            if piped:
+                await event.edit("no aliases")
+                return
             await event.edit(_("aliases_empty"))
             return
 
         lines = []
         for alias, target in sorted(kernel.aliases.items()):
-            lines.append(
+            lines.append(f"{alias} -> {target}")
+
+        text = "\n".join(lines)
+
+        if piped:
+            await event.edit(text)
+            return
+
+        lines_html = []
+        for alias, target in sorted(kernel.aliases.items()):
+            lines_html.append(
                 f"<code>{kernel.custom_prefix}{alias} </code>-><code> {kernel.custom_prefix}{target}</code>"
             )
 
-        text = "\n".join(lines)
+        text_html = "\n".join(lines_html)
         await event.edit(
-            f"<blockquote expandable>{text}</blockquote>", parse_mode="html"
+            f"<blockquote expandable>{text_html}</blockquote>", parse_mode="html"
         )
 
     @kernel.register.command(
@@ -343,6 +387,23 @@ def register(kernel):
     async def lang_handler(event):
         """[ru/en] - switch languages userbot"""
         args = event.text.split()
+        piped = getattr(event, "piped", False)
+
+        if piped:
+            if len(args) < 2:
+                await event.edit(kernel.config.get("language", "en"))
+                return
+            new_lang = args[1].lower()
+            LANGS = {"ru", "en"}
+            if new_lang not in LANGS:
+                await event.edit(", ".join(LANGS))
+                return
+            kernel.config["language"] = new_lang
+            with open(kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
+                json.dump(kernel.config, f, ensure_ascii=False, indent=2)
+            await event.edit(new_lang)
+            return
+
         if len(args) < 2:
             buttons = [
                 [
@@ -519,5 +580,25 @@ def register(kernel):
         except Exception as e:
             await kernel.handle_error(e, source="mcubinfo_cmd", event=event)
             await event.edit(_("mcubinfo_error"), parse_mode="html")
+
+    @kernel.register.command(
+        "piped",
+        doc_en="[on/off] - enable/disable command pipeline",
+        doc_ru="[on/off] - включить/выключить pipeline",
+    )
+    async def piped_cmd(event):
+        """toggle command pipeline"""
+        if getattr(event, "piped", False):
+            await event.edit(kernel.config.get("piped", False))
+            return
+
+        current = kernel.config.get("piped", True)
+        kernel.config["piped"] = not current
+        kernel.save_config()
+
+        if kernel.config["piped"]:
+            await event.edit(_("piped_on"), parse_mode="html")
+        else:
+            await event.edit(_("piped_off"), parse_mode="html")
 
     kernel.register_callback_handler("lang:", lang_callback_handler)

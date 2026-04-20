@@ -240,7 +240,7 @@ def register(kernel):
             parse_mode="html",
         )
         await asyncio.sleep(1)
-        await client.disconnect()
+        await kernel.shutdown()
 
     @kernel.register.command(
         "rollback",

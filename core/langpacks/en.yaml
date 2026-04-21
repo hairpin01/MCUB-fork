@@ -1,0 +1,1125 @@
+core_inline:
+  no_access: You don't have access to inline MCUB bot
+  no_access_id: 'ID: {sender_id}'
+  mcub_bot_title: MCUB Bot
+  version: Version
+  modules: Modules
+  info_description: Info userbot
+  command: Command
+  execute: Execute
+  no_commands: No registered inline commands
+  form_not_found: Form not found or expired
+  form_id: ID
+  error: Inline query error
+  error_description: E
+  btn_default: Button
+  json_parsing_error: JSON buttons parsing error
+  form_expired: Form not found
+  traceback_invalid_id: Invalid error ID
+  traceback_expired: Traceback expired in cache
+  full_traceback: Full Traceback
+  critical_error: Critical error
+  invalid_request: Invalid request
+  no_similar_errors: No similar errors
+  similar_errors: Similar errors
+  similar_count: count
+  invalid_format: Invalid data format
+  error_muted: error_type
+  muted_for_hour: '{error_type} ({source}) muted for 1h'
+  confirm_yes: Confirmed
+  command_confirmed: Command confirmed
+  executing: Executing
+  confirm_no: Cancelled
+  command_cancelled: Command cancelled
+  command_not_found: Command not found
+  command_not_found_or_executed: Command not found or already executed
+  nothing_to_cancel: Nothing to cancel
+  data_error: Data error
+  catalog_not_loaded: Catalog not loaded
+  catalog_title: Module Catalog
+  page: Page
+  no_description: No description
+  author: Author
+  commands: Commands
+  use_dlm: Use
+  nav_back: Back
+  nav_forward: Forward
+terminal:
+  empty: empty
+  command_already_running: Command already running
+  system_command: 'system command:'
+  executing: executing...
+  launch_error: 'Launch error:'
+  already_completed: Command already completed
+  running_time: 'running:'
+  seconds: sec.
+  exit_code: 'exit code:'
+  completed_in: completed in
+  command_stopped: Command stopped
+  stop_error: 'Stop error:'
+  no_running_commands: No running commands
+  stdout: 'stdout:'
+  stderr: 'stderr:'
+  command_not_specified: Command not specified
+  config_update_interval: Terminal output update interval (sec, 1-30). Update also
+    happens when new data arrives.
+command:
+  hello: <tg-emoji emoji-id="6012620675829734836">❤️</tg-emoji> Hello! I am a bot
+    from MCUB-fork
+  developers: 'Developers:'
+  fork: 'fork:'
+  original: 'Original:'
+  github_repo: Repository
+  original_mcub: Original MCUBFB
+  support: Support
+  profile: 'Profile:'
+  name: 'Name:'
+  prefix: 'Prefix:'
+  kernel_version: 'Kernel version:'
+  profile_error: <tg-emoji emoji-id="6010399722471168034">❔</tg-emoji> Failed to get
+    profile information.
+  goodbye: <tg-emoji emoji-id="6012610604131424315">🥺</tg-emoji> Goodbye!
+  bot_removed: Bot removed from chat
+  delete_error: Failed to remove bot from chat.
+  hello_installed: <tg-emoji emoji-id="6012620675829734836">❤️</tg-emoji> Hello, MCUB
+    installed!
+  main_commands: 'Main commands:'
+  new_prefix: new prefix
+  module_name: name
+  setprefix: 'Set prefix:'
+  logs: 'Logs:'
+  info: 'Info:'
+  ping: 'Ping:'
+  module_management: 'Module management:'
+  load: 'Load:'
+  remove: 'Remove:'
+  list_modules: 'List repo:'
+  choose_language: <tg-emoji emoji-id="6010399722471168034">❔</tg-emoji> Choose a
+    language
+  setup_completed: <tg-emoji emoji-id="6012423240478103267">🥰</tg-emoji> Setup completed!
+  start_init_error: 'Error start_init:'
+  backup_setup: Auto-backup setup
+  backup_enable: <tg-emoji emoji-id="6012610604131424315">🥺</tg-emoji> Enable auto-backup?
+  backup_interval: 'Select interval:'
+  backup_created: MCUB-backup group created!
+  backup_skip: Skip
+  backup_yes: 'Yes'
+  backup_no: 'No'
+  backup_enabled: <tg-emoji emoji-id="6012423240478103267">🥰</tg-emoji> Auto-backup
+    enabled
+  backup_disabled: Auto-backup disabled
+  backup_not_found: Backup module not found
+eval:
+  code: Code
+  result: Result
+  result_file: Result sent as file
+  result_in_message: Result in message
+  executed_in: Executed in
+  ms: ms
+zen:
+  success: Reboot <b>successful!</b>
+  loading: but modules are still loading...
+  loaded: Your <b>{mcub}</b> is fully loaded!
+  errors: Your <b>{mcub}</b> <b>loaded with errors</b> :(
+kernel:
+  success: Reboot <b>successful!</b>
+  loading: but modules are still loading...
+  loaded: Your <b>{mcub}</b> is fully loaded!
+  errors: Your <b>{mcub}</b> <b>loaded with errors</b> :(
+  rpc_error: <b>RPC error:</b> <code>{error}</code>
+  call_failed: <b>Call <code>{cmd}</code> failed due to RPC error:</b> <code>{rpc_msg}</code>
+  call_failed_traceback: '<b>Call <code>{cmd}</code> failed!</b>
+
+    <b><i>Full log:</i></b>
+
+    <pre>{traceback}</pre>'
+  could_not_edit: 'Could not edit RPC error message: {error}'
+  full_log: <b><i>Full log:</i></b>
+tr:
+  loading: Translating...
+  no_args: No args
+  specify_text: Specify text for translation or reply to message
+  no_text: No text specified for translation
+  translation_error: Translation error
+  network_error: 'Network error:'
+  translation_failed: Failed to get translation
+  request_timeout: Request timeout
+  decode_error: Response decode error
+  translation_error_generic: 'Translation error:'
+utils_piped:
+  grep_usage: grep <pattern> [text]
+  no_match: Not found
+  head_usage: head [-n] [text]
+  tail_usage: tail [-n] [text]
+  sed_usage: sed s/<old>/<new>/[g] [text]
+  wc_usage: wc [-l|-c|-w] [text]
+  open_usage: open <path>
+  open_info: '<b>{path}</b>
+
+    {lines} lines | {size} bytes | {ext}'
+  file_not_found: 'File not found: {path}'
+  file_error: 'Error: {err}'
+  write_usage: write [-n] <path> [text]
+  write_ok: 'Written: {path}'
+  write_error: 'Write error: {err}'
+  export_usage: export <name> [text]
+  exported: 'exported: {name}'
+  import_usage: import <name>
+  var_not_found: 'not found: {name}'
+  calc_usage: calc <expr>
+  div_by_zero: 'ERROR: div by 0'
+  calc_error: 'ERROR: invalid expression'
+  sleep_usage: sleep <N>
+api_protection:
+  enabled: ✅ API protection enabled
+  disabled: ❌ API protection disabled
+  usage: '⚙️ Usage: <code>.api_protection [on/off] [parameter value]</code>'
+  are_you_sure: Are you sure?
+  true: api protection enabled
+  false: api protection disabled
+  too_many_requests: Too many requests
+  bot_stopped: <tg-emoji emoji-id="5431895003821513760">❄️</tg-emoji> Bot stopped
+    for <b>{seconds}</b> seconds
+  bot_unlocked: <tg-emoji emoji-id="5431895003821513760">❄️</tg-emoji> Bot unlocked
+    after <b>{seconds}</b> seconds of waiting
+  request_limit_exceeded: Request limit exceeded (<u>{limit_type}</u>)
+  insufficient_permissions: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji>
+    <b>Insufficient permissions</b>
+  limits_reset: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <b>Limits reset</b>
+  processing: ⏳ Processing...
+  error_processing: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Error
+    processing</b>
+  stats: '📋 API Statistics
+
+    <blockquote>⏱ Last <b>{interval}</b>s</blockquote>
+
+    • Total requests: <b>{total_all}</b>
+
+    • Relevant: <b>{total_relevant}</b>
+
+    📋 Top methods (all):
+
+    {methods}'
+  stats_empty: 📋 No requests in last {interval}s
+  reset_done: ✅ Statistics, analytics and blocking reset
+  suspend: 🥶 Protection suspended for <code>{seconds}</code>s
+  param_set: ✅ Parameter <code>{param}</code> set to <code>{value}</code>
+  param_error: ❌ Invalid parameter or value
+  overload_notify: '⚠️ API limit exceeded!
+
+    <blockquote>⏱ Relevant requests in <b>{interval}</b>s: <b>{total}</b> (threshold
+    <u>{threshold}</u>)</blockquote>
+
+    • Trigger: <code>{trigger}</code>
+
+    • Blocking: <code>{block_seconds}</code>s (attempt #{trigger_count})
+
+    📋 Top methods:
+
+    {methods}'
+  warn_threshold: '🔶 API warning: <i>{percent}%</i> of threshold (<code>{current}/{threshold}</code>
+    in <b>{interval}</b>s)'
+  predict_block: '🔮 Predictive warning: threshold exceed in <code>~{eta}</code>s
+
+    <blockquote>⚡ Acceleration: <u>{accel}</u> req/s²</blockquote>'
+  ignore_usage: '⚙️ Usage: <code>.api_ignore [list|add|remove|clear] [method]</code>'
+  ignore_list: '📋 Ignored methods:
+
+    <code>{methods}</code>'
+  ignore_list_empty: 📋 Ignore list is empty
+  ignore_added: ✅ Method <code>{method}</code> added to ignore list
+  ignore_removed: ✅ Method <code>{method}</code> removed from ignore list
+  ignore_cleared: ✅ Ignore list cleared
+  ignore_not_found: ❌ Method <code>{method}</code> not found in list
+  api_stats: '<tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <b>API Statistics</b>
+
+    <blockquote>⏱ Last <b>{interval}</b>s</blockquote>
+
+    • <u>Total requests</u>: <b>{total_all}</b>
+
+    • <u>Relevant</u>: <b>{total_relevant}</b>
+
+    📋 <b>Top methods (all):</b>
+
+    {methods}'
+  api_stats_empty: <tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <i>No requests
+    in last {interval}s</i>
+  api_reset_done: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <b>Statistics,
+    analytics and blocking reset</b>
+  api_suspend: <tg-emoji emoji-id="5372892693024218813">🥶</tg-emoji> <b>Protection
+    suspended</b> for <code>{seconds}</code>s
+  api_param_set: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Parameter <code>{param}</code>
+    set to <code>{value}</code>
+  api_param_error: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Invalid
+    parameter or value</b>
+  api_overload_notify: '<tg-emoji emoji-id="5904692292324692386">⚠️</tg-emoji> <b>API
+    limit exceeded!</b>
+
+    <blockquote>⏱ Relevant requests in <b>{interval}</b>s: <b>{total}</b> (threshold
+    <u>{threshold}</u>)</blockquote>
+
+    • <b>Trigger</b>: <code>{trigger}</code>
+
+    • <b>Block</b>: <code>{block_seconds}</code>s (attempt #{trigger_count})
+
+    📋 <b>Top methods:</b>
+
+    {methods}'
+  api_warn_threshold: '<tg-emoji emoji-id="5406792732452613826">🔶</tg-emoji> <b>API
+    Warning</b>: <i>{percent}%</i> of threshold (<code>{current}/{threshold}</code>
+    in <b>{interval}</b>s)'
+  api_predict_block: '<tg-emoji emoji-id="5445259009311391329">🔮</tg-emoji> <b>Predictive
+    warning</b>: threshold exceeded in <code>~{eta}</code>s
+
+    <blockquote>⚡ Acceleration: <u>{accel}</u> req/s²</blockquote>'
+  api_ignore_usage: <tg-emoji emoji-id="5332654441508119011">⚙️</tg-emoji> <b>Usage:</b>
+    <code>.api_ignore [list|add|remove|clear] [method]</code>
+  api_ignore_list: '<tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <b>Ignored
+    methods:</b>
+
+    <code>{methods}</code>'
+  api_ignore_list_empty: <tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <i>Ignored
+    methods list is empty</i>
+  api_ignore_added: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Method <code>{method}</code>
+    added to ignored
+  api_ignore_removed: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Method
+    <code>{method}</code> removed from ignored
+  api_ignore_cleared: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <b>Ignored
+    methods list cleared</b>
+  api_ignore_not_found: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Method
+    <code>{method}</code> not found in list
+  yes: Yes
+  no: No
+  analyze_report: '<tg-emoji emoji-id="4904936030232117798">🔬</tg-emoji> <b>Deep API Analysis</b>
+
+    <tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <b>Multi-window counters</b>
+    <code>{windows}</code>
+
+    <tg-emoji emoji-id="5373001317042101552">📈</tg-emoji> <b>Anomaly Z-score</b>: <code>{zscore}</code>  <i>(threshold ±{threshold}σ)</i>
+    <tg-emoji emoji-id="5445259009311391329">🔮</tg-emoji> <b>Predicted breach ETA</b>: <code>{eta}</code>
+    <tg-emoji emoji-id="5383140876316669109">⚡</tg-emoji> <b>Rate acceleration</b>: <code>{accel}</code>
+
+    <tg-emoji emoji-id="5368513458469878442">🧬</tg-emoji> <b>Profile similarity</b>: <code>{cosine}</code>
+
+    <tg-emoji emoji-id="5264727218734524899">🔀</tg-emoji> <b>Top method transitions</b>:
+    <code>{transitions}</code>
+
+    <tg-emoji emoji-id="5370872220149099318">🚨</tg-emoji> <b>Anomalous transitions</b>:
+    <code>{anomalous}</code>
+
+    ⏱<b>Next block (backoff)</b>: <code>{backoff}</code>'
+  analyze_eta_safe: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <i>Not expected</i>
+  analyze_eta_now: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Already exceeded</b>
+  analyze_eta_in: <code>~{seconds}</code>s
+  analyze_profile_insufficient: <i>insufficient data</i>
+  mcub_not_supported: <tg-emoji emoji-id="5904692292324692386">⚠️</tg-emoji> <b>Telethon-MCUB not detected</b> — native protection unavailable
+  mcub_mode_set: <tg-emoji emoji-id="5253671358734281000">🛡</tg-emoji> <b>MCUB protection mode:</b> <code>{mode}</code><i>{dry}</i>
+  mcub_mode_dry: "<i>(dry-run: violations logged, not blocked)</i>"
+  mcub_mode_usage: <tg-emoji emoji-id="5332654441508119011">⚙️</tg-emoji> <b>Usage:</b> <code>.api_mode [off|safe|strict|custom] [dry]</code>
+  mcub_violation: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>MCUB blocked a request</b>
+
+    <blockquote>• <b>Method:</b> <code>{method}</code>
+    • <b>Mode:</b> <code>{mode}</code>
+    • <b>Reason:</b> <i>{reason}</i></blockquote>
+  mcub_status: <tg-emoji emoji-id="5253671358734281000">🛡</tg-emoji> <b>MCUB protection</b>
+
+    <blockquote>• <b>Mode:</b> <code>{mode}</code>
+    • <b>Dry-run:</b> <i>{dry}</i>
+    • <b>Allowlist:</b> <code>{allowlist}</code></blockquote>
+  mcub_choose_mode: <tg-emoji emoji-id="5253671358734281000">🛡</tg-emoji> <b>Choose MCUB protection mode:</b>
+  mcub_mode_default: 👾 Default ({mode})
+updates:
+  restarting: 'Your <b>{mcub}</b> is restarting...'
+  restart_log: Restarting...
+  already_updated: <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> <b>Already
+    latest version {version}</b>
+  git_pull_success: '<tg-emoji emoji-id="5332654441508119011">📝</tg-emoji> <b>Git
+    pull successful!</b>
+
+
+    <code>{output}</code>'
+  update_success: '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji> <b>Update
+    successful!</b> {emoji}
+
+    Restarting in 2 seconds...'
+  trying_another_method: <tg-emoji emoji-id="5174058394576882777">🔧</tg-emoji> <b>Trying
+    another update method...</b>
+  updating_to_version: <tg-emoji emoji-id="5286434424331775494">📥</tg-emoji> <b>Updating
+    to {version}...</b> {emoji}
+  update_success_with_backup: '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>
+    <b>Update successful!</b> {emoji}
+
+
+    📦 Backup created
+
+    Restarting...'
+  cant_check_version: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Could
+    not check version</b>
+  cant_get_update: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Could
+    not get update</b>
+  error: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Error:</b> <code>{error}</code>
+  stopping: <tg-emoji emoji-id="5372892693024218813">🧲</tg-emoji> <b>Your <i>{mcub}</i>
+    is stopping...</b> {emoji}
+  backup_not_found: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Backup
+    not found</b>
+  rolling_back: <tg-emoji emoji-id="5248998218212392977">🔙</tg-emoji> <b>Rolling back
+    to previous version...</b> <i>{emoji}</i>
+  rollback_success: '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji> <b>Rollback
+    completed!</b> {emoji}
+
+
+    Restarting...'
+  rollback_error: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Rollback
+    error:</b> <code>{error}</code>
+man:
+  help_not_command: 'Did you mean '
+  module: Module
+  description: Description
+  version: Version
+  no_description: No description
+  unknown: Unknown
+  aliases: Aliases
+  no_commands: No commands
+  author: Author
+  found_modules: Found modules
+  and_more: '... and <code>{count}</code> more'
+  no_exact_match: No exact match found
+  module_not_found: Module not found
+  system_modules: System modules
+  user_modules_page: User modules (Page {page} | Count<code> {count}</code>)
+  close: Close
+  inline_bot_not_configured: 'Inline bot not configured
+
+    Set inline_bot_token in config'
+  no_inline_results: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> No inline results'
+  error: Error
+  module_manager: 'Module Manager
+
+
+    Use "man" to browse modules or "man [module]" to search.'
+  search_hint: '🔍 Search Modules
+
+
+    Type "man [name]" to search for modules and commands
+
+    Example: man ping'
+  search_results: Search results
+  command: Command
+  and_more_commands: '... and {count} more commands'
+  not_found_hint: Try another query.
+  closed: Closed
+  page_error: Error
+  search_error: Search Error
+  search_error_desc: An error occurred
+  module_hidden: 👁️‍🗨️ <b>Module hidden from list.</b>
+  module_already_hidden: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Module is already hidden.
+  module_unhidden: ✅ <b>Module removed from hidden.</b>
+  module_not_hidden: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> This module is not hidden.
+  manhide_usage: '😕 Usage: <code>.manhide [module]</code>'
+  manunhide_usage: '😕 Usage: <code>.manunhide [module]</code>'
+  system_module_note: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>This is a system module, and it cannot simply be unloaded
+    with a loader</b>
+  kernel_not_full_loaded: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>The kernel has not yet fully loaded all modules</b>
+    (<code>{status}</code>)
+settings:
+  prefix_usage: '❌ Usage: {prefix}setprefix [symbol]'
+  prefix_one_char: ❌ <b>Prefix must be exactly 1 character</b>
+  prefix_changed: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> <b>Prefix
+    changed to </b><code>{prefix}</code>, <b>to restore, type:</b>
+
+    <pre>{prefix}setprefix {prefix_old}</pre>'
+  alias_usage: '❌ Usage: `{prefix}addalias alias = command`'
+  alias_created: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Alias created:
+    <code>{prefix}{alias}</code> → <code>{prefix}{command}</code>'
+  alias_target_not_found: ❌ Command <code>{command}</code> not found. Check the command
+    name.
+  delalias_usage: '❌ Usage: `{prefix}delalias alias`'
+  delalias_done: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Alias deleted:
+    <code>{prefix}{alias}</code>'
+  delalias_not_found: ❌ Alias <code>{alias}</code> not found.
+  aliases_empty: 📋 No aliases found.
+  2fa_enabled: 🔐 Two-factor authentication <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji>
+    enabled (inline confirmation)
+  2fa_disabled: 🔐 Two-factor authentication ❌ disabled
+  powersave_enabled: 🔋 enabled
+  powersave_disabled: ⚡ disabled
+  powersave_features: '
+
+    • Logging disabled
+
+    • Healthcheck 3 times less frequent
+
+    • Reduced load'
+  lang_usage: '❌ Usage: {prefix}lang [ru/en]'
+  lang_available: '❌ Available languages: {langs}'
+  lang_changed: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Language changed
+    to: {lang}'
+  inline_bot_not_set: '❌ Inline bot not configured
+
+    Set inline_bot_token in config'
+  inline_no_results: ❌ No inline results
+  inline_error: '❌ Error: {error}'
+  mcubinfo_title: '🎭 What is a userbot?
+
+
+    '
+  mcubinfo_description: 'This is a program that works through your personal Telegram
+    account using the client API. Unlike regular bots (Bot API), a userbot has access
+    to all the functions of a regular user - can send messages, manage groups, automate
+    actions and much more.
+
+
+    '
+  mcubinfo_advantages: '**Advantages:** Full automation, unlimited capabilities, flexibility
+    and customization, direct connection
+
+
+    '
+  mcubinfo_risks: '**Main risks:** Account blocking, lack of official support, user
+    responsibility, risk to main account'
+  settings_title: ⚙️ Userbot Settings
+  prefix_reset: <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Prefix reset
+    to <code>.</code>
+  aliases_cleared: <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Aliases cleared
+  api_enabled: <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> enabled
+  api_disabled: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> disabled
+  mcubinfo_error: '🌩️ <b>error, check logs</b>
+
+    Full Logs: <pre>{e}<pre>'
+  powersave_status: 🔋 Power save mode {status}{features}
+  select_language: 🌐 Select language
+  btn_russian: Русский
+  btn_english: English
+  settings_inline_title: ⚙️ Settings
+  piped_usage: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Usage: {prefix}piped [on/off]'
+  piped_on: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Pipeline <b>enabled</b>
+
+    <blockquote>Commands will execute sequentially via |</blockquote>'
+  piped_off: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Pipeline <b>disabled</b>
+
+    <blockquote>Normal mode</blockquote>'
+  settings_inline_description: Userbot settings panel
+  btn_reset_prefix: reset prefix
+  btn_reset_alias: reset alias
+  btn_api_protection: '{status} api protection'
+  btn_powersave: '{status} powersave'
+  btn_2fa: '{status} 2fa'
+  btn_mcubinfo: mcub info
+  btn_kernel_version: 'Kernel version: {version}'
+  api_protection_status: API protection {status}
+  2fa_status: 2FA {status}
+  danger_inline_not_set: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Inline bot is not configured
+
+    Confirmation is unavailable'
+  btn_confirm: ✅ Confirm
+  btn_cancel: ✖ Cancel
+  cleardb_confirm: '⚠️ <b>Delete the database?</b>
+
+    <blockquote>This will simply delete the database file.</blockquote>'
+  cleardb_done: '✅ Database deleted: <code>{path}</code>'
+  cleardb_missing: '✅ Database file is already missing: <code>{path}</code>'
+  cleardb_error: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Failed to delete database: <code>{error}</code>'
+  clearmodules_confirm: '⚠️ <b>Delete all loaded modules?</b>
+
+    <blockquote>All files from <code>{path}</code> will be removed.</blockquote>'
+  clearmodules_done: '✅ Removed modules: <code>{count}</code>'
+  clearmodules_missing: ✅ Directory <code>{path}</code> is already empty or missing
+  clearmodules_error: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Failed to clear modules_loaded: <code>{error}</code>'
+  clearcache_confirm: '⚠️ <b>Clear cache?</b>
+
+    <blockquote>Kernel and modules may store some things in cache. After cleanup,
+    part of the data will be recreated again.</blockquote>'
+  clearcache_done: ✅ Cache cleared
+  clearcache_error: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Failed to clear cache: <code>{error}</code>'
+  danger_cancelled: <tg-emoji emoji-id="5453892731094973831">❄️</tg-emoji> Action cancelled
+  mcubinfo_html: '🎭 <b>What is a userbot?</b>
+
+    <blockquote expandable>This is a program that works through your personal Telegram
+    account using the client API. Unlike regular bots (<code>Bot API</code>), a userbot
+    has access to all the functions of a regular user - can send messages, manage
+    groups, automate actions and much more.</blockquote>
+
+
+    <b>Advantages:</b> <blockquote expandable><b>Full automation</b> - can set up
+    auto-replies, chat monitoring, channel and group management
+
+    <b>Unlimited capabilities</b> - access to all Telegram features, including those
+    unavailable to regular bots
+
+    <b>Flexibility and customization</b> - can write custom code for any tasks
+
+    •<b>Direct connection</b> - work directly with Telegram servers without unnecessary
+    intermediate layers.</blockquote>
+
+
+    🚂 <b>Main risks and disadvantages:</b>
+
+    <blockquote expandable><b>Account blocking</b> - Telegram may block an account
+    for suspicious activity (spam, mass actions)
+
+    • <b>Lack of official support</b> - User API is not officially documented, may
+    be unstable
+
+    • <b>User responsibility</b> - the account owner is responsible for the bot''s
+    actions that violate Telegram rules
+
+    • <b>Risk to main account</b> - it is recommended to use a separate account for
+    the userbot</blockquote>'
+loader:
+  wait: '{wait} <b>Please wait...</b>'
+  reply_to_py: '{warning} <b>Reply to a .py file</b>'
+  not_py_file: '{warning} <b>This is not a .py file</b>'
+  system_module_update_attempt: '{confused} <b>Oops, looks like you tried to update
+    a system module</b> <code>{module_name}</code>
+
+    <blockquote><i>{blocked} Unfortunately, you cannot update system modules using
+    <code>loadera</code></i></blockquote>'
+  system_module_unload_attempt: '{confused} <b>Oops, looks like you tried to unload
+    a system module</b> <code>{module_name}</code>
+
+    <blockquote><i>{blocked} Unfortunately, you cannot unload system modules</i></blockquote>'
+  starting_install: '{action} <b>modules</b>'
+  installing: '{test} <b>Installing</b>'
+  updating: '{reload} <b>Updating</b>'
+  updating_version: '{reload} <b>Updating to v</b><code>{old_version}</code> <b>→
+    v</b><code>{new_version}</code>'
+  log_start: =- Starting {action} module {module_name}
+  log_filename: '=> File name: {filename}'
+  log_downloading: =- Downloading file to {file_path}
+  log_downloaded: => File downloaded successfully
+  log_file_read: => File read
+  log_checking_compatibility: =- Checking module compatibility...
+  log_incompatible: =X Module incompatible (Heroku/Hikka type)
+  log_compatible: => Module compatible
+  log_getting_metadata: Getting module metadata...
+  log_author: 'Author: {author}'
+  log_version: 'Version: {version}'
+  log_description: 'Description: {description}'
+  log_checking_deps: =- Checking dependencies...
+  log_deps_found: '=> Found dependencies: {deps}'
+  installing_deps: '{dependencies} <b>installing dependencies:</b>
+
+    <blockquote expandable><code>{deps_list}</code></blockquote>'
+  log_installing_dep: '=- Installing dependency: {dep}'
+  log_dep_installed: => Dependency {dep} installed successfully
+  log_dep_error: '=X Error installing {dep}: {error}'
+  log_removing_old: =- Removing old module commands {module_name}
+  log_loading_module: =- Loading module {module_name}...
+  log_module_loaded: => Module loaded successfully
+  log_commands_found: '=> Commands found: {count}'
+  module_loaded: '{success} <b>Module</b> <code>{module_name}</code> <b>loaded!</b>
+    (<code>{version}</code>) {emoji}
+
+    <blockquote expandable>{idea} <b>Description:</b> {description}</blockquote>
+
+    <blockquote expandable>{commands_list}</blockquote>
+
+    <blockquote>{emoji_author} Author: {author}</blockquote>
+
+    {source_link}'
+  module_loaded_no_cmds: '{success} <b>Module</b> <code>{module_name}</code> <b>loaded!</b>
+    (<code>{version}</code>) {emoji}
+
+    <blockquote expandable>{idea} <b>Description:</b> {description}</blockquote>
+
+    <blockquote>{emoji_author} Author: {author}</blockquote>
+
+    <blockquote>{source_link}</blockquote>'
+  no_cmd_desc: '{no_cmd} Command has no description'
+  command_line: '{crystal} <code>{prefix}{cmd}</code> – <b>{desc}</b>'
+  aliases_text: ' (Aliases: {alias_text})'
+  log_aliases_found: 'Command {cmd} has aliases: {aliases}'
+  log_install_error: '=X Module loading error: {error}'
+  install_failed: '<b>{blocked} Looks like the installation failed</b>
+
+    <b>{idea} Install Log:</b>
+
+    <pre>{log}</pre>'
+  log_conflict: '✗ Command conflict: {error}'
+  conflict_system: '{shield} <b>System command conflict!</b>
+
+    <blockquote>Command <code>{prefix}{command}</code> already registered by system
+    module.</blockquote>
+
+    <b>Install Log:</b>
+
+    <pre>{log}</pre>'
+  conflict_user: '{error} <b>Module command conflict!</b>
+
+    <blockquote>Command <code>{prefix}{command}</code> already registered by module
+    <code>{owner_module}</code>.</blockquote>
+
+    <b>Install Log:</b>
+
+    <pre>{log}</pre>'
+  log_critical: '=X Critical error: {error}'
+  log_traceback: 'Traceback:
+
+    {traceback}'
+  dlm_usage: '{warning} <b>Usage:</b> <code>{prefix}dlm [-send/-s/-list] module_name
+    or URL</code>'
+  dlm_list_loading: '{loading} <b>Getting module list...</b>'
+  dlm_list_title: '{folder} <b>Module list from repositories:</b>
+
+    <blockquote expandable>{list}</blockquote>'
+  dlm_list_errors: '
+
+
+    {warning} <b>Errors:</b>
+
+    <blockquote expandable>{errors}</blockquote>'
+  dlm_list_failed: '{warning} <b>Failed to get module list</b>'
+  dlm_searching: '{loading} <b>Searching for module {module_name}...</b>'
+  module_info: '{file} <b>Module:</b> <code>{module_name}</code>
+
+    {idea} <b>Description:</b> <i>{description}</i>
+
+    {crystal} <b>Version:</b> <code>{version}</code>
+
+    {angel} <b>Author:</b> <i>{author}</i>
+
+    {folder} <b>Size:</b> <code>{size} bytes</code>
+
+    {cloud} <b>Repository:</b> <code>{repo}</code>'
+  module_not_found: '{warning} <b>Module {module_name} not found in any repository</b>'
+  dlm_send_usage: '{warning} <b>Usage:</b> <code>{prefix}dlm -send module_name or
+    URL</code>'
+  system_module_install_attempt: '{confused} <b>Oops, looks like you tried to install
+    a system module</b> <code>{module_name}</code>
+
+    <blockquote><i>{blocked} System modules cannot be installed via <code>dlm</code></i></blockquote>'
+  downloading_module: '{download} downloading'
+  log_mode: '=+ Mode: {mode}'
+  log_type: '=+ Type: {type}'
+  log_download_url: '=- Downloading module from URL: {url}'
+  log_download_success: '=> ✓ Module downloaded successfully (status: {status})'
+  log_download_failed: '=X Download error (status: {status})'
+  url_download_error: '{warning} <b>Failed to download module from URL</b> (status:
+    {status})'
+  log_download_exception: '=X Download error: {error}'
+  url_exception: '{warning} <b>Download error:</b> {error}'
+  log_checking_repos: =- Checking repositories ({count} items)
+  log_using_repo: '=- Using specified repository: {repo}'
+  log_found_in_repo: => Module found in specified repository
+  log_not_found_in_repo: =X Module not found in specified repository
+  log_checking_repo: '=- Checking repository {index}: {repo}'
+  log_repo_error: '=X Error checking repository {repo}: {error}'
+  module_not_found_repos: '{warning} <b>Module<code> {module_name} </code>not found
+    in repositories</b>'
+  log_saving_for_send: Saving file for sending
+  sending_module: '{upload} <b>Sending module {module_name}...</b>'
+  file_sent_caption: '<blockquote expandable>{file} <b>Module:</b> <code>{module_name}.py</code>
+
+    {idea} <b>description:</b> <i>{description}</i>
+
+    {crystal} <b>version:</b> <code>{version}</code>
+
+    {angel} <b>author:</b> <i>{author}</i>
+
+    {folder} <b>size:</b> <code>{size} bytes</code></blockquote>'
+  log_file_sent: => File sent, deleting temp file
+  log_install_mode: =- Installation mode, continuing...
+  log_saving_file: '=- Saving module file: {file_path}'
+  log_loading_to_kernel: =- Loading module to kernel
+  log_module_loaded_kernel: => Module loaded successfully to kernel
+  conflict_system_alt: '{shield} <b>Oops, this module tried to overwrite a system
+    command</b> (<code>{command}</code>)
+
+    <blockquote><i>This is not an error but a <b>precaution</b></i></blockquote>
+
+    <b>Install Log:</b>
+
+    <pre>{log}</pre>'
+  conflict_user_alt: '{error} <b>Oops, looks like a module conflict occurred</b> <i>(their
+    commands)</i>
+
+    <blockquote><i>Conflict details in logs 🔭</i></blockquote>
+
+    <b>Install Log:</b>
+
+    <pre>{log}</pre>'
+  log_deleting_due_conflict: => Deleting module file due to conflict
+  log_deleting_due_error: => Deleting module file due to error
+  um_usage: '{warning} <b>Usage:</b> <code>{prefix}um module_name</code>'
+  module_not_found_um: '{warning} <b>Module {module_name} not found</b>'
+  module_unloaded: '{success} <b>Module {module_name} unloaded</b>'
+  unlm_usage: '{warning} <b>Usage:</b> <code>{prefix}unlm module_name</code>'
+  module_file_not_found: '{warning} <b>Module file not found</b>'
+  uploading_module: '{upload} <b>Uploading module {module_name}...</b>'
+  file_upload_caption: '{file} <b>Module:</b> {module_name}.py
+
+
+    <blockquote><code>{prefix}im</code> to install</blockquote>
+
+    {source_link}'
+  reload_usage: '{warning} <b>Usage:</b> <code>{prefix}reload module_name</code>'
+  reloading: '{reload} <b>Reloading <code>{module_name}</code>...</b>'
+  reload_success: '{success} <b>Module {module_name} reloaded!</b> {emoji}
+
+
+    <blockquote expandable>{cmd_text}</blockquote>'
+  no_commands: No commands
+  reload_error: '{warning} <b>Error, check logs</b>'
+  no_modules: '{folder} <b>No modules loaded</b>'
+  loaded_modules: '{crystal} <b>Loaded modules:</b>
+
+
+    '
+  system_modules: '{shield} <b>System modules:</b>
+
+    '
+  user_modules: '{sparkle} <b>User modules:</b>
+
+    '
+  module_line: '• <b>{name}</b> <i>({count} commands)</i>
+
+    '
+  addrepo_usage: '{warning} <b>Usage:</b> <code>{prefix}addrepo URL</code>'
+  delrepo_usage: '{warning} <b>Usage:</b> <code>{prefix}delrepo index</code>'
+  catalog_title: '<b>🌩️ Official MCUB Repository</b> <code>{repo_url}</code>
+
+
+    '
+  catalog_custom: '<i>{repo_name}</i> <code>{repo_url}</code>
+
+
+    '
+  no_modules_catalog: 📭 No modules
+  catalog_page: <tg-emoji emoji-id="5453892731094973831">❄️</tg-emoji> Page {page}/{total_pages}
+  catalog_error: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Catalog loading error: {error}'
+  dlm_repo_choice_title: '{cloud} <b>Module</b> <code>{module_name}</code> <b>found
+    in multiple repositories</b>
+
+    <blockquote>Choose where to {action}</blockquote>'
+  dlm_repo_choice_action_install: install it
+  dlm_repo_choice_action_send: download it
+  dlm_repo_choice_repo: '{index}. {repo_name}'
+  dlm_repo_choice_expired: ⚠️ Repository selection expired
+  dlm_repo_choice_cancel: Cancel
+  dlm_repo_choice_cancelled: Selection cancelled
+  btn_back: Back
+  btn_next: Next
+  modules_not_mcub: '{warning} Module is not {mcub} type, [Heroku/Hikka]'
+  log_hikka_detected: =+ Hikka/Heroku module detected — loading via compat layer
+  hikka_no_compat: '{warning} <b>Hikka compat, not found.</b>'
+  hikka_disabled: '{warning} <b>Hikka/Heroku modules support is disabled via loader
+    config (loader_allow_hikka_modules).</b>'
+  reload_all: '{reload} <b>Reloading all modules...</b>'
+  reload_all_success: '{success} <b>All modules reloaded!</b>
+
+    <blockquote>{count}</blockquote>'
+  reload_all_success_one: '{success} <b>All modules reloaded!</b>
+
+    {count} (<code>{name}</code>)'
+  reload_all_failed: '{warning} <b>Failed to reload {count} module(s):</b>
+
+    <blockquote expandable>{failed_list}</blockquote>'
+  reload_all_partial: '{success} <b>Modules reloaded!</b>
+
+    {success_count}
+
+    {warning} <b>Failed: {failed_count}</b>
+
+    <blockquote expandable>{failed_list}</blockquote>'
+  failed_module: '• <code>{name}</code>
+
+    '
+  and_more: • <code>+{count} more</code>
+log_bot:
+  git_timeout: '<tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Git: timeout (no network)'
+  updates_available: 🔄 Updates available ({count})
+  up_to_date: ✅ Up to date
+  git_error: <tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Git error
+  setup_log_group: 🤖 Setting up log group
+  searching_logs: Error searching logs
+  creating_log_group: 📝 Creating log group...
+  bot_prepare_error: Failed to prepare bot for adding
+  chat_id_error: ❌ Failed to get created chat ID
+  avatar_error: <tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Failed to set avatar
+  invite_error: <tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Failed to get invite link (no permissions)
+  bot_added: ✅ Bot added
+  bot_add_error: <tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Failed to add bot after creation
+  chat_create_error: ❌ Chat creation error
+  log_setup_title: Setting up log group...
+  log_setup_success: ✅ Log group configured
+  log_setup_fail: ❌ Failed to configure
+  test_title: Testing log sending...
+  test_bot_available: Bot available
+  test_bot_not_available: Bot unavailable
+  test_bot_auth: Bot authorized
+  test_bot_not_auth: Bot not authorized
+  test_log_chat_id: Log chat ID
+  test_not_set: not set
+  test_time: Time
+  test_success: ✅ Test message sent
+  test_fail: ❌ Failed to send
+  test_error: ❌ Test error
+  log_status_on: ✅ enabled
+  log_status_off: ❌ disabled
+  log_not_configured: Not configured
+  bot_running: ✅ running
+  bot_not_running: ❌ not running
+  errors_sent: ✅ sent
+  errors_not_sent: ❌ not sent
+  log_status_title: Log bot status
+  log_group: Log group
+  bot_sending: Sending via bot
+  errors: Errors
+  startup_via_bot: ✅ Startup message via bot
+  startup_via_userbot: ⚠️ Startup message via userbot
+  startup_error: ❌ Send error
+  send_log_error: ❌ Failed to send to log
+  started: started!
+  update_status: Update status
+  prefix: Prefix
+  new_commits_header: <tg-emoji emoji-id="5465300082628763143">💬</tg-emoji> <b>{count}
+    updates available for branch</b> <code>{branch}</code>
+  new_commits_btn: 🔄 Update
+  update_running: <tg-emoji emoji-id="5326015457155620929">📦</tg-emoji> <b>Updating...</b>
+  update_done: '<tg-emoji emoji-id="5404733115245562664">🔋</tg-emoji> Updated to <code>{sha}</code>
+
+    <blockquote><tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Auto restart</blockquote>'
+  update_error: '❌ Update error: <code>{error}</code>'
+  update_no_log: ⚠️ Log chat not configured, update notifications unavailable
+  and_more_commits: '... and {} more commits'
+userbot_backup:
+  creating_backup: <tg-emoji emoji-id="5426958067763804056">⏳</tg-emoji> <i>Creating
+    backup...</i>
+  backup_created: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <b>Backup
+    created</b>
+  backup_failed: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <i><b>Backup
+    failed</b></i>
+  reply_to_backup: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <u>Reply
+    to a backup message</u>
+  not_backup_file: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <u>This is
+    not a backup file</u>
+  restoring: <tg-emoji emoji-id="5426958067763804056">⏳</tg-emoji> <i>Restoring...</i>
+  restored: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Restored:'
+  no_files: <tg-emoji emoji-id="5409235172979672859">⚠️</tg-emoji> <u>No files to
+    restore</u>
+  restore_error: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Error:'
+  chat_id: 'Chat ID:'
+  interval: 'Interval:'
+  auto_backup: 'Auto backup:'
+  last_backup: 'Last backup:'
+  total_backups: 'Total backups:'
+  commands: 'Commands:'
+  set_interval: Set backup interval
+  enable_disable: Enable/disable auto backup
+  set_chat: Set backup chat manually
+  interval_set: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Interval set
+    to {hours} hours
+  interval_invalid: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Interval
+    must be between 1 and 168 hours
+  backup_settings: <tg-emoji emoji-id="5332654441508119011">⚙️</tg-emoji> Backup Settings
+  auto_enabled: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Auto backup
+    enabled
+  auto_disabled: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Auto backup
+    disabled
+  chat_set: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Backup chat set
+    to {chat_id}
+  check_pm: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Check your PM with
+    the bot
+  bot_not_available: <tg-emoji emoji-id="5409235172979672859">⚠️</tg-emoji> Bot not
+    available. Please start a chat with the bot first.
+  cant_send_pm: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Cannot send
+    PM. Start a chat with the bot first.
+  invalid_chat_id: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Invalid chat
+    ID
+  unknown_command: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Unknown command
+  select_interval: '<tg-emoji emoji-id="5326015457155620929">🧳</tg-emoji> Select backup
+    interval:'
+  processing: 🔄 Processing...
+  group_created: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Backup group
+    created
+  tip_restore: 'hint: {prefix}restore to restore backup'
+  btn_restore: 🔄 Restore
+  btn_1_hour: 1 hour
+  btn_6_hours: 6 hours
+  btn_12_hours: 12 hours
+  btn_24_hours: 24 hours
+  not_set: Not set
+  hours: hours
+  enabled: Enabled
+  disabled: Disabled
+  invalid_interval: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Invalid
+    interval
+  error_processing: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Error processing
+  encrypted_note: <blockquote><tg-emoji emoji-id="5447644880824181073">🔐</tg-emoji>
+    Encrypted</blockquote>
+  wrong_password: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Wrong password
+    or archive corrupted
+  hash_ok: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> SHA256 matches —
+    file intact
+  hash_mismatch: <blockquote><tg-emoji emoji-id="5388785832956016892">❌</tg-emoji>
+    SHA256 mismatch — file corrupted!</blockquote>
+  hash_unknown: <tg-emoji emoji-id="5409235172979672859">⚠️</tg-emoji> SHA256 not
+    found in signature
+  cloud_ok: '<tg-emoji emoji-id="5359954476607521990">☁️</tg-emoji> {provider}: uploaded
+    successfully'
+  cloud_fail: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> {provider}: upload
+    failed'
+  cleanup_done: '<tg-emoji emoji-id="5380186498827373381">🗑️</tg-emoji> Old backups
+    removed: {count}'
+  no_backups_found: <tg-emoji emoji-id="5409235172979672859">⚠️</tg-emoji> No backups
+    found in chat
+  select_backup: <tg-emoji emoji-id="5411192149058289173">☁️</tg-emoji> <b>Select
+    backup to restore:</b>
+  delayed_scheduled: <tg-emoji emoji-id="5326015457155620929">🧳</tg-emoji> Backup
+    will be created at <b>{time}</b>
+  invalid_time: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Invalid time
+    format. Example: 30m, 2h, 90s'
+  unknown_arg: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Unknown argument.
+    Available: config, db, modules, in <time>, cleanup'
+  low_disk: '<tg-emoji emoji-id="5409235172979672859">⚠️</tg-emoji> Low disk space:
+    need ~{needed}MB, free {free}MB'
+  encrypted_restore: '<tg-emoji emoji-id="5447644880824181073">🔐</tg-emoji> Archive
+    encrypted. Provide password: <code>{prefix}restore_with &lt;password&gt;</code>'
+  restore_with_usage: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Usage:
+    <code>{prefix}restore_with &lt;password&gt;</code>'
+tester:
+  error_logs: "{snowflake} <b>Error, see logs</b>"
+  logs_not_found: "{file} File kernel.log not found"
+  logs_sending: "{printer} Sending kernel logs"
+  freezing_usage: "{speech} Usage: {prefix}freezing [seconds]"
+  freezing_range: "{speech} Specify from 1 to 60 seconds"
+  freezing_number: "{speech} Specify number of seconds"
+  freezing_start: "{snowflake} Freezing for {seconds} seconds..."
+  freezing_done: "{check} Unfrozen after {seconds} seconds"
+  custom_text_error: "<b>Error in custom text format:</b> {error}"
+  logs: Logs
+  kernel_version: Kernel Version
+  ping: ping
+  uptime: uptime
+  ms: ms
+  hours: h
+  minutes: m
+  seconds: s
+  branch: Branch
+  logs_not_fount_args: "<b>Available arguments:</b> <code>clear</code>, <code>debug</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code>, <code>all</code>"
+  logs_clear: "<b>Cleared kernel logs</b>"
+  file_empty: "<b>Is logs empty</b>"
+  logs_level_invalid: "<b>Available levels:</b> <code>debug</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code>, <code>all</code>"
+  logs_choose_level: "{paper} <b>Choose log level</b>"
+  logs_choose_desc: "Send only selected records from <code>kernel.log</code>."
+  logs_level_warning: "{snowflake} <b>Warning</b>\n<blockquote>Logs with level <code>{level}</code> may contain personal information, tokens, chat id, message text, and other sensitive data.</blockquote>\n<b>Send anyway?</b>"
+  logs_send_cancelled: "{snowflake} <b>Log sending cancelled</b>"
+  logs_level_caption: '{logs_title} <b>{logs}</b> {mcub}\n<blockquote>{pen} <b>{kernel_version}</b> {version}#<a href="{commit_url}">{commit_sha}</a>\n{satellite} <b>{branch_label}:</b> {branch}\n{printer} <b>Level:</b> <code>{level}</code></blockquote>'
+mcub_info:
+  custom_text_error: "<b>Error in custom text format:</b> {error}"
+  error_see_logs: "{warning} <b>Error, see logs</b>"
+trusted:
+  not_owner: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Only the owner can use this command.'
+  usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.trust</code> / <code>.untrust</code> (reply, @username or ID)'
+  trust_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>User added to trusted list.</b>'
+  trust_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>User removed from trusted list.</b>'
+  trust_already: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> <i>User is already trusted.</i>'
+  trust_not_in_list: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> User is not in trusted list.'
+  trustlist_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Trusted list is empty.'
+  trustlist_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Trusted users:</b>'
+  btn_cancel: Cancel
+  nonick_step_title: '<tg-emoji emoji-id="5332723564711804828">✨</tg-emoji> <b>Enable NoNick for {name}?</b>'
+  nonick_step_desc: "With <b>NoNick</b> enabled, the user will be able to execute commands simply like <code>{prefix}command</code>.\nWithout it you need to write <code>{prefix}command@{alias}</code>."
+  nonick_step_desc_no_alias: "With <b>NoNick</b> enabled the user can run commands without any suffix.\nWithout it they must include the owner's <code>@username</code> suffix."
+  btn_nonick_yes: Enable NoNick
+  btn_nonick_no: No NoNick
+  nonick_toggled_on: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> NoNick <b>enabled</b> for {name}.'
+  nonick_toggled_off: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> NoNick <b>disabled</b> for {name}.'
+  nonick_list_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No trusted users with NoNick.'
+  nonick_list_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Trusted users with NoNick:</b>'
+  nonick_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.nonickuser</code> (reply, @username or ID)'
+  watchers_title: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Active watchers:</b>'
+  watchers_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No active watchers.'
+  watchers_debug_title: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Watchers debug:</b>'
+  watchers_debug_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No watchers matched.'
+  watcher_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.watcher module watcher</code>'
+  watcher_disabled: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Watcher disabled:</b> <code>{module}.{watcher}</code>'
+  watcher_enabled: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Watcher enabled:</b> <code>{module}.{watcher}</code>'
+  watcher_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Watcher not found: <code>{module}.{watcher}</code>'
+  trustaccess_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.trustaccess</code> (reply or @username or ID)'
+  trustaccess_footer: "<em>If access is off, the bot will simply ignore the corresponding commands.</em>"
+  trustaccess_title: "🔐 <b>Owner access for {user}</b>"
+  btn_close: 🙈 Close this menu
+  btn_allow_all: Allow all
+  btn_deny_all: Deny all
+  access_allowed: allowed
+  access_denied: denied
+  access_allowed_group: allowed (group)
+  trustcmd_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Manage per-command access for trusted users</b>\n\n<code>.trustcmd @username +py</code> - allow command py\n<code>.trustcmd @username -py</code> - deny command py\n<code>.trustcmd @username list</code> - show all command permissions\n\n<i>Requires user to be in trusted list</i>'
+  trustcmd_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access to <code>{cmd}</code> <b>granted</b> for {user}.'
+  trustcmd_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access to <code>{cmd}</code> <b>revoked</b> for {user}.'
+  trustcmd_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Command <code>{cmd}</code> not found.'
+  trustcmd_list_title: "🔐 <b>Command access for {user}:</b>"
+  trustcmd_list_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No specific command permissions set.'
+  percmd_title: "🔐 <b>Commands for {user}</b>"
+  percmd_back: "← Back"
+  btn_cmds: "📋 Commands"
+  trust_time_title: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Add user for a limited time?</b>'
+  trust_time_desc: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> User will be removed from trusted after {time}.'
+  btn_1h: 1 hour
+  btn_24h: 24 hours
+  btn_7d: 7 days
+  btn_permanent: Permanent
+  trust_added_timed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>User added to trusted list for {time}.</b>'
+  trust_expired: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Trust for <b>{user}</b> has expired.'
+  timed_trusted_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Temporary trusted users:</b>'
+  timed_trusted_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No temporary trusted users.'
+  trust_expiring: " (expires in {time})"
+  sgroup_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Security groups (access groups)</b>\n\n<b>Commands:</b>\n<code>.sgroup create mygroup</code> - create new group\n<code>.sgroup delete mygroup</code> - delete group\n<code>.sgroup add mygroup @user</code> - add user to group\n<code>.sgroup remove mygroup @user</code> - remove user from group\n<code>.sgroup access mygroup</code> - edit group access (inline menu)\n<code>.sgroup list</code> - list all groups\n<code>.sgroup info mygroup</code> - show group info & menu\n\n<i>Groups allow managing access for multiple users at once</i>'
+  sgroup_created: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access group <b>{name}</b> created.'
+  sgroup_deleted: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access group <b>{name}</b> deleted.'
+  sgroup_already_exists: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Group <b>{name}</b> already exists.'
+  sgroup_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Group <b>{name}</b> not found.'
+  sgroup_user_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> User <b>{user}</b> added to group <b>{group}</b>.'
+  sgroup_user_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> User <b>{user}</b> removed from group <b>{group}</b>.'
+  sgroup_user_in_group: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> User is already in this group.'
+  sgroup_user_not_in_group: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> User is not in this group.'
+  sgroup_list_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Access groups:</b>'
+  sgroup_list_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No access groups.'
+  sgroup_info_users_empty: No users
+  sgroup_info_access_empty: No specific access
+  sgroup_menu_title: "<b>Manage group: {name}</b>"
+  sgroup_btn_add_user: Add User
+  sgroup_btn_remove_user: Remove User
+  sgroup_btn_access: Access
+  sgroup_btn_delete: Delete Group
+  sgroup_confirm_delete: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> Delete group <b>{name}</b>?'
+  btn_confirm_delete: Delete
+access_categories:
+  modules:
+    label: Modules
+    desc: unloading, cleaning and managing installed modules
+  loader:
+    label: Module Loader
+    desc: install external modules from files, links and presets
+  config:
+    label: Config
+    desc: userbot settings and basic parameters
+  backup:
+    label: Backups
+    desc: database and modules backup
+  terminal:
+    label: Terminal
+    desc: system shell commands on server
+  eval:
+    label: Code / Eval
+    desc: eval and code execution
+  security:
+    label: Security
+    desc: owner, security, targeted rules and accesses
+  system:
+    label: System
+    desc: update, restart and system maintenance
+  inline:
+    label: Inline
+    desc: use inline commands and bot
+  callback:
+    label: Callback
+    desc: press callback buttons
+presets:
+  user:
+    label: 👤 User
+  programmer:
+    label: 💻 Programmer
+  moderator:
+    label: 🛡 Moderator

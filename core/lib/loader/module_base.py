@@ -707,7 +707,10 @@ class ModuleBase(ABC):
                 )
                 from utils.strings import Strings
 
-                if all(isinstance(v, dict) for v in strings_dict.values()):
+                is_langpacks_format = "name" in strings_dict
+                if not is_langpacks_format and all(
+                    isinstance(v, dict) for v in strings_dict.values()
+                ):
                     problems = Strings.validate(strings_dict)
                     for problem in problems:
                         self.log.warning(f"strings validation: {problem}")

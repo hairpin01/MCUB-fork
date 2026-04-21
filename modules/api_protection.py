@@ -13,6 +13,8 @@ import math
 import time
 from collections import defaultdict, deque
 
+from utils.strings import Strings
+
 from telethon import Button
 from telethon.tl import TLRequest
 
@@ -386,154 +388,9 @@ def register(kernel):
     client = kernel.client
     language = kernel.config.get("language", "en")
 
-    strings = {
-        "ru": {
-            "api_protection_enabled": "✅ API защита включена",
-            "api_protection_disabled": "❌ API защита выключена",
-            "api_protection_usage": "Использование: .api_protection [on/off] [параметр значение]",
-            "are_you_sure": "Вы уверены?",
-            "yes": "Да",
-            "no": "Нет",
-            "api_protection_on": "защита <b>включена</b>",
-            "api_protection_off": "защита <b>выключена</b>",
-            "too_many_requests": "<i>Слишком много запросов</i>",
-            "bot_stopped": '<tg-emoji emoji-id="5431895003821513760">❄️</tg-emoji> Бот остановлен на <b>{seconds}</b> секунд',
-            "bot_unlocked": '<tg-emoji emoji-id="5431895003821513760">❄️</tg-emoji> Бот разблокирован после <b>{seconds}</b> секунд ожидания',
-            "request_limit_exceeded": "<b>Превышен лимит запросов</b> (<u>{limit_type}</u>)",
-            "insufficient_permissions": '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Недостаточно прав</b>',
-            "limits_reset": '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <b>Лимиты сброшены</b>',
-            "processing": "⏳ Обработка...",
-            "error_processing": '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Ошибка обработки</b>',
-            "api_stats": '<tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <b>Статистика API</b>\n'
-            "<blockquote>⏱ За последние <b>{interval}</b>с</blockquote>\n"
-            "• <u>Всего запросов</u>: <b>{total_all}</b>\n"
-            "• <u>Учитываемых</u>: <b>{total_relevant}</b>\n"
-            '<tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <b>Топ методов (все):</b>\n{methods}',
-            "api_stats_empty": '<tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <i>Нет запросов за последние {interval}с</i>',
-            "api_reset_done": '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <b>Статистика, аналитика и блокировка сброшены</b>',
-            "api_suspend": '<tg-emoji emoji-id="5372892693024218813">🥶</tg-emoji> <b>Защита приостановлена</b> на <code>{seconds}</code>с',
-            "api_param_set": '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Параметр <code>{param}</code> установлен в <code>{value}</code>',
-            "api_param_error": '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Неверный параметр или значение</b>',
-            "api_overload_notify": '<tg-emoji emoji-id="5904692292324692386">⚠️</tg-emoji> <b>Превышение лимита API!</b>\n'
-            "<blockquote>⏱ Учитываемых запросов за <b>{interval}</b>с: <b>{total}</b> (порог <u>{threshold}</u>)</blockquote>\n"
-            "• <b>Триггер</b>: <code>{trigger}</code>\n"
-            "• <b>Блокировка</b>: <code>{block_seconds}</code>с (попытка #{trigger_count})\n"
-            '<tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <b>Топ методов:</b>\n{methods}',
-            "api_warn_threshold": '<tg-emoji emoji-id="5406792732452613826">🔶</tg-emoji> <b>Предупреждение API</b>: <i>{percent}%</i> от порога (<code>{current}/{threshold}</code> за <b>{interval}</b>с)',
-            "api_predict_block": '<tg-emoji emoji-id="5445259009311391329">🔮</tg-emoji> <b>Предиктивное предупреждение</b>: превышение порога через <code>~{eta}</code>с\n'
-            "<blockquote>⚡ Ускорение: <u>{accel}</u> req/s²</blockquote>",
-            "api_ignore_usage": '<tg-emoji emoji-id="5332654441508119011">⚙️</tg-emoji> <b>Использование:</b> <code>.api_ignore [list|add|remove|clear] [method]</code>',
-            "api_ignore_list": '<tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <b>Игнорируемые методы:</b>\n<code>{methods}</code>',
-            "api_ignore_list_empty": '<tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <i>Список игнорируемых методов пуст</i>',
-            "api_ignore_added": '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Метод <code>{method}</code> добавлен в игнорируемые',
-            "api_ignore_removed": '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Метод <code>{method}</code> удалён из игнорируемых',
-            "api_ignore_cleared": '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <b>Список игнорируемых методов очищен</b>',
-            "api_ignore_not_found": '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Метод <code>{method}</code> не найден в списке',
-            "api_analyze_report": (
-                '<tg-emoji emoji-id="4904936030232117798">🔬</tg-emoji> <b>Глубокий анализ API</b>\n\n'
-                '<tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <b>Многоуровневые окна</b>\n<code>{windows}</code>\n\n'
-                '<tg-emoji emoji-id="5373001317042101552">📈</tg-emoji> <b>Z-score аномалии</b>: <code>{zscore}</code>  <i>(порог ±{threshold}σ)</i>\n'
-                '<tg-emoji emoji-id="5445259009311391329">🔮</tg-emoji> <b>Прогноз до превышения</b>: <code>{eta}</code>\n'
-                '<tg-emoji emoji-id="5383140876316669109">⚡</tg-emoji> <b>Ускорение</b>: <code>{accel}</code>\n\n'
-                '<tg-emoji emoji-id="5368513458469878442">🧬</tg-emoji> <b>Сходство с профилем</b>: <code>{cosine}</code>\n\n'
-                '<tg-emoji emoji-id="5264727218734524899">🔀</tg-emoji> <b>Топ переходов методов</b>:\n<code>{transitions}</code>\n\n'
-                '<tg-emoji emoji-id="5370872220149099318">🚨</tg-emoji> <b>Аномальные переходы</b>:\n<code>{anomalous}</code>\n\n'
-                '<tg-emoji emoji-id="5422742359930356292">⏱</tg-emoji> <b>Следующая блокировка (backoff)</b>: <code>{backoff}</code>'
-            ),
-            "analyze_eta_safe": '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <i>Не ожидается</i>',
-            "analyze_eta_now": '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Уже превышен</b>',
-            "analyze_eta_in": "<code>~{seconds}</code>с",
-            "analyze_profile_insufficient": "<i>недостаточно данных</i>",
-            "mcub_not_supported": '<tg-emoji emoji-id="5904692292324692386">⚠️</tg-emoji> <b>Telethon-MCUB не обнаружен</b> — штатная защита недоступна',
-            "mcub_mode_set": '<tg-emoji emoji-id="5253671358734281000">🛡</tg-emoji> <b>Режим защиты MCUB:</b> <code>{mode}</code><i>{dry}</i>',
-            "mcub_mode_dry": " <i>(dry-run: нарушения логируются, не блокируются)</i>",
-            "mcub_mode_usage": '<tg-emoji emoji-id="5332654441508119011">⚙️</tg-emoji> <b>Использование:</b> <code>.api_mode [off|safe|strict|custom] [dry]</code>',
-            "mcub_violation": '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>MCUB заблокировал запрос</b>\n'
-            "<blockquote>• <b>Метод:</b> <code>{method}</code>\n"
-            "• <b>Режим:</b> <code>{mode}</code>\n"
-            "• <b>Причина:</b> <i>{reason}</i></blockquote>",
-            "mcub_status": '<tg-emoji emoji-id="5253671358734281000">🛡</tg-emoji> <b>MCUB защита</b>\n'
-            "<blockquote>• <b>Режим:</b> <code>{mode}</code>\n"
-            "• <b>Dry-run:</b> <i>{dry}</i>\n"
-            "• <b>Allowlist:</b> <code>{allowlist}</code></blockquote>",
-            "mcub_choose_mode": '<tg-emoji emoji-id="5253671358734281000">🛡</tg-emoji> <b>Выбери режим защиты MCUB:</b>',
-            "mcub_mode_default": "👾 По умолчанию ({mode})",
-        },
-        "en": {
-            "api_protection_enabled": '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <b>API protection enabled</b>',
-            "api_protection_disabled": '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>API protection disabled</b>',
-            "api_protection_usage": '<tg-emoji emoji-id="5332654441508119011">⚙️</tg-emoji> <b>Usage:</b> <code>.api_protection [on/off] [parameter value]</code>',
-            "are_you_sure": "<i>Are you sure?</i>",
-            "yes": "Yes",
-            "no": "No",
-            "api_protection_on": "<b>api protection enabled</b>",
-            "api_protection_off": "<b>api protection disabled</b>",
-            "too_many_requests": "<i>Too many requests</i>",
-            "bot_stopped": '<tg-emoji emoji-id="5431895003821513760">❄️</tg-emoji> Bot stopped for <b>{seconds}</b> seconds',
-            "bot_unlocked": '<tg-emoji emoji-id="5431895003821513760">❄️</tg-emoji> Bot unlocked after <b>{seconds}</b> seconds of waiting',
-            "request_limit_exceeded": "<b>Request limit exceeded</b> (<u>{limit_type}</u>)",
-            "insufficient_permissions": '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Insufficient permissions</b>',
-            "limits_reset": '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <b>Limits reset</b>',
-            "processing": "⏳ Processing...",
-            "error_processing": '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Error processing</b>',
-            "api_stats": '<tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <b>API Statistics</b>\n'
-            "<blockquote>⏱ Last <b>{interval}</b>s</blockquote>\n"
-            "• <u>Total requests</u>: <b>{total_all}</b>\n"
-            "• <u>Relevant</u>: <b>{total_relevant}</b>\n"
-            '<tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <b>Top methods (all):</b>\n{methods}',
-            "api_stats_empty": '<tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <i>No requests in last {interval}s</i>',
-            "api_reset_done": '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <b>Stats, analytics and block reset</b>',
-            "api_suspend": '<tg-emoji emoji-id="5372892693024218813">🥶</tg-emoji> <b>Protection suspended</b> for <code>{seconds}</code>s',
-            "api_param_set": '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Parameter <code>{param}</code> set to <code>{value}</code>',
-            "api_param_error": '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Invalid parameter or value</b>',
-            "api_overload_notify": '<tg-emoji emoji-id="5904692292324692386">⚠️</tg-emoji> <b>API overload detected!</b>\n'
-            "<blockquote>⏱ Relevant requests in last <b>{interval}</b>s: <b>{total}</b> (threshold <u>{threshold}</u>)</blockquote>\n"
-            "• <b>Trigger method:</b> <code>{trigger}</code>\n"
-            "• <b>Blocking for:</b> <code>{block_seconds}</code>s (attempt #{trigger_count})\n"
-            '<tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <b>Top methods:</b>\n{methods}',
-            "api_warn_threshold": '<tg-emoji emoji-id="5406792732452613826">🔶</tg-emoji> <b>API warning</b>: <i>{percent}%</i> of threshold (<code>{current}/{threshold}</code> in <b>{interval}</b>s)',
-            "api_predict_block": '<tg-emoji emoji-id="5445259009311391329">🔮</tg-emoji> <b>Predictive alert</b>: threshold breach in <code>~{eta}</code>s\n'
-            "<blockquote>⚡ Acceleration: <u>{accel}</u> req/s²</blockquote>",
-            "api_ignore_usage": '<tg-emoji emoji-id="5332654441508119011">⚙️</tg-emoji> <b>Usage:</b> <code>.api_ignore [list|add|remove|clear] [method]</code>',
-            "api_ignore_list": '<tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <b>Ignored methods:</b>\n<code>{methods}</code>',
-            "api_ignore_list_empty": '<tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <i>Ignored methods list is empty</i>',
-            "api_ignore_added": '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Method <code>{method}</code> added to ignore list',
-            "api_ignore_removed": '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Method <code>{method}</code> removed from ignore list',
-            "api_ignore_cleared": '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <b>Ignored methods list cleared</b>',
-            "api_ignore_not_found": '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Method <code>{method}</code> not found in ignore list',
-            "api_analyze_report": (
-                '<tg-emoji emoji-id="4904936030232117798">🔬</tg-emoji> <b>Deep API Analysis</b>\n\n'
-                '<tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <b>Multi-window counters</b>\n<code>{windows}</code>\n\n'
-                '<tg-emoji emoji-id="5373001317042101552">📈</tg-emoji> <b>Anomaly Z-score</b>: <code>{zscore}</code>  <i>(threshold ±{threshold}σ)</i>\n'
-                '<tg-emoji emoji-id="5445259009311391329">🔮</tg-emoji> <b>Predicted breach ETA</b>: <code>{eta}</code>\n'
-                '<tg-emoji emoji-id="5383140876316669109">⚡</tg-emoji> <b>Rate acceleration</b>: <code>{accel}</code>\n\n'
-                '<tg-emoji emoji-id="5368513458469878442">🧬</tg-emoji> <b>Profile similarity</b>: <code>{cosine}</code>\n\n'
-                '<tg-emoji emoji-id="5264727218734524899">🔀</tg-emoji> <b>Top method transitions</b>:\n<code>{transitions}</code>\n\n'
-                '<tg-emoji emoji-id="5370872220149099318">🚨</tg-emoji> <b>Anomalous transitions</b>:\n<code>{anomalous}</code>\n\n'
-                "⏱<b>Next block (backoff)</b>: <code>{backoff}</code>"
-            ),
-            "analyze_eta_safe": '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <i>Not expected</i>',
-            "analyze_eta_now": '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Already exceeded</b>',
-            "analyze_eta_in": "<code>~{seconds}</code>s",
-            "analyze_profile_insufficient": "<i>insufficient data</i>",
-            "mcub_not_supported": '<tg-emoji emoji-id="5904692292324692386">⚠️</tg-emoji> <b>Telethon-MCUB not detected</b> — native protection unavailable',
-            "mcub_mode_set": '<tg-emoji emoji-id="5253671358734281000">🛡</tg-emoji> <b>MCUB protection mode:</b> <code>{mode}</code><i>{dry}</i>',
-            "mcub_mode_dry": " <i>(dry-run: violations logged, not blocked)</i>",
-            "mcub_mode_usage": '<tg-emoji emoji-id="5332654441508119011">⚙️</tg-emoji> <b>Usage:</b> <code>.api_mode [off|safe|strict|custom] [dry]</code>',
-            "mcub_violation": '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>MCUB blocked a request</b>\n'
-            "<blockquote>• <b>Method:</b> <code>{method}</code>\n"
-            "• <b>Mode:</b> <code>{mode}</code>\n"
-            "• <b>Reason:</b> <i>{reason}</i></blockquote>",
-            "mcub_status": '<tg-emoji emoji-id="5253671358734281000">🛡</tg-emoji> <b>MCUB protection</b>\n'
-            "<blockquote>• <b>Mode:</b> <code>{mode}</code>\n"
-            "• <b>Dry-run:</b> <i>{dry}</i>\n"
-            "• <b>Allowlist:</b> <code>{allowlist}</code></blockquote>",
-            "mcub_choose_mode": '<tg-emoji emoji-id="5253671358734281000">🛡</tg-emoji> <b>Choose MCUB protection mode:</b>',
-            "mcub_mode_default": "👾 Default ({mode})",
-        },
-    }
-
-    lang = strings.get(language, strings["en"])
+    strings_data = {"name": "api_protection"}
+    strings = Strings(kernel, strings_data)
+    lang = strings._active
 
     config = ModuleConfig(
         ConfigValue(

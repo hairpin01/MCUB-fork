@@ -2,14 +2,52 @@
 # Copyright (c) 2026 Шмэлька | @hairpin01
 
 # author: @Hairpin00
-# version: 1.0.0
+# version: 1.1.0
 # description: Localization helper for MCUB modules
 
 from __future__ import annotations
 
-__all__ = ["Strings"]
+__all__ = ["Strings", "get_available_locales"]
 
-_FALLBACK = "ru"
+_FALLBACK = "en"
+
+_LANGPACKS_CACHE: dict[str, dict[str, str]] | None = None
+
+
+def get_available_locales() -> list[str]:
+    """Returns list of available locales from langpacks files."""
+    try:
+        from core.langpacks import get_available_locales as _get_locales
+
+        return _get_locales()
+    except ImportError:
+        return [_FALLBACK, "ru"]
+
+
+def _get_locales_list() -> list[str]:
+    """Returns list of locales to try, in order of preference."""
+    locales = get_available_locales()
+    fb = _FALLBACK
+    # Ensure fallback is always last
+    if fb in locales:
+        locales.remove(fb)
+    locales.append(fb)
+    return locales
+
+
+def _load_langpacks() -> dict[str, dict[str, str]]:
+    global _LANGPACKS_CACHE
+    if _LANGPACKS_CACHE is not None:
+        return _LANGPACKS_CACHE
+
+    try:
+        from core.langpacks import get_langpacks
+
+        _LANGPACKS_CACHE = get_langpacks()
+        return _LANGPACKS_CACHE
+    except ImportError:
+        _LANGPACKS_CACHE = {}
+        return _LANGPACKS_CACHE
 
 
 class _MissingKey(str):
@@ -34,7 +72,6 @@ class Strings:
         if not data:
             raise ValueError("Strings: data dict must not be empty")
 
-        self._data = data
         self._fallback = fallback
         self._strict = strict
 
@@ -42,7 +79,6 @@ class Strings:
         if isinstance(kernel_or_lang, str):
             self._locale = kernel_or_lang
         else:
-            # kernel object
             try:
                 self._locale = (
                     kernel_or_lang.config.get("language", fallback) or fallback
@@ -50,19 +86,54 @@ class Strings:
             except Exception:
                 self._locale = fallback
 
+        # Check for langpacks mode with "name" key
+        module_name = data.get("name")
+        self._module_name = module_name
+        if module_name:
+            self._data = self._load_from_langpacks(module_name, data)
+        else:
+            self._data = data
+
         # Resolve active locale dict with fallback chain
-        active = data.get(self._locale) or data.get(fallback)
+        active = self._data.get(self._locale) or self._data.get(fallback)
         if not active:
-            for v in data.values():
+            for v in self._data.values():
                 if v:
                     active = v
                     break
         if not active:
             raise ValueError(
                 f"Strings: no valid locale data found. "
-                f"Requested: {self._locale}, fallback: {fallback}, available: {list(data.keys())}"
+                f"Requested: {self._locale}, fallback: {fallback}, available: {list(self._data.keys())}"
             )
         self._active: dict[str, str] = active
+
+    def _load_from_langpacks(
+        self, module_name: str, data: dict[str, dict[str, str]]
+    ) -> dict[str, dict[str, str]]:
+        langpacks = _load_langpacks()
+        fb = _FALLBACK
+        result: dict[str, dict[str, str]] = {}
+
+        locales_to_try = _get_locales_list()
+
+        for locale in locales_to_try:
+            pack = langpacks.get(locale, {})
+            module_strings = pack.get(module_name, {})
+            result[locale] = dict(module_strings)
+
+        for locale in locales_to_try:
+            inline = data.get(locale, {})
+            if inline:
+                result.setdefault(locale, {}).update(inline)
+
+        if not result.get(fb):
+            for locale, strings in langpacks.items():
+                if strings:
+                    result[locale] = strings.get(module_name, {})
+                    break
+
+        return {k: v for k, v in result.items() if v}
 
     @property
     def locale(self) -> str:
@@ -87,13 +158,11 @@ class Strings:
     def __getitem__(self, key: str) -> str:
         result = self._lookup(key)
         if isinstance(result, _MissingKey):
-            raise KeyError(
-                f"Missing key '{key}'. Available keys: {list(self._active.keys())}"
-            )
+            raise KeyError(key)
         return result
 
     def __call__(self, key: str, **kwargs) -> str:
-        return self._lookup(key).format_map(kwargs)
+        return self._lookup(key).format(**kwargs) if kwargs else self._lookup(key)
 
     def get(self, key: str, default: str | None = None) -> str | None:
         value = self._active.get(key)
@@ -117,7 +186,14 @@ class Strings:
         if not data:
             return ["data dict is empty"]
 
-        locales = list(data.keys())
+        if "name" in data:
+            return []
+
+        available = get_available_locales()
+        locales = [k for k in data.keys() if k in available]
+        if not locales:
+            return [f"no valid locale keys found, expected one of: {available}"]
+
         reference_locale = locales[0]
         reference_keys = set(data[reference_locale].keys())
         problems: list[str] = []

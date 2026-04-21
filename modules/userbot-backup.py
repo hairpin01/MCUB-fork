@@ -218,7 +218,10 @@ class Backup(ModuleBase):
         ),
     )
 
-    strings = {
+    strings = {"name": "userbot_backup"}
+    # OLD strings removed after migration to langpacks - kept for reference
+    """
+    _OLD_STRINGS = {
         "ru": {
             "creating_backup": f"{_E['hourglass']} <i>Создаю бэкап...</i>",
             "backup_created": f"{_E['check']} <b>Бэкап создан</b>",
@@ -344,6 +347,7 @@ class Backup(ModuleBase):
             "restore_with_usage": f"{_E['cross']} Usage: <code>{{prefix}}restore_with &lt;password&gt;</code>",
         },
     }
+    """
 
     async def on_load(self) -> None:
         await super().on_load()

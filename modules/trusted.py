@@ -10,6 +10,8 @@ import json
 
 from core_inline.api.inline import make_cb_button
 from core_inline.lib.manager import InlineManager
+from core.langpacks import get_all_module_strings
+from utils.strings import Strings
 
 ACCESS_CATEGORIES = {
     "modules": {
@@ -87,6 +89,7 @@ ACCESS_CATEGORIES = {
             "timedtrusted",
             "nonickuser",
             "nonickusers",
+            "trustaccess",
         ],
     },
     "system": {
@@ -95,8 +98,8 @@ ACCESS_CATEGORIES = {
         "commands": ["restart", "update", "stop", "rollback"],
     },
     "inline": {
-        "en": {"label": "Inline", "desc": "use inline commands and bots"},
-        "ru": {"label": "Inline", "desc": "использовать инлайн-команды и боты"},
+        "en": {"label": "Inline", "desc": "use inline commands and bot"},
+        "ru": {"label": "Inline", "desc": "использовать инлайн-команды и бота"},
         "commands": [],
     },
     "callback": {
@@ -152,179 +155,9 @@ def register(kernel):
 
     _cache = {"owner_username": None}
 
-    strings = {
-        "en": {
-            "not_owner": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Only the owner can use this command.',
-            "usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.trust</code> / <code>.untrust</code> (reply, @username or ID)',
-            "trust_added": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>User added to trusted list.</b>',
-            "trust_removed": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>User removed from trusted list.</b>',
-            "trust_already": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> <i>User is already trusted.</i>',
-            "trust_not_in_list": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> User is not in trusted list.',
-            "trustlist_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Trusted list is empty.',
-            "trustlist_title": '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Trusted users:</b>',
-            "btn_cancel": "Cancel",
-            "nonick_step_title": '<tg-emoji emoji-id="5332723564711804828">✨</tg-emoji> <b>Enable NoNick for {name}?</b>',
-            "nonick_step_desc": (
-                "With <b>NoNick</b> enabled, the user will be able to execute commands simply like"
-                " <code>{prefix}command</code>."
-            ),
-            "nonick_step_desc_no_alias": (
-                "With <b>NoNick</b> enabled the user can run commands without any suffix.\n"
-                "Without it they must include the owner's <code>@username</code> suffix."
-            ),
-            "btn_nonick_yes": "Enable NoNick",
-            "btn_nonick_no": "No NoNick",
-            "nonick_toggled_on": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> NoNick <b>enabled</b> for {name}.',
-            "nonick_toggled_off": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> NoNick <b>disabled</b> for {name}.',
-            "nonick_list_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No trusted users with NoNick.',
-            "nonick_list_title": '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Trusted users with NoNick:</b>',
-            "nonick_usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.nonickuser</code> (reply, @username or ID)',
-            "watchers_title": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Active watchers:</b>',
-            "watchers_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No active watchers.',
-            "watchers_debug_title": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Watchers debug:</b>',
-            "watchers_debug_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No watchers matched.',
-            "watcher_usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.watcher module watcher</code>',
-            "watcher_disabled": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Watcher disabled:</b> <code>{module}.{watcher}</code>',
-            "watcher_enabled": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Watcher enabled:</b> <code>{module}.{watcher}</code>',
-            "watcher_not_found": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Watcher not found: <code>{module}.{watcher}</code>',
-            "trustaccess_usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.trustaccess</code> (reply or @username or ID)',
-            "trustaccess_footer": "<em>If access is off, the bot will simply ignore the corresponding commands.</em>",
-            "trustaccess_title": "🔐 <b>Owner access for {user}</b>",
-            "btn_close": "🙈 Close this menu",
-            "btn_allow_all": "Allow all",
-            "btn_deny_all": "Deny all",
-            "access_allowed": "allowed",
-            "access_denied": "denied",
-            "access_allowed_group": "allowed (group)",
-            "trustcmd_usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Manage per-command access for trusted users</b>\n\n<code>.trustcmd @username +py</code> - allow command py\n<code>.trustcmd @username -py</code> - deny command py\n<code>.trustcmd @username list</code> - show all command permissions\n<code>.trustcmd @username +py -loader</code> - allow py, deny loader category\n\n<i>Requires user to be in trusted list</i>',
-            "trustcmd_added": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access to <code>{cmd}</code> <b>granted</b> for {user}.',
-            "trustcmd_removed": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access to <code>{cmd}</code> <b>revoked</b> for {user}.',
-            "trustcmd_not_found": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Command <code>{cmd}</code> not found.',
-            "trustcmd_list_title": "🔐 <b>Command access for {user}:</b>",
-            "trustcmd_list_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No specific command permissions set.',
-            "percmd_title": "🔐 <b>Commands for {user}</b>",
-            "percmd_back": "← Back",
-            "btn_cmds": "📋 Commands",
-            "trust_time_title": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Add user for a limited time?</b>',
-            "trust_time_desc": '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> User will be removed from trusted after {time}.',
-            "btn_1h": "1 hour",
-            "btn_24h": "24 hours",
-            "btn_7d": "7 days",
-            "btn_permanent": "Permanent",
-            "trust_added_timed": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>User added to trusted list for {time}.</b>',
-            "trust_expired": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Trust for <b>{user}</b> has expired.',
-            "timed_trusted_title": '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Temporary trusted users:</b>',
-            "timed_trusted_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No temporary trusted users.',
-            "trust_expiring": " (expires in {time})",
-            "sgroup_usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Security groups (access groups)</b>\n\n<b>Commands:</b>\n<code>.sgroup create mygroup</code> - create new group\n<code>.sgroup delete mygroup</code> - delete group\n<code>.sgroup add mygroup @user</code> - add user to group\n<code>.sgroup remove mygroup @user</code> - remove user from group\n<code>.sgroup access mygroup</code> - edit group access (inline menu)\n<code>.sgroup list</code> - list all groups\n<code>.sgroup info mygroup</code> - show group info & menu\n\n<i>Groups allow managing access for multiple users at once</i>',
-            "sgroup_created": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access group <b>{name}</b> created.',
-            "sgroup_deleted": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access group <b>{name}</b> deleted.',
-            "sgroup_already_exists": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Group <b>{name}</b> already exists.',
-            "sgroup_not_found": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Group <b>{name}</b> not found.',
-            "sgroup_user_added": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> User <b>{user}</b> added to group <b>{group}</b>.',
-            "sgroup_user_removed": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> User <b>{user}</b> removed from group <b>{group}</b>.',
-            "sgroup_user_in_group": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> User is already in this group.',
-            "sgroup_user_not_in_group": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> User is not in this group.',
-            "sgroup_list_title": '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Access groups:</b>',
-            "sgroup_list_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No access groups.',
-            "sgroup_info_users_empty": "No users",
-            "sgroup_info_access_empty": "No specific access",
-            "sgroup_menu_title": "<b>Manage group: {name}</b>",
-            "sgroup_btn_add_user": "Add User",
-            "sgroup_btn_remove_user": "Remove User",
-            "sgroup_btn_access": "Access",
-            "sgroup_btn_delete": "Delete Group",
-            "sgroup_confirm_delete": '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> Delete group <b>{name}</b>?',
-            "btn_confirm_delete": "Delete",
-        },
-        "ru": {
-            "not_owner": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Только владелец может использовать эту команду.',
-            "usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Использование: <code>.trust</code> / <code>.untrust</code> (реплай, @username или ID)',
-            "trust_added": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Пользователь добавлен в список доверенных.</b>',
-            "trust_removed": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Пользователь удалён из списка доверенных.</b>',
-            "trust_already": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> <i>Пользователь уже в списке доверенных.</i>',
-            "trust_not_in_list": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Пользователь не в списке доверенных.',
-            "trustlist_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Список доверенных пуст.',
-            "trustlist_title": '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Доверенные пользователи:</b>',
-            "btn_cancel": "Отмена",
-            "nonick_step_title": '<tg-emoji emoji-id="5332723564711804828">✨</tg-emoji> <b>Включить NoNick для {name}?</b>',
-            "nonick_step_desc": (
-                "При включённом <b>NoNick</b> пользователь сможет выполнять команды просто как "
-                "<code>{prefix}команда</code>.\n"
-                "Без него нужно писать <code>{prefix}команда@{alias}</code>."
-            ),
-            "nonick_step_desc_no_alias": (
-                "При включённом <b>NoNick</b> пользователь сможет выполнять команды без суффикса.\n"
-                "Без него нужно указывать <code>@username</code> владельца."
-            ),
-            "btn_nonick_yes": "Включить NoNick",
-            "btn_nonick_no": "Без NoNick",
-            "nonick_toggled_on": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> NoNick <b>включён</b> для {name}.',
-            "nonick_toggled_off": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> NoNick <b>выключен</b> для {name}.',
-            "nonick_list_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Нет доверенных пользователей с NoNick.',
-            "nonick_list_title": '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Доверенные пользователи с NoNick:</b>',
-            "nonick_usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Использование: <code>.nonickuser</code> (реплай, @username или ID)',
-            "watchers_title": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Активные смотрители:</b>',
-            "watchers_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Активных смотрителей нет.',
-            "watchers_debug_title": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Отладка watchers:</b>',
-            "watchers_debug_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Подходящих watchers нет.',
-            "watcher_usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Использование: <code>.watcher модуль watcher</code>',
-            "watcher_disabled": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Watcher отключен:</b> <code>{module}.{watcher}</code>',
-            "watcher_enabled": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Watcher включен:</b> <code>{module}.{watcher}</code>',
-            "watcher_not_found": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Watcher не найден: <code>{module}.{watcher}</code>',
-            "trustaccess_usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Использование: <code>.trustaccess</code> (реплай, @username или ID)',
-            "trustaccess_footer": "<em>Если доступ выключен, бот просто проигнорирует соответствующие команды.</em>",
-            "trustaccess_title": "🔐 <b>Доступ owner для {user}</b>",
-            "btn_close": "🙈 Закрыть это меню",
-            "btn_allow_all": "Разрешить всё",
-            "btn_deny_all": "Запретить всё",
-            "access_allowed": "разрешено",
-            "access_denied": "запрещено",
-            "access_allowed_group": "разрешено (группа)",
-            "trustcmd_usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Управление доступом к командам для доверенных</b>\n\n<code>.trustcmd @username +py</code> - разрешить команду py\n<code>.trustcmd @username -py</code> - запретить команду py\n<code>.trustcmd @username list</code> - показать права на команды\n\n<i>Требует чтобы пользователь был в списке доверенных</i>',
-            "trustcmd_added": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Доступ к <code>{cmd}</code> <b>разрешён</b> для {user}.',
-            "trustcmd_removed": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Доступ к <code>{cmd}</code> <b>запрещён</b> для {user}.',
-            "trustcmd_not_found": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Команда <code>{cmd}</code> не найдена.',
-            "trustcmd_list_title": "🔐 <b>Доступ к командам для {user}:</b>",
-            "trustcmd_list_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Нет специфичных разрешений на команды.',
-            "percmd_title": "🔐 <b>Команды для {user}</b>",
-            "percmd_back": "← Назад",
-            "btn_cmds": "📋 Команды",
-            "trust_time_title": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Добавить пользователя на ограниченное время?</b>',
-            "trust_time_desc": '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> Пользователь будет удалён из доверенных через {time}.',
-            "btn_1h": "1 час",
-            "btn_24h": "24 часа",
-            "btn_7d": "7 дней",
-            "btn_permanent": "Навсегда",
-            "trust_added_timed": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Пользователь добавлен в доверенные на {time}.</b>',
-            "trust_expired": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Доверие для <b>{user}</b> истекло.',
-            "timed_trusted_title": '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Временные доверенные:</b>',
-            "timed_trusted_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Нет временных доверенных.',
-            "trust_expiring": " (истекает через {time})",
-            "sgroup_usage": '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Группы доступа</b>\n\n<b>Команды:</b>\n<code>.sgroup create mygroup</code> - создать группу\n<code>.sgroup delete mygroup</code> - удалить группу\n<code>.sgroup add mygroup @user</code> - добавить пользователя\n<code>.sgroup remove mygroup @user</code> - удалить пользователя\n<code>.sgroup access mygroup</code> - настроить доступ (меню)\n<code>.sgroup list</code> - список групп\n<code>.sgroup info mygroup</code> - инфо о группе\n\n<i>Группы позволяют управлять доступом нескольких пользователей сразу</i>',
-            "sgroup_created": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access group <b>{name}</b> created.',
-            "sgroup_deleted": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access group <b>{name}</b> deleted.',
-            "sgroup_already_exists": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Group <b>{name}</b> already exists.',
-            "sgroup_not_found": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Group <b>{name}</b> not found.',
-            "sgroup_user_added": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> User <b>{user}</b> added to group <b>{group}</b>.',
-            "sgroup_user_removed": '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> User <b>{user}</b> removed from group <b>{group}</b>.',
-            "sgroup_user_in_group": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> User is already in this group.',
-            "sgroup_user_not_in_group": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> User is not in this group.',
-            "sgroup_list_title": '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Access groups:</b>',
-            "sgroup_list_empty": '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No access groups.',
-            "sgroup_info_users_empty": "No users",
-            "sgroup_info_access_empty": "No specific access",
-            "sgroup_menu_title": "<b>Manage group: {name}</b>",
-            "sgroup_btn_add_user": "Add User",
-            "sgroup_btn_remove_user": "Remove User",
-            "sgroup_btn_access": "Access",
-            "sgroup_btn_delete": "Delete Group",
-            "sgroup_confirm_delete": '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> Delete group <b>{name}</b>?',
-            "btn_confirm_delete": "Delete",
-        },
-    }
-
-    s = strings.get(language, strings["en"])
+    _strings_data = {"name": "trusted", **get_all_module_strings("trusted")}
+    _strings = Strings(kernel, _strings_data)
+    s = _strings._active
 
     async def get_trusted_list():
         data = await kernel.db_get("trusted", "users")

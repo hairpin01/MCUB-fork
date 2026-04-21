@@ -56,88 +56,7 @@ class ManModule(ModuleBase):
     author = "@hairpin00"
     description = {"ru": "Менеджер модулей", "en": "Module manager"}
 
-    strings = {
-        "ru": {
-            "help_not_command": "Ты имел в виду ",
-            "module": "Модуль",
-            "description": "Описание",
-            "version": "Версия",
-            "no_description": "Нет описания",
-            "unknown": "Неизвестно",
-            "aliases": "Алиасы",
-            "no_commands": "Нет команд",
-            "author": "Автор",
-            "found_modules": "Найдены модули",
-            "and_more": "... и еще <code>{count}</code>",
-            "no_exact_match": "Точное совпадение не найдено",
-            "module_not_found": "Модуль не найден",
-            "system_modules": "Системные модули",
-            "user_modules_page": "Пользовательские модули (Страница {page} |<code> {count}</code>)",
-            "close": "Закрыть",
-            "inline_bot_not_configured": "Inline бот не настроен\nУстановите inline_bot_token в config",
-            "no_inline_results": "❌ Нет inline результатов",
-            "error": "Ошибка",
-            "module_manager": 'Менеджер модулей\n\nИспользуйте "man" для просмотра модулей или "man [модуль]" для поиска.',
-            "search_hint": '🔍 Поиск модулей\n\nНапишите "man [название]" для поиска модулей и команд\nПример: man ping',
-            "search_results": "Результаты поиска",
-            "command": "Command",
-            "and_more_commands": "... и еще {count} команд",
-            "not_found_hint": "Попробуйте другой запрос.",
-            "closed": "Closed",
-            "page_error": "Error",
-            "search_error": "Search Error",
-            "search_error_desc": "An error occurred",
-            "module_hidden": f"{CUSTOM_EMOJI['eye_off']} <b>Модуль скрыт из списка.</b>",
-            "module_already_hidden": f"{CUSTOM_EMOJI['blocked']} Модуль уже скрыт.",
-            "module_unhidden": "✅ <b>Модуль убран из скрытых.</b>",
-            "module_not_hidden": f"{CUSTOM_EMOJI['blocked']} Этот модуль не скрыт.",
-            "manhide_usage": f"{CUSTOM_EMOJI['confused']} Использование: <code>.manhide [модуль]</code>",
-            "manunhide_usage": f"{CUSTOM_EMOJI['confused']} Использование: <code>.manunhide [модуль]</code>",
-            "system_module_note": f"{CUSTOM_EMOJI['blocked']} <b>Это системный модуль, и его просто так нельзя выгрузить loader'ом</b>",
-            "kernel_not_full_loaded": f"{CUSTOM_EMOJI['blocked']}"
-            + " <b>Ядро ещё не полностью загрузила все модули</b> (<code>{status}</code>)",
-        },
-        "en": {
-            "help_not_command": "Did you mean ",
-            "module": "Module",
-            "description": "Description",
-            "version": "Version",
-            "no_description": "No description",
-            "unknown": "Unknown",
-            "aliases": "Aliases",
-            "no_commands": "No commands",
-            "author": "Author",
-            "found_modules": "Found modules",
-            "and_more": "... and <code>{count}</code> more",
-            "no_exact_match": "No exact match found",
-            "module_not_found": "Module not found",
-            "system_modules": "System modules",
-            "user_modules_page": "User modules (Page {page} | Count<code> {count}</code>)",
-            "close": "Close",
-            "inline_bot_not_configured": "Inline bot not configured\nSet inline_bot_token in config",
-            "no_inline_results": "❌ No inline results",
-            "error": "Error",
-            "module_manager": 'Module Manager\n\nUse "man" to browse modules or "man [module]" to search.',
-            "search_hint": '🔍 Search Modules\n\nType "man [name]" to search for modules and commands\nExample: man ping',
-            "search_results": "Search results",
-            "command": "Command",
-            "and_more_commands": "... and {count} more commands",
-            "not_found_hint": "Try another query.",
-            "closed": "Closed",
-            "page_error": "Error",
-            "search_error": "Search Error",
-            "search_error_desc": "An error occurred",
-            "module_hidden": f"{CUSTOM_EMOJI['eye_off']} <b>Module hidden from list.</b>",
-            "module_already_hidden": f"{CUSTOM_EMOJI['blocked']} Module is already hidden.",
-            "module_unhidden": "✅ <b>Module removed from hidden.</b>",
-            "module_not_hidden": f"{CUSTOM_EMOJI['blocked']} This module is not hidden.",
-            "manhide_usage": f"{CUSTOM_EMOJI['confused']} Usage: <code>.manhide [module]</code>",
-            "manunhide_usage": f"{CUSTOM_EMOJI['confused']} Usage: <code>.manunhide [module]</code>",
-            "system_module_note": f"{CUSTOM_EMOJI['blocked']} <b>This is a system module, and it cannot simply be unloaded with a loader</b>",
-            "kernel_not_full_loaded": f"{CUSTOM_EMOJI['blocked']}"
-            + " <b>The kernel has not yet fully loaded all modules</b> (<code>{status}</code>)",
-        },
-    }
+    strings = {"name": "man"}
 
     config = ModuleConfig(
         ConfigValue(
@@ -721,7 +640,9 @@ class ManModule(ModuleBase):
                         reply_to=event.reply_to_msg_id,
                     )
                     if not success:
-                        await self.edit(event, self.strings["no_inline_results"])
+                        await self.edit(
+                            event, self.strings["no_inline_results"], as_html=True
+                        )
                         return
                     else:
                         await self.client.delete_messages(event.chat_id, [event.id])
@@ -760,7 +681,9 @@ class ManModule(ModuleBase):
 
                 except Exception as e:
                     await self.kernel.handle_error(e, source="man_inline", event=event)
-                    await self.edit(event, f"{self.strings['error']}: {str(e)[:100]}")
+                    await self.edit(
+                        event, f"{self.strings['error']}: {str(e)[:100]}", as_html=True
+                    )
             else:
                 search_term = " ".join(clean_args)
                 msg, banner_url = await self._generate_detailed_page(

@@ -1,3 +1,5 @@
+lang: en
+
 core_inline:
   no_access: You don't have access to inline MCUB bot
   no_access_id: 'ID: {sender_id}'
@@ -116,11 +118,6 @@ eval:
   result_in_message: Result in message
   executed_in: Executed in
   ms: ms
-zen:
-  success: Reboot <b>successful!</b>
-  loading: but modules are still loading...
-  loaded: Your <b>{mcub}</b> is fully loaded!
-  errors: Your <b>{mcub}</b> <b>loaded with errors</b> :(
 kernel:
   success: Reboot <b>successful!</b>
   loading: but modules are still loading...
@@ -412,9 +409,9 @@ man:
   search_error: Search Error
   search_error_desc: An error occurred
   module_hidden: 👁️‍🗨️ <b>Module hidden from list.</b>
-  module_already_hidden: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Module is already hidden.
+  module_already_hidden: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>Module is already hidden.</b>
   module_unhidden: ✅ <b>Module removed from hidden.</b>
-  module_not_hidden: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> This module is not hidden.
+  module_not_hidden: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>This module is not hidden.</b>
   manhide_usage: '😕 Usage: <code>.manhide [module]</code>'
   manunhide_usage: '😕 Usage: <code>.manunhide [module]</code>'
   system_module_note: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>This is a system module, and it cannot simply be unloaded
@@ -454,29 +451,7 @@ settings:
   lang_available: '❌ Available languages: {langs}'
   lang_changed: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Language changed
     to: {lang}'
-  inline_bot_not_set: '❌ Inline bot not configured
-
-    Set inline_bot_token in config'
-  inline_no_results: ❌ No inline results
   inline_error: '❌ Error: {error}'
-  mcubinfo_title: '🎭 What is a userbot?
-
-
-    '
-  mcubinfo_description: 'This is a program that works through your personal Telegram
-    account using the client API. Unlike regular bots (Bot API), a userbot has access
-    to all the functions of a regular user - can send messages, manage groups, automate
-    actions and much more.
-
-
-    '
-  mcubinfo_advantages: '**Advantages:** Full automation, unlimited capabilities, flexibility
-    and customization, direct connection
-
-
-    '
-  mcubinfo_risks: '**Main risks:** Account blocking, lack of official support, user
-    responsibility, risk to main account'
   settings_title: ⚙️ Userbot Settings
   prefix_reset: <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Prefix reset
     to <code>.</code>
@@ -487,9 +462,9 @@ settings:
 
     Full Logs: <pre>{e}<pre>'
   powersave_status: 🔋 Power save mode {status}{features}
-  select_language: 🌐 Select language
-  btn_russian: Русский
-  btn_english: English
+  select_language: <tg-emoji emoji-id="5472164874886846699">✨</tg-emoji> Select language
+  btn_ru: 🇷🇺 Russian
+  btn_en: 🇬🇧 English
   settings_inline_title: ⚙️ Settings
   piped_usage: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Usage: {prefix}piped [on/off]'
   piped_on: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Pipeline <b>enabled</b>
@@ -516,23 +491,23 @@ settings:
   cleardb_confirm: '⚠️ <b>Delete the database?</b>
 
     <blockquote>This will simply delete the database file.</blockquote>'
-  cleardb_done: '✅ Database deleted: <code>{path}</code>'
-  cleardb_missing: '✅ Database file is already missing: <code>{path}</code>'
+  cleardb_done: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Database deleted: <code>{path}</code>'
+  cleardb_missing: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Database file is already missing: <code>{path}</code>'
   cleardb_error: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Failed to delete database: <code>{error}</code>'
   clearmodules_confirm: '⚠️ <b>Delete all loaded modules?</b>
 
     <blockquote>All files from <code>{path}</code> will be removed.</blockquote>'
-  clearmodules_done: '✅ Removed modules: <code>{count}</code>'
-  clearmodules_missing: ✅ Directory <code>{path}</code> is already empty or missing
+  clearmodules_done: '<tg-emoji emoji-id="5472164874886846699">✨</tg-emoji> Removed modules: <code>{count}</code>'
+  clearmodules_missing: <tg-emoji emoji-id="5472164874886846699">✨</tg-emoji> Directory <code>{path}</code> is already empty or missing
   clearmodules_error: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Failed to clear modules_loaded: <code>{error}</code>'
   clearcache_confirm: '⚠️ <b>Clear cache?</b>
 
     <blockquote>Kernel and modules may store some things in cache. After cleanup,
     part of the data will be recreated again.</blockquote>'
-  clearcache_done: ✅ Cache cleared
+  clearcache_done: <tg-emoji emoji-id="5472164874886846699">✨</tg-emoji> Cache cleared
   clearcache_error: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Failed to clear cache: <code>{error}</code>'
   danger_cancelled: <tg-emoji emoji-id="5453892731094973831">❄️</tg-emoji> Action cancelled
-  mcubinfo_html: '🎭 <b>What is a userbot?</b>
+  mcubinfo_html: '<tg-emoji emoji-id="5472164874886846699">✨</tg-emoji> <b>What is a userbot?</b>
 
     <blockquote expandable>This is a program that works through your personal Telegram
     account using the client API. Unlike regular bots (<code>Bot API</code>), a userbot
@@ -540,30 +515,30 @@ settings:
     groups, automate actions and much more.</blockquote>
 
 
-    <b>Advantages:</b> <blockquote expandable><b>Full automation</b> - can set up
+    <tg-emoji emoji-id="5435957248314579621">⭐️</tg-emoji> <b>Advantages:</b> <blockquote expandable><tg-emoji emoji-id="5226945370684140473">➕</tg-emoji> <b>Full automation</b> - can set up
     auto-replies, chat monitoring, channel and group management
 
-    <b>Unlimited capabilities</b> - access to all Telegram features, including those
+    <tg-emoji emoji-id="5226945370684140473">➕</tg-emoji> <b>Unlimited capabilities</b> - access to all Telegram features, including those
     unavailable to regular bots
 
-    <b>Flexibility and customization</b> - can write custom code for any tasks
+    <tg-emoji emoji-id="5226945370684140473">➕</tg-emoji> <b>Flexibility and customization</b> - can write custom code for any tasks
 
-    •<b>Direct connection</b> - work directly with Telegram servers without unnecessary
+    <tg-emoji emoji-id="5226945370684140473">➕</tg-emoji> <b>Direct connection</b> - work directly with Telegram servers without unnecessary
     intermediate layers.</blockquote>
 
 
-    🚂 <b>Main risks and disadvantages:</b>
+    <tg-emoji emoji-id="5471950641918121951">☃️</tg-emoji> <b>Main risks and disadvantages:</b>
 
-    <blockquote expandable><b>Account blocking</b> - Telegram may block an account
+    <blockquote expandable><tg-emoji emoji-id="5229113891081956317">➖</tg-emoji> <b>Account blocking</b> - Telegram may block an account
     for suspicious activity (spam, mass actions)
 
-    • <b>Lack of official support</b> - User API is not officially documented, may
+    <tg-emoji emoji-id="5229113891081956317">➖</tg-emoji> <b>Lack of official support</b> - User API is not officially documented, may
     be unstable
 
-    • <b>User responsibility</b> - the account owner is responsible for the bot''s
+    <tg-emoji emoji-id="5229113891081956317">➖</tg-emoji> <b>User responsibility</b> - the account owner is responsible for the bot''s
     actions that violate Telegram rules
 
-    • <b>Risk to main account</b> - it is recommended to use a separate account for
+    <tg-emoji emoji-id="5229113891081956317">➖</tg-emoji> <b>Risk to main account</b> - it is recommended to use a separate account for
     the userbot</blockquote>'
 loader:
   wait: '{wait} <b>Please wait...</b>'
@@ -794,7 +769,7 @@ loader:
   dlm_repo_choice_action_install: install it
   dlm_repo_choice_action_send: download it
   dlm_repo_choice_repo: '{index}. {repo_name}'
-  dlm_repo_choice_expired: ⚠️ Repository selection expired
+  dlm_repo_choice_expired: <tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Repository selection expired
   dlm_repo_choice_cancel: Cancel
   dlm_repo_choice_cancelled: Selection cancelled
   btn_back: Back
@@ -1123,3 +1098,96 @@ presets:
     label: 💻 Programmer
   moderator:
     label: 🛡 Moderator
+config:
+  config_menu_text: "{menu_emoji} <b>Config Menu</b>\nChoose configuration section:"
+  btn_kernel_config: 🪄 Kernel Config
+  btn_modules_config: 🚂 Modules Config
+  kernel_config_title: "{pencil} <b>Kernel Config</b>\n{page_emoji} Page <b>{page}/{total_pages}</b> ({total_keys} keys)"
+  modules_config_title: "{puzzle} <b>Modules Config</b>\n{page_emoji} Page <b>{page}/{total_pages}</b> ({total_modules} modules)"
+  module_config_title: "{puzzle} <b>Module:</b> <code>{module_name}</code>\n{page_emoji} Page <b>{page}/{total_pages}</b> ({total_items} keys)"
+  key_view: "{note} <b>{key}</b> ({type_emoji} {value_type})\n{display_value}"
+  btn_back: "⬅️"
+  btn_next: "➡️"
+  btn_menu: 🔙 Menu
+  btn_modules: 🔙 Modules
+  btn_back_simple: 🔙 Back
+  expired: "❌ Expired"
+  invalid_type: "❌ Invalid config type"
+  not_found: "❌ Not found"
+  no_config: "❌ Module has no config"
+  no_default: "❌ No default value"
+  not_module_config: "❌ Not a ModuleConfig"
+  not_boolean: "❌ Not boolean"
+  btn_reset_default: ♻️ Reset to default
+  reset_success: ♻️ Reset to default
+  changed_to: "✅ Changed to {value}"
+  error: "❌ Error: {error}"
+  cfg_usage: "{gear} <b>Config</b>: Use inline or <code>.cfg [key]</code> or <code>.cfg [now/hide/unhide] [key]</code>"
+  hidden_key: "{briefcase} <b>Hidden</b>: <code>{key}</code>"
+  key_not_found: "{ballot} <b>Not found</b>: <code>{key}</code>"
+  system_key: "{paperclip} <b>System key</b>"
+  visible_key: "{book} <b>Visible</b>: <code>{key}</code>"
+  fcfg_usage: "{gear} <code>.fcfg [set/del/add/dict/list] -m [modules]</code>"
+  specify_module: "{cross} Specify module name after -m"
+  not_enough_args: "{cross} Not enough arguments"
+  protected_key: "{cross} <b>Protected</b>"
+  set_success: "{check} <b>Set</b> <code>{key}</code> = <code>{value}</code>"
+  set_module_success: "{check} <b>Set</b> module <code>{module}</code> key <code>{key}</code> = <code>{value}</code>"
+  delete_success: "{ballot} <b>Deleted</b> <code>{key}</code>"
+  delete_module_success: "{ballot} <b>Deleted</b> module <code>{module}</code> key <code>{key}</code>"
+  not_found_in_module: "{cross} Not found in module config"
+  key_exists: "{cross} Exists"
+  add_success: "{check} <b>Added</b> <code>{key}</code>"
+  add_module_success: "{check} <b>Added</b> module <code>{module}</code> key <code>{key}</code>"
+  not_dict: "{cross} Key is not a dict"
+  dict_success: "{check} <b>Dict</b> <code>{key}[{subkey}]</code> updated"
+  dict_module_success: "{check} <b>Dict</b> module <code>{module}</code> key <code>{key}[{subkey}]</code> updated"
+  not_list: "{cross} Key is not a list"
+  list_success: "{check} <b>List</b> <code>{key}</code> appended"
+  list_module_success: "{check} <b>List</b> module <code>{module}</code> key <code>{key}</code> appended"
+  toggle_false: "❌ Set false"
+  toggle_true: "✅ Set true"
+  cfg_range_both: Value must be between {min} and {max}
+  cfg_range_min: Value cannot be less than {min}
+  cfg_range_max: Value cannot exceed {max}
+  cfg_len_both: Length must be between {min} and {max} characters
+  cfg_len_min: Length must be at least {min} characters
+  cfg_len_max: Length must be no more than {max} characters
+  cfg_type_bool: Value must be boolean (true/false)
+  cfg_choices: Available options
+  invalid_format: "❌ Invalid format"
+  btn_edit: "✏️ Edit"
+  btn_delete: "🗑️ Delete"
+  btn_reveal: "👁️ Reveal"
+  btn_list_add: "📝 Add to list"
+  btn_list_del: "🗑️ Remove from list"
+  btn_list_set: "✏️ Edit list element"
+  btn_dict_add: "🔑 Add to dict"
+  btn_dict_del: "🗑️ Remove dict key"
+  btn_dict_set: "✏️ Edit dict value"
+  fcfg_inline_usage: "Usage: fcfg set <key_id> <value> | fcfg list/dict <add/del/set> <key_id> [value] | fcfg module <module> ..."
+  fcfg_inline_only_set: "❌ Only set action is supported in inline mode"
+  fcfg_inline_no_module: "❌ Invalid module/key combination"
+  fcfg_inline_success: "✅ Key {key} changed to {value}"
+  fcfg_inline_id_not_found: "❌ Key ID not found or expired"
+  fcfg_inline_protected: "❌ This key is protected"
+  fcfg_confirm_title: "✅ Confirm Value"
+  fcfg_confirm_text: Value will be passed to config
+  fcfg_confirm_success: "✅ Config key {key} updated to {value}"
+  fcfg_confirm_error: "❌ Error updating config: {error}"
+  fcfg_confirm_expired: "❌ Confirmation expired or already used"
+  key_deleted: "🗑️ Key deleted"
+  value_inserted: "✅ Value inserted"
+  list_empty: "📭 List is empty"
+  dict_empty: "📭 Dictionary is empty"
+  list_add_confirm: "➕ Append: {value}"
+  list_remove_confirm: "🗑️ Remove element {index}: {value}"
+  list_set_confirm: "✏️ Replace element {index}: {old} → {new}"
+  dict_add_confirm: "🔑 Add key: {key} = {value}"
+  dict_remove_confirm: "🗑️ Remove key: {key}"
+  dict_set_confirm: "✏️ Set key {key}: {old} → {new}"
+  operation_success: "✅ Operation successful"
+  operation_failed: "❌ Operation failed: {error}"
+  btn_close: "❌ Close"
+  kernel_config_title_short: Kernel Config - {page}
+  modules_config_title_short: Modules Config - {page}

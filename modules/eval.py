@@ -29,24 +29,7 @@ class EvalModule(ModuleBase):
     author = "@hairpin00"
     description = {"ru": "Выполнение Python кода", "en": "Python code execution"}
 
-    strings = {
-        "ru": {
-            "code": "Код",
-            "result": "Результат",
-            "result_file": "Результат отправлен файлом",
-            "result_in_message": "Результат в сообщении",
-            "executed_in": "Выполнено за",
-            "ms": "мс",
-        },
-        "en": {
-            "code": "Code",
-            "result": "Result",
-            "result_file": "Result sent as file",
-            "result_in_message": "Result in message",
-            "executed_in": "Executed in",
-            "ms": "ms",
-        },
-    }
+    strings = {"name": "eval"}
 
     @command(
         "py",

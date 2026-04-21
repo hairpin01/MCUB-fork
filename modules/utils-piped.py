@@ -30,72 +30,7 @@ class UtilsPiped(ModuleBase):
     author = "@Hairpin00"
     description = {"ru": "Утилиты для конвейера", "en": "Utils for pipeline"}
 
-    strings = {
-        "ru": {
-            # grep
-            "grep_usage": "grep &lt;pattern&gt; [text]",
-            "no_match": "Не найдено",
-            # head / tail
-            "head_usage": "head [-n] [text]",
-            "tail_usage": "tail [-n] [text]",
-            # sed
-            "sed_usage": "sed s/&lt;old&gt;/&lt;new&gt;/[g] [text]",
-            # wc
-            "wc_usage": "wc [-l|-c|-w] [text]",
-            # open
-            "open_usage": "open &lt;path&gt;",
-            "open_info": "<b>{path}</b>\n{lines} строк | {size} байт | {ext}",
-            "file_not_found": "Файл не найден: {path}",
-            "file_error": "Ошибка: {err}",
-            # write
-            "write_usage": "write [-n] &lt;path&gt; [text]",
-            "write_ok": "Записано: {path}",
-            "write_error": "Ошибка записи: {err}",
-            # export / import
-            "export_usage": "export &lt;name&gt; [text]",
-            "exported": "экспортировано: {name}",
-            "import_usage": "import &lt;name&gt;",
-            "var_not_found": "не найдено: {name}",
-            # calc
-            "calc_usage": "calc &lt;expr&gt;",
-            "div_by_zero": "ОШИБКА: деление на 0",
-            "calc_error": "ОШИБКА: неверное выражение",
-            # sleep
-            "sleep_usage": "sleep &lt;N&gt;",
-        },
-        "en": {
-            # grep
-            "grep_usage": "grep &lt;pattern&gt; [text]",
-            "no_match": "Not found",
-            # head / tail
-            "head_usage": "head [-n] [text]",
-            "tail_usage": "tail [-n] [text]",
-            # sed
-            "sed_usage": "sed s/&lt;old&gt;/&lt;new&gt;/[g] [text]",
-            # wc
-            "wc_usage": "wc [-l|-c|-w] [text]",
-            # open
-            "open_usage": "open &lt;path&gt;",
-            "open_info": "<b>{path}</b>\n{lines} lines | {size} bytes | {ext}",
-            "file_not_found": "File not found: {path}",
-            "file_error": "Error: {err}",
-            # write
-            "write_usage": "write [-n] &lt;path&gt; [text]",
-            "write_ok": "Written: {path}",
-            "write_error": "Write error: {err}",
-            # export / import
-            "export_usage": "export &lt;name&gt; [text]",
-            "exported": "exported: {name}",
-            "import_usage": "import &lt;name&gt;",
-            "var_not_found": "not found: {name}",
-            # calc
-            "calc_usage": "calc &lt;expr&gt;",
-            "div_by_zero": "ERROR: div by 0",
-            "calc_error": "ERROR: invalid expression",
-            # sleep
-            "sleep_usage": "sleep &lt;N&gt;",
-        },
-    }
+    strings = {"name": "utils_piped"}
 
     @command(
         "echo",
@@ -147,7 +82,6 @@ class UtilsPiped(ModuleBase):
     async def cmd_delete(self, event: events.NewMessage.Event) -> None:
         try:
             chat_id = event.chat_id
-            # BUG FIX: event.message_id не существует в Telethon → AttributeError.
             message_id = getattr(event, "message_id", None) or event.id
             if chat_id and message_id:
                 await self.client.delete_messages(chat_id, [message_id])
@@ -408,7 +342,6 @@ class UtilsPiped(ModuleBase):
             args = self.args_raw(event).strip()
 
             show_line_numbers = False
-            # Удаляем флаг -l, если он есть как отдельное слово
             if args and re.search(r"(?<!\S)-l(?!\S)", args):
                 show_line_numbers = True
                 args = re.sub(r"(?<!\S)-l(?!\S)", "", args).strip()

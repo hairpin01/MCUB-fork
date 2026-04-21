@@ -147,16 +147,7 @@ class MCUBInfoMod(ModuleBase):
         ),
     )
 
-    strings: dict[str, dict[str, str]] = {
-        "en": {
-            "custom_text_error": "<b>Error in custom text format:</b> {error}",
-            "error_see_logs": "{warning} <b>Error, see logs</b>",
-        },
-        "ru": {
-            "custom_text_error": "<b>Ошибка в форматировании:</b> {error}",
-            "error_see_logs": "{warning} <b>Ошибка, смотри логи</b>",
-        },
-    }
+    strings: dict[str, dict[str, str]] = {"name": "mcub_info"}
 
     def _get_branch(self) -> str:
         return _detect_branch_sync()

@@ -23,32 +23,7 @@ class TrModule(ModuleBase):
         "en": "Translator using Google Translate API",
     }
 
-    strings = {
-        "ru": {
-            "loading": "Перевожу...",
-            "no_args": "No args",
-            "specify_text": "Укажите текст для перевода или ответьте на сообщение",
-            "no_text": "Не указан текст для перевода",
-            "translation_error": "Ошибка перевода",
-            "network_error": "Ошибка сети:",
-            "translation_failed": "Не удалось получить перевод",
-            "request_timeout": "Таймаут запроса",
-            "decode_error": "Ошибка декодирования ответа",
-            "translation_error_generic": "Ошибка перевода:",
-        },
-        "en": {
-            "loading": "Translating...",
-            "no_args": "No args",
-            "specify_text": "Specify text for translation or reply to message",
-            "no_text": "No text specified for translation",
-            "translation_error": "Translation error",
-            "network_error": "Network error:",
-            "translation_failed": "Failed to get translation",
-            "request_timeout": "Request timeout",
-            "decode_error": "Response decode error",
-            "translation_error_generic": "Translation error:",
-        },
-    }
+    strings = {"name": "tr"}
 
     EMOJI_LOADING = '<tg-emoji emoji-id="5323463142775202324">🏓</tg-emoji>'
     EMOJI_ERROR = '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji>'

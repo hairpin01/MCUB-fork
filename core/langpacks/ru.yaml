@@ -1,3 +1,5 @@
+lang: ru
+
 core_inline:
   no_access: У вас нет доступа к inline MCUB bot
   no_access_id: 'ID: {sender_id}'
@@ -116,11 +118,6 @@ eval:
   result_in_message: Результат в сообщении
   executed_in: Выполнено за
   ms: мс
-zen:
-  success: Перезагрузка <b>успешна!</b>
-  loading: но модули ещё загружаются...
-  loaded: Твой <b>{mcub}</b> полностью загрузился!
-  errors: Твой <b>{mcub}</b> <b>загрузился c ошибками</b> :(
 kernel:
   success: Перезагрузка <b>успешна!</b>
   loading: но модули ещё загружаются...
@@ -459,25 +456,6 @@ settings:
     Установите inline_bot_token в конфиге'
   inline_no_results: ❌ Нет результатов инлайн
   inline_error: '❌ Ошибка: {error}'
-  mcubinfo_title: '🎭 **Что такое юзербот?**
-
-
-    '
-  mcubinfo_description: 'Это программа, которая работает через ваш личный аккаунт
-    Telegram, используя клиентский API. В отличие от обычных ботов (Bot API), юзербот
-    имеет доступ ко всем функциям обычного пользователя - может отправлять сообщения,
-    управлять группами, автоматизировать действия и многое другое.
-
-
-    '
-  mcubinfo_advantages: '**Преимущества:** Полная автоматизация, неограниченные возможности,
-    гибкость и кастомизация, прямое подключение
-
-
-    '
-  mcubinfo_risks: '**Главные риски:** Блокировка аккаунта, отсутствие официальной
-    поддержки, ответственность на пользователе, риск для основного аккаунта'
-  settings_title: ⚙️ Userbot Settings
   prefix_reset: <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Префикс сброшен
     на `.`
   aliases_cleared: <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Алиасы очищены
@@ -487,11 +465,9 @@ settings:
 
     Full Logs: <pre>{e}<pre>'
   powersave_status: 🔋 Power save mode {status}{features}
-  select_language: 🌐 Select language
-  btn_russian: Русский
-  btn_english: English
-  settings_inline_title: ⚙️ Settings
-  piped_usage: '❌ Использование: {prefix}piped [on/off]'
+  select_language: <tg-emoji emoji-id="5472164874886846699">✨</tg-emoji> Select language
+  btn_ru: 🇷🇺 Русский
+  btn_en: 🇬🇧 English
   piped_on: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Pipeline <b>включен</b>
 
     <blockquote>Команды будут выполняться последовательно через |</blockquote>'
@@ -513,26 +489,26 @@ settings:
     Confirmation is unavailable'
   btn_confirm: ✅ Confirm
   btn_cancel: ✖ Cancel
-  cleardb_confirm: '⚠️ <b>Delete the database?</b>
+  cleardb_confirm: '<tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> <b>Delete the database?</b>
 
     <blockquote>This will simply delete the database file.</blockquote>'
-  cleardb_done: '✅ Database deleted: <code>{path}</code>'
-  cleardb_missing: '✅ Database file is already missing: <code>{path}</code>'
+  cleardb_done: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Database deleted: <code>{path}</code>'
+  cleardb_missing: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Database file is already missing: <code>{path}</code>'
   cleardb_error: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Failed to delete database: <code>{error}</code>'
   clearmodules_confirm: '⚠️ <b>Delete all loaded modules?</b>
 
     <blockquote>All files from <code>{path}</code> will be removed.</blockquote>'
-  clearmodules_done: '✅ Removed modules: <code>{count}</code>'
-  clearmodules_missing: ✅ Directory <code>{path}</code> is already empty or missing
+  clearmodules_done: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Removed modules: <code>{count}</code>'
+  clearmodules_missing: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Directory <code>{path}</code> is already empty or missing
   clearmodules_error: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Failed to clear modules_loaded: <code>{error}</code>'
   clearcache_confirm: '⚠️ <b>Clear cache?</b>
 
     <blockquote>Kernel and modules may store some things in cache. After cleanup,
     part of the data will be recreated again.</blockquote>'
-  clearcache_done: ✅ Cache cleared
+  clearcache_done: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Cache cleared
   clearcache_error: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Failed to clear cache: <code>{error}</code>'
   danger_cancelled: <tg-emoji emoji-id="5453892731094973831">❄️</tg-emoji> Action cancelled
-  mcubinfo_html: '🎭 <b>Что такое юзербот?</b>
+  mcubinfo_html: '<tg-emoji emoji-id="5472164874886846699">✨</tg-emoji> <b>Что такое юзербот?</b>
 
     <blockquote expandable>Это программа, которая работает через ваш личный аккаунт
     Telegram, используя клиентский API. В отличие от обычных ботов (<code>Bot API</code>),
@@ -540,30 +516,30 @@ settings:
     сообщения, управлять группами, автоматизировать действия и многое другое.</blockquote>
 
 
-    <b>Преимущества:</b> <blockquote expandable><b>Полная автоматизация</b> — можно
+    <tg-emoji emoji-id="5435957248314579621">⭐️</tg-emoji> <b>Преимущества:</b> <blockquote expandable><tg-emoji emoji-id="5226945370684140473">➕</tg-emoji> <b>Полная автоматизация</b> — можно
     настроить автоответы, мониторинг чатов, управление каналами и группами
 
-    <b>Неограниченные возможности</b> — доступ ко всем функциям Telegram, включая
+    <tg-emoji emoji-id="5226945370684140473">➕</tg-emoji> <b>Неограниченные возможности</b> — доступ ко всем функциям Telegram, включая
     те, что недоступны обычным ботам
 
-    <b>Гибкость и кастомизация</b> — можно писать собственный код под любые задачи
+    <tg-emoji emoji-id="5226945370684140473">➕</tg-emoji> <b>Гибкость и кастомизация</b> — можно писать собственный код под любые задачи
 
-    •<b>Прямое подключение</b> — работа напрямую с серверами Telegram без лишних промежуточных
+    <tg-emoji emoji-id="5226945370684140473">➕</tg-emoji> <b>Прямое подключение</b> — работа напрямую с серверами Telegram без лишних промежуточных
     слоёв.</blockquote>
 
 
-    🚂 <b>Главные риски и недостатки:</b>
+    <tg-emoji emoji-id="5471950641918121951">☃️</tg-emoji> <b>Главные риски и недостатки:</b>
 
-    <blockquote expandable><b>Блокировка аккаунта</b> — Telegram может заблокировать
+    <blockquote expandable><tg-emoji emoji-id="5229113891081956317">➖</tg-emoji> <b>Блокировка аккаунта</b> — Telegram может заблокировать
     аккаунт за подозрительную активность (спам, массовые действия)
 
-    • <b>Отсутствие официальной поддержки</b> — User API не документирован официально,
+    <tg-emoji emoji-id="5229113891081956317">➖</tg-emoji> <b>Отсутствие официальной поддержки</b> — User API не документирован официально,
     могут быть нестабильности
 
-    • <b>Ответственность на пользователе</b> — за действия бота, нарушающие правила
+    <tg-emoji emoji-id="5229113891081956317">➖</tg-emoji> <b>Ответственность на пользователе</b> — за действия юзербота, нарушающие правила
     Telegram, отвечает владелец аккаунта
 
-    • <b>Риск для основного аккаунта</b> — рекомендуется использовать отдельный аккаунт
+    <tg-emoji emoji-id="5229113891081956317">➖</tg-emoji> <b>Риск для основного аккаунта</b> — рекомендуется использовать отдельный аккаунт
     для юзербота</blockquote>'
 loader:
   wait: '{wait} <b>Пожалуйста подождите...</b>'
@@ -787,14 +763,8 @@ loader:
   no_modules_catalog: 📭 Нет модулей
   catalog_page: <tg-emoji emoji-id="5453892731094973831">❄️</tg-emoji> Страница {page}/{total_pages}
   catalog_error: '❌ Ошибка загрузки каталога: {error}'
-  dlm_repo_choice_title: '{cloud} <b>Модуль</b> <code>{module_name}</code> <b>найден
-    в нескольких репозиториях</b>
-
-    <blockquote>Выбери, откуда {action}</blockquote>'
-  dlm_repo_choice_action_install: установить его
-  dlm_repo_choice_action_send: скачать его
   dlm_repo_choice_repo: '{index}. {repo_name}'
-  dlm_repo_choice_expired: ⚠️ Выбор репозитория устарел
+  dlm_repo_choice_expired: <tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Выбор репозитория устарел
   dlm_repo_choice_cancel: Отмена
   dlm_repo_choice_cancelled: Выбор отменён
   btn_back: Назад
@@ -825,6 +795,11 @@ loader:
 
     '
   and_more: • <code>+{count} ещё</code>
+  dlm_repo_choice_title: '{cloud} <b>Модуль</b> <code>{module_name}</code> <b>найден в нескольких репозиториях</b>
+
+    <blockquote>Выбери, откуда {action}</blockquote>'
+  dlm_repo_choice_action_install: установить его
+  dlm_repo_choice_action_send: скачать его
 log_bot:
   git_timeout: '<tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Git: тайм-аут (нет сети)'
   updates_available: 🔄 Доступны обновления ({count})
@@ -876,9 +851,9 @@ log_bot:
     {count} обновлений на ветку</b> <code>{branch}</code>
   new_commits_btn: 🔄 Обновить
   update_running: <tg-emoji emoji-id="5326015457155620929">📦</tg-emoji> <b>Обновляю...</b>
-  update_done: '✅ Обновлено до <code>{sha}</code>
+  update_done: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Обновлено до <code>{sha}</code>
 
-    <blockquote>⚠️ Автоматическая перезагрузка</blockquote>'
+    <blockquote><tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Автоматическая перезагрузка</blockquote>'
   update_error: '❌ Ошибка обновления: <code>{error}</code>'
   update_no_log: ⚠️ Лог-чат не настроен, уведомления об обновлениях недоступны
   and_more_commits: '... и ещё {} коммитов'
@@ -1122,3 +1097,96 @@ presets:
     label: 💻 Программист
   moderator:
     label: 🛡 Модератор
+config:
+  config_menu_text: "{menu_emoji} <b>Меню конфига</b>\nВыберите раздел:"
+  btn_kernel_config: 🪄 Конфиг ядра
+  btn_modules_config: 🚂 Конфиг модулей
+  kernel_config_title: "{pencil} <b>Конфиг ядра</b>\n{page_emoji} Страница <b>{page}/{total_pages}</b> ({total_keys} ключей)"
+  modules_config_title: "{puzzle} <b>Конфиг модулей</b>\n{page_emoji} Страница <b>{page}/{total_pages}</b> ({total_modules} модулей)"
+  module_config_title: "{puzzle} <b>Модуль:</b> <code>{module_name}</code>\n{page_emoji} Страница <b>{page}/{total_pages}</b> ({total_items} ключей)"
+  key_view: "{note} <b>{key}</b> ({type_emoji} {value_type})\n{display_value}"
+  btn_back: "⬅️"
+  btn_next: "➡️"
+  btn_menu: 🔙 Меню
+  btn_modules: 🔙 Модули
+  btn_back_simple: 🔙 Назад
+  expired: "❌ Истекло"
+  invalid_type: "❌ Неверный тип конфига"
+  not_found: "❌ Не найдено"
+  no_config: "❌ У модуля нет конфига"
+  no_default: "❌ Нет значения по умолчанию"
+  not_module_config: "❌ Это не ModuleConfig"
+  not_boolean: "❌ Не булево значение"
+  btn_reset_default: ♻️ Сбросить на default
+  reset_success: ♻️ Сброшено на default
+  changed_to: "✅ Изменено на {value}"
+  error: "❌ Ошибка: {error}"
+  cfg_usage: "{gear} <b>Конфиг</b>: Используйте инлайн или <code>.cfg [ключ]</code> или <code>.cfg [now/hide/unhide] [ключ]</code>"
+  hidden_key: "{briefcase} <b>Скрытый</b>: <code>{key}</code>"
+  key_not_found: "{ballot} <b>Не найден</b>: <code>{key}</code>"
+  system_key: "{paperclip} <b>Системный ключ</b>"
+  visible_key: "{book} <b>Видимый</b>: <code>{key}</code>"
+  fcfg_usage: "{gear} <code>.fcfg [set/del/add/dict/list] -m [модули]</code>"
+  specify_module: "{cross} Укажите имя модуля после -m"
+  not_enough_args: "{cross} Недостаточно аргументов"
+  protected_key: "{cross} <b>Защищённый</b>"
+  set_success: "{check} <b>Установлено</b> <code>{key}</code> = <code>{value}</code>"
+  set_module_success: "{check} <b>Установлено</b> в модуле <code>{module}</code> ключ <code>{key}</code> = <code>{value}</code>"
+  delete_success: "{ballot} <b>Удалён</b> <code>{key}</code>"
+  delete_module_success: "{ballot} <b>Удалён</b> из модуля <code>{module}</code> ключ <code>{key}</code>"
+  not_found_in_module: "{cross} Не найдено в конфиге модуля"
+  key_exists: "{cross} Уже существует"
+  add_success: "{check} <b>Добавлен</b> <code>{key}</code>"
+  add_module_success: "{check} <b>Добавлен</b> в модуль <code>{module}</code> ключ <code>{key}</code>"
+  not_dict: "{cross} Ключ не является словарём"
+  dict_success: "{check} <b>Словарь</b> <code>{key}[{subkey}]</code> обновлён"
+  dict_module_success: "{check} <b>Словарь</b> в модуле <code>{module}</code> ключ <code>{key}[{subkey}]</code> обновлён"
+  not_list: "{cross} Ключ не является списком"
+  list_success: "{check} <b>Список</b> <code>{key}</code> дополнен"
+  list_module_success: "{check} <b>Список</b> в модуле <code>{module}</code> ключ <code>{key}</code> дополнен"
+  toggle_false: "❌ Установить false"
+  toggle_true: "✅ Установить true"
+  cfg_range_both: Значение должно быть от {min} до {max}
+  cfg_range_min: Значение не может быть меньше {min}
+  cfg_range_max: Значение не может превышать {max}
+  cfg_len_both: Длина должна быть от {min} до {max} символов
+  cfg_len_min: Длина должна быть не менее {min} символов
+  cfg_len_max: Длина должна быть не более {max} символов
+  cfg_type_bool: Значение должно быть логическим (true/false)
+  cfg_choices: Доступные варианты
+  invalid_format: "❌ Неверный формат"
+  btn_edit: "✏️ Изменить"
+  btn_delete: "🗑️ Удалить"
+  btn_reveal: "👁️ Показать"
+  btn_list_add: "📝 Добавить в список"
+  btn_list_del: "🗑️ Удалить из списка"
+  btn_list_set: "✏️ Изменить элемент списка"
+  btn_dict_add: "🔑 Добавить в словарь"
+  btn_dict_del: "🗑️ Удалить ключ словаря"
+  btn_dict_set: "✏️ Изменить значение словаря"
+  fcfg_inline_usage: "Использование: fcfg set <key_id> <value> | fcfg list/dict <add/del/set> <key_id> [value] | fcfg module <module> ..."
+  fcfg_inline_only_set: "❌ Только set действие поддерживается в инлайн режиме"
+  fcfg_inline_no_module: "❌ Неверная комбинация модуля/ключа"
+  fcfg_inline_success: "✅ Ключ {key} изменён на {value}"
+  fcfg_inline_id_not_found: "❌ ID ключа не найден или истёк"
+  fcfg_inline_protected: "❌ Этот ключ защищён"
+  fcfg_confirm_title: "✅ Подтвердите значение"
+  fcfg_confirm_text: Значение будет передано в конфиг
+  fcfg_confirm_success: "✅ Конфиг ключ {key} обновлён на {value}"
+  fcfg_confirm_error: "❌ Ошибка обновления конфига: {error}"
+  fcfg_confirm_expired: "❌ Подтверждение истекло или уже использовано"
+  key_deleted: "🗑️ Ключ удалён"
+  value_inserted: "✅ Значение вставлено"
+  list_empty: "📭 Список пуст"
+  dict_empty: "📭 Словарь пуст"
+  list_add_confirm: "➕ Добавить: {value}"
+  list_remove_confirm: "🗑️ Удалить элемент {index}: {value}"
+  list_set_confirm: "✏️ Заменить элемент {index}: {old} → {new}"
+  dict_add_confirm: "🔑 Добавить ключ: {key} = {value}"
+  dict_remove_confirm: "🗑️ Удалить ключ: {key}"
+  dict_set_confirm: "✏️ Установить ключ {key}: {old} → {new}"
+  operation_success: "✅ Операция успешна"
+  operation_failed: "❌ Операция не удалась: {error}"
+  btn_close: "❌ Закрыть"
+  kernel_config_title_short: Конфиг ядра - {page}
+  modules_config_title_short: Конфиг модулей - {page}

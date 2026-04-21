@@ -34,6 +34,8 @@ from core.lib.loader.module_config import (
     ConfigValue,
     ModuleConfig,
 )
+from core.lib.utils.exceptions import CommandConflictError
+
 
 try:
     from core.lib.loader.hikka_compat import (
@@ -59,17 +61,6 @@ except ImportError:
 
     async def unload_hikka_module(kernel, name):
         return False
-
-
-try:
-    from core.kernel import CommandConflictError
-except ImportError:
-
-    class CommandConflictError(Exception):
-        def __init__(self, message, conflict_type=None, command=None):
-            super().__init__(message)
-            self.conflict_type = conflict_type
-            self.command = command
 
 
 async def safe_edit(msg, *args, **kwargs):
@@ -163,10 +154,14 @@ class Loader(ModuleBase):
         ),
     )
 
-    strings = {
+    strings = {"name": "loader"}
+
+    # OLD STRINGS (removed after migration to langpacks) - kept for reference
+    # TODO: Remove after verifying langpacks work
+    """
+    _OLD_STRINGS = {
         "en": {
             "wait": "{wait} <b>Please wait...</b>",
-            "reply_to_py": "{warning} <b>Reply to a .py file</b>",
             "not_py_file": "{warning} <b>This is not a .py file</b>",
             "system_module_update_attempt": "{confused} <b>Oops, looks like you tried to update a system module</b> <code>{module_name}</code>\n<blockquote><i>{blocked} Unfortunately, you cannot update system modules using <code>loadera</code></i></blockquote>",
             "system_module_unload_attempt": "{confused} <b>Oops, looks like you tried to unload a system module</b> <code>{module_name}</code>\n<blockquote><i>{blocked} Unfortunately, you cannot unload system modules</i></blockquote>",
@@ -432,6 +427,7 @@ class Loader(ModuleBase):
             "and_more": "• <code>+{count} ещё</code>",
         },
     }
+    """
 
     async def on_load(self) -> None:
         await super().on_load()

@@ -1,0 +1,1000 @@
+lang: ru  # Base language for fallback
+
+core_inline:
+  no_access: Ты кто вообще такой? Доступа нет, иди отсюда
+  no_access_id: 'ID чужака: {sender_id}'
+  mcub_bot_title: MCUB Бот (живой, кое-как)
+  version: Версия (не спрашивай зачем)
+  modules: Модули (которые ещё не упали)
+  info_description: Инфа о юзерботе (читай на свой страх и риск)
+  command: Команда
+  execute: Выполнить (если не страшно)
+  no_commands: Команд нет. Совсем. Тишина.
+  form_not_found: Форма сдохла или вообще не существовала (треш)
+  form_id: ID (этой вот штуки)
+  error: Что-то пошло не так (inline-треш)
+  error_description: Описание катастрофы
+  btn_default: Кнопка (нажми, не бойся)
+  json_parsing_error: JSON кнопок сломан к чертям (кринж-парсинг)
+  form_expired: Форма протухла и растворилась в пустоте
+  traceback_invalid_id: ID ошибки неверный. Ошибка в ошибке. Ошибкоматрёшка.
+  traceback_expired: Трейсбэк испарился из кэша (следы простыли)
+  full_traceback: Полный трейсбэк (для самых стойких)
+  critical_error: критикал треш (рял)
+  invalid_request: Запрос кривой (попробуй ещё раз, но нормально)
+  no_similar_errors: Похожих ошибок нет. Ты уникален в своём треше.
+  similar_errors: Братья по несчастью
+  similar_count: количество страдальцев
+  invalid_format: Формат данных — абсолютная каша (невалидный треш)
+  error_muted: тип_ошибки (на свободе)
+  muted_for_hour: '{error_type} ({source}) заглушён на 1ч. Тихий час.'
+  confirm_yes: Ладно, будь по-твоему (подтверждено)
+  command_confirmed: Команда подтверждена. Назад дороги нет.
+  executing: Пытаюсь выполнить... держись
+  confirm_no: Фух, пронесло (отменено)
+  command_cancelled: Команда отменена. Умное решение.
+  command_not_found: Такой команды нет. Я проверял трижды.
+  command_not_found_or_executed: Команда не найдена или уже сбежала
+  nothing_to_cancel: Отменять нечего. Ты отменяешь пустоту.
+  data_error: Данные превратились в тыкву (треш-данные)
+  catalog_not_loaded: Каталог не загрузился. Он просто не захотел.
+  catalog_title: Каталог модулей (чего только нет)
+  page: Стр
+  no_description: Автор поленился написать описание
+  author: Виновник
+  commands: Команды (пользуйся с умом)
+  use_dlm: Используй, коли не лень
+  nav_back: ← Назад
+  nav_forward: Вперёд →
+terminal:
+  empty: пусто. как моя душа.
+  command_already_running: Стоп! Одна команда уже мучается, подожди
+  system_command: 'системная команда (не трогай без причины):'
+  executing: выполняется... скрестим пальцы
+  launch_error: 'Запуск провалился (треш):'
+  already_completed: Команда уже завершилась, ты опоздал
+  running_time: 'страдает уже:'
+  seconds: сек. (вечность)
+  exit_code: 'код выхода (0 = счастье, остальное — горе):'
+  completed_in: выполнено за (рекорд не побит)
+  command_stopped: Команда принудительно прекращена. RIP.
+  stop_error: 'Даже остановить не вышло (мега-треш):'
+  no_running_commands: Сейчас ничего не выполняется. Тишина и покой.
+  stdout: 'stdout (голос программы):'
+  stderr: 'stderr (крики о помощи):'
+  command_not_specified: Команду не указал. Телепатии нет.
+  config_update_interval: Интервал обновления вывода терминала (сек., 1-30). Обновляется и при появлении новых воплей.
+command:
+  hello: <tg-emoji emoji-id="6012620675829734836">❤️</tg-emoji> Привет! Я бот от MCUB-fork. Да, я живой. Почти.
+  developers: 'Те, кого винить:'
+  fork: 'форк от:'
+  original: 'Оригинал (которому мы обязаны всем):'
+  github_repo: Репозиторий (место страданий)
+  original_mcub: Оригинальный MCUBFB (дедушка)
+  support: Поддержка (туда и пиши)
+  profile: 'Профиль:'
+  name: 'Имя (не настоящее, поди):'
+  prefix: 'Префикс (волшебная буква):'
+  kernel_version: 'Версия ядра (не трогай):'
+  profile_error: <tg-emoji emoji-id="6010399722471168034">❔</tg-emoji> Профиль куда-то делся. Загадка природы.
+  goodbye: <tg-emoji emoji-id="6012610604131424315">🥺</tg-emoji> Прощайте! Не поминайте лихом.
+  bot_removed: Бот выгнан из чата. Бывает.
+  delete_error: Выгнать бота не вышло. Он держится.
+  hello_installed: <tg-emoji emoji-id="6012620675829734836">❤️</tg-emoji> Привет, MCUC установлен! Теперь держись.
+  main_commands: 'Основные команды (читай внимательно):'
+  new_prefix: новый префикс (выбирай с умом)
+  module_name: название (придумай что-нибудь)
+  setprefix: 'Сменить префикс на что угодно:'
+  logs: 'Логи (простыня страданий):'
+  info: 'Инфо (всё обо всём):'
+  ping: 'Пинг (жив ли я):'
+  module_management: 'Управление модулями (осторожно):'
+  load: 'Загрузить (на свой страх):'
+  remove: 'Удалить (без возврата):'
+  list_modules: 'Список репо (откуда тянем):'
+  choose_language: <tg-emoji emoji-id="6010399722471168034">❔</tg-emoji> Выбери язык, на котором тебе объяснять что пошло не так
+  setup_completed: <tg-emoji emoji-id="6012423240478103267">🥰</tg-emoji> Настройка завершена! Чудо.
+  start_init_error: 'start_init сломался при старте (классика):'
+  backup_setup: Настройка авто-бэкапа (на случай апокалипсиса)
+  backup_enable: <tg-emoji emoji-id="6012610604131424315">🥺</tg-emoji> Включить авто-бэкап? (советуем — да)
+  backup_interval: 'Как часто делать бэкап (выбирай мудро):'
+  backup_created: Группа MCUB-backup создана! Теперь есть куда падать.
+  backup_skip: Пропустить (живёшь опасно)
+  backup_yes: Да (умный выбор)
+  backup_no: Нет (смелый выбор)
+  backup_enabled: <tg-emoji emoji-id="6012423240478103267">🥰</tg-emoji> Авто-бэкап включён. Теперь не страшно.
+  backup_disabled: Авто-бэкап выключен. Ты сам себе злой буратино.
+  backup_not_found: Модуль backup не найден. Где-то потерялся.
+eval:
+  code: Код (надеюсь, рабочий)
+  result: Результат (барабанная дробь)
+  result_file: Результат слишком большой — улетел файлом
+  result_in_message: Результат здесь, не потеряйся
+  executed_in: Выполнено за (неплохо для этого кода)
+  ms: мс (мгновений)
+kernel:
+  success: Перезагрузка <b>успешна!</b> Ура, не сломалось!
+  loading: но модули ещё загружаются, подожди немного...
+  loaded: Твой <b>{mcub}</b> полностью загрузился! Живём!
+  errors: Твой <b>{mcub}</b> <b>загрузился c ошибками</b> :( Кто-то сегодня не в духе
+  rpc_error: <b>RPC-треш:</b> <code>{error}</code>
+  call_failed: <b>Вызов <code>{cmd}</code> упал из-за RPC-треша:</b> <code>{rpc_msg}</code>
+  call_failed_traceback: '<b>Вызов <code>{cmd}</code> провалился в пропасть!</b>
+
+    <b><i>Полный лог страданий:</i></b>
+
+    <pre>{traceback}</pre>'
+  could_not_edit: 'Не удалось отредактировать RPC-сообщение об ошибке (ошибка об ошибке — матрёшка): {error}'
+  full_log: <b><i>Полный лог (читай, если не жалко себя):</i></b>
+tr:
+  loading: Перевожу... словари листаю...
+  no_args: Аргументов нет. Что переводить-то?
+  specify_text: Укажи текст или ответь на сообщение, телепат из меня никудышный
+  no_text: Текст для перевода не указан (треш-запрос)
+  translation_error: Перевод сломался (переводческий треш)
+  network_error: 'Сеть упала (интернет опять устал):'
+  translation_failed: Перевод не получился. Видимо, не судьба.
+  request_timeout: Запрос завис и умер от таймаута
+  decode_error: Ответ не декодируется. Это был не текст, это была загадка.
+  translation_error_generic: 'Переводческая катастрофа:'
+utils_piped:
+  grep_usage: grep <паттерн> [текст]
+  no_match: Не найдено. Ничего. Пусто. Ноль.
+  head_usage: head [-n] [текст]
+  tail_usage: tail [-n] [текст]
+  sed_usage: sed s/<старое>/<новое>/[g] [текст]
+  wc_usage: wc [-l|-c|-w] [текст]
+  open_usage: open <путь>
+  open_info: '<b>{path}</b>
+
+    {lines} строк | {size} байт | {ext}'
+  file_not_found: 'Файл испарился: {path}'
+  file_error: 'Файловый треш: {err}'
+  write_usage: write [-n] <путь> [текст]
+  write_ok: 'Записано (надеюсь, то что хотел): {path}'
+  write_error: 'Запись провалилась (треш): {err}'
+  export_usage: export <n> [текст]
+  exported: 'экспортировалось: {name}'
+  import_usage: import <n>
+  var_not_found: 'потерялось в бездне: {name}'
+  calc_usage: calc <выражение>
+  div_by_zero: 'МАТЕМАТИЧЕСКИЙ ТРЕШ: делить на 0 нельзя, это знают все'
+  calc_error: 'ВЫЧИСЛИТЕЛЬНЫЙ КРИНЖ: выражение кривое'
+  sleep_usage: sleep <N>
+api_protection:
+  enabled: ✅ API защита включена (теперь они нас не сломят)
+  disabled: ❌ API защита выключена (живёшь опасно, дружище)
+  usage: 'Как это вообще использовать: .api_protection [on/off] [параметр значение]'
+  are_you_sure: Ты точно уверен? Прям точно?
+  true: защита <b>включена</b> (теперь спи спокойно)
+  false: защита <b>выключена</b> (удачи)
+  too_many_requests: <i>Слишком много запросов. Полегче, Флэш.</i>
+  bot_stopped: <tg-emoji emoji-id="5431895003821513760">❄️</tg-emoji> Бот заморожен
+    на <b>{seconds}</b> секунд (принудительный отдых)
+  bot_unlocked: <tg-emoji emoji-id="5431895003821513760">❄️</tg-emoji> Бот отморожен
+    после <b>{seconds}</b> секунд медитации
+  request_limit_exceeded: <b>Лимит запросов разнесён в щепки</b> (<u>{limit_type}</u>)
+  insufficient_permissions: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji>
+    <b>Прав нет. Совсем. Иди отсюда.</b>
+  limits_reset: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <b>Лимиты сброшены. Начинаем с чистого листа.</b>
+  processing: ⏳ Обрабатываю... (не мешай)
+  error_processing: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Обработка
+    провалилась (обработочный треш)</b>
+  stats: '📋 <b>Статистика API (смотри, не бойся)</b>
+
+    <blockquote>⏱ За последние <b>{interval}</b>с</blockquote>
+
+    • <u>Всего запросов</u>: <b>{total_all}</b>
+
+    • <u>Учитываемых</u>: <b>{total_relevant}</b>
+
+    📋 <b>Топ методов (чемпионы по запросам):</b>
+
+    {methods}'
+  stats_empty: 📋 <i>Нет запросов за последние {interval}с. Тишь да благодать.</i>
+  reset_done: ✅ <b>Статистика, аналитика и блокировка сброшены. Чистый лист.</b>
+  suspend: 🥶 <b>Защита взяла перерыв</b> на <code>{seconds}</code>с
+  param_set: ✅ Параметр <code>{param}</code> теперь равен <code>{value}</code> (принято)
+  param_error: ❌ <b>Параметр или значение — абсолютный кринж</b>
+  overload_notify: '⚠️ <b>API-перегрев! Всё горит!</b>
+
+    <blockquote>⏱ Учитываемых запросов за <b>{interval}</b>с: <b>{total}</b> (порог
+    <u>{threshold}</u> — пробит)</blockquote>
+
+    • <b>Триггер</b>: <code>{trigger}</code>
+
+    • <b>Блокировка</b>: <code>{block_seconds}</code>с (попытка #{trigger_count}, неутомимый ты)
+
+    📋 <b>Топ методов (виновники торжества):</b>
+
+    {methods}'
+  warn_threshold: '🔶 <b>Предупреждение</b>: уже <i>{percent}%</i> от порога (<code>{current}/{threshold}</code>
+    за <b>{interval}</b>с). Притормози!'
+  predict_block: '🔮 <b>Предсказываю будущее</b>: порог падёт через <code>~{eta}</code>с
+
+    <blockquote>⚡ Ускорение: <u>{accel}</u> req/s². Быстрее, быстрее!</blockquote>'
+  ignore_usage: ⚙️ <b>Как игнорировать методы:</b> <code>.api_ignore [list|add|remove|clear]
+    [method]</code>
+  ignore_list: '📋 <b>Методы в чёрном списке (персона нон грата):</b>
+
+    <code>{methods}</code>'
+  ignore_list_empty: 📋 <i>Список игнора пуст. Все методы любимые.</i>
+  ignore_added: ✅ Метод <code>{method}</code> теперь в игноре (прощай)
+  ignore_removed: ✅ Метод <code>{method}</code> помилован и возвращён
+  ignore_cleared: ✅ <b>Список игнора очищен. Всем прощение.</b>
+  ignore_not_found: ❌ Метод <code>{method}</code> не найден в игнор-списке. Может, его там и не было.
+  yes: Да (окей)
+  no: Нет (пощади)
+  analyze_report: '<tg-emoji emoji-id="4904936030232117798">🔬</tg-emoji> <b>Глубокий анализ API (для настоящих задротов)</b>
+
+    <tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <b>Многоуровневые окна</b>
+    <code>{windows}</code>
+
+    <tg-emoji emoji-id="5373001317042101552">📈</tg-emoji> <b>Z-score аномалии</b>: <code>{zscore}</code>  <i>(порог ±{threshold}σ — не превышать)</i>
+    <tg-emoji emoji-id="5445259009311391329">🔮</tg-emoji> <b>До взрыва осталось</b>: <code>{eta}</code>
+    <tg-emoji emoji-id="5383140876316669109">⚡</tg-emoji> <b>Ускорение навстречу краху</b>: <code>{accel}</code>
+
+    <tg-emoji emoji-id="5368513458469878442">🧬</tg-emoji> <b>Сходство с профилем (насколько ты предсказуем)</b>: <code>{cosine}</code>
+
+    <tg-emoji emoji-id="5264727218734524899">🔀</tg-emoji> <b>Топ переходов методов</b>:
+    <code>{transitions}</code>
+
+    <tg-emoji emoji-id="5370872220149099318">🚨</tg-emoji> <b>Аномальные переходы (что-то тут нечисто)</b>:
+    <code>{anomalous}</code>
+
+    <tg-emoji emoji-id="5422742359930356292">⏱</tg-emoji> <b>Следующая блокировка (backoff)</b>: <code>{backoff}</code>'
+  analyze_eta_safe: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <i>Пока не ожидается. Живём!</i>
+  analyze_eta_now: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Уже превышен. Это фиаско, братан.</b>
+  analyze_eta_in: <code>~{seconds}</code>с (тикают)
+  analyze_profile_insufficient: <i>данных маловато, я не волшебник</i>
+  mcub_not_supported: <tg-emoji emoji-id="5904692292324692386">⚠️</tg-emoji> <b>Telethon-MCUB не обнаружен</b> — штатная защита спит
+  mcub_mode_set: <tg-emoji emoji-id="5253671358734281000">🛡</tg-emoji> <b>Режим защиты MCUB установлен:</b> <code>{mode}</code><i>{dry}</i>
+  mcub_mode_dry: "<i>(dry-run: нарушения только логируются, как дневник жалоб)</i>"
+  mcub_mode_usage: <tg-emoji emoji-id="5332654441508119011">⚙️</tg-emoji> <b>Как менять режим:</b> <code>.api_mode [off|safe|strict|custom] [dry]</code>
+  mcub_violation: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>MCUB завернул запрос. Не пройдёшь.</b>
+
+    <blockquote>• <b>Метод:</b> <code>{method}</code>
+    • <b>Режим:</b> <code>{mode}</code>
+    • <b>Причина:</b> <i>{reason}</i></blockquote>
+  mcub_status: <tg-emoji emoji-id="5253671358734281000">🛡</tg-emoji> <b>MCUB на посту</b>
+
+    <blockquote>• <b>Режим:</b> <code>{mode}</code>
+    • <b>Dry-run (режим наблюдателя):</b> <i>{dry}</i>
+    • <b>Allowlist (VIP-список):</b> <code>{allowlist}</code></blockquote>
+  mcub_choose_mode: <tg-emoji emoji-id="5253671358734281000">🛡</tg-emoji> <b>Выбери режим защиты (выбирай мудро):</b>
+  mcub_mode_default: 👾 По умолчанию (как есть) ({mode})
+  api_stats: '<tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <b>Статистика API</b>
+
+    <blockquote>⏱ За последние <b>{interval}</b>с</blockquote>
+
+    • <u>Всего запросов</u>: <b>{total_all}</b>
+
+    • <u>Учитываемых</u>: <b>{total_relevant}</b>
+
+    📋 <b>Топ методов (чемпионы по запросам):</b>
+
+    {methods}'
+  api_stats_empty: <tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <i>Нет запросов за последние {interval}с. Тишь да благодать.</i>
+  api_reset_done: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <b>Статистика, аналитика и блокировка сброшены. Чистый лист.</b>
+  api_suspend: <tg-emoji emoji-id="5372892693024218813">🥶</tg-emoji> <b>Защита взяла перерыв</b> на <code>{seconds}</code>с
+  api_param_set: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Параметр <code>{param}</code> теперь равен <code>{value}</code> (принято)
+  api_param_error: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Параметр или значение — абсолютный кринж</b>
+  api_overload_notify: '<tg-emoji emoji-id="5904692292324692386">⚠️</tg-emoji> <b>API-перегрев! Всё горит!</b>
+
+    <blockquote>⏱ Учитываемых запросов за <b>{interval}</b>с: <b>{total}</b> (порог <u>{threshold}</u> — пробит)</blockquote>
+
+    • <b>Триггер</b>: <code>{trigger}</code>
+
+    • <b>Блокировка</b>: <code>{block_seconds}</code>с (попытка #{trigger_count}, неутомимый ты)
+
+    📋 <b>Топ методов (виновники торжества):</b>
+
+    {methods}'
+  api_warn_threshold: '<tg-emoji emoji-id="5406792732452613826">🔶</tg-emoji> <b>Предупреждение</b>: уже <i>{percent}%</i> от порога (<code>{current}/{threshold}</code> за <b>{interval}</b>с). Притормози!'
+  api_predict_block: '<tg-emoji emoji-id="5445259009311391329">🔮</tg-emoji> <b>Предсказываю будущее</b>: порог падёт через <code>~{eta}</code>с
+
+    <blockquote>⚡ Ускорение: <u>{accel}</u> req/s². Быстрее, быстрее!</blockquote>'
+  api_ignore_usage: <tg-emoji emoji-id="5332654441508119011">⚙️</tg-emoji> <b>Как игнорировать методы:</b> <code>.api_ignore [list|add|remove|clear] [method]</code>
+  api_ignore_list: '<tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <b>Методы в чёрном списке (персона нон грата):</b>
+
+    <code>{methods}</code>'
+  api_ignore_list_empty: <tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <i>Список игнора пуст. Все методы любимые.</i>
+  api_ignore_added: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Метод <code>{method}</code> теперь в игноре (прощай)
+  api_ignore_removed: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Метод <code>{method}</code> помилован и возвращён
+  api_ignore_cleared: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <b>Список игнора очищен. Всем прощение.</b>
+  api_ignore_not_found: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Метод <code>{method}</code> не найден в игнор-списке. Может, его там и не было.
+updates:
+  restarting: Твой <b>{mcub}</b> перезагружается... помолись за него
+  restart_log: Перезагружаюсь (не смотри)...
+  already_updated: <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> <b>Уже последняя
+    версия {version}. Ты просто проверял? Принято.</b>
+  git_pull_success: '<tg-emoji emoji-id="5332654441508119011">📝</tg-emoji> <b>Git
+    pull успешен! GitHub не подвёл.</b>
+
+
+    <code>{output}</code>'
+  update_success: '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji> <b>Обновление
+    прошло! Чудо из чудес!</b> {emoji}
+
+    Перезагрузка через 2 секунды... нервничай.'
+  trying_another_method: <tg-emoji emoji-id="5174058394576882777">🔧</tg-emoji> <b>Первый метод сдох, пробую запасной...</b>
+  updating_to_version: <tg-emoji emoji-id="5286434424331775494">📥</tg-emoji> <b>Обновляюсь до {version}...</b> {emoji}
+  update_success_with_backup: '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>
+    <b>Обновление успешно! Не верим, но радуемся.</b> {emoji}
+
+
+    📦 Бэкап создан на всякий пожарный
+
+    Перезагружаюсь...'
+  cant_check_version: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Не
+    удалось проверить версию. Загадка.</b>
+  cant_get_update: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Обновление
+    не далось. Видимо, не судьба.</b>
+  error: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Треш:</b> <code>{error}</code>
+  stopping: <tg-emoji emoji-id="5372892693024218813">🧲</tg-emoji> <b>Твой <i>{mcub}</i>
+    отключается... прощай.</b> {emoji}
+  backup_not_found: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Бэкап
+    не найден. Он был? Был ли он вообще?</b>
+  rolling_back: <tg-emoji emoji-id="5248998218212392977">🔙</tg-emoji> <b>Откатываюсь назад во времени...</b> <i>{emoji}</i>
+  rollback_success: '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji> <b>Откат
+    завершён! Назад в прошлое — успешно.</b> {emoji}
+
+
+    Перезагрузка...'
+  rollback_error: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Откат
+    тоже сломался (это уже кринж второго уровня):</b> <code>{error}</code>
+man:
+  help_not_command: 'Может ты имел в виду '
+  module: Модуль
+  description: Что это вообще такое
+  version: Версия (устарела, поди)
+  no_description: Описания нет. Автор был занят.
+  unknown: Понятия не имею
+  aliases: Псевдонимы (он же, он же...)
+  no_commands: Команд нет. Тихий модуль.
+  author: Кто виноват
+  found_modules: Нашлись модули
+  and_more: '... и ещё <code>{count}</code> страдальцев'
+  no_exact_match: Точного совпадения нет. Поиск провален.
+  module_not_found: Модуль не найден. Он вообще существовал?
+  system_modules: Системные модули (не трогать!)
+  user_modules_page: Пользовательский зоопарк (Страница {page} |<code> {count}</code>)
+  close: Закрыть это всё
+  inline_bot_not_configured: 'Инлайн-бот не настроен
+
+    Добавь inline_bot_token в конфиг, грамотей'
+  no_inline_results: ❌ Инлайн ничего не нашёл. Ноль. Пусто.
+  error: Что-то пошло не так
+  module_manager: 'Менеджер модулей
+
+    Используй "man" для просмотра или "man [модуль]" чтобы найти нужное.'
+  search_hint: '🔍 Поиск по модулям
+
+    Напиши "man [название]" для поиска модулей и команд
+
+    Пример: man ping (не пинги в Discord, нет)'
+  search_results: Результаты поиска (нашлось кое-что)
+  command: Команда
+  and_more_commands: '... и ещё {count} команд, всех не перечислить'
+  not_found_hint: Попробуй другой запрос. Или переформулируй. Или смирись.
+  closed: Закрыто
+  page_error: Страница сломалась (треш)
+  search_error: Поиск упал (поисковый треш)
+  search_error_desc: Что-то пошло не так, как обычно
+  module_hidden: 👁️‍🗨️ <b>Модуль скрыт. Теперь он невидимка.</b>
+  module_already_hidden: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Модуль уже скрыт. Куда ещё-то.
+  module_unhidden: ✅ <b>Модуль возвращён в мир живых.</b>
+  module_not_hidden: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Этот модуль и так всем виден.
+  manhide_usage: '😕 Как скрыть: <code>.manhide [модуль]</code>'
+  manunhide_usage: '😕 Как расскрыть: <code>.manunhide [модуль]</code>'
+  system_module_note: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>Это системный модуль. Loader его не тронет — это святое.</b>
+  kernel_not_full_loaded: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>Ядро ещё не дозагрузилось, подожди немного</b> (<code>{status}</code>)
+settings:
+  prefix_usage: '❌ Как менять префикс: {prefix}setprefix [символ]'
+  prefix_one_char: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>Префикс — ровно 1 символ. Не два, не три. Один.</b>
+  prefix_changed: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji><b> Префикс
+    теперь </b><code>{prefix}</code>. Если пожалеешь:
+
+    <pre>{prefix}setprefix {prefix_old}</pre>'
+  alias_usage: '❌ Как добавить алиас: `{prefix}addalias алиас = команда`'
+  alias_created: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Алиас создан.
+    Теперь <code>{prefix}{alias}</code> — это <code>{prefix}{command}</code>'
+  alias_target_not_found: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Команда <code>{command}</code> куда-то пропала. Проверь имя.
+  delalias_usage: '❌ Как удалить алиас: `{prefix}delalias алиас`'
+  delalias_done: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Алиас испарился:
+    <code>{prefix}{alias}</code>'
+  delalias_not_found: ❌ Алиас <code>{alias}</code> не найден. Был ли он вообще?
+  aliases_empty: 📋 Алиасов нет. Живёшь по-простому.
+  2fa_enabled: 🔐 Двухфакторка <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> включена. Теперь никто не пройдёт.
+  2fa_disabled: 🔐 Двухфакторка ❌ выключена. Держи дверь открытой.
+  powersave_enabled: 🔋 режим экономии включён (спим вполсилы)
+  powersave_disabled: ⚡ режим экономии выключен (работаем на полную)
+  powersave_features: '
+
+    • Логирование отключено (тихо, как в библиотеке)
+
+    • Healthcheck реже в 3 раза (чекаем, но лениво)
+
+    • Нагрузка снижена (бот отдыхает)'
+  lang_usage: '❌ Как менять язык: {prefix}lang [ru/en]'
+  lang_available: '❌ Доступные языки: {langs}'
+  lang_changed: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Язык изменён
+    на: {lang}. Теперь говорим иначе.'
+  inline_bot_not_set: '❌ Инлайн-бот не настроен
+
+    Добавь inline_bot_token в конфиг'
+  inline_no_results: ❌ Инлайн ничего не нашёл
+  inline_error: '❌ Инлайн-треш: {error}'
+  prefix_reset: <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Префикс сброшен
+    на классический `.`
+  aliases_cleared: <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Все алиасы стёрты. Чистый лист.
+  api_enabled: <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> включена (ура)
+  api_disabled: ❌ отключена (зря)
+  mcubinfo_error: '🌩️ <b>Треш, смотри логи</b>
+
+    Полный плач: <pre>{e}<pre>'
+  powersave_status: 🔋 Режим экономии {status}{features}
+  select_language: <tg-emoji emoji-id="5472164874886846699">✨</tg-emoji> Выбери язык
+  btn_ru: 🇷🇺 Русский (ты здесь)
+  btn_en: 🇬🇧 Английский
+  btn_rofl: 🏴‍☠️ рофлыыы, (сичас стаит)
+  piped_on: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Pipeline <b>включён</b>
+
+    <blockquote>Команды идут друг за другом через | как по конвейеру</blockquote>'
+  piped_off: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Pipeline <b>выключен</b>
+
+    <blockquote>Обычный режим. Ничего лишнего.</blockquote>'
+  settings_inline_description: Панель настроек юзербота (здесь всё)
+  btn_reset_prefix: сбросить префикс
+  btn_reset_alias: сбросить алиасы
+  btn_api_protection: '{status} api-защита'
+  btn_powersave: '{status} экономия питания'
+  btn_2fa: '{status} двухфакторка'
+  btn_mcubinfo: инфо о mcub
+  btn_kernel_version: 'Версия ядра: {version}'
+  api_protection_status: API-защита {status}
+  2fa_status: 2FA {status}
+  danger_inline_not_set: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Инлайн-бот не настроен
+
+    Подтверждение недоступно. Действуй без страховки.'
+  btn_confirm: ✅ Подтвердить (точно?)
+  btn_cancel: ✖ Отмена (спасибо, нет)
+  cleardb_confirm: '<tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> <b>Удалить базу данных?</b>
+
+    <blockquote>Всё. Просто файл базы будет удалён. Без предупреждений. Без возврата.</blockquote>'
+  cleardb_done: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> База данных удалена. Покойся с миром: <code>{path}</code>'
+  cleardb_missing: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Базы уже нет. Кто-то постарался раньше: <code>{path}</code>'
+  cleardb_error: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Удалить базу не получилось (база сопротивляется): <code>{error}</code>'
+  clearmodules_confirm: '⚠️ <b>Удалить ВСЕ загруженные модули?</b>
+
+    <blockquote>Все файлы из <code>{path}</code> будут уничтожены. Все. До одного.</blockquote>'
+  clearmodules_done: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Удалено модулей: <code>{count}</code>. Им не было больно.'
+  clearmodules_missing: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Директория <code>{path}</code> уже пуста. Кто-то успел раньше.
+  clearmodules_error: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Очистка модулей провалилась (модульный треш): <code>{error}</code>'
+  clearcache_confirm: '⚠️ <b>Очистить кэш?</b>
+
+    <blockquote>Ядро и модули кое-что там хранили. После чистки часть восстановится. Часть — нет.</blockquote>'
+  clearcache_done: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Кэш вычищен. Свежо.
+  clearcache_error: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Кэш не очистился (кэш держится): <code>{error}</code>'
+  danger_cancelled: <tg-emoji emoji-id="5453892731094973831">❄️</tg-emoji> Действие отменено. Фух.
+loader:
+  wait: '{wait} <b>Пожалуйста подождите... я стараюсь</b>'
+  reply_to_py: '{warning} <b>Ответь на .py файл, иначе как?</b>'
+  not_py_file: '{warning} <b>Это не .py файл. Я не волшебник.</b>'
+  system_module_update_attempt: '{confused} <b>Стоп-стоп-стоп, ты пытался обновить системный
+    модуль</b> <code>{module_name}</code>
+
+    <blockquote><i>{blocked} Системные модули обновляются не через loader. Это табу.</i></blockquote>'
+  system_module_unload_attempt: '{confused} <b>Эй, ты пытался выгрузить системный
+    модуль</b> <code>{module_name}</code>
+
+    <blockquote><i>{blocked} Системные модули не выгружаются. Они вечные.</i></blockquote>'
+  starting_install: '{action} <b>модуль</b> (начинается шоу)'
+  installing: '{test} <b>Устанавливаю</b> (держи кулачки)'
+  updating: '{reload} <b>Обновляю</b> (надеюсь на лучшее)'
+  updating_version: '{reload} <b>Обновляю до v</b><code>{old_version}</code> <b>→
+    v</b><code>{new_version}</code> (путешествие во времени)'
+  log_start: =- Начинаю {action} модуля {module_name}
+  log_filename: '=> Имя файла: {filename}'
+  log_downloading: =- Скачиваю файл в {file_path}
+  log_downloaded: => Файл скачан. Живём.
+  log_file_read: => Файл прочитан. Интересное чтиво.
+  log_checking_compatibility: =- Проверяю совместимость... скрещиваю пальцы
+  log_incompatible: =X Модуль несовместим (Heroku/Hikka — не наш клиент)
+  log_compatible: => Совместим! Ура!
+  log_getting_metadata: Добываю метаданные...
+  log_author: 'Автор (он за это отвечает): {author}'
+  log_version: 'Версия: {version}'
+  log_description: 'Описание: {description}'
+  log_checking_deps: =- Проверяю зависимости... сколько их там наставили
+  log_deps_found: '=> Нашлись зависимости: {deps}'
+  installing_deps: '{dependencies} <b>ставлю зависимости (это может занять вечность):</b>
+
+    <blockquote expandable><code>{deps_list}</code></blockquote>'
+  log_installing_dep: '=- Устанавливаю зависимость: {dep}'
+  log_dep_installed: => Зависимость {dep} установлена. Одной меньше.
+  log_dep_error: '=X Зависимость {dep} сломалась (зависимостный треш): {error}'
+  log_removing_old: =- Убираю старые команды модуля {module_name} (чистим хвосты)
+  log_loading_module: =- Загружаю модуль {module_name}... момент истины
+  log_module_loaded: => Модуль загружен! Не сломался!
+  log_commands_found: '=> Найдено команд: {count} (неплохо)'
+  module_loaded: '{success} <b>Модуль</b> <code>{module_name}</code> <b>загружен и жив!</b>
+    (<code>{version}</code>) {emoji}
+
+    <blockquote expandable>{idea} <b>Что это вообще:</b> {description}</blockquote>
+
+    <blockquote expandable>{commands_list}</blockquote>
+
+    <blockquote>{emoji_author} Виновник: {author}</blockquote>
+
+    {source_link}'
+  module_loaded_no_cmds: '{success} <b>Модуль</b> <code>{module_name}</code> <b>загружен (но команд нет, тихоня)!</b>
+    (<code>{version}</code>) {emoji}
+
+    <blockquote expandable>{idea} <b>Что это:</b> {description}</blockquote>
+
+    <blockquote>{emoji_author} Автор: {author}</blockquote>
+
+    {source_link}'
+  no_cmd_desc: '{no_cmd} Описания команды нет. Автор не счёл нужным.'
+  command_line: '{crystal} <code>{prefix}{cmd}</code> – <b>{desc}</b>'
+  aliases_text: ' (Алиасы: {alias_text})'
+  log_aliases_found: 'Команда {cmd} имеет псевдонимы: {aliases}'
+  log_install_error: '=X Загрузка провалилась (инсталляционный треш): {error}'
+  install_failed: '<b>{blocked} Установка прошла мимо. Не повезло.</b>
+
+    <b>{idea} Лог страданий:</b>
+
+    <pre>{log}</pre>'
+  log_conflict: '✗ Конфликт команд (столкновение интересов): {error}'
+  conflict_system: '{shield} <b>Системная команда уже занята!</b>
+
+    <blockquote>Команда <code>{prefix}{command}</code> принадлежит системному модулю. Не отдаст.</blockquote>
+
+    <b>Лог установки:</b>
+
+    <pre>{log}</pre>'
+  conflict_user: '{error} <b>Конфликт модулей! Они не поделили команду!</b>
+
+    <blockquote>Команда <code>{prefix}{command}</code> уже застолбил модуль
+    <code>{owner_module}</code>. Раньше сел.</blockquote>
+
+    <b>Лог установки:</b>
+
+    <pre>{log}</pre>'
+  log_critical: '=X КРИТИЧЕСКИЙ ТРЕШ: {error}'
+  log_traceback: 'Трейсбэк (читай и плачь):
+
+    {traceback}'
+  dlm_usage: '{warning} <b>Использование:</b> <code>{prefix}dlm [-send/-s/-list] название_или_ссылка</code>'
+  dlm_list_loading: '{loading} <b>Получаю список модулей... иду в интернет...</b>'
+  dlm_list_title: '{folder} <b>Модули из репозиториев (большой список):</b>
+
+    <blockquote expandable>{list}</blockquote>'
+  dlm_list_errors: '
+
+    {warning} <b>Ошибки по пути:</b>
+
+    <blockquote expandable>{errors}</blockquote>'
+  dlm_list_failed: '{warning} <b>Список модулей не получен. Репозитории молчат.</b>'
+  dlm_searching: '{loading} <b>Ищу модуль {module_name}... он где-то там...</b>'
+  module_not_found: '{warning} <b>Модуль {module_name} не найден ни в одном репозитории. Его вообще нет?</b>'
+  module_unloaded: '{success} <b>Модуль {module_name} выгружен. Прощай.</b>'
+  reload_usage: '{warning} <b>Как перезагрузить:</b> <code>{prefix}reload название_модуля</code>'
+  reloading: '{reload} <b>Перезагружаю <code>{module_name}</code>... не смотри</b>'
+  reload_success: '{success} <b>Модуль {module_name} перезагружен! Живой!</b> {emoji}
+
+    <blockquote expandable>{cmd_text}</blockquote>'
+  no_commands: Команд нет (тихий модуль)
+  reload_error: '{warning} <b>Перезагрузка упала. Смотри логи, там всё написано.</b>'
+  no_modules: '{folder} <b>Модулей нет. Пустота.</b>'
+  loaded_modules: '{crystal} <b>Загруженные модули (все наши):</b>
+
+    '
+  system_modules: '{shield} <b>Системные модули (не трогать!):</b>
+
+    '
+  user_modules: '{sparkle} <b>Пользовательские модули (наш зоопарк):</b>
+
+    '
+  module_line: '• <b>{name}</b> <i>({count} команд)</i>
+
+    '
+  reload_all: '{reload} <b>Перезагружаю все модули разом... страшновато...</b>'
+  reload_all_success: '{success} <b>Все модули перезагружены! Невероятно!</b>
+
+    <blockquote>{count}</blockquote>'
+  reload_all_failed: '{warning} <b>Не удалось перезагрузить {count} модуль(ей) (бунт модулей):</b>
+
+    <blockquote expandable>{failed_list}</blockquote>'
+  addrepo_usage: '{warning} <b>Использование:</b> <code>{prefix}addrepo URL</code>'
+  delrepo_usage: '{warning} <b>Использование:</b> <code>{prefix}delrepo индекс</code>'
+  catalog_title: '<b>🌩️ Официальный репозиторий MCUB</b> <code>{repo_url}</code>
+
+
+    '
+  catalog_custom: '<i>{repo_name}</i> <code>{repo_url}</code>
+
+
+    '
+  no_modules_catalog: 📭 Нет модулей (пустота восторжествовала)
+  catalog_page: <tg-emoji emoji-id="5453892731094973831">❄️</tg-emoji> Страница {page}/{total_pages}
+  catalog_error: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Каталог не загрузился: {error}'
+  dlm_repo_choice_title: '{cloud} <b>Модуль</b> <code>{module_name}</code> <b>найден в нескольких репозиториях</b>
+
+    <blockquote>Выбери, откуда {action}</blockquote>'
+  dlm_repo_choice_action_install: установить его (забираем)
+  dlm_repo_choice_action_send: скачать его (сохраняем)
+  dlm_repo_choice_repo: '{index}. {repo_name}'
+  dlm_repo_choice_expired: <tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Выбор репозитория протух
+  dlm_repo_choice_cancel: Отмена (передумал)
+  dlm_repo_choice_cancelled: Выбор отменён (ну и ладно)
+  btn_back: Назад (возвращаемся)
+  btn_next: Вперёд (следующий)
+  modules_not_mcub: '{warning} Модуль не {mcub} типа [Heroku/Hikka] — чужак'
+  log_hikka_detected: =+ Hikka/Heroku модуль обнаружен — грузим через compat-слой
+  hikka_no_compat: '{warning} <b>Hikka compat не найден. Печаль.</b>'
+  hikka_disabled: '{warning} <b>Поддержка Hikka/Heroku модулей выключена через конфиг (loader_allow_hikka_modules).</b>'
+  reload_all_partial: '{success} <b>Модули перезагружены!</b>
+
+    {success_count}
+
+    {warning} <b>Не удалось: {failed_count}</b>
+
+    <blockquote expandable>{failed_list}</blockquote>'
+  failed_module: '• <code>{name}</code>
+
+    '
+  and_more: • <code>+{count} ещё</code> (и это не все)
+log_bot:
+  git_timeout: '<tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Git завис (интернет умер)'
+  updates_available: 🔄 Доступны обновления ({count} штук, обновляйся)
+  up_to_date: ✅ Версия актуальная. Красавчик.
+  git_error: <tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Git сломался (git-треш)
+  setup_log_group: 🤖 Настраиваю группу для логов...
+  searching_logs: Поиск логов провалился
+  creating_log_group: 📝 Создаю лог-группу (место плача)...
+  bot_prepare_error: Бота подготовить не вышло. Не хочет.
+  chat_id_error: ❌ ID созданного чата не получен. Потерялся.
+  avatar_error: <tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Аватарку поставить не вышло (аватарный треш)
+  invite_error: <tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Ссылку не получил (прав нет, иди отсюда)
+  bot_added: ✅ Бот добавлен. Теперь нас двое.
+  bot_add_error: ⚠️ Бота добавить не получилось. Застрял.
+  chat_create_error: ❌ Чат создать не вышло (чат-треш)
+  log_setup_title: Настраиваю лог-группу...
+  log_setup_success: ✅ Лог-группа настроена. Теперь всё запишется.
+  log_setup_fail: ❌ Настройка лог-группы провалилась
+  test_title: Тестирую отправку логов (нервничаю)...
+  test_bot_available: Бот доступен (жив!)
+  test_bot_not_available: Бот недоступен (умер?)
+  test_bot_auth: Бот авторизован (знает пароль)
+  test_bot_not_auth: Бот не авторизован (кто вообще это)
+  test_log_chat_id: Лог-чат ID
+  test_not_set: не установлен (плохо)
+  test_time: Время
+  test_success: ✅ Тестовое сообщение отправлено. Дошло!
+  test_fail: ❌ Не дошло. Где-то потерялось.
+  test_error: ❌ Тест упал (тестовый треш)
+  log_status_on: ✅ включён (пишем)
+  log_status_off: ❌ выключен (молчим)
+  log_not_configured: Не настроен (лень была)
+  bot_running: ✅ запущен (живой)
+  bot_not_running: ❌ не запущен (спит или умер)
+  errors_sent: ✅ ошибки улетают в лог
+  errors_not_sent: ❌ ошибки никуда не летят (тихий трагизм)
+  log_status_title: Статус лог-бота (доклад)
+  log_group: Лог-группа (место плача)
+  bot_sending: Отправка через бота
+  errors: Ошибки (их всегда много)
+  startup_via_bot: ✅ Старт через бота (как у людей)
+  startup_via_userbot: ⚠️ Старт через юзербота (не идеально)
+  startup_error: ❌ Старт провалился
+  send_log_error: ❌ В лог отправить не вышло
+  started: запущен!
+  update_status: Статус обновления
+  prefix: Префикс
+  new_commits_header: <tg-emoji emoji-id="5465300082628763143">💬</tg-emoji> <b>Есть
+    {count} новых коммитов на ветке</b> <code>{branch}</code>. Пора обновляться.
+  new_commits_btn: 🔄 Обновить (кнопка надежды)
+  update_running: <tg-emoji emoji-id="5326015457155620929">📦</tg-emoji> <b>Обновляюсь...</b>
+  update_done: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Обновлено до <code>{sha}</code>
+
+    <blockquote><tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Авторестарт отключён (сам рестартуй)</blockquote>'
+  update_error: '❌ Обновление упало (обновленческий треш): <code>{error}</code>'
+  update_no_log: ⚠️ Лог-чат не настроен, уведомления об обновлениях — в никуда
+  and_more_commits: '... и ещё {} коммитов (там много всего)'
+userbot_backup:
+  creating_backup: <tg-emoji emoji-id="5426958067763804056">⏳</tg-emoji> <i>Создаю бэкап... на случай апокалипсиса...</i>
+  backup_created: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <b>Бэкап создан. Теперь не страшно.</b>
+  backup_failed: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <i><b>Бэкап не создался. Это очень плохо.</b></i>
+  reply_to_backup: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <u>Ответь на сообщение с бэкапом, я не телепат</u>
+  not_backup_file: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <u>Это не файл бэкапа. Что ты мне подсунул?</u>
+  restoring: <tg-emoji emoji-id="5426958067763804056">⏳</tg-emoji> <i>Восстанавливаю... держись...</i>
+  restored: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <b>Восстановлено! Как новенькое:</b>
+  no_files: <tg-emoji emoji-id="5409235172979672859">⚠️</tg-emoji> <u>Нечего восстанавливать. Бэкапов нет.</u>
+  restore_error: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Восстановление упало (треш):'
+  chat_id: 'Chat ID:'
+  interval: 'Интервал (как часто спасаемся):'
+  auto_backup: 'Авто-бэкап:'
+  last_backup: 'Последний бэкап (давно?):'
+  total_backups: 'Всего бэкапов (богатство):'
+  commands: 'Команды (изучи на память):'
+  set_interval: Установить интервал бэкапа
+  enable_disable: Включить/выключить авто-бэкап
+  set_chat: Куда слать бэкапы
+  interval_set: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Интервал {hours} ч. Принято.
+  interval_invalid: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Интервал от 1 до 168 часов. Не больше, не меньше.
+  backup_settings: <tg-emoji emoji-id="5332654441508119011">⚙️</tg-emoji> Настройки бэкапа (центр спасения)
+  auto_enabled: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Авто-бэкап включён. Страховка работает.
+  auto_disabled: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Авто-бэкап выключен. Живёшь опасно.
+  chat_set: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Чат для бэкапов назначен: {chat_id}'
+  check_pm: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Загляни в ЛС боту, там кое-что есть
+  bot_not_available: <tg-emoji emoji-id="5409235172979672859">⚠️</tg-emoji> Бот не отзывается. Сначала напиши ему в ЛС — разбуди.
+  cant_send_pm: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> ЛС отправить не вышло. Сначала напиши боту сам.
+  invalid_chat_id: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Неверный ID чата. Откуда ты это взял?
+  unknown_command: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Неизвестная команда. Ты её придумал?
+  select_interval: '<tg-emoji emoji-id="5326015457155620929">🧳</tg-emoji> Как часто делать бэкапы (выбирай с умом):'
+  processing: 🔄 Обрабатываю...
+  group_created: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Группа для бэкапов создана. Теперь есть куда падать.
+  tip_restore: 'подсказка: {prefix}restore чтобы восстановиться из бэкапа'
+  btn_restore: 🔄 Восстановить (кнопка надежды)
+  btn_1_hour: 1 час (параноик)
+  btn_6_hours: 6 часов (осторожный)
+  btn_12_hours: 12 часов (нормальный)
+  btn_24_hours: 24 часа (рискованный)
+  not_set: Не установлен (грустно)
+  hours: часов
+  enabled: Включён (ура)
+  disabled: Выключен (ой)
+  invalid_interval: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Неверный интервал (треш-число)
+  error_processing: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Обработка упала (обработочный треш)
+  encrypted_note: <blockquote><tg-emoji emoji-id="5447644880824181073">🔐</tg-emoji> Зашифровано (тайна)</blockquote>
+  wrong_password: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Неверный пароль или архив рассыпался
+  hash_ok: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> SHA256 совпадает — файл живой, не подменили
+  hash_mismatch: <blockquote><tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> SHA256 не совпадает — файл битый или кто-то шалил!</blockquote>
+  hash_unknown: <tg-emoji emoji-id="5409235172979672859">⚠️</tg-emoji> SHA256 не найден в подписи. Тёмная история.
+  cloud_ok: '<tg-emoji emoji-id="5359954476607521990">☁️</tg-emoji> {provider}: улетело в облако успешно'
+  cloud_fail: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> {provider}: в облако не попали (облачный треш)'
+  cleanup_done: '<tg-emoji emoji-id="5380186498827373381">🗑️</tg-emoji> Старых бэкапов удалено: {count}. Вздохнули свободнее.'
+  no_backups_found: <tg-emoji emoji-id="5409235172979672859">⚠️</tg-emoji> Бэкапов в чате нет. Они где-то... не здесь.
+  select_backup: <tg-emoji emoji-id="5411192149058289173">☁️</tg-emoji> <b>Выбери бэкап для восстановления (в прошлое так в прошлое):</b>
+  delayed_scheduled: <tg-emoji emoji-id="5326015457155620929">🧳</tg-emoji> Бэкап запланирован на <b>{time}</b>. Не отменяй.
+  invalid_time: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Неверный формат времени. Пример нормального: 30m, 2h, 90s'
+  unknown_arg: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Неизвестный аргумент. Доступные: config, db, modules, in <время>, cleanup'
+  low_disk: '<tg-emoji emoji-id="5409235172979672859">⚠️</tg-emoji> Места на диске кот наплакал: нужно ~{needed}MB, есть {free}MB'
+  encrypted_restore: '<tg-emoji emoji-id="5447644880824181073">🔐</tg-emoji> Архив зашифрован. Укажи пароль: <code>{prefix}restore_with &lt;пароль&gt;</code>'
+  restore_with_usage: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Использование: <code>{prefix}restore_with &lt;пароль&gt;</code>'
+tester:
+  error_logs: "{snowflake} <b>Треш, смотри логи</b>"
+  logs_not_found: "{file} Файл kernel.log пропал. Был ли он вообще?"
+  logs_sending: "{printer} Отправляю логи kernel (читай на свой страх)"
+  freezing_usage: "{speech} Как замораживаться: {prefix}freezing [секунды]"
+  freezing_range: "{speech} От 1 до 60 секунд. Не больше, не меньше."
+  freezing_number: "{speech} Укажи число, а не что попало"
+  freezing_start: "{snowflake} Замораживаюсь на {seconds} секунд. Не трогай меня."
+  freezing_done: "{check} Разморозился после {seconds} секунд размышлений"
+  custom_text_error: "<b>Кастомный текст сломан (форматировочный треш):</b> {error}"
+  logs: Логи (история страданий)
+  kernel_version: Версия ядра
+  ping: пинг (жив ли ты)
+  uptime: время работы (без перерывов)
+  ms: мс
+  hours: ч
+  minutes: м
+  seconds: с
+  branch: Ветка (сидим тут)
+  logs_not_fount_args: "<b>Доступные аргументы: </b><code>clear</code>, <code>debug</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code>, <code>all</code>"
+  logs_clear: "<b>Логи очищены. Как будто ничего не было.</b>"
+  file_empty: "<b>Логи пустые. Тишина — тоже ответ.</b>"
+  logs_level_invalid: "<b>Доступные уровни:</b> <code>debug</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code>, <code>all</code>"
+  logs_choose_level: "{paper} <b>Выбери уровень логов (что тебя интересует)</b>"
+  logs_choose_desc: "Пришлю только записи выбранного уровня из <code>kernel.log</code>. Любопытный."
+  logs_level_warning: "{snowflake} <b>Осторожно</b>\n<blockquote>Логи уровня <code>{level}</code> могут содержать токены, личные данные и прочие секреты. Будь аккуратен.</blockquote>\n<b>Всё равно отправить?</b>"
+  logs_send_cancelled: "{snowflake} <b>Отправка логов отменена. Правильное решение.</b>"
+  logs_level_caption: '{logs_title} <b>{logs}</b> {mcub}\n<blockquote>{pen} <b>{kernel_version}</b> {version}#<a href="{commit_url}">{commit_sha}</a>\n{satellite} <b>{branch_label}:</b> {branch}\n{printer} <b>Уровень:</b> <code>{level}</code></blockquote>'
+trusted:
+  not_owner: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Только владелец может это. А ты кто?'
+  usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Как доверять: <code>.trust</code> / <code>.untrust</code> (реплай, @username или ID)'
+  trust_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Пользователь добавлен в доверенные. Надеюсь, ты не пожалеешь.</b>'
+  trust_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Пользователь убран из доверенных. Бывает.</b>'
+  trust_already: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> <i>Этот уже в доверенных. Ты добавлял его раньше.</i>'
+  trust_not_in_list: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Пользователя нет в доверенных. Его здесь никто не ждёт.'
+  trustlist_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Список доверенных пуст. Никому не доверяем. Правильно.'
+  trustlist_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Доверенные пользователи (избранные):</b>'
+  btn_cancel: Отмена (передумал)
+  nonick_step_title: '<tg-emoji emoji-id="5332723564711804828">✨</tg-emoji> <b>Включить NoNick для {name}? Решай.</b>'
+  btn_nonick_yes: Включить NoNick (доверяю)
+  btn_nonick_no: Без NoNick (пусть пишет полностью)
+  nonick_toggled_on: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> NoNick <b>включён</b> для {name}. Доступ упрощён.'
+  nonick_toggled_off: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> NoNick <b>выключен</b> для {name}. Пусть старается.'
+  nonick_list_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Доверенных с NoNick нет. Все под строгим контролем.'
+  nonick_list_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Доверенные с NoNick (особо избранные):</b>'
+  nonick_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Использование: <code>.nonickuser</code> (реплай, @username или ID)'
+  watcher_disabled: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Watcher отключён и спит:</b> <code>{module}.{watcher}</code>'
+  watcher_enabled: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Watcher включён и смотрит:</b> <code>{module}.{watcher}</code>'
+  watcher_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Watcher не найден, он скрывается: <code>{module}.{watcher}</code>'
+  watcher_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Юзай: <code>.watcher модуль watcher</code>'
+  watchers_title: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Активные смотрители:</b>'
+  watchers_debug_title: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Отладка смотрителей:</b>'
+  watchers_debug_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Подходящих смотрителей нет.'
+  watchers_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Активных смотрителей нет. Тишина.'
+  access_allowed: разрешено (добро пожаловать)
+  access_denied: запрещено (вход закрыт)
+  access_allowed_group: разрешено (через группу, хитро)
+  btn_close: 🙈 Закрыть и не смотреть
+  btn_allow_all: Разрешить всё (щедро)
+  btn_deny_all: Запретить всё (сурово)
+  trust_time_title: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Добавить пользователя на время? Типа временный пропуск?</b>'
+  trust_time_desc: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> Через {time} пользователь будет вышвырнут из доверенных автоматически.'
+  btn_1h: 1 час (краткосрочно)
+  btn_24h: 24 часа (на день)
+  btn_7d: 7 дней (на недельку)
+  btn_permanent: Навсегда (ты уверен?)
+  trust_added_timed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Пользователь в доверенных на {time}. Потом сам выпадет.</b>'
+  trust_expired: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Время доверия к <b>{user}</b> вышло. Всё, ты нам больше не доверенный.'
+  timed_trusted_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Временные доверенные (истекают скоро):</b>'
+  timed_trusted_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Временных доверенных нет. Только вечные.'
+  trust_expiring: " (истекает через {time}, тикают часики)"
+  trustaccess_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Использование: <code>.trustaccess</code> (реплай, @username или ID)'
+  trustaccess_footer: "<em>Если доступ выключен, бот просто проигнорирует соответствующие команды.</em>"
+  trustaccess_title: "🔐 <b>Доступ owner для {user}</b>"
+  percmd_title: "🔐 <b>Команды для {user}</b>"
+  percmd_back: "← Назад"
+  btn_cmds: "📋 Команды"
+  trustcmd_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Управление доступом к командам для доверенных</b>\n\n<code>.trustcmd @username +py</code> - разрешить команду py\n<code>.trustcmd @username -py</code> - запретить команду py\n<code>.trustcmd @username list</code> - показать права на команды\n\n<i>Требует чтобы пользователь был в списке доверенных</i>'
+  trustcmd_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Доступ к <code>{cmd}</code> <b>разрешён</b> для {user}.'
+  trustcmd_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Доступ к <code>{cmd}</code> <b>запрещён</b> для {user}.'
+  trustcmd_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Команда <code>{cmd}</code> не найдена.'
+  trustcmd_list_title: "🔐 <b>Доступ к командам для {user}:</b>"
+  trustcmd_list_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Нет специфичных разрешений на команды.'
+  sgroup_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Группы доступа</b>\n\n<b>Команды:</b>\n<code>.sgroup create mygroup</code> - создать группу\n<code>.sgroup delete mygroup</code> - удалить группу\n<code>.sgroup add mygroup @user</code> - добавить пользователя\n<code>.sgroup remove mygroup @user</code> - удалить пользователя\n<code>.sgroup access mygroup</code> - настроить доступ (меню)\n<code>.sgroup list</code> - список групп\n<code>.sgroup info mygroup</code> - инфо о группе\n\n<i>Группы позволяют управлять доступом нескольких пользователей сразу</i>'
+  sgroup_created: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Группа доступа <b>{name}</b> создана.'
+  sgroup_deleted: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Группа доступа <b>{name}</b> удалена.'
+  sgroup_already_exists: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Группа <b>{name}</b> уже существует.'
+  sgroup_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Группа <b>{name}</b> не найдена.'
+  sgroup_user_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Пользователь <b>{user}</b> добавлен в группу <b>{group}</b>.'
+  sgroup_user_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Пользователь <b>{user}</b> удалён из группы <b>{group}</b>.'
+  sgroup_user_in_group: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Пользователь уже в этой группе.'
+  sgroup_user_not_in_group: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Пользователь не в этой группе.'
+  sgroup_list_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Группы доступа:</b>'
+  sgroup_list_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Нет групп доступа. Пока пусто.'
+  sgroup_info_users_empty: Нет пользователей
+  sgroup_info_access_empty: Нет специфичного доступа
+  sgroup_menu_title: "<b>Управление группой: {name}</b>"
+  sgroup_btn_add_user: Добавить пользователя
+  sgroup_btn_remove_user: Удалить пользователя
+  sgroup_btn_access: Доступ
+  sgroup_btn_delete: Удалить группу
+  sgroup_confirm_delete: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> Удалить группу <b>{name}</b>?'
+  btn_confirm_delete: Удалить
+access_categories:
+  modules:
+    label: Модули
+    desc: выгрузка, очистка и командование уже установленными модулями
+  loader:
+    label: Установка модулей
+    desc: тащить модули из файлов, ссылок и пресетов
+  config:
+    label: Конфиг
+    desc: настройки юзербота и всякие параметры (осторожно)
+  backup:
+    label: Бэкапы
+    desc: резервные копии на случай катастрофы
+  terminal:
+    label: Терминал
+    desc: shell-команды на сервере (для смелых)
+  eval:
+    label: Код / Eval
+    desc: eval и выполнение кода (на свой страх и риск)
+  security:
+    label: Безопасность
+    desc: owner, security, targeted rules и права доступа
+  system:
+    label: Система
+    desc: update, restart и прочее техобслуживание
+  inline:
+    label: Inline
+    desc: пользоваться инлайн-командами и ботом
+  callback:
+    label: Callback
+    desc: нажимать на кнопки (важная способность)
+presets:
+  user:
+    label: 👤 Обычный пользователь (не трогать лишнего)
+  programmer:
+    label: 💻 Программист (знает что делает, наверное)
+  moderator:
+    label: 🛡 Модератор (порядок превыше всего)
+config:
+  config_menu_text: "{menu_emoji} <b>Меню конфига</b>\nЧто настраивать будем?"
+  btn_kernel_config: 🪄 Конфиг ядра (осторожно)
+  btn_modules_config: 🚂 Конфиг модулей (здесь живо)
+  kernel_config_title: "{pencil} <b>Конфиг ядра (святая святых)</b>\n{page_emoji} Страница <b>{page}/{total_pages}</b> ({total_keys} ключей)"
+  modules_config_title: "{puzzle} <b>Конфиг модулей</b>\n{page_emoji} Страница <b>{page}/{total_pages}</b> ({total_modules} модулей)"
+  module_config_title: "{puzzle} <b>Модуль:</b> <code>{module_name}</code>\n{page_emoji} Страница <b>{page}/{total_pages}</b> ({total_items} ключей)"
+  key_view: "{note} <b>{key}</b> ({type_emoji} {value_type})\n{display_value}"
+  btn_back: "⬅️"
+  btn_next: "➡️"
+  btn_menu: 🔙 В меню
+  btn_modules: 🔙 К модулям
+  btn_back_simple: 🔙 Назад
+  expired: "❌ Истекло и сдохло"
+  invalid_type: "❌ Тип конфига неверный (конфиг-треш)"
+  not_found: "❌ Не найдено нигде"
+  no_config: "❌ У модуля конфига нет. Живёт без него."
+  no_default: "❌ Значения по умолчанию нет. Хаос."
+  not_module_config: "❌ Это не ModuleConfig. Ты промахнулся."
+  not_boolean: "❌ Это не булево. true или false, больше вариантов нет."
+  btn_reset_default: ♻️ Сбросить на дефолт
+  reset_success: ♻️ Сброшено на дефолт. Начинаем с нуля.
+  changed_to: "✅ Изменено на {value} (принято)"
+  error: "❌ Треш: {error}"
+  cfg_usage: "{gear} <b>Конфиг</b>: используй инлайн или <code>.cfg [ключ]</code> или <code>.cfg [now/hide/unhide] [ключ]</code>"
+  hidden_key: "{briefcase} <b>Скрытый ключик</b>: <code>{key}</code>"
+  key_not_found: "{ballot} <b>Ключ пропал</b>: <code>{key}</code>"
+  system_key: "{paperclip} <b>Системный ключ (не трогать)</b>"
+  visible_key: "{book} <b>Открытый ключ</b>: <code>{key}</code>"
+  not_enough_args: "{cross} Аргументов не хватает. Ты скупой на аргументы."
+  protected_key: "{cross} <b>Защищённый ключ (руки прочь)</b>"
+  set_success: "{check} <b>Установлено</b> <code>{key}</code> = <code>{value}</code> (принято)"
+  delete_success: "{ballot} <b>Ключ удалён</b> <code>{key}</code>. Покойся."
+  key_exists: "{cross} Уже существует. Дважды не добавить."
+  add_success: "{check} <b>Добавлен</b> <code>{key}</code>"
+  not_dict: "{cross} Ключ не является словарём. Обманул."
+  not_list: "{cross} Ключ не является списком. Снова обманул."
+  toggle_false: "❌ Установить false (выключить)"
+  toggle_true: "✅ Установить true (включить)"
+  cfg_range_both: Значение должно быть от {min} до {max}. Не фантазируй.
+  cfg_range_min: Значение не меньше {min}. Правила есть правила.
+  cfg_range_max: Значение не больше {max}. Хватит жадничать.
+  cfg_len_both: Длина от {min} до {max} символов. Как раз и не больше.
+  cfg_len_min: Длина не менее {min} символов. Пиши подробнее.
+  cfg_len_max: Длина не более {max} символов. Краткость — сестра таланта.
+  cfg_type_bool: Значение должно быть логическим (true или false, ничего третьего)
+  cfg_choices: Допустимые варианты (и только они)
+  invalid_format: "❌ Формат неверный (форматировочный треш)"
+  btn_edit: "✏️ Изменить"
+  btn_delete: "🗑️ Удалить (без возврата)"
+  btn_reveal: "👁️ Показать (тайна раскрыта)"
+  btn_list_add: "📝 Добавить в список"
+  btn_list_del: "🗑️ Убрать из списка"
+  btn_list_set: "✏️ Изменить элемент списка"
+  btn_dict_add: "🔑 Добавить в словарь"
+  btn_dict_del: "🗑️ Убрать ключ словаря"
+  btn_dict_set: "✏️ Изменить значение словаря"
+  operation_success: "✅ Операция прошла успешно. Верь своим глазам."
+  operation_failed: "❌ Операция провалилась (операционный треш): {error}"
+  btn_close: "❌ Закрыть"
+  key_deleted: "🗑️ Ключ удалён. RIP."
+  value_inserted: "✅ Значение вставлено"
+  list_empty: "📭 Список пуст. Одиноко тут."
+  dict_empty: "📭 Словарь пуст. Ни слова."
+  list_add_confirm: "➕ Добавить: {value}"
+  list_remove_confirm: "🗑️ Удалить элемент {index}: {value}"
+  list_set_confirm: "✏️ Заменить элемент {index}: {old} → {new}"
+  dict_add_confirm: "🔑 Добавить ключ: {key} = {value}"
+  dict_remove_confirm: "🗑️ Удалить ключ: {key}"
+  dict_set_confirm: "✏️ Установить ключ {key}: {old} → {new}"
+  fcfg_confirm_success: "✅ Конфиг-ключ {key} обновлён на {value}. Принято."
+  fcfg_confirm_error: "❌ Обновление конфига упало (конфиг-треш): {error}"
+  fcfg_confirm_expired: "❌ Подтверждение протухло или уже использовано"
+  fcfg_inline_success: "✅ Ключ {key} теперь равен {value}"
+  fcfg_inline_id_not_found: "❌ ID ключа не найден или испарился"
+  fcfg_inline_protected: "❌ Этот ключ защищён. Не трогать."
+  kernel_config_title_short: Конфиг ядра - {page}
+  modules_config_title_short: Конфиг модулей - {page}
+  specify_module: "{cross} Укажи имя модуля после -m, я не угадываю"
+  not_found_in_module: "{cross} В конфиге модуля не найдено. Там пусто."
+  set_module_success: "{check} <b>Установлено</b> в модуле <code>{module}</code> ключ <code>{key}</code> = <code>{value}</code> (принято)"
+  delete_module_success: "{ballot} <b>Удалён</b> из модуля <code>{module}</code> ключ <code>{key}</code>. Покойся."
+  add_module_success: "{check} <b>Добавлен</b> в модуль <code>{module}</code> ключ <code>{key}</code>"
+  dict_success: "{check} <b>Словарь</b> <code>{key}[{subkey}]</code> обновлён (словарный апдейт)"
+  dict_module_success: "{check} <b>Словарь</b> в модуле <code>{module}</code> ключ <code>{key}[{subkey}]</code> обновлён"
+  list_success: "{check} <b>Список</b> <code>{key}</code> дополнен (стал длиннее)"
+  list_module_success: "{check} <b>Список</b> в модуле <code>{module}</code> ключ <code>{key}</code> дополнен"
+  fcfg_usage: "{gear} <code>.fcfg [set/del/add/dict/list] -m [модули]</code> — читай внимательно"
+  fcfg_inline_usage: "Использование: fcfg set <key_id> <value> | fcfg list/dict <add/del/set> <key_id> [value] | fcfg module <module> ... (да, это длинно)"
+  fcfg_inline_only_set: "❌ В инлайн-режиме только set. Остальное — мечты."
+  fcfg_inline_no_module: "❌ Неверная комбинация модуля и ключа (конфиг-треш)"
+  fcfg_confirm_title: "✅ Подтверди значение (последний шанс передумать)"
+  fcfg_confirm_text: "Значение отправится в конфиг. Точно?"

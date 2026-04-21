@@ -3,12 +3,13 @@
 
 from __future__ import annotations
 
+import html
 import os
 import re
-from typing import Any
-from telethon import events
-import html
 import traceback
+from typing import Any
+
+from telethon import events
 
 from core.lib.loader.module_base import ModuleBase, command
 
@@ -131,7 +132,6 @@ class UtilsPiped(ModuleBase):
                                 try:
                                     with open(
                                         downloaded,
-                                        "r",
                                         encoding="utf-8",
                                         errors="ignore",
                                     ) as f:
@@ -169,7 +169,7 @@ class UtilsPiped(ModuleBase):
                 return
 
             try:
-                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                with open(file_path, encoding="utf-8", errors="ignore") as f:
                     content = f.read()
 
                 lines = content.split("\n")
@@ -620,7 +620,7 @@ class UtilsPiped(ModuleBase):
                     result = num / val
             else:
                 try:
-                    result = eval(expr.replace(" ", ""))  # noqa: S307
+                    result = eval(expr.replace(" ", ""))
                 except Exception:
                     if num is not None:
                         result = num

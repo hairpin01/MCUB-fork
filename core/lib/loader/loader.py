@@ -6,12 +6,12 @@ from __future__ import annotations
 import asyncio
 import importlib.util
 import inspect
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-import os
 
 from ..utils.exceptions import CommandConflictError
 
@@ -423,7 +423,7 @@ class ModuleLoader:
 
     def _find_module_base_class(self, module) -> type | None:
         """Return the first class in *module* that inherits from ModuleBase, or None."""
-        for name, obj in inspect.getmembers(module, inspect.isclass):
+        for _name, obj in inspect.getmembers(module, inspect.isclass):
             if issubclass(obj, ModuleBase) and obj is not ModuleBase:
                 return obj
         return None
@@ -996,7 +996,7 @@ class ModuleLoader:
                             ),
                             timeout=5.0,
                         )
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         k.logger.warning("log_error_from_exc timed out")
                     except Exception as log_err:
                         k.logger.error(f"log_error_from_exc failed: {log_err}")
@@ -1011,7 +1011,7 @@ class ModuleLoader:
                             ),
                             timeout=5.0,
                         )
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         k.logger.warning("log_error_from_exc timed out")
                     except Exception as log_err:
                         k.logger.error(f"log_error_from_exc failed: {log_err}")
@@ -1164,7 +1164,7 @@ class ModuleLoader:
                             ),
                             timeout=5.0,
                         )
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         k.logger.warning("log_error_from_exc timed out")
                     except Exception as log_err:
                         k.logger.error(f"log_error_from_exc failed: {log_err}")
@@ -1177,7 +1177,7 @@ class ModuleLoader:
                             k._log.log_error_from_exc(f"load_module:{file_name}"),
                             timeout=5.0,
                         )
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         k.logger.warning("log_error_from_exc timed out")
                     except Exception as log_err:
                         k.logger.error(f"log_error_from_exc failed: {log_err}")
@@ -1186,7 +1186,7 @@ class ModuleLoader:
                 k.clear_loading_module()
 
     async def _load_package_module(
-        self, module_name: str, init_file: str, k: "Kernel"
+        self, module_name: str, init_file: str, k: Kernel
     ) -> None:
         """Load a module that was installed as a package (from archive with local imports)."""
         import sys
@@ -1478,7 +1478,7 @@ class ModuleLoader:
 
                 if has_local_import:
                     # Copy entire directory structure for single modules with local imports
-                    for root, dirs, files in os.walk(temp_dir):
+                    for root, _dirs, files in os.walk(temp_dir):
                         rel_dir = os.path.relpath(root, temp_dir)
                         if rel_dir == ".":
                             continue
@@ -1922,7 +1922,7 @@ class ModuleLoader:
                 if not (os.path.isfile(fpath) and fname.endswith(".py")):
                     continue
                 try:
-                    with open(fpath, "r", encoding="utf-8") as f:
+                    with open(fpath, encoding="utf-8") as f:
                         code = f.read()
                     # Look for class with name attribute matching module_name
                     import re

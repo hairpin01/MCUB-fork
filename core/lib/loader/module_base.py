@@ -5,10 +5,10 @@ import asyncio
 import copy
 import inspect
 import logging
-from abc import ABC
-from typing import Any, Callable
-
 import uuid
+from abc import ABC
+from collections.abc import Callable
+from typing import Any
 
 
 class _ModuleLoggerAdapter(logging.LoggerAdapter):
@@ -44,7 +44,7 @@ def command(
         func._mcub_commands.append(
             (
                 pattern,
-                dict(alias=alias, doc=doc, doc_ru=doc_ru, doc_en=doc_en),
+                {"alias": alias, "doc": doc, "doc_ru": doc_ru, "doc_en": doc_en},
             )
         )
         return func
@@ -594,7 +594,7 @@ class ModuleBase(ABC):
         cls._error_handler_registry = []
         cls._inline_temp_registry = []
 
-        for name_attr, attr in cls.__dict__.items():
+        for _name_attr, attr in cls.__dict__.items():
             if not callable(attr):
                 continue
             if hasattr(attr, "_mcub_commands"):
@@ -1238,7 +1238,7 @@ class ModuleBase(ABC):
         import threading
         import time
 
-        lock = getattr(self.kernel, "_inline_cb_lock")
+        lock = self.kernel._inline_cb_lock
         cb_map = self.kernel.inline_callback_map
 
         with lock:
@@ -1520,9 +1520,10 @@ class ModuleBase(ABC):
         **button_kwargs,
     ) -> Any:
         """Internal method to create callback button."""
-        from telethon import Button
         import threading
         import time
+
+        from telethon import Button
 
         if not hasattr(self.kernel, "inline_callback_map"):
             self.kernel._inline_cb_lock = threading.Lock()
@@ -1554,7 +1555,7 @@ class ModuleBase(ABC):
 
         tok = uuid.uuid4().hex
 
-        lock = getattr(self.kernel, "_inline_cb_lock")
+        lock = self.kernel._inline_cb_lock
         cb_map = self.kernel.inline_callback_map
 
         with lock:
@@ -1726,7 +1727,7 @@ class ModuleBase(ABC):
                 )
                 expanded = {}
                 for lang in ("ru", "en", "uk", "de", "es", "fr", "it", "pt"):
-                    expanded[lang] = {k: v for k, v in strings_dict.items()}
+                    expanded[lang] = dict(strings_dict.items())
                 strings_dict = expanded
 
             self._strings = Strings(self.kernel, strings_dict)

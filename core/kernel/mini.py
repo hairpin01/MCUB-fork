@@ -85,7 +85,9 @@ class Kernel(_StandardKernel):
                 from telethon.errors import RPCError
 
                 lang = self.config.get("language", "ru")
-                s = _get_kernel_strings(lang)
+                from core.langpacks import get_kernel_strings
+
+                s = get_kernel_strings(lang)
 
                 if isinstance(e, RPCError):
                     try:
@@ -137,7 +139,9 @@ class Kernel(_StandardKernel):
 
                     em_alembic = '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>'
                     lang = self.config.get("language", "ru")
-                    s = _get_kernel_strings(lang)
+                    from core.langpacks import get_kernel_strings
+
+                    s = get_kernel_strings(lang)
                     await self.client.edit_message(
                         restart_chat_id,
                         restart_msg_id,
@@ -251,7 +255,9 @@ class Kernel(_StandardKernel):
             mod_s = round(modules_end - modules_start, 2)
 
             lang = self.config.get("language", "ru")
-            s = _get_kernel_strings(lang)
+            from core.langpacks import get_kernel_strings
+
+            s = get_kernel_strings(lang)
 
             if not self.client.is_connected():
                 return

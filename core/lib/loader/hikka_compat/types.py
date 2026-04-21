@@ -5,11 +5,12 @@ import copy as _copy
 import time as _time
 import types as _types
 import typing as _typing
+from collections.abc import Callable
 from importlib.abc import SourceLoader as _SourceLoader
-from typing import Any, Callable, Optional, Union
+from typing import Union
 
 JSONSerializable = Union[str, int, float, bool, list, dict, None]
-HerokuReplyMarkup = Union[_typing.List[_typing.List[dict]], _typing.List[dict], dict]
+HerokuReplyMarkup = Union[list[list[dict]], list[dict], dict]
 ListLike = Union[list, set, tuple]
 Command = Callable[..., _typing.Awaitable[_typing.Any]]
 
@@ -43,7 +44,7 @@ class LoadError(Exception):
 
 
 class CoreOverwriteError(LoadError):
-    def __init__(self, module: Optional[str] = None, command: Optional[str] = None):
+    def __init__(self, module: str | None = None, command: str | None = None):
         self.type = "module" if module else "command"
         self.target = module or command
         super().__init__(str(self))
@@ -169,7 +170,7 @@ class CacheRecordFullUser:
 
 
 def _get_members(
-    mod, ending: str, attribute: Optional[str] = None, strict: bool = False
+    mod, ending: str, attribute: str | None = None, strict: bool = False
 ) -> dict:
     result = {}
     for method_name in dir(type(mod)):

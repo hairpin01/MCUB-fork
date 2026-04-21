@@ -8,6 +8,7 @@ import json
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
+
 from telethon import events
 
 from core.lib.loader.module_base import ModuleBase, command

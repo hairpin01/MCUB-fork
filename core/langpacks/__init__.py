@@ -1,18 +1,20 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлька | @hairpin01
 
+"""Language packs management for MCUB."""
+
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any
 
 __all__ = [
-    "get_langpacks",
     "LANGPACKS",
-    "get_available_locales",
-    "get_module_strings",
     "get_all_module_strings",
+    "get_available_locales",
+    "get_kernel_strings",
+    "get_langpacks",
+    "get_module_strings",
 ]
 
 _LANGPACKS_DIR = Path(__file__).parent
@@ -29,15 +31,13 @@ def _load_yaml(file_path: Path) -> dict[str, Any]:
     try:
         import yaml
 
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             return yaml.safe_load(f) or {}
     except ImportError:
         return {}
 
 
 def get_langpacks(locale: str | None = None) -> dict[str, dict[str, str]]:
-    global LANGPACKS
-
     if LANGPACKS:
         if locale and locale in LANGPACKS:
             return {locale: LANGPACKS[locale]}
@@ -59,6 +59,13 @@ def get_langpacks(locale: str | None = None) -> dict[str, dict[str, str]]:
     if locale and locale in LANGPACKS:
         return {locale: LANGPACKS[locale]}
     return LANGPACKS
+
+
+def get_kernel_strings(locale: str = "ru") -> dict[str, str]:
+    """Get kernel strings for the specified locale."""
+    packs = get_langpacks()
+    locale_data = packs.get(locale, {})
+    return locale_data.get("kernel", {})
 
 
 def get_module_strings(module_name: str, locale: str = "ru") -> dict[str, str]:

@@ -28,7 +28,7 @@ from telethon.tl.functions.channels import (
     InviteToChannelRequest,
 )
 
-from core.lib.loader.module_base import ModuleBase, command, callback, loop
+from core.lib.loader.module_base import ModuleBase, callback, command
 from core.lib.loader.module_config import (
     Boolean,
     Choice,
@@ -904,7 +904,7 @@ class Backup(ModuleBase):
         except ChannelsTooMuchError:
             await self.kernel.log_warning(
                 "ChannelsTooMuchError: cannot create backup group. "
-                f"Leave some channels or set an existing group via config."
+                "Leave some channels or set an existing group via config."
             )
             return None
         except Exception as e:

@@ -13,8 +13,6 @@ import math
 import time
 from collections import defaultdict, deque
 
-from utils.strings import Strings
-
 from telethon import Button
 from telethon.tl import TLRequest
 
@@ -27,6 +25,7 @@ from core.lib.loader.module_config import (
     ModuleConfig,
     String,
 )
+from utils.strings import Strings
 
 DEFAULT_CONFIG = {
     "time_sample": 30,
@@ -386,7 +385,7 @@ class RequestAnalyzer:
 
 def register(kernel):
     client = kernel.client
-    language = kernel.config.get("language", "en")
+    kernel.config.get("language", "en")
 
     strings_data = {"name": "api_protection"}
     strings = Strings(kernel, strings_data)

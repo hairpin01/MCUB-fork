@@ -3,14 +3,13 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import shutil
 
 from telethon import events
 
-from core.lib.loader.module_base import ModuleBase, command, callback
+from core.lib.loader.module_base import ModuleBase, callback, command
 from core.lib.loader.module_config import Boolean, ConfigValue, ModuleConfig
 from utils.strings import get_available_locales
 
@@ -49,7 +48,7 @@ class SettingsModule(ModuleBase):
         self.kernel.store_module_config_schema(self.name, self.config)
 
     def _s(self, key: str, **kwargs) -> str:
-        """Get localized string"""
+        """Get localized string."""
         text = self.strings(key)
         return text.format(**kwargs) if kwargs else text
 

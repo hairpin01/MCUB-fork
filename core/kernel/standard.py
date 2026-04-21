@@ -43,6 +43,7 @@ except Exception:
 
 try:
     from core.lib.utils.case_insensitive import CaseInsensitiveDict
+    from utils.strings import Strings
 
     from ..lib.base.client import ClientManager
     from ..lib.base.config import ConfigManager
@@ -62,7 +63,6 @@ try:
         setup_telegram_logging,
     )
     from ..version import VERSION, VersionManager
-    from utils.strings import Strings
 except Exception as error_module:
     tb = traceback.format_exc()
     print(f"⚠️, Error loaded lib modules!\n🔎, {error_module}!\n🗓, {tb}")

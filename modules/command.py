@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+
 from telethon import events
 
 from core.lib.loader.module_base import ModuleBase, bot_command, callback
@@ -103,7 +104,7 @@ class CommandModule(ModuleBase):
         await self.kernel.bot_client.send_file(
             event.chat_id, file="https://x0.at/Y4ie.mp4"
         )
-        gif_message = await self.kernel.bot_client.send_message(
+        await self.kernel.bot_client.send_message(
             event.chat_id,
             message=s["choose_language"],
             buttons=[
@@ -164,8 +165,6 @@ class CommandModule(ModuleBase):
 
         if strings_dict:
             self._strings = Strings(self.kernel, strings_dict)
-
-        s = self.strings
 
         text = (
             f"<b>{self.strings('hello_installed')}</b>\n\n"

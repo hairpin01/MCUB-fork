@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлька | @hairpin01
 
-import asyncio
 import ast
+import asyncio
 import contextlib
 import html
 import importlib.machinery
@@ -17,8 +17,9 @@ import sys
 import time
 import types
 import uuid
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 import aiohttp
 
@@ -71,7 +72,7 @@ class _StringsShim:
         self._base = getattr(mod, "strings", {})
         self.external_strings: dict = {}
 
-    def get(self, key: str, lang: Optional[str] = None) -> str:
+    def get(self, key: str, lang: str | None = None) -> str:
         return self[key]
 
     def __getitem__(self, key: str) -> str:
@@ -432,7 +433,7 @@ class _CompatSecurityManager:
         return getattr(obj, "security", 0)
 
     def add_rule(
-        self, target_type: str, target, rule: str, duration: Optional[int] = None
+        self, target_type: str, target, rule: str, duration: int | None = None
     ):
         store = self.tsec_user if target_type == "user" else self.tsec_chat
         store.append(
@@ -445,7 +446,7 @@ class _CompatSecurityManager:
         )
         return True
 
-    def remove_rule(self, target_type: str, target, rule: Optional[str] = None):
+    def remove_rule(self, target_type: str, target, rule: str | None = None):
         store = self.tsec_user if target_type == "user" else self.tsec_chat
         target_id = getattr(target, "id", target)
         for item in list(store):
@@ -589,7 +590,7 @@ class DbProxy:
         values.update(key.split(":", maxsplit=1)[0] for key in self._mem)
         return list(values)
 
-    def clear(self, module: Optional[str] = None) -> bool:
+    def clear(self, module: str | None = None) -> bool:
         if module is None:
             prefix = f"{self._module_name}:"
             for key in list(self._mem):
@@ -743,7 +744,7 @@ def _module_matches_name(key: str, inst, lowered: str) -> bool:
     return str(class_name).lower() == lowered
 
 
-def _instance_owner_names(instance, module_name: Optional[str] = None) -> list[str]:
+def _instance_owner_names(instance, module_name: str | None = None) -> list[str]:
     names = []
     raw_strings = getattr(type(instance), "__dict__", {}).get("strings", {})
     display_name = raw_strings.get("name") if isinstance(raw_strings, dict) else None
@@ -773,7 +774,7 @@ class _CompatRemoteStorage:
     def __init__(self, kernel):
         self._kernel = kernel
 
-    async def fetch(self, url: str, auth: Optional[str] = None) -> str:
+    async def fetch(self, url: str, auth: str | None = None) -> str:
         url = _normalize_source_url(str(url))
         session = getattr(self._kernel, "session", None)
         own_session = session is None or getattr(session, "closed", False)
@@ -815,7 +816,7 @@ class _CompatLoaderProxy:
         self.allmodules = getattr(kernel, "_hikka_compat_allmodules_proxy", None)
         if self.allmodules is None:
             self.allmodules = _AllModulesStub(kernel)
-            setattr(kernel, "_hikka_compat_allmodules_proxy", self.allmodules)
+            kernel._hikka_compat_allmodules_proxy = self.allmodules
 
     def __getattr__(self, name: str):
         if self._module is not None and hasattr(self._module, name):
@@ -861,11 +862,11 @@ class _BotProxy:
         return getattr(k, "client", None)
 
     @property
-    def id(self) -> Optional[int]:
+    def id(self) -> int | None:
         return self._inline_proxy.bot_id
 
     @property
-    def username(self) -> Optional[str]:
+    def username(self) -> str | None:
         return self._inline_proxy.bot_username
 
     async def __call__(self, value):
@@ -932,10 +933,10 @@ class _BotProxy:
     def _resolve_message_target(
         self,
         *,
-        chat_id: Optional[int] = None,
-        message_id: Optional[int] = None,
-        inline_message_id: Optional[str] = None,
-    ) -> tuple[Optional[int], Optional[int]]:
+        chat_id: int | None = None,
+        message_id: int | None = None,
+        inline_message_id: str | None = None,
+    ) -> tuple[int | None, int | None]:
         if chat_id is not None and message_id is not None:
             return chat_id, message_id
 
@@ -950,11 +951,11 @@ class _BotProxy:
 
     async def edit_message_text(
         self,
-        chat_id: Optional[int] = None,
-        message_id: Optional[int] = None,
+        chat_id: int | None = None,
+        message_id: int | None = None,
         text: str = "",
         reply_markup=None,
-        inline_message_id: Optional[str] = None,
+        inline_message_id: str | None = None,
         **kwargs,
     ):
         client = self._client
@@ -977,10 +978,10 @@ class _BotProxy:
 
     async def edit_message_reply_markup(
         self,
-        chat_id: Optional[int] = None,
-        message_id: Optional[int] = None,
+        chat_id: int | None = None,
+        message_id: int | None = None,
         reply_markup=None,
-        inline_message_id: Optional[str] = None,
+        inline_message_id: str | None = None,
         **kwargs,
     ):
         client = self._client
@@ -1007,7 +1008,7 @@ class InlineProxy:
         state = getattr(kernel, "_hikka_compat_inline_state", None)
         if not isinstance(state, dict):
             state = {}
-            setattr(kernel, "_hikka_compat_inline_state", state)
+            kernel._hikka_compat_inline_state = state
 
         state.setdefault("units", {})
         state.setdefault("custom_map", {})
@@ -1015,8 +1016,8 @@ class InlineProxy:
         self._custom_map: dict = state["custom_map"]
 
         # Expose global storages for bridge code in other runtime layers.
-        setattr(kernel, "_hikka_compat_inline_units", self._units)
-        setattr(kernel, "_hikka_compat_inline_custom_map", self._custom_map)
+        kernel._hikka_compat_inline_units = self._units
+        kernel._hikka_compat_inline_custom_map = self._custom_map
 
         self._module = None
         self._module_name = "hikka_compat"
@@ -1042,7 +1043,7 @@ class InlineProxy:
         return self.bot
 
     @property
-    def bot_id(self) -> Optional[int]:
+    def bot_id(self) -> int | None:
         inline = getattr(self._kernel, "_inline", None)
         if inline is not None:
             bid = getattr(inline, "bot_id", None)
@@ -1051,7 +1052,7 @@ class InlineProxy:
         return None
 
     @property
-    def bot_username(self) -> Optional[str]:
+    def bot_username(self) -> str | None:
         inline = getattr(self._kernel, "_inline", None)
         if inline is not None:
             uname = getattr(inline, "bot_username", None)
@@ -1064,7 +1065,7 @@ class InlineProxy:
         current = (self.bot_username or "").strip("@").lower()
         return bool(current and current == str(username).strip("@").lower())
 
-    def _derive_chat_id(self, message) -> Optional[int]:
+    def _derive_chat_id(self, message) -> int | None:
         if message is None:
             return None
         if hasattr(message, "chat_id"):
@@ -1116,7 +1117,7 @@ class InlineProxy:
         self,
         markup,
         *,
-        unit_id: Optional[str] = None,
+        unit_id: str | None = None,
         force_me: bool = False,
         always_allow=None,
         disable_security: bool = False,
@@ -1204,7 +1205,7 @@ class InlineProxy:
                     cb_map = getattr(self._kernel, "inline_callback_map", None)
                     if cb_map is None:
                         cb_map = {}
-                        setattr(self._kernel, "inline_callback_map", cb_map)
+                        self._kernel.inline_callback_map = cb_map
 
                     ttl = getattr(self, "_current_form_ttl", 3600)
                     import time as _time
@@ -1429,7 +1430,7 @@ class InlineProxy:
         return None
 
     async def dispatch_callback(
-        self, call_data: str, call=None, unit_id: Optional[str] = None
+        self, call_data: str, call=None, unit_id: str | None = None
     ) -> bool:
         payload = self._custom_map.get(str(call_data))
         if not payload:
@@ -1459,18 +1460,18 @@ class InlineProxy:
         reply_markup=None,
         *,
         force_me: bool = False,
-        always_allow: list = None,
+        always_allow: list | None = None,
         manual_security: bool = False,
         disable_security: bool = False,
-        ttl: int = None,
-        on_unload: callable = None,
-        photo: str = None,
-        gif: str = None,
-        file: str = None,
-        mime_type: str = None,
-        video: str = None,
-        location: tuple = None,
-        audio: dict = None,
+        ttl: int | None = None,
+        on_unload: callable | None = None,
+        photo: str | None = None,
+        gif: str | None = None,
+        file: str | None = None,
+        mime_type: str | None = None,
+        video: str | None = None,
+        location: tuple | None = None,
+        audio: dict | None = None,
         silent: bool = False,
         **kwargs,
     ):
@@ -1686,7 +1687,7 @@ class InlineProxy:
         force_me: bool = False,
         always_allow: list = None,
         disable_security: bool = False,
-        ttl: int = None,
+        ttl: int | None = None,
         silent: bool = False,
         **kwargs,
     ):
@@ -1827,8 +1828,8 @@ class InlineProxy:
         callback: Callable[[int], Any],
         total_pages: int,
         *,
-        unit_id: Optional[str] = None,
-        current_page: Optional[int] = None,
+        unit_id: str | None = None,
+        current_page: int | None = None,
     ):
         if not callable(callback) or total_pages <= 1:
             return []
@@ -1854,7 +1855,7 @@ class InlineProxy:
             )
         return [buttons]
 
-    def sanitise_text(self, text: Optional[str]) -> str:
+    def sanitise_text(self, text: str | None) -> str:
         from .inline_utils import sanitise_text as _sanitise_text
 
         return _sanitise_text(text or "")
@@ -1863,7 +1864,7 @@ class InlineProxy:
         self,
         *,
         func: Callable,
-        user: Optional[int] = None,
+        user: int | None = None,
     ) -> bool:
         dispatcher = getattr(getattr(self._kernel, "client", None), "dispatcher", None)
         security = getattr(dispatcher, "security", None)
@@ -1973,18 +1974,18 @@ class InlineProxy:
 
     async def _edit_unit(
         self,
-        text: Optional[str] = None,
+        text: str | None = None,
         *,
-        unit_id: Optional[str] = None,
-        inline_message_id: Optional[str] = None,
-        chat_id: Optional[int] = None,
-        message_id: Optional[int] = None,
+        unit_id: str | None = None,
+        inline_message_id: str | None = None,
+        chat_id: int | None = None,
+        message_id: int | None = None,
         reply_markup=None,
-        photo: Optional[str] = None,
-        gif: Optional[str] = None,
-        file: Optional[str] = None,
-        video: Optional[str] = None,
-        audio: Optional[dict] = None,
+        photo: str | None = None,
+        gif: str | None = None,
+        file: str | None = None,
+        video: str | None = None,
+        audio: dict | None = None,
         **kwargs,
     ):
         from .inline_types import InlineMessage as _InlineMessage
@@ -2058,9 +2059,9 @@ class InlineProxy:
         self,
         call=None,
         *,
-        unit_id: Optional[str] = None,
-        chat_id: Optional[int] = None,
-        message_id: Optional[int] = None,
+        unit_id: str | None = None,
+        chat_id: int | None = None,
+        message_id: int | None = None,
         keep_unit: bool = False,
     ) -> bool:
         found_id, unit = self._find_unit(
@@ -2149,7 +2150,7 @@ class InlineProxy:
 
 
 def _get_members(
-    mod, ending: str, attribute: Optional[str] = None, strict: bool = False
+    mod, ending: str, attribute: str | None = None, strict: bool = False
 ) -> dict:
     result = {}
     for method_name in dir(type(mod)):
@@ -2179,14 +2180,14 @@ class _AllModulesStub:
         self.db = getattr(kernel, "_hikka_compat_db_facade", None)
         if self.db is None:
             self.db = _KernelDbFacade(kernel)
-            setattr(kernel, "_hikka_compat_db_facade", self.db)
+            kernel._hikka_compat_db_facade = self.db
         self.client = kernel.client
         self.inline = None
         self.allclients = [kernel.client]
         self.translator = getattr(kernel, "_hikka_compat_translator", None)
         if self.translator is None:
             self.translator = _CompatTranslatorFacade()
-            setattr(kernel, "_hikka_compat_translator", self.translator)
+            kernel._hikka_compat_translator = self.translator
         self._libraries = getattr(kernel, "_hikka_compat_libraries", [])
         self.aliases = getattr(kernel, "aliases", {})
         self.secure_boot = bool(getattr(kernel, "secure_boot", False))
@@ -2382,20 +2383,20 @@ class _AllModulesStub:
     def register_watchers(self, instance) -> int:
         watchers = getattr(self._kernel, "_hikka_compat_watchers", [])
         watchers.append(instance)
-        setattr(self._kernel, "_hikka_compat_watchers", watchers)
+        self._kernel._hikka_compat_watchers = watchers
         return len(get_watchers(instance))
 
     def unregister_watchers(self, instance, *_args) -> int:
         watchers = getattr(self._kernel, "_hikka_compat_watchers", [])
         if instance in watchers:
             watchers.remove(instance)
-        setattr(self._kernel, "_hikka_compat_watchers", watchers)
+        self._kernel._hikka_compat_watchers = watchers
         return len(get_watchers(instance))
 
     def register_raw_handlers(self, instance) -> int:
         handlers = getattr(self._kernel, "_hikka_compat_raw_handlers", [])
         handlers.append(instance)
-        setattr(self._kernel, "_hikka_compat_raw_handlers", handlers)
+        self._kernel._hikka_compat_raw_handlers = handlers
         return len(
             [
                 getattr(instance, name)
@@ -2409,7 +2410,7 @@ class _AllModulesStub:
         handlers = getattr(self._kernel, "_hikka_compat_raw_handlers", [])
         if instance in handlers:
             handlers.remove(instance)
-        setattr(self._kernel, "_hikka_compat_raw_handlers", handlers)
+        self._kernel._hikka_compat_raw_handlers = handlers
         return True
 
     def send_config_one(self, instance) -> bool:
@@ -2473,7 +2474,7 @@ class Module:
 
         if not hasattr(kernel, "_hikka_compat_inline_proxy"):
             inline_proxy = InlineProxy(kernel)
-            setattr(kernel, "_hikka_compat_inline_proxy", inline_proxy)
+            kernel._hikka_compat_inline_proxy = inline_proxy
         else:
             inline_proxy = kernel._hikka_compat_inline_proxy
 
@@ -2619,7 +2620,7 @@ class Module:
     async def invoke(
         self,
         command: str,
-        args: Optional[str] = None,
+        args: str | None = None,
         peer=None,
         message=None,
         edit: bool = False,
@@ -2661,7 +2662,7 @@ class Module:
         _did_requirements: bool = False,
     ):
         from .loader import USER_INSTALL, VALID_PIP_PACKAGES
-        from .types import SelfSuspend, StringLoader
+        from .types import StringLoader
 
         _suspended = False
 
@@ -2775,7 +2776,7 @@ class Module:
         libraries = getattr(self._kernel, "_hikka_compat_libraries", None)
         if not isinstance(libraries, list):
             libraries = []
-            setattr(self._kernel, "_hikka_compat_libraries", libraries)
+            self._kernel._hikka_compat_libraries = libraries
 
         existing = next(
             (
@@ -2859,7 +2860,7 @@ class _Utils:
         return f"tg://user?id={uid}"
 
     @staticmethod
-    def mention(user, name: Optional[str] = None) -> str:
+    def mention(user, name: str | None = None) -> str:
         uid = getattr(user, "id", None)
         display = name or getattr(user, "first_name", None) or str(uid or "?")
         if uid:
@@ -2874,7 +2875,7 @@ class _Utils:
             return None
 
     @staticmethod
-    async def get_target(message, args: Optional[str] = None):
+    async def get_target(message, args: str | None = None):
         try:
             reply = await message.get_reply_message()
             if reply:

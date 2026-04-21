@@ -6,7 +6,6 @@ from __future__ import annotations
 import asyncio
 import getpass
 import os
-import platform
 import re
 import socket
 import subprocess
@@ -20,10 +19,9 @@ try:
 except ImportError:
     _psutil = None
 
-from telethon import functions
 from telethon.tl.types import InputMediaWebPage
 
-from core.lib.loader.module_base import ModuleBase, command, callback
+from core.lib.loader.module_base import ModuleBase, callback, command
 from core.lib.loader.module_config import (
     Boolean,
     ConfigValue,

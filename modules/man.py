@@ -8,6 +8,7 @@ import json
 import os
 from html import escape
 from typing import Any
+
 from telethon import Button, events
 from telethon.tl.types import (
     DocumentAttributeImageSize,
@@ -596,7 +597,7 @@ class ManModule(ModuleBase):
         else:
             buttons.append([Button.inline("❌ " + s["close"], data="man_close")])
 
-        if getattr(self.kernel, "load_kernel"):
+        if self.kernel.load_kernel:
             if self.kernel.load_kernel != "full":
                 msg += f"<blockquote>{self.strings('kernel_not_full_loaded', status=self.kernel.load_kernel)}</blockquote>"
 
@@ -617,7 +618,7 @@ class ManModule(ModuleBase):
                 kernel = self.kernel
                 cmds_by_mod = {}
 
-                for cmd, handler in kernel.command_handlers.items():
+                for cmd, _handler in kernel.command_handlers.items():
                     mod_name = kernel.command_owners.get(cmd, "unknown")
                     if mod_name not in cmds_by_mod:
                         cmds_by_mod[mod_name] = []

@@ -144,7 +144,7 @@ class Strings:
         if value is not None:
             return value
 
-        for locale, locale_dict in self._data.items():
+        for _locale, locale_dict in self._data.items():
             if locale_dict and key in locale_dict:
                 return locale_dict[key]
 

@@ -8,9 +8,9 @@ from __future__ import annotations
 # description: Trusted users can execute owner commands / Доверенные пользователи могут выполнять команды владельца
 import json
 
+from core.langpacks import get_all_module_strings
 from core_inline.api.inline import make_cb_button
 from core_inline.lib.manager import InlineManager
-from core.langpacks import get_all_module_strings
 from utils.strings import Strings
 
 ACCESS_CATEGORIES = {

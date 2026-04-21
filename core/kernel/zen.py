@@ -50,6 +50,7 @@ except Exception:
 
 try:
     from core.lib.utils.case_insensitive import CaseInsensitiveDict
+    from utils.strings import Strings
 
     from ..lib.base.client import ClientManager
     from ..lib.base.config import ConfigManager
@@ -66,7 +67,6 @@ try:
     from ..lib.utils.exceptions import CommandConflictError
     from ..lib.utils.logger import KernelLogger, setup_logging
     from ..version import VERSION, VersionManager
-    from utils.strings import Strings
 except ImportError as e:
     sys.exit(
         f"[kernel] failed to import internal modules: {e}\n{traceback.format_exc()}"

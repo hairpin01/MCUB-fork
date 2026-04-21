@@ -9,21 +9,15 @@ from __future__ import annotations
 import asyncio
 import os
 import random
-import re
 import subprocess
-
-import aiohttp
 
 from utils.restart import restart_kernel
 
 
 def register(kernel):
-    client = kernel.client
     from utils.strings import Strings
 
     strings = Strings(kernel, {"name": "updates"})
-
-    lang = kernel.config.get("language", "en")
 
     emojis = [
         "ಠ_ಠ",

@@ -32,7 +32,7 @@ def register(kernel):
     client = kernel.client
     bot_client = kernel.bot_client
 
-    language = kernel.config.get("language", "en")
+    kernel.config.get("language", "en")
 
     strings_data = {"name": "log_bot"}
     strings = Strings(kernel, strings_data)

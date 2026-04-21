@@ -3,7 +3,8 @@
 
 import random
 import re
-from typing import Any, Iterable, Optional
+from collections.abc import Iterable
+from typing import Any
 from urllib.parse import urlparse
 
 
@@ -14,7 +15,7 @@ class ValidationError(Exception):
 class Validator:
     secret = False
 
-    def __init__(self, doc: Any = None, internal_id: Optional[str] = None):
+    def __init__(self, doc: Any = None, internal_id: str | None = None):
         self.doc = doc or {"en": ""}
         self.internal_id = internal_id or type(self).__name__
 
@@ -148,9 +149,9 @@ class Series(Validator):
         self,
         separator: str = ",",
         *,
-        min_len: Optional[int] = None,
-        max_len: Optional[int] = None,
-        validator: Optional[Validator] = None,
+        min_len: int | None = None,
+        max_len: int | None = None,
+        validator: Validator | None = None,
     ):
         super().__init__({"en": "series value"}, "Series")
         self.separator = separator
@@ -215,7 +216,7 @@ class Link(Validator):
 class Hidden(Validator):
     secret = True
 
-    def __init__(self, validator: Optional[Validator] = None):
+    def __init__(self, validator: Validator | None = None):
         super().__init__({"en": "hidden value"}, "Hidden")
         self.validator = validator
 
@@ -262,7 +263,7 @@ class Union(Validator):
 
 
 class Emoji(String):
-    def __init__(self, *, length: Optional[int] = None):
+    def __init__(self, *, length: int | None = None):
         super().__init__(min_len=1)
         self.length = length
         self.internal_id = "Emoji"
@@ -277,7 +278,7 @@ class Emoji(String):
 
 
 class RandomLinkList(list):
-    def random(self) -> Optional[str]:
+    def random(self) -> str | None:
         return random.choice(self) if self else None
 
 

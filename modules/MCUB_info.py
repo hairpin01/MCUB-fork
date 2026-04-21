@@ -12,11 +12,9 @@ import subprocess
 import time
 from copy import copy
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 import psutil
-from telethon import functions
 from telethon.tl.types import InputMediaWebPage, MessageEntityTextUrl
 
 from core.lib.loader.module_base import ModuleBase, command
@@ -408,7 +406,7 @@ class MCUBInfoMod(ModuleBase):
             else:
                 await msg.edit(info_text, parse_mode="html")
 
-        except Exception as e:
+        except Exception:
             import traceback
 
             self.log.error(f"Info error: {traceback.format_exc()}")

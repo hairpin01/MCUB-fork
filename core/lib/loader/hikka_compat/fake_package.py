@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлька | @hairpin01
 
-import asyncio
 import ast
+import asyncio
 import contextlib
 import hashlib
 import importlib
@@ -12,63 +12,60 @@ import re
 import sys
 import traceback
 import types
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     pass
 
-from .validators import validators
-from .config import ConfigValue, ModuleConfig, LibraryConfig
+from . import security
+from . import translat as translations
+from .config import ConfigValue, LibraryConfig, ModuleConfig
+from .decorators import (
+    InfiniteLoop,
+    Placeholder,
+    callback_handler,
+    command,
+    debug_method,
+    inline_handler,
+    loop,
+    on,
+    raw_handler,
+    tag,
+    tds,
+    watcher,
+)
 from .runtime import (
-    Module,
-    Library,
     DbProxy,
     InlineProxy,
+    Library,
+    Module,
     _AllModulesStub,
     _CallableStringsDict,
     _instance_owner_names,
     _StringsShim,
     _translator_stub,
 )
-from .decorators import (
-    tds,
-    tag,
-    command,
-    inline_handler,
-    callback_handler,
-    watcher,
-    on,
-    loop,
-    raw_handler,
-    debug_method,
-    InfiniteLoop,
-    Placeholder,
-)
-from .utils import _Utils
-from . import security
-from . import translat as translations
 from .types import (
-    JSONSerializable,
-    HerokuReplyMarkup,
-    ListLike,
     Command,
-    StringLoader,
-    LoadError,
     CoreOverwriteError,
     CoreUnloadError,
-    SelfUnload,
+    HerokuReplyMarkup,
+    JSONSerializable,
+    ListLike,
+    LoadError,
     SelfSuspend,
+    SelfUnload,
     StopLoop,
-    CacheRecordEntity,
-    CacheRecordPerms,
-    CacheRecordFullChannel,
-    CacheRecordFullUser,
+    StringLoader,
+    get_callback_handlers,
     get_commands,
     get_inline_handlers,
-    get_callback_handlers,
     get_watchers,
 )
+from .utils import _Utils
+from .validators import validators
 
 
 def _parse_saved_config(raw: Any) -> dict:
@@ -549,7 +546,7 @@ def _ensure_herokutl_stub() -> None:
     types_mod = types.ModuleType("herokutl.types")
 
     class InputMediaWebPage:
-        def __init__(self, url: Optional[str] = None, **kwargs):
+        def __init__(self, url: str | None = None, **kwargs):
             self.url = url
             self.kwargs = kwargs
 
@@ -884,8 +881,9 @@ def _ensure_fake_package() -> str:
 
     try:
         from core.lib.loader.module_config import (
-            ModuleConfig as _MCUBModuleConfig,
             ConfigValue as _MCUBConfigValue,
+        )
+        from core.lib.loader.module_config import (
             Validator as _MCUBValidator,
         )
 
@@ -966,7 +964,7 @@ def _ensure_fake_package() -> str:
                         else:
                             docs.append(entry)
 
-                    for key, default, doc in zip(keys, defaults, docs):
+                    for key, default, doc in zip(keys, defaults, docs, strict=False):
                         cv = _HikkaCompatibleConfigValue(
                             option=key,
                             default=default,
@@ -1139,8 +1137,6 @@ def _ensure_fake_package() -> str:
     loader_mod.LOADED_MODULES_PATH = Path("modules_loaded")
     loader_mod.set_session_access_hashes = _set_session_access_hashes
     loader_mod.get_module_hash = _get_module_hash
-
-    from . import security
 
     loader_mod.owner = security.owner
     loader_mod.group_owner = security.group_owner
@@ -1320,7 +1316,7 @@ def _create_system_stub(pkg_name: str) -> None:
     sys.modules[pkg_name] = stub
 
 
-def _find_module_class(mod_obj: types.ModuleType) -> Optional[type]:
+def _find_module_class(mod_obj: types.ModuleType) -> type | None:
     candidates: list[type] = []
     for name in dir(mod_obj):
         obj = getattr(mod_obj, name, None)
@@ -1564,7 +1560,7 @@ async def load_hikka_module(
 
     for _attempt in range(_MAX_DEP_RETRIES):
         try:
-            exec(code, mod_obj.__dict__)  # noqa: S102
+            exec(code, mod_obj.__dict__)
             break
         except ModuleNotFoundError as e:
             missing_pkg = e.name.split(".")[0] if e.name else None
@@ -1882,13 +1878,13 @@ async def load_hikka_module(
         from telethon import events as _tl_events
 
         @kernel.client.on(_tl_events.CallbackQuery())
-        async def _callback_bridge(
-            event, _handlers=list(callback_map.values()), _mn=module_name
-        ):
+        async def _callback_bridge(event, _handlers=None, _mn=module_name):
+            if _handlers is None:
+                _handlers = list(callback_map.values())
             if not getattr(instance, "_hikka_compat_ready", False):
                 return
 
-            from .inline_types import InlineCall, BotInlineCall
+            from .inline_types import BotInlineCall, InlineCall
 
             inline_proxy = getattr(instance, "inline", None)
             is_bot_message = (

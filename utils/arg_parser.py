@@ -7,8 +7,8 @@ from __future__ import annotations
 # version: 1.0.0
 # description: MCUB command argument parser
 import shlex
-from typing import Any
 from dataclasses import dataclass
+from typing import Any
 
 
 class ArgumentParser:

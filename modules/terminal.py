@@ -201,7 +201,7 @@ def register(kernel):
                     output += stderr.decode("utf-8", errors="ignore")
                 return output
             except Exception as e:
-                return f"Error: {str(e)}"
+                return f"Error: {e!s}"
 
         async def _read_output(self, chat_id):
             """Reads stdout/stderr in chunks and signals update_loop about new data."""

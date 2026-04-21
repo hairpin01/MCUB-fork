@@ -16,14 +16,14 @@ class InlineMarkupBuilder:
     """Helper class to build inline markups for hikka compat"""
 
     def __init__(self):
-        self._buttons: typing.List[typing.List[dict]] = []
+        self._buttons: list[list[dict]] = []
 
     def add(
         self,
         text: str,
-        callback: typing.Optional[typing.Union[str, typing.Callable]] = None,
-        url: typing.Optional[str] = None,
-        input: typing.Optional[str] = None,
+        callback: str | typing.Callable | None = None,
+        url: str | None = None,
+        input: str | None = None,
         **kwargs,
     ) -> "InlineMarkupBuilder":
         button: dict = {"text": text}
@@ -50,7 +50,7 @@ class InlineMarkupBuilder:
         self._buttons.append([])
         return self
 
-    def build(self) -> typing.List[typing.List[dict]]:
+    def build(self) -> list[list[dict]]:
         return [row for row in self._buttons if row]
 
     def __iter__(self):
@@ -61,13 +61,11 @@ class InlineMarkupBuilder:
 
 
 def generate_markup(
-    markup: typing.Optional[
-        typing.Union[typing.List[typing.List[dict]], typing.List[dict], dict, str]
-    ],
-    custom_map: typing.Optional[typing.Dict[str, dict]] = None,
+    markup: list[list[dict]] | list[dict] | dict | str | None,
+    custom_map: dict[str, dict] | None = None,
     inline_proxy=None,
-    unit_id: typing.Optional[str] = None,
-) -> typing.Optional[typing.List[typing.List[dict]]]:
+    unit_id: str | None = None,
+) -> list[list[dict]] | None:
     if not markup:
         return None
 
@@ -87,19 +85,19 @@ def generate_markup(
 
 
 def process_buttons(
-    buttons: typing.List[typing.List[dict]],
-    custom_map: typing.Optional[typing.Dict[str, dict]] = None,
+    buttons: list[list[dict]],
+    custom_map: dict[str, dict] | None = None,
     inline_proxy=None,
-    unit_id: typing.Optional[str] = None,
+    unit_id: str | None = None,
     ttl: int = 3600,
-) -> typing.List[typing.List[dict]]:
+) -> list[list[dict]]:
     if custom_map is None:
         custom_map = getattr(inline_proxy, "_custom_map", None)
 
-    result: typing.List[typing.List[dict]] = []
+    result: list[list[dict]] = []
 
     for row in _normalize_markup(buttons):
-        processed_row: typing.List[dict] = []
+        processed_row: list[dict] = []
         for button in row:
             if not isinstance(button, dict):
                 continue
@@ -134,7 +132,7 @@ def process_buttons(
                         cb_map = getattr(kernel, "inline_callback_map", None)
                         if cb_map is None:
                             cb_map = {}
-                            setattr(kernel, "inline_callback_map", cb_map)
+                            kernel.inline_callback_map = cb_map
 
                         from .inline_types import InlineCall
 
@@ -194,7 +192,7 @@ def _generate_id(length: int) -> str:
     return "".join(random.choices(string.ascii_letters + string.digits, k=length))
 
 
-def _normalize_markup(markup, inline_proxy=None) -> typing.List[typing.List[dict]]:
+def _normalize_markup(markup, inline_proxy=None) -> list[list[dict]]:
     if not markup:
         return []
 
@@ -216,9 +214,9 @@ def _normalize_markup(markup, inline_proxy=None) -> typing.List[typing.List[dict
         return []
 
     if any(isinstance(i, dict) for i in markup):
-        return [typing.cast(typing.List[dict], markup)]
+        return [typing.cast(list[dict], markup)]
 
-    normalized: typing.List[typing.List[dict]] = []
+    normalized: list[list[dict]] = []
     for row in markup:
         if isinstance(row, dict):
             normalized.append([row])
@@ -263,7 +261,7 @@ def _apply_action_button(button: dict, inline_proxy=None) -> None:
             )
 
 
-def _build_button(button: dict) -> typing.Optional[dict]:
+def _build_button(button: dict) -> dict | None:
     result: dict = {"text": str(button.get("text", ""))}
 
     style = button.get("style")
@@ -304,7 +302,7 @@ class InlineUnit:
     pass
 
 
-def sanitise_text(text: typing.Optional[str]) -> str:
+def sanitise_text(text: str | None) -> str:
     if not text:
         return ""
 
@@ -316,9 +314,9 @@ def sanitise_text(text: typing.Optional[str]) -> str:
 
 
 def _build_inline_results(
-    results: typing.List[dict],
-) -> typing.List[dict]:
-    processed: typing.List[dict] = []
+    results: list[dict],
+) -> list[dict]:
+    processed: list[dict] = []
 
     for result in results:
         processed_result = _process_single_result(result)
@@ -328,7 +326,7 @@ def _build_inline_results(
     return processed
 
 
-def _process_single_result(result: dict) -> typing.Optional[dict]:
+def _process_single_result(result: dict) -> dict | None:
     if not isinstance(result, dict):
         return None
 

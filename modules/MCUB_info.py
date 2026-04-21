@@ -12,11 +12,9 @@ import subprocess
 import time
 from copy import copy
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 import psutil
-from telethon import functions
 from telethon.tl.types import InputMediaWebPage, MessageEntityTextUrl
 
 from core.lib.loader.module_base import ModuleBase, command
@@ -147,16 +145,7 @@ class MCUBInfoMod(ModuleBase):
         ),
     )
 
-    strings: dict[str, dict[str, str]] = {
-        "en": {
-            "custom_text_error": "<b>Error in custom text format:</b> {error}",
-            "error_see_logs": "{warning} <b>Error, see logs</b>",
-        },
-        "ru": {
-            "custom_text_error": "<b>Ошибка в форматировании:</b> {error}",
-            "error_see_logs": "{warning} <b>Ошибка, смотри логи</b>",
-        },
-    }
+    strings: dict[str, dict[str, str]] = {"name": "mcub_info"}
 
     def _get_branch(self) -> str:
         return _detect_branch_sync()
@@ -417,7 +406,7 @@ class MCUBInfoMod(ModuleBase):
             else:
                 await msg.edit(info_text, parse_mode="html")
 
-        except Exception as e:
+        except Exception:
             import traceback
 
             self.log.error(f"Info error: {traceback.format_exc()}")

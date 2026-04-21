@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлька | @hairpin01
 
+import builtins
 import typing
 
 
@@ -17,7 +18,7 @@ class FakeClient:
         self._inline_proxy = inline_proxy
         self._is_hikka = is_hikka
         # per-instance default; never written to the real Telethon client
-        self._default_parse_mode: typing.Optional[str] = "html" if is_hikka else None
+        self._default_parse_mode: str | None = "html" if is_hikka else None
 
     async def send_message(
         self,
@@ -127,7 +128,7 @@ class FakeClient:
     async def animate(
         self,
         message: typing.Any,
-        frames: typing.List[str],
+        frames: builtins.list[str],
         interval: float = 1.0,
         *args,
         **kwargs,
@@ -145,7 +146,7 @@ class FakeClient:
     async def invoke(
         self,
         command: str,
-        args: str = None,
+        args: str | None = None,
         *args_,
         **kwargs,
     ) -> typing.Any:

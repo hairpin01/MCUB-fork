@@ -9,11 +9,11 @@ import sys
 import time
 import traceback
 from typing import Any
+
 from telethon import events
 
-
-from core.lib.loader.module_base import ModuleBase, command
 import core.lib.loader.module_base as loader
+from core.lib.loader.module_base import ModuleBase, command
 
 CUSTOM_EMOJI = {
     "🧿": '<tg-emoji emoji-id="5426900601101374618">🧿</tg-emoji>',
@@ -29,24 +29,7 @@ class EvalModule(ModuleBase):
     author = "@hairpin00"
     description = {"ru": "Выполнение Python кода", "en": "Python code execution"}
 
-    strings = {
-        "ru": {
-            "code": "Код",
-            "result": "Результат",
-            "result_file": "Результат отправлен файлом",
-            "result_in_message": "Результат в сообщении",
-            "executed_in": "Выполнено за",
-            "ms": "мс",
-        },
-        "en": {
-            "code": "Code",
-            "result": "Result",
-            "result_file": "Result sent as file",
-            "result_in_message": "Result in message",
-            "executed_in": "Executed in",
-            "ms": "ms",
-        },
-    }
+    strings = {"name": "eval"}
 
     @command(
         "py",

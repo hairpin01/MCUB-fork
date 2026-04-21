@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлька | @hairpin01
 
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 from .validators import ValidationError
 
@@ -13,8 +14,8 @@ class ConfigValue:
         default: Any = None,
         doc: Any = None,
         description: Any = None,
-        validator: Optional[Any] = None,
-        on_change: Optional[Callable] = None,
+        validator: Any | None = None,
+        on_change: Callable | None = None,
     ):
         self.option = option
         self.default = default
@@ -112,7 +113,7 @@ class ModuleConfig(dict):
 
             self._config = {
                 key: ConfigValue(option=key, default=default, doc=doc)
-                for key, default, doc in zip(keys, defaults, docs)
+                for key, default, doc in zip(keys, defaults, docs, strict=False)
             }
 
         super().__init__(

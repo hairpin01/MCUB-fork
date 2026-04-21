@@ -396,6 +396,15 @@ class Register:
             tg_client.add_event_handler(handler, event_obj)
 
             if _passed_module:
+                # Check for duplicate event handler
+                for existing in self._all_event_handlers:
+                    if existing[0] is handler and existing[1] is event_obj:
+                        self.kernel.logger.debug(
+                            "[register.event] skip duplicate event_type=%r handler=%r",
+                            event_type,
+                            getattr(handler, "__name__", repr(handler)),
+                        )
+                        return handler
                 self._all_event_handlers.append((handler, event_obj, tg_client))
 
             return handler
@@ -719,6 +728,21 @@ class Register:
                 type(event_obj).__name__,
             )
 
+            # Check for duplicate watcher registration
+            for existing in self._all_watchers:
+                existing_meta = existing[3] if len(existing) > 3 else {}
+                existing_key = self._watcher_key(
+                    existing_meta.get("module", ""),
+                    existing_meta.get("method", ""),
+                )
+                if existing_key == watcher_key:
+                    self.kernel.logger.debug(
+                        "[register.watcher] skip duplicate module=%r watcher=%r",
+                        module_name,
+                        watcher_name,
+                    )
+                    return f
+
             self._all_watchers.append(
                 (
                     _wrapper,
@@ -741,10 +765,13 @@ class Register:
                     **self.kernel.system_modules,
                 }.values():
                     reg = getattr(mod, "register", None)
-                    if reg is not None:
+                    # Only use existing Register if it's THE central one (self)
+                    # Don't use empty RegisterObject or other instances
+                    if reg is self:
                         target_module = mod
                         break
-            if target_module is not None:
+            # Only assign if target has no register OR we found central one
+            if target_module is not None and not hasattr(target_module, "register"):
                 target_module.register = self
 
             return f
@@ -818,6 +845,15 @@ class Register:
             if module:
                 reg = self._get_or_create_register(module)
                 loops: list[InfiniteLoop] = self._ensure_list(reg, "__loops__")
+                # Check for duplicate loop by checking function identity
+                for existing_loop in loops:
+                    if getattr(existing_loop, "func", None) is loop_caller:
+                        self.kernel.logger.debug(
+                            "[register.loop] skip duplicate interval=%r func=%r",
+                            interval,
+                            getattr(loop_caller, "__name__", repr(loop_caller)),
+                        )
+                        return il
                 loops.append(il)
 
             return il

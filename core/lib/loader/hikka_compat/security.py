@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Шмэлька | @hairpin01
 
 import types
-from typing import List, NamedTuple
+from typing import NamedTuple
 
 OWNER = 1 << 0
 SUDO = 1 << 1
@@ -120,8 +120,8 @@ support = _deprecated_sec("support")
 
 class SecurityGroup(NamedTuple):
     name: str
-    users: List[int]
-    permissions: List[dict]
+    users: list[int]
+    permissions: list[dict]
 
     def todict(self) -> dict:
         return {

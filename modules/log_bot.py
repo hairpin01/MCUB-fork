@@ -25,127 +25,18 @@ from telethon.tl.functions.messages import (
 )
 from telethon.tl.types import InputUserSelf
 
+from utils.strings import Strings
+
 
 def register(kernel):
     client = kernel.client
     bot_client = kernel.bot_client
 
-    language = kernel.config.get("language", "en")
+    kernel.config.get("language", "en")
 
-    strings = {
-        "ru": {
-            "git_timeout": "⚠️ Git: тайм-аут (нет сети)",
-            "updates_available": "🔄 Доступны обновления ({count})",
-            "up_to_date": "✅ Актуальная версия",
-            "git_error": "⚠️ Ошибка Git",
-            "setup_log_group": "🤖 Настройка лог-группы",
-            "searching_logs": "Ошибка поиска логов",
-            "creating_log_group": "📝 Создаю лог-группу...",
-            "bot_prepare_error": "Не удалось подготовить бота для добавления",
-            "chat_id_error": "❌ Не удалось получить ID созданного чата",
-            "avatar_error": "⚠️ Не удалось установить аватарку",
-            "invite_error": "⚠️ Не удалось получить ссылку (нет прав)",
-            "bot_added": "✅ Бот добавлен",
-            "bot_add_error": "⚠️ Не удалось добавить бота",
-            "chat_create_error": "❌ Ошибка создания чата",
-            "log_setup_title": "Настраиваю лог-группу...",
-            "log_setup_success": "✅ Лог-группа настроена",
-            "log_setup_fail": "❌ Не удалось настроить",
-            "test_title": "Тестирую отправку логов...",
-            "test_bot_available": "Бот доступен",
-            "test_bot_not_available": "Бот недоступен",
-            "test_bot_auth": "Бот авторизован",
-            "test_bot_not_auth": "Бот не авторизован",
-            "test_log_chat_id": "Лог-чат ID",
-            "test_not_set": "не установлен",
-            "test_time": "Время",
-            "test_success": "✅ Тестовое сообщение отправлено",
-            "test_fail": "❌ Не удалось отправить",
-            "test_error": "❌ Ошибка теста",
-            "log_status_on": "✅ включен",
-            "log_status_off": "❌ выключен",
-            "log_not_configured": "Не настроен",
-            "bot_running": "✅ запущен",
-            "bot_not_running": "❌ не запущен",
-            "errors_sent": "✅ отправляются",
-            "errors_not_sent": "❌ не отправляются",
-            "log_status_title": "Статус лог-бота",
-            "log_group": "Лог-группа",
-            "bot_sending": "Отправка через бота",
-            "errors": "Ошибки",
-            "startup_via_bot": "✅ Стартовое сообщение через бота",
-            "startup_via_userbot": "⚠️ Стартовое сообщение через юзербота",
-            "startup_error": "❌ Ошибка отправки",
-            "send_log_error": "❌ Не удалось отправить в лог",
-            "started": "started!",
-            "update_status": "Статус обновления",
-            "prefix": "Префикс",
-            "new_commits_header": '<tg-emoji emoji-id="5465300082628763143">💬</tg-emoji> <b>Доступно {count} обновлений на ветку</b> <code>{branch}</code>',
-            "new_commits_btn": "🔄 Обновить",
-            "update_running": '<tg-emoji emoji-id="5326015457155620929">📦</tg-emoji> <b>Обновляю...</b>',
-            "update_done": "✅ Обновлено до <code>{sha}</code>\n<blockquote>⚠️ Автоматическая перезагрузка</blockquote>",
-            "update_error": "❌ Ошибка обновления: <code>{error}</code>",
-            "update_no_log": "⚠️ Лог-чат не настроен, уведомления об обновлениях недоступны",
-            "and_more_commits": "... и ещё {} коммитов",
-        },
-        "en": {
-            "git_timeout": "⚠️ Git: timeout (no network)",
-            "updates_available": "🔄 Updates available ({count})",
-            "up_to_date": "✅ Up to date",
-            "git_error": "⚠️ Git error",
-            "setup_log_group": "🤖 Setting up log group",
-            "searching_logs": "Error searching logs",
-            "creating_log_group": "📝 Creating log group...",
-            "bot_prepare_error": "Failed to prepare bot for adding",
-            "chat_id_error": "❌ Failed to get created chat ID",
-            "avatar_error": "⚠️ Failed to set avatar",
-            "invite_error": "⚠️ Failed to get invite link (no permissions)",
-            "bot_added": "✅ Bot added",
-            "bot_add_error": "⚠️ Failed to add bot after creation",
-            "chat_create_error": "❌ Chat creation error",
-            "log_setup_title": "Setting up log group...",
-            "log_setup_success": "✅ Log group configured",
-            "log_setup_fail": "❌ Failed to configure",
-            "test_title": "Testing log sending...",
-            "test_bot_available": "Bot available",
-            "test_bot_not_available": "Bot unavailable",
-            "test_bot_auth": "Bot authorized",
-            "test_bot_not_auth": "Bot not authorized",
-            "test_log_chat_id": "Log chat ID",
-            "test_not_set": "not set",
-            "test_time": "Time",
-            "test_success": "✅ Test message sent",
-            "test_fail": "❌ Failed to send",
-            "test_error": "❌ Test error",
-            "log_status_on": "✅ enabled",
-            "log_status_off": "❌ disabled",
-            "log_not_configured": "Not configured",
-            "bot_running": "✅ running",
-            "bot_not_running": "❌ not running",
-            "errors_sent": "✅ sent",
-            "errors_not_sent": "❌ not sent",
-            "log_status_title": "Log bot status",
-            "log_group": "Log group",
-            "bot_sending": "Sending via bot",
-            "errors": "Errors",
-            "startup_via_bot": "✅ Startup message via bot",
-            "startup_via_userbot": "⚠️ Startup message via userbot",
-            "startup_error": "❌ Send error",
-            "send_log_error": "❌ Failed to send to log",
-            "started": "started!",
-            "update_status": "Update status",
-            "prefix": "Prefix",
-            "new_commits_header": '<tg-emoji emoji-id="5465300082628763143">💬</tg-emoji> <b>{count} updates available on branch</b> <code>{branch}</code>',
-            "new_commits_btn": "🔄 Update",
-            "update_running": '<tg-emoji emoji-id="5326015457155620929">📦</tg-emoji> <b>Updating...</b>',
-            "update_done": "✅ Updated to <code>{sha}</code>\n<blockquote>⚠️ Auto restart the userbot</blockquote>",
-            "update_error": "❌ Update error: <code>{error}</code>",
-            "update_no_log": "⚠️ Log chat not configured, update notifications unavailable",
-            "and_more_commits": "... and {} more commits",
-        },
-    }
-
-    lang_strings = strings.get(language, strings["en"])
+    strings_data = {"name": "log_bot"}
+    strings = Strings(kernel, strings_data)
+    lang = strings._active
 
     async def init_bot_client():
         pass
@@ -182,20 +73,20 @@ def register(kernel):
             try:
                 await asyncio.wait_for(run_git(["fetch", "origin"]), timeout=5)
             except TimeoutError:
-                return lang_strings["git_timeout"]
+                return lang["git_timeout"]
 
             code, output = await run_git(["rev-list", "--count", "HEAD..@{u}"])
 
             if code == 0 and output.isdigit():
                 updates_count = int(output)
                 if updates_count > 0:
-                    return lang_strings["updates_available"].format(count=updates_count)
+                    return lang["updates_available"].format(count=updates_count)
 
-            return lang_strings["up_to_date"]
+            return lang["up_to_date"]
 
         except Exception as e:
-            kernel.logger.error(f"{lang_strings['git_error']}: {e}")
-            return lang_strings["git_error"]
+            kernel.logger.error(f"{lang['git_error']}: {e}")
+            return lang["git_error"]
 
     async def get_new_commits():
         """Возвращает список новых коммитов (sha, subject, author, time) относительно HEAD."""
@@ -252,9 +143,7 @@ def register(kernel):
         if not kernel.log_chat_id:
             return
 
-        header = lang_strings["new_commits_header"].format(
-            count=len(commits), branch=branch
-        )
+        header = lang["new_commits_header"].format(count=len(commits), branch=branch)
 
         MAX_COMMITS = 5
         commit_lines = []
@@ -267,13 +156,11 @@ def register(kernel):
         remaining = len(commits) - MAX_COMMITS
         if remaining > 0:
             commit_lines.append(
-                f"<blockquote>{lang_strings['and_more_commits'].format(remaining)}</blockquote>"
+                f"<blockquote>{lang['and_more_commits'].format(remaining)}</blockquote>"
             )
 
         text = header + "\n\n" + "\n".join(commit_lines)
-        btn = Button.inline(
-            lang_strings["new_commits_btn"], data=b"do_update", style="primary"
-        )
+        btn = Button.inline(lang["new_commits_btn"], data=b"do_update", style="primary")
 
         update_image_path = None
         for candidate in [
@@ -318,7 +205,7 @@ def register(kernel):
     )
     async def update_check_loop(kernel):
         if not kernel.log_chat_id:
-            kernel.logger.warning(lang_strings["update_no_log"])
+            kernel.logger.warning(lang["update_no_log"])
             return
 
         try:
@@ -343,9 +230,7 @@ def register(kernel):
     async def on_update_callback(event):
         await event.answer()
         try:
-            await event.edit(
-                lang_strings["update_running"], buttons=None, parse_mode="html"
-            )
+            await event.edit(lang["update_running"], buttons=None, parse_mode="html")
         except Exception:
             pass
         try:
@@ -385,7 +270,7 @@ def register(kernel):
             kernel.cache.set("log_bot:last_notified_sha", sha)
 
             await event.edit(
-                lang_strings["update_done"].format(sha=sha),
+                lang["update_done"].format(sha=sha),
                 parse_mode="html",
                 buttons=None,
             )
@@ -395,7 +280,7 @@ def register(kernel):
             await kernel.process_command(restart_cmd)
         except Exception as e:
             await event.edit(
-                lang_strings["update_error"].format(error=html.escape(str(e))),
+                lang["update_error"].format(error=html.escape(str(e))),
                 parse_mode="html",
                 buttons=None,
             )
@@ -407,7 +292,7 @@ def register(kernel):
             return True
 
         kernel.logger.info(
-            f"{kernel.Colors.YELLOW}{lang_strings['setup_log_group']}{kernel.Colors.RESET}"
+            f"{kernel.Colors.YELLOW}{lang['setup_log_group']}{kernel.Colors.RESET}"
         )
 
         try:
@@ -423,10 +308,10 @@ def register(kernel):
                     )
                     return True
         except Exception as e:
-            kernel.logger.error(f"{lang_strings['searching_logs']}: {e}")
+            kernel.logger.error(f"{lang['searching_logs']}: {e}")
 
         kernel.logger.info(
-            f"{kernel.Colors.YELLOW}{lang_strings['creating_log_group']}{kernel.Colors.RESET}"
+            f"{kernel.Colors.YELLOW}{lang['creating_log_group']}{kernel.Colors.RESET}"
         )
 
         users_to_invite = [InputUserSelf()]
@@ -442,7 +327,7 @@ def register(kernel):
                 bot_entity = await kernel.client.get_input_entity(bot_me.username)
                 users_to_invite.append(bot_entity)
             except Exception as e:
-                kernel.logger.warning(f"{lang_strings['bot_prepare_error']}: {e}")
+                kernel.logger.warning(f"{lang['bot_prepare_error']}: {e}")
 
         try:
             me = await kernel.client.get_me()
@@ -467,7 +352,7 @@ def register(kernel):
 
             if not chat_id:
                 kernel.logger.error(
-                    f"{kernel.Colors.RED}{lang_strings['chat_id_error']}{kernel.Colors.RESET}"
+                    f"{kernel.Colors.RED}{lang['chat_id_error']}{kernel.Colors.RESET}"
                 )
                 return False
 
@@ -505,7 +390,7 @@ def register(kernel):
                             )
             except Exception as e:
                 kernel.logger.warning(
-                    f"{kernel.Colors.YELLOW}{lang_strings['avatar_error']}: {e}{kernel.Colors.RESET}"
+                    f"{kernel.Colors.YELLOW}{lang['avatar_error']}: {e}{kernel.Colors.RESET}"
                 )
 
             try:
@@ -518,7 +403,7 @@ def register(kernel):
                     )
             except Exception as e:
                 kernel.logger.warning(
-                    f"{kernel.Colors.YELLOW}{lang_strings['invite_error']}: {e}{kernel.Colors.RESET}"
+                    f"{kernel.Colors.YELLOW}{lang['invite_error']}: {e}{kernel.Colors.RESET}"
                 )
 
             if bot_entity and len(users_to_invite) == 1:
@@ -529,11 +414,11 @@ def register(kernel):
                         )
                     )
                     kernel.logger.info(
-                        f"{kernel.Colors.GREEN}{lang_strings['bot_added']}{kernel.Colors.RESET}"
+                        f"{kernel.Colors.GREEN}{lang['bot_added']}{kernel.Colors.RESET}"
                     )
                 except Exception as e:
                     kernel.logger.error(
-                        f"{kernel.Colors.YELLOW}{lang_strings['bot_add_error']}: {e}{kernel.Colors.RESET}"
+                        f"{kernel.Colors.YELLOW}{lang['bot_add_error']}: {e}{kernel.Colors.RESET}"
                     )
 
             with open(kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
@@ -546,7 +431,7 @@ def register(kernel):
 
         except Exception as e:
             kernel.logger.error(
-                f"{kernel.Colors.RED}{lang_strings['chat_create_error']}: {e}{kernel.Colors.RESET}"
+                f"{kernel.Colors.RED}{lang['chat_create_error']}: {e}{kernel.Colors.RESET}"
             )
             import traceback
 
@@ -557,36 +442,34 @@ def register(kernel):
         "log_setup", doc_en="setup logging chat", doc_ru="настроить чат для логов"
     )
     async def log_setup_handler(event):
-        await event.edit(lang_strings["log_setup_title"])
+        await event.edit(lang["log_setup_title"])
         if await setup_log_chat():
-            await event.edit(
-                f"{lang_strings['log_setup_success']}\nID: `{kernel.log_chat_id}`"
-            )
+            await event.edit(f"{lang['log_setup_success']}\nID: `{kernel.log_chat_id}`")
         else:
-            await event.edit(lang_strings["log_setup_fail"])
+            await event.edit(lang["log_setup_fail"])
 
     @kernel.register.command(
         "test_log", doc_en="test log sending", doc_ru="тест отправки логов"
     )
     async def test_log_handler(event):
         try:
-            await event.edit(f"<i>{lang_strings['test_title']}</i>", parse_mode="html")
+            await event.edit(f"<i>{lang['test_title']}</i>", parse_mode="html")
             has_bot = hasattr(kernel, "bot_client") and kernel.bot_client
             bot_auth = has_bot and await kernel.bot_client.is_user_authorized()
             log_chat = kernel.log_chat_id
-            test_info = f"""🔧 <b>{lang_strings["log_status_title"]}</b>
-<blockquote>🤖 <b>{lang_strings["test_bot_available"]}:</b> <mono>{lang_strings["test_bot_available"] if has_bot else lang_strings["test_bot_not_available"]}</mono>
-🔐 <b>{lang_strings["test_bot_auth"]}:</b> <mono>{lang_strings["test_bot_auth"] if bot_auth else lang_strings["test_bot_not_auth"]}</mono>
-💬 <b>{lang_strings["test_log_chat_id"]}:</b> <mono>{log_chat or lang_strings["test_not_set"]}</mono>
-⏰ <b>{lang_strings["test_time"]}:</b> <mono>{datetime.now().strftime("%H:%M:%S")}</mono></blockquote>"""
+            test_info = f"""🔧 <b>{lang["log_status_title"]}</b>
+<blockquote>🤖 <b>{lang["test_bot_available"]}:</b> <mono>{lang["test_bot_available"] if has_bot else lang["test_bot_not_available"]}</mono>
+🔐 <b>{lang["test_bot_auth"]}:</b> <mono>{lang["test_bot_auth"] if bot_auth else lang["test_bot_not_auth"]}</mono>
+💬 <b>{lang["test_log_chat_id"]}:</b> <mono>{log_chat or lang["test_not_set"]}</mono>
+⏰ <b>{lang["test_time"]}:</b> <mono>{datetime.now().strftime("%H:%M:%S")}</mono></blockquote>"""
             success = await kernel.send_log_message(test_info)
             if success:
-                await event.edit(f"{lang_strings['test_success']}", parse_mode="html")
+                await event.edit(f"{lang['test_success']}", parse_mode="html")
             else:
-                await event.edit(f"{lang_strings['test_fail']}", parse_mode="html")
+                await event.edit(f"{lang['test_fail']}", parse_mode="html")
         except Exception as e:
             await event.edit(
-                f"{lang_strings['test_error']}: <code>{html.escape(str(e))}</code>",
+                f"{lang['test_error']}: <code>{html.escape(str(e))}</code>",
                 parse_mode="html",
             )
 
@@ -594,25 +477,17 @@ def register(kernel):
         "log_status", doc_en="show logging status", doc_ru="показать статус логирования"
     )
     async def log_status_handler(event):
-        status = (
-            lang_strings["log_status_on"]
-            if kernel.log_chat_id
-            else lang_strings["log_status_off"]
-        )
+        status = lang["log_status_on"] if kernel.log_chat_id else lang["log_status_off"]
         chat_info = (
             f"`{kernel.log_chat_id}`"
             if kernel.log_chat_id
-            else lang_strings["log_not_configured"]
+            else lang["log_not_configured"]
         )
-        bot_status = (
-            lang_strings["bot_running"]
-            if bot_client
-            else lang_strings["bot_not_running"]
-        )
-        msg = f"""📊 <b>{lang_strings["log_status_title"]}</b>: {status}
-<b>{lang_strings["log_group"]}:</b> {chat_info}
-<b>{lang_strings["bot_sending"]}:</b> {bot_status}
-<b>{lang_strings["errors"]}:</b> {lang_strings["errors_sent"] if kernel.log_chat_id else lang_strings["errors_not_sent"]}"""
+        bot_status = lang["bot_running"] if bot_client else lang["bot_not_running"]
+        msg = f"""📊 <b>{lang["log_status_title"]}</b>: {status}
+<b>{lang["log_group"]}:</b> {chat_info}
+<b>{lang["bot_sending"]}:</b> {bot_status}
+<b>{lang["errors"]}:</b> {lang["errors_sent"] if kernel.log_chat_id else lang["errors_not_sent"]}"""
         await event.edit(msg, parse_mode="html")
 
     async def mcub_handler():
@@ -655,15 +530,15 @@ def register(kernel):
         else:
             commit_display = f"<b>{update_status}</b>"
 
-        message = f"""<b>{await mcub_handler()}</b> <b>{kernel.VERSION}</b> {lang_strings["started"]}
+        message = f"""<b>{await mcub_handler()}</b> <b>{kernel.VERSION}</b> {lang["started"]}
 <blockquote><b><tg-emoji emoji-id="5368585403467048206">🔭</tg-emoji> GitHub commit SHA:</b> <code>{commit_sha}</code>
-<tg-emoji emoji-id="5467480195143310096">🎩</tg-emoji> <b>{lang_strings["update_status"]}:</b> <i>{commit_display}</i>
+<tg-emoji emoji-id="5467480195143310096">🎩</tg-emoji> <b>{lang["update_status"]}:</b> <i>{commit_display}</i>
 <tg-emoji emoji-id="5436275698664759373">🌂</tg-emoji> <b>branch:</b> <code>{branch}</code>{"" if kernel.error_load_modules else "</blockquote>"}"""
 
         if kernel.error_load_modules:
             message += f'\n<tg-emoji emoji-id="5467928559664242360">❗️</tg-emoji> <b>Error load modules:</b> <code>{kernel.error_load_modules}</code></blockquote>'
 
-        message += f'\n<tg-emoji emoji-id="5426900601101374618">🧿</tg-emoji> <b><i>{lang_strings["prefix"]}:</i></b> <code>{kernel.custom_prefix}</code>'
+        message += f'\n<tg-emoji emoji-id="5426900601101374618">🧿</tg-emoji> <b><i>{lang["prefix"]}:</i></b> <code>{kernel.custom_prefix}</code>'
         try:
             if bot_client and await bot_client.is_user_authorized():
                 if image_path and os.path.exists(image_path):
@@ -678,7 +553,7 @@ def register(kernel):
                         kernel.log_chat_id, message, parse_mode="html"
                     )
                 kernel.logger.info(
-                    f"{kernel.Colors.GREEN}{lang_strings['startup_via_bot']}{kernel.Colors.RESET}"
+                    f"{kernel.Colors.GREEN}{lang['startup_via_bot']}{kernel.Colors.RESET}"
                 )
             else:
                 if image_path:
@@ -693,11 +568,11 @@ def register(kernel):
                         kernel.log_chat_id, message, parse_mode="html"
                     )
                 kernel.cprint(
-                    f"{kernel.Colors.YELLOW}{lang_strings['startup_via_userbot']}{kernel.Colors.RESET}"
+                    f"{kernel.Colors.YELLOW}{lang['startup_via_userbot']}{kernel.Colors.RESET}"
                 )
         except Exception as e:
             kernel.cprint(
-                f"{kernel.Colors.RED}{lang_strings['startup_error']}: {e}{kernel.Colors.RESET}"
+                f"{kernel.Colors.RED}{lang['startup_error']}: {e}{kernel.Colors.RESET}"
             )
 
     async def send_log_message_via_bot(self, text, file=None):
@@ -740,7 +615,7 @@ def register(kernel):
             except Exception:
                 pass
             self.cprint(
-                f"{self.Colors.RED}{lang_strings['send_log_error']}: {e}{self.Colors.RESET}"
+                f"{self.Colors.RED}{lang['send_log_error']}: {e}{self.Colors.RESET}"
             )
             return False
 

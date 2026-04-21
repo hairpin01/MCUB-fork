@@ -50,6 +50,7 @@ except Exception:
 
 try:
     from core.lib.utils.case_insensitive import CaseInsensitiveDict
+    from utils.strings import Strings
 
     from ..lib.base.client import ClientManager
     from ..lib.base.config import ConfigManager
@@ -124,21 +125,6 @@ _LOGO = (
     "|_|  |_|\\____|\\___/|____/\n"
 )
 
-_STRINGS: dict[str, dict[str, str]] = {
-    "ru": {
-        "success": "Перезагрузка <b>успешна!</b>",
-        "loading": "но модули ещё загружаются...",
-        "loaded": "Твой <b>{mcub}</b> полностью загрузился!",
-        "errors": "Твой <b>{mcub}</b> <b>загрузился c ошибками</b> :(",
-    },
-    "en": {
-        "success": "Reboot <b>successful!</b>",
-        "loading": "but modules are still loading...",
-        "loaded": "Your <b>{mcub}</b> is fully loaded!",
-        "errors": "Your <b>{mcub}</b> <b>loaded with errors</b> :(",
-    },
-}
-
 
 def _validate_regex(pattern: str) -> tuple[bool, str]:
     """Return (ok, reason). Rejects overly long or ReDoS-prone patterns."""
@@ -165,10 +151,6 @@ def _validate_regex(pattern: str) -> tuple[bool, str]:
         signal.signal(signal.SIGALRM, old)
 
     return True, "ok"
-
-
-def _strings(lang: str) -> dict[str, str]:
-    return _STRINGS.get(lang, _STRINGS["en"])
 
 
 class Kernel:
@@ -1296,6 +1278,11 @@ class Kernel:
         except Exception as e:
             self.logger.error(f"Failed to start web panel: {e}")
 
+    def _get_strings(self) -> Strings:
+        _cache_strings = {"name": "kernel"}
+        _strings = Strings(self, _cache_strings)
+        return _strings
+
     async def run(self) -> None:
         """Boot sequence: config → scheduler → client → modules → event loop."""
         no_web = not getattr(self, "web_enabled", True)  # True если --no-web
@@ -1445,8 +1432,7 @@ class Kernel:
                 return
             chat_id, msg_id = int(data[0]), int(data[1])
             restart_time = float(data[2]) if len(data) >= 3 else None
-            lang = self.config.get("language", "ru")
-            s = _strings(lang)
+            s = self._get_strings()
             total_ms = (
                 round((time.time() - restart_time) * 1000, 2) if restart_time else 0
             )
@@ -1454,7 +1440,7 @@ class Kernel:
             await self.client.edit_message(
                 chat_id,
                 msg_id,
-                f"{em} {s['success']} (*.*)\n<i>{s['loading']}</i> <b>KLB:</b> <code>{total_ms} ms</code>",
+                f"{em} {s('success')} (*.*)\n<i>{s('loading')}</i> <b>KLB:</b> <code>{total_ms} ms</code>",
                 parse_mode="html",
             )
         except Exception:
@@ -1486,8 +1472,7 @@ class Kernel:
                 else "MCUB"
             )
 
-            lang = self.config.get("language", "ru")
-            s = _strings(lang)
+            s = self._get_strings()
             total_ms = round((time.time() - restart_time) * 1000, 2)
             mod_ms = round((modules_end - modules_start) * 1000, 2)
 
@@ -1497,14 +1482,14 @@ class Kernel:
             if self.error_load_modules:
                 em = '<tg-emoji emoji-id="5208923808169222461">🥀</tg-emoji>'
                 body = (
-                    f"{em} {s['errors'].format(mcub=mcub)}\n"
+                    f"{em} {s('errors', mcub=mcub)}\n"
                     f"<blockquote><b>Kernel:</b> <code>{total_ms} ms</code>. "
                     f"<b>Module errors:</b> <code>{self.error_load_modules}</code></blockquote>"
                 )
             else:
                 em = '<tg-emoji emoji-id="5399898266265475100">📦</tg-emoji>'
                 body = (
-                    f"{em} {s['loaded'].format(mcub=mcub)}\n"
+                    f"{em} {s('loaded', mcub=mcub)}\n"
                     f"<blockquote><b>Kernel:</b> <code>{total_ms} ms</code>. "
                     f"<b>Modules:</b> <code>{mod_ms} ms</code>.</blockquote>"
                 )

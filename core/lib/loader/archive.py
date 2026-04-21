@@ -9,7 +9,6 @@ import re
 import tarfile
 import zipfile
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 

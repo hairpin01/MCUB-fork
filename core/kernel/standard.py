@@ -43,6 +43,7 @@ except Exception:
 
 try:
     from core.lib.utils.case_insensitive import CaseInsensitiveDict
+    from utils.strings import Strings
 
     from ..lib.base.client import ClientManager
     from ..lib.base.config import ConfigManager
@@ -85,6 +86,9 @@ try:
     from utils.restart import restart_kernel
 except ImportError:
     restart_kernel = None
+
+
+_KERNEL_STRINGS_CACHE: dict[str, dict[str, str]] | None = None
 
 
 class Kernel:
@@ -1851,6 +1855,11 @@ class Kernel:
             self.logger.error(f"Failed to start web panel: {e}")
             await self.log_error_async(f"Failed to start web panel: {e}")
 
+    def _get_strings(self) -> Strings:
+        _cache_strings = {"name": "kernel"}
+        _strings = Strings(self, _cache_strings)
+        return _strings
+
     async def run(self) -> None:
         """setup, connect, load modules, and run until disconnected."""
         import logging
@@ -1912,6 +1921,8 @@ class Kernel:
 
         self._telegram_handler = telegram_handler
         self._kernel_logger = kernel_logger
+        strings = self._get_strings()
+        from telethon.errors import RPCError
 
         # try:
         #     from core.console.shell import Shell
@@ -1944,10 +1955,10 @@ class Kernel:
                 await asyncio.sleep(1)
 
         self._connection_monitor = asyncio.create_task(_monitor_connection())
+        _tele = '<tg-emoji emoji-id="5429283852684124412">🔭</tg-emoji>'
+        _note = '<tg-emoji emoji-id="5334882760735598374">📝</tg-emoji>'
 
         async def message_handler(event):
-            _tele = '<tg-emoji emoji-id="5429283852684124412">🔭</tg-emoji>'
-            _note = '<tg-emoji emoji-id="5334882760735598374">📝</tg-emoji>'
             msg = getattr(event, "message", event)
 
             if not self.should_process_command_event(event):
@@ -1976,20 +1987,17 @@ class Kernel:
             except Exception as e:
                 await self.handle_error(e, source="message_handler", event=event)
 
-                from telethon.errors import RPCError
-
                 if isinstance(e, RPCError):
                     cmd_text = html.escape(event.text or "")
                     rpc_msg = html.escape(str(e))
                     try:
                         await event.edit(
-                            f"{_tele} <b>Call <code>{cmd_text}</code> failed due to RPC error:</b> "
-                            f"<code>{rpc_msg}</code>",
+                            f"{_tele} {strings('call_failed', cmd=cmd_text, rpc_msg=rpc_msg)}",
                             parse_mode="html",
                         )
                     except Exception as edit_err:
                         self.logger.error(
-                            f"Could not edit RPC error message: {edit_err}"
+                            f"{strings('could_not_edit', error=edit_err)}"
                         )
                     return
 
@@ -1999,8 +2007,7 @@ class Kernel:
                 safe_cmd = html.escape(event.text or "")
                 try:
                     await event.edit(
-                        f"{_tele} <b>Call <code>{safe_cmd}</code> failed!</b>\n"
-                        f"{_note} <b><i>Full log:</i></b>\n<pre>{tb}</pre>",
+                        f"{_tele} {strings('call_failed_traceback', cmd=safe_cmd, traceback=tb)}",
                         parse_mode="html",
                     )
                 except Exception as edit_err:
@@ -2045,19 +2052,6 @@ class Kernel:
                         restart_time = float(data[2])
 
                     em_alembic = '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>'
-                    lang = self.config.get("language", "ru")
-                    _strings = {
-                        "ru": {
-                            "success": "Перезагрузка <b>успешна!</b>",
-                            "loading": "но модули ещё загружаются...",
-                        },
-                        "en": {
-                            "success": "Reboot <b>successful!</b>",
-                            "loading": "but modules are still loading...",
-                        },
-                    }
-                    lang_strings = _strings.get(lang, _strings["en"])
-                    strings = (lang_strings["success"], lang_strings["loading"])
                     emoji = "(*.*)"
                     total_ms = (
                         round(time.time() - restart_time, 2) if restart_time else 0
@@ -2066,8 +2060,8 @@ class Kernel:
                     await self.client.edit_message(
                         restart_chat_id,
                         restart_msg_id,
-                        f"{em_alembic} {strings[0]} {emoji}\n"
-                        f"<i>{strings[1]}</i> <b>Kernel boot:</b><code> {total_ms} </code>s",
+                        f"{em_alembic} {strings('success')} {emoji}\n"
+                        f"<i>{strings('loading')}</i> <b>Kernel boot:</b><code> {total_ms} </code>s",
                         parse_mode="html",
                     )
             except Exception:
@@ -2091,6 +2085,32 @@ class Kernel:
                     await self.handle_error(
                         e, source="bot_command_handler", event=event
                     )
+
+                    if isinstance(e, RPCError):
+                        cmd_text = html.escape(event.text or "")
+                        rpc_msg = html.escape(str(e))
+                        try:
+                            await event.edit(
+                                f"{_tele} {strings('call_failed', cmd=cmd_text, rpc_msg=rpc_msg)}",
+                                parse_mode="html",
+                            )
+                        except Exception as edit_err:
+                            self.logger.error(
+                                f"{strings('could_not_edit', error=edit_err)}"
+                            )
+                        return
+
+                    tb = traceback.format_exc()
+                    if len(tb) > 1000:
+                        tb = tb[-1000:] + "\n...(truncated)"
+                    safe_cmd = html.escape(event.text or "")
+                    try:
+                        await event.edit(
+                            f"{_tele} {strings('call_failed_traceback', cmd=safe_cmd, traceback=tb)}",
+                            parse_mode="html",
+                        )
+                    except Exception as edit_err:
+                        self.logger.error(f"Could not edit error message: {edit_err}")
 
         logo = (
             f"\n _    _  ____ _   _ ____\n"
@@ -2251,25 +2271,7 @@ class Kernel:
             kernel_s = round(modules_start - restart_time, 2)
             mod_s = round(modules_end - modules_start, 2)
 
-            lang = self.config.get("language", "ru")
-            strings = (
-                {
-                    "ru": {
-                        "success": "Перезагрузка <b>успешна!</b>",
-                        "loading": "но модули ещё загружаются...",
-                        "loaded": f"Твой <b>{mcub}</b> полностью загрузился!",
-                        "errors": f"Твой <b>{mcub}</b> <b>загрузился c ошибками</b> :(",
-                    },
-                    "en": {
-                        "success": "Reboot <b>successful!</b>",
-                        "loading": "but modules are still loading...",
-                        "loaded": f"Your <b>{mcub}</b> is fully loaded!",
-                        "errors": f"Your <b>{mcub}</b> <b>loaded with errors</b> :(",
-                    },
-                }
-                .get(lang, {})
-                .get
-            )
+            s = self._get_strings()
 
             if not self.client.is_connected():
                 return
@@ -2277,13 +2279,13 @@ class Kernel:
             try:
                 if not self.error_load_modules:
                     msg_text = (
-                        f"{em_package} {strings('loaded')}\n"
+                        f"{em_package} {s('loaded', mcub=mcub)}\n"
                         f"<blockquote><b>Kernel:</b><code> {kernel_s} </code>s. "
                         f"<b>Modules:</b><code> {mod_s} </code>s.</blockquote>"
                     )
                 else:
                     msg_text = (
-                        f"{em_error} {strings('errors')}\n"
+                        f"{em_error} {s('errors', mcub=mcub)}\n"
                         f"<blockquote><b>Kernel:</b><code> {kernel_s} </code>s. "
                         f"<b>Modules Error:</b><code> {int(self.error_load_modules)} </code>s.</blockquote>"
                     )

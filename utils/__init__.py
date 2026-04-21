@@ -25,9 +25,9 @@ from .helpers import (
     get_thread_id,
     make_button,
     make_buttons,
+    pipe_edit,
     relocate_entities,
     resolve_peer,
-    pipe_edit,
 )
 from .platform import (
     PlatformDetector,
@@ -178,9 +178,9 @@ __all__.extend(
         "get_thread_id",
         "make_button",
         "make_buttons",
+        "pipe_edit",
         "relocate_entities",
         "resolve_peer",
-        "pipe_edit",
     ]
 )
 

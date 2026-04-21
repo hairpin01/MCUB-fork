@@ -6,7 +6,6 @@ from __future__ import annotations
 # author: @Hairpin00
 # version: 1.1.5
 # description: Module loader
-
 import asyncio
 import html
 import inspect
@@ -14,19 +13,19 @@ import logging
 import os
 import random
 import re
+import shutil
 import sys
 import uuid
 from collections.abc import Callable
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
-import shutil
 
 import aiohttp
 from telethon import Button, events
 from telethon.types import InputMediaWebPage
 
 if TYPE_CHECKING:
-    from telethon import types
+    pass
 
 from core.lib.loader.module_base import ModuleBase, command
 from core.lib.loader.module_config import (
@@ -34,6 +33,7 @@ from core.lib.loader.module_config import (
     ConfigValue,
     ModuleConfig,
 )
+from core.lib.utils.exceptions import CommandConflictError
 
 try:
     from core.lib.loader.hikka_compat import (
@@ -59,17 +59,6 @@ except ImportError:
 
     async def unload_hikka_module(kernel, name):
         return False
-
-
-try:
-    from core.kernel import CommandConflictError
-except ImportError:
-
-    class CommandConflictError(Exception):
-        def __init__(self, message, conflict_type=None, command=None):
-            super().__init__(message)
-            self.conflict_type = conflict_type
-            self.command = command
 
 
 async def safe_edit(msg, *args, **kwargs):
@@ -163,10 +152,14 @@ class Loader(ModuleBase):
         ),
     )
 
-    strings = {
+    strings = {"name": "loader"}
+
+    # OLD STRINGS (removed after migration to langpacks) - kept for reference
+    # TODO: Remove after verifying langpacks work
+    """
+    _OLD_STRINGS = {
         "en": {
             "wait": "{wait} <b>Please wait...</b>",
-            "reply_to_py": "{warning} <b>Reply to a .py file</b>",
             "not_py_file": "{warning} <b>This is not a .py file</b>",
             "system_module_update_attempt": "{confused} <b>Oops, looks like you tried to update a system module</b> <code>{module_name}</code>\n<blockquote><i>{blocked} Unfortunately, you cannot update system modules using <code>loadera</code></i></blockquote>",
             "system_module_unload_attempt": "{confused} <b>Oops, looks like you tried to unload a system module</b> <code>{module_name}</code>\n<blockquote><i>{blocked} Unfortunately, you cannot unload system modules</i></blockquote>",
@@ -432,6 +425,7 @@ class Loader(ModuleBase):
             "and_more": "• <code>+{count} ещё</code>",
         },
     }
+    """
 
     async def on_load(self) -> None:
         await super().on_load()
@@ -1206,7 +1200,7 @@ class Loader(ModuleBase):
                             self.kernel.MODULES_LOADED_DIR, f"{module_name}.py"
                         )
                         if os.path.exists(old_file_path_cls):
-                            with open(old_file_path_cls, "r", encoding="utf-8") as f:
+                            with open(old_file_path_cls, encoding="utf-8") as f:
                                 old_file_backup = f.read()
                             old_file_backup_path = old_file_path_cls
                             os.remove(old_file_path_cls)
@@ -1277,7 +1271,7 @@ class Loader(ModuleBase):
             if is_update:
                 add_log(self.strings("log_removing_old", module_name=module_name))
                 if old_file_backup is None and os.path.exists(file_path):
-                    with open(file_path, "r", encoding="utf-8") as f:
+                    with open(file_path, encoding="utf-8") as f:
                         old_file_backup = f.read()
                     old_file_backup_path = file_path
                 await self.kernel.unregister_module_commands(
@@ -1383,7 +1377,7 @@ class Loader(ModuleBase):
                 success, message_text = result_tuple
                 loaded_module_name = module_name
             else:
-                success, message_text, loaded_module_name = (
+                success, _message_text, loaded_module_name = (
                     False,
                     "Unknown error",
                     module_name,
@@ -1729,7 +1723,7 @@ class Loader(ModuleBase):
                             shutil.rmtree(module_dir)
                         os.makedirs(module_dir, exist_ok=True)
 
-                        for root, dirs, files in os.walk(temp_dir):
+                        for root, _dirs, files in os.walk(temp_dir):
                             rel_dir = os.path.relpath(root, temp_dir)
                             if rel_dir == ".":
                                 continue
@@ -1894,7 +1888,7 @@ class Loader(ModuleBase):
 
         install_log = []
 
-        def add_log(message: str) -> None:  # noqa: F811
+        def add_log(message: str) -> None:
             timestamp = datetime.now().strftime("%H:%M:%S")
             log_entry = f"[{timestamp}] {message}"
             install_log.append(log_entry)
@@ -1973,7 +1967,7 @@ class Loader(ModuleBase):
                             loaded_name
                         )
                         if os.path.exists(old_file_path_cls):
-                            with open(old_file_path_cls, "r", encoding="utf-8") as f:
+                            with open(old_file_path_cls, encoding="utf-8") as f:
                                 old_file_backup = f.read()
                             old_file_backup_path = old_file_path_cls
                             os.remove(old_file_path_cls)
@@ -2032,7 +2026,7 @@ class Loader(ModuleBase):
                                 if os.path.exists(old_file_path_cls):
                                     if old_file_backup is None:
                                         with open(
-                                            old_file_path_cls, "r", encoding="utf-8"
+                                            old_file_path_cls, encoding="utf-8"
                                         ) as f:
                                             old_file_backup = f.read()
                                         old_file_backup_path = old_file_path_cls
@@ -2136,7 +2130,7 @@ class Loader(ModuleBase):
             if is_update:
                 add_log(self.strings("log_removing_old", module_name=module_name))
                 if old_file_backup is None and os.path.exists(file_path):
-                    with open(file_path, "r", encoding="utf-8") as f:
+                    with open(file_path, encoding="utf-8") as f:
                         old_file_backup = f.read()
                     old_file_backup_path = file_path
                 await self.kernel.unregister_module_commands(module_name)
@@ -2179,7 +2173,7 @@ class Loader(ModuleBase):
                 )
 
                 self.kernel.logger.info(f"Модуль {display_name} установлен")
-                return_str = self.strings(
+                self.strings(
                     "module_loaded",
                     success=CUSTOM_EMOJI["success"],
                     module_name=display_name,

@@ -25,8 +25,9 @@ class CompatMessage:
         raw_text = getattr(self._message, "raw_text", None) or ""
         entities = getattr(self._message, "entities", None) or []
         try:
-            from telethon.extensions import html as telethon_html
             import html
+
+            from telethon.extensions import html as telethon_html
 
             text = telethon_html.parse(raw_text, entities)
             return html.unescape(text)
@@ -105,8 +106,8 @@ class InlineMessage:
         inline_message_id: str,
         unit_id: str,
         inline_proxy: "_InlineProxy",
-        chat_id: typing.Optional[int] = None,
-        message_id: typing.Optional[int] = None,
+        chat_id: int | None = None,
+        message_id: int | None = None,
     ):
         self.inline_message_id = inline_message_id
         self.unit_id = unit_id
@@ -116,7 +117,7 @@ class InlineMessage:
         self.inline_manager = _resolve_inline_manager(inline_proxy)
         self._units = getattr(self.inline_manager, "_units", {})
         self.form = {}
-        self._default_parse_mode: typing.Optional[str] = "html"
+        self._default_parse_mode: str | None = "html"
         if unit_id and unit_id in self._units:
             unit = dict(self._units[unit_id])
             unit.setdefault("uid", unit_id)
@@ -126,11 +127,11 @@ class InlineMessage:
             self.form = unit
 
     @property
-    def default_parse_mode(self) -> typing.Optional[str]:
+    def default_parse_mode(self) -> str | None:
         return self._default_parse_mode
 
     @default_parse_mode.setter
-    def default_parse_mode(self, value: typing.Optional[str]) -> None:
+    def default_parse_mode(self, value: str | None) -> None:
         self._default_parse_mode = value
 
     async def edit(self, *args, **kwargs) -> "InlineMessage":
@@ -237,7 +238,7 @@ class BotMessage:
         self.inline_manager = _resolve_inline_manager(inline_proxy)
         self._units = getattr(self.inline_manager, "_units", {})
         self.form = {}
-        self._default_parse_mode: typing.Optional[str] = "html"
+        self._default_parse_mode: str | None = "html"
         if unit_id and unit_id in self._units:
             unit = dict(self._units[unit_id])
             unit.setdefault("uid", unit_id)
@@ -247,11 +248,11 @@ class BotMessage:
             self.form = unit
 
     @property
-    def default_parse_mode(self) -> typing.Optional[str]:
+    def default_parse_mode(self) -> str | None:
         return self._default_parse_mode
 
     @default_parse_mode.setter
-    def default_parse_mode(self, value: typing.Optional[str]) -> None:
+    def default_parse_mode(self, value: str | None) -> None:
         self._default_parse_mode = value
 
     async def edit(self, *args, **kwargs) -> "BotMessage":
@@ -347,10 +348,10 @@ class InlineCall:
         inline_proxy: "_InlineProxy",
         *,
         original_call=None,
-        inline_message_id: typing.Optional[str] = None,
-        chat_id: typing.Optional[int] = None,
-        message_id: typing.Optional[int] = None,
-        from_user_id: typing.Optional[int] = None,
+        inline_message_id: str | None = None,
+        chat_id: int | None = None,
+        message_id: int | None = None,
+        from_user_id: int | None = None,
     ):
         self.data = call_data
         self.unit_id = unit_id
@@ -374,7 +375,7 @@ class InlineCall:
         self,
         text: str = "",
         show_alert: bool = False,
-        url: typing.Optional[str] = None,
+        url: str | None = None,
         **kwargs,
     ) -> None:
         show_alert = kwargs.get("show_alert", show_alert) or kwargs.get(
@@ -397,7 +398,7 @@ class InlineCall:
 
     async def edit(
         self,
-        text: typing.Optional[str] = None,
+        text: str | None = None,
         *args,
         **kwargs,
     ) -> InlineMessage:
@@ -478,10 +479,10 @@ class InlineQuery:
 
     def __init__(
         self,
-        query_id: str = None,
+        query_id: str | None = None,
         query: str = "",
         offset: str = "",
-        user_id: int = None,
+        user_id: int | None = None,
         inline_proxy: "_InlineProxy" = None,
         original_event=None,
         inline_query=None,
@@ -553,7 +554,7 @@ class InlineQuery:
 
     async def answer(
         self,
-        results: typing.List[dict] = None,
+        results: list[dict] | None = None,
         cache_time: int = 300,
     ) -> None:
         if results is None:
@@ -590,8 +591,8 @@ class _InlineQueryBuilder:
         self,
         title: str,
         text: str = "",
-        description: str = None,
-        thumb: str = None,
+        description: str | None = None,
+        thumb: str | None = None,
         **kwargs,
     ):
         result = {

@@ -3,9 +3,6 @@
 
 import asyncio
 import contextlib
-import copy
-from functools import wraps
-from typing import Callable, Optional, Union
 
 from .types import StopLoop
 
@@ -185,7 +182,7 @@ class InfiniteLoop:
         interval: int = 5,
         autostart: bool = False,
         wait_before: bool = False,
-        stop_clause: Optional[str] = None,
+        stop_clause: str | None = None,
     ):
         self.func = func
         self.interval = interval
@@ -267,7 +264,7 @@ def loop(
     interval: int = 5,
     autostart: bool = False,
     wait_before: bool = False,
-    stop_clause: Optional[str] = None,
+    stop_clause: str | None = None,
 ):
     """
     Create new infinite loop from class method.

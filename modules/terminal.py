@@ -51,49 +51,7 @@ def register(kernel):
     client = kernel.client
     logger = kernel.logger
 
-    lang = Strings(
-        kernel,
-        {
-            "ru": {
-                "empty": "пусто",
-                "command_already_running": "Уже выполняется команда",
-                "system_command": "системная команда:",
-                "executing": "выполняется...",
-                "launch_error": "Ошибка запуска:",
-                "already_completed": "Команда уже завершена",
-                "running_time": "выполняется:",
-                "seconds": "сек.",
-                "exit_code": "код выхода:",
-                "completed_in": "выполнено за",
-                "command_stopped": "Команда остановлена",
-                "stop_error": "Ошибка остановки:",
-                "no_running_commands": "Нет выполняющихся команд",
-                "stdout": "stdout:",
-                "stderr": "stderr:",
-                "command_not_specified": "Команда не указана",
-                "config_update_interval": "Интервал обновления вывода терминала (сек., 1-30). Обновление также происходит при появлении новых данных.",
-            },
-            "en": {
-                "empty": "empty",
-                "command_already_running": "Command already running",
-                "system_command": "system command:",
-                "executing": "executing...",
-                "launch_error": "Launch error:",
-                "already_completed": "Command already completed",
-                "running_time": "running:",
-                "seconds": "sec.",
-                "exit_code": "exit code:",
-                "completed_in": "completed in",
-                "command_stopped": "Command stopped",
-                "stop_error": "Stop error:",
-                "no_running_commands": "No running commands",
-                "stdout": "stdout:",
-                "stderr": "stderr:",
-                "command_not_specified": "Command not specified",
-                "config_update_interval": "Terminal output update interval (sec, 1-30). Update also happens when new data arrives.",
-            },
-        },
-    )
+    lang = Strings(kernel, {"name": "terminal"})
 
     # ModuleConfig
     config = ModuleConfig(
@@ -243,7 +201,7 @@ def register(kernel):
                     output += stderr.decode("utf-8", errors="ignore")
                 return output
             except Exception as e:
-                return f"Error: {str(e)}"
+                return f"Error: {e!s}"
 
         async def _read_output(self, chat_id):
             """Reads stdout/stderr in chunks and signals update_loop about new data."""

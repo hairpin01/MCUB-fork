@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Шмэлька | @hairpin01
 
 import types
-from typing import Any, Optional
+from typing import Any
 
 
 def _fmt(text: str, kwargs: dict) -> str:
@@ -46,7 +46,7 @@ class _StringsShim:
         self._base = getattr(mod, "strings", {})
         self.external_strings: dict = {}
 
-    def get(self, key: str, lang: Optional[str] = None) -> str:
+    def get(self, key: str, lang: str | None = None) -> str:
         return self[key]
 
     def __getitem__(self, key: str) -> str:

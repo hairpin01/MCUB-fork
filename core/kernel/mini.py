@@ -84,10 +84,15 @@ class Kernel(_StandardKernel):
                 await self.handle_error(e, source="message_handler", event=event)
                 from telethon.errors import RPCError
 
+                lang = self.config.get("language", "ru")
+                from core.langpacks import get_kernel_strings
+
+                s = get_kernel_strings(lang)
+
                 if isinstance(e, RPCError):
                     try:
                         await event.edit(
-                            f"{_tele} <b>RPC error:</b> <code>{html.escape(str(e))}</code>",
+                            f"{_tele} {s.get('rpc_error', '').format(error=html.escape(str(e)))}",
                             parse_mode="html",
                         )
                     except Exception:
@@ -99,8 +104,7 @@ class Kernel(_StandardKernel):
                     tb = tb[-1000:] + "\n...(truncated)"
                 try:
                     await event.edit(
-                        f"{_tele} <b>Call <code>{html.escape(event.text or '')}</code> failed!</b>\n"
-                        f"{_note} <b><i>Full log:</i></b>\n<pre>{tb}</pre>",
+                        f"{_tele} {s.get('call_failed_traceback', '').format(cmd=html.escape(event.text or ''), traceback=tb)}",
                         parse_mode="html",
                     )
                 except Exception:
@@ -135,17 +139,9 @@ class Kernel(_StandardKernel):
 
                     em_alembic = '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>'
                     lang = self.config.get("language", "ru")
-                    _strings = {
-                        "ru": {
-                            "success": "Перезагрузка <b>успешна!</b>",
-                            "loading": "но модули ещё загружаются...",
-                        },
-                        "en": {
-                            "success": "Reboot <b>successful!</b>",
-                            "loading": "but modules are still loading...",
-                        },
-                    }
-                    s = _strings.get(lang, _strings["en"])
+                    from core.langpacks import get_kernel_strings
+
+                    s = get_kernel_strings(lang)
                     await self.client.edit_message(
                         restart_chat_id,
                         restart_msg_id,
@@ -259,30 +255,22 @@ class Kernel(_StandardKernel):
             mod_s = round(modules_end - modules_start, 2)
 
             lang = self.config.get("language", "ru")
-            _all_strings = {
-                "ru": {
-                    "loaded": f"Твой <b>{mcub}</b> полностью загрузился!",
-                    "errors": f"Твой <b>{mcub}</b> <b>загрузился c ошибками</b> :(",
-                },
-                "en": {
-                    "loaded": f"Your <b>{mcub}</b> is fully loaded!",
-                    "errors": f"Your <b>{mcub}</b> <b>loaded with errors</b> :(",
-                },
-            }
-            strings = _all_strings.get(lang, _all_strings["en"])
+            from core.langpacks import get_kernel_strings
+
+            s = get_kernel_strings(lang)
 
             if not self.client.is_connected():
                 return
 
             if not self.error_load_modules:
                 msg_text = (
-                    f"{em_package} {strings['loaded']}\n"
+                    f"{em_package} {s.get('loaded', '').format(mcub=mcub)}\n"
                     f"<blockquote><b>Kernel:</b><code> {kernel_s} </code>s. "
                     f"<b>Modules:</b><code> {mod_s} </code>s.</blockquote>"
                 )
             else:
                 msg_text = (
-                    f"{em_error} {strings['errors']}\n"
+                    f"{em_error} {s.get('errors', '').format(mcub=mcub)}\n"
                     f"<blockquote><b>Kernel:</b><code> {kernel_s} </code>s. "
                     f"<b>Modules Error:</b><code> {int(self.error_load_modules)} </code></blockquote>"
                 )

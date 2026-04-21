@@ -14,9 +14,10 @@ import string
 import subprocess
 import time
 import types
+from collections.abc import Iterable
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 _PLACEHOLDERS: dict[str, dict] = {}
@@ -93,7 +94,7 @@ class _Utils:
         return None
 
     @staticmethod
-    async def answer_file(message, file: Any, caption: Optional[str] = None, **kwargs):
+    async def answer_file(message, file: Any, caption: str | None = None, **kwargs):
         parse_mode = kwargs.pop("parse_mode", "html")
         if hasattr(message, "client") and hasattr(message, "chat_id"):
             return await message.client.send_file(
@@ -179,7 +180,7 @@ class _Utils:
         return f"tg://user?id={uid}"
 
     @staticmethod
-    def mention(user, name: Optional[str] = None) -> str:
+    def mention(user, name: str | None = None) -> str:
         uid = getattr(user, "id", None)
         display = name or getattr(user, "first_name", None) or str(uid or "?")
         if uid:
@@ -194,7 +195,7 @@ class _Utils:
             return None
 
     @staticmethod
-    async def get_target(message, args: Optional[str] = None):
+    async def get_target(message, args: str | None = None):
         try:
             reply = await message.get_reply_message()
             if reply:
@@ -280,7 +281,7 @@ class _Utils:
     def register_placeholder(
         placeholder: str,
         callback,
-        description: Optional[str] = None,
+        description: str | None = None,
     ):
         module_name = getattr(
             getattr(callback, "__self__", None), "__class__", type("X", (), {})
@@ -465,7 +466,7 @@ class _Utils:
         return random.choice(["(•_•)", "ಠ_ಠ", "(◕‿◕✿)", "ʕ•ᴥ•ʔ"])
 
     @staticmethod
-    def get_topic(message) -> Optional[int]:
+    def get_topic(message) -> int | None:
         reply_to = getattr(message, "reply_to", None)
         if reply_to:
             return getattr(reply_to, "reply_to_top_id", None) or getattr(
@@ -502,11 +503,11 @@ class _Utils:
         silent: bool = False,
         archive: bool = False,
         invite_bot: bool = False,
-        avatar: Optional[str] = None,
-        ttl: Optional[int] = None,
+        avatar: str | None = None,
+        ttl: int | None = None,
         forum: bool = False,
         hide_general: bool = False,
-        _folder: Optional[str] = None,
+        _folder: str | None = None,
     ) -> tuple[Any, bool]:
         del silent, avatar, _folder
 
@@ -517,7 +518,7 @@ class _Utils:
         if not isinstance(cache, dict):
             cache = {}
             with contextlib.suppress(Exception):
-                setattr(client, "_channels_cache", cache)
+                client._channels_cache = cache
 
         cached = cache.get(title)
         if cached and cached.get("exp", 0) > time.time():
@@ -591,8 +592,8 @@ class _Utils:
         db,
         peer,
         title: str,
-        description: Optional[str] = None,
-        icon_emoji_id: Optional[int] = None,
+        description: str | None = None,
+        icon_emoji_id: int | None = None,
         invite_bot: bool = False,
     ):
         del invite_bot

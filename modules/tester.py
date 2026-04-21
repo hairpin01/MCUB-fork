@@ -6,7 +6,6 @@ from __future__ import annotations
 import asyncio
 import getpass
 import os
-import platform
 import re
 import socket
 import subprocess
@@ -20,10 +19,9 @@ try:
 except ImportError:
     _psutil = None
 
-from telethon import functions
 from telethon.tl.types import InputMediaWebPage
 
-from core.lib.loader.module_base import ModuleBase, command, callback
+from core.lib.loader.module_base import ModuleBase, callback, command
 from core.lib.loader.module_config import (
     Boolean,
     ConfigValue,
@@ -138,66 +136,7 @@ class TesterMod(ModuleBase):
         ),
     )
 
-    strings: dict[str, dict[str, str]] = {
-        "en": {
-            "error_logs": "{snowflake} <b>Error, see logs</b>",
-            "logs_not_found": "{file} File kernel.log not found",
-            "logs_sending": "{printer} Sending kernel logs",
-            "freezing_usage": "{speech} Usage: {prefix}freezing [seconds]",
-            "freezing_range": "{speech} Specify from 1 to 60 seconds",
-            "freezing_number": "{speech} Specify number of seconds",
-            "freezing_start": "{snowflake} Freezing for {seconds} seconds...",
-            "freezing_done": "{check} Unfrozen after {seconds} seconds",
-            "custom_text_error": "<b>Error in custom text format:</b> {error}",
-            "logs": "Logs",
-            "kernel_version": "Kernel Version",
-            "ping": "ping",
-            "uptime": "uptime",
-            "ms": "ms",
-            "hours": "h",
-            "minutes": "m",
-            "seconds": "s",
-            "branch": "Branch",
-            "logs_not_fount_args": "<b>Available arguments:</b> <code>clear</code>, <code>debug</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code>, <code>all</code>",
-            "logs_clear": "<b>Cleared kernel logs</b>",
-            "file_empty": "<b>Is logs empty</b>",
-            "logs_level_invalid": "<b>Available levels:</b> <code>debug</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code>, <code>all</code>",
-            "logs_choose_level": "{paper} <b>Choose log level</b>",
-            "logs_choose_desc": "Send only selected records from <code>kernel.log</code>.",
-            "logs_level_warning": "{snowflake} <b>Warning</b>\n<blockquote>Logs with level <code>{level}</code> may contain personal information, tokens, chat IDs, message text, and other sensitive data.</blockquote>\n<b>Send anyway?</b>",
-            "logs_send_cancelled": "{snowflake} <b>Log sending cancelled</b>",
-            "logs_level_caption": '{logs_title} <b>{logs}</b> {mcub}\n<blockquote>{pen} <b>{kernel_version}</b> {version}#<a href="{commit_url}">{commit_sha}</a>\n{satellite} <b>{branch_label}:</b> {branch}\n{printer} <b>Level:</b> <code>{level}</code></blockquote>',
-        },
-        "ru": {
-            "error_logs": "{snowflake} <b>Ошибка, смотри логи</b>",
-            "logs_not_found": "{file} Файл kernel.log не найден",
-            "logs_sending": "{printer} Отправляю логи kernel",
-            "freezing_usage": "{speech} Использование: {prefix}freezing [секунды]",
-            "freezing_range": "{speech} Укажите от 1 до 60 секунд",
-            "freezing_number": "{speech} Укажите число секунд",
-            "freezing_start": "{snowflake} Замораживаю на {seconds} секунд...",
-            "freezing_done": "{check} Разморожено после {seconds} секунд",
-            "custom_text_error": "<b>Ошибка в форматировании кастомного текста:</b> {error}",
-            "logs": "Логи",
-            "kernel_version": "Версия ядра",
-            "ping": "пинг",
-            "uptime": "время работы",
-            "ms": "мс",
-            "hours": "ч",
-            "minutes": "м",
-            "seconds": "с",
-            "branch": "Ветка",
-            "logs_not_fount_args": "<b>Доступные аргументы: </b><code>clear</code>, <code>debug</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code>, <code>all</code>",
-            "logs_clear": "<b>Логи очишены</b>",
-            "file_empty": "<b>Логи пустые</b>",
-            "logs_level_invalid": "<b>Доступные уровни:</b> <code>debug</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code>, <code>all</code>",
-            "logs_choose_level": "{paper} <b>Выбери уровень логов</b>",
-            "logs_choose_desc": "Отправлю только записи выбранного уровня из <code>kernel.log</code>.",
-            "logs_level_warning": "{snowflake} <b>Предупреждение</b>\n<blockquote>Логи уровня <code>{level}</code> могут содержать личную информацию, токены, chat id, текст сообщений и другие чувствительные данные.</blockquote>\n<b>Все равно отправить?</b>",
-            "logs_send_cancelled": "{snowflake} <b>Отправка логов отменена</b>",
-            "logs_level_caption": '{logs_title} <b>{logs}</b> {mcub}\n<blockquote>{pen} <b>{kernel_version}</b> {version}#<a href="{commit_url}">{commit_sha}</a>\n{satellite} <b>{branch_label}:</b> {branch}\n{printer} <b>Уровень:</b> <code>{level}</code></blockquote>',
-        },
-    }
+    strings: dict[str, dict[str, str]] = {"name": "tester"}
 
     log_level_pattern = re.compile(r"^\d{4}-\d{2}-\d{2} .* \[([A-Z]+)\] ")
     log_level_labels = ["debug", "info", "warning", "error", "critical", "all"]

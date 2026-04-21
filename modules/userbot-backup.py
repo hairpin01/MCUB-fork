@@ -28,7 +28,7 @@ from telethon.tl.functions.channels import (
     InviteToChannelRequest,
 )
 
-from core.lib.loader.module_base import ModuleBase, command, callback, loop
+from core.lib.loader.module_base import ModuleBase, callback, command
 from core.lib.loader.module_config import (
     Boolean,
     Choice,
@@ -218,7 +218,10 @@ class Backup(ModuleBase):
         ),
     )
 
-    strings = {
+    strings = {"name": "userbot_backup"}
+    # OLD strings removed after migration to langpacks - kept for reference
+    """
+    _OLD_STRINGS = {
         "ru": {
             "creating_backup": f"{_E['hourglass']} <i>Создаю бэкап...</i>",
             "backup_created": f"{_E['check']} <b>Бэкап создан</b>",
@@ -344,6 +347,7 @@ class Backup(ModuleBase):
             "restore_with_usage": f"{_E['cross']} Usage: <code>{{prefix}}restore_with &lt;password&gt;</code>",
         },
     }
+    """
 
     async def on_load(self) -> None:
         await super().on_load()
@@ -900,7 +904,7 @@ class Backup(ModuleBase):
         except ChannelsTooMuchError:
             await self.kernel.log_warning(
                 "ChannelsTooMuchError: cannot create backup group. "
-                f"Leave some channels or set an existing group via config."
+                "Leave some channels or set an existing group via config."
             )
             return None
         except Exception as e:

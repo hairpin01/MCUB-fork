@@ -23,6 +23,7 @@
 | [Best Practices](doc/guides/best-practices.md) | Recommended patterns for modules |
 | [Custom Core](doc/guides/custom-core.md) | Creating custom kernel cores |
 | [Localization (i18n)](doc/guides/i18n.md) | Multi-language support |
+| [Pipeline](doc/guides/pipeline.md) | Command pipeline chaining |
 
 ---
 

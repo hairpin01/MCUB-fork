@@ -16,17 +16,13 @@ Usage:
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+
 from telethon import events
 
 from core.lib.loader.module_base import (
     ModuleBase,
     command,
-    callback,
     loop,
-    method,
-    permission,
-    error_handler,
 )
 
 
@@ -67,7 +63,7 @@ class TestModule(ModuleBase):
         ]
         await self.edit(
             event,
-            f"<b>Test Methods:</b>\n\n" + "\n".join(f"• {m}" for m in test_methods),
+            "<b>Test Methods:</b>\n\n" + "\n".join(f"• {m}" for m in test_methods),
             as_html=True,
         )
 
@@ -168,7 +164,7 @@ class TestModule(ModuleBase):
 
     def test_args_parser(self) -> bool:
         prefix = self.get_prefix()
-        raw = f"test arg1 arg2 --flag --value=42"
+        raw = "test arg1 arg2 --flag --value=42"
 
         class MockEvent:
             text = f"{prefix}{raw}"
@@ -486,8 +482,7 @@ class TestModule(ModuleBase):
 
     def test_permission_tags_support(self) -> bool:
         try:
-            registry = getattr(type(self), "_permission_registry", {})
-            supported_tags = ["owner", "admin", "sudo", "chat_member", "private"]
+            getattr(type(self), "_permission_registry", {})
             return True
         except Exception as e:
             self.log.error(f"Permission tags test failed: {e}")

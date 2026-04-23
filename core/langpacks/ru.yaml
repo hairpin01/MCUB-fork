@@ -167,6 +167,29 @@ utils_piped:
   div_by_zero: 'ОШИБКА: деление на 0'
   calc_error: 'ОШИБКА: неверное выражение'
   sleep_usage: sleep <N>
+  sort_usage: sort [-r] [-u] [текст]
+  uniq_usage: uniq [-c] [текст]
+  strip_usage: strip [-e] [текст]
+  b64_usage: b64 [-d] [текст]
+  b64_error: 'Ошибка base64: {err}'
+  if_usage: if <паттерн> [текст]
+  if_no_match: Нет совпадений — конвейер остановлен
+  repeat_usage: repeat <N> ['разделитель'] [текст]
+  repeat_range: 'N должно быть от 1 до 100'
+  fwd_no_reply: Сначала ответьте на сообщение
+  fwd_usage: fwd <N> [задержка]
+  fwd_range: 'N должно быть от 1 до 200'
+  fwd_get_error: 'Не удалось получить сообщение: {err}'
+  fwd_no_msg: Сообщение не найдено
+  fwd_start: 'Отправляю {n} раз...'
+  fwd_done: 'Готово: отправлено {sent}/{n}'
+  reply_not_found: Нет ответного сообщения
+  sed_regex_error: 'Ошибка regex: {err}'
+  random_usage: random [-l] [N [M]]
+  json_usage: json [-s] <ключ1> [ключ2 ...]
+  json_parse_error: 'Ошибка парсинга JSON: {err}'
+  json_saved: 'Сохранено: {names}'
+  json_missing: 'Ключи не найдены: {keys}'
 api_protection:
   enabled: ✅ API защита включена
   disabled: ❌ API защита выключена
@@ -857,6 +880,8 @@ log_bot:
   update_error: '❌ Ошибка обновления: <code>{error}</code>'
   update_no_log: ⚠️ Лог-чат не настроен, уведомления об обновлениях недоступны
   and_more_commits: '... и ещё {} коммитов'
+  banner_load: <tg-emoji emoji-id="5326015457155620929">😐</tg-emoji> <b>Загружаю баннер...</b>
+  version: '<tg-emoji emoji-id="5472164874886846699">✨</tg-emoji> <b>Версия Модуля:</b> <code>{version}</code> (<code>{name}</code>)'
 userbot_backup:
   creating_backup: <tg-emoji emoji-id="5426958067763804056">⏳</tg-emoji> <i>Создаю
     бэкап...</i>
@@ -976,9 +1001,19 @@ tester:
   logs_level_invalid: "<b>Доступные уровни:</b> <code>debug</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code>, <code>all</code>"
   logs_choose_level: "{paper} <b>Выбери уровень логов</b>"
   logs_choose_desc: "Отправлю только записи выбранного уровня из <code>kernel.log</code>."
-  logs_level_warning: "{snowflake} <b>Предупреждение</b>\n<blockquote>Логи уровня <code>{level}</code> могут содержать личную информацию, токены, chat id, текст сообщений и другие чувствительные данные.</blockquote>\n<b>Все равно отправить?</b>"
+  logs_level_warning: "{snowflake} <b>Предупреждение</b>
+
+  <blockquote>Логи уровня <code>{level}</code> могут содержать личную информацию, токены, chat id, текст сообщений и другие чувствительные данные.</blockquote>
+
+  <b>Все равно отправить?</b>"
   logs_send_cancelled: "{snowflake} <b>Отправка логов отменена</b>"
-  logs_level_caption: '{logs_title} <b>{logs}</b> {mcub}\n<blockquote>{pen} <b>{kernel_version}</b> {version}#<a href="{commit_url}">{commit_sha}</a>\n{satellite} <b>{branch_label}:</b> {branch}\n{printer} <b>Уровень:</b> <code>{level}</code></blockquote>'
+  logs_level_caption: '{logs_title} <b>{logs}</b> {mcub}
+
+  <blockquote>{pen} <b>{kernel_version}</b> {version}#<a href="{commit_url}">{commit_sha}</a>
+
+  {satellite} <b>{branch_label}:</b> {branch}
+
+  {printer} <b>Уровень:</b> <code>{level}</code></blockquote>'
 mcub_info:
   custom_text_error: "<b>Ошибка в форматировании:</b> {error}"
   error_see_logs: "{warning} <b>Ошибка, смотри логи</b>"

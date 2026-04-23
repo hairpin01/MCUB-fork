@@ -30,7 +30,7 @@ class TestSchedulerStress:
             loop = asyncio.get_running_loop()
             start = loop.time()
 
-            for i in range(100):
+            for _i in range(100):
 
                 async def dummy_task():
                     pass
@@ -82,7 +82,7 @@ class TestSchedulerStress:
         try:
 
             async def add_tasks(start, count):
-                for i in range(count):
+                for _i in range(count):
 
                     async def dummy_task():
                         pass
@@ -153,10 +153,10 @@ class TestSchedulerPerformance:
                 execution_times.append(sync_time.time())
 
             await scheduler.add_interval_task(timed_task, 0.1)
-            start_time = sync_time.time()
+            sync_time.time()
             await asyncio.sleep(0.35)
 
-            assert len(execution_times) >= 2, f"Task should execute at least 2 times"
+            assert len(execution_times) >= 2, "Task should execute at least 2 times"
 
             if len(execution_times) >= 2:
                 intervals = [
@@ -236,7 +236,7 @@ class TestSchedulerReliability:
             async def task_with_name():
                 results.append(1)
 
-            for i in range(5):
+            for _i in range(5):
                 await scheduler.add_interval_task(task_with_name, 0.1)
 
             await asyncio.sleep(0.25)
@@ -258,7 +258,7 @@ class TestSchedulerReliability:
         await scheduler.start()
 
         try:
-            for i in range(10):
+            for _i in range(10):
 
                 async def dummy_task():
                     await asyncio.sleep(10)
@@ -285,7 +285,7 @@ class TestSchedulerReliability:
         scheduler = TaskScheduler(kernel)
         await scheduler.start()
 
-        for i in range(5):
+        for _i in range(5):
 
             async def dummy_task():
                 pass
@@ -317,7 +317,7 @@ class TestSchedulerConcurrency:
         try:
 
             async def writer(batch_start, count):
-                for i in range(count):
+                for _i in range(count):
 
                     async def dummy_task():
                         pass
@@ -354,7 +354,7 @@ class TestSchedulerConcurrency:
             loop = asyncio.get_running_loop()
             start = loop.time()
 
-            for i in range(200):
+            for _i in range(200):
 
                 async def dummy_task():
                     pass
@@ -390,7 +390,7 @@ class TestSchedulerWorkload:
                 await asyncio.sleep(0)
                 results.append(1)
 
-            for i in range(10):
+            for _i in range(10):
                 await scheduler.add_interval_task(task_with_work, 0.05)
 
             await asyncio.sleep(0.3)
@@ -422,7 +422,7 @@ class TestSchedulerWorkload:
                 compute()
                 results.append(1)
 
-            for i in range(10):
+            for _i in range(10):
                 await scheduler.add_interval_task(task_with_compute, 0.05)
 
             await asyncio.sleep(0.3)
@@ -450,7 +450,7 @@ class TestSchedulerWorkload:
                     await asyncio.sleep(0)
                 counter += 1
 
-            for i in range(20):
+            for _i in range(20):
                 await scheduler.add_interval_task(heavy_task, 0.1)
 
             await asyncio.sleep(0.5)

@@ -7,7 +7,7 @@ Tests for real modules in the modules/ directory
 
 import os
 import sys
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -329,7 +329,7 @@ class TestLoaderIntegration:
         mock_msg = AsyncMock()
         mock_msg.edit = AsyncMock(return_value=mock_msg)
 
-        result = await loader_module.safe_edit(mock_msg, "test")
+        await loader_module.safe_edit(mock_msg, "test")
         mock_msg.edit.assert_called_once_with("test")
 
     @pytest.mark.asyncio

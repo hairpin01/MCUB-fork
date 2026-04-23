@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлька | @hairpin01
 
-import pytest
 import time
 from unittest.mock import MagicMock
+
 from core.lib.base.permissions import CallbackPermissionManager
 
 
@@ -124,7 +124,7 @@ class TestAllowUserParameter:
             lock_cm.__exit__ = MagicMock()
             mock_kernel._inline_cb_lock = lock_cm
 
-            result = module._make_callback_button(
+            module._make_callback_button(
                 "Click",
                 handler,
                 allow_user=123456,
@@ -155,7 +155,7 @@ class TestAllowUserParameter:
             lock_cm.__exit__ = MagicMock()
             mock_kernel._inline_cb_lock = lock_cm
 
-            result = module._make_callback_button(
+            module._make_callback_button(
                 "Click",
                 handler,
                 allow_user=[123, 456],
@@ -187,7 +187,7 @@ class TestAllowUserParameter:
             lock_cm.__exit__ = MagicMock()
             mock_kernel._inline_cb_lock = lock_cm
 
-            result = module._make_callback_button(
+            module._make_callback_button(
                 "Click",
                 handler,
                 allow_user="all",
@@ -196,7 +196,7 @@ class TestAllowUserParameter:
 
             cb_map = mock_kernel.inline_callback_map
             found = False
-            for key, val in cb_map.items():
+            for _key, val in cb_map.items():
                 if val.get("allow_all"):
                     found = True
                     break

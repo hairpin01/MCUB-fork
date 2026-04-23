@@ -38,6 +38,10 @@ class EvalModule(ModuleBase):
     )
     async def cmd_py(self, event: events.NewMessage.Event) -> None:
         code = html.unescape(self.args_raw(event).strip())
+        pipe_input = getattr(event, "pipe_input", None) or ""
+
+        if not code and pipe_input:
+            code = pipe_input
 
         start_time = time.time()
 
@@ -70,6 +74,8 @@ class EvalModule(ModuleBase):
             "telethon": __import__("telethon"),
             "Button": __import__("telethon").Button,
             "events": __import__("telethon").events,
+            "pipe_input": pipe_input,
+            "_": pipe_input,
         }
 
         try:
@@ -92,9 +98,11 @@ class EvalModule(ModuleBase):
 
         code_display = html.escape(code[:1000]) + ("..." if len(code) > 1000 else "")
         result_text = complete if complete else "[no output]"
+
         if getattr(event, "piped", False):
             await self.edit(event, result_text)
             return
+
         s = self.strings
 
         if len(result_text) > 4000:

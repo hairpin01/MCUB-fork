@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any
 from telethon import events
 
 from core.lib.loader.module_base import ModuleBase, command
-from core.lib.loader.module_config import ModuleConfig, String, Boolean, Integer
+from core.lib.loader.module_config import Boolean, Integer, ModuleConfig, String
 
 
 class EchoModule(ModuleBase):

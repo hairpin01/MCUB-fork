@@ -2,7 +2,7 @@ lang: ru  # Base language for fallback
 
 core_inline:
   no_access: Ты кто вообще такой? Доступа нет, иди отсюда
-  no_access_id: 'ID чужака: {sender_id}'
+  no_access_id: 'ID чужака:'
   mcub_bot_title: MCUB Бот (живой, кое-как)
   version: Версия (не спрашивай зачем)
   modules: Модули (которые ещё не упали)
@@ -161,6 +161,29 @@ utils_piped:
   div_by_zero: 'МАТЕМАТИЧЕСКИЙ ТРЕШ: делить на 0 нельзя, это знают все'
   calc_error: 'ВЫЧИСЛИТЕЛЬНЫЙ КРИНЖ: выражение кривое'
   sleep_usage: sleep <N>
+  sort_usage: sort [-r] [-u] [текст]
+  uniq_usage: uniq [-c] [текст]
+  strip_usage: strip [-e] [текст]
+  b64_usage: b64 [-d] [текст]
+  b64_error: 'base64 крякнул (треш): {err}'
+  if_usage: if <паттерн> [текст]
+  if_no_match: Совпадений ноль — конвейер умер. Минута молчания.
+  repeat_usage: repeat <N> ['разделитель'] [текст]
+  repeat_range: 'N от 1 до 100. Не жадничай.'
+  fwd_no_reply: Ответь на сообщение, я не телепат
+  fwd_usage: fwd <N> [задержка]
+  fwd_range: 'N от 1 до 200. Ограничения придуманы не просто так.'
+  fwd_get_error: 'Сообщение не далось в руки (fwd-треш): {err}'
+  fwd_no_msg: Сообщение пропало в пустоте. Его нет.
+  fwd_start: 'Рассылаю {n} раз... держись...'
+  fwd_done: 'Всё, отправлено {sent} из {n}. Можешь выдохнуть.'
+  reply_not_found: Нет реплая сообщения
+  sed_regex_error: 'Regex треш (сломал паттерн): {err}'
+  random_usage: random [-l] [N [M]] (и пусть удача решает)
+  json_usage: json [-s] <ключ1> [ключ2 ...] (что достать из этого хаоса)
+  json_parse_error: 'JSON — полная каша, не парсится: {err}'
+  json_saved: 'Сохранено в переменные (держи): {names}'
+  json_missing: 'Ключей не нашлось, испарились: {keys}'
 api_protection:
   enabled: ✅ API защита включена (теперь они нас не сломят)
   disabled: ❌ API защита выключена (живёшь опасно, дружище)
@@ -703,6 +726,7 @@ log_bot:
   update_error: '❌ Обновление упало (обновленческий треш): <code>{error}</code>'
   update_no_log: ⚠️ Лог-чат не настроен, уведомления об обновлениях — в никуда
   and_more_commits: '... и ещё {} коммитов (там много всего)'
+  banner_load: <tg-emoji emoji-id="5326015457155620929">😐</tg-emoji> <b>Гружу баннер мкуба...</b>
 userbot_backup:
   creating_backup: <tg-emoji emoji-id="5426958067763804056">⏳</tg-emoji> <i>Создаю бэкап... на случай апокалипсиса...</i>
   backup_created: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <b>Бэкап создан. Теперь не страшно.</b>
@@ -789,9 +813,19 @@ tester:
   logs_level_invalid: "<b>Доступные уровни:</b> <code>debug</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code>, <code>all</code>"
   logs_choose_level: "{paper} <b>Выбери уровень логов (что тебя интересует)</b>"
   logs_choose_desc: "Пришлю только записи выбранного уровня из <code>kernel.log</code>. Любопытный."
-  logs_level_warning: "{snowflake} <b>Осторожно</b>\n<blockquote>Логи уровня <code>{level}</code> могут содержать токены, личные данные и прочие секреты. Будь аккуратен.</blockquote>\n<b>Всё равно отправить?</b>"
+  logs_level_warning: "{snowflake} <b>Осторожно</b>
+
+  <blockquote>Логи уровня <code>{level}</code> могут содержать токены, личные данные и прочие секреты. Будь аккуратен.</blockquote>
+
+  <b>Всё равно отправить?</b>"
   logs_send_cancelled: "{snowflake} <b>Отправка логов отменена. Правильное решение.</b>"
-  logs_level_caption: '{logs_title} <b>{logs}</b> {mcub}\n<blockquote>{pen} <b>{kernel_version}</b> {version}#<a href="{commit_url}">{commit_sha}</a>\n{satellite} <b>{branch_label}:</b> {branch}\n{printer} <b>Уровень:</b> <code>{level}</code></blockquote>'
+  logs_level_caption: '{logs_title} <b>{logs}</b> {mcub}
+
+  <blockquote>{pen} <b>{kernel_version}</b> {version}#<a href="{commit_url}">{commit_sha}</a>
+
+  {satellite} <b>{branch_label}:</b> {branch}
+
+  {printer} <b>Уровень:</b> <code>{level}</code></blockquote>'
 trusted:
   not_owner: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Только владелец может это. А ты кто?'
   usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Как доверять: <code>.trust</code> / <code>.untrust</code> (реплай, @username или ID)'
@@ -803,6 +837,8 @@ trusted:
   trustlist_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Доверенные пользователи (избранные):</b>'
   btn_cancel: Отмена (передумал)
   nonick_step_title: '<tg-emoji emoji-id="5332723564711804828">✨</tg-emoji> <b>Включить NoNick для {name}? Решай.</b>'
+  nonick_step_desc: "При включённом <b>NoNick</b> юзер сможет выполнять команды просто как <code>{prefix}команда</code>.\nБез него нужно писать <code>{prefix}команда@{alias}</code>."
+  nonick_step_desc_no_alias: "При включённом <b>NoNick</b> пользователь сможет выполнять команды без суффикса.\nБез него нужно указывать <code>@username</code> владельца."
   btn_nonick_yes: Включить NoNick (доверяю)
   btn_nonick_no: Без NoNick (пусть пишет полностью)
   nonick_toggled_on: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> NoNick <b>включён</b> для {name}. Доступ упрощён.'

@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any
 from telethon import events
 
-from core.lib.loader.module_base import ModuleBase, command, watcher, loop, owner
-from core.lib.loader.module_config import ModuleConfig, Boolean
+from core.lib.loader.module_base import ModuleBase, command, loop, owner, watcher
+from core.lib.loader.module_config import Boolean, ModuleConfig
 
 
 class WelcomeModule(ModuleBase):

@@ -3,8 +3,14 @@
 
 from __future__ import annotations
 
+import ast
+import asyncio
+import base64
 import html
+import json
+import operator
 import os
+import random as _random
 import re
 import traceback
 from typing import Any
@@ -35,17 +41,56 @@ class UtilsPiped(ModuleBase):
 
     @command(
         "echo",
-        doc_ru="[text] вывести текст",
-        doc_en="[text] print text",
+        doc_ru="""[text] вывести текст с подстановками (поддерживает {pipe_input[:X]} - пример .man | 1wc -l | .echo <b>модулей: {pipe_input[:50]}, {import [var]} - тоже самое что .man | .export man && .import man | .echo modules: {pipe_input}, пример .man | .export man | .delete && .echo modules {{import man}})""",
+        doc_en="[text] display text with substitutions (supports {pipe_input[:X]} - example .man | 1wc -l | .echo <b>modules: {pipe_input[:50]}, {import [var]} - the same as .man | .export man && .import man | .echo modules: {pipe_input}, example .man | .export man | .delete && .echo modules {import man})",
     )
     async def cmd_echo(self, event: events.NewMessage.Event) -> None:
         try:
             args = self.args_raw(event)
             pipe_input = getattr(event, "pipe_input", None) or ""
-            text = ""
+            pipe_vars = getattr(self.kernel, "_pipe_vars", {})
+
+            # Шаблон подстановки: {import var[:срез]} или {pipe_input[:срез]}
+            def replacer(match):
+                expr = match.group(1)
+                # Проверяем срез
+                slice_match = re.match(
+                    r"^(import\s+)?([a-zA-Z_.][a-zA-Z0-9_.]*|pipe_input)(?:\[(.*?)\])?$",
+                    expr.strip(),
+                )
+                if not slice_match:
+                    return match.group(0)  # оставляем как есть
+                _, name, slice_spec = slice_match.groups()
+                if name == "pipe_input":
+                    value = pipe_input
+                else:
+                    value = pipe_vars.get(name, "")
+                if slice_spec and value:
+                    # парсим срез вида [:5] или [2:10] или [::-1]
+                    try:
+                        parts = slice_spec.split(":")
+                        if len(parts) == 1:
+                            start = int(parts[0]) if parts[0] else None
+                            stop = None
+                            step = None
+                        elif len(parts) == 2:
+                            start = int(parts[0]) if parts[0] else None
+                            stop = int(parts[1]) if parts[1] else None
+                            step = None
+                        elif len(parts) == 3:
+                            start = int(parts[0]) if parts[0] else None
+                            stop = int(parts[1]) if parts[1] else None
+                            step = int(parts[2]) if parts[2] else None
+                        else:
+                            return match.group(0)
+                        # Применяем срез
+                        value = value[start:stop:step]
+                    except (ValueError, TypeError):
+                        pass  # при ошибке оставляем исходную строку
+                return value
 
             if args:
-                text = args.replace("{pipe_input}", pipe_input)
+                text = re.sub(r"\{([^}]+)\}", replacer, args)
             else:
                 text = pipe_input
 
@@ -333,8 +378,8 @@ class UtilsPiped(ModuleBase):
 
     @command(
         "grep",
-        doc_ru="[-l] <pattern> [text] искать текст",
-        doc_en="[-l] <pattern> [text] search text",
+        doc_ru="[-l] [-v] [-r] <pattern> [text] искать текст; -v инвертировать, -r использовать regex",
+        doc_en="[-l] [-v] [-r] <pattern> [text] search text; -v invert match, -r use regex",
     )
     async def cmd_grep(self, event: events.NewMessage.Event) -> None:
         try:
@@ -342,9 +387,22 @@ class UtilsPiped(ModuleBase):
             args = self.args_raw(event).strip()
 
             show_line_numbers = False
-            if args and re.search(r"(?<!\S)-l(?!\S)", args):
-                show_line_numbers = True
-                args = re.sub(r"(?<!\S)-l(?!\S)", "", args).strip()
+            invert = False
+            use_regex = False
+
+            for flag, pat in (
+                ("-l", r"(?<!\S)-l(?!\S)"),
+                ("-v", r"(?<!\S)-v(?!\S)"),
+                ("-r", r"(?<!\S)-r(?!\S)"),
+            ):
+                if args and re.search(pat, args):
+                    if flag == "-l":
+                        show_line_numbers = True
+                    elif flag == "-v":
+                        invert = True
+                    elif flag == "-r":
+                        use_regex = True
+                    args = re.sub(pat, "", args).strip()
 
             if not args:
                 if pipe_input:
@@ -375,18 +433,28 @@ class UtilsPiped(ModuleBase):
                 await self.edit(event, self.strings("grep_usage"), parse_mode="html")
                 return
 
-            lines = text.splitlines()
-            if show_line_numbers:
-                matches = [
-                    f"{i}: {line}"
-                    for i, line in enumerate(lines, start=1)
-                    if pattern in line
-                ]
-            else:
-                matches = [line for line in lines if pattern in line]
+            def _line_matches(line: str) -> bool:
+                if use_regex:
+                    try:
+                        return bool(re.search(pattern, line))
+                    except re.error:
+                        return pattern in line
+                return pattern in line
 
-            result = "\n".join(matches)
-            if not matches:
+            lines = text.splitlines()
+            matched_lines = [
+                (i, line)
+                for i, line in enumerate(lines, start=1)
+                if _line_matches(line) != invert
+            ]
+
+            if show_line_numbers:
+                result_lines = [f"{i}: {line}" for i, line in matched_lines]
+            else:
+                result_lines = [line for _, line in matched_lines]
+
+            result = "\n".join(result_lines)
+            if not result_lines:
                 event.pipe_exit_code = 1
                 result = self.strings("no_match")
 
@@ -394,7 +462,7 @@ class UtilsPiped(ModuleBase):
                 event.pipe_output = str(result)
                 return
 
-            if not result:
+            if not result_lines:
                 await self.edit(event, self.strings("no_match"), parse_mode="html")
                 return
 
@@ -480,13 +548,18 @@ class UtilsPiped(ModuleBase):
 
     @command(
         "sed",
-        doc_ru="s/<old>/<new>/[g] заменить",
-        doc_en="s/<old>/<new>/[g] replace",
+        doc_ru="[-r] s/<old>/<new>/[gi] заменить; -r — паттерн как regex (иначе plain-текст)",
+        doc_en="[-r] s/<old>/<new>/[gi] replace; -r — treat pattern as regex (default: plain text)",
     )
     async def cmd_sed(self, event: events.NewMessage.Event) -> None:
         try:
             args = self.args_raw(event).strip()
             pipe_input = getattr(event, "pipe_input", None) or ""
+
+            use_regex = False
+            if args.startswith("-r ") or args == "-r":
+                use_regex = True
+                args = args[2:].strip()
 
             if not args:
                 await self.edit(
@@ -511,10 +584,20 @@ class UtilsPiped(ModuleBase):
                 return
 
             re_flags = re.IGNORECASE if "i" in flags else 0
-            if "g" in flags:
-                result = re.sub(re.escape(old), new, text, flags=re_flags)
-            else:
-                result = re.sub(re.escape(old), new, text, count=1, flags=re_flags)
+            pattern = old if use_regex else re.escape(old)
+            try:
+                if "g" in flags:
+                    result = re.sub(pattern, new, text, flags=re_flags)
+                else:
+                    result = re.sub(pattern, new, text, count=1, flags=re_flags)
+            except re.error as exc:
+                event.pipe_exit_code = 1
+                await self.edit(
+                    event,
+                    self.strings("sed_regex_error", err=str(exc)),
+                    parse_mode="html",
+                )
+                return
 
             if getattr(event, "piped", False):
                 await self.edit(event, result)
@@ -562,6 +645,36 @@ class UtilsPiped(ModuleBase):
         except Exception as e:
             await self.kernel.handle_error(e, source="wc", event=event)
 
+    # ------------------------------------------------------------------
+    # Безопасный вычислитель выражений (замена голому eval)
+    # ------------------------------------------------------------------
+    _SAFE_OPS: dict = {
+        ast.Add: operator.add,
+        ast.Sub: operator.sub,
+        ast.Mult: operator.mul,
+        ast.Div: operator.truediv,
+        ast.FloorDiv: operator.floordiv,
+        ast.Mod: operator.mod,
+        ast.Pow: operator.pow,
+        ast.USub: operator.neg,
+        ast.UAdd: operator.pos,
+    }
+
+    def _safe_eval(self, node: ast.AST) -> float:
+        if isinstance(node, ast.Expression):
+            return self._safe_eval(node.body)
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+            return float(node.value)
+        if isinstance(node, ast.BinOp) and type(node.op) in self._SAFE_OPS:
+            left = self._safe_eval(node.left)
+            right = self._safe_eval(node.right)
+            if isinstance(node.op, ast.Pow) and abs(right) > 1000:
+                raise ValueError("exponent too large")
+            return self._SAFE_OPS[type(node.op)](left, right)
+        if isinstance(node, ast.UnaryOp) and type(node.op) in self._SAFE_OPS:
+            return self._SAFE_OPS[type(node.op)](self._safe_eval(node.operand))
+        raise ValueError(f"unsupported expression: {ast.dump(node)}")
+
     @command(
         "calc",
         doc_ru="<expr> вычислить (e.g. 9*2, /2, +1)",
@@ -589,6 +702,7 @@ class UtilsPiped(ModuleBase):
 
             result: Any
 
+            # Режим «применить оператор к pipe_input»: /2, +1, *3, -5
             if expr[0] in "+-*/":
                 op = expr[0]
                 try:
@@ -605,28 +719,31 @@ class UtilsPiped(ModuleBase):
                     )
                     return
 
-                if op == "+":
-                    result = num + val
-                elif op == "-":
-                    result = num - val
-                elif op == "*":
-                    result = num * val
-                else:
-                    if val == 0:
-                        await self.edit(
-                            event, self.strings("div_by_zero"), parse_mode="html"
-                        )
-                        return
-                    result = num / val
+                ops = {
+                    "+": operator.add,
+                    "-": operator.sub,
+                    "*": operator.mul,
+                    "/": operator.truediv,
+                }
+                if op == "/" and val == 0:
+                    await self.edit(
+                        event, self.strings("div_by_zero"), parse_mode="html"
+                    )
+                    return
+                result = ops[op](num, val)
             else:
+                # Полное выражение — безопасный AST-парсер
                 try:
-                    result = eval(expr.replace(" ", ""))
-                except Exception:
+                    tree = ast.parse(expr.replace(" ", ""), mode="eval")
+                    result = self._safe_eval(tree)
+                except (ValueError, ZeroDivisionError, SyntaxError) as exc:
                     if num is not None:
                         result = num
                     else:
                         await self.edit(
-                            event, self.strings("calc_usage"), parse_mode="html"
+                            event,
+                            self.strings("calc_error", err=str(exc)),
+                            parse_mode="html",
                         )
                         return
 
@@ -665,9 +782,622 @@ class UtilsPiped(ModuleBase):
                 await self.edit(event, self.strings("sleep_usage"), parse_mode="html")
                 return
 
-            import asyncio
-
             await asyncio.sleep(seconds)
             await self.edit(event, "ok", parse_mode="html")
         except Exception as e:
             await self.kernel.handle_error(e, source="sleep", event=event)
+
+    @command(
+        "sort",
+        doc_ru="[-r] [-u] [text] сортировать строки",
+        doc_en="[-r] [-u] [text] sort lines",
+    )
+    async def cmd_sort(self, event: events.NewMessage.Event) -> None:
+        try:
+            args = self.args_raw(event).strip()
+            pipe_input = getattr(event, "pipe_input", None) or ""
+
+            reverse = False
+            unique = False
+
+            while args.startswith("-"):
+                flag, _, args = args.partition(" ")
+                args = args.strip()
+                if "r" in flag:
+                    reverse = True
+                if "u" in flag:
+                    unique = True
+
+            text = args or pipe_input
+
+            if not text:
+                await self.edit(event, self.strings("sort_usage"), parse_mode="html")
+                return
+
+            lines = text.splitlines()
+            if unique:
+                seen: set[str] = set()
+                deduped: list[str] = []
+                for line in lines:
+                    if line not in seen:
+                        seen.add(line)
+                        deduped.append(line)
+                lines = deduped
+
+            lines.sort(reverse=reverse)
+            result = "\n".join(lines)
+
+            if getattr(event, "piped", False):
+                await self.edit(event, result)
+                return
+
+            await self.edit(event, result, parse_mode="html")
+        except Exception as e:
+            await self.kernel.handle_error(e, source="sort", event=event)
+
+    @command(
+        "uniq",
+        doc_ru="[-c] [text] убрать дублирующиеся строки",
+        doc_en="[-c] [text] remove duplicate lines",
+    )
+    async def cmd_uniq(self, event: events.NewMessage.Event) -> None:
+        try:
+            args = self.args_raw(event).strip()
+            pipe_input = getattr(event, "pipe_input", None) or ""
+
+            count_mode = False
+            if args.startswith("-c"):
+                count_mode = True
+                args = args[2:].strip()
+
+            text = args or pipe_input
+
+            if not text:
+                await self.edit(event, self.strings("uniq_usage"), parse_mode="html")
+                return
+
+            lines = text.splitlines()
+
+            if count_mode:
+                from itertools import groupby
+
+                result_lines: list[str] = []
+                for key, group in groupby(lines):
+                    n = sum(1 for _ in group)
+                    result_lines.append(f"{n} {key}")
+                result = "\n".join(result_lines)
+            else:
+                seen_set: set[str] = set()
+                unique_lines: list[str] = []
+                for line in lines:
+                    if line not in seen_set:
+                        seen_set.add(line)
+                        unique_lines.append(line)
+                result = "\n".join(unique_lines)
+
+            if getattr(event, "piped", False):
+                await self.edit(event, result)
+                return
+
+            await self.edit(event, result, parse_mode="html")
+        except Exception as e:
+            await self.kernel.handle_error(e, source="uniq", event=event)
+
+    @command(
+        "strip",
+        doc_ru="[-e] [text] убрать лишние пробелы/строки",
+        doc_en="[-e] [text] strip whitespace and blank lines",
+    )
+    async def cmd_strip(self, event: events.NewMessage.Event) -> None:
+        try:
+            args = self.args_raw(event).strip()
+            pipe_input = getattr(event, "pipe_input", None) or ""
+
+            remove_empty = False
+            if args.startswith("-e"):
+                remove_empty = True
+                args = args[2:].strip()
+
+            text = args or pipe_input
+
+            if not text:
+                await self.edit(event, self.strings("strip_usage"), parse_mode="html")
+                return
+
+            lines = [line.strip() for line in text.splitlines()]
+            if remove_empty:
+                lines = [line for line in lines if line]
+
+            result = "\n".join(lines)
+
+            if getattr(event, "piped", False):
+                await self.edit(event, result)
+                return
+
+            await self.edit(event, result, parse_mode="html")
+        except Exception as e:
+            await self.kernel.handle_error(e, source="strip", event=event)
+
+    @command(
+        "b64",
+        doc_ru="[-d] [text] base64 encode/decode",
+        doc_en="[-d] [text] base64 encode/decode",
+    )
+    async def cmd_b64(self, event: events.NewMessage.Event) -> None:
+        try:
+            args = self.args_raw(event).strip()
+            pipe_input = getattr(event, "pipe_input", None) or ""
+
+            decode = False
+            if args.startswith("-d"):
+                decode = True
+                args = args[2:].strip()
+
+            text = args or pipe_input
+
+            if not text:
+                await self.edit(event, self.strings("b64_usage"), parse_mode="html")
+                return
+
+            try:
+                if decode:
+                    result = base64.b64decode(text.encode()).decode(
+                        "utf-8", errors="replace"
+                    )
+                else:
+                    result = base64.b64encode(text.encode()).decode()
+            except Exception as e:
+                event.pipe_exit_code = 1
+                await self.edit(
+                    event,
+                    self.strings("b64_error", err=str(e)),
+                    parse_mode="html",
+                )
+                return
+
+            if getattr(event, "piped", False):
+                await self.edit(event, result)
+                return
+
+            await self.edit(event, result, parse_mode="html")
+        except Exception as e:
+            await self.kernel.handle_error(e, source="b64", event=event)
+
+    @command(
+        "if",
+        doc_ru="<pattern> [text] пропустить если паттерн найден",
+        doc_en="<pattern> [text] pass through if pattern found",
+    )
+    async def cmd_if(self, event: events.NewMessage.Event) -> None:
+        try:
+            args = self.args_raw(event).strip()
+            pipe_input = getattr(event, "pipe_input", None) or ""
+
+            if not args:
+                event.pipe_exit_code = 1
+                await self.edit(event, self.strings("if_usage"), parse_mode="html")
+                return
+
+            pattern = ""
+            inline_text = ""
+
+            if args[0] in ("'", '"'):
+                quote = args[0]
+                end = args.find(quote, 1)
+                if end != -1:
+                    pattern = args[1:end]
+                    inline_text = args[end + 1 :].strip()
+                else:
+                    pattern = args[1:].strip()
+            else:
+                parts = args.split(None, 1)
+                pattern = parts[0]
+                inline_text = parts[1] if len(parts) > 1 else ""
+
+            text = inline_text or pipe_input
+
+            if not text:
+                event.pipe_exit_code = 1
+                await self.edit(event, self.strings("if_usage"), parse_mode="html")
+                return
+
+            try:
+                matched = bool(re.search(pattern, text))
+            except re.error:
+                matched = pattern in text
+
+            if matched:
+                if getattr(event, "piped", False):
+                    await self.edit(event, text)
+                else:
+                    await self.edit(event, text, parse_mode="html")
+            else:
+                event.pipe_exit_code = 1
+                await self.edit(event, self.strings("if_no_match"), parse_mode="html")
+        except Exception as e:
+            await self.kernel.handle_error(e, source="if", event=event)
+
+    @command(
+        "repeat",
+        doc_ru="<N> [sep] [text] повторить текст N раз",
+        doc_en="<N> [sep] [text] repeat text N times",
+    )
+    async def cmd_repeat(self, event: events.NewMessage.Event) -> None:
+        try:
+            args = self.args_raw(event).strip()
+            pipe_input = getattr(event, "pipe_input", None) or ""
+
+            if not args:
+                await self.edit(event, self.strings("repeat_usage"), parse_mode="html")
+                return
+
+            parts = args.split(None, 2)
+            try:
+                n = int(parts[0])
+            except ValueError:
+                await self.edit(event, self.strings("repeat_usage"), parse_mode="html")
+                return
+
+            if n < 1 or n > 100:
+                await self.edit(event, self.strings("repeat_range"), parse_mode="html")
+                return
+
+            sep = "\n"
+            text = ""
+
+            if len(parts) >= 2:
+                if parts[1].startswith(("'", '"')):
+                    quote = parts[1][0]
+                    rest = " ".join(parts[1:])
+                    end = rest.find(quote, 1)
+                    if end != -1:
+                        sep = rest[1:end]
+                        text = rest[end + 1 :].strip()
+                    else:
+                        text = parts[2] if len(parts) > 2 else pipe_input
+                else:
+                    text = " ".join(parts[1:])
+
+            text = text or pipe_input
+
+            if not text:
+                await self.edit(event, self.strings("repeat_usage"), parse_mode="html")
+                return
+
+            result = sep.join([text] * n)
+
+            if getattr(event, "piped", False):
+                await self.edit(event, result)
+                return
+
+            await self.edit(event, result, parse_mode="html")
+        except Exception as e:
+            await self.kernel.handle_error(e, source="repeat", event=event)
+
+    @command(
+        "fwd",
+        doc_ru="<N> [delay] переслать сообщение N раз (без автора)",
+        doc_en="<N> [delay] forward message N times (without author)",
+    )
+    async def cmd_fwd(self, event: events.NewMessage.Event) -> None:
+        try:
+            args = self.args_raw(event).strip()
+            reply_id = getattr(event, "reply_to_msg_id", None)
+            chat_id = event.chat_id
+
+            if not reply_id:
+                await self.edit(event, self.strings("fwd_no_reply"), parse_mode="html")
+                return
+
+            parts = args.split()
+            try:
+                n = int(parts[0]) if parts else 1
+            except ValueError:
+                await self.edit(event, self.strings("fwd_usage"), parse_mode="html")
+                return
+
+            try:
+                delay = float(parts[1]) if len(parts) > 1 else 0.0
+            except ValueError:
+                delay = 0.0
+
+            if n < 1 or n > 200:
+                await self.edit(event, self.strings("fwd_range"), parse_mode="html")
+                return
+
+            try:
+                msg = await self.client.get_messages(chat_id, ids=reply_id)
+            except Exception as e:
+                event.pipe_exit_code = 1
+                await self.edit(
+                    event,
+                    self.strings("fwd_get_error", err=str(e)),
+                    parse_mode="html",
+                )
+                return
+
+            if not msg:
+                event.pipe_exit_code = 1
+                await self.edit(event, self.strings("fwd_no_msg"), parse_mode="html")
+                return
+
+            await self.edit(
+                event,
+                self.strings("fwd_start", n=n),
+                parse_mode="html",
+            )
+
+            sent = 0
+            for i in range(n):
+                try:
+                    if msg.media:
+                        await self.client.send_file(
+                            chat_id,
+                            file=msg.media,
+                            caption=msg.text or "",
+                            parse_mode="html",
+                        )
+                    else:
+                        await self.client.send_message(
+                            chat_id,
+                            msg.text or "",
+                            parse_mode="html",
+                        )
+                    sent += 1
+                except Exception as e:
+                    self.log.warning("[fwd] send %d/%d failed: %s", i + 1, n, e)
+
+                if delay > 0 and i < n - 1:
+                    await asyncio.sleep(delay)
+
+            await self.edit(
+                event,
+                self.strings("fwd_done", sent=sent, n=n),
+                parse_mode="html",
+            )
+        except Exception as e:
+            await self.kernel.handle_error(e, source="fwd", event=event)
+
+    @command(
+        "random",
+        doc_ru="[-l] [N [M]] случайное число N..M или случайная строка из текста (-l)",
+        doc_en="[-l] [N [M]] random number N..M or random line from text (-l)",
+    )
+    async def cmd_random(self, event: events.NewMessage.Event) -> None:
+        try:
+            args = self.args_raw(event).strip()
+            pipe_input = getattr(event, "pipe_input", None) or ""
+
+            pick_line = False
+            if re.search(r"(?<!\S)-l(?!\S)", args):
+                pick_line = True
+                args = re.sub(r"(?<!\S)-l(?!\S)", "", args).strip()
+
+            if pick_line:
+                text = args or pipe_input
+                if not text:
+                    await self.edit(
+                        event, self.strings("random_usage"), parse_mode="html"
+                    )
+                    return
+                lines = [l for l in text.splitlines() if l.strip()]
+                if not lines:
+                    event.pipe_exit_code = 1
+                    await self.edit(event, self.strings("no_match"), parse_mode="html")
+                    return
+                result = _random.choice(lines)
+            else:
+                parts = args.split(None, 1)
+                try:
+                    if not parts or not parts[0]:
+                        lo, hi = 0, 100
+                    elif len(parts) == 1:
+                        lo, hi = 0, int(parts[0])
+                    else:
+                        lo, hi = int(parts[0]), int(parts[1])
+                except ValueError:
+                    await self.edit(
+                        event, self.strings("random_usage"), parse_mode="html"
+                    )
+                    return
+                if lo > hi:
+                    lo, hi = hi, lo
+                result = str(_random.randint(lo, hi))
+
+            if getattr(event, "piped", False):
+                await self.edit(event, result)
+                return
+            await self.edit(event, result, parse_mode="html")
+        except Exception as e:
+            await self.kernel.handle_error(e, source="random", event=event)
+
+    @command(
+        "json",
+        doc_ru=(
+            "[-s[ave]] <key1> [key2 ...] извлечь поля из JSON.\n"
+            "Без -s: вывести значения через пробел.\n"
+            "С -s: сохранить каждое поле как переменную (для .import / {import key}).\n"
+            "Поддерживает вложенность через точку: user.name, items.0\n"
+            "Без ключей: pretty-print JSON.\n"
+            "Пример: .curl ... | .json -s name ip | .echo name: {import name}\nip: {import ip}"
+        ),
+        doc_en=(
+            "[-s[ave]] <key1> [key2 ...] extract fields from JSON.\n"
+            "Without -s: print values separated by space.\n"
+            "With -s: save each field as a variable (for .import / {import key}).\n"
+            "Supports nested keys via dot: user.name, items.0\n"
+            "Without keys: pretty-print JSON.\n"
+            "Example: .curl ... | .json -s name ip | .echo name: {import name}\nip: {import ip}"
+        ),
+    )
+    async def cmd_json(self, event: events.NewMessage.Event) -> None:
+        try:
+            args = self.args_raw(event).strip()
+            pipe_input = getattr(event, "pipe_input", None) or ""
+
+            save_mode = False
+            if re.search(r"(?<!\S)-s(?:ave)?(?!\S)", args):
+                save_mode = True
+                args = re.sub(r"(?<!\S)-s(?:ave)?(?!\S)", "", args).strip()
+
+            keys = args.split() if args else []
+            raw = pipe_input
+
+            # Без ключей — pretty-print
+            if not keys:
+                if not raw:
+                    await self.edit(
+                        event, self.strings("json_usage"), parse_mode="html"
+                    )
+                    return
+                try:
+                    parsed = json.loads(raw)
+                    result = json.dumps(parsed, ensure_ascii=False, indent=2)
+                except json.JSONDecodeError as exc:
+                    event.pipe_exit_code = 1
+                    await self.edit(
+                        event,
+                        self.strings("json_parse_error", err=str(exc)),
+                        parse_mode="html",
+                    )
+                    return
+                if getattr(event, "piped", False):
+                    await self.edit(event, result)
+                    return
+                await self.edit(event, result, parse_mode="html")
+                return
+
+            if not raw:
+                event.pipe_exit_code = 1
+                await self.edit(event, self.strings("json_usage"), parse_mode="html")
+                return
+
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                event.pipe_exit_code = 1
+                await self.edit(
+                    event,
+                    self.strings("json_parse_error", err=str(exc)),
+                    parse_mode="html",
+                )
+                return
+
+            def _get(obj: Any, dotted_key: str) -> str:
+                parts = dotted_key.split(".")
+                cur = obj
+                for part in parts:
+                    if isinstance(cur, dict):
+                        if part not in cur:
+                            raise KeyError(part)
+                        cur = cur[part]
+                    elif isinstance(cur, list):
+                        try:
+                            cur = cur[int(part)]
+                        except (ValueError, IndexError) as exc:
+                            raise KeyError(part) from exc
+                    else:
+                        raise KeyError(part)
+                if isinstance(cur, (dict, list)):
+                    return json.dumps(cur, ensure_ascii=False)
+                return str(cur) if cur is not None else ""
+
+            values: dict[str, str] = {}
+            missing: list[str] = []
+            for key in keys:
+                try:
+                    values[key] = _get(data, key)
+                except KeyError:
+                    missing.append(key)
+                    values[key] = ""
+
+            if save_mode:
+                if not hasattr(self.kernel, "_pipe_vars"):
+                    self.kernel._pipe_vars = {}
+                for key, val in values.items():
+                    var_name = key.split(".")[-1]
+                    self.kernel._pipe_vars[var_name] = val
+
+                saved = ", ".join(k.split(".")[-1] for k in keys)
+                warn = (
+                    ("\n" + self.strings("json_missing", keys=", ".join(missing)))
+                    if missing
+                    else ""
+                )
+
+                if getattr(event, "piped", False):
+                    # пропускаем pipe_input дальше нетронутым
+                    await self.edit(event, pipe_input)
+                    return
+                await self.edit(
+                    event,
+                    self.strings("json_saved", names=saved) + warn,
+                    parse_mode="html",
+                )
+                return
+
+            result_parts = [values[k] for k in keys]
+            result = " ".join(result_parts)
+            if missing:
+                warn = self.strings("json_missing", keys=", ".join(missing))
+                result = (result + "\n" + warn).strip() if result else warn
+
+            if getattr(event, "piped", False):
+                await self.edit(event, result)
+                return
+            await self.edit(event, result, parse_mode="html")
+        except Exception as e:
+            await self.kernel.handle_error(e, source="json", event=event)
+
+    @command(
+        "get_reply",
+        doc_ru="[что извлечь] получить данные из ответа",
+        doc_en="[what to extract] get data from reply",
+    )
+    async def cmd_reply(self, event: events.NewMessage.Event) -> None:
+        """
+        Retrieves information from a message that has been replied to.
+        Without arguments, returns the full text (or caption).
+        Arguments:
+            text — message text only
+            raw - raw text (without HTML entities)
+            id — message ID
+            sender — sender ID
+            chat — chat ID
+            date — message timestamp
+            media — True/False, whether there is media
+        """
+        try:
+            args = self.args_raw(event).strip().lower()
+            reply_msg = await event.get_reply_message()
+
+            if not reply_msg:
+                await self.edit(
+                    event, self.strings("reply_not_found"), parse_mode="html"
+                )
+                return
+
+            if args == "text":
+                result = reply_msg.text or reply_msg.caption or ""
+            elif args == "raw":
+                result = reply_msg.raw_text or ""
+            elif args == "id":
+                result = str(reply_msg.id)
+            elif args == "sender":
+                result = str(reply_msg.sender_id) if reply_msg.sender_id else ""
+            elif args == "chat":
+                result = str(reply_msg.chat_id) if reply_msg.chat_id else ""
+            elif args == "date":
+                result = str(reply_msg.date.timestamp()) if reply_msg.date else ""
+            elif args == "media":
+                result = "true" if reply_msg.media else "false"
+            else:
+                result = reply_msg.text or reply_msg.caption or ""
+
+            if getattr(event, "piped", False):
+                await self.edit(event, result)
+                return
+
+            await self.edit(event, result, parse_mode="html")
+        except Exception as e:
+            await self.kernel.handle_error(e, source="reply", event=event)

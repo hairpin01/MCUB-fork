@@ -55,6 +55,11 @@ def get_langpacks(locale: str | None = None) -> dict[str, dict[str, str]]:
                 for key, value in strings.items():
                     if isinstance(value, str):
                         LANGPACKS[locale_name].setdefault(module_name, {})[key] = value
+            elif isinstance(strings, str):
+                # Top-level string metadata, e.g. "lang: ru" — base language for fallback.
+                # Stored directly on the locale dict so get_module_strings and
+                # get_module_commands can resolve the correct fallback chain.
+                LANGPACKS[locale_name][module_name] = strings  # type: ignore[assignment]
 
     if locale and locale in LANGPACKS:
         return {locale: LANGPACKS[locale]}

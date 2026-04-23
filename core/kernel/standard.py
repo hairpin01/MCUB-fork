@@ -1337,6 +1337,25 @@ class Kernel:
                 inner_self.piped: bool = False
                 inner_self.no_add_args_to_input: bool = False
 
+            async def delete(inner_self):
+                try:
+                    await inner_self._client.delete_messages(
+                        inner_self.chat_id, [inner_self.id]
+                    )
+                except Exception:
+                    pass
+
+                async def get_reply_message(inner_self):
+                    if not inner_self.reply_to_msg_id:
+                        return None
+
+                try:
+                    return await inner_self._client.get_messages(
+                        inner_self.chat_id, ids=inner_self.reply_to_msg_id
+                    )
+                except Exception:
+                    return None
+
             async def edit(inner_self, new_text, *args, parse_mode=None, **kwargs):
                 try:
                     return await inner_self._client.edit_message(
@@ -1366,6 +1385,14 @@ class Kernel:
                             "[SimpleEvent.edit] fallback send also failed: %s", _err2
                         )
                         return None
+
+        async def get_sender(inner_self):
+            """Get the sender of this message."""
+            return await inner_self._client.get_entity(inner_self.sender_id)
+
+        async def get_chat(inner_self):
+            """Get the chat where this message was sent."""
+            return await inner_self._client.get_entity(inner_self.chat_id)
 
         return _SimpleEvent()
 
@@ -1452,6 +1479,11 @@ class Kernel:
         segments = pipeline.segments
         if not segments:
             return False
+        if hasattr(event, "no_owner"):
+            await event.edit(
+                f"ignored pipeline command: {event.no_owner()}", parse_mode="html"
+            )
+            return False
 
         original_edit = getattr(event, "edit", None)
         original_text = event.text
@@ -1505,15 +1537,12 @@ class Kernel:
                 self._wrap_edit_with_fallback(current_event, chat_id)
 
             is_piped = next_seg is not None and next_seg.operator == "|"
+
+            cmd_text = seg.command
             if getattr(current_event, "no_add_args_to_input", False):
-                is_not_add_args = (
-                    current_event.no_add_args_to_input if not None else True
-                )
-                current_event.no_add_args_to_input = is_not_add_args
                 if not current_event.no_add_args_to_input:
                     cmd_text = f"{cmd_text} {pipe_input}"
 
-            cmd_text = seg.command
             current_event.piped = is_piped
             current_event.pipe_input = pipe_input
 
@@ -2127,9 +2156,9 @@ class Kernel:
         print(logo)
         self.logger.info("Start MCUB!")
         del logo
+        self.load_kernel = "full"
 
         if os.path.exists(self.RESTART_FILE):
-            self.load_kernel = "full"
             await self._handle_restart_notification(modules_start, modules_end)
 
         async def _run_with_reconnect():

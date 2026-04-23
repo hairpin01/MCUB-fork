@@ -86,7 +86,7 @@ class MCUBInfoMod(ModuleBase):
                 "info_invert_media": False,
                 "info_custom_text": "",
                 "info_start_emoji": CUSTOM_EMOJI["load"],
-                "info_banner_url": f"https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/{branch}/img/info.png",
+                "info_banner_url": f"https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/{branch}/img/info.jpg",
             },
         )
         self.config.from_dict(config_dict)

@@ -549,6 +549,30 @@ class TesterMod(ModuleBase):
                     parse_mode="html",
                 )
                 return
+
+            tail = None
+            args0 = args.get(0)
+            if args0 == "tail":
+                if not args.get(1):
+                    tail = 20
+                else:
+                    try:
+                        tail = int(args.get(1))
+                    except ValueError:
+                        tail = 20
+
+                with open(kernel_log_path, "r") as f:
+                    lines = f.readlines()
+
+                last_lines = lines[-tail:] if tail <= len(lines) else lines
+
+                output = "".join(last_lines)
+                if getattr(event, "piped", False):
+                    event.pipe_output = str(output)
+                    return
+                await event.edit(f"<pre>{output}</pre>", parse_mode="html")
+                return
+
             if not normalized_arg:
                 await event.edit(
                     f"{CUSTOM_EMOJI['🧊']} {self.strings('logs_not_fount_args')}",

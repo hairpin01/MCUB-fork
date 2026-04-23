@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any
 from telethon import events
 
-from core.lib.loader.module_base import ModuleBase, command, bot_command
+from core.lib.loader.module_base import ModuleBase, bot_command, command
 
 
 class BotModule(ModuleBase):

@@ -320,8 +320,7 @@ def register(kernel):
             try:
                 if piped:
                     stdout = cmd_data["stdout"].decode("utf-8", errors="ignore")
-                    stderr = cmd_data["stderr"].decode("utf-8", errors="ignore")
-                    output = stdout + stderr
+                    output = stdout
                     await client.edit_message(
                         chat_id,
                         cmd_data["message_id"],

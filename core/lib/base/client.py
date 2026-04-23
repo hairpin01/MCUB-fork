@@ -7,6 +7,7 @@ import random
 import sys
 import traceback
 from typing import TYPE_CHECKING
+import readline
 
 from telethon import TelegramClient
 

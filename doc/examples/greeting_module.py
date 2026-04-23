@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
 from telethon import events
 
 from core.lib.loader.module_base import ModuleBase, command

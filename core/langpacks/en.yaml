@@ -118,6 +118,11 @@ eval:
   result_in_message: Result in message
   executed_in: Executed in
   ms: ms
+zen:
+  success: Reboot <b>successful!</b>
+  loading: but modules are still loading...
+  loaded: Your <b>{mcub}</b> is fully loaded!
+  errors: Your <b>{mcub}</b> <b>loaded with errors</b> :(
 kernel:
   success: Reboot <b>successful!</b>
   loading: but modules are still loading...
@@ -167,6 +172,29 @@ utils_piped:
   div_by_zero: 'ERROR: div by 0'
   calc_error: 'ERROR: invalid expression'
   sleep_usage: sleep <N>
+  sort_usage: sort [-r] [-u] [text]
+  uniq_usage: uniq [-c] [text]
+  strip_usage: strip [-e] [text]
+  b64_usage: b64 [-d] [text]
+  b64_error: 'Base64 error: {err}'
+  if_usage: if <pattern> [text]
+  if_no_match: No match — pipeline stopped
+  repeat_usage: repeat <N> ['sep'] [text]
+  repeat_range: 'N must be between 1 and 100'
+  fwd_no_reply: Reply to a message first
+  fwd_usage: fwd <N> [delay]
+  fwd_range: 'N must be between 1 and 200'
+  fwd_get_error: 'Failed to get message: {err}'
+  fwd_no_msg: Message not found
+  fwd_start: 'Forwarding {n} time(s)...'
+  fwd_done: 'Done: {sent}/{n} sent'
+  reply_not_found: No reply message
+  sed_regex_error: 'Regex error: {err}'
+  random_usage: random [-l] [N [M]]
+  json_usage: json [-s] <key1> [key2 ...]
+  json_parse_error: 'JSON parse error: {err}'
+  json_saved: 'Saved: {names}'
+  json_missing: 'Keys not found: {keys}'
 api_protection:
   enabled: ✅ API protection enabled
   disabled: ❌ API protection disabled
@@ -857,6 +885,9 @@ log_bot:
   update_error: '❌ Update error: <code>{error}</code>'
   update_no_log: ⚠️ Log chat not configured, update notifications unavailable
   and_more_commits: '... and {} more commits'
+  banner_load: <tg-emoji emoji-id="5326015457155620929">😐</tg-emoji> <b>Load banner...</b>
+  version: '<tg-emoji emoji-id="5472164874886846699">✨</tg-emoji> <b>Version Module:</b> <code>{version}</code> (<code>{name}</code>)'
+
 userbot_backup:
   creating_backup: <tg-emoji emoji-id="5426958067763804056">⏳</tg-emoji> <i>Creating
     backup...</i>
@@ -977,9 +1008,19 @@ tester:
   logs_level_invalid: "<b>Available levels:</b> <code>debug</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code>, <code>all</code>"
   logs_choose_level: "{paper} <b>Choose log level</b>"
   logs_choose_desc: "Send only selected records from <code>kernel.log</code>."
-  logs_level_warning: "{snowflake} <b>Warning</b>\n<blockquote>Logs with level <code>{level}</code> may contain personal information, tokens, chat id, message text, and other sensitive data.</blockquote>\n<b>Send anyway?</b>"
+  logs_level_warning: "{snowflake} <b>Warning</b>
+
+  <blockquote>Logs with level <code>{level}</code> may contain personal information, tokens, chat id, message text, and other sensitive data.</blockquote>
+
+  <b>Send anyway?</b>"
   logs_send_cancelled: "{snowflake} <b>Log sending cancelled</b>"
-  logs_level_caption: '{logs_title} <b>{logs}</b> {mcub}\n<blockquote>{pen} <b>{kernel_version}</b> {version}#<a href="{commit_url}">{commit_sha}</a>\n{satellite} <b>{branch_label}:</b> {branch}\n{printer} <b>Level:</b> <code>{level}</code></blockquote>'
+  logs_level_caption: '{logs_title} <b>{logs}</b> {mcub}
+
+  <blockquote>{pen} <b>{kernel_version}</b> {version}#<a href="{commit_url}">{commit_sha}</a>
+
+  {satellite} <b>{branch_label}:</b> {branch}
+
+  {printer} <b>Level:</b> <code>{level}</code></blockquote>'
 mcub_info:
   custom_text_error: "<b>Error in custom text format:</b> {error}"
   error_see_logs: "{warning} <b>Error, see logs</b>"

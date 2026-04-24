@@ -473,7 +473,7 @@ class LogBot(ModuleBase):
 {self.lang('version', version=self.version, name=self.name)}{"" if self.kernel.error_load_modules else "</blockquote>"}"""
 
         if self.kernel.error_load_modules:
-            message += f'<tg-emoji emoji-id="5467928559664242360">❗️</tg-emoji> <b>Error load modules:</b> <code>{self.kernel.error_load_modules}</code></blockquote>'
+            message += f'\n<tg-emoji emoji-id="5467928559664242360">❗️</tg-emoji> <b>Error load modules:</b> <code>{self.kernel.error_load_modules}</code></blockquote>'
 
         message += f'\n<tg-emoji emoji-id="5426900601101374618">🧿</tg-emoji> <b><i>{self.lang["prefix"]}:</i></b> <code>{self.kernel.custom_prefix}</code>'
         try:

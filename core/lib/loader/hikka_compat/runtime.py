@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлька | @hairpin01
 
+from __future__ import annotations
+
 import ast
 import asyncio
 import contextlib

@@ -21,6 +21,7 @@ import traceback
 import tty
 from datetime import datetime
 from pathlib import Path
+from typing import ClassVar
 
 from .config import ShellConfig
 
@@ -42,7 +43,7 @@ class _C:
     SAVE_CUR = "\033[s"
     REST_CUR = "\033[u"
 
-    PROMPT_COLORS = {
+    PROMPT_COLORS: ClassVar[dict[str, str]] = {
         "green": "\033[92m",
         "cyan": "\033[96m",
         "yellow": "\033[93m",
@@ -51,7 +52,7 @@ class _C:
         "blue": "\033[94m",
     }
 
-    LOG_COLORS = {
+    LOG_COLORS: ClassVar[dict[str, str]] = {
         "DEBUG": "\033[97m",
         "INFO": "\033[96m",
         "WARNING": "\033[93m",
@@ -67,11 +68,22 @@ class _Anim:
     """
 
     # Braille spinner frames
-    SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    SPINNER_FRAMES: ClassVar[list[str]] = [
+        "⠋",
+        "⠙",
+        "⠹",
+        "⠸",
+        "⠼",
+        "⠴",
+        "⠦",
+        "⠧",
+        "⠇",
+        "⠏",
+    ]
     # Classic dot spinner alternative
-    DOT_FRAMES = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"]
+    DOT_FRAMES: ClassVar[list[str]] = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"]
     # Bouncing bar
-    BAR_FRAMES = [
+    BAR_FRAMES: ClassVar[list[str]] = [
         "▏",
         "▎",
         "▍",

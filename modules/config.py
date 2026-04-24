@@ -227,7 +227,7 @@ class ConfigSettings:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
                     asyncio.create_task(self._update_cache())
-            except:
+            except Exception:
                 pass
         return self._items_per_page
 
@@ -240,7 +240,7 @@ class ConfigSettings:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
                     asyncio.create_task(self._update_cache())
-            except:
+            except Exception:
                 pass
         return self._modules_per_page
 
@@ -372,12 +372,12 @@ def register(kernel):
         elif value_str.startswith("{") and value_str.endswith("}"):
             try:
                 return json.loads(value_str)
-            except:
+            except Exception:
                 return value_str
         elif value_str.startswith("[") and value_str.endswith("]"):
             try:
                 return json.loads(value_str)
-            except:
+            except Exception:
                 return value_str
         else:
             value_str = re.sub(r"(?<!\\)\\n", "\n", value_str)
@@ -658,7 +658,7 @@ def register(kernel):
                 if len(parts) >= 4:
                     page_str = parts[3]
                     page = int(page_str)
-            except:
+            except Exception:
                 page = 0
 
         total_pages = (
@@ -724,7 +724,7 @@ def register(kernel):
         buttons = create_kernel_buttons_grid(page_keys, page, total_pages)
         try:
             await event.edit(text, buttons=buttons, parse_mode="html")
-        except:
+        except Exception:
             pass
 
     async def config_modules_handler(event):
@@ -742,7 +742,7 @@ def register(kernel):
                 if len(parts) >= 4:
                     page_str = parts[3]
                     page = int(page_str)
-            except:
+            except Exception:
                 page = 0
 
         total_modules = len(all_modules)
@@ -2979,7 +2979,7 @@ def register(kernel):
 
                         if success:
                             await event.delete()
-                    except:
+                    except Exception:
                         await event.edit(
                             t("cfg_usage", gear=emoji_provider["⚙️"]),
                             parse_mode="html",

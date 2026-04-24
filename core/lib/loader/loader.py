@@ -1934,7 +1934,7 @@ class ModuleLoader:
                     for match in re.finditer(pattern, code, re.DOTALL):
                         if match.group(1) == module_name:
                             return fpath
-                except:
+                except Exception:
                     pass
         except OSError:
             pass

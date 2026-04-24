@@ -1481,7 +1481,7 @@ def register(kernel):
 
                 try:
                     name = await get_user_display(uid)
-                except:
+                except Exception:
                     name = str(uid)
 
                 await _kernel.client.send_message(

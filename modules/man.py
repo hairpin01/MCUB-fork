@@ -296,13 +296,15 @@ class ManModule(ModuleBase):
         msg += f"{CUSTOM_EMOJI['snowflake']} <b>{s['version']}:</b> <code>{metadata.get('version', '1.0.0')}</code>\n"
         msg += "<blockquote expandable>"
         if commands:
+            # Use list + join for O(n) instead of O(n²) string concatenation
+            cmd_lines = []
             for cmd in commands:
                 cmd_desc = (
                     descriptions.get(cmd)
                     or metadata.get("commands", {}).get(cmd)
                     or f"{CUSTOM_EMOJI['confused']} {s['no_description']}"
                 )
-                msg += f"{CUSTOM_EMOJI['tot']} <code>{self.kernel.custom_prefix}{cmd}</code> – <b>{cmd_desc}</b>"
+                line = f"{CUSTOM_EMOJI['tot']} <code>{self.kernel.custom_prefix}{cmd}</code> – <b>{cmd_desc}</b>"
 
                 if cmd in aliases_info:
                     aliases = aliases_info[cmd]
@@ -313,8 +315,9 @@ class ManModule(ModuleBase):
                             f"<code>{self.kernel.custom_prefix}{a}</code>"
                             for a in aliases
                         )
-                        msg += f" | {s['aliases']}: {alias_text}"
-                msg += "\n"
+                        line += f" | {s['aliases']}: {alias_text}"
+                cmd_lines.append(line)
+            msg += "\n".join(cmd_lines) + "\n"
         else:
             msg += f"{CUSTOM_EMOJI['blocked']} {s['no_commands']}\n"
         msg += "</blockquote>"
@@ -322,13 +325,20 @@ class ManModule(ModuleBase):
         inline_commands = self.kernel.get_module_inline_commands(name)
         if inline_commands:
             inline_emoji = '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
-            msg += "<blockquote expandable>"
+            # Use list + join for O(n) instead of O(n²) string concatenation
+            inline_lines = []
             for cmd, desc in inline_commands:
                 if desc:
-                    msg += f"{inline_emoji} <code>@{self.kernel.config.get('inline_bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>\n"
+                    inline_lines.append(
+                        f"{inline_emoji} <code>@{self.kernel.config.get('inline_bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>"
+                    )
                 else:
-                    msg += f"{inline_emoji} <code>@{self.kernel.config.get('inline_bot_username', 'bot')} {cmd}</code>\n"
-            msg += "</blockquote>"
+                    inline_lines.append(
+                        f"{inline_emoji} <code>@{self.kernel.config.get('inline_bot_username', 'bot')} {cmd}</code>"
+                    )
+            msg += (
+                "<blockquote expandable>" + "\n".join(inline_lines) + "\n</blockquote>"
+            )
 
         msg += f"\n<blockquote>{CUSTOM_EMOJI['pancake']} <b>{s['author']}:</b> <i>{metadata.get('author', s['unknown'])}</i></blockquote>"
         if typ == "system":

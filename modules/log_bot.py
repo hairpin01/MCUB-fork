@@ -6,7 +6,6 @@ from __future__ import annotations
 import asyncio
 import html
 import io
-import json
 import os
 import subprocess
 from datetime import datetime
@@ -19,9 +18,9 @@ from telethon.tl.functions.messages import (
     CreateChatRequest,
     ExportChatInviteRequest,
 )
-from telethon.tl.types import InputUserSelf, InputMediaWebPage
+from telethon.tl.types import InputMediaWebPage, InputUserSelf
 
-from core.lib.loader.module_base import ModuleBase, command, callback, loop
+from core.lib.loader.module_base import ModuleBase, callback, command, loop
 
 
 class LogBot(ModuleBase):

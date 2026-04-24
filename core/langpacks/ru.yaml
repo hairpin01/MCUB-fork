@@ -123,15 +123,21 @@ kernel:
   loading: но модули ещё загружаются...
   loaded: Твой <b>{mcub}</b> полностью загрузился!
   errors: Твой <b>{mcub}</b> <b>загрузился c ошибками</b> :(
-  rpc_error: <b>RPC error:</b> <code>{error}</code>
-  call_failed: <b>Call <code>{cmd}</code> failed due to RPC error:</b> <code>{rpc_msg}</code>
-  call_failed_traceback: '<b>Call <code>{cmd}</code> failed!</b>
+  rpc_error: <b>RPC Ошибка:</b> <code>{error}</code>
+  call_failed: <b>Вызов <code>{cmd</code> не выполнен из-за ошибки RPC:</b> <code>{rpc_msg</code>
+  call_failed_traceback: '<b>Вызов:<code> {cmd} </code>провалился!</b>
 
-    <b><i>Full log:</i></b>
+    <b><i>Полные логи:</i></b>
 
     <pre>{traceback}</pre>'
-  could_not_edit: 'Could not edit RPC error message: {error}'
-  full_log: <b><i>Full log:</i></b>
+  could_not_edit: 'Не удалось отредактировать сообщение об ошибке RPC: {error}'
+  full_log: <b><i>Полные логи:</i></b>
+  warning_not_allowed_inline: Инлайн-формы запрещены в этом чате.
+  open_inline_form_error: '<i><b>Не удалось открыть инлайн форму</b></i>
+
+  <blockquote>Ошибки:</blockquote>
+  <pre>{raw_tb}</pre>'
+  open_inline_form: <i><b>Открываю инлайн форму...</b></i>
 tr:
   loading: Перевожу...
   no_args: No args

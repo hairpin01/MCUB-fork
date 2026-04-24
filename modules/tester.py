@@ -561,7 +561,7 @@ class TesterMod(ModuleBase):
                     except ValueError:
                         tail = 20
 
-                with open(kernel_log_path, "r") as f:
+                with open(kernel_log_path) as f:
                     lines = f.readlines()
 
                 last_lines = lines[-tail:] if tail <= len(lines) else lines

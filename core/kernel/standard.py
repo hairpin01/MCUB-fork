@@ -1,8 +1,5 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлька | @hairpin01
-
-from __future__ import annotations
-
 # ---- meta data ------ kernel ----------------------
 # author: @Hairpin00
 # description: kernel core — main Kernel class
@@ -11,15 +8,20 @@ from __future__ import annotations
 # 🌐 github MCUB-fork: https://github.com/hairpin01/MCUB-fork
 # [🌐 https://github.com/hairpin01, 🌐 https://github.com/Mitrichdfklwhcluio, 🌐 https://t.me/HenerTLG]
 # ----------------------- end -----------------------
+from __future__ import annotations
+
+import ast
 import asyncio
 import html
 import importlib.util
+import operator
 import os
 import re
 import sys
 import time
 import traceback
 from collections.abc import Callable
+from typing import Any
 
 try:
     from telethon import events
@@ -141,6 +143,70 @@ class Kernel:
 
         return True, "OK"
 
+    _SAFE_OPS: dict = {
+        ast.Add: operator.add,
+        ast.Sub: operator.sub,
+        ast.Mult: operator.mul,
+        ast.Div: operator.truediv,
+        ast.FloorDiv: operator.floordiv,
+        ast.Mod: operator.mod,
+        ast.Pow: operator.pow,
+        ast.USub: operator.neg,
+        ast.UAdd: operator.pos,
+    }
+
+    def safe_eval(self, node: ast.AST) -> float:
+        """Evaluate a numeric AST expression without using eval().
+
+        Supports: +  -  *  /  //  %  **  and unary +/-.
+        Raises ValueError for unsupported nodes or exponents > 1000.
+        """
+        if isinstance(node, ast.Expression):
+            return self.safe_eval(node.body)
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+            return float(node.value)
+        if isinstance(node, ast.BinOp) and type(node.op) in self._SAFE_OPS:
+            left = self.safe_eval(node.left)
+            right = self.safe_eval(node.right)
+            if isinstance(node.op, ast.Pow) and abs(right) > 1000:
+                raise ValueError("exponent too large")
+            return self._SAFE_OPS[type(node.op)](left, right)
+        if isinstance(node, ast.UnaryOp) and type(node.op) in self._SAFE_OPS:
+            return self._SAFE_OPS[type(node.op)](self.safe_eval(node.operand))
+        raise ValueError(f"unsupported expression: {ast.dump(node)}")
+
+    _PIPE_SUB_PATTERN = re.compile(
+        r"\{\s*(pipe_input|import\s+[a-zA-Z_][a-zA-Z0-9_.]*)\s*(?:\[([^\]]*)\])?\s*\}"
+    )
+
+    def pipe_interpolate(self, text: str, pipe_input: str = "") -> str:
+        """Substitute ``{pipe_input[...]}`` and ``{import var}`` placeholders."""
+
+        def _replace(match: re.Match) -> str:
+            expr = match.group(1).strip()
+            slice_spec = match.group(2)
+
+            if expr == "pipe_input":
+                value = pipe_input
+            elif expr.startswith("import "):
+                value = self._pipe_vars.get(expr[7:].strip(), "")
+            else:
+                return match.group(0)
+
+            if slice_spec is not None and value:
+                try:
+                    parts = slice_spec.split(":")
+                    start = int(parts[0]) if parts[0] else None
+                    stop = int(parts[1]) if len(parts) > 1 and parts[1] else None
+                    step = int(parts[2]) if len(parts) > 2 and parts[2] else None
+                    value = value[start:stop:step]
+                except (ValueError, TypeError, IndexError):
+                    pass
+
+            return value
+
+        return self._PIPE_SUB_PATTERN.sub(_replace, text)
+
     def __init__(self) -> None:
         self.VERSION = VERSION
         self.DB_VERSION = 2
@@ -160,6 +226,7 @@ class Kernel:
         self.inline_handlers_owners: dict = {}
         self.callback_handlers: dict = {}
         self.aliases: dict = {}
+        self._pipe_vars: dict[str, str] = {}  # shared pipeline variable store
 
         # Module source tracking: {module_name: {"url": str, "repo": str or None}}
         # url: direct URL if installed from URL, None if from module name
@@ -251,6 +318,7 @@ class Kernel:
         self.logger.debug("[Kernel] __init__ start")
 
     def _init_html_parser(self) -> None:
+        """init html parser"""
         if self.HTML_PARSER_AVAILABLE:
             try:
                 self.parse_html = parse_html
@@ -1479,6 +1547,12 @@ class Kernel:
         segments = pipeline.segments
         if not segments:
             return False
+        if depth > 5:
+            self.logger.error(f"Pipeline recursion limit reached: {event.text}")
+            await self.log_error_async(
+                f"Pipeline recursion limit reached: {event.text}"
+            )
+            return False
         if hasattr(event, "no_owner"):
             await event.edit(
                 f"ignored pipeline command: {event.no_owner()}", parse_mode="html"
@@ -1539,9 +1613,8 @@ class Kernel:
             is_piped = next_seg is not None and next_seg.operator == "|"
 
             cmd_text = seg.command
-            if getattr(current_event, "no_add_args_to_input", False):
-                if not current_event.no_add_args_to_input:
-                    cmd_text = f"{cmd_text} {pipe_input}"
+            # if pipe_input is not None and not getattr(current_event, "no_add_args_to_input", False):
+            #     cmd_text = f"{cmd_text} {pipe_input}"
 
             current_event.piped = is_piped
             current_event.pipe_input = pipe_input
@@ -1710,11 +1783,11 @@ class Kernel:
         """Send a file directly into a forum topic thread."""
         return await self.client.send_file_to_topic(entity, topic, file, **kwargs)
 
-    def iter_history_batches(self, entity, *args, **kwargs):
+    def iter_history_batches(self, entity, *args, **kwargs) -> Any:
         """Iterate history in batches using Telethon-MCUB helpers."""
         return self.client.iter_history_batches(entity, *args, **kwargs)
 
-    async def export_history(self, entity, *, output, **kwargs):
+    async def export_history(self, entity, *, output, **kwargs) -> Any:
         """Export chat history using Telethon-MCUB high-level helpers."""
         return await self.client.export_history(entity, output=output, **kwargs)
 

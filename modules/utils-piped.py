@@ -33,7 +33,7 @@ def _get_text(event, args: str) -> str:
 
 class UtilsPiped(ModuleBase):
     name = "utils-piped"
-    version = "1.0.0"
+    version = "1.1.0"
     author = "@Hairpin00"
     description = {"ru": "Утилиты для конвейера", "en": "Utils for pipeline"}
 
@@ -48,49 +48,9 @@ class UtilsPiped(ModuleBase):
         try:
             args = self.args_raw(event)
             pipe_input = getattr(event, "pipe_input", None) or ""
-            pipe_vars = getattr(self.kernel, "_pipe_vars", {})
-
-            # Шаблон подстановки: {import var[:срез]} или {pipe_input[:срез]}
-            def replacer(match):
-                expr = match.group(1)
-                # Проверяем срез
-                slice_match = re.match(
-                    r"^(import\s+)?([a-zA-Z_.][a-zA-Z0-9_.]*|pipe_input)(?:\[(.*?)\])?$",
-                    expr.strip(),
-                )
-                if not slice_match:
-                    return match.group(0)  # оставляем как есть
-                _, name, slice_spec = slice_match.groups()
-                if name == "pipe_input":
-                    value = pipe_input
-                else:
-                    value = pipe_vars.get(name, "")
-                if slice_spec and value:
-                    # парсим срез вида [:5] или [2:10] или [::-1]
-                    try:
-                        parts = slice_spec.split(":")
-                        if len(parts) == 1:
-                            start = int(parts[0]) if parts[0] else None
-                            stop = None
-                            step = None
-                        elif len(parts) == 2:
-                            start = int(parts[0]) if parts[0] else None
-                            stop = int(parts[1]) if parts[1] else None
-                            step = None
-                        elif len(parts) == 3:
-                            start = int(parts[0]) if parts[0] else None
-                            stop = int(parts[1]) if parts[1] else None
-                            step = int(parts[2]) if parts[2] else None
-                        else:
-                            return match.group(0)
-                        # Применяем срез
-                        value = value[start:stop:step]
-                    except (ValueError, TypeError):
-                        pass  # при ошибке оставляем исходную строку
-                return value
 
             if args:
-                text = re.sub(r"\{([^}]+)\}", replacer, args)
+                text = self.kernel.pipe_interpolate(args, pipe_input)
             else:
                 text = pipe_input
 
@@ -330,8 +290,6 @@ class UtilsPiped(ModuleBase):
                 await self.edit(event, self.strings("export_usage"), parse_mode="html")
                 return
 
-            if not hasattr(self.kernel, "_pipe_vars"):
-                self.kernel._pipe_vars = {}
             self.kernel._pipe_vars[name] = value
 
             await self.edit(
@@ -356,7 +314,7 @@ class UtilsPiped(ModuleBase):
                 return
 
             name = args.split()[0]
-            pipe_vars = getattr(self.kernel, "_pipe_vars", {})
+            pipe_vars = self.kernel._pipe_vars
 
             if name not in pipe_vars:
                 await self.edit(
@@ -645,36 +603,6 @@ class UtilsPiped(ModuleBase):
         except Exception as e:
             await self.kernel.handle_error(e, source="wc", event=event)
 
-    # ------------------------------------------------------------------
-    # Безопасный вычислитель выражений (замена голому eval)
-    # ------------------------------------------------------------------
-    _SAFE_OPS: dict = {
-        ast.Add: operator.add,
-        ast.Sub: operator.sub,
-        ast.Mult: operator.mul,
-        ast.Div: operator.truediv,
-        ast.FloorDiv: operator.floordiv,
-        ast.Mod: operator.mod,
-        ast.Pow: operator.pow,
-        ast.USub: operator.neg,
-        ast.UAdd: operator.pos,
-    }
-
-    def _safe_eval(self, node: ast.AST) -> float:
-        if isinstance(node, ast.Expression):
-            return self._safe_eval(node.body)
-        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
-            return float(node.value)
-        if isinstance(node, ast.BinOp) and type(node.op) in self._SAFE_OPS:
-            left = self._safe_eval(node.left)
-            right = self._safe_eval(node.right)
-            if isinstance(node.op, ast.Pow) and abs(right) > 1000:
-                raise ValueError("exponent too large")
-            return self._SAFE_OPS[type(node.op)](left, right)
-        if isinstance(node, ast.UnaryOp) and type(node.op) in self._SAFE_OPS:
-            return self._SAFE_OPS[type(node.op)](self._safe_eval(node.operand))
-        raise ValueError(f"unsupported expression: {ast.dump(node)}")
-
     @command(
         "calc",
         doc_ru="<expr> вычислить (e.g. 9*2, /2, +1)",
@@ -732,10 +660,10 @@ class UtilsPiped(ModuleBase):
                     return
                 result = ops[op](num, val)
             else:
-                # Полное выражение — безопасный AST-парсер
+                # Полное выражение — безопасный AST-парсер из ядра
                 try:
                     tree = ast.parse(expr.replace(" ", ""), mode="eval")
-                    result = self._safe_eval(tree)
+                    result = self.kernel.safe_eval(tree)
                 except (ValueError, ZeroDivisionError, SyntaxError) as exc:
                     if num is not None:
                         result = num
@@ -1243,7 +1171,6 @@ class UtilsPiped(ModuleBase):
             keys = args.split() if args else []
             raw = pipe_input
 
-            # Без ключей — pretty-print
             if not keys:
                 if not raw:
                     await self.edit(
@@ -1312,8 +1239,6 @@ class UtilsPiped(ModuleBase):
                     values[key] = ""
 
             if save_mode:
-                if not hasattr(self.kernel, "_pipe_vars"):
-                    self.kernel._pipe_vars = {}
                 for key, val in values.items():
                     var_name = key.split(".")[-1]
                     self.kernel._pipe_vars[var_name] = val
@@ -1326,7 +1251,6 @@ class UtilsPiped(ModuleBase):
                 )
 
                 if getattr(event, "piped", False):
-                    # пропускаем pipe_input дальше нетронутым
                     await self.edit(event, pipe_input)
                     return
                 await self.edit(

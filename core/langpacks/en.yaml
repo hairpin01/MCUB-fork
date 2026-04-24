@@ -137,6 +137,12 @@ kernel:
     <pre>{traceback}</pre>'
   could_not_edit: 'Could not edit RPC error message: {error}'
   full_log: <b><i>Full log:</i></b>
+  warning_not_allowed_inline: Inline forms are not allowed in this chat.
+  open_inline_form_error: '<i><b>Open the inline form, failed!</b></i>
+
+  <blockquote>Error:</blockquote>
+  <pre>{raw_tb}</pre>'
+  open_inline_form: <i><b>Open inline form...</b></i>
 tr:
   loading: Translating...
   no_args: No args

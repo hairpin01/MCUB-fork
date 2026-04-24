@@ -126,6 +126,12 @@ kernel:
     <pre>{traceback}</pre>'
   could_not_edit: 'Не удалось отредактировать RPC-сообщение об ошибке (ошибка об ошибке — матрёшка): {error}'
   full_log: <b><i>Полный лог (читай, если не жалко себя):</i></b>
+  warning_not_allowed_inline: Инлайн-формы запрещены в этом чате. (админы бидлы проста)
+  open_inline_form_error: '<i><b>Не удалось открыть инлайн форму</b></i>
+
+  <blockquote>Ошибки (кринж):</blockquote>
+  <pre>{raw_tb}</pre>'
+  open_inline_form: <i><b>Открываю инлайн форму...</b></i>
 tr:
   loading: Перевожу... словари листаю...
   no_args: Аргументов нет. Что переводить-то?

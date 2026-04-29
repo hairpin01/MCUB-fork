@@ -85,7 +85,7 @@ def _parse_args():
         "--core",
         dest="core",
         default=None,
-        help="Kernel core to use for this launch (e.g., standard, zen, microkernel).",
+        help="Kernel core to use for this launch (e.g., standard, zen, bot).",
     )
     p.add_argument(
         "--set-default-core",
@@ -130,19 +130,21 @@ async def _main() -> None:
         print("Error: No kernel cores found!", flush=True)
         sys.exit(1)
 
-    # priority: --core flag  >  saved default  >  single core  >  interactive
+    # priority: --core flag  >  saved default  >  standard  >  single core
     selected_core = args.core or _get_default_core()
 
     if selected_core is None:
-        if len(available_cores) == 1:
+        if "standard" in available_cores:
+            selected_core = "standard"
+        elif len(available_cores) == 1:
             selected_core = available_cores[0]
         else:
-            saved = _get_default_core()
-            hint = f" [{saved}]" if saved else f" [{available_cores[0]}]"
             print(f"Available cores: {', '.join(available_cores)}", flush=True)
             print(
                 "Tip: --set-default-core <n> to skip this prompt next time", flush=True
             )
+            saved = _get_default_core()
+            hint = f" [{saved}]" if saved else f" [{available_cores[0]}]"
             answer = input(f"Select core{hint}: ").strip()
             selected_core = answer or saved or available_cores[0]
 

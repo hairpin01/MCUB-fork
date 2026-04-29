@@ -190,6 +190,13 @@ utils_piped:
   json_parse_error: 'JSON — полная каша, не парсится: {err}'
   json_saved: 'Сохранено в переменные (держи): {names}'
   json_missing: 'Ключей не нашлось, испарились: {keys}'
+  script_usage: '<b>КАК ЮЗАТЬ:</b> .script run < исходник>'
+  script_list_empty: Нет скриптов. Совсем. Пусто. забей.
+  script_deleted: 'Скрипт <code>{name}</code> испарился.'
+  script_not_found: 'Скрипт <code>{name}</code> потерялся в матрице.'
+  script_saved: 'Скрипт <code>{name}</code> записан в историю.'
+  script_running: '▶ Запускаю скрипт <code>{name}</code>…'
+  script_empty: Скрипт пустой. Давай, ничего не делай.
 api_protection:
   enabled: ✅ API защита включена (теперь они нас не сломят)
   disabled: ❌ API защита выключена (живёшь опасно, дружище)

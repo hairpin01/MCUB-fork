@@ -196,6 +196,13 @@ utils_piped:
   json_parse_error: 'Ошибка парсинга JSON: {err}'
   json_saved: 'Сохранено: {names}'
   json_missing: 'Ключи не найдены: {keys}'
+  script_usage: '<b>Использование:</b> .script run <source>'
+  script_list_empty: Нет сохранённых скриптов.
+  script_deleted: 'Скрипт <code>{name}</code> удалён.'
+  script_not_found: 'Скрипт <code>{name}</code> не найден.'
+  script_saved: 'Скрипт <code>{name}</code> сохранён.'
+  script_running: '▶ Запуск скрипта <code>{name}</code>…'
+  script_empty: Скрипт пустой.
 api_protection:
   enabled: ✅ API защита включена
   disabled: ❌ API защита выключена

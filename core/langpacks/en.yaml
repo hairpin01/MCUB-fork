@@ -201,6 +201,13 @@ utils_piped:
   json_parse_error: 'JSON parse error: {err}'
   json_saved: 'Saved: {names}'
   json_missing: 'Keys not found: {keys}'
+  script_usage: '<b>Usage:</b> .script run <source>'
+  script_list_empty: No saved scripts.
+  script_deleted: 'Script <code>{name}</code> deleted.'
+  script_not_found: 'Script <code>{name}</code> not found.'
+  script_saved: 'Script <code>{name}</code> saved.'
+  script_running: '▶ Running script <code>{name}</code>…'
+  script_empty: Script is empty.
 api_protection:
   enabled: ✅ API protection enabled
   disabled: ❌ API protection disabled

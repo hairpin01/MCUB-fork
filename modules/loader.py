@@ -508,6 +508,33 @@ class Loader(ModuleBase):
                 logger.error(f"[loader] Failed to restore backup: {e}")
                 add_log_fn(f"=X Failed to restore backup: {e}")
 
+    async def _restore_module_after_failed_update(
+        self,
+        module_name: str,
+        is_system_target: bool,
+        backup_path: str | None,
+        add_log_fn: Callable,
+    ) -> None:
+        """Reload module from restored backup so commands are not lost."""
+        if not backup_path or not os.path.exists(backup_path):
+            return
+        try:
+            res = await self.kernel.load_module_from_file(
+                backup_path,
+                module_name,
+                is_system_target,
+                is_reload=True,
+            )
+            if res and res[0]:
+                add_log_fn(f"=> Backup module reloaded: {module_name}")
+            else:
+                reason = (
+                    res[1] if isinstance(res, tuple) and len(res) > 1 else "unknown"
+                )
+                add_log_fn(f"=X Backup reload failed: {reason}")
+        except Exception as e:
+            add_log_fn(f"=X Backup reload exception: {e}")
+
     @staticmethod
     async def _edit_with_emoji(
         message,
@@ -922,6 +949,7 @@ class Loader(ModuleBase):
             module_name in self.kernel.loaded_modules
             or module_name in self.kernel.system_modules
         )
+        is_system_target = module_name in self.kernel.system_modules
         old_version = None
         if is_update:
             old_file_path = os.path.join(
@@ -1428,6 +1456,10 @@ class Loader(ModuleBase):
                 self._restore_backup_and_cleanup(
                     old_file_backup, old_file_backup_path, file_path, add_log
                 )
+                if is_update:
+                    await self._restore_module_after_failed_update(
+                        module_name, is_system_target, old_file_backup_path, add_log
+                    )
                 log_text = "\n".join(install_log)
                 await self._edit_with_emoji(
                     target_message(),
@@ -1466,6 +1498,10 @@ class Loader(ModuleBase):
             self._restore_backup_and_cleanup(
                 old_file_backup, old_file_backup_path, file_path, add_log
             )
+            if is_update:
+                await self._restore_module_after_failed_update(
+                    module_name, is_system_target, old_file_backup_path, add_log
+                )
 
         except Exception as e:
             add_log(self.strings("log_critical", error=str(e)))
@@ -1486,6 +1522,10 @@ class Loader(ModuleBase):
             self._restore_backup_and_cleanup(
                 old_file_backup, old_file_backup_path, file_path, add_log
             )
+            if is_update:
+                await self._restore_module_after_failed_update(
+                    module_name, is_system_target, old_file_backup_path, add_log
+                )
             self.kernel._module_sources.pop(module_name, None)
 
     def _build_commands_list(
@@ -1914,6 +1954,7 @@ class Loader(ModuleBase):
             module_name in self.kernel.loaded_modules
             or module_name in self.kernel.system_modules
         )
+        is_system_target = module_name in self.kernel.system_modules
 
         class_instance = getattr(
             self.kernel.loaded_modules.get(module_name), "_class_instance", None
@@ -1927,6 +1968,7 @@ class Loader(ModuleBase):
         old_version = None
         old_file_backup = None
         old_file_backup_path = None
+        msg = event
 
         if is_update:
             old_file_path = self.kernel._loader.get_module_path(module_name)
@@ -2133,11 +2175,17 @@ class Loader(ModuleBase):
                     with open(file_path, encoding="utf-8") as f:
                         old_file_backup = f.read()
                     old_file_backup_path = file_path
-                await self.kernel.unregister_module_commands(module_name)
+                await self.kernel.unregister_module_commands(
+                    module_name, force=force_unload
+                )
 
             add_log(self.strings("log_loading_module", module_name=module_name))
             result = await self.kernel.load_module_from_file(
-                file_path, module_name, False, source_url=None, source_repo=None
+                file_path,
+                module_name,
+                is_system_target,
+                source_url=None,
+                source_repo=None,
             )
             success = result[0]
             message_text = result[1] if len(result) >= 2 else ""
@@ -2147,11 +2195,10 @@ class Loader(ModuleBase):
                 add_log(self.strings["log_module_loaded"])
                 self.kernel._module_sources[loaded_module_name] = {"type": "local"}
 
-                class_instance = getattr(
-                    self.kernel.loaded_modules.get(loaded_module_name),
-                    "_class_instance",
-                    None,
-                )
+                loaded_obj = self.kernel.loaded_modules.get(
+                    loaded_module_name
+                ) or self.kernel.system_modules.get(loaded_module_name)
+                class_instance = getattr(loaded_obj, "_class_instance", None)
                 display_name = (
                     getattr(type(class_instance), "name", loaded_module_name)
                     if class_instance is not None

@@ -379,7 +379,20 @@ class PipelineParser:
     ]
 
     # Operator cores sorted longest-first for escape resolution.
-    _ESCAPE_CORES: tuple[str, ...] = ("&&", "||", "|", "&")
+    # Must match _OPERATORS (with spaces) + variants with/without spaces.
+    _ESCAPE_CORES: tuple[str, ...] = (
+        " && ",
+        " || ",
+        " | ",
+        " &&",
+        " ||",
+        " |",
+        "&&",
+        "||",
+        "|",
+        "& ",
+        "&",
+    )
 
     _OP_PATTERN = re.compile(r"^((\|\||&&)\s*)")
 
@@ -421,15 +434,25 @@ class PipelineParser:
                 if i < length:
                     remaining_after = self.text[i:]
                     escaped = False
-                    # Try to match a full operator core (longest first).
+
                     for core in self._ESCAPE_CORES:
                         if remaining_after.startswith(core):
-                            buf.append(core)
+                            result = core.strip()
+                            buf.append(result)
                             i += len(core)
                             escaped = True
                             break
+
                     if not escaped:
-                        # General single-char escape: strip the backslash.
+                        # Try single operator (no leading space): \| -> |, &&& -> &&, etc.
+                        for op in ("||", "&&", "|", "&"):
+                            if remaining_after.startswith(op):
+                                buf.append(op)
+                                i += len(op)
+                                escaped = True
+                                break
+
+                    if not escaped:
                         buf.append(self.text[i])
                         i += 1
                 continue

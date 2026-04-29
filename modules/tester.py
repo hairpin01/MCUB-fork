@@ -332,7 +332,12 @@ class TesterMod(ModuleBase):
 
             if banner_url:
                 try:
-                    await msg.edit(response, file=banner_url, parse_mode="html")
+                    await msg.edit(
+                        response,
+                        file=banner_url,
+                        parse_mode="html",
+                        invert_media=invert_media,
+                    )
                 except Exception:
                     try:
                         text, entities = await self.kernel.client._parse_message_text(

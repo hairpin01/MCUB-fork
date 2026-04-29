@@ -355,26 +355,12 @@ class MCUBInfoMod(ModuleBase):
             quote_media = bool(self.config.get("info_quote_media"))
             invert_media = bool(self.config.get("info_invert_media"))
 
-            if (
-                banner_url
-                and quote_media
-                and banner_url.startswith(("http://", "https://"))
-            ):
-                try:
-                    await msg.edit(
-                        info_text,
-                        file=InputMediaWebPage(banner_url, optional=True),
-                        parse_mode="html",
-                        invert_media=invert_media,
-                    )
-                    return
-                except Exception as e:
-                    self.log.error(f"Info banner error: {e}")
-
             has_banner = False
+            is_url = False
             if banner_url:
                 if banner_url.startswith(("http://", "https://")):
                     has_banner = True
+                    is_url = True
                 elif os.path.exists(banner_url):
                     has_banner = True
                 else:
@@ -385,14 +371,22 @@ class MCUBInfoMod(ModuleBase):
 
             if has_banner and banner_url:
                 try:
-                    if banner_url.startswith(("http://", "https://")):
-                        media = InputMediaWebPage(banner_url, optional=True)
-                        await msg.edit(
-                            info_text,
-                            file=media,
-                            parse_mode="html",
-                            invert_media=invert_media,
-                        )
+                    if is_url:
+                        if quote_media:
+                            media = InputMediaWebPage(banner_url, optional=True)
+                            await msg.edit(
+                                info_text,
+                                file=media,
+                                parse_mode="html",
+                                invert_media=invert_media,
+                            )
+                        else:
+                            await msg.edit(
+                                info_text,
+                                file=banner_url,
+                                parse_mode="html",
+                                invert_media=invert_media,
+                            )
                     else:
                         await msg.edit(
                             info_text,

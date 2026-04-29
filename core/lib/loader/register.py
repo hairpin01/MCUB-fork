@@ -511,6 +511,14 @@ class Register:
             doc = kwargs.get("doc")
             doc_en = kwargs.get("doc_en")
             doc_ru = kwargs.get("doc_ru")
+            if not (doc or doc_en or doc_ru):
+                raw_doc = (getattr(func, "__doc__", None) or "").strip()
+                if raw_doc:
+                    first_line = raw_doc.splitlines()[0].strip()
+                    if first_line:
+                        # Fallback: same doc for RU/EN when localized docs are absent.
+                        doc_ru = first_line
+                        doc_en = first_line
             if doc or doc_en or doc_ru:
                 if not hasattr(self.kernel, "command_docs"):
                     self.kernel.command_docs = {}

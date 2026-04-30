@@ -1543,9 +1543,11 @@ class InlineHandlers:
                 handler = entry.get("handler")
                 if callable(handler):
                     try:
-                        await handler(
-                            event, *entry.get("args", []), **entry.get("kwargs", {})
-                        )
+                        call_args = list(entry.get("args", []))
+                        call_kwargs = dict(entry.get("kwargs", {}))
+                        if "data" not in call_kwargs and entry.get("data") is not None:
+                            call_kwargs["data"] = entry.get("data")
+                        await handler(event, *call_args, **call_kwargs)
                     except Exception:
                         self.kernel.logger.error(
                             "Inline callback handler error: %s",

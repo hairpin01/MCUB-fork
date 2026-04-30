@@ -21,6 +21,11 @@ from telethon.tl.functions.messages import (
 from telethon.tl.types import InputMediaWebPage, InputUserSelf
 
 from core.lib.loader.module_base import ModuleBase, callback, command, loop
+from core.lib.loader.module_config import (
+    String,
+    ConfigValue,
+    ModuleConfig,
+)
 
 
 class LogBot(ModuleBase):
@@ -29,10 +34,21 @@ class LogBot(ModuleBase):
         "ru": "Модуль логирования",
         "en": "Log bot module",
     }
+    author = "@Hairpin00"
     version = "1.1.0"
 
     strings = {"name": "log_bot"}
-    author = "@Hairpin00"
+
+    config = ModuleConfig(
+        ConfigValue(
+            "banner_url",
+            default="https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/start_userbot.png",
+            description="banner url for start_userbot message",
+            validator=String(
+                default="https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/start_userbot.png"
+            ),
+        )
+    )
 
     async def get_git_commit(self):
         try:
@@ -453,9 +469,13 @@ class LogBot(ModuleBase):
     async def send_startup_message(self):
         if not self.kernel.log_chat_id:
             return
+        cfg = self.config
         await self.get_git_commit()
         update_status = await self.get_update_status()
-        image_url = "https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/start_userbot.png"
+        image_url = (
+            cfg.get("banner_url")
+            or "https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/start_userbot.png"
+        )
 
         branch = await self.kernel.version_manager.detect_branch()
         commit_sha = await self.kernel.version_manager.get_commit_sha()
@@ -587,6 +607,16 @@ class LogBot(ModuleBase):
     # self.kernel.log_module = log_module
 
     async def on_load(self):
+        defaults = {
+            "banner_url": "https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/start_userbot.png",
+        }
+        config_dict = await self.kernel.get_module_config(self.name, defaults)
+        self.config.from_dict(config_dict)
+        self.kernel.store_module_config_schema(self.name, self.config)
+        clean = {k: v for k, v in self.config.to_dict().items() if v is not None}
+        if clean:
+            await self.kernel.save_module_config(self.name, clean)
+
         self.lang = self.strings
         await self.setup_log_chat()
         await self.send_startup_message()

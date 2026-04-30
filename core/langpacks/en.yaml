@@ -326,8 +326,8 @@ api_protection:
     methods list cleared</b>
   api_ignore_not_found: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Method
     <code>{method}</code> not found in list
-  yes: Yes
-  no: No
+  "yes": "Yes"
+  "no": "No"
   analyze_report: '<tg-emoji emoji-id="4904936030232117798">🔬</tg-emoji> <b>Deep API Analysis</b>
 
     <tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <b>Multi-window counters</b>
@@ -1048,8 +1048,12 @@ trusted:
   trustlist_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Trusted users:</b>'
   btn_cancel: Cancel
   nonick_step_title: '<tg-emoji emoji-id="5332723564711804828">✨</tg-emoji> <b>Enable NoNick for {name}?</b>'
-  nonick_step_desc: "With <b>NoNick</b> enabled, the user will be able to execute commands simply like <code>{prefix}command</code>.\nWithout it you need to write <code>{prefix}command@{alias}</code>."
-  nonick_step_desc_no_alias: "With <b>NoNick</b> enabled the user can run commands without any suffix.\nWithout it they must include the owner's <code>@username</code> suffix."
+  nonick_step_desc: |-
+                    With <b>NoNick</b> enabled, the user will be able to execute commands simply like <code>{prefix}command</code>.
+                    Without it you need to write <code>{prefix}command@{alias}</code>.
+  nonick_step_desc_no_alias: |-
+                             With <b>NoNick</b> enabled the user can run commands without any suffix.
+                             Without it they must include the owner's <code>@username</code> suffix.
   btn_nonick_yes: Enable NoNick
   btn_nonick_no: No NoNick
   nonick_toggled_on: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> NoNick <b>enabled</b> for {name}.'
@@ -1074,7 +1078,14 @@ trusted:
   access_allowed: allowed
   access_denied: denied
   access_allowed_group: allowed (group)
-  trustcmd_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Manage per-command access for trusted users</b>\n\n<code>.trustcmd @username +py</code> - allow command py\n<code>.trustcmd @username -py</code> - deny command py\n<code>.trustcmd @username list</code> - show all command permissions\n\n<i>Requires user to be in trusted list</i>'
+  trustcmd_usage: |-
+                  <tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Manage per-command access for trusted users</b>
+
+                  <code>.trustcmd @username +py</code> - allow command py
+                  <code>.trustcmd @username -py</code> - deny command py
+                  <code>.trustcmd @username list</code> - show all command permissions
+
+                  <i>Requires user to be in trusted list</i>
   trustcmd_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access to <code>{cmd}</code> <b>granted</b> for {user}.'
   trustcmd_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access to <code>{cmd}</code> <b>revoked</b> for {user}.'
   trustcmd_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Command <code>{cmd}</code> not found.'
@@ -1094,7 +1105,19 @@ trusted:
   timed_trusted_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Temporary trusted users:</b>'
   timed_trusted_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No temporary trusted users.'
   trust_expiring: " (expires in {time})"
-  sgroup_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Security groups (access groups)</b>\n\n<b>Commands:</b>\n<code>.sgroup create mygroup</code> - create new group\n<code>.sgroup delete mygroup</code> - delete group\n<code>.sgroup add mygroup @user</code> - add user to group\n<code>.sgroup remove mygroup @user</code> - remove user from group\n<code>.sgroup access mygroup</code> - edit group access (inline menu)\n<code>.sgroup list</code> - list all groups\n<code>.sgroup info mygroup</code> - show group info & menu\n\n<i>Groups allow managing access for multiple users at once</i>'
+  sgroup_usage: |-
+                <tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Security groups (access groups)</b>
+
+                <b>Commands:</b>
+                <code>.sgroup create mygroup</code> - create new group
+                <code>.sgroup delete mygroup</code> - delete group
+                <code>.sgroup add mygroup @user</code> - add user to group
+                <code>.sgroup remove mygroup @user</code> - remove user from group
+                <code>.sgroup access mygroup</code> - edit group access (inline menu)
+                <code>.sgroup list</code> - list all groups
+                <code>.sgroup info mygroup</code> - show group info & menu
+
+                <i>Groups allow managing access for multiple users at once</i>
   sgroup_created: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access group <b>{name}</b> created.'
   sgroup_deleted: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access group <b>{name}</b> deleted.'
   sgroup_already_exists: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Group <b>{name}</b> already exists.'
@@ -1153,13 +1176,23 @@ presets:
   moderator:
     label: 🛡 Moderator
 config:
-  config_menu_text: "{menu_emoji} <b>Config Menu</b>\nChoose configuration section:"
+  config_menu_text: |-
+                    {menu_emoji} <b>Config Menu</b>
+                    Choose configuration section:
   btn_kernel_config: 🪄 Kernel Config
   btn_modules_config: 🚂 Modules Config
-  kernel_config_title: "{pencil} <b>Kernel Config</b>\n{page_emoji} Page <b>{page}/{total_pages}</b> ({total_keys} keys)"
-  modules_config_title: "{puzzle} <b>Modules Config</b>\n{page_emoji} Page <b>{page}/{total_pages}</b> ({total_modules} modules)"
-  module_config_title: "{puzzle} <b>Module:</b> <code>{module_name}</code>\n{page_emoji} Page <b>{page}/{total_pages}</b> ({total_items} keys)"
-  key_view: "{note} <b>{key}</b> ({type_emoji} {value_type})\n{display_value}"
+  kernel_config_title: |-
+                       {pencil} <b>Kernel Config</b>
+                       {page_emoji} Page <b>{page}/{total_pages}</b> ({total_keys} keys)
+  modules_config_title: |-
+                        {puzzle} <b>Modules Config</b>
+                        {page_emoji} Page <b>{page}/{total_pages}</b> ({total_modules} modules)
+  module_config_title: |-
+                       {puzzle} <b>Module:</b> <code>{module_name}</code>
+                       {page_emoji} Page <b>{page}/{total_pages}</b> ({total_items} keys)
+  key_view: |-
+            {note} <b>{key}</b> ({type_emoji} {value_type})
+            {display_value}
   btn_back: "⬅️"
   btn_next: "➡️"
   btn_menu: 🔙 Menu

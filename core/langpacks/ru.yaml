@@ -1041,8 +1041,12 @@ trusted:
   trustlist_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Доверенные пользователи:</b>'
   btn_cancel: Отмена
   nonick_step_title: '<tg-emoji emoji-id="5332723564711804828">✨</tg-emoji> <b>Включить NoNick для {name}?</b>'
-  nonick_step_desc: "При включённом <b>NoNick</b> пользователь сможет выполнять команды просто как <code>{prefix}команда</code>.\nБез него нужно писать <code>{prefix}команда@{alias}</code>."
-  nonick_step_desc_no_alias: "При включённом <b>NoNick</b> пользователь сможет выполнять команды без суффикса.\nБез него нужно указывать <code>@username</code> владельца."
+  nonick_step_desc: |-
+                    При включённом <b>NoNick</b> пользователь сможет выполнять команды просто как <code>{prefix}команда</code>.
+                    Без него нужно писать <code>{prefix}команда@{alias}</code>.
+  nonick_step_desc_no_alias: |-
+                             При включённом <b>NoNick</b> пользователь сможет выполнять команды без суффикса.
+                             Без него нужно указывать <code>@username</code> владельца.
   btn_nonick_yes: Включить NoNick
   btn_nonick_no: Без NoNick
   nonick_toggled_on: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> NoNick <b>включён</b> для {name}.'
@@ -1067,7 +1071,14 @@ trusted:
   access_allowed: разрешено
   access_denied: запрещено
   access_allowed_group: разрешено (группа)
-  trustcmd_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Управление доступом к командам для доверенных</b>\n\n<code>.trustcmd @username +py</code> - разрешить команду py\n<code>.trustcmd @username -py</code> - запретить команду py\n<code>.trustcmd @username list</code> - показать права на команды\n\n<i>Требует чтобы пользователь был в списке доверенных</i>'
+  trustcmd_usage: |-
+                  <tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Управление доступом к командам для доверенных</b>
+
+                  <code>.trustcmd @username +py</code> - разрешить команду py
+                  <code>.trustcmd @username -py</code> - запретить команду py
+                  <code>.trustcmd @username list</code> - показать права на команды
+
+                  <i>Требует чтобы пользователь был в списке доверенных</i>
   trustcmd_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Доступ к <code>{cmd}</code> <b>разрешён</b> для {user}.'
   trustcmd_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Доступ к <code>{cmd}</code> <b>запрещён</b> для {user}.'
   trustcmd_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Команда <code>{cmd}</code> не найдена.'
@@ -1087,7 +1098,19 @@ trusted:
   timed_trusted_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Временные доверенные:</b>'
   timed_trusted_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Нет временных доверенных.'
   trust_expiring: " (истекает через {time})"
-  sgroup_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Группы доступа</b>\n\n<b>Команды:</b>\n<code>.sgroup create mygroup</code> - создать группу\n<code>.sgroup delete mygroup</code> - удалить группу\n<code>.sgroup add mygroup @user</code> - добавить пользователя\n<code>.sgroup remove mygroup @user</code> - удалить пользователя\n<code>.sgroup access mygroup</code> - настроить доступ (меню)\n<code>.sgroup list</code> - список групп\n<code>.sgroup info mygroup</code> - инфо о группе\n\n<i>Группы позволяют управлять доступом нескольких пользователей сразу</i>'
+  sgroup_usage: |-
+                <tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Группы доступа</b>
+
+                <b>Команды:</b>
+                <code>.sgroup create mygroup</code> - создать группу
+                <code>.sgroup delete mygroup</code> - удалить группу
+                <code>.sgroup add mygroup @user</code> - добавить пользователя
+                <code>.sgroup remove mygroup @user</code> - удалить пользователя
+                <code>.sgroup access mygroup</code> - настроить доступ (меню)
+                <code>.sgroup list</code> - список групп
+                <code>.sgroup info mygroup</code> - инфо о группе
+
+                <i>Группы позволяют управлять доступом нескольких пользователей сразу</i>
   sgroup_created: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Группа доступа <b>{name}</b> создана.'
   sgroup_deleted: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Группа доступа <b>{name}</b> удалена.'
   sgroup_already_exists: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Группа <b>{name}</b> уже существует.'
@@ -1146,13 +1169,23 @@ presets:
   moderator:
     label: 🛡 Модератор
 config:
-  config_menu_text: "{menu_emoji} <b>Меню конфига</b>\nВыберите раздел:"
+  config_menu_text: |-
+                    {menu_emoji} <b>Меню конфига</b>
+                    Выберите раздел:
   btn_kernel_config: 🪄 Конфиг ядра
   btn_modules_config: 🚂 Конфиг модулей
-  kernel_config_title: "{pencil} <b>Конфиг ядра</b>\n{page_emoji} Страница <b>{page}/{total_pages}</b> ({total_keys} ключей)"
-  modules_config_title: "{puzzle} <b>Конфиг модулей</b>\n{page_emoji} Страница <b>{page}/{total_pages}</b> ({total_modules} модулей)"
-  module_config_title: "{puzzle} <b>Модуль:</b> <code>{module_name}</code>\n{page_emoji} Страница <b>{page}/{total_pages}</b> ({total_items} ключей)"
-  key_view: "{note} <b>{key}</b> ({type_emoji} {value_type})\n{display_value}"
+  kernel_config_title: |-
+                       {pencil} <b>Конфиг ядра</b>
+                       {page_emoji} Страница <b>{page}/{total_pages}</b> ({total_keys} ключей)
+  modules_config_title: |-
+                        {puzzle} <b>Конфиг модулей</b>
+                        {page_emoji} Страница <b>{page}/{total_pages}</b> ({total_modules} модулей)
+  module_config_title: |-
+                       {puzzle} <b>Модуль:</b> <code>{module_name}</code>
+                       {page_emoji} Страница <b>{page}/{total_pages}</b> ({total_items} ключей)
+  key_view: |-
+            {note} <b>{key}</b> ({type_emoji} {value_type})
+            {display_value}
   btn_back: "⬅️"
   btn_next: "➡️"
   btn_menu: 🔙 Меню

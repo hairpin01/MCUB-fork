@@ -1466,7 +1466,7 @@ class InlineProxy:
         manual_security: bool = False,
         disable_security: bool = False,
         ttl: int | None = None,
-        on_unload: callable | None = None,
+        on_unload: Callable | None = None,
         photo: str | None = None,
         gif: str | None = None,
         file: str | None = None,

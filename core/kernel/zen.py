@@ -216,6 +216,7 @@ class Kernel:
         self.default_repo = self.MODULES_REPO
 
         self.cache = TTLCache(max_size=500, ttl=600)
+        self.logger = setup_logging()
         self.register = Register(self)
         self.callback_permissions = CallbackPermissionManager()
 
@@ -224,7 +225,6 @@ class Kernel:
 
         self._cfg = ConfigManager(self)
         self.load_or_create_config()
-        self.logger = setup_logging()
 
         self._loader = ModuleLoader(self)
         self._repo = RepositoryManager(self)

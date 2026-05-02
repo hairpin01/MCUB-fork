@@ -177,7 +177,11 @@ class DependencyManagerMixin:
             if line.strip().startswith("#"):
                 if "requires:" in line.lower():
                     reqs_line = line.split(":", 1)[1].strip()
-                    reqs.extend(r.strip() for r in reqs_line.split(",") if r.strip())
+                    reqs.extend(
+                        token.strip()
+                        for token in re.split(r"[,\s]+", reqs_line)
+                        if token.strip()
+                    )
 
         if not reqs:
             return

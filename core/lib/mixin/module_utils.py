@@ -6,6 +6,7 @@ from __future__ import annotations
 import ast
 import os
 from typing import TYPE_CHECKING, Any
+import re
 
 if TYPE_CHECKING:
     from kernel import Kernel
@@ -174,7 +175,12 @@ def parse_requires(code: str) -> list:
         if line.strip().startswith("#"):
             if "requires:" in line.lower():
                 reqs_line = line.split(":", 1)[1].strip()
-                reqs.extend(r.strip() for r in reqs_line.split(",") if r.strip())
+                parts = [
+                    token.strip()
+                    for token in re.split(r"[,\s]+", reqs_line)
+                    if token.strip()
+                ]
+                reqs.extend(parts)
     return reqs
 
 

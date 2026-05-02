@@ -34,6 +34,7 @@ from core.lib.loader.module_config import (
     ModuleConfig,
 )
 from core.lib.utils.exceptions import CommandConflictError
+import utils
 
 try:
     from core.lib.loader.hikka_compat import (
@@ -1292,8 +1293,10 @@ class Loader(ModuleBase):
                         deps_list=deps_with_emoji,
                     ),
                 )
-                await self.kernel._loader.install_dependencies_batch(
-                    dependencies, log_fn=add_log
+                await self._install_dependencies_safe(
+                    dependencies,
+                    add_log=add_log,
+                    module_name=module_name,
                 )
 
             if is_update:
@@ -1589,6 +1592,44 @@ class Loader(ModuleBase):
 
         return commands_list
 
+    async def _install_dependencies_safe(
+        self,
+        dependencies: list[str],
+        *,
+        add_log: Callable,
+        module_name: str,
+    ) -> None:
+        if not dependencies:
+            return
+        installer = getattr(self.kernel._loader, "install_dependencies_batch", None)
+        if callable(installer):
+            await installer(dependencies, log_fn=add_log)
+            return
+
+        add_log(
+            self.strings(
+                "log_deps_installer_missing",
+                fallback="install_dependencies_batch",
+            )
+        )
+        pip_install = getattr(self.kernel._loader, "_pip_install", None)
+        if not callable(pip_install):
+            raise AttributeError(
+                "ModuleLoader has no install_dependencies_batch or _pip_install"
+            )
+        for dep in dependencies:
+            await pip_install(dep, module_name)
+
+    def _build_placeholders_block(self, module_name: str) -> str:
+        placeholder_docs = utils.config_placeholders(module_name)
+        if not placeholder_docs:
+            return ""
+        return self.strings(
+            "placeholders_block",
+            title=self.strings("placeholders_title"),
+            placeholders=placeholder_docs,
+        )
+
     async def _send_module_loaded(
         self,
         message,
@@ -1615,6 +1656,7 @@ class Loader(ModuleBase):
             commands_list=commands_list,
             source_link=source_link,
         )
+        final_msg += self._build_placeholders_block(display_name)
 
         if (
             show_banners
@@ -2165,8 +2207,10 @@ class Loader(ModuleBase):
                         deps_list=deps_with_emoji,
                     ),
                 )
-                await self.kernel._loader.install_dependencies_batch(
-                    dependencies, log_fn=add_log
+                await self._install_dependencies_safe(
+                    dependencies,
+                    add_log=add_log,
+                    module_name=module_name,
                 )
 
             if is_update:
@@ -2888,7 +2932,11 @@ class Loader(ModuleBase):
                 ),
             )
             try:
-                await self.kernel._loader.install_dependencies_batch(dependencies)
+                await self._install_dependencies_safe(
+                    dependencies,
+                    add_log=lambda _msg: None,
+                    module_name=module_name,
+                )
             except Exception as e:
                 self.kernel.logger.error(
                     "[reload] deps install failed for %s: %s", module_name, e

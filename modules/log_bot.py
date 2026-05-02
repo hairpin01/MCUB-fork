@@ -255,7 +255,9 @@ class LogBot(ModuleBase):
     async def on_update_callback(self, call: events.CallbackQuery.Event, data=None):
         await call.answer()
         try:
-            await self.edit(self.lang["update_running"], buttons=None, as_html=True)
+            await self.edit(
+                call, self.lang["update_running"], buttons=None, as_html=True
+            )
         except Exception:
             pass
         try:
@@ -295,6 +297,7 @@ class LogBot(ModuleBase):
             self.kernel.cache.set("log_bot:last_notified_sha", sha)
 
             await self.edit(
+                call,
                 self.lang["update_done"].format(sha=sha),
                 as_html=True,
                 buttons=None,
@@ -305,6 +308,7 @@ class LogBot(ModuleBase):
             await self.kernel.process_command(restart_cmd)
         except Exception as e:
             await self.edit(
+                call,
                 self.lang["update_error"].format(error=html.escape(str(e))),
                 as_html=True,
                 buttons=None,

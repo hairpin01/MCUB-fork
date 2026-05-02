@@ -79,6 +79,15 @@ Render a template string with placeholders.
 - `data` — dict with static values for formatting
 - `strict` — if `True`, unknown placeholders raise; if `False`, unresolved placeholders are tolerated
 
+Resolution order:
+1. Static values passed through `data` / `custom_values`.
+2. Placeholders registered in the requested `scope`.
+3. Placeholders registered in the shared `global` scope.
+4. Placeholders registered by any loaded module.
+
+This means consumer modules normally call `resolve_placeholders(self.name, ...)` only.
+They do not need to know which module registered a placeholder such as `{now_play}`.
+
 **Returns:** Rendered string
 
 ```python
@@ -120,6 +129,9 @@ ConfigValue(
 ```
 
 This enables placeholder-aware config handling in settings UI.
+When `placeholder_scope="any"` is used, the settings UI may show placeholders
+registered by other loaded modules, and runtime rendering can resolve them
+through the standard `resolve_placeholders(self.name, ...)` call.
 
 ---
 

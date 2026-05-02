@@ -454,6 +454,7 @@ man:
   system_module_note: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>Это системный модуль, и его просто так нельзя выгрузить
     loader'ом</b>
   kernel_not_full_loaded: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>Ядро ещё не полностью загрузила все модули</b> (<code>{status}</code>)
+  placeholders_title: Кастомные плейсхолдеры
 settings:
   prefix_usage: '❌ Использование: {prefix}setprefix [символ]'
   prefix_one_char: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>Префикс должен быть ровно 1 символом</b>
@@ -615,6 +616,7 @@ loader:
   log_installing_dep: '=- Устанавливаю зависимость: {dep}'
   log_dep_installed: => Зависимость {dep} установлена успешно
   log_dep_error: '=X Ошибка установки {dep}: {error}'
+  log_deps_installer_missing: '=X Установщик зависимостей "{fallback}" недоступен, использую запасной способ'
   log_removing_old: =- Удаляю старые команды модуля {module_name}
   log_loading_module: =- Загружаю модуль {module_name}...
   log_module_loaded: => Модуль успешно загружен
@@ -637,6 +639,8 @@ loader:
     <blockquote>{emoji_author} Автор: {author}</blockquote>
 
     {source_link}'
+  placeholders_title: Кастомные плейсхолдеры
+  placeholders_block: "\n<blockquote expandable>🧩 <b>{title}:</b>\n<i>{placeholders}</i></blockquote>"
   no_cmd_desc: '{no_cmd} У команды нету описания'
   command_line: '{crystal} <code>{prefix}{cmd}</code> – <b>{desc}</b>'
   aliases_text: ' (Aliases: {alias_text})'
@@ -1235,6 +1239,7 @@ config:
   cfg_len_max: Длина должна быть не более {max} символов
   cfg_type_bool: Значение должно быть логическим (true/false)
   cfg_choices: Доступные варианты
+  cfg_placeholders_title: Кастомные плейсхолдеры
   invalid_format: "❌ Неверный формат"
   btn_edit: "✏️ Изменить"
   btn_delete: "🗑️ Удалить"

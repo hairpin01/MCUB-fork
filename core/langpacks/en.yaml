@@ -459,6 +459,7 @@ man:
     with a loader</b>
   kernel_not_full_loaded: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>The kernel has not yet fully loaded all modules</b>
     (<code>{status}</code>)
+  placeholders_title: Custom placeholders
 settings:
   prefix_usage: '❌ Usage: {prefix}setprefix [symbol]'
   prefix_one_char: ❌ <b>Prefix must be exactly 1 character</b>
@@ -619,6 +620,7 @@ loader:
   log_installing_dep: '=- Installing dependency: {dep}'
   log_dep_installed: => Dependency {dep} installed successfully
   log_dep_error: '=X Error installing {dep}: {error}'
+  log_deps_installer_missing: '=X Dependency installer "{fallback}" is unavailable, using fallback strategy'
   log_removing_old: =- Removing old module commands {module_name}
   log_loading_module: =- Loading module {module_name}...
   log_module_loaded: => Module loaded successfully
@@ -641,6 +643,8 @@ loader:
     <blockquote>{emoji_author} Author: {author}</blockquote>
 
     <blockquote>{source_link}</blockquote>'
+  placeholders_title: Custom placeholders
+  placeholders_block: "\n<blockquote expandable>🧩 <b>{title}:</b>\n<i>{placeholders}</i></blockquote>"
   no_cmd_desc: '{no_cmd} Command has no description'
   command_line: '{crystal} <code>{prefix}{cmd}</code> – <b>{desc}</b>'
   aliases_text: ' (Aliases: {alias_text})'
@@ -1242,6 +1246,7 @@ config:
   cfg_len_max: Length must be no more than {max} characters
   cfg_type_bool: Value must be boolean (true/false)
   cfg_choices: Available options
+  cfg_placeholders_title: Custom placeholders
   invalid_format: "❌ Invalid format"
   btn_edit: "✏️ Edit"
   btn_delete: "🗑️ Delete"

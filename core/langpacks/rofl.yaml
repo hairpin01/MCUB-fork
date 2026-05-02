@@ -425,6 +425,7 @@ man:
   manunhide_usage: '😕 Как расскрыть: <code>.manunhide [модуль]</code>'
   system_module_note: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>Это системный модуль. Loader его не тронет — это святое.</b>
   kernel_not_full_loaded: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>Ядро ещё не дозагрузилось, подожди немного</b> (<code>{status}</code>)
+  placeholders_title: Кастомные плейсхолдеры (магия)
 settings:
   prefix_usage: '❌ Как менять префикс: {prefix}setprefix [символ]'
   prefix_one_char: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>Префикс — ровно 1 символ. Не два, не три. Один.</b>
@@ -550,6 +551,7 @@ loader:
   log_installing_dep: '=- Устанавливаю зависимость: {dep}'
   log_dep_installed: => Зависимость {dep} установлена. Одной меньше.
   log_dep_error: '=X Зависимость {dep} сломалась (зависимостный треш): {error}'
+  log_deps_installer_missing: '=X Основной установщик зависимостей "{fallback}" пропал, включаю аварийный режим'
   log_removing_old: =- Убираю старые команды модуля {module_name} (чистим хвосты)
   log_loading_module: =- Загружаю модуль {module_name}... момент истины
   log_module_loaded: => Модуль загружен! Не сломался!
@@ -572,6 +574,8 @@ loader:
     <blockquote>{emoji_author} Автор: {author}</blockquote>
 
     {source_link}'
+  placeholders_title: Кастомные плейсхолдеры (магия)
+  placeholders_block: "\n<blockquote expandable>🧩 <b>{title}:</b>\n<i>{placeholders}</i></blockquote>"
   no_cmd_desc: '{no_cmd} Описания команды нет. Автор не счёл нужным.'
   command_line: '{crystal} <code>{prefix}{cmd}</code> – <b>{desc}</b>'
   aliases_text: ' (Алиасы: {alias_text})'
@@ -1045,6 +1049,7 @@ config:
   cfg_len_max: Длина не более {max} символов. Краткость — сестра таланта.
   cfg_type_bool: Значение должно быть логическим (true или false, ничего третьего)
   cfg_choices: Допустимые варианты (и только они)
+  cfg_placeholders_title: Кастомные плейсхолдеры
   invalid_format: "❌ Формат неверный (форматировочный треш)"
   btn_edit: "✏️ Изменить"
   btn_delete: "🗑️ Удалить (без возврата)"

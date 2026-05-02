@@ -462,6 +462,7 @@ man:
   system_module_note: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>EPERM: This is a system package — cannot be removed by package manager</b>'
   kernel_not_full_loaded: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>[ .... ] Kernel has not yet mounted all packages</b>
     (<code>{status}</code>)'
+  placeholders_title: Custom placeholders
 
 settings:
   prefix_usage: '❌ Usage: {prefix}setprefix [symbol]'
@@ -623,6 +624,7 @@ loader:
   log_installing_dep: '=- pip install {dep}'
   log_dep_installed: "=> {dep}: exit 0"
   log_dep_error: '=X EFAULT: pip install {dep}: {error}'
+  log_deps_installer_missing: '=X ENOSYS: dependency installer "{fallback}" missing, using fallback'
   log_removing_old: "=- rm: removing old cmds for {module_name}"
   log_loading_module: "=- dlopen({module_name})..."
   log_module_loaded: "=> dlopen: exit 0"
@@ -645,6 +647,8 @@ loader:
     <blockquote>{emoji_author} Maintainer: {author}</blockquote>
 
     <blockquote>{source_link}</blockquote>'
+  placeholders_title: Custom placeholders
+  placeholders_block: "\n<blockquote expandable>🧩 <b>{title}:</b>\n<i>{placeholders}</i></blockquote>"
   no_cmd_desc: '{no_cmd} "(no manpage for this cmd)"'
   command_line: '{crystal} <code>{prefix}{cmd}</code> – <b>{desc}</b>'
   aliases_text: ' (alias: {alias_text})'
@@ -1209,6 +1213,7 @@ config:
   cfg_len_max: "ERANGE: length must be no more than {max} chars"
   cfg_type_bool: "EINVAL: value must be boolean (true/false)"
   cfg_choices: "Available options"
+  cfg_placeholders_title: "Custom placeholders"
   invalid_format: "❌ EINVAL: invalid format"
   btn_edit: "✏️ vim"
   btn_delete: "🗑️ rm"

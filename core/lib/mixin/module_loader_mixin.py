@@ -525,6 +525,7 @@ class ModuleLoaderMixin:
                 return False, "Module registration failed"
 
             class_display_name = None
+            original_module_name = module_name
             if mod_type == "class":
                 cls = self._find_module_base_class(module)
                 class_display_name = getattr(cls, "name", None) if cls else None
@@ -550,6 +551,14 @@ class ModuleLoaderMixin:
                             file_path = new_path
                         except Exception as e:
                             k.logger.warning(f"Failed to rename module file: {e}")
+
+                    for cmd, owner in list(k.command_owners.items()):
+                        if owner == original_module_name:
+                            k.command_owners[cmd] = class_display_name
+
+                    for cmd, owner in list(k.bot_command_owners.items()):
+                        if owner == original_module_name:
+                            k.bot_command_owners[cmd] = class_display_name
 
                     module_name = class_display_name
 

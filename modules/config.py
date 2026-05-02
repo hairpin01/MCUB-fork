@@ -1176,7 +1176,18 @@ def register(kernel):
                 text += f"\n\n{emoji_provider['📖']} <blockquote expandable><i>{html.escape(str(description))}</i></blockquote>"
 
             if getattr(validator, "supports_placeholders", False):
-                placeholders_help = utils.config_placeholders(module_name)
+                scope_name = (
+                    getattr(validator, "placeholder_scope", None) or module_name
+                )
+                placeholders_help = utils.config_placeholders(scope_name)
+                if scope_name != module_name:
+                    module_placeholders = utils.config_placeholders(module_name)
+                    if module_placeholders:
+                        placeholders_help = (
+                            f"{module_placeholders}\n{placeholders_help}"
+                            if placeholders_help
+                            else module_placeholders
+                        )
                 if placeholders_help:
                     text += (
                         f"\n\n{emoji_provider['📋']} <b>{t('cfg_placeholders_title')}</b>:"

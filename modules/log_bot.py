@@ -22,10 +22,12 @@ from telethon.tl.types import InputMediaWebPage, InputUserSelf
 
 from core.lib.loader.module_base import ModuleBase, callback, command, loop
 from core.lib.loader.module_config import (
-    String,
     ConfigValue,
     ModuleConfig,
+    Placeholders,
+    String,
 )
+import utils
 
 
 class LogBot(ModuleBase):
@@ -47,7 +49,25 @@ class LogBot(ModuleBase):
             validator=String(
                 default="https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/start_userbot.png"
             ),
-        )
+        ),
+        ConfigValue(
+            "start_message",
+            default="",
+            description=(
+                "Custom text for startup log message. Available placeholders:\n"
+                "{mcub}, {kernel_version}, {started}, {commit_sha},\n"
+                "{commit_url}, {update_status}, {update_status_link},\n"
+                "{branch}, {module_version}, {module_name},\n"
+                "{module_version_text}, {prefix}, {error_load_modules}"
+            ),
+            validator=Placeholders(default="", placeholder_scope="any"),
+        ),
+        ConfigValue(
+            "placeholders",
+            default="",
+            description="Available placeholders (auto-generated, read-only)",
+            validator=String(default=""),
+        ),
     )
 
     async def get_git_commit(self):
@@ -486,16 +506,48 @@ class LogBot(ModuleBase):
         else:
             commit_display = f"<b>{update_status}</b>"
 
-        message = f"""<b>{await self.mcub_handler()}</b> <b>{self.kernel.VERSION}</b> {self.lang["started"]}
+        mcub = await self.mcub_handler()
+        module_version_text = self.lang("version", version=self.version, name=self.name)
+        default_message = f"""<b>{mcub}</b> <b>{self.kernel.VERSION}</b> {self.lang["started"]}
 <blockquote><b><tg-emoji emoji-id="5368585403467048206">🔭</tg-emoji> GitHub commit SHA:</b> <code>{commit_sha}</code>
 <tg-emoji emoji-id="5467480195143310096">🎩</tg-emoji> <b>{self.lang["update_status"]}:</b> <i>{commit_display}</i>
 <tg-emoji emoji-id="5436275698664759373">🌂</tg-emoji> <b>branch:</b> <code>{branch}</code>
-{self.lang('version', version=self.version, name=self.name)}{"" if self.kernel.error_load_modules else "</blockquote>"}"""
+{module_version_text}{"" if self.kernel.error_load_modules else "</blockquote>"}"""
 
         if self.kernel.error_load_modules:
-            message += f'\n<tg-emoji emoji-id="5467928559664242360">❗️</tg-emoji> <b>Error load modules:</b> <code>{self.kernel.error_load_modules}</code></blockquote>'
+            default_message += f'\n<tg-emoji emoji-id="5467928559664242360">❗️</tg-emoji> <b>Error load modules:</b> <code>{self.kernel.error_load_modules}</code></blockquote>'
 
-        message += f'\n<tg-emoji emoji-id="5426900601101374618">🧿</tg-emoji> <b><i>{self.lang["prefix"]}:</i></b> <code>{self.kernel.custom_prefix}</code>'
+        default_message += f'\n<tg-emoji emoji-id="5426900601101374618">🧿</tg-emoji> <b><i>{self.lang["prefix"]}:</i></b> <code>{self.kernel.custom_prefix}</code>'
+
+        custom_message = cfg.get("start_message") or ""
+        if custom_message:
+            try:
+                message = await utils.resolve_placeholders(
+                    self.name,
+                    custom_message,
+                    data={
+                        "mcub": mcub,
+                        "kernel_version": self.kernel.VERSION,
+                        "started": self.lang["started"],
+                        "commit_sha": commit_sha,
+                        "commit_url": commit_url or "",
+                        "update_status": update_status,
+                        "update_status_link": commit_display,
+                        "branch": branch,
+                        "module_version": self.version,
+                        "module_name": self.name,
+                        "module_version_text": module_version_text,
+                        "prefix": self.kernel.custom_prefix,
+                        "error_load_modules": self.kernel.error_load_modules or "",
+                    },
+                    strict=False,
+                )
+            except Exception as e:
+                self.log.error(f"start_message template error: {e}")
+                message = default_message
+        else:
+            message = default_message
+
         try:
             if await self.kernel.bot_client.is_user_authorized():
                 _message_load = await self.kernel.bot_client.send_message(
@@ -609,8 +661,11 @@ class LogBot(ModuleBase):
     async def on_load(self):
         defaults = {
             "banner_url": "https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/start_userbot.png",
+            "start_message": "",
+            "placeholders": "",
         }
         config_dict = await self.kernel.get_module_config(self.name, defaults)
+        config_dict["placeholders"] = utils.format_placeholders(self.name)
         self.config.from_dict(config_dict)
         self.kernel.store_module_config_schema(self.name, self.config)
         clean = {k: v for k, v in self.config.to_dict().items() if v is not None}

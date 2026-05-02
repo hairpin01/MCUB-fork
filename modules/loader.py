@@ -1344,13 +1344,18 @@ class Loader(ModuleBase):
 
                 if ok:
                     add_log(self.strings["log_module_loaded_kernel"])
+                    actual_module_name = self._resolve_actual_module_name(
+                        module_name, metadata
+                    )
                     lang = self.kernel.config.get("language", "ru")
                     commands, aliases_info, descriptions = (
-                        self.kernel._loader.get_module_commands(module_name, lang)
+                        self.kernel._loader.get_module_commands(
+                            actual_module_name, lang
+                        )
                     )
                     emoji = random.choice(RANDOM_EMOJIS)
                     commands_list = self._build_commands_list(
-                        module_name,
+                        actual_module_name,
                         commands,
                         aliases_info,
                         descriptions,
@@ -1367,11 +1372,14 @@ class Loader(ModuleBase):
                             owner = cf.get("owner") or "unknown"
                             conflict_text += f"<code>{cf['command']}</code> — registered by <code>{owner}</code>\n"
 
-                    self.kernel.logger.info(f"Hikka модуль {module_name} установлен")
+                    self.kernel.logger.info(
+                        f"Hikka модуль {actual_module_name} установлен"
+                    )
                     await self._send_module_loaded(
                         msg or event,
                         metadata,
-                        module_name,
+                        actual_module_name,
+                        actual_module_name,
                         commands_list + conflict_text,
                         emoji,
                     )
@@ -1416,29 +1424,33 @@ class Loader(ModuleBase):
 
             if success:
                 add_log(self.strings["log_module_loaded_kernel"])
-                self.kernel._module_sources[loaded_module_name] = {
+                actual_module_name = self._resolve_actual_module_name(
+                    loaded_module_name, metadata
+                )
+
+                self.kernel._module_sources[actual_module_name] = {
                     "type": "url" if is_url else "repo",
                     "url": module_or_url if is_url else None,
                     "repo": repo_url if not is_url and repo_url else None,
                 }
 
                 class_instance = getattr(
-                    self.kernel.loaded_modules.get(loaded_module_name),
+                    self.kernel.loaded_modules.get(actual_module_name),
                     "_class_instance",
                     None,
                 )
                 display_name = (
-                    getattr(type(class_instance), "name", loaded_module_name)
+                    getattr(type(class_instance), "name", actual_module_name)
                     if class_instance is not None
-                    else loaded_module_name
+                    else actual_module_name
                 )
 
                 commands, aliases_info, descriptions = (
-                    self.kernel._loader.get_module_commands(loaded_module_name, lang)
+                    self.kernel._loader.get_module_commands(actual_module_name, lang)
                 )
                 emoji = random.choice(RANDOM_EMOJIS)
                 commands_list = self._build_commands_list(
-                    loaded_module_name,
+                    actual_module_name,
                     commands,
                     aliases_info,
                     descriptions,
@@ -1446,14 +1458,15 @@ class Loader(ModuleBase):
                     add_log,
                 )
 
-                self.kernel.logger.info(f"Модуль {loaded_module_name} скачан")
+                self.kernel.logger.info(f"Модуль {actual_module_name} скачан")
                 await self._send_module_loaded(
                     event,
                     metadata,
+                    actual_module_name,
                     display_name,
                     commands_list,
                     emoji,
-                    source_link=self._get_source_link(loaded_module_name),
+                    source_link=self._get_source_link(actual_module_name),
                 )
             else:
                 self._restore_backup_and_cleanup(
@@ -1630,10 +1643,38 @@ class Loader(ModuleBase):
             placeholders=placeholder_docs,
         )
 
+    def _resolve_actual_module_name(
+        self, module_name: str, metadata: dict | None = None
+    ) -> str:
+        if (
+            module_name in self.kernel.loaded_modules
+            or module_name in self.kernel.system_modules
+        ):
+            return module_name
+
+        meta_name = (metadata or {}).get("class_name")
+        if isinstance(meta_name, str):
+            if (
+                meta_name in self.kernel.loaded_modules
+                or meta_name in self.kernel.system_modules
+            ):
+                return meta_name
+
+        module_name_lower = str(module_name).lower()
+        for mod_name in self.kernel.loaded_modules:
+            if mod_name.lower() == module_name_lower:
+                return mod_name
+        for mod_name in self.kernel.system_modules:
+            if mod_name.lower() == module_name_lower:
+                return mod_name
+
+        return module_name
+
     async def _send_module_loaded(
         self,
         message,
         metadata: dict,
+        module_scope: str,
         display_name: str,
         commands_list: str,
         emoji: str,
@@ -1656,7 +1697,7 @@ class Loader(ModuleBase):
             commands_list=commands_list,
             source_link=source_link,
         )
-        final_msg += self._build_placeholders_block(display_name)
+        final_msg += self._build_placeholders_block(module_scope)
 
         if (
             show_banners
@@ -1849,8 +1890,11 @@ class Loader(ModuleBase):
                         msg_txt = res[1] if len(res) >= 2 else ""
 
                     if success:
-                        loaded_modules.append(module_name)
-                        self.kernel._module_sources[module_name] = {
+                        actual_module_name = self._resolve_actual_module_name(
+                            module_name
+                        )
+                        loaded_modules.append(actual_module_name)
+                        self.kernel._module_sources[actual_module_name] = {
                             "type": "archive",
                             "pack_type": "single",
                         }
@@ -1886,8 +1930,11 @@ class Loader(ModuleBase):
                             success = res[0]
                             msg_txt = res[1] if len(res) >= 2 else ""
                             if success:
-                                loaded_modules.append(mod.name)
-                                self.kernel._module_sources[mod.name] = {
+                                actual_module_name = self._resolve_actual_module_name(
+                                    mod.name
+                                )
+                                loaded_modules.append(actual_module_name)
+                                self.kernel._module_sources[actual_module_name] = {
                                     "type": "archive",
                                     "pack_type": "pack",
                                 }
@@ -1897,11 +1944,6 @@ class Loader(ModuleBase):
 
                 await self.kernel.save_module_sources()
 
-                lang = self.kernel.config.get("language", "ru")
-                commands, aliases_info, descriptions = (
-                    self.kernel._loader.get_module_commands(module_name, lang)
-                )
-
                 if result.pack_type == "single":
                     code_for_meta = (
                         main_code if has_local_import else open(source_file).read()
@@ -1909,6 +1951,12 @@ class Loader(ModuleBase):
                     metadata = await self.kernel.get_module_metadata(code_for_meta)
                 else:
                     metadata = await self.kernel.get_module_metadata("")
+
+                lang = self.kernel.config.get("language", "ru")
+                commands_owner = self._resolve_actual_module_name(module_name, metadata)
+                commands, aliases_info, descriptions = (
+                    self.kernel._loader.get_module_commands(commands_owner, lang)
+                )
 
                 commands_list = ""
                 for cmd in commands:
@@ -2237,25 +2285,28 @@ class Loader(ModuleBase):
 
             if success:
                 add_log(self.strings["log_module_loaded"])
-                self.kernel._module_sources[loaded_module_name] = {"type": "local"}
+                actual_module_name = self._resolve_actual_module_name(
+                    loaded_module_name, metadata
+                )
+                self.kernel._module_sources[actual_module_name] = {"type": "local"}
 
                 loaded_obj = self.kernel.loaded_modules.get(
-                    loaded_module_name
-                ) or self.kernel.system_modules.get(loaded_module_name)
+                    actual_module_name
+                ) or self.kernel.system_modules.get(actual_module_name)
                 class_instance = getattr(loaded_obj, "_class_instance", None)
                 display_name = (
-                    getattr(type(class_instance), "name", loaded_module_name)
+                    getattr(type(class_instance), "name", actual_module_name)
                     if class_instance is not None
-                    else loaded_module_name
+                    else actual_module_name
                 )
 
                 lang = self.kernel.config.get("language", "ru")
                 commands, aliases_info, descriptions = (
-                    self.kernel._loader.get_module_commands(loaded_module_name, lang)
+                    self.kernel._loader.get_module_commands(actual_module_name, lang)
                 )
                 emoji = random.choice(RANDOM_EMOJIS)
                 commands_list = self._build_commands_list(
-                    loaded_module_name,
+                    actual_module_name,
                     commands,
                     aliases_info,
                     descriptions,
@@ -2280,10 +2331,11 @@ class Loader(ModuleBase):
                 await self._send_module_loaded(
                     msg,
                     metadata,
+                    actual_module_name,
                     display_name,
                     commands_list,
                     emoji,
-                    source_link=self._get_source_link(loaded_module_name),
+                    source_link=self._get_source_link(actual_module_name),
                 )
             else:
                 add_log(self.strings("log_install_error", error=message_text))
@@ -2797,7 +2849,8 @@ class Loader(ModuleBase):
                 )
 
                 if success:
-                    results.append(module_name)
+                    actual_module_name = self._resolve_actual_module_name(module_name)
+                    results.append(actual_module_name)
                 else:
                     failed.append(module_name)
 
@@ -3007,21 +3060,24 @@ class Loader(ModuleBase):
         )
 
         if success:
+            actual_module_name = self._resolve_actual_module_name(module_name)
             lang = self.kernel.config.get("language", "ru")
-            commands, _, _ = self.kernel._loader.get_module_commands(module_name, lang)
+            commands, _, _ = self.kernel._loader.get_module_commands(
+                actual_module_name, lang
+            )
             cmd_text = (
                 f"{CUSTOM_EMOJI['crystal']} {', '.join([f'<code>{self.get_prefix()}{cmd}</code>' for cmd in commands])}"
                 if commands
                 else self.strings["no_commands"]
             )
             emoji = random.choice(RANDOM_EMOJIS)
-            self.kernel.logger.info(f"Модуль {module_name} перезагружен")
+            self.kernel.logger.info(f"Модуль {actual_module_name} перезагружен")
             await self._edit_with_emoji(
                 msg,
                 self.strings(
                     "reload_success",
                     success=CUSTOM_EMOJI["success"],
-                    module_name=module_name,
+                    module_name=actual_module_name,
                     emoji=emoji,
                     cmd_text=cmd_text,
                 ),

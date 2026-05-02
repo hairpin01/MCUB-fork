@@ -3,8 +3,8 @@
 
 from __future__ import annotations
 
+import ast
 import os
-import re
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -69,7 +69,7 @@ def get_module_path(loader: Any, module_name: str) -> str:
     if os.path.exists(default_path):
         return default_path
 
-    # Search for class-style modules by class attribute "name = '...'"
+    # Search for class-style modules by class attribute name parsed via AST.
     try:
         for fname in os.listdir(k.MODULES_LOADED_DIR):
             fpath = os.path.join(k.MODULES_LOADED_DIR, fname)
@@ -78,13 +78,38 @@ def get_module_path(loader: Any, module_name: str) -> str:
             try:
                 with open(fpath, encoding="utf-8") as f:
                     code = f.read()
-                # Look for class with name attribute matching module_name
-                pattern = (
-                    r'class\s+\w+\s*\([^)]*\):[^}]*?name\s*=\s*["\']([^"\']+)["\']'
-                )
-                for match in re.finditer(pattern, code, re.DOTALL):
-                    if match.group(1) == module_name:
-                        return fpath
+                try:
+                    tree = ast.parse(code)
+                except SyntaxError:
+                    continue
+
+                for node in tree.body:
+                    if not isinstance(node, ast.ClassDef):
+                        continue
+                    for stmt in node.body:
+                        value_node = None
+                        if isinstance(stmt, ast.Assign):
+                            for target in stmt.targets:
+                                if isinstance(target, ast.Name) and target.id == "name":
+                                    value_node = stmt.value
+                                    break
+                        elif isinstance(stmt, ast.AnnAssign):
+                            if (
+                                isinstance(stmt.target, ast.Name)
+                                and stmt.target.id == "name"
+                            ):
+                                value_node = stmt.value
+
+                        if value_node is None:
+                            continue
+
+                        try:
+                            value = ast.literal_eval(value_node)
+                        except Exception:
+                            continue
+
+                        if isinstance(value, str) and value == module_name:
+                            return fpath
             except Exception:
                 pass
     except OSError:

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import ast
 import asyncio
 import hashlib
 import importlib.util
@@ -35,6 +36,187 @@ class ModuleLoaderMixin:
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
+
+    def is_archive_url(self, url: str) -> bool:
+        """Check if URL points to an archive file."""
+        return is_archive_url(url)
+
+    def find_module_case_insensitive(self, name: str) -> tuple[str | None, str | None]:
+        """Look up a module by name ignoring case."""
+        return _find_module_case_insensitive(self, name)
+
+    def get_module_path(self, module_name: str) -> str:
+        """Return the filesystem path for a module file."""
+        return _get_module_path(self, module_name)
+
+    def pick_localized_text(
+        self, values: dict[str, str] | None, lang: str | None, fallback: str = ""
+    ) -> str:
+        """Pick localized text by language."""
+        return _pick_localized_text(values, lang, fallback)
+
+    def parse_requires(self, code: str) -> list:
+        """Parse ``# requires:`` comments from module source."""
+        return _parse_requires(code)
+
+    def _parse_source_ast(self, code: str) -> ast.Module | None:
+        """Parse python source code into AST."""
+        try:
+            return ast.parse(code)
+        except SyntaxError:
+            return None
+
+    def _collect_module_base_aliases(
+        self, tree: ast.Module
+    ) -> tuple[set[str], set[str], set[str]]:
+        """Collect aliases that can reference ModuleBase and command decorator."""
+        module_aliases: set[str] = set()
+        modulebase_names: set[str] = {"ModuleBase"}
+        command_names: set[str] = {"command"}
+
+        for node in tree.body:
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    imported = alias.name
+                    as_name = alias.asname or imported.split(".")[-1]
+                    if imported.endswith("module_base"):
+                        module_aliases.add(as_name)
+            elif isinstance(node, ast.ImportFrom):
+                mod = node.module or ""
+                if mod.endswith("module_base"):
+                    for alias in node.names:
+                        local_name = alias.asname or alias.name
+                        if alias.name == "ModuleBase":
+                            modulebase_names.add(local_name)
+                        if alias.name == "command":
+                            command_names.add(local_name)
+                        if alias.name == "*":
+                            modulebase_names.add("ModuleBase")
+                            command_names.add("command")
+
+        return module_aliases, modulebase_names, command_names
+
+    def _is_module_base_expr(
+        self,
+        expr: ast.expr,
+        module_aliases: set[str],
+        modulebase_names: set[str],
+    ) -> bool:
+        if isinstance(expr, ast.Name):
+            return expr.id in modulebase_names
+
+        if isinstance(expr, ast.Attribute) and expr.attr == "ModuleBase":
+            value = expr.value
+            if isinstance(value, ast.Name) and value.id in module_aliases:
+                return True
+            parts: list[str] = []
+            cur: ast.expr | None = expr
+            while isinstance(cur, ast.Attribute):
+                parts.append(cur.attr)
+                cur = cur.value
+            if isinstance(cur, ast.Name):
+                parts.append(cur.id)
+                dotted = ".".join(reversed(parts))
+                if dotted.endswith("module_base.ModuleBase"):
+                    return True
+
+        return False
+
+    def _find_module_base_class_def(
+        self, tree: ast.Module
+    ) -> tuple[ast.ClassDef | None, set[str]]:
+        module_aliases, modulebase_names, command_names = (
+            self._collect_module_base_aliases(tree)
+        )
+        for node in tree.body:
+            if isinstance(node, ast.ClassDef):
+                for base in node.bases:
+                    if self._is_module_base_expr(
+                        base, module_aliases, modulebase_names
+                    ):
+                        return node, command_names
+        return None, command_names
+
+    def _literal_str(self, value: ast.AST | None) -> str | None:
+        if value is None:
+            return None
+        try:
+            parsed = ast.literal_eval(value)
+        except Exception:
+            return None
+        if isinstance(parsed, str):
+            parsed = parsed.strip()
+            return parsed or None
+        return None
+
+    def _literal_dict_str_str(self, value: ast.AST | None) -> dict[str, str]:
+        if value is None:
+            return {}
+        try:
+            parsed = ast.literal_eval(value)
+        except Exception:
+            return {}
+        if not isinstance(parsed, dict):
+            return {}
+        out: dict[str, str] = {}
+        for key, val in parsed.items():
+            if isinstance(key, str) and isinstance(val, str):
+                k = key.strip().lower()
+                v = val.strip()
+                if k and v:
+                    out[k] = v
+        return out
+
+    def _assigned_value(self, stmt: ast.stmt, attr_name: str) -> ast.AST | None:
+        if isinstance(stmt, ast.Assign):
+            for target in stmt.targets:
+                if isinstance(target, ast.Name) and target.id == attr_name:
+                    return stmt.value
+        elif isinstance(stmt, ast.AnnAssign):
+            if isinstance(stmt.target, ast.Name) and stmt.target.id == attr_name:
+                return stmt.value
+        return None
+
+    def _extract_command_doc(
+        self, decorator: ast.AST, command_names: set[str]
+    ) -> tuple[str, str] | None:
+        if not isinstance(decorator, ast.Call):
+            return None
+
+        is_command_decorator = False
+        if isinstance(decorator.func, ast.Name) and decorator.func.id in command_names:
+            is_command_decorator = True
+        elif (
+            isinstance(decorator.func, ast.Attribute)
+            and decorator.func.attr == "command"
+        ):
+            is_command_decorator = True
+
+        if not is_command_decorator or not decorator.args:
+            return None
+
+        cmd_name = self._literal_str(decorator.args[0])
+        if not cmd_name:
+            return None
+
+        doc_ru: str | None = None
+        doc_en: str | None = None
+        for kw in decorator.keywords:
+            if kw.arg == "doc_ru":
+                doc_ru = self._literal_str(kw.value)
+            elif kw.arg == "doc_en":
+                doc_en = self._literal_str(kw.value)
+
+        doc_value = doc_ru or doc_en
+        if not doc_value:
+            return None
+
+        return cmd_name, doc_value
+
+    def _iter_function_nodes(self, tree: ast.AST):
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                yield node
 
     def get_module_commands(
         self, module_name: str, lang: str | None = None
@@ -85,23 +267,6 @@ class ModuleLoaderMixin:
 
         return commands, aliases_info, descriptions
 
-    def find_module_case_insensitive(self, name: str) -> tuple[str | None, str | None]:
-        return _find_module_case_insensitive(self, name)
-
-    def get_module_path(self, module_name: str) -> str:
-        return _get_module_path(self, module_name)
-
-    def pick_localized_text(
-        self,
-        values: dict[str, str] | None,
-        lang: str | None,
-        fallback: str = "",
-    ) -> str:
-        return _pick_localized_text(values, lang, fallback)
-
-    def parse_requires(self, code: str) -> list:
-        return _parse_requires(code)
-
     async def get_module_version_from_file(self, file_path: str) -> str | None:
         """Extract module version from source file."""
         try:
@@ -109,29 +274,10 @@ class ModuleLoaderMixin:
                 code = f.read()
         except OSError:
             return None
-
-        # Class-style: version = "1.2.3"
-        m = re.search(
-            r"^\s*version\s*:\s*[^=]+=\s*['\"]([^'\"]+)['\"]",
-            code,
-            re.MULTILINE,
-        ) or re.search(
-            r"^\s*version\s*=\s*['\"]([^'\"]+)['\"]",
-            code,
-            re.MULTILINE,
-        )
-        if m:
-            version = (m.group(1) or "").strip()
-            if version:
-                return version
-
-        # Header metadata: # version: 1.2.3
-        m = re.search(r"^\s*#\s*version\s*:\s*([^\n#]+)", code, re.MULTILINE)
-        if m:
-            version = (m.group(1) or "").strip()
-            if version:
-                return version
-
+        metadata = await self.get_module_metadata(code)
+        version = metadata.get("version")
+        if isinstance(version, str) and version and version != "?.?.?":
+            return version
         return None
 
     async def get_module_metadata(self, code: str) -> dict:
@@ -163,87 +309,96 @@ class ModuleLoaderMixin:
         if m:
             metadata["banner_url"] = m.group(1).strip()
 
-        # Class-style module detection and attributes.
-        class_match = re.search(
-            r"class\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*ModuleBase\s*\)\s*:",
-            code,
-        )
-        if class_match:
+        tree = self._parse_source_ast(code)
+        if not tree:
+            return metadata
+
+        class_node, command_names = self._find_module_base_class_def(tree)
+        if class_node is not None:
             metadata["is_class_style"] = True
-            class_block_start = class_match.end()
-            class_block = code[class_block_start:]
-            metadata["class_name"] = class_match.group(1)
+            metadata["class_name"] = class_node.name
 
-            m = re.search(
-                r"^\s*name\s*=\s*['\"]([^'\"]+)['\"]", class_block, re.MULTILINE
+            class_name = self._literal_str(
+                next(
+                    (
+                        self._assigned_value(stmt, "name")
+                        for stmt in class_node.body
+                        if self._assigned_value(stmt, "name") is not None
+                    ),
+                    None,
+                )
             )
-            if m:
-                metadata["class_name"] = m.group(1).strip()
+            if class_name:
+                metadata["class_name"] = class_name
 
-            m = re.search(
-                r"^\s*version\s*(?::\s*[^=]+)?=\s*['\"]([^'\"]+)['\"]",
-                class_block,
-                re.MULTILINE,
+            class_version = self._literal_str(
+                next(
+                    (
+                        self._assigned_value(stmt, "version")
+                        for stmt in class_node.body
+                        if self._assigned_value(stmt, "version") is not None
+                    ),
+                    None,
+                )
             )
-            if m:
-                metadata["version"] = m.group(1).strip()
+            if class_version:
+                metadata["version"] = class_version
 
-            m = re.search(
-                r"^\s*author\s*(?::\s*[^=]+)?=\s*['\"]([^'\"]+)['\"]",
-                class_block,
-                re.MULTILINE,
+            class_author = self._literal_str(
+                next(
+                    (
+                        self._assigned_value(stmt, "author")
+                        for stmt in class_node.body
+                        if self._assigned_value(stmt, "author") is not None
+                    ),
+                    None,
+                )
             )
-            if m:
-                metadata["author"] = m.group(1).strip()
+            if class_author:
+                metadata["author"] = class_author
 
             for banner_attr in ("banner_url", "banner", "image", "photo"):
-                m = re.search(
-                    rf"^\s*{banner_attr}\s*(?::\s*[^=]+)?=\s*['\"]([^'\"]+)['\"]",
-                    class_block,
-                    re.MULTILINE,
+                value = next(
+                    (
+                        self._assigned_value(stmt, banner_attr)
+                        for stmt in class_node.body
+                        if self._assigned_value(stmt, banner_attr) is not None
+                    ),
+                    None,
                 )
-                if m:
-                    metadata["banner_url"] = m.group(1).strip()
+                banner_val = self._literal_str(value)
+                if banner_val:
+                    metadata["banner_url"] = banner_val
                     break
 
-            # description: dict[str, str] = {"ru": "...", "en": "..."}
-            m = re.search(
-                r"^\s*description\s*(?::\s*[^=]+)?=\s*(\{[\s\S]*?\})",
-                class_block,
-                re.MULTILINE,
+            desc_value = next(
+                (
+                    self._assigned_value(stmt, "description")
+                    for stmt in class_node.body
+                    if self._assigned_value(stmt, "description") is not None
+                ),
+                None,
             )
-            if m:
-                desc_blob = m.group(1)
-                pairs = re.findall(
-                    r"['\"]([a-zA-Z_-]+)['\"]\s*:\s*['\"]([^'\"]+)['\"]", desc_blob
+            desc_i18n = self._literal_dict_str_str(desc_value)
+            if desc_i18n:
+                metadata["description_i18n"] = desc_i18n
+                metadata["description"] = (
+                    desc_i18n.get("ru")
+                    or desc_i18n.get("en")
+                    or next(iter(desc_i18n.values()))
                 )
-                if pairs:
-                    i18n = {k.lower(): v.strip() for k, v in pairs}
-                    metadata["description_i18n"] = i18n
-                    metadata["description"] = (
-                        i18n.get("ru") or i18n.get("en") or next(iter(i18n.values()))
-                    )
             else:
-                m = re.search(
-                    r"^\s*description\s*(?::\s*[^=]+)?=\s*['\"]([^'\"]+)['\"]",
-                    class_block,
-                    re.MULTILINE,
-                )
-                if m:
-                    metadata["description"] = m.group(1).strip()
+                desc_text = self._literal_str(desc_value)
+                if desc_text:
+                    metadata["description"] = desc_text
 
-        # Extract command docs from decorators.
-        for cmd, ru_doc, en_doc in re.findall(
-            r"@command\(\s*['\"]([^'\"]+)['\"][\s\S]*?doc_ru\s*=\s*['\"]([^'\"]+)['\"][\s\S]*?doc_en\s*=\s*['\"]([^'\"]+)['\"][\s\S]*?\)",
-            code,
-        ):
-            metadata["commands"][cmd] = ru_doc or en_doc
-
-        for cmd, en_doc, ru_doc in re.findall(
-            r"@command\(\s*['\"]([^'\"]+)['\"][\s\S]*?doc_en\s*=\s*['\"]([^'\"]+)['\"][\s\S]*?doc_ru\s*=\s*['\"]([^'\"]+)['\"][\s\S]*?\)",
-            code,
-        ):
-            metadata["commands"][cmd] = ru_doc or en_doc
+        for func_node in self._iter_function_nodes(tree):
+            for dec in func_node.decorator_list:
+                command_doc = self._extract_command_doc(dec, command_names)
+                if command_doc is None:
+                    continue
+                cmd, doc = command_doc
+                metadata["commands"][cmd] = doc
 
         return metadata
 

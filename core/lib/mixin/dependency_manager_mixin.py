@@ -129,6 +129,23 @@ class DependencyManagerMixin:
         """Convert import name to pip package name."""
         return _IMPORT_TO_PIP.get(import_name, import_name)
 
+    @staticmethod
+    def _normalize_requirement(requirement: str) -> tuple[str, str | None]:
+        """Return full pip spec and best-effort import hint."""
+        req = (requirement or "").strip()
+        if not req:
+            return "", None
+
+        if req.startswith(("git+", "http://", "https://")):
+            egg = None
+            if "#egg=" in req:
+                egg = req.split("#egg=", 1)[1].split("&", 1)[0].strip()
+            return req, egg or None
+
+        base = req.split(";", 1)[0].strip()
+        import_hint = re.split(r"[<>=!~\[]", base)[0].strip()
+        return req, import_hint or None
+
     def is_in_virtualenv(self) -> bool:
         """Check if running inside a virtual environment."""
         return hasattr(sys, "real_prefix") or (
@@ -182,6 +199,54 @@ class DependencyManagerMixin:
             except ImportError:
                 k.logger.info(f"[{module_name}] Installing: {pip_name}")
                 await self._pip_install(pip_name, module_name)
+
+    async def install_dependencies_batch(
+        self,
+        requirements: list[str],
+        module_name: str = "module",
+        log_fn=None,
+    ) -> None:
+        """Install dependencies from raw requirement strings."""
+        if not requirements:
+            return
+
+        k = self.k
+        seen: set[str] = set()
+
+        for raw_req in requirements:
+            pip_spec, import_hint = self._normalize_requirement(raw_req)
+            if not pip_spec or pip_spec in seen:
+                continue
+            seen.add(pip_spec)
+
+            if import_hint and import_hint in _NON_INSTALLABLE:
+                continue
+
+            if import_hint:
+                try:
+                    if importlib.util.find_spec(import_hint) is not None:
+                        k.logger.debug(
+                            f"[{module_name}] dependency already installed: {import_hint}"
+                        )
+                        continue
+                except Exception:
+                    pass
+
+            install_target = pip_spec
+            if import_hint and not pip_spec.startswith(("git+", "http://", "https://")):
+                install_target = pip_spec.replace(
+                    import_hint,
+                    self.resolve_pip_name(import_hint),
+                    1,
+                )
+
+            if log_fn is not None:
+                try:
+                    log_fn(f"=> Installing dependency: {install_target}")
+                except Exception:
+                    pass
+
+            await self._pip_install(install_target, module_name)
 
     async def _pip_install(self, pip_name: str, module_name: str) -> None:
         """Install a pip package with multiple fallback strategies."""

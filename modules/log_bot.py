@@ -171,7 +171,7 @@ class LogBot(ModuleBase):
             )
 
         text = header + "\n\n" + "\n".join(commit_lines)
-        btn = self.Button.inlines(
+        btn = self.Button.inline(
             self.lang["new_commits_btn"], self.on_update_callback, style="primary"
         )
 

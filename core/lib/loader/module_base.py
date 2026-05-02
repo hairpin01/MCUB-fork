@@ -26,6 +26,9 @@ from .base import (  # noqa: F401
     _ModuleLoggerAdapter,
 )
 
+# Alias for backward compatibility with docs
+permission = permissions
+
 __all__ = [
     "command",
     "inline",
@@ -40,6 +43,7 @@ __all__ = [
     "bot_command",
     "owner_only",
     "permissions",
+    "permission",
     "error_handler",
     "ModuleBase",
     "_ModuleLoggerAdapter",

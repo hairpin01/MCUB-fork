@@ -27,7 +27,7 @@ from .decorators import (
     watcher,
 )
 from core.lib.utils.exceptions import CommandConflictError
-from utils import Strings
+from utils.strings import Strings
 
 
 class _ModuleLoggerAdapter(logging.LoggerAdapter):
@@ -1090,21 +1090,31 @@ class ModuleBase(ABC):
 
     def _get_strings(self) -> Any:
         if isinstance(self._strings, dict):
-            from ..utils.strings import Strings
+            try:
+                strings_dict = copy.deepcopy(self._strings)
 
-            strings_dict = copy.deepcopy(self._strings)
+                flat_keys = {k for k, v in strings_dict.items() if isinstance(v, str)}
+                if flat_keys:
+                    self.log.debug(
+                        f"[strings] Flat mode detected for {self.name}, expanding to all locales"
+                    )
+                    expanded = {}
+                    for lang in ("ru", "en", "uk", "de", "es", "fr", "it", "pt"):
+                        expanded[lang] = dict(strings_dict.items())
+                    strings_dict = expanded
 
-            flat_keys = {k for k, v in strings_dict.items() if isinstance(v, str)}
-            if flat_keys:
-                self.log.debug(
-                    f"[strings] Flat mode detected for {self.name}, expanding to all locales"
+                self._strings = Strings(self.kernel, strings_dict)
+
+                self.kernel.logger.debug(
+                    f"[strings] Init OK for {self.name}: locale={self._strings.locale}, keys={list(self._strings.keys())}"
                 )
-                expanded = {}
-                for lang in ("ru", "en", "uk", "de", "es", "fr", "it", "pt"):
-                    expanded[lang] = dict(strings_dict.items())
-                strings_dict = expanded
+            except Exception as e:
+                import traceback
 
-            self._strings = Strings(self.kernel, strings_dict)
+                self.kernel.logger.error(
+                    f"[strings] FAIL to init {self.name}: {e}\n{traceback.format_exc()}"
+                )
+                self._strings = None
 
         if self._strings is None:
             self.kernel.logger.error(

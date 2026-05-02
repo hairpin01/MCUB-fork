@@ -112,6 +112,16 @@ def unregister_scope(scope: str) -> int:
     return removed
 
 
+def unregister_placeholder(scope: str, key: str) -> bool:
+    items = _REGISTRY.get(scope)
+    if not items or key not in items:
+        return False
+    del items[key]
+    if not items:
+        _REGISTRY.pop(scope, None)
+    return True
+
+
 def list_placeholder_keys(scope: str) -> list[str]:
     return sorted(_REGISTRY.get(scope, {}).keys())
 
@@ -121,6 +131,17 @@ def format_placeholders(scope: str) -> str:
 
 
 def config_placeholders(scope: str) -> str | None:
+    if scope == "any":
+        lines = []
+        for scope_name, scope_items in sorted(
+            _REGISTRY.items(), key=lambda item: item[0]
+        ):
+            for key, meta in sorted(scope_items.items(), key=lambda item: item[0]):
+                lines.append(
+                    f"{{{key}}} - {meta.get('description') or 'No docs'} ({scope_name})"
+                )
+        return "\n".join(lines) or None
+
     items = _REGISTRY.get(scope, {})
     if not items:
         return None
@@ -157,12 +178,30 @@ async def get_placeholders(
     tokens = {m.group(1) for m in _TOKEN_RE.finditer(str(custom_message))}
     scope_items = _REGISTRY.get(scope, {})
 
+    def find_registered_placeholder(token: str) -> dict[str, Any] | None:
+        meta = scope_items.get(token)
+        if meta is not None:
+            return meta
+
+        global_meta = _REGISTRY.get("global", {}).get(token)
+        if global_meta is not None:
+            return global_meta
+
+        for scope_name, items in _REGISTRY.items():
+            if scope_name in {scope, "global"}:
+                continue
+            meta = items.get(token)
+            if meta is not None:
+                return meta
+
+        return None
+
     for token in tokens:
         if token in custom_values:
             data[token] = str(custom_values[token])
             continue
 
-        meta = scope_items.get(token)
+        meta = find_registered_placeholder(token)
         if meta is None:
             if strict:
                 raise KeyError(f"Unknown placeholder: {{{token}}}")

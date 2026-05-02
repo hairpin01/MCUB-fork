@@ -52,6 +52,7 @@ from .custom_placeholders import (
     register_decorated_placeholders,
     register_placeholder,
     resolve_placeholders,
+    unregister_placeholder,
     unregister_scope,
 )
 
@@ -195,6 +196,7 @@ __all__.extend(
         "placeholders",
         "register_placeholder",
         "register_decorated_placeholders",
+        "unregister_placeholder",
         "unregister_scope",
         "list_placeholder_keys",
         "format_placeholders",

@@ -210,7 +210,10 @@ def register(kernel):
         if not data:
             return {}
         try:
-            return json.loads(data) if isinstance(data, str) else json.loads(str(data))
+            parsed = (
+                json.loads(data) if isinstance(data, str) else json.loads(str(data))
+            )
+            return parsed if isinstance(parsed, dict) else {}
         except Exception:
             return {}
 
@@ -226,6 +229,8 @@ def register(kernel):
             stored = (
                 json.loads(data) if isinstance(data, str) else json.loads(str(data))
             )
+            if not isinstance(stored, dict):
+                return dict.fromkeys(ACCESS_CATEGORIES, False)
             # Fill any missing keys with False
             return {cat: stored.get(cat, False) for cat in ACCESS_CATEGORIES}
         except Exception:
@@ -240,7 +245,10 @@ def register(kernel):
         if not data:
             return {}
         try:
-            return json.loads(data) if isinstance(data, str) else json.loads(str(data))
+            parsed = (
+                json.loads(data) if isinstance(data, str) else json.loads(str(data))
+            )
+            return parsed if isinstance(parsed, dict) else {}
         except Exception:
             return {}
 

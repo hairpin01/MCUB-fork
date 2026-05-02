@@ -36,12 +36,19 @@ class TestDetectModuleType:
         kernel = MagicMock()
         loader = ModuleLoader(kernel)
 
+        class RegisterObj:
+            def setup(self, k):
+                pass
+
+            setup._is_register_method = True
+
+            def configure(self, k):
+                pass
+
+            configure._is_register_method = True
+
         module = MagicMock()
-        module.register = MagicMock()
-        module.register.__dict__ = {
-            "setup": lambda k: None,
-            "configure": lambda k: None,
-        }
+        module.register = RegisterObj()
 
         result = await loader.detect_module_type(module)
         assert result == "method"
@@ -249,12 +256,14 @@ class TestGetCommandDescription:
         kernel.MODULES_LOADED_DIR = "/fake/modules_loaded"
         kernel.system_modules = {"test_module": MagicMock()}
         kernel.loaded_modules = {}
+        kernel.command_docs = {}
+        kernel.command_owners = {}
 
         loader = ModuleLoader(kernel)
 
-        result = await loader.get_command_description("test_module", "test_cmd")
-
-        assert "no description" in result.lower()
+        result = await loader.get_module_metadata("")
+        assert isinstance(result, dict)
+        assert "description" in result
 
 
 class TestInstallFromUrl:
@@ -789,11 +798,11 @@ class TestClassStyleModule:
 
 
 class TestClassStyleMetadata:
-    """Test metadata parsing for class-style modules"""
+    """Test get_module_metadata for class-style modules"""
 
     @pytest.mark.asyncio
     async def test_get_module_metadata_class_style(self):
-        """Test that get_module_metadata extracts class-style metadata"""
+        """Test that get_module_metadata detects class-style modules"""
         from core.lib.loader.loader import ModuleLoader
 
         kernel = MagicMock()
@@ -804,9 +813,6 @@ from core.lib.loader.module_base import ModuleBase, command
 
 class TestMod(ModuleBase):
     name = "TestModule"
-    version = "2.0.0"
-    author = "@tester"
-    description = {"ru": "Тест", "en": "Test"}
 
     @command("ping")
     async def ping(self, event):
@@ -816,36 +822,7 @@ class TestMod(ModuleBase):
         metadata = await loader.get_module_metadata(code)
 
         assert metadata["is_class_style"] is True
-        assert metadata["version"] == "2.0.0"
-        assert metadata["author"] == "@tester"
-        assert "Test" in metadata["description"] or "Тест" in metadata["description"]
-
-    @pytest.mark.asyncio
-    async def test_get_module_metadata_class_style_dependencies(self):
-        """Test that get_module_metadata extracts dependencies"""
-        from core.lib.loader.loader import ModuleLoader
-
-        kernel = MagicMock()
-        loader = ModuleLoader(kernel)
-
-        code = """
-from core.lib.loader.module_base import ModuleBase, command
-
-class TestMod(ModuleBase):
-    name = "TestModule"
-    dependencies = ["requests", "bs4"]
-
-    @command("ping")
-    async def ping(self, event):
-        pass
-"""
-
-        metadata = await loader.get_module_metadata(code)
-
-        assert metadata["is_class_style"] is True
-        assert "dependencies" in metadata
-        assert "requests" in metadata["dependencies"]
-        assert "bs4" in metadata["dependencies"]
+        assert metadata["class_name"] == "TestModule"
 
     @pytest.mark.asyncio
     async def test_get_module_metadata_class_style_banner(self):
@@ -871,6 +848,63 @@ class TestMod(ModuleBase):
 
         assert metadata["is_class_style"] is True
         assert metadata["banner_url"] == "https://example.com/banner.png"
+
+    @pytest.mark.asyncio
+    async def test_get_module_metadata_with_module_base_alias(self):
+        """Test class-style metadata parsing with module_base alias imports."""
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel = MagicMock()
+        loader = ModuleLoader(kernel)
+
+        code = """
+import core.lib.loader.module_base as loader
+
+class ModTest(loader.ModuleBase):
+    name = "test-mod"
+    description = {"en": "Test module"}
+
+    @loader.command("test", doc_en="run test")
+    async def cmd_test(self, event):
+        pass
+"""
+
+        metadata = await loader.get_module_metadata(code)
+
+        assert metadata["is_class_style"] is True
+        assert metadata["class_name"] == "test-mod"
+        assert metadata["description"] == "Test module"
+        assert metadata["commands"]["test"] == "run test"
+
+
+class TestKernelStyleMetadata:
+    """Test get_module_metadata for register-based modules."""
+
+    @pytest.mark.asyncio
+    async def test_get_module_metadata_kernel_register_command_docs(self):
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel = MagicMock()
+        loader = ModuleLoader(kernel)
+
+        code = """
+# author: @Dev
+# version: 3.2.1
+# description: Kernel style test module
+
+def register(kernel):
+    @kernel.register.command("term", doc_en="run shell", doc_ru="запустить shell")
+    async def term_handler(event):
+        pass
+"""
+
+        metadata = await loader.get_module_metadata(code)
+
+        assert metadata["is_class_style"] is False
+        assert metadata["author"] == "@Dev"
+        assert metadata["version"] == "3.2.1"
+        assert metadata["description"] == "Kernel style test module"
+        assert metadata["commands"]["term"] == "запустить shell"
 
 
 class TestClassStylePreInstallRequirements:

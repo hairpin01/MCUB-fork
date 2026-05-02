@@ -2087,7 +2087,7 @@ async def load_hikka_module(
 
     if hasattr(instance, "client_ready") and callable(instance.client_ready):
         try:
-            await _maybe_await(instance.client_ready(kernel.client, instance.db))
+            await _maybe_await(instance.client_ready(instance.client, instance.db))
             instance._hikka_compat_ready = True
         except TypeError:
             try:

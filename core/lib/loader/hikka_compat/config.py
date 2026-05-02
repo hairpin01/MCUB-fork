@@ -16,12 +16,14 @@ class ConfigValue:
         description: Any = None,
         validator: Any | None = None,
         on_change: Callable | None = None,
+        hidden: bool = False,
     ):
         self.option = option
         self.default = default
         self._doc_raw = doc if doc is not None else description
         self.validator = validator
         self.on_change = on_change
+        self.hidden = hidden
         self._value: Any = None
 
         if validator is not None and default is not None:
@@ -120,6 +122,11 @@ class ModuleConfig(dict):
             {option: config.value for option, config in self._config.items()}
         )
 
+    @property
+    def _values(self) -> dict[str, ConfigValue]:
+        """MCUB compatibility alias used by module config UI."""
+        return self._config
+
     def __getitem__(self, key: str) -> Any:
         if key not in self._config:
             return None
@@ -184,10 +191,14 @@ class ModuleConfig(dict):
             self._config[key].validator = validator
 
     def to_dict(self) -> dict:
-        return {key: config.value for key, config in self._config.items()}
+        data = {key: config.value for key, config in self._config.items()}
+        data["__mcub_config__"] = True
+        return data
 
     def load_from_dict(self, data: dict) -> None:
         for key, value in data.items():
+            if key == "__mcub_config__":
+                continue
             if key not in self._config:
                 continue
             self.set_no_raise(key, value, mark=False)

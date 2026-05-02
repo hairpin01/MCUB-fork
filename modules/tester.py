@@ -26,8 +26,10 @@ from core.lib.loader.module_config import (
     Boolean,
     ConfigValue,
     ModuleConfig,
+    Placeholders,
     String,
 )
+import utils
 
 
 def _detect_branch_sync():
@@ -79,10 +81,13 @@ class TesterMod(ModuleBase):
                 "quote_media": False,
                 "invert_media": False,
                 "custom_text": "",
+                "placeholders": "",
                 "start_emoji": "✏️",
                 "banner_url": f"https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/{branch}/img/ping.png",
             },
         )
+        utils.register_decorated_placeholders(self.name, self)
+        config_dict["placeholders"] = utils.format_placeholders(self.name)
         self.config.from_dict(config_dict)
         config_dict_clean = {
             k: v for k, v in self.config.to_dict().items() if v is not None
@@ -90,6 +95,9 @@ class TesterMod(ModuleBase):
         if config_dict_clean:
             await self.kernel.save_module_config(self.name, config_dict_clean)
         self.kernel.store_module_config_schema(self.name, self.config)
+
+    async def on_unload(self) -> None:
+        utils.unregister_scope(self.name)
 
     description: dict[str, str] = {
         "ru": "Тестер модуль (пинг, логи, заморозка)",
@@ -126,6 +134,12 @@ class TesterMod(ModuleBase):
                 "{now_month_name}, {now_year}, {now_weekday},\n"
                 "{now_hour}, {now_minute}, {now_second}"
             ),
+            validator=Placeholders(default="", placeholder_scope="any"),
+        ),
+        ConfigValue(
+            "placeholders",
+            "",
+            description="Available placeholders (auto-generated, read-only)",
             validator=String(default=""),
         ),
         ConfigValue(
@@ -452,50 +466,31 @@ class TesterMod(ModuleBase):
             commit_sha = await self.kernel.version_manager.get_commit_sha()
             self.cache.set("tester:version_info", (branch, commit_sha), ttl=600)
 
-        known = [
-            "ping_time",
-            "uptime",
-            "system_user",
-            "hostname",
-            "cpu_usage",
-            "ram_usage",
-            "branch",
-            "commit_sha",
-            "now_date",
-            "now_time",
-            "now_day",
-            "now_month",
-            "now_month_name",
-            "now_year",
-            "now_weekday",
-            "now_hour",
-            "now_minute",
-            "now_second",
-        ]
-        safe = custom_text.replace("{", "{{").replace("}", "}}")
-        for k in known:
-            safe = safe.replace("{{" + k + "}}", "{" + k + "}")
-
         try:
-            return safe.format(
-                ping_time=ping_time,
-                uptime=uptime,
-                system_user=system_user,
-                hostname=hostname,
-                cpu_usage=cpu_usage,
-                ram_usage=ram_usage,
-                branch=branch,
-                commit_sha=commit_sha,
-                now_date=now_date,
-                now_time=now_time,
-                now_day=now_day,
-                now_month=now_month,
-                now_month_name=now_month_name,
-                now_year=now_year,
-                now_weekday=now_weekday,
-                now_hour=now_hour,
-                now_minute=now_minute,
-                now_second=now_second,
+            return await utils.resolve_placeholders(
+                self.name,
+                custom_text,
+                data={
+                    "ping_time": ping_time,
+                    "uptime": uptime,
+                    "system_user": system_user,
+                    "hostname": hostname,
+                    "cpu_usage": cpu_usage,
+                    "ram_usage": ram_usage,
+                    "branch": branch,
+                    "commit_sha": commit_sha,
+                    "now_date": now_date,
+                    "now_time": now_time,
+                    "now_day": now_day,
+                    "now_month": now_month,
+                    "now_month_name": now_month_name,
+                    "now_year": now_year,
+                    "now_weekday": now_weekday,
+                    "now_hour": now_hour,
+                    "now_minute": now_minute,
+                    "now_second": now_second,
+                },
+                strict=False,
             )
         except Exception as e:
             return self.strings("custom_text_error", error=str(e))

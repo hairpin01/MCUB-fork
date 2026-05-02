@@ -467,7 +467,7 @@ class TesterMod(ModuleBase):
             self.cache.set("tester:version_info", (branch, commit_sha), ttl=600)
 
         try:
-            return await utils.resolve_placeholders(
+            rendered = await utils.resolve_placeholders(
                 self.name,
                 custom_text,
                 data={
@@ -490,6 +490,12 @@ class TesterMod(ModuleBase):
                     "now_minute": now_minute,
                     "now_second": now_second,
                 },
+                strict=False,
+            )
+            return await utils.resolve_placeholders(
+                "system-placeholders",
+                rendered,
+                data={},
                 strict=False,
             )
         except Exception as e:

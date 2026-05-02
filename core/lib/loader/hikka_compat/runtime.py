@@ -77,21 +77,45 @@ class _StringsShim:
     def get(self, key: str, lang: str | None = None) -> str:
         return self[key]
 
-    def __getitem__(self, key: str) -> str:
+    def _raw_value(self, key: str):
         if key in self.external_strings:
             return self.external_strings[key]
         if self._translator is not None:
             try:
                 lang = getattr(self._translator, "_lang", "en")
                 lang_dict = getattr(self._mod, f"strings_{lang}", {})
-                if key in lang_dict:
+                if isinstance(lang_dict, dict) and key in lang_dict:
                     return lang_dict[key]
             except Exception:
                 pass
-        return self._base.get(key, f"Unknown strings: {key}")
+        return self._base.get(key)
 
-    def __call__(self, key: str, _=None) -> str:
-        return self.__getitem__(key)
+    def __getitem__(self, key: str) -> str:
+        value = self._raw_value(key)
+        if isinstance(value, str):
+            return value
+        if isinstance(value, dict):
+            lang = (
+                getattr(self._translator, "_lang", "en") if self._translator else "en"
+            )
+            preferred = [lang]
+            if "-" in lang:
+                preferred.append(lang.split("-", 1)[0])
+            preferred.extend(["en", "ru"])
+            for candidate in preferred:
+                v = value.get(candidate)
+                if isinstance(v, str) and v:
+                    return v
+            for v in value.values():
+                if isinstance(v, str) and v:
+                    return v
+        return f"Unknown strings: {key}"
+
+    def __call__(self, key: str, _=None):
+        value = self._raw_value(key)
+        if value is not None:
+            return value
+        return f"Unknown strings: {key}"
 
     def __iter__(self):
         return iter(self._base)

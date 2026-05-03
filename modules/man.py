@@ -18,6 +18,7 @@ from telethon.tl.types import (
 
 from core.lib.loader.module_base import ModuleBase, command, inline
 from core.lib.loader.module_config import Boolean, ConfigValue, ModuleConfig, String
+import utils
 
 CUSTOM_EMOJI = {
     "crystal": '<tg-emoji emoji-id="5361837567463399422">🔮</tg-emoji>',
@@ -389,6 +390,12 @@ class ManModule(ModuleBase):
             )
 
         msg += f"\n<blockquote>{CUSTOM_EMOJI['pancake']} <b>{s['author']}:</b> <i>{metadata.get('author', s['unknown'])}</i></blockquote>"
+        placeholder_docs = utils.config_placeholders(name)
+        if placeholder_docs:
+            msg += (
+                f"\n<blockquote expandable>{CUSTOM_EMOJI['map']} <b>{s['placeholders_title']}:</b>"
+                f"\n<i>{escape(placeholder_docs)}</i></blockquote>"
+            )
         if typ == "system":
             msg += f"\n<blockquote>{s['system_module_note']}</blockquote>"
         return msg, metadata.get("banner_url")

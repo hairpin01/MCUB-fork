@@ -177,6 +177,51 @@ class ModuleLoaderMixin:
                 return stmt.value
         return None
 
+    def _parse_header_author(self, raw_value: str) -> str | None:
+        value = (raw_value or "").strip()
+        if not value:
+            return None
+
+        # Common external format:
+        # "port: @Hairpin00, author: @TypeFrag"
+        nested_author = re.search(
+            r"(?:^|[;,])\s*author\s*:\s*(.+)$", value, re.IGNORECASE
+        )
+        if nested_author:
+            value = nested_author.group(1).strip()
+
+        value = re.sub(r"^\s*(?:port|порт)\s*:\s*", "", value, flags=re.IGNORECASE)
+        return value.strip() or None
+
+    def _parse_header_description(self, raw_value: str) -> tuple[str, dict[str, str]]:
+        value = (raw_value or "").strip()
+        if not value:
+            return "No description", {}
+
+        # Supports patterns like:
+        # "ru: Описание / en: Description"
+        # "en: Description | ru: Описание"
+        i18n_matches = re.findall(
+            r"(?:^|\s*[|/]\s*)(ru|en)\s*:\s*(.*?)(?=\s*[|/]\s*(?:ru|en)\s*:|$)",
+            value,
+            flags=re.IGNORECASE,
+        )
+        if i18n_matches:
+            desc_i18n: dict[str, str] = {}
+            for lang, text in i18n_matches:
+                cleaned = text.strip()
+                if cleaned:
+                    desc_i18n[lang.lower()] = cleaned
+            if desc_i18n:
+                selected = (
+                    desc_i18n.get("ru")
+                    or desc_i18n.get("en")
+                    or next(iter(desc_i18n.values()))
+                )
+                return selected, desc_i18n
+
+        return value, {}
+
     def _extract_command_doc(
         self, decorator: ast.AST, command_names: set[str]
     ) -> tuple[str, str] | None:
@@ -298,13 +343,18 @@ class ModuleLoaderMixin:
         # Header comments: # author: ..., # version: ..., # description: ...
         m = re.search(r"^\s*#\s*author\s*:\s*(.+)$", code, re.MULTILINE)
         if m:
-            metadata["author"] = m.group(1).strip()
+            header_author = self._parse_header_author(m.group(1))
+            if header_author:
+                metadata["author"] = header_author
         m = re.search(r"^\s*#\s*version\s*:\s*(.+)$", code, re.MULTILINE)
         if m:
             metadata["version"] = m.group(1).strip()
         m = re.search(r"^\s*#\s*description\s*:\s*(.+)$", code, re.MULTILINE)
         if m:
-            metadata["description"] = m.group(1).strip()
+            header_desc, header_i18n = self._parse_header_description(m.group(1))
+            metadata["description"] = header_desc
+            if header_i18n:
+                metadata["description_i18n"] = header_i18n
         m = re.search(r"^\s*#\s*banner(?:_url)?\s*:\s*(.+)$", code, re.MULTILINE)
         if m:
             metadata["banner_url"] = m.group(1).strip()
@@ -391,6 +441,12 @@ class ModuleLoaderMixin:
                 desc_text = self._literal_str(desc_value)
                 if desc_text:
                     metadata["description"] = desc_text
+                else:
+                    class_doc = ast.get_docstring(class_node)
+                    if isinstance(class_doc, str):
+                        class_doc = class_doc.strip()
+                        if class_doc:
+                            metadata["description"] = class_doc
 
         for func_node in self._iter_function_nodes(tree):
             for dec in func_node.decorator_list:

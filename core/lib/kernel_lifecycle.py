@@ -390,8 +390,7 @@ class KernelLifecycleMixin:
                 pass
 
         await asyncio.sleep(0)
-
-        sys.exit(0)
+        return
 
     async def _handle_restart_notification(
         self, modules_start: float, modules_end: float

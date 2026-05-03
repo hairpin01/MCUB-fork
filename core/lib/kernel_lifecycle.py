@@ -544,6 +544,7 @@ class KernelLifecycleMixin:
             return False
 
         text = event.text
+        active_prefix = self.get_prefix_for_sender(getattr(event, "sender_id", None))
         self.logger.debug(
             "[process_command] depth=%d text=%r sender=%r chat=%r "
             "handlers=%d aliases=%d",
@@ -554,11 +555,11 @@ class KernelLifecycleMixin:
             len(self.command_handlers),
             len(self.aliases),
         )
-        if not text or not text.startswith(self.custom_prefix):
+        if not text or not text.startswith(active_prefix):
             self.logger.debug(
                 "[process_command] ignored text=%r reason=no_prefix prefix=%r",
                 text,
-                self.custom_prefix,
+                active_prefix,
             )
             return False
 
@@ -572,9 +573,23 @@ class KernelLifecycleMixin:
         piped_enabled = self.config.get("piped", True)
         if pipeline is not None and not pipeline.is_simple() and piped_enabled:
             return await self._execute_pipeline(event, pipeline, depth)
-        return await self._dispatch_single_command(event, depth)
+        return await self._dispatch_single_command(event, depth, active_prefix)
 
-    async def _dispatch_single_command(self, event: Any, depth: int) -> bool:
+    def get_prefix_for_sender(self, sender_id: Any) -> str:
+        """Resolve sender prefix with admin fallback and global fallback."""
+        owner_prefixes = getattr(self, "owner_prefixes", {}) or {}
+        sender_key = str(sender_id) if sender_id is not None else ""
+        admin_key = str(getattr(self, "ADMIN_ID", "") or "")
+
+        if sender_key and sender_key in owner_prefixes:
+            return owner_prefixes[sender_key]
+        if admin_key and admin_key in owner_prefixes:
+            return owner_prefixes[admin_key]
+        return getattr(self, "custom_prefix", ".") or "."
+
+    async def _dispatch_single_command(
+        self, event: Any, depth: int, active_prefix: str
+    ) -> bool:
         """Dispatch a single (non-pipeline) command to its handler."""
         text = event.text
 
@@ -591,9 +606,9 @@ class KernelLifecycleMixin:
             event.no_add_args_to_input = False
 
         cmd = (
-            text[len(self.custom_prefix) :].split()[0]
+            text[len(active_prefix) :].split()[0]
             if " " in text
-            else text[len(self.custom_prefix) :]
+            else text[len(active_prefix) :]
         )
 
         if cmd in self.aliases:
@@ -614,8 +629,8 @@ class KernelLifecycleMixin:
                     await self.command_handlers[cmd](event)
                     return True
                 return False
-            args = text[len(self.custom_prefix) + len(cmd) :]
-            new_text = self.custom_prefix + alias + args
+            args = text[len(active_prefix) + len(cmd) :]
+            new_text = active_prefix + alias + args
             self._set_event_text(event, new_text)
             return await self.process_command(event, depth + 1)
 

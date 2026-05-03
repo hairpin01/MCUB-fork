@@ -465,11 +465,13 @@ man:
   placeholders_title: Custom placeholders
 
 settings:
-  prefix_usage: '❌ Usage: {prefix}setprefix [symbol]'
+  prefix_usage: '❌ Usage: {prefix}setprefix [symbol] [id/@username/reply]'
   prefix_one_char: '❌ <b>EINVAL: Prefix must be exactly 1 character</b>'
   prefix_changed: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> <b>setenv PREFIX=</b><code>{prefix}</code>, <b>to restore:</b>
 
     <pre>{prefix}setprefix {prefix_old}</pre>'
+  prefix_target_invalid: '❌ <b>EINVAL: owner target is invalid</b>'
+  prefix_owner_changed: '✅ <b>owner</b> <code>{owner_id}</code> <b>prefix updated:</b> <code>{prefix_old}</code> → <code>{prefix}</code>'
   alias_usage: '❌ Usage: `{prefix}addalias alias = command`'
   alias_created: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> alias created:
     <code>{prefix}{alias}</code>=<code>{prefix}{command}</code>'

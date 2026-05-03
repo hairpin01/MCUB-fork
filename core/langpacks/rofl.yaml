@@ -427,12 +427,14 @@ man:
   kernel_not_full_loaded: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>Ядро ещё не дозагрузилось, подожди немного</b> (<code>{status}</code>)
   placeholders_title: Кастомные плейсхолдеры (магия)
 settings:
-  prefix_usage: '❌ Как менять префикс: {prefix}setprefix [символ]'
+  prefix_usage: '❌ Как менять префикс: {prefix}setprefix [символ] [id/@username/reply]'
   prefix_one_char: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>Префикс — ровно 1 символ. Не два, не три. Один.</b>
   prefix_changed: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji><b> Префикс
     теперь </b><code>{prefix}</code>. Если пожалеешь:
 
     <pre>{prefix}setprefix {prefix_old}</pre>'
+  prefix_target_invalid: ❌ <b>Ты как-то криво указал овнера 😵</b>
+  prefix_owner_changed: ✅ <b>Префикс для</b> <code>{owner_id}</code> <b>переобут:</b> <code>{prefix_old}</code> → <code>{prefix}</code>
   alias_usage: '❌ Как добавить алиас: `{prefix}addalias алиас = команда`'
   alias_created: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Алиас создан.
     Теперь <code>{prefix}{alias}</code> — это <code>{prefix}{command}</code>'

@@ -317,6 +317,15 @@ class ConfigManager:
         k = self.k
         try:
             k.custom_prefix = k.config.get("command_prefix", ".")
+            raw_owner_prefixes = k.config.get("owner_prefixes", {})
+            if isinstance(raw_owner_prefixes, dict):
+                k.owner_prefixes = {
+                    str(owner_id): str(prefix)
+                    for owner_id, prefix in raw_owner_prefixes.items()
+                    if str(prefix)
+                }
+            else:
+                k.owner_prefixes = {}
             k.aliases = k.config.get("aliases", {})
             k.power_save_mode = k.config.get("power_save_mode", False)
             k.API_ID = int(k.config["api_id"])

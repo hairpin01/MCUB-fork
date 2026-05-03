@@ -1035,6 +1035,71 @@ def register(kernel):
         await event.edit("\n".join(lines), parse_mode="html")
 
     @kernel.register.command(
+        "ownerprefix",
+        doc_en="show owner prefix by id/@username/reply or list all",
+        doc_ru="показать префикс овнера по id/@username/reply или список",
+    )
+    async def ownerprefix_handler(event):
+        """Show owner prefix details or owner-prefix list."""
+        has_target_hint = bool(getattr(event, "is_reply", False))
+        if not has_target_hint:
+            parts = event.text.split(maxsplit=1)
+            has_target_hint = len(parts) > 1
+
+        target_id = await get_user_id(event) if has_target_hint else None
+        owner_prefixes = getattr(kernel, "owner_prefixes", {}) or {}
+
+        if has_target_hint and target_id is None:
+            await event.edit(s["ownerprefix_usage"], parse_mode="html")
+            return
+
+        if target_id is not None:
+            display_name = await get_user_display(target_id)
+            active_prefix = kernel.get_prefix_for_sender(target_id)
+            personal_prefix = owner_prefixes.get(str(target_id))
+            source_key = (
+                "ownerprefix_source_personal"
+                if personal_prefix is not None
+                else "ownerprefix_source_fallback"
+            )
+            await event.edit(
+                s["ownerprefix_one"].format(
+                    user=display_name,
+                    user_id=target_id,
+                    prefix=active_prefix,
+                    source=s[source_key],
+                ),
+                parse_mode="html",
+            )
+            return
+
+        trusted = await get_trusted_list()
+        owner_ids = [kernel.ADMIN_ID] + [
+            uid for uid in trusted if uid != kernel.ADMIN_ID
+        ]
+
+        lines = [s["ownerprefix_list_title"]]
+        for uid in owner_ids:
+            display_name = await get_user_display(uid)
+            active_prefix = kernel.get_prefix_for_sender(uid)
+            personal_prefix = owner_prefixes.get(str(uid))
+            source_key = (
+                "ownerprefix_source_personal"
+                if personal_prefix is not None
+                else "ownerprefix_source_fallback"
+            )
+            lines.append(
+                s["ownerprefix_list_item"].format(
+                    user=display_name,
+                    user_id=uid,
+                    prefix=active_prefix,
+                    source=s[source_key],
+                )
+            )
+
+        await event.edit("\n".join(lines), parse_mode="html")
+
+    @kernel.register.command(
         "trustcmd",
         doc_en="manage per-command access for trusted",
         doc_ru="управление доступом к командам для доверенных",
@@ -1330,15 +1395,17 @@ def register(kernel):
 
         text = getattr(msg, "text", "") or ""
         sender_id = getattr(event, "sender_id", None)
+        incoming_prefix = kernel.get_prefix_for_sender(sender_id)
+        owner_prefix = kernel.get_prefix_for_sender(getattr(kernel, "ADMIN_ID", None))
 
         trusted = await get_trusted_list()
         if sender_id not in trusted:
             return
 
-        if not text.startswith(kernel.custom_prefix):
+        if not text.startswith(incoming_prefix):
             return
 
-        cmd_body = text[len(kernel.custom_prefix) :]
+        cmd_body = text[len(incoming_prefix) :]
         parts = cmd_body.split()
         if not parts:
             return
@@ -1397,7 +1464,7 @@ def register(kernel):
             if not user_has_access:
                 return
 
-        cmd_text = kernel.custom_prefix + actual_cmd
+        cmd_text = owner_prefix + actual_cmd
         if rest:
             cmd_text += " " + " ".join(rest)
 

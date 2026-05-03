@@ -854,6 +854,12 @@ trusted:
   trust_not_in_list: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Пользователя нет в доверенных. Его здесь никто не ждёт.'
   trustlist_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Список доверенных пуст. Никому не доверяем. Правильно.'
   trustlist_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Доверенные пользователи (избранные):</b>'
+  ownerprefix_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Использование: <code>.ownerprefix</code> [id/@username] или реплай'
+  ownerprefix_list_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Овнеры и их префиксы:</b>'
+  ownerprefix_list_item: '• {user} (<code>{user_id}</code>) — <code>{prefix}</code> <em>({source})</em>'
+  ownerprefix_one: '🔎 <b>Префикс чек:</b> {user} (<code>{user_id}</code>)\n• <b>Префикс:</b> <code>{prefix}</code>\n• <b>Откуда:</b> <em>{source}</em>'
+  ownerprefix_source_personal: личный
+  ownerprefix_source_fallback: админский запасной
   btn_cancel: Отмена (передумал)
   nonick_step_title: '<tg-emoji emoji-id="5332723564711804828">✨</tg-emoji> <b>Включить NoNick для {name}? Решай.</b>'
   nonick_step_desc: "При включённом <b>NoNick</b> юзер сможет выполнять команды просто как <code>{prefix}команда</code>.

@@ -1045,6 +1045,12 @@ trusted:
   trust_not_in_list: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Пользователь не в списке доверенных.'
   trustlist_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Список доверенных пуст.'
   trustlist_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Доверенные пользователи:</b>'
+  ownerprefix_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Использование: <code>.ownerprefix</code> [id/@username] или реплай'
+  ownerprefix_list_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Овнеры и их префиксы:</b>'
+  ownerprefix_list_item: '• {user} (<code>{user_id}</code>) — <code>{prefix}</code> <em>({source})</em>'
+  ownerprefix_one: '🔎 <b>Префикс овнера:</b> {user} (<code>{user_id}</code>)\n• <b>Префикс:</b> <code>{prefix}</code>\n• <b>Источник:</b> <em>{source}</em>'
+  ownerprefix_source_personal: персональный
+  ownerprefix_source_fallback: fallback от админа
   btn_cancel: Отмена
   nonick_step_title: '<tg-emoji emoji-id="5332723564711804828">✨</tg-emoji> <b>Включить NoNick для {name}?</b>'
   nonick_step_desc: |-

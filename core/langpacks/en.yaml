@@ -1052,6 +1052,12 @@ trusted:
   trust_not_in_list: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> User is not in trusted list.'
   trustlist_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Trusted list is empty.'
   trustlist_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Trusted users:</b>'
+  ownerprefix_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.ownerprefix</code> [id/@username] or reply'
+  ownerprefix_list_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Owners and prefixes:</b>'
+  ownerprefix_list_item: '• {user} (<code>{user_id}</code>) — <code>{prefix}</code> <em>({source})</em>'
+  ownerprefix_one: '🔎 <b>Owner prefix:</b> {user} (<code>{user_id}</code>)\n• <b>Prefix:</b> <code>{prefix}</code>\n• <b>Source:</b> <em>{source}</em>'
+  ownerprefix_source_personal: personal
+  ownerprefix_source_fallback: admin fallback
   btn_cancel: Cancel
   nonick_step_title: '<tg-emoji emoji-id="5332723564711804828">✨</tg-emoji> <b>Enable NoNick for {name}?</b>'
   nonick_step_desc: |-

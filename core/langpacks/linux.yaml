@@ -1049,6 +1049,12 @@ trusted:
   trust_not_in_list: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "ENOENT: User is not in sudoers."'
   trustlist_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "cat /etc/sudoers: empty"'
   trustlist_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>cat /etc/sudoers:</b>'
+  ownerprefix_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.ownerprefix</code> [uid/@username] or reply'
+  ownerprefix_list_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>sudoers prefix map:</b>'
+  ownerprefix_list_item: '• {user} (<code>{user_id}</code>) — <code>{prefix}</code> <em>({source})</em>'
+  ownerprefix_one: '🔎 <b>prefix lookup:</b> {user} (<code>{user_id}</code>)\n• <b>prefix:</b> <code>{prefix}</code>\n• <b>source:</b> <em>{source}</em>'
+  ownerprefix_source_personal: user-local
+  ownerprefix_source_fallback: root fallback
   btn_cancel: "^C Cancel"
   nonick_step_title: '<tg-emoji emoji-id="5332723564711804828">✨</tg-emoji> <b>Enable NoNick for {name}?</b>'
   nonick_step_desc: "With <b>NoNick</b> enabled, the user will be able to exec commands like <code>{prefix}command</code>.\nWithout it: <code>{prefix}command@{alias}</code>."

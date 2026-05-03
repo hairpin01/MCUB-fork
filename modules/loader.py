@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 
 import aiohttp
 from telethon import Button, events
+from telethon.errors.rpcerrorlist import MessageNotModifiedError
 from telethon.types import InputMediaWebPage
 
 if TYPE_CHECKING:
@@ -66,10 +67,8 @@ async def safe_edit(msg, *args, **kwargs):
     """Edit message, ignoring MessageNotModifiedError."""
     try:
         return await msg.edit(*args, **kwargs)
-    except Exception as e:
-        if "Content of the message was not modified" in str(e):
-            return msg
-        raise
+    except MessageNotModifiedError:
+        return msg
 
 
 logger = logging.getLogger("mcub.loader")
@@ -1198,6 +1197,7 @@ class Loader(ModuleBase):
                     source_link=self._get_source_link(actual_module_name),
                 )
             else:
+                add_log(self.strings("log_install_error", error=message_text))
                 self._restore_backup_and_cleanup(
                     old_file_backup, old_file_backup_path, file_path, add_log
                 )

@@ -60,6 +60,7 @@
 | Document | Description |
 |----------|-------------|
 | [Core Utils](doc/utils/core-utils.md) | Utility functions and helpers |
+| [Custom Placeholders API](doc/utils/core-utils.md#custom-placeholders-api) | Placeholder decorators, rendering helpers, and config integration |
 | [Examples](doc/utils/examples.md) | Complete module examples |
 
 ---

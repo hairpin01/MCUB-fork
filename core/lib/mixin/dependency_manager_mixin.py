@@ -12,6 +12,7 @@ import sys
 from typing import TYPE_CHECKING, Any
 
 from ..utils.exceptions import CommandConflictError
+from .module_utils import parse_requires
 
 if TYPE_CHECKING:
     from kernel import Kernel
@@ -160,6 +161,8 @@ class DependencyManagerMixin:
             req = req.strip()
             if not req:
                 continue
+            if req.lower() == "requires:":
+                continue
             pkg = re.split(r"[<>=!]", req)[0].strip()
             if pkg:
                 deps.append(pkg)
@@ -171,17 +174,8 @@ class DependencyManagerMixin:
         return [d for d in deps if d not in _NON_INSTALLABLE]
 
     async def pre_install_requirements(self, code: str, module_name: str) -> None:
-        """Parse # requires: comments and install missing packages."""
-        reqs = []
-        for line in code.splitlines():
-            if line.strip().startswith("#"):
-                if "requires:" in line.lower():
-                    reqs_line = line.split(":", 1)[1].strip()
-                    reqs.extend(
-                        token.strip()
-                        for token in re.split(r"[,\s]+", reqs_line)
-                        if token.strip()
-                    )
+        """Parse dependency declarations and install missing packages."""
+        reqs = parse_requires(code)
 
         if not reqs:
             return
@@ -198,11 +192,16 @@ class DependencyManagerMixin:
         for dep in deps:
             pip_name = self.resolve_pip_name(dep)
             try:
-                importlib.util.find_spec(dep)
-                k.logger.debug(f"[{module_name}] {dep} already installed")
+                spec = importlib.util.find_spec(dep)
             except ImportError:
-                k.logger.info(f"[{module_name}] Installing: {pip_name}")
-                await self._pip_install(pip_name, module_name)
+                spec = None
+
+            if spec is not None:
+                k.logger.debug(f"[{module_name}] {dep} already installed")
+                continue
+
+            k.logger.info(f"[{module_name}] Installing: {pip_name}")
+            await self._pip_install(pip_name, module_name)
 
     async def install_dependencies_batch(
         self,

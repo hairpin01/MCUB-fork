@@ -158,11 +158,58 @@ def pick_localized_text(
     return fallback
 
 
-def parse_requires(code: str) -> list:
-    """Parse ``# requires: pkg1, pkg2`` comments from module source.
+def _parse_class_dependencies(code: str) -> list[str]:
+    """Parse class-level ``dependencies`` lists from module source via AST."""
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return []
 
-    Unlike :meth:`pre_install_requirements`, this method only *parses*
-    the list — it does **not** install anything.
+    deps: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef):
+            continue
+
+        for stmt in node.body:
+            value: ast.AST | None = None
+            if isinstance(stmt, ast.Assign):
+                if any(
+                    isinstance(target, ast.Name) and target.id == "dependencies"
+                    for target in stmt.targets
+                ):
+                    value = stmt.value
+            elif isinstance(stmt, ast.AnnAssign):
+                if (
+                    isinstance(stmt.target, ast.Name)
+                    and stmt.target.id == "dependencies"
+                ):
+                    value = stmt.value
+
+            if value is None:
+                continue
+
+            try:
+                parsed = ast.literal_eval(value)
+            except Exception:
+                continue
+
+            if isinstance(parsed, (list, tuple, set)):
+                deps.extend(
+                    dep.strip()
+                    for dep in parsed
+                    if isinstance(dep, str) and dep.strip()
+                )
+
+    return deps
+
+
+def parse_requires(code: str) -> list:
+    """Parse dependency declarations from module source.
+
+    Supports both ``# requires: pkg1, pkg2`` comments and class-style
+    ``dependencies = ["pkg1", "pkg2"]`` declarations. Unlike
+    :meth:`pre_install_requirements`, this method only *parses* the list — it
+    does **not** install anything.
 
     Args:
         code: Module source code string.
@@ -172,16 +219,27 @@ def parse_requires(code: str) -> list:
     """
     reqs = []
     for line in code.splitlines():
-        if line.strip().startswith("#"):
-            if "requires:" in line.lower():
-                reqs_line = line.split(":", 1)[1].strip()
-                parts = [
-                    token.strip()
-                    for token in re.split(r"[,\s]+", reqs_line)
-                    if token.strip()
-                ]
-                reqs.extend(parts)
-    return reqs
+        match = re.match(r"^\s*#\s*requires\s*:\s*(.*)$", line, re.IGNORECASE)
+        if match is None:
+            continue
+
+        reqs_line = match.group(1).strip()
+        if not reqs_line:
+            continue
+
+        parts = [
+            token.strip() for token in re.split(r"[,\s]+", reqs_line) if token.strip()
+        ]
+        reqs.extend(parts)
+    reqs.extend(_parse_class_dependencies(code))
+
+    seen: set[str] = set()
+    result: list[str] = []
+    for req in reqs:
+        if req not in seen:
+            seen.add(req)
+            result.append(req)
+    return result
 
 
 def get_module_commands(loader: Any, module_name: str) -> list:

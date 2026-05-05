@@ -137,6 +137,12 @@ kernel:
     <pre>{traceback}</pre>'
   could_not_edit: 'Could not edit RPC error message: {error}'
   full_log: <b><i>Full log:</i></b>
+  warning_not_allowed_inline: Inline forms are not allowed in this chat.
+  open_inline_form_error: '<i><b>Open the inline form, failed!</b></i>
+
+  <blockquote>Error:</blockquote>
+  <pre>{raw_tb}</pre>'
+  open_inline_form: <i><b>Open inline form...</b></i>
 tr:
   loading: Translating...
   no_args: No args
@@ -195,6 +201,13 @@ utils_piped:
   json_parse_error: 'JSON parse error: {err}'
   json_saved: 'Saved: {names}'
   json_missing: 'Keys not found: {keys}'
+  script_usage: '<b>Usage:</b> .script run <source>'
+  script_list_empty: No saved scripts.
+  script_deleted: 'Script <code>{name}</code> deleted.'
+  script_not_found: 'Script <code>{name}</code> not found.'
+  script_saved: 'Script <code>{name}</code> saved.'
+  script_running: '▶ Running script <code>{name}</code>…'
+  script_empty: Script is empty.
 api_protection:
   enabled: ✅ API protection enabled
   disabled: ❌ API protection disabled
@@ -313,8 +326,8 @@ api_protection:
     methods list cleared</b>
   api_ignore_not_found: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Method
     <code>{method}</code> not found in list
-  yes: Yes
-  no: No
+  "yes": "Yes"
+  "no": "No"
   analyze_report: '<tg-emoji emoji-id="4904936030232117798">🔬</tg-emoji> <b>Deep API Analysis</b>
 
     <tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <b>Multi-window counters</b>
@@ -446,13 +459,16 @@ man:
     with a loader</b>
   kernel_not_full_loaded: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>The kernel has not yet fully loaded all modules</b>
     (<code>{status}</code>)
+  placeholders_title: Custom placeholders
 settings:
-  prefix_usage: '❌ Usage: {prefix}setprefix [symbol]'
+  prefix_usage: '❌ Usage: {prefix}setprefix [symbol] [id/@username/reply]'
   prefix_one_char: ❌ <b>Prefix must be exactly 1 character</b>
   prefix_changed: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> <b>Prefix
     changed to </b><code>{prefix}</code>, <b>to restore, type:</b>
 
     <pre>{prefix}setprefix {prefix_old}</pre>'
+  prefix_target_invalid: ❌ <b>Owner target is invalid</b>
+  prefix_owner_changed: ✅ <b>Prefix for</b> <code>{owner_id}</code> <b>changed:</b> <code>{prefix_old}</code> → <code>{prefix}</code>
   alias_usage: '❌ Usage: `{prefix}addalias alias = command`'
   alias_created: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Alias created:
     <code>{prefix}{alias}</code> → <code>{prefix}{command}</code>'
@@ -606,6 +622,7 @@ loader:
   log_installing_dep: '=- Installing dependency: {dep}'
   log_dep_installed: => Dependency {dep} installed successfully
   log_dep_error: '=X Error installing {dep}: {error}'
+  log_deps_installer_missing: '=X Dependency installer "{fallback}" is unavailable, using fallback strategy'
   log_removing_old: =- Removing old module commands {module_name}
   log_loading_module: =- Loading module {module_name}...
   log_module_loaded: => Module loaded successfully
@@ -628,6 +645,8 @@ loader:
     <blockquote>{emoji_author} Author: {author}</blockquote>
 
     <blockquote>{source_link}</blockquote>'
+  placeholders_title: Custom placeholders
+  placeholders_block: "\n<blockquote expandable>🧩 <b>{title}:</b>\n<i>{placeholders}</i></blockquote>"
   no_cmd_desc: '{no_cmd} Command has no description'
   command_line: '{crystal} <code>{prefix}{cmd}</code> – <b>{desc}</b>'
   aliases_text: ' (Aliases: {alias_text})'
@@ -1033,10 +1052,20 @@ trusted:
   trust_not_in_list: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> User is not in trusted list.'
   trustlist_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Trusted list is empty.'
   trustlist_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Trusted users:</b>'
+  ownerprefix_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.ownerprefix</code> [id/@username] or reply'
+  ownerprefix_list_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Owners and prefixes:</b>'
+  ownerprefix_list_item: '• {user} (<code>{user_id}</code>) — <code>{prefix}</code> <em>({source})</em>'
+  ownerprefix_one: '🔎 <b>Owner prefix:</b> {user} (<code>{user_id}</code>)\n• <b>Prefix:</b> <code>{prefix}</code>\n• <b>Source:</b> <em>{source}</em>'
+  ownerprefix_source_personal: personal
+  ownerprefix_source_fallback: admin fallback
   btn_cancel: Cancel
   nonick_step_title: '<tg-emoji emoji-id="5332723564711804828">✨</tg-emoji> <b>Enable NoNick for {name}?</b>'
-  nonick_step_desc: "With <b>NoNick</b> enabled, the user will be able to execute commands simply like <code>{prefix}command</code>.\nWithout it you need to write <code>{prefix}command@{alias}</code>."
-  nonick_step_desc_no_alias: "With <b>NoNick</b> enabled the user can run commands without any suffix.\nWithout it they must include the owner's <code>@username</code> suffix."
+  nonick_step_desc: |-
+                    With <b>NoNick</b> enabled, the user will be able to execute commands simply like <code>{prefix}command</code>.
+                    Without it you need to write <code>{prefix}command@{alias}</code>.
+  nonick_step_desc_no_alias: |-
+                             With <b>NoNick</b> enabled the user can run commands without any suffix.
+                             Without it they must include the owner's <code>@username</code> suffix.
   btn_nonick_yes: Enable NoNick
   btn_nonick_no: No NoNick
   nonick_toggled_on: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> NoNick <b>enabled</b> for {name}.'
@@ -1061,7 +1090,14 @@ trusted:
   access_allowed: allowed
   access_denied: denied
   access_allowed_group: allowed (group)
-  trustcmd_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Manage per-command access for trusted users</b>\n\n<code>.trustcmd @username +py</code> - allow command py\n<code>.trustcmd @username -py</code> - deny command py\n<code>.trustcmd @username list</code> - show all command permissions\n\n<i>Requires user to be in trusted list</i>'
+  trustcmd_usage: |-
+                  <tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Manage per-command access for trusted users</b>
+
+                  <code>.trustcmd @username +py</code> - allow command py
+                  <code>.trustcmd @username -py</code> - deny command py
+                  <code>.trustcmd @username list</code> - show all command permissions
+
+                  <i>Requires user to be in trusted list</i>
   trustcmd_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access to <code>{cmd}</code> <b>granted</b> for {user}.'
   trustcmd_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access to <code>{cmd}</code> <b>revoked</b> for {user}.'
   trustcmd_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Command <code>{cmd}</code> not found.'
@@ -1081,7 +1117,19 @@ trusted:
   timed_trusted_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Temporary trusted users:</b>'
   timed_trusted_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No temporary trusted users.'
   trust_expiring: " (expires in {time})"
-  sgroup_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Security groups (access groups)</b>\n\n<b>Commands:</b>\n<code>.sgroup create mygroup</code> - create new group\n<code>.sgroup delete mygroup</code> - delete group\n<code>.sgroup add mygroup @user</code> - add user to group\n<code>.sgroup remove mygroup @user</code> - remove user from group\n<code>.sgroup access mygroup</code> - edit group access (inline menu)\n<code>.sgroup list</code> - list all groups\n<code>.sgroup info mygroup</code> - show group info & menu\n\n<i>Groups allow managing access for multiple users at once</i>'
+  sgroup_usage: |-
+                <tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Security groups (access groups)</b>
+
+                <b>Commands:</b>
+                <code>.sgroup create mygroup</code> - create new group
+                <code>.sgroup delete mygroup</code> - delete group
+                <code>.sgroup add mygroup @user</code> - add user to group
+                <code>.sgroup remove mygroup @user</code> - remove user from group
+                <code>.sgroup access mygroup</code> - edit group access (inline menu)
+                <code>.sgroup list</code> - list all groups
+                <code>.sgroup info mygroup</code> - show group info & menu
+
+                <i>Groups allow managing access for multiple users at once</i>
   sgroup_created: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access group <b>{name}</b> created.'
   sgroup_deleted: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access group <b>{name}</b> deleted.'
   sgroup_already_exists: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Group <b>{name}</b> already exists.'
@@ -1140,13 +1188,23 @@ presets:
   moderator:
     label: 🛡 Moderator
 config:
-  config_menu_text: "{menu_emoji} <b>Config Menu</b>\nChoose configuration section:"
+  config_menu_text: |-
+                    {menu_emoji} <b>Config Menu</b>
+                    Choose configuration section:
   btn_kernel_config: 🪄 Kernel Config
   btn_modules_config: 🚂 Modules Config
-  kernel_config_title: "{pencil} <b>Kernel Config</b>\n{page_emoji} Page <b>{page}/{total_pages}</b> ({total_keys} keys)"
-  modules_config_title: "{puzzle} <b>Modules Config</b>\n{page_emoji} Page <b>{page}/{total_pages}</b> ({total_modules} modules)"
-  module_config_title: "{puzzle} <b>Module:</b> <code>{module_name}</code>\n{page_emoji} Page <b>{page}/{total_pages}</b> ({total_items} keys)"
-  key_view: "{note} <b>{key}</b> ({type_emoji} {value_type})\n{display_value}"
+  kernel_config_title: |-
+                       {pencil} <b>Kernel Config</b>
+                       {page_emoji} Page <b>{page}/{total_pages}</b> ({total_keys} keys)
+  modules_config_title: |-
+                        {puzzle} <b>Modules Config</b>
+                        {page_emoji} Page <b>{page}/{total_pages}</b> ({total_modules} modules)
+  module_config_title: |-
+                       {puzzle} <b>Module:</b> <code>{module_name}</code>
+                       {page_emoji} Page <b>{page}/{total_pages}</b> ({total_items} keys)
+  key_view: |-
+            {note} <b>{key}</b> ({type_emoji} {value_type})
+            {display_value}
   btn_back: "⬅️"
   btn_next: "➡️"
   btn_menu: 🔙 Menu
@@ -1196,6 +1254,7 @@ config:
   cfg_len_max: Length must be no more than {max} characters
   cfg_type_bool: Value must be boolean (true/false)
   cfg_choices: Available options
+  cfg_placeholders_title: Custom placeholders
   invalid_format: "❌ Invalid format"
   btn_edit: "✏️ Edit"
   btn_delete: "🗑️ Delete"

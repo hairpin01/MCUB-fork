@@ -42,11 +42,12 @@ class TestLoaderModule:
             assert value.startswith("<tg-emoji"), f"{key} should start with <tg-emoji>"
 
     def test_loader_has_register(self):
-        """Test loader module has register function"""
+        """Test loader module is a ModuleBase subclass"""
         import modules.loader as loader_module
+        from core.lib.loader.module_base import ModuleBase
 
-        assert hasattr(loader_module, "register")
-        assert callable(loader_module.register)
+        assert hasattr(loader_module, "Loader")
+        assert issubclass(loader_module.Loader, ModuleBase)
 
     def test_loader_has_random_emojis(self):
         """Test loader module has RANDOM_EMOJIS"""
@@ -82,11 +83,12 @@ class TestCommandModule:
         assert command_module is not None
 
     def test_command_has_register(self):
-        """Test command module has register function"""
+        """Test command module is a ModuleBase subclass"""
         import modules.command as command_module
+        from core.lib.loader.module_base import ModuleBase
 
-        assert hasattr(command_module, "register")
-        assert callable(command_module.register)
+        assert hasattr(command_module, "CommandModule")
+        assert issubclass(command_module.CommandModule, ModuleBase)
 
 
 class TestConfigModule:
@@ -221,11 +223,12 @@ class TestSettingsModule:
         assert settings_module is not None
 
     def test_settings_has_register(self):
-        """Test settings module has register function"""
+        """Test settings module is a ModuleBase subclass"""
         import modules.settings as settings_module
+        from core.lib.loader.module_base import ModuleBase
 
-        assert hasattr(settings_module, "register")
-        assert callable(settings_module.register)
+        assert hasattr(settings_module, "SettingsModule")
+        assert issubclass(settings_module.SettingsModule, ModuleBase)
 
     def test_settings_has_module_config(self):
         """Test settings module has ModuleConfig"""
@@ -298,24 +301,26 @@ class TestTesterModule:
 
 
 class TestAllModulesHaveRegister:
-    """Test that all modules have register function"""
+    """Test that all modules are loadable as ModuleBase subclasses"""
 
-    MODULES = [
-        "loader",
-        "command",
-        "config",
-        "trusted",
-        "updates",
-        "settings",
-        "api_protection",
-    ]
+    MODULES = {
+        "loader": "Loader",
+        "command": "CommandModule",
+        "settings": "SettingsModule",
+    }
 
-    @pytest.mark.parametrize("module_name", MODULES)
+    @pytest.mark.parametrize("module_name", list(MODULES.keys()))
     def test_module_has_register(self, module_name):
-        """Test that module has register function"""
+        """Test that module has a ModuleBase subclass"""
+        from core.lib.loader.module_base import ModuleBase
+
         mod = __import__(f"modules.{module_name}", fromlist=[""])
-        assert hasattr(mod, "register"), f"{module_name} should have register function"
-        assert callable(mod.register), f"{module_name}.register should be callable"
+        class_name = self.MODULES[module_name]
+        assert hasattr(mod, class_name), f"{module_name} should have {class_name}"
+        cls = getattr(mod, class_name)
+        assert issubclass(
+            cls, ModuleBase
+        ), f"{class_name} should be a ModuleBase subclass"
 
 
 class TestLoaderIntegration:

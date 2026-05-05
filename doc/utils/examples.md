@@ -99,5 +99,57 @@ def register(kernel: Any) -> None:
         )
         await event.answer([builder])
 
-    kernel.register_inline_handler("example", inline_handler)
+kernel.register_inline_handler("example", inline_handler)
 ```
+
+---
+
+## Example: Custom Placeholders in Module Config
+
+```python
+import utils
+from core.lib.loader.module_config import ModuleConfig, ConfigValue, Placeholders, String
+
+class InfoLikeModule:
+    name = "info_like"
+
+    config = ModuleConfig(
+        ConfigValue(
+            "custom_text",
+            "Ping: {ping_time} ms | Time: {now_iso}",
+            "Template with placeholders",
+            validator=Placeholders(default="", placeholder_scope="any"),
+        ),
+        ConfigValue(
+            "placeholders",
+            "",
+            "Available placeholders (auto-generated, read-only)",
+            validator=String(default=""),
+        ),
+    )
+
+    async def on_load(self):
+        utils.register_decorated_placeholders(self.name, self)
+        self.config["placeholders"] = utils.format_placeholders(self.name)
+
+    async def on_unload(self):
+        utils.unregister_scope(self.name)
+
+    @utils.placeholders("now_iso", description="Current UTC datetime")
+    async def _placeholder_now_iso(self, data):
+        from datetime import datetime, timezone
+        return datetime.now(timezone.utc).isoformat()
+
+    async def render_text(self, ping_time: float) -> str:
+        return await utils.resolve_placeholders(
+            self.name,
+            self.config["custom_text"],
+            data={"ping_time": f"{ping_time:.2f}"},
+            strict=False,
+        )
+```
+
+Expected behavior:
+- `{ping_time}` is resolved from `data`.
+- `{now_iso}` is resolved from decorated placeholder provider.
+- `placeholders` config key shows available placeholders for users.

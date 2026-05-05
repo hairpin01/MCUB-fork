@@ -18,10 +18,11 @@ import sys
 import uuid
 from collections.abc import Callable
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import aiohttp
 from telethon import Button, events
+from telethon.errors.rpcerrorlist import MessageNotModifiedError
 from telethon.types import InputMediaWebPage
 
 if TYPE_CHECKING:
@@ -34,6 +35,7 @@ from core.lib.loader.module_config import (
     ModuleConfig,
 )
 from core.lib.utils.exceptions import CommandConflictError
+import utils
 
 try:
     from core.lib.loader.hikka_compat import (
@@ -65,6 +67,8 @@ async def safe_edit(msg, *args, **kwargs):
     """Edit message, ignoring MessageNotModifiedError."""
     try:
         return await msg.edit(*args, **kwargs)
+    except MessageNotModifiedError:
+        return msg
     except Exception as e:
         if "Content of the message was not modified" in str(e):
             return msg
@@ -154,279 +158,6 @@ class Loader(ModuleBase):
 
     strings = {"name": "loader"}
 
-    # OLD STRINGS (removed after migration to langpacks) - kept for reference
-    # TODO: Remove after verifying langpacks work
-    """
-    _OLD_STRINGS = {
-        "en": {
-            "wait": "{wait} <b>Please wait...</b>",
-            "not_py_file": "{warning} <b>This is not a .py file</b>",
-            "system_module_update_attempt": "{confused} <b>Oops, looks like you tried to update a system module</b> <code>{module_name}</code>\n<blockquote><i>{blocked} Unfortunately, you cannot update system modules using <code>loadera</code></i></blockquote>",
-            "system_module_unload_attempt": "{confused} <b>Oops, looks like you tried to unload a system module</b> <code>{module_name}</code>\n<blockquote><i>{blocked} Unfortunately, you cannot unload system modules</i></blockquote>",
-            "starting_install": "{action} <b>modules</b>",
-            "installing": "{test} <b>Installing</b>",
-            "updating": "{reload} <b>Updating</b>",
-            "updating_version": "{reload} <b>Updating to v</b><code>{old_version}</code> <b>→ v</b><code>{new_version}</code>",
-            "log_start": "=- Starting {action} module {module_name}",
-            "log_filename": "=> File name: {filename}",
-            "log_downloading": "=- Downloading file to {file_path}",
-            "log_downloaded": "=> File downloaded successfully",
-            "log_file_read": "=> File read",
-            "log_checking_compatibility": "=- Checking module compatibility...",
-            "log_incompatible": "=X Module incompatible (Heroku/Hikka type)",
-            "log_compatible": "=> Module compatible",
-            "log_getting_metadata": "Getting module metadata...",
-            "log_author": "Author: {author}",
-            "log_version": "Version: {version}",
-            "log_description": "Description: {description}",
-            "log_checking_deps": "=- Checking dependencies...",
-            "log_deps_found": "=> Found dependencies: {deps}",
-            "installing_deps": "{dependencies} <b>installing dependencies:</b>\n<blockquote expandable><code>{deps_list}</code></blockquote>",
-            "log_installing_dep": "=- Installing dependency: {dep}",
-            "log_dep_installed": "=> Dependency {dep} installed successfully",
-            "log_dep_error": "=X Error installing {dep}: {error}",
-            "log_removing_old": "=- Removing old module commands {module_name}",
-            "log_loading_module": "=- Loading module {module_name}...",
-            "log_module_loaded": "=> Module loaded successfully",
-            "log_commands_found": "=> Commands found: {count}",
-            "module_loaded": (
-                "{success} <b>Module</b> <code>{module_name}</code> <b>loaded!</b> (<code>{version}</code>) {emoji}\n"
-                "<blockquote expandable>{idea} <b>Description:</b> {description}</blockquote>\n"
-                "<blockquote expandable>{commands_list}</blockquote>\n"
-                "<blockquote>{emoji_author} Author: {author}</blockquote>\n"
-                "{source_link}"
-            ),
-            "module_loaded_no_cmds": (
-                "{success} <b>Module</b> <code>{module_name}</code> <b>loaded!</b> (<code>{version}</code>) {emoji}\n"
-                "<blockquote expandable>{idea} <b>Description:</b> {description}</blockquote>\n"
-                "<blockquote>{emoji_author} Author: {author}</blockquote>\n"
-                "<blockquote>{source_link}</blockquote>"
-            ),
-            "no_cmd_desc": "{no_cmd} Command has no description",
-            "command_line": "{crystal} <code>{prefix}{cmd}</code> – <b>{desc}</b>",
-            "aliases_text": " (Aliases: {alias_text})",
-            "log_aliases_found": "Command {cmd} has aliases: {aliases}",
-            "log_install_error": "=X Module loading error: {error}",
-            "install_failed": "<b>{blocked} Looks like the installation failed</b>\n<b>{idea} Install Log:</b>\n<pre>{log}</pre>",
-            "log_conflict": "✗ Command conflict: {error}",
-            "conflict_system": "{shield} <b>System command conflict!</b>\n<blockquote>Command <code>{prefix}{command}</code> already registered by system module.</blockquote>\n<b>Install Log:</b>\n<pre>{log}</pre>",
-            "conflict_user": "{error} <b>Module command conflict!</b>\n<blockquote>Command <code>{prefix}{command}</code> already registered by module <code>{owner_module}</code>.</blockquote>\n<b>Install Log:</b>\n<pre>{log}</pre>",
-            "log_critical": "=X Critical error: {error}",
-            "log_traceback": "Traceback:\n{traceback}",
-            "dlm_usage": "{warning} <b>Usage:</b> <code>{prefix}dlm [-send/-s/-list] module_name or URL</code>",
-            "dlm_list_loading": "{loading} <b>Getting module list...</b>",
-            "dlm_list_title": "{folder} <b>Module list from repositories:</b>\n<blockquote expandable>{list}</blockquote>",
-            "dlm_list_errors": "\n\n{warning} <b>Errors:</b>\n<blockquote expandable>{errors}</blockquote>",
-            "dlm_list_failed": "{warning} <b>Failed to get module list</b>",
-            "dlm_searching": "{loading} <b>Searching for module {module_name}...</b>",
-            "module_info": "{file} <b>Module:</b> <code>{module_name}</code>\n{idea} <b>Description:</b> <i>{description}</i>\n{crystal} <b>Version:</b> <code>{version}</code>\n{angel} <b>Author:</b> <i>{author}</i>\n{folder} <b>Size:</b> <code>{size} bytes</code>\n{cloud} <b>Repository:</b> <code>{repo}</code>",
-            "module_not_found": "{warning} <b>Module {module_name} not found in any repository</b>",
-            "dlm_send_usage": "{warning} <b>Usage:</b> <code>{prefix}dlm -send module_name or URL</code>",
-            "system_module_install_attempt": "{confused} <b>Oops, looks like you tried to install a system module</b> <code>{module_name}</code>\n<blockquote><i>{blocked} System modules cannot be installed via <code>dlm</code></i></blockquote>",
-            "downloading_module": "{download} downloading",
-            "log_mode": "=+ Mode: {mode}",
-            "log_type": "=+ Type: {type}",
-            "log_download_url": "=- Downloading module from URL: {url}",
-            "log_download_success": "=> ✓ Module downloaded successfully (status: {status})",
-            "log_download_failed": "=X Download error (status: {status})",
-            "url_download_error": "{warning} <b>Failed to download module from URL</b> (status: {status})",
-            "log_download_exception": "=X Download error: {error}",
-            "url_exception": "{warning} <b>Download error:</b> {error}",
-            "log_checking_repos": "=- Checking repositories ({count} items)",
-            "log_using_repo": "=- Using specified repository: {repo}",
-            "log_found_in_repo": "=> Module found in specified repository",
-            "log_not_found_in_repo": "=X Module not found in specified repository",
-            "log_checking_repo": "=- Checking repository {index}: {repo}",
-            "log_repo_error": "=X Error checking repository {repo}: {error}",
-            "module_not_found_repos": "{warning} <b>Module<code> {module_name} </code>not found in repositories</b>",
-            "log_saving_for_send": "Saving file for sending",
-            "sending_module": "{upload} <b>Sending module {module_name}...</b>",
-            "file_sent_caption": "<blockquote expandable>{file} <b>Module:</b> <code>{module_name}.py</code>\n{idea} <b>description:</b> <i>{description}</i>\n{crystal} <b>version:</b> <code>{version}</code>\n{angel} <b>author:</b> <i>{author}</i>\n{folder} <b>Size:</b> <code>{size} bytes</code></blockquote>",
-            "log_file_sent": "=> File sent, deleting temp file",
-            "log_install_mode": "=- Installation mode, continuing...",
-            "log_saving_file": "=- Saving module file: {file_path}",
-            "log_loading_to_kernel": "=- Loading module to kernel",
-            "log_module_loaded_kernel": "=> Module loaded successfully to kernel",
-            "conflict_system_alt": "{shield} <b>Oops, this module tried to overwrite a system command</b> (<code>{command}</code>)\n<blockquote><i>This is not an error but a <b>precaution</b></i></blockquote>\n<b>Install Log:</b>\n<pre>{log}</pre>",
-            "conflict_user_alt": "{error} <b>Oops, looks like a module conflict occurred</b> <i>(their commands)</i>\n<blockquote><i>Conflict details in logs 🔭</i></blockquote>\n<b>Install Log:</b>\n<pre>{log}</pre>",
-            "log_deleting_due_conflict": "=> Deleting module file due to conflict",
-            "log_deleting_due_error": "=> Deleting module file due to error",
-            "um_usage": "{warning} <b>Usage:</b> <code>{prefix}um module_name</code>",
-            "module_not_found_um": "{warning} <b>Module {module_name} not found</b>",
-            "module_unloaded": "{success} <b>Module {module_name} unloaded</b>",
-            "unlm_usage": "{warning} <b>Usage:</b> <code>{prefix}unlm module_name</code>",
-            "module_file_not_found": "{warning} <b>Module file not found</b>",
-            "uploading_module": "{upload} <b>Uploading module {module_name}...</b>",
-            "file_upload_caption": "{file} <b>Module:</b> {module_name}.py\n\n<blockquote><code>{prefix}im</code> to install</blockquote>\n{source_link}",
-            "reload_usage": "{warning} <b>Usage:</b> <code>{prefix}reload module_name</code>",
-            "reloading": "{reload} <b>Reloading <code>{module_name}</code>...</b>",
-            "reload_success": "{success} <b>Module {module_name} reloaded!</b> {emoji}\n\n<blockquote expandable>{cmd_text}</blockquote>",
-            "no_commands": "No commands",
-            "reload_error": "{warning} <b>Error, check logs</b>",
-            "no_modules": "{folder} <b>No modules loaded</b>",
-            "loaded_modules": "{crystal} <b>Loaded modules:</b>\n\n",
-            "system_modules": "{shield} <b>System modules:</b>\n",
-            "user_modules": "{sparkle} <b>User modules:</b>\n",
-            "module_line": "• <b>{name}</b> <i>({count} commands)</i>\n",
-            "addrepo_usage": "{warning} <b>Usage:</b> <code>{prefix}addrepo URL</code>",
-            "delrepo_usage": "{warning} <b>Usage:</b> <code>{prefix}delrepo index</code>",
-            "catalog_title": "<b>🌩️ Official MCUB Repository</b> <code>{repo_url}</code>\n\n",
-            "catalog_custom": "<i>{repo_name}</i> <code>{repo_url}</code>\n\n",
-            "no_modules_catalog": "📭 No modules",
-            "catalog_page": "📄 Page {page}/{total_pages}",
-            "catalog_error": "❌ Catalog loading error: {error}",
-            "dlm_repo_choice_title": "{cloud} <b>Module</b> <code>{module_name}</code> <b>found in multiple repositories</b>\n<blockquote>Choose where to {action}</blockquote>",
-            "dlm_repo_choice_action_install": "install it",
-            "dlm_repo_choice_action_send": "download it",
-            "dlm_repo_choice_repo": "{index}. {repo_name}",
-            "dlm_repo_choice_expired": "⚠️ Repository selection expired",
-            "dlm_repo_choice_cancel": "Cancel",
-            "dlm_repo_choice_cancelled": "Selection cancelled",
-            "btn_back": "Back",
-            "btn_next": "Next",
-            "modules_not_mcub": "{warning} Module is not {mcub} type, [Heroku/Hikka]",
-            "log_hikka_detected": "=+ Hikka/Heroku module detected — loading via compat layer",
-            "hikka_no_compat": "{warning} <b>Hikka compat, not found.</b>",
-            "hikka_disabled": "{warning} <b>Hikka/Heroku modules support is disabled via loader config (loader_allow_hikka_modules).</b>",
-            "reload_all": "{reload} <b>Reloading all modules...</b>",
-            "reload_all_success": "{success} <b>All modules reloaded!</b>\n<blockquote>{count}</blockquote>",
-            "reload_all_success_one": "{success} <b>All modules reloaded!</b>\n{count} (<code>{name}</code>)",
-            "reload_all_failed": "{warning} <b>Failed to reload {count} module(s):</b>\n<blockquote expandable>{failed_list}</blockquote>",
-            "reload_all_partial": "{success} <b>Modules reloaded!</b>\n{success_count}\n{warning} <b>Failed: {failed_count}</b>\n<blockquote expandable>{failed_list}</blockquote>",
-            "failed_module": "• <code>{name}</code>\n",
-            "and_more": "• <code>+{count} more</code>",
-        },
-        "ru": {
-            "wait": "{wait} <b>Пожалуйста подождите...</b>",
-            "reply_to_py": "{warning} <b>Ответьте на .py файл</b>",
-            "not_py_file": "{warning} <b>Это не .py файл</b>",
-            "system_module_update_attempt": "{confused} <b>Ой, кажется ты попытался обновить системный модуль</b> <code>{module_name}</code>\n<blockquote><i>{blocked} К сожалению нельзя обновлять системные модули с помощью <code>loadera</code></i></blockquote>",
-            "system_module_unload_attempt": "{confused} <b>Ой, кажется ты попытался выгрузить системный модуль</b> <code>{module_name}</code>\n<blockquote><i>{blocked} К сожалению нельзя выгружать системные модули</i></blockquote>",
-            "starting_install": "{action} <b>модуль</b>",
-            "installing": "{test} <b>Устанавливаю</b>",
-            "updating": "{reload} <b>Oбновляю</b>",
-            "updating_version": "{reload} <b>Oбновляю до v</b><code>{old_version}</code> <b>→ v</b><code>{new_version}</code>",
-            "log_start": "=- Начинаю {action} модуля {module_name}",
-            "log_filename": "=> Имя файла: {filename}",
-            "log_downloading": "=- Скачиваю файл в {file_path}",
-            "log_downloaded": "=> Файл успешно скачан",
-            "log_file_read": "=> Файл прочитан",
-            "log_checking_compatibility": "=- Проверяю совместимость модуля...",
-            "log_incompatible": "=X Модуль не совместим (Heroku/Hikka тип)",
-            "log_compatible": "=> Модуль совместим",
-            "log_getting_metadata": "Получаю метаданные модуля...",
-            "log_author": "Автор: {author}",
-            "log_version": "Версия: {version}",
-            "log_description": "Описание: {description}",
-            "log_checking_deps": "=- Проверяю зависимости...",
-            "log_deps_found": "=> Найдены зависимости: {deps}",
-            "installing_deps": "{dependencies} <b>ставлю зависимости:</b>\n<blockquote expandable><code>{deps_list}</code></blockquote>",
-            "log_installing_dep": "=- Устанавливаю зависимость: {dep}",
-            "log_dep_installed": "=> Зависимость {dep} установлена успешно",
-            "log_dep_error": "=X Ошибка установки {dep}: {error}",
-            "log_removing_old": "=- Удаляю старые команды модуля {module_name}",
-            "log_loading_module": "=- Загружаю модуль {module_name}...",
-            "log_module_loaded": "=> Модуль успешно загружен",
-            "log_commands_found": "=> Найдено команд: {count}",
-            "module_loaded": "{success} <b>Модуль</b> <code>{module_name}</code> <b>загружен!</b> (<code>{version}</code>) {emoji}\n<blockquote expandable>{idea} <b>Описание:</b> {description}</blockquote>\n<blockquote expandable>{commands_list}</blockquote>\n<blockquote>{emoji_author} Автор: {author}</blockquote>\n{source_link}",
-            "module_loaded_no_cmds": "{success} <b>Модуль</b> <code>{module_name}</code> <b>загружен!</b> (<code>{version}</code>) {emoji}\n<blockquote expandable>{idea} <b>Описание:</b> {description}</blockquote>\n<blockquote>{emoji_author} Автор: {author}</blockquote>\n{source_link}",
-            "no_cmd_desc": "{no_cmd} У команды нету описания",
-            "command_line": "{crystal} <code>{prefix}{cmd}</code> – <b>{desc}</b>",
-            "aliases_text": " (Aliases: {alias_text})",
-            "log_aliases_found": "Команда {cmd} имеет алиасы: {aliases}",
-            "log_install_error": "=X Ошибка загрузки модуля: {error}",
-            "install_failed": "<b>{blocked} Кажется установка прошла неудачно</b>\n<b>{idea} Install Log:</b>\n<pre>{log}</pre>",
-            "log_conflict": "✗ Конфликт команд: {error}",
-            "conflict_system": "{shield} <b>Конфликт системной команды!</b>\n<blockquote>Команда <code>{prefix}{command}</code> уже зарегистрирована системным модулем.</blockquote>\n<b>Install Log:</b>\n<pre>{log}</pre>",
-            "conflict_user": "{error} <b>Конфликт команд модулей!</b>\n<blockquote>Команда <code>{prefix}{command}</code> уже зарегистрирована модулем <code>{owner_module}</code>.</blockquote>\n<b>Install Log</b>\n<pre>{log}</pre>",
-            "log_critical": "=X Критическая ошибка: {error}",
-            "log_traceback": "Трейсбэк:\n{traceback}",
-            "dlm_usage": "{warning} <b>Использование:</b> <code>{prefix}dlm [-send/-s/-list] название_модуля или ссылка</code>",
-            "dlm_list_loading": "{loading} <b>Получаю список модулей...</b>",
-            "dlm_list_title": "{folder} <b>Список модулей из репозиториев:</b>\n<blockquote expandable>{list}</blockquote>",
-            "dlm_list_errors": "\n\n{warning} <b>Ошибки:</b>\n<blockquote expandable>{errors}</blockquote>",
-            "dlm_list_failed": "{warning} <b>Не удалось получить список модулей</b>",
-            "dlm_searching": "{loading} <b>Ищу модуль {module_name}...</b>",
-            "module_info": "{file} <b>Модуль:</b> <code>{module_name}</code>\n{idea} <b>Описание:</b> <i>{description}</i>\n{crystal} <b>Версия:</b> <code>{version}</code>\n{angel} <b>Автор:</b> <i>{author}</i>\n{folder} <b>Размер:</b> <code>{size} байт</code>\n{cloud} <b>Репозиторий:</b> <code>{repo}</code>",
-            "module_not_found": "{warning} <b>Модуль {module_name} не найден ни в одном репозитории</b>",
-            "dlm_send_usage": "{warning} <b>Использование:</b> <code>{prefix}dlm -send название_модуля или ссылка</code>",
-            "system_module_install_attempt": "{confused} <b>Ой, кажется ты попытался установить системный модуль</b> <code>{module_name}</code>\n<blockquote><i>{blocked} Системные модули нельзя устанавливать через <code>dlm</code></i></blockquote>",
-            "downloading_module": "{download} скачиваю",
-            "log_mode": "=+ Режим: {mode}",
-            "log_type": "=+ Тип: {type}",
-            "log_download_url": "=- Скачиваю модуль по URL: {url}",
-            "log_download_success": "=> ✓ Модуль скачан успешно (статус: {status})",
-            "log_download_failed": "=X Ошибка скачивания (статус: {status})",
-            "url_download_error": "{warning} <b>Не удалось скачать модуль по ссылке</b> (статус: {status})",
-            "log_download_exception": "=X Ошибка скачивания: {error}",
-            "url_exception": "{warning} <b>Ошибка скачивания:</b> {error}",
-            "log_checking_repos": "=- Проверяю репозитории ({count} шт.)",
-            "log_using_repo": "=- Использую указанный репозиторий: {repo}",
-            "log_found_in_repo": "=> Модуль найден в указанном репозитории",
-            "log_not_found_in_repo": "=X Модуль не найден в указанном репозитории",
-            "log_checking_repo": "=- Проверяю репозиторий {index}: {repo}",
-            "log_repo_error": "=X Ошибка проверки репозитория {repo}: {error}",
-            "module_not_found_repos": "{warning} <b>Модуль<code> {module_name} </code>не найден в репозиториях</b>",
-            "log_saving_for_send": "Сохраняю файл для отправки",
-            "sending_module": "{upload} <b>Отправляю модуль {module_name}...</b>",
-            "file_sent_caption": "<blockquote expandable>{file} <b>Модуль:</b> <code>{module_name}.py</code>\n{idea} <b>описание:</b> <i>{description}</i>\n{crystal} <b>версия:</b> <code>{version}</code>\n{angel} <b>автор:</b> <i>{author}</i>\n{folder} <b>Размер:</b> <code>{size} байт</code></blockquote>",
-            "log_file_sent": "=> Файл отправлен, удаляю временный файл",
-            "log_install_mode": "=- Режим установки, продолжаю...",
-            "log_saving_file": "=- Сохраняю файл модуля: {file_path}",
-            "log_loading_to_kernel": "=- Загружаю модуль в ядро",
-            "log_module_loaded_kernel": "=> Модуль успешно загружен в ядро",
-            "conflict_system_alt": "{shield} <b>Ой, этот модуль хотел перезаписать системную команду</b> (<code>{command}</code>)\n<blockquote><i>Это не ошибка а мера <b>предосторожности</b></i></blockquote>\n<b>Лог установки:</b>\n<pre>{log}</pre>",
-            "conflict_user_alt": "{error} <b>Ой, кажется случился конфликт модулей</b> <i>(их команд)</i>\n<blockquote><i>Детали конфликта в логах 🔭</i></blockquote>\n<b>Лог установки:</b>\n<pre>{log}</pre>",
-            "log_deleting_due_conflict": "=> Удаляю файл модуля из-за конфликта",
-            "log_deleting_due_error": "=> Удаляю файл модуля из-за ошибки",
-            "um_usage": "{warning} <b>Использование:</b> <code>{prefix}um название_модуля</code>",
-            "module_not_found_um": "{warning} <b>Модуль {module_name} не найден</b>",
-            "module_unloaded": "{success} <b>Модуль {module_name} удален</b>",
-            "unlm_usage": "{warning} <b>Использование:</b> <code>{prefix}unlm название_модуля</code>",
-            "module_file_not_found": "{warning} <b>Файл модуля не найден</b>",
-            "uploading_module": "{upload} <b>Отправка модуля {module_name}...</b>",
-            "file_upload_caption": "{file} <b>Модуль:</b> {module_name}.py\n\n<blockquote><code>{prefix}im</code> для установки</blockquote>\n{source_link}",
-            "reload_usage": "{warning} <b>Использование:</b> <code>{prefix}reload название_модуля</code>",
-            "reloading": "{reload} <b>Перезагрузка <code>{module_name}</code>...</b>",
-            "reload_success": "{success} <b>Модуль {module_name} перезагружен!</b> {emoji}\n\n<blockquote expandable>{cmd_text}</blockquote>",
-            "no_commands": "Нет команд",
-            "reload_error": "{warning} <b>Ошибка, смотри логи</b>",
-            "no_modules": "{folder} <b>Модули не загружены</b>",
-            "loaded_modules": "{crystal} <b>Загруженные модули:</b>\n\n",
-            "system_modules": "{shield} <b>Системные модули:</b>\n",
-            "user_modules": "{sparkle} <b>Пользовательские модули:</b>\n",
-            "module_line": "• <b>{name}</b> <i>({count} команд)</i>\n",
-            "addrepo_usage": "{warning} <b>Использование:</b> <code>{prefix}addrepo URL</code>",
-            "delrepo_usage": "{warning} <b>Использование:</b> <code>{prefix}delrepo индекс</code>",
-            "catalog_title": "<b>🌩️ Официальный репозиторий MCUB</b> <code>{repo_url}</code>\n\n",
-            "catalog_custom": "<i>{repo_name}</i> <code>{repo_url}</code>\n\n",
-            "no_modules_catalog": "📭 Нет модулей",
-            "catalog_page": "📄 Страница {page}/{total_pages}",
-            "catalog_error": "❌ Ошибка загрузки каталога: {error}",
-            "dlm_repo_choice_title": "{cloud} <b>Модуль</b> <code>{module_name}</code> <b>найден в нескольких репозиториях</b>\n<blockquote>Выбери, откуда {action}</blockquote>",
-            "dlm_repo_choice_action_install": "установить его",
-            "dlm_repo_choice_action_send": "скачать его",
-            "dlm_repo_choice_repo": "{index}. {repo_name}",
-            "dlm_repo_choice_expired": "⚠️ Выбор репозитория устарел",
-            "dlm_repo_choice_cancel": "Отмена",
-            "dlm_repo_choice_cancelled": "Выбор отменён",
-            "btn_back": "Назад",
-            "btn_next": "Вперёд",
-            "modules_not_mcub": "{warning} Модуль не {mcub} типа <i>[Heroku/Hikka]</i>",
-            "log_hikka_detected": "=+ Обнаружен Hikka/Heroku модуль",
-            "hikka_no_compat": "{warning} <b>Hikka compat не найден.</b>",
-            "hikka_disabled": "{warning} <b>Поддержка Hikka/Heroku модулей отключена через конфиг loader (loader_allow_hikka_modules).</b>",
-            "reload_all": "{reload} <b>Перезагружаю все модули...</b>",
-            "reload_all_success": "{success} <b>Все модули перезагружены!</b>\n<blockquote>{count}</blockquote>",
-            "reload_all_success_one": "{success} <b>Все модули перезагружены!</b>\n{count} (<code>{name}</code>)",
-            "reload_all_failed": "{warning} <b>Не удалось перезагрузить {count} модуль(ей):</b>\n<blockquote expandable>{failed_list}</blockquote>",
-            "reload_all_partial": "{success} <b>Модули перезагружены!</b>\n{success_count}\n{warning} <b>Не удалось: {failed_count}</b>\n<blockquote expandable>{failed_list}</blockquote>",
-            "failed_module": "• <code>{name}</code>\n",
-            "and_more": "• <code>+{count} ещё</code>",
-        },
-    }
-    """
-
     async def on_load(self) -> None:
         await super().on_load()
 
@@ -460,7 +191,7 @@ class Loader(ModuleBase):
             return True
         return cfg.get("loader_allow_hikka_modules", True)
 
-    def _module_description(self, metadata: dict | None) -> str:
+    def _module_description(self, metadata: Optional[dict]) -> str:
         if not metadata:
             return ""
         current_lang = self.kernel.config.get("language", "en")
@@ -491,8 +222,8 @@ class Loader(ModuleBase):
 
     @staticmethod
     def _restore_backup_and_cleanup(
-        backup_content: str | None,
-        backup_path: str | None,
+        backup_content: Optional[str],
+        backup_path: Optional[str],
         new_file_path: str,
         add_log_fn: Callable,
     ) -> None:
@@ -508,6 +239,33 @@ class Loader(ModuleBase):
                 logger.error(f"[loader] Failed to restore backup: {e}")
                 add_log_fn(f"=X Failed to restore backup: {e}")
 
+    async def _restore_module_after_failed_update(
+        self,
+        module_name: str,
+        is_system_target: bool,
+        backup_path: Optional[str],
+        add_log_fn: Callable,
+    ) -> None:
+        """Reload module from restored backup so commands are not lost."""
+        if not backup_path or not os.path.exists(backup_path):
+            return
+        try:
+            res = await self.kernel.load_module_from_file(
+                backup_path,
+                module_name,
+                is_system_target,
+                is_reload=True,
+            )
+            if res and res[0]:
+                add_log_fn(f"=> Backup module reloaded: {module_name}")
+            else:
+                reason = (
+                    res[1] if isinstance(res, tuple) and len(res) > 1 else "unknown"
+                )
+                add_log_fn(f"=X Backup reload failed: {reason}")
+        except Exception as e:
+            add_log_fn(f"=X Backup reload exception: {e}")
+
     @staticmethod
     async def _edit_with_emoji(
         message,
@@ -521,7 +279,9 @@ class Loader(ModuleBase):
         except Exception:
             return False
 
-    async def _send_with_emoji(self, chat_id: int | str, text: str, **kwargs) -> Any:
+    async def _send_with_emoji(
+        self, chat_id: Union[int, str], text: str, **kwargs
+    ) -> Any:
         try:
             if "<emoji" in text:
                 text = text.replace("<emoji document_id=", "<tg-emoji emoji-id=")
@@ -571,7 +331,7 @@ class Loader(ModuleBase):
                 return f'<blockquote><tg-emoji emoji-id="5411527152212411235">🔗</tg-emoji> Source link {repo}/{module_name}.py</blockquote>'
         return ""
 
-    async def _get_inline_bot_username(self) -> str | None:
+    async def _get_inline_bot_username(self) -> Optional[str]:
         username = self.kernel.config.get("inline_bot_username")
         if username:
             return username.lstrip("@")
@@ -744,7 +504,7 @@ class Loader(ModuleBase):
         self,
         module_name: str,
         repos: list[str],
-        add_log: Callable | None = None,
+        add_log: Optional[Callable] = None,
     ) -> list[dict]:
         matches = []
         normalized = module_name.lower()
@@ -886,10 +646,10 @@ class Loader(ModuleBase):
         event,
         module_or_url: str,
         send_mode: bool = False,
-        repo_index: int | None = None,
-        preloaded_code: str | None = None,
-        preloaded_repo_url: str | None = None,
-    ) -> str | None:
+        repo_index: Optional[int] = None,
+        preloaded_code: Optional[str] = None,
+        preloaded_repo_url: Optional[str] = None,
+    ) -> Optional[str]:
         is_url = module_or_url.startswith(
             ("http://", "https://", "raw.githubusercontent.com")
         )
@@ -922,6 +682,7 @@ class Loader(ModuleBase):
             module_name in self.kernel.loaded_modules
             or module_name in self.kernel.system_modules
         )
+        is_system_target = module_name in self.kernel.system_modules
         old_version = None
         if is_update:
             old_file_path = os.path.join(
@@ -1264,8 +1025,10 @@ class Loader(ModuleBase):
                         deps_list=deps_with_emoji,
                     ),
                 )
-                await self.kernel._loader.install_dependencies_batch(
-                    dependencies, log_fn=add_log
+                await self._install_dependencies_safe(
+                    dependencies,
+                    add_log=add_log,
+                    module_name=module_name,
                 )
 
             if is_update:
@@ -1313,13 +1076,18 @@ class Loader(ModuleBase):
 
                 if ok:
                     add_log(self.strings["log_module_loaded_kernel"])
+                    actual_module_name = self._resolve_actual_module_name(
+                        module_name, metadata
+                    )
                     lang = self.kernel.config.get("language", "ru")
                     commands, aliases_info, descriptions = (
-                        self.kernel._loader.get_module_commands(module_name, lang)
+                        self.kernel._loader.get_module_commands(
+                            actual_module_name, lang
+                        )
                     )
                     emoji = random.choice(RANDOM_EMOJIS)
                     commands_list = self._build_commands_list(
-                        module_name,
+                        actual_module_name,
                         commands,
                         aliases_info,
                         descriptions,
@@ -1336,11 +1104,14 @@ class Loader(ModuleBase):
                             owner = cf.get("owner") or "unknown"
                             conflict_text += f"<code>{cf['command']}</code> — registered by <code>{owner}</code>\n"
 
-                    self.kernel.logger.info(f"Hikka модуль {module_name} установлен")
+                    self.kernel.logger.info(
+                        f"Hikka модуль {actual_module_name} установлен"
+                    )
                     await self._send_module_loaded(
                         msg or event,
                         metadata,
-                        module_name,
+                        actual_module_name,
+                        actual_module_name,
                         commands_list + conflict_text,
                         emoji,
                     )
@@ -1385,29 +1156,33 @@ class Loader(ModuleBase):
 
             if success:
                 add_log(self.strings["log_module_loaded_kernel"])
-                self.kernel._module_sources[loaded_module_name] = {
+                actual_module_name = self._resolve_actual_module_name(
+                    loaded_module_name, metadata
+                )
+
+                self.kernel._module_sources[actual_module_name] = {
                     "type": "url" if is_url else "repo",
                     "url": module_or_url if is_url else None,
                     "repo": repo_url if not is_url and repo_url else None,
                 }
 
                 class_instance = getattr(
-                    self.kernel.loaded_modules.get(loaded_module_name),
+                    self.kernel.loaded_modules.get(actual_module_name),
                     "_class_instance",
                     None,
                 )
                 display_name = (
-                    getattr(type(class_instance), "name", loaded_module_name)
+                    getattr(type(class_instance), "name", actual_module_name)
                     if class_instance is not None
-                    else loaded_module_name
+                    else actual_module_name
                 )
 
                 commands, aliases_info, descriptions = (
-                    self.kernel._loader.get_module_commands(loaded_module_name, lang)
+                    self.kernel._loader.get_module_commands(actual_module_name, lang)
                 )
                 emoji = random.choice(RANDOM_EMOJIS)
                 commands_list = self._build_commands_list(
-                    loaded_module_name,
+                    actual_module_name,
                     commands,
                     aliases_info,
                     descriptions,
@@ -1415,19 +1190,25 @@ class Loader(ModuleBase):
                     add_log,
                 )
 
-                self.kernel.logger.info(f"Модуль {loaded_module_name} скачан")
+                self.kernel.logger.info(f"Модуль {actual_module_name} скачан")
                 await self._send_module_loaded(
                     event,
                     metadata,
+                    actual_module_name,
                     display_name,
                     commands_list,
                     emoji,
-                    source_link=self._get_source_link(loaded_module_name),
+                    source_link=self._get_source_link(actual_module_name),
                 )
             else:
+                add_log(self.strings("log_install_error", error=message_text))
                 self._restore_backup_and_cleanup(
                     old_file_backup, old_file_backup_path, file_path, add_log
                 )
+                if is_update:
+                    await self._restore_module_after_failed_update(
+                        module_name, is_system_target, old_file_backup_path, add_log
+                    )
                 log_text = "\n".join(install_log)
                 await self._edit_with_emoji(
                     target_message(),
@@ -1466,6 +1247,10 @@ class Loader(ModuleBase):
             self._restore_backup_and_cleanup(
                 old_file_backup, old_file_backup_path, file_path, add_log
             )
+            if is_update:
+                await self._restore_module_after_failed_update(
+                    module_name, is_system_target, old_file_backup_path, add_log
+                )
 
         except Exception as e:
             add_log(self.strings("log_critical", error=str(e)))
@@ -1486,6 +1271,10 @@ class Loader(ModuleBase):
             self._restore_backup_and_cleanup(
                 old_file_backup, old_file_backup_path, file_path, add_log
             )
+            if is_update:
+                await self._restore_module_after_failed_update(
+                    module_name, is_system_target, old_file_backup_path, add_log
+                )
             self.kernel._module_sources.pop(module_name, None)
 
     def _build_commands_list(
@@ -1549,10 +1338,76 @@ class Loader(ModuleBase):
 
         return commands_list
 
+    async def _install_dependencies_safe(
+        self,
+        dependencies: list[str],
+        *,
+        add_log: Callable,
+        module_name: str,
+    ) -> None:
+        if not dependencies:
+            return
+        installer = getattr(self.kernel._loader, "install_dependencies_batch", None)
+        if callable(installer):
+            await installer(dependencies, log_fn=add_log)
+            return
+
+        add_log(
+            self.strings(
+                "log_deps_installer_missing",
+                fallback="install_dependencies_batch",
+            )
+        )
+        pip_install = getattr(self.kernel._loader, "_pip_install", None)
+        if not callable(pip_install):
+            raise AttributeError(
+                "ModuleLoader has no install_dependencies_batch or _pip_install"
+            )
+        for dep in dependencies:
+            await pip_install(dep, module_name)
+
+    def _build_placeholders_block(self, module_name: str) -> str:
+        placeholder_docs = utils.config_placeholders(module_name)
+        if not placeholder_docs:
+            return ""
+        return self.strings(
+            "placeholders_block",
+            title=self.strings("placeholders_title"),
+            placeholders=placeholder_docs,
+        )
+
+    def _resolve_actual_module_name(
+        self, module_name: str, metadata: Optional[dict] = None
+    ) -> str:
+        if (
+            module_name in self.kernel.loaded_modules
+            or module_name in self.kernel.system_modules
+        ):
+            return module_name
+
+        meta_name = (metadata or {}).get("class_name")
+        if isinstance(meta_name, str):
+            if (
+                meta_name in self.kernel.loaded_modules
+                or meta_name in self.kernel.system_modules
+            ):
+                return meta_name
+
+        module_name_lower = str(module_name).lower()
+        for mod_name in self.kernel.loaded_modules:
+            if mod_name.lower() == module_name_lower:
+                return mod_name
+        for mod_name in self.kernel.system_modules:
+            if mod_name.lower() == module_name_lower:
+                return mod_name
+
+        return module_name
+
     async def _send_module_loaded(
         self,
         message,
         metadata: dict,
+        module_scope: str,
         display_name: str,
         commands_list: str,
         emoji: str,
@@ -1575,6 +1430,7 @@ class Loader(ModuleBase):
             commands_list=commands_list,
             source_link=source_link,
         )
+        final_msg += self._build_placeholders_block(module_scope)
 
         if (
             show_banners
@@ -1767,8 +1623,11 @@ class Loader(ModuleBase):
                         msg_txt = res[1] if len(res) >= 2 else ""
 
                     if success:
-                        loaded_modules.append(module_name)
-                        self.kernel._module_sources[module_name] = {
+                        actual_module_name = self._resolve_actual_module_name(
+                            module_name
+                        )
+                        loaded_modules.append(actual_module_name)
+                        self.kernel._module_sources[actual_module_name] = {
                             "type": "archive",
                             "pack_type": "single",
                         }
@@ -1804,8 +1663,11 @@ class Loader(ModuleBase):
                             success = res[0]
                             msg_txt = res[1] if len(res) >= 2 else ""
                             if success:
-                                loaded_modules.append(mod.name)
-                                self.kernel._module_sources[mod.name] = {
+                                actual_module_name = self._resolve_actual_module_name(
+                                    mod.name
+                                )
+                                loaded_modules.append(actual_module_name)
+                                self.kernel._module_sources[actual_module_name] = {
                                     "type": "archive",
                                     "pack_type": "pack",
                                 }
@@ -1815,11 +1677,6 @@ class Loader(ModuleBase):
 
                 await self.kernel.save_module_sources()
 
-                lang = self.kernel.config.get("language", "ru")
-                commands, aliases_info, descriptions = (
-                    self.kernel._loader.get_module_commands(module_name, lang)
-                )
-
                 if result.pack_type == "single":
                     code_for_meta = (
                         main_code if has_local_import else open(source_file).read()
@@ -1827,6 +1684,12 @@ class Loader(ModuleBase):
                     metadata = await self.kernel.get_module_metadata(code_for_meta)
                 else:
                     metadata = await self.kernel.get_module_metadata("")
+
+                lang = self.kernel.config.get("language", "ru")
+                commands_owner = self._resolve_actual_module_name(module_name, metadata)
+                commands, aliases_info, descriptions = (
+                    self.kernel._loader.get_module_commands(commands_owner, lang)
+                )
 
                 commands_list = ""
                 for cmd in commands:
@@ -1914,6 +1777,7 @@ class Loader(ModuleBase):
             module_name in self.kernel.loaded_modules
             or module_name in self.kernel.system_modules
         )
+        is_system_target = module_name in self.kernel.system_modules
 
         class_instance = getattr(
             self.kernel.loaded_modules.get(module_name), "_class_instance", None
@@ -1927,6 +1791,7 @@ class Loader(ModuleBase):
         old_version = None
         old_file_backup = None
         old_file_backup_path = None
+        msg = event
 
         if is_update:
             old_file_path = self.kernel._loader.get_module_path(module_name)
@@ -2123,8 +1988,10 @@ class Loader(ModuleBase):
                         deps_list=deps_with_emoji,
                     ),
                 )
-                await self.kernel._loader.install_dependencies_batch(
-                    dependencies, log_fn=add_log
+                await self._install_dependencies_safe(
+                    dependencies,
+                    add_log=add_log,
+                    module_name=module_name,
                 )
 
             if is_update:
@@ -2133,11 +2000,17 @@ class Loader(ModuleBase):
                     with open(file_path, encoding="utf-8") as f:
                         old_file_backup = f.read()
                     old_file_backup_path = file_path
-                await self.kernel.unregister_module_commands(module_name)
+                await self.kernel.unregister_module_commands(
+                    module_name, force=force_unload
+                )
 
             add_log(self.strings("log_loading_module", module_name=module_name))
             result = await self.kernel.load_module_from_file(
-                file_path, module_name, False, source_url=None, source_repo=None
+                file_path,
+                module_name,
+                is_system_target,
+                source_url=None,
+                source_repo=None,
             )
             success = result[0]
             message_text = result[1] if len(result) >= 2 else ""
@@ -2145,26 +2018,28 @@ class Loader(ModuleBase):
 
             if success:
                 add_log(self.strings["log_module_loaded"])
-                self.kernel._module_sources[loaded_module_name] = {"type": "local"}
-
-                class_instance = getattr(
-                    self.kernel.loaded_modules.get(loaded_module_name),
-                    "_class_instance",
-                    None,
+                actual_module_name = self._resolve_actual_module_name(
+                    loaded_module_name, metadata
                 )
+                self.kernel._module_sources[actual_module_name] = {"type": "local"}
+
+                loaded_obj = self.kernel.loaded_modules.get(
+                    actual_module_name
+                ) or self.kernel.system_modules.get(actual_module_name)
+                class_instance = getattr(loaded_obj, "_class_instance", None)
                 display_name = (
-                    getattr(type(class_instance), "name", loaded_module_name)
+                    getattr(type(class_instance), "name", actual_module_name)
                     if class_instance is not None
-                    else loaded_module_name
+                    else actual_module_name
                 )
 
                 lang = self.kernel.config.get("language", "ru")
                 commands, aliases_info, descriptions = (
-                    self.kernel._loader.get_module_commands(loaded_module_name, lang)
+                    self.kernel._loader.get_module_commands(actual_module_name, lang)
                 )
                 emoji = random.choice(RANDOM_EMOJIS)
                 commands_list = self._build_commands_list(
-                    loaded_module_name,
+                    actual_module_name,
                     commands,
                     aliases_info,
                     descriptions,
@@ -2189,10 +2064,11 @@ class Loader(ModuleBase):
                 await self._send_module_loaded(
                     msg,
                     metadata,
+                    actual_module_name,
                     display_name,
                     commands_list,
                     emoji,
-                    source_link=self._get_source_link(loaded_module_name),
+                    source_link=self._get_source_link(actual_module_name),
                 )
             else:
                 add_log(self.strings("log_install_error", error=message_text))
@@ -2706,7 +2582,8 @@ class Loader(ModuleBase):
                 )
 
                 if success:
-                    results.append(module_name)
+                    actual_module_name = self._resolve_actual_module_name(module_name)
+                    results.append(actual_module_name)
                 else:
                     failed.append(module_name)
 
@@ -2841,7 +2718,11 @@ class Loader(ModuleBase):
                 ),
             )
             try:
-                await self.kernel._loader.install_dependencies_batch(dependencies)
+                await self._install_dependencies_safe(
+                    dependencies,
+                    add_log=lambda _msg: None,
+                    module_name=module_name,
+                )
             except Exception as e:
                 self.kernel.logger.error(
                     "[reload] deps install failed for %s: %s", module_name, e
@@ -2912,21 +2793,24 @@ class Loader(ModuleBase):
         )
 
         if success:
+            actual_module_name = self._resolve_actual_module_name(module_name)
             lang = self.kernel.config.get("language", "ru")
-            commands, _, _ = self.kernel._loader.get_module_commands(module_name, lang)
+            commands, _, _ = self.kernel._loader.get_module_commands(
+                actual_module_name, lang
+            )
             cmd_text = (
                 f"{CUSTOM_EMOJI['crystal']} {', '.join([f'<code>{self.get_prefix()}{cmd}</code>' for cmd in commands])}"
                 if commands
                 else self.strings["no_commands"]
             )
             emoji = random.choice(RANDOM_EMOJIS)
-            self.kernel.logger.info(f"Модуль {module_name} перезагружен")
+            self.kernel.logger.info(f"Модуль {actual_module_name} перезагружен")
             await self._edit_with_emoji(
                 msg,
                 self.strings(
                     "reload_success",
                     success=CUSTOM_EMOJI["success"],
-                    module_name=module_name,
+                    module_name=actual_module_name,
                     emoji=emoji,
                     cmd_text=cmd_text,
                 ),

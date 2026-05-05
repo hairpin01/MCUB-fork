@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлька | @hairpin01
 
+from __future__ import annotations
+
 import ast
 import asyncio
 import contextlib
@@ -98,39 +100,143 @@ _MODULE_ALIASES: dict[str, str] = {
 }
 
 
-_HIKKA_INDICATORS = (
-    "loader.tds",
-    "loader.Module",
-    "@loader.tds",
-    "loader.ModuleConfig",
-    "loader.command",
-    "@loader.watcher",
-    "loader.Library",
-    "loader.LibraryConfig",
-    "hikka_only",
-    "from .. import",
-)
-
-
-_GEEKG_INDICATORS = (
-    "GeekInlineQuery",
-    "self.inline._bot",
-)
-
-
-_NATIVE_MCUB_INDICATORS = (
-    "def register(kernel",
-    "from core.lib.loader import",
-    "mcub_only",
-    "def register(client",
-    "client.on(",
-)
-
-
 def _detect_module_type(source_code: str) -> str:
-    native_score = sum(ind in source_code for ind in _NATIVE_MCUB_INDICATORS)
-    hikka_score = sum(ind in source_code for ind in _HIKKA_INDICATORS)
-    geek_score = sum(ind in source_code for ind in _GEEKG_INDICATORS)
+    try:
+        tree = ast.parse(source_code)
+    except SyntaxError:
+        return "unknown"
+
+    hikka_score = 0
+    geek_score = 0
+    native_score = 0
+    native_loader_aliases: set[str] = set()
+    native_module_base_names: set[str] = set()
+    native_decorator_names: set[str] = set()
+
+    def _attr_chain(node: ast.AST) -> list[str]:
+        chain: list[str] = []
+        cur = node
+        while isinstance(cur, ast.Attribute):
+            chain.append(cur.attr)
+            cur = cur.value
+        if isinstance(cur, ast.Name):
+            chain.append(cur.id)
+        return list(reversed(chain))
+
+    def _alias_name(alias: ast.alias) -> str:
+        return alias.asname or alias.name.rsplit(".", 1)[-1]
+
+    def _is_native_module_base_import(module: str) -> bool:
+        return module == "core.lib.loader.module_base"
+
+    def _is_native_loader_alias(chain: list[str]) -> bool:
+        return bool(chain) and chain[0] in native_loader_aliases
+
+    def _is_native_module_base_expr(chain: list[str]) -> bool:
+        if len(chain) >= 2 and _is_native_loader_alias(chain):
+            return chain[1] == "ModuleBase"
+        return len(chain) == 1 and chain[0] in native_module_base_names
+
+    def _is_native_decorator_expr(chain: list[str]) -> bool:
+        if len(chain) >= 2 and _is_native_loader_alias(chain):
+            return chain[1] == "command"
+        return len(chain) == 1 and chain[0] in native_decorator_names
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            imported = {alias.name for alias in node.names}
+            if node.level > 0 and "loader" in imported:
+                hikka_score += 1
+            if module.startswith("core.lib.loader"):
+                native_score += 1
+            if _is_native_module_base_import(module):
+                for alias in node.names:
+                    imported_name = _alias_name(alias)
+                    if alias.name == "ModuleBase":
+                        native_module_base_names.add(imported_name)
+                    elif alias.name == "command":
+                        native_decorator_names.add(imported_name)
+            elif module == "core.lib.loader":
+                for alias in node.names:
+                    if alias.name == "module_base":
+                        native_loader_aliases.add(_alias_name(alias))
+
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name.startswith("core.lib.loader"):
+                    native_score += 1
+                if alias.name == "core.lib.loader.module_base":
+                    native_loader_aliases.add(_alias_name(alias))
+
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if node.name == "register" and node.args.args:
+                first_arg = node.args.args[0].arg
+                if first_arg in {"kernel", "client"}:
+                    native_score += 1
+
+            for dec in node.decorator_list:
+                if isinstance(dec, ast.Call):
+                    dec = dec.func
+                chain = _attr_chain(dec)
+                if _is_native_decorator_expr(chain):
+                    native_score += 1
+                    continue
+                if (
+                    len(chain) >= 2
+                    and chain[0] == "loader"
+                    and chain[1]
+                    in {
+                        "tds",
+                        "watcher",
+                        "command",
+                    }
+                ):
+                    hikka_score += 1
+
+        elif isinstance(node, ast.ClassDef):
+            for base in node.bases:
+                chain = _attr_chain(base)
+                if _is_native_module_base_expr(chain):
+                    native_score += 1
+                    continue
+                if (
+                    len(chain) >= 2
+                    and chain[0] == "loader"
+                    and chain[1]
+                    in {
+                        "Module",
+                        "Library",
+                    }
+                ):
+                    hikka_score += 1
+
+        elif isinstance(node, ast.Name):
+            if node.id == "hikka_only":
+                hikka_score += 1
+            elif node.id == "mcub_only":
+                native_score += 1
+            elif node.id == "GeekInlineQuery":
+                geek_score += 1
+
+        elif isinstance(node, ast.Attribute):
+            chain = _attr_chain(node)
+            if chain[:2] == ["loader", "ModuleConfig"] or chain[:2] == [
+                "loader",
+                "LibraryConfig",
+            ]:
+                hikka_score += 1
+            if chain[:3] == ["self", "inline", "_bot"]:
+                geek_score += 1
+            if chain[:2] == ["client", "on"]:
+                native_score += 1
+
+        elif isinstance(node, ast.Call):
+            chain = _attr_chain(node.func)
+            if chain[:2] == ["client", "on"]:
+                native_score += 1
+            if chain[:3] == ["self", "inline", "_bot"]:
+                geek_score += 1
 
     if hikka_score >= 1:
         return "hikka"
@@ -2022,7 +2128,7 @@ async def load_hikka_module(
 
     if hasattr(instance, "client_ready") and callable(instance.client_ready):
         try:
-            await _maybe_await(instance.client_ready(kernel.client, instance.db))
+            await _maybe_await(instance.client_ready(instance.client, instance.db))
             instance._hikka_compat_ready = True
         except TypeError:
             try:

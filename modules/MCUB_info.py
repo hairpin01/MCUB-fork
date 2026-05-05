@@ -22,8 +22,10 @@ from core.lib.loader.module_config import (
     Boolean,
     ConfigValue,
     ModuleConfig,
+    Placeholders,
     String,
 )
+import utils
 
 
 def _detect_branch_sync():
@@ -85,10 +87,13 @@ class MCUBInfoMod(ModuleBase):
                 "info_quote_media": False,
                 "info_invert_media": False,
                 "info_custom_text": "",
+                "placeholders": "",
                 "info_start_emoji": CUSTOM_EMOJI["load"],
                 "info_banner_url": f"https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/{branch}/img/info.jpg",
             },
         )
+        utils.register_decorated_placeholders(self.name, self)
+        config_dict["placeholders"] = utils.format_placeholders(self.name)
         self.config.from_dict(config_dict)
         config_dict_clean = {
             k: v for k, v in self.config.to_dict().items() if v is not None
@@ -96,6 +101,9 @@ class MCUBInfoMod(ModuleBase):
         if config_dict_clean:
             await self.kernel.save_module_config(self.name, config_dict_clean)
         self.kernel.store_module_config_schema(self.name, self.config)
+
+    async def on_unload(self) -> None:
+        utils.unregister_scope(self.name)
 
     description: dict[str, str] = {
         "ru": "Инфо о системе",
@@ -135,6 +143,12 @@ class MCUBInfoMod(ModuleBase):
                 "{now_month_name}, {now_year}, {now_weekday},\n"
                 "{now_hour}, {now_minute}, {now_second}"
             ),
+            validator=Placeholders(default="", placeholder_scope="any"),
+        ),
+        ConfigValue(
+            "placeholders",
+            "",
+            description="Available placeholders (auto-generated, read-only)",
             validator=String(default=""),
         ),
         ConfigValue(
@@ -355,26 +369,12 @@ class MCUBInfoMod(ModuleBase):
             quote_media = bool(self.config.get("info_quote_media"))
             invert_media = bool(self.config.get("info_invert_media"))
 
-            if (
-                banner_url
-                and quote_media
-                and banner_url.startswith(("http://", "https://"))
-            ):
-                try:
-                    await msg.edit(
-                        info_text,
-                        file=InputMediaWebPage(banner_url, optional=True),
-                        parse_mode="html",
-                        invert_media=invert_media,
-                    )
-                    return
-                except Exception as e:
-                    self.log.error(f"Info banner error: {e}")
-
             has_banner = False
+            is_url = False
             if banner_url:
                 if banner_url.startswith(("http://", "https://")):
                     has_banner = True
+                    is_url = True
                 elif os.path.exists(banner_url):
                     has_banner = True
                 else:
@@ -385,14 +385,22 @@ class MCUBInfoMod(ModuleBase):
 
             if has_banner and banner_url:
                 try:
-                    if banner_url.startswith(("http://", "https://")):
-                        media = InputMediaWebPage(banner_url, optional=True)
-                        await msg.edit(
-                            info_text,
-                            file=media,
-                            parse_mode="html",
-                            invert_media=invert_media,
-                        )
+                    if is_url:
+                        if quote_media:
+                            media = InputMediaWebPage(banner_url, optional=True)
+                            await msg.edit(
+                                info_text,
+                                file=media,
+                                parse_mode="html",
+                                invert_media=invert_media,
+                            )
+                        else:
+                            await msg.edit(
+                                info_text,
+                                file=banner_url,
+                                parse_mode="html",
+                                invert_media=invert_media,
+                            )
                     else:
                         await msg.edit(
                             info_text,
@@ -533,72 +541,42 @@ class MCUBInfoMod(ModuleBase):
         distro_name, distro_emoji = self._get_distro()
         platform_type = self._get_platform_type()
 
-        known = [
-            "kernel_version",
-            "core_name",
-            "ping_time",
-            "uptime_str",
-            "distro_name",
-            "distro_emoji",
-            "platform_type",
-            "cpu_usage",
-            "ram_usage",
-            "system_user",
-            "hostname",
-            "update_needed",
-            "branch",
-            "commit_sha",
-            "commit_url",
-            "mcub_emoji",
-            "user_id",
-            "me_first_name",
-            "me_username",
-            "now_date",
-            "now_time",
-            "now_day",
-            "now_month",
-            "now_month_name",
-            "now_year",
-            "now_weekday",
-            "now_hour",
-            "now_minute",
-            "now_second",
-        ]
-        safe = custom_text.replace("{", "{{").replace("}", "}}")
-        for k in known:
-            safe = safe.replace("{{" + k + "}}", "{" + k + "}")
-
         try:
-            return safe.format(
-                kernel_version=self.kernel.VERSION,
-                core_name=core_name,
-                ping_time=ping_time,
-                uptime_str=uptime_str,
-                distro_name=distro_name,
-                distro_emoji=distro_emoji,
-                platform_type=platform_type,
-                cpu_usage=cpu_usage,
-                ram_usage=ram_usage,
-                system_user=system_user,
-                hostname=hostname,
-                update_needed=update_needed,
-                branch=branch,
-                commit_sha=commit_sha,
-                commit_url=commit_url or "",
-                mcub_emoji=mcub_emoji,
-                user_id=me.id,
-                me_first_name=me.first_name or "",
-                me_username=f"@{me.username}" if me.username else "",
-                now_date=now_date,
-                now_time=now_time,
-                now_day=now_day,
-                now_month=now_month,
-                now_month_name=now_month_name,
-                now_year=now_year,
-                now_weekday=now_weekday,
-                now_hour=now_hour,
-                now_minute=now_minute,
-                now_second=now_second,
+            return await utils.resolve_placeholders(
+                self.name,
+                custom_text,
+                data={
+                    "kernel_version": self.kernel.VERSION,
+                    "core_name": core_name,
+                    "ping_time": ping_time,
+                    "uptime_str": uptime_str,
+                    "distro_name": distro_name,
+                    "distro_emoji": distro_emoji,
+                    "platform_type": platform_type,
+                    "cpu_usage": cpu_usage,
+                    "ram_usage": ram_usage,
+                    "system_user": system_user,
+                    "hostname": hostname,
+                    "update_needed": update_needed,
+                    "branch": branch,
+                    "commit_sha": commit_sha,
+                    "commit_url": commit_url or "",
+                    "mcub_emoji": mcub_emoji,
+                    "user_id": me.id,
+                    "me_first_name": me.first_name or "",
+                    "me_username": f"@{me.username}" if me.username else "",
+                    "now_date": now_date,
+                    "now_time": now_time,
+                    "now_day": now_day,
+                    "now_month": now_month,
+                    "now_month_name": now_month_name,
+                    "now_year": now_year,
+                    "now_weekday": now_weekday,
+                    "now_hour": now_hour,
+                    "now_minute": now_minute,
+                    "now_second": now_second,
+                },
+                strict=False,
             )
         except Exception as e:
             return self.strings("custom_text_error", error=str(e))

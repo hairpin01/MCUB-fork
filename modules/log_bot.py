@@ -6,22 +6,28 @@ from __future__ import annotations
 import asyncio
 import html
 import io
-import json
 import os
 import subprocess
 from datetime import datetime
 
 import aiohttp
 from telethon import events
-from telethon.tl.functions.channels import EditPhotoRequest
+from telethon.tl.functions.channels import EditPhotoRequest, InviteToChannelRequest
 from telethon.tl.functions.messages import (
     AddChatUserRequest,
     CreateChatRequest,
     ExportChatInviteRequest,
 )
-from telethon.tl.types import InputUserSelf, InputMediaWebPage
+from telethon.tl.types import InputMediaWebPage, InputUserSelf
 
-from core.lib.loader.module_base import ModuleBase, command, callback, loop
+from core.lib.loader.module_base import ModuleBase, callback, command, loop
+from core.lib.loader.module_config import (
+    ConfigValue,
+    ModuleConfig,
+    Placeholders,
+    String,
+)
+import utils
 
 
 class LogBot(ModuleBase):
@@ -30,10 +36,39 @@ class LogBot(ModuleBase):
         "ru": "Модуль логирования",
         "en": "Log bot module",
     }
+    author = "@Hairpin00"
     version = "1.1.0"
 
     strings = {"name": "log_bot"}
-    author = "@Hairpin00"
+
+    config = ModuleConfig(
+        ConfigValue(
+            "banner_url",
+            default="https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/start_userbot.png",
+            description="banner url for start_userbot message",
+            validator=String(
+                default="https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/start_userbot.png"
+            ),
+        ),
+        ConfigValue(
+            "start_message",
+            default="",
+            description=(
+                "Custom text for startup log message. Available placeholders:\n"
+                "{mcub}, {kernel_version}, {started}, {commit_sha},\n"
+                "{commit_url}, {update_status}, {update_status_link},\n"
+                "{branch}, {module_version}, {module_name},\n"
+                "{module_version_text}, {prefix}, {error_load_modules}"
+            ),
+            validator=Placeholders(default="", placeholder_scope="any"),
+        ),
+        ConfigValue(
+            "placeholders",
+            default="",
+            description="Available placeholders (auto-generated, read-only)",
+            validator=String(default=""),
+        ),
+    )
 
     async def get_git_commit(self):
         try:
@@ -156,7 +191,7 @@ class LogBot(ModuleBase):
             )
 
         text = header + "\n\n" + "\n".join(commit_lines)
-        btn = self.Button.inlines(
+        btn = self.Button.inline(
             self.lang["new_commits_btn"], self.on_update_callback, style="primary"
         )
 
@@ -220,7 +255,9 @@ class LogBot(ModuleBase):
     async def on_update_callback(self, call: events.CallbackQuery.Event, data=None):
         await call.answer()
         try:
-            await self.edit(self.lang["update_running"], buttons=None, as_html=True)
+            await self.edit(
+                call, self.lang["update_running"], buttons=None, as_html=True
+            )
         except Exception:
             pass
         try:
@@ -260,6 +297,7 @@ class LogBot(ModuleBase):
             self.kernel.cache.set("log_bot:last_notified_sha", sha)
 
             await self.edit(
+                call,
                 self.lang["update_done"].format(sha=sha),
                 as_html=True,
                 buttons=None,
@@ -270,6 +308,7 @@ class LogBot(ModuleBase):
             await self.kernel.process_command(restart_cmd)
         except Exception as e:
             await self.edit(
+                call,
                 self.lang["update_error"].format(error=html.escape(str(e))),
                 as_html=True,
                 buttons=None,
@@ -279,6 +318,8 @@ class LogBot(ModuleBase):
 
         if self.kernel.config.get("log_chat_id"):
             self.kernel.log_chat_id = self.kernel.config["log_chat_id"]
+            bot_entity = await self._get_log_bot_entity()
+            await self._ensure_log_bot_access(bot_entity)
             return True
 
         self.log.info(
@@ -291,32 +332,24 @@ class LogBot(ModuleBase):
                     self.kernel.log_chat_id = dialog.id
                     self.kernel.config["log_chat_id"] = dialog.id
                     self.kernel.save_config()
+                    bot_entity = await self._get_log_bot_entity()
+                    await self._ensure_log_bot_access(bot_entity)
 
                     self.log.info(
                         f"{self.kernel.Colors.GREEN}✅ {dialog.title}{self.kernel.Colors.RESET}"
                     )
                     return True
         except Exception as e:
-            self.log.error(f"{self.ang['searching_logs']}: {e}")
+            self.log.error(f"{self.lang['searching_logs']}: {e}")
 
         self.log.info(
             f"{self.kernel.Colors.YELLOW}{self.lang['creating_log_group']}{self.kernel.Colors.RESET}"
         )
 
         users_to_invite = [InputUserSelf()]
-        bot_entity = None
-
-        if (
-            hasattr(self.kernel, "bot_client")
-            and self.kernel.bot_client
-            and await self.kernel.bot_client.is_user_authorized()
-        ):
-            try:
-                bot_me = await self.kernel.bot_client.get_me()
-                bot_entity = await self.kernel.client.get_input_entity(bot_me.username)
-                users_to_invite.append(bot_entity)
-            except Exception as e:
-                self.log.warning(f"{self.lang['bot_prepare_error']}: {e}")
+        bot_entity = await self._get_log_bot_entity()
+        if bot_entity:
+            users_to_invite.append(bot_entity)
 
         try:
             me = await self.kernel.client.get_me()
@@ -395,22 +428,7 @@ class LogBot(ModuleBase):
                     f"{self.kernel.Colors.YELLOW}{self.lang['invite_error']}: {e}{self.kernel.Colors.RESET}"
                 )
 
-            if bot_entity and len(users_to_invite) == 1:
-                try:
-                    await self.kernel.client(
-                        AddChatUserRequest(
-                            chat_id=self.kernel.log_chat_id,
-                            user_id=bot_entity,
-                            fwd_limit=0,
-                        )
-                    )
-                    self.log.info(
-                        f"{self.kernel.Colors.GREEN}{self.lang['bot_added']}{self.kernel.Colors.RESET}"
-                    )
-                except Exception as e:
-                    self.log.error(
-                        f"{self.kernel.Colors.YELLOW}{self.lang['bot_add_error']}: {e}{self.kernel.Colors.RESET}"
-                    )
+            await self._ensure_log_bot_access(bot_entity)
 
             self.kernel.save_config()
 
@@ -422,12 +440,100 @@ class LogBot(ModuleBase):
         except Exception as e:
             import traceback
 
-            tb = traceback.format_exc
+            tb = traceback.format_exc()
             self.log.error(
                 f"{self.kernel.Colors.RED}{self.lang['chat_create_error']}: {e}{self.kernel.Colors.RESET}\n{tb}"
             )
 
             return False
+
+    async def _get_log_bot_entity(self):
+        if not (
+            hasattr(self.kernel, "bot_client")
+            and self.kernel.bot_client
+            and await self.kernel.bot_client.is_user_authorized()
+        ):
+            self.log.warning(
+                f"{self.lang['bot_prepare_error']}: bot client is unavailable"
+            )
+            return None
+
+        try:
+            bot_me = await self.kernel.bot_client.get_me()
+            username = getattr(bot_me, "username", None)
+            if not username:
+                self.log.warning(
+                    f"{self.lang['bot_prepare_error']}: bot username is unavailable"
+                )
+                return None
+            return await self.kernel.client.get_input_entity(username)
+        except Exception as e:
+            self.log.warning(f"{self.lang['bot_prepare_error']}: {e}")
+            return None
+
+    async def _ensure_log_bot_access(self, bot_entity) -> bool:
+        if not self.kernel.log_chat_id or not bot_entity:
+            return False
+
+        added = await self._add_log_bot_to_chat(bot_entity)
+        if not added:
+            return False
+        promoted = await self._promote_log_bot(bot_entity)
+        return promoted
+
+    async def _add_log_bot_to_chat(self, bot_entity) -> bool:
+        try:
+            chat = await self.kernel.client.get_entity(self.kernel.log_chat_id)
+            if getattr(chat, "megagroup", False) or getattr(chat, "broadcast", False):
+                await self.kernel.client(InviteToChannelRequest(chat, [bot_entity]))
+            else:
+                await self.kernel.client(
+                    AddChatUserRequest(
+                        chat_id=getattr(chat, "id", self.kernel.log_chat_id),
+                        user_id=bot_entity,
+                        fwd_limit=0,
+                    )
+                )
+            self.log.info(
+                f"{self.kernel.Colors.GREEN}{self.lang['bot_added']}{self.kernel.Colors.RESET}"
+            )
+            return True
+        except Exception as e:
+            if self._is_already_participant_error(e):
+                self.log.debug("Log bot is already in the log chat")
+                return True
+            self.log.warning(
+                f"{self.kernel.Colors.YELLOW}{self.lang['bot_add_error']}: {e}{self.kernel.Colors.RESET}"
+            )
+            return False
+
+    async def _promote_log_bot(self, bot_entity) -> bool:
+        try:
+            chat = await self.kernel.client.get_entity(self.kernel.log_chat_id)
+            await self.kernel.client.edit_admin(
+                chat,
+                bot_entity,
+                is_admin=True,
+                title="MCUB logs",
+            )
+            self.log.info(
+                f"{self.kernel.Colors.GREEN}Log bot admin rights granted{self.kernel.Colors.RESET}"
+            )
+            return True
+        except Exception as e:
+            self.log.warning(
+                f"{self.kernel.Colors.YELLOW}Log bot admin rights were not granted: {e}{self.kernel.Colors.RESET}"
+            )
+            return False
+
+    @staticmethod
+    def _is_already_participant_error(error: Exception) -> bool:
+        error_name = type(error).__name__.lower()
+        error_text = str(error).lower()
+        return (
+            "useralreadyparticipant" in error_name
+            or "user_already_participant" in error_text
+        )
 
     @command("log_setup", doc_en="setup logging chat", doc_ru="настроить чат для логов")
     async def log_setup_handler(self, event: events.NewMessage.Event):
@@ -454,9 +560,13 @@ class LogBot(ModuleBase):
     async def send_startup_message(self):
         if not self.kernel.log_chat_id:
             return
+        cfg = self.config
         await self.get_git_commit()
         update_status = await self.get_update_status()
-        image_url = "https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/start_userbot.png"
+        image_url = (
+            cfg.get("banner_url")
+            or "https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/start_userbot.png"
+        )
 
         branch = await self.kernel.version_manager.detect_branch()
         commit_sha = await self.kernel.version_manager.get_commit_sha()
@@ -467,16 +577,48 @@ class LogBot(ModuleBase):
         else:
             commit_display = f"<b>{update_status}</b>"
 
-        message = f"""<b>{await self.mcub_handler()}</b> <b>{self.kernel.VERSION}</b> {self.lang["started"]}
+        mcub = await self.mcub_handler()
+        module_version_text = self.lang("version", version=self.version, name=self.name)
+        default_message = f"""<b>{mcub}</b> <b>{self.kernel.VERSION}</b> {self.lang["started"]}
 <blockquote><b><tg-emoji emoji-id="5368585403467048206">🔭</tg-emoji> GitHub commit SHA:</b> <code>{commit_sha}</code>
 <tg-emoji emoji-id="5467480195143310096">🎩</tg-emoji> <b>{self.lang["update_status"]}:</b> <i>{commit_display}</i>
 <tg-emoji emoji-id="5436275698664759373">🌂</tg-emoji> <b>branch:</b> <code>{branch}</code>
-{self.lang('version', version=self.version, name=self.name)}{"" if self.kernel.error_load_modules else "</blockquote>"}"""
+{module_version_text}{"" if self.kernel.error_load_modules else "</blockquote>"}"""
 
         if self.kernel.error_load_modules:
-            message += f'<tg-emoji emoji-id="5467928559664242360">❗️</tg-emoji> <b>Error load modules:</b> <code>{self.kernel.error_load_modules}</code></blockquote>'
+            default_message += f'\n<tg-emoji emoji-id="5467928559664242360">❗️</tg-emoji> <b>Error load modules:</b> <code>{self.kernel.error_load_modules}</code></blockquote>'
 
-        message += f'\n<tg-emoji emoji-id="5426900601101374618">🧿</tg-emoji> <b><i>{self.lang["prefix"]}:</i></b> <code>{self.kernel.custom_prefix}</code>'
+        default_message += f'\n<tg-emoji emoji-id="5426900601101374618">🧿</tg-emoji> <b><i>{self.lang["prefix"]}:</i></b> <code>{self.kernel.custom_prefix}</code>'
+
+        custom_message = cfg.get("start_message") or ""
+        if custom_message:
+            try:
+                message = await utils.resolve_placeholders(
+                    self.name,
+                    custom_message,
+                    data={
+                        "mcub": mcub,
+                        "kernel_version": self.kernel.VERSION,
+                        "started": self.lang["started"],
+                        "commit_sha": commit_sha,
+                        "commit_url": commit_url or "",
+                        "update_status": update_status,
+                        "update_status_link": commit_display,
+                        "branch": branch,
+                        "module_version": self.version,
+                        "module_name": self.name,
+                        "module_version_text": module_version_text,
+                        "prefix": self.kernel.custom_prefix,
+                        "error_load_modules": self.kernel.error_load_modules or "",
+                    },
+                    strict=False,
+                )
+            except Exception as e:
+                self.log.error(f"start_message template error: {e}")
+                message = default_message
+        else:
+            message = default_message
+
         try:
             if await self.kernel.bot_client.is_user_authorized():
                 _message_load = await self.kernel.bot_client.send_message(
@@ -588,6 +730,19 @@ class LogBot(ModuleBase):
     # self.kernel.log_module = log_module
 
     async def on_load(self):
+        defaults = {
+            "banner_url": "https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/start_userbot.png",
+            "start_message": "",
+            "placeholders": "",
+        }
+        config_dict = await self.kernel.get_module_config(self.name, defaults)
+        config_dict["placeholders"] = utils.format_placeholders(self.name)
+        self.config.from_dict(config_dict)
+        self.kernel.store_module_config_schema(self.name, self.config)
+        clean = {k: v for k, v in self.config.to_dict().items() if v is not None}
+        if clean:
+            await self.kernel.save_module_config(self.name, clean)
+
         self.lang = self.strings
         await self.setup_log_chat()
         await self.send_startup_message()

@@ -72,21 +72,35 @@ class CommandModule(ModuleBase):
         user = event.sender
         first_name = user.first_name or ""
         last_name = user.last_name or ""
+        profile_message = (
+            f"<b>{s['profile']}</b>\n"
+            f"<b>{s['name']}</b> {first_name} {last_name}\n"
+            f"<b>{s['prefix']}</b> <code>{self.kernel.custom_prefix}</code>\n"
+            f"<b>{s['kernel_version']}</b> {self.kernel.VERSION}"
+        )
+        profile_buttons = [
+            [
+                self.Button.url(
+                    s["github_repo"], "https://github.com/hairpin01/MCUB-fork"
+                )
+            ]
+        ]
+
+        profile_photo = None
+        try:
+            photos = await self.kernel.bot_client.get_profile_photos(
+                event.sender_id, limit=1
+            )
+            if photos:
+                profile_photo = photos[0]
+        except Exception:
+            pass
+
         await event.reply(
-            message=(
-                f"<b>{s['profile']}</b>\n"
-                f"<b>{s['name']}</b> {first_name} {last_name}\n"
-                f"<b>{s['prefix']}</b> <code>{self.kernel.custom_prefix}</code>\n"
-                f"<b>{s['kernel_version']}</b> {self.kernel.VERSION}"
-            ),
+            message=profile_message,
+            file=profile_photo,
             parse_mode="html",
-            buttons=[
-                [
-                    self.Button.url(
-                        s["github_repo"], "https://github.com/hairpin01/MCUB-fork"
-                    )
-                ]
-            ],
+            buttons=profile_buttons,
         )
 
     @bot_command("init")

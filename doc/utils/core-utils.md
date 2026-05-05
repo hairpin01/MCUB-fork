@@ -18,6 +18,123 @@ from utils import (
 
 ---
 
+## Custom Placeholders API
+
+Use placeholders when a module config contains user-defined templates (for example, welcome text, status cards, info banners).
+
+### Why this API exists
+
+- Keeps template rendering consistent across modules.
+- Supports both built-in data placeholders and module-defined dynamic placeholders.
+- Provides a discoverable placeholder list for config UI.
+
+### `@utils.placeholders(name, description=None)`
+
+Decorator for module methods that provide placeholder values at render time.
+
+**Parameters:**
+- `name` — placeholder key used in templates (for `{name}`)
+- `description` — optional human-readable description for docs/UI
+
+**Returns:** Decorated callable that can be auto-registered for module scope.
+
+```python
+import utils
+
+@utils.placeholders("now_iso", description="Current UTC datetime")
+async def _placeholder_now_iso(self, data):
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat()
+```
+
+### `utils.register_decorated_placeholders(scope, owner)`
+
+Register all methods decorated with `@utils.placeholders(...)` for a module scope.
+
+**Parameters:**
+- `scope` — module scope name (usually `self.name`)
+- `owner` — module instance containing decorated methods
+
+```python
+async def on_load(self):
+    utils.register_decorated_placeholders(self.name, self)
+```
+
+### `utils.unregister_scope(scope)`
+
+Unregister all placeholders for a scope. Call from `on_unload`.
+
+```python
+async def on_unload(self):
+    utils.unregister_scope(self.name)
+```
+
+### `await utils.resolve_placeholders(scope, template, data=None, strict=False)`
+
+Render a template string with placeholders.
+
+**Parameters:**
+- `scope` — module scope name
+- `template` — source template (for example: `"Ping: {ping_time} ms"`)
+- `data` — dict with static values for formatting
+- `strict` — if `True`, unknown placeholders raise; if `False`, unresolved placeholders are tolerated
+
+Resolution order:
+1. Static values passed through `data` / `custom_values`.
+2. Placeholders registered in the requested `scope`.
+3. Placeholders registered in the shared `global` scope.
+4. Placeholders registered by any loaded module.
+
+This means consumer modules normally call `resolve_placeholders(self.name, ...)` only.
+They do not need to know which module registered a placeholder such as `{now_play}`.
+
+**Returns:** Rendered string
+
+```python
+result = await utils.resolve_placeholders(
+    self.name,
+    "Hello, {user}! Time: {now_iso}",
+    data={"user": "Alice"},
+    strict=False,
+)
+```
+
+### `utils.format_placeholders(scope)`
+
+Return compact placeholder list string for config UI.
+
+**Use case:** auto-fill read-only `placeholders` config field.
+
+```python
+config_dict["placeholders"] = utils.format_placeholders(self.name)
+```
+
+### `utils.config_placeholders(scope)`
+
+Return structured placeholders with descriptions for help text and docs rendering.
+
+### `Placeholders(...)` validator (Module Config)
+
+For config values that should support template placeholders, use `Placeholders` instead of plain `String`.
+
+```python
+from core.lib.loader.module_config import ConfigValue, Placeholders
+
+ConfigValue(
+    "info_custom_text",
+    "",
+    "Template with placeholders",
+    validator=Placeholders(default="", placeholder_scope="any"),
+)
+```
+
+This enables placeholder-aware config handling in settings UI.
+When `placeholder_scope="any"` is used, the settings UI may show placeholders
+registered by other loaded modules, and runtime rendering can resolve them
+through the standard `resolve_placeholders(self.name, ...)` call.
+
+---
+
 ## Argument Parsing
 
 ### `get_args(event)`

@@ -49,7 +49,9 @@ ignore = [
     "C901",   # too complex
     "RUF001",
     "RUF002",
-    "RUF003"
+    "RUF003",
+    "RUF006", # fire-and-forget asyncio tasks (intentional pattern)
+    "RUF012", # mutable class attributes (use ClassVar, but many are immutable configs)
 ]
 
 [tool.ruff.lint.per-file-ignores]

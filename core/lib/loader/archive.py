@@ -3,10 +3,11 @@
 
 from __future__ import annotations
 
+import ast
 import io
 import os
-import re
 import tarfile
+import tomllib
 import zipfile
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -230,30 +231,37 @@ class ArchiveManager:
             with open(pyproject_path, encoding="utf-8") as f:
                 content = f.read()
 
-            meta.name = self._extract_toml_value(content, "project", "name")
-            meta.version = self._extract_toml_value(content, "project", "version")
+            data = tomllib.loads(content)
 
-            deps_section = re.search(
-                r"\[project\]\s*\n(.*?)(?:\n\[|\Z)", content, re.DOTALL
-            )
-            if deps_section:
-                deps_text = deps_section.group(1)
-                dep_matches = re.findall(
-                    r"^dependencies\s*=\s*\[(.*?)\]",
-                    deps_text,
-                    re.DOTALL | re.MULTILINE,
-                )
-                if dep_matches:
-                    deps_str = dep_matches[0]
-                    meta.dependencies = self._parse_toml_list(deps_str)
+            project = data.get("project")
+            if isinstance(project, dict):
+                name = project.get("name")
+                if isinstance(name, str) and name.strip():
+                    meta.name = name.strip()
 
-            mcub_section = re.search(
-                r"\[tool\.mcub\](.*?)(?:\n\[|\Z)", content, re.DOTALL
-            )
-            if mcub_section:
-                mcub_text = mcub_section.group(1)
-                meta.main_module = self._extract_value(mcub_text, "main")
-                meta.pack_type = self._extract_value(mcub_text, "type")
+                version = project.get("version")
+                if isinstance(version, str) and version.strip():
+                    meta.version = version.strip()
+
+                dependencies = project.get("dependencies")
+                if isinstance(dependencies, list):
+                    meta.dependencies = [
+                        dep.strip()
+                        for dep in dependencies
+                        if isinstance(dep, str) and dep.strip()
+                    ]
+
+            tool = data.get("tool")
+            if isinstance(tool, dict):
+                mcub = tool.get("mcub")
+                if isinstance(mcub, dict):
+                    main_module = mcub.get("main")
+                    if isinstance(main_module, str) and main_module.strip():
+                        meta.main_module = main_module.strip()
+
+                    pack_type = mcub.get("type")
+                    if isinstance(pack_type, str) and pack_type.strip():
+                        meta.pack_type = pack_type.strip()
 
             req_path = os.path.join(extracted_dir, "requirements.txt")
             if os.path.exists(req_path) and not meta.dependencies:
@@ -273,30 +281,6 @@ class ArchiveManager:
 
         return meta
 
-    def _extract_toml_value(self, content: str, section: str, key: str) -> str | None:
-        """Extract value from TOML section."""
-        pattern = rf"\[{section}\](.*?)(?:\n\[|\Z)"
-        match = re.search(pattern, content, re.DOTALL)
-        if not match:
-            return None
-        return self._extract_value(match.group(1), key)
-
-    def _extract_value(self, text: str, key: str) -> str | None:
-        """Extract key=value from text."""
-        pattern = rf'^{key}\s*=\s*["\']?([^"\'\n]+)["\']?'
-        match = re.search(pattern, text, re.MULTILINE)
-        if match:
-            return match.group(1).strip()
-        return None
-
-    def _parse_toml_list(self, text: str) -> list[str]:
-        """Parse TOML list like ['dep1', 'dep2']."""
-        deps = []
-        matches = re.findall(r'"([^"]+)"', text)
-        for m in matches:
-            deps.append(m.strip())
-        return deps
-
     def _detect_type(self, extracted_dir: str, metadata: PyProjectMeta) -> str:
         """Detect archive type: single or pack."""
         if metadata.pack_type:
@@ -315,13 +299,8 @@ class ArchiveManager:
         has_multiple_with_register = 0
         for py_file in py_files:
             full_path = os.path.join(extracted_dir, py_file)
-            try:
-                with open(full_path, encoding="utf-8") as f:
-                    code = f.read()
-                if "def register" in code or "register(" in code:
-                    has_multiple_with_register += 1
-            except Exception:
-                pass
+            if self._has_module_entrypoint(full_path):
+                has_multiple_with_register += 1
 
         if has_multiple_with_register > 1:
             return "pack"
@@ -356,7 +335,7 @@ class ArchiveManager:
     def _find_main_module(
         self, modules: list[ModuleInfo], extracted_dir: str
     ) -> ModuleInfo | None:
-        """Find main module: 1) mcub.main from pyproject, 2) first with register(), 3) error."""
+        """Find main module: 1) mcub.main from pyproject, 2) first with entrypoint, 3) error."""
         meta = getattr(self, "_cached_meta", None)
 
         if meta and meta.main_module:
@@ -366,13 +345,59 @@ class ArchiveManager:
 
         for mod in modules:
             full_path = os.path.join(extracted_dir, mod.file_path)
-            if os.path.exists(full_path):
-                try:
-                    with open(full_path, encoding="utf-8") as f:
-                        code = f.read()
-                    if "def register" in code or "async def register" in code:
-                        return mod
-                except Exception:
-                    pass
+            if self._has_module_entrypoint(full_path):
+                return mod
 
         return None
+
+    def _has_module_entrypoint(self, file_path: str) -> bool:
+        if not os.path.exists(file_path):
+            return False
+        try:
+            with open(file_path, encoding="utf-8") as f:
+                code = f.read()
+            tree = ast.parse(code)
+        except Exception:
+            return False
+
+        return self._has_register_function(tree) or self._has_module_base_class(tree)
+
+    def _has_register_function(self, tree: ast.AST) -> bool:
+        for node in tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if node.name == "register":
+                    return True
+        return False
+
+    def _has_module_base_class(self, tree: ast.AST) -> bool:
+        module_aliases: set[str] = set()
+        modulebase_names: set[str] = {"ModuleBase"}
+
+        for node in tree.body:
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    imported = alias.name
+                    as_name = alias.asname or imported.split(".")[-1]
+                    if imported.endswith("module_base"):
+                        module_aliases.add(as_name)
+            elif isinstance(node, ast.ImportFrom):
+                mod = node.module or ""
+                if mod.endswith("module_base"):
+                    for alias in node.names:
+                        if alias.name == "ModuleBase":
+                            modulebase_names.add(alias.asname or alias.name)
+
+        for node in tree.body:
+            if not isinstance(node, ast.ClassDef):
+                continue
+            for base in node.bases:
+                if isinstance(base, ast.Name) and base.id in modulebase_names:
+                    return True
+                if isinstance(base, ast.Attribute) and base.attr == "ModuleBase":
+                    if (
+                        isinstance(base.value, ast.Name)
+                        and base.value.id in module_aliases
+                    ):
+                        return True
+
+        return False

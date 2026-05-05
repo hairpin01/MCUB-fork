@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлька | @hairpin01
 
+from __future__ import annotations
+
 import ast
 import asyncio
 import contextlib
@@ -75,21 +77,89 @@ class _StringsShim:
     def get(self, key: str, lang: str | None = None) -> str:
         return self[key]
 
-    def __getitem__(self, key: str) -> str:
+    def _raw_value(self, key: str):
         if key in self.external_strings:
             return self.external_strings[key]
         if self._translator is not None:
             try:
                 lang = getattr(self._translator, "_lang", "en")
                 lang_dict = getattr(self._mod, f"strings_{lang}", {})
-                if key in lang_dict:
+                if isinstance(lang_dict, dict) and key in lang_dict:
                     return lang_dict[key]
             except Exception:
                 pass
-        return self._base.get(key, f"Unknown strings: {key}")
+        return self._base.get(key)
 
-    def __call__(self, key: str, _=None) -> str:
-        return self.__getitem__(key)
+    def _group_value(self, key: str):
+        direct = self._raw_value(key)
+        if isinstance(direct, dict):
+            return direct
+
+        out: dict[str, str] = {}
+        sources: list[dict] = []
+        if isinstance(self.external_strings, dict):
+            sources.append(self.external_strings)
+
+        if self._translator is not None:
+            try:
+                lang = getattr(self._translator, "_lang", "en")
+                lang_dict = getattr(self._mod, f"strings_{lang}", {})
+                if isinstance(lang_dict, dict):
+                    sources.append(lang_dict)
+                if "-" in lang:
+                    short_lang = lang.split("-", 1)[0]
+                    short_dict = getattr(self._mod, f"strings_{short_lang}", {})
+                    if isinstance(short_dict, dict):
+                        sources.append(short_dict)
+            except Exception:
+                pass
+
+        if isinstance(self._base, dict):
+            sources.append(self._base)
+
+        prefix = f"{key}_"
+        for src in sources:
+            if key in src and isinstance(src[key], dict):
+                return src[key]
+            for src_key, src_val in src.items():
+                if (
+                    isinstance(src_key, str)
+                    and src_key.startswith(prefix)
+                    and isinstance(src_val, str)
+                ):
+                    out[src_key[len(prefix) :]] = src_val
+
+        return out or None
+
+    def __getitem__(self, key: str) -> str:
+        value = self._raw_value(key)
+        if isinstance(value, str):
+            return value
+        if isinstance(value, dict):
+            lang = (
+                getattr(self._translator, "_lang", "en") if self._translator else "en"
+            )
+            preferred = [lang]
+            if "-" in lang:
+                preferred.append(lang.split("-", 1)[0])
+            preferred.extend(["en", "ru"])
+            for candidate in preferred:
+                v = value.get(candidate)
+                if isinstance(v, str) and v:
+                    return v
+            for v in value.values():
+                if isinstance(v, str) and v:
+                    return v
+        return f"Unknown strings: {key}"
+
+    def __call__(self, key: str, _=None):
+        value = self._raw_value(key)
+        if value is not None:
+            return value
+        grouped = self._group_value(key)
+        if grouped is not None:
+            return grouped
+        return f"Unknown strings: {key}"
 
     def __iter__(self):
         return iter(self._base)
@@ -1464,7 +1534,7 @@ class InlineProxy:
         manual_security: bool = False,
         disable_security: bool = False,
         ttl: int | None = None,
-        on_unload: callable | None = None,
+        on_unload: Callable | None = None,
         photo: str | None = None,
         gif: str | None = None,
         file: str | None = None,

@@ -847,10 +847,12 @@ def register(kernel):
         args = event.text.split()
 
         if len(args) == 1:
+            yes_label = lang.get("yes", "Yes")
+            no_label = lang.get("no", "No")
             buttons = [
                 [
-                    Button.inline(lang["yes"], b"api_protection_yes", style="success"),
-                    Button.inline(lang["no"], b"api_protection_no", style="danger"),
+                    Button.inline(yes_label, b"api_protection_yes", style="success"),
+                    Button.inline(no_label, b"api_protection_no", style="danger"),
                 ],
             ]
             await kernel.inline_form(
@@ -929,6 +931,11 @@ def register(kernel):
     async def api_protection_callback_handler(event):
         nonlocal protection_enabled
         data = event.data
+        on_label = lang.get("api_protection_on", "API protection enabled")
+        off_label = lang.get("api_protection_off", "API protection disabled")
+        choose_mode_label = lang.get("mcub_choose_mode", "Choose MCUB protection mode:")
+        default_mode_tpl = lang.get("mcub_mode_default", "Default ({mode})")
+        mode_set_tpl = lang.get("mcub_mode_set", "MCUB protection mode: {mode}{dry}")
 
         if data == b"api_protection_yes":
             if _mcub_available:
@@ -958,20 +965,18 @@ def register(kernel):
                     ],
                     [
                         Button.inline(
-                            lang["mcub_mode_default"].format(mode=current_mode),
+                            default_mode_tpl.format(mode=current_mode),
                             b"api_prot_mode_default",
                             style="primary",
                         )
                     ],
                 ]
-                await event.edit(
-                    lang["mcub_choose_mode"], buttons=buttons, parse_mode="html"
-                )
+                await event.edit(choose_mode_label, buttons=buttons, parse_mode="html")
             else:
                 # No MCUB — just enable, no mode step
                 protection_enabled = api_config["enable_protection"] = True
                 await event.edit(
-                    f'<tg-emoji emoji-id="5368585403467048206">🪬</tg-emoji> {lang["api_protection_on"]}',
+                    f'<tg-emoji emoji-id="5368585403467048206">🪬</tg-emoji> {on_label}',
                     parse_mode="html",
                 )
                 persist_api_config()
@@ -979,7 +984,7 @@ def register(kernel):
         elif data == b"api_protection_no":
             protection_enabled = api_config["enable_protection"] = False
             await event.edit(
-                f'<tg-emoji emoji-id="5368585403467048206">🪬</tg-emoji> {lang["api_protection_off"]}',
+                f'<tg-emoji emoji-id="5368585403467048206">🪬</tg-emoji> {off_label}',
                 parse_mode="html",
             )
             persist_api_config()
@@ -1005,8 +1010,8 @@ def register(kernel):
 
             label = (
                 f'<tg-emoji emoji-id="5368585403467048206">🪬</tg-emoji> '
-                f"{lang['api_protection_on']} · "
-                f"{lang['mcub_mode_set'].format(mode=mode, dry='')}"
+                f"{on_label} · "
+                f"{mode_set_tpl.format(mode=mode, dry='')}"
             )
             await event.edit(label, parse_mode="html")
 

@@ -1,0 +1,1260 @@
+lang: en
+
+core_inline:
+  no_access: "bash: EACCES: Permission denied"
+  no_access_id: 'UID: {sender_id}'
+  mcub_bot_title: mcubd
+  version: uname -r
+  modules: packages
+  info_description: uname -a
+  command: cmd
+  execute: exec()
+  no_commands: "ls: cannot access '/proc/cmds': No such file or directory"
+  form_not_found: "ENOENT: No such file or directory (TTL=0)"
+  form_id: inode
+  error: "[STDERR]"
+  error_description: E
+  btn_default: Button
+  json_parsing_error: "json: unexpected token — parse error"
+  form_expired: "ENOENT: No such file or directory"
+  traceback_invalid_id: "ESRCH: No such process (invalid PID)"
+  traceback_expired: "cache: entry evicted (TTL expired)"
+  full_traceback: Full traceback
+  critical_error: "Kernel panic — not syncing: Fatal exception"
+  invalid_request: "EINVAL: Invalid argument"
+  no_similar_errors: "grep: no matches found"
+  similar_errors: Similar panics
+  similar_count: count
+  invalid_format: "EINVAL: Invalid data format"
+  error_muted: error_type
+  muted_for_hour: '{error_type} ({source}) → /dev/null for 1h'
+  confirm_yes: "[  OK  ]"
+  command_confirmed: "fork() → exec() confirmed"
+  executing: "[ .... ] Starting process..."
+  confirm_no: "^C — Interrupt (SIGINT)"
+  command_cancelled: "Killed (SIGKILL)"
+  command_not_found: "bash: command not found"
+  command_not_found_or_executed: "ENOENT: command not found or already exited"
+  nothing_to_cancel: "kill: no processes found"
+  data_error: "ENODATA: No data available"
+  catalog_not_loaded: "apt-cache: cache is empty — run apt update"
+  catalog_title: apt list --installed
+  page: pg
+  no_description: "(no manpage)"
+  author: Maintainer
+  commands: cmds
+  use_dlm: exec()
+  nav_back: cd ..
+  nav_forward: cd ./next
+
+terminal:
+  empty: "→ /dev/null"
+  command_already_running: "EBUSY: Process already running (PID exists)"
+  system_command: 'syscall:'
+  executing: "[ .... ] Forking..."
+  launch_error: 'execve() failed:'
+  already_completed: "waitpid(): Process already exited"
+  running_time: 'uptime:'
+  seconds: s
+  exit_code: 'exit status'
+  completed_in: real
+  command_stopped: "Stopped (SIGSTOP)"
+  stop_error: 'kill: failed:'
+  no_running_commands: "ps aux: no matching processes"
+  stdout: 'stdout ▶'
+  stderr: 'stderr ▶'
+  command_not_specified: "bash: $1: unbound variable"
+  config_update_interval: "stdout flush interval (sec, 1-30). Also triggered on SIGIO."
+
+command:
+  hello: <tg-emoji emoji-id="6012620675829734836">❤️</tg-emoji> mcubd v1 — running on
+    MCUB-fork
+  developers: 'Maintainers:'
+  fork: 'fork:'
+  original: 'upstream:'
+  github_repo: git remote -v
+  original_mcub: Original MCUBFB
+  support: Support
+  profile: 'cat /proc/self/status'
+  name: 'Name:'
+  prefix: 'Prefix:'
+  kernel_version: 'uname -r:'
+  profile_error: '<tg-emoji emoji-id="6010399722471168034">❔</tg-emoji> EACCES: cannot
+    read /proc/profile'
+  goodbye: <tg-emoji emoji-id="6012610604131424315">🥺</tg-emoji> systemctl stop mcubd...
+  bot_removed: "mcubd.service: removed from chat"
+  delete_error: "EPERM: Failed to kill mcubd from chat"
+  hello_installed: <tg-emoji emoji-id="6012620675829734836">❤️</tg-emoji> "[  OK  ] mcubd
+    installed and running!"
+  main_commands: 'man mcubd — available commands:'
+  new_prefix: new prefix
+  module_name: name
+  setprefix: 'setenv PREFIX'
+  logs: 'tail -f /var/log/mcub.log:'
+  info: 'uname -a:'
+  ping: 'ping -c1:'
+  module_management: 'apt-get:'
+  load: 'apt-get install:'
+  remove: 'apt-get remove:'
+  list_modules: 'dpkg -l:'
+  choose_language: '<tg-emoji emoji-id="6010399722471168034">❔</tg-emoji> locale-gen: select locale'
+  setup_completed: '<tg-emoji emoji-id="6012423240478103267">🥰</tg-emoji> [  OK  ] init complete — PID 1 ready'
+  start_init_error: 'init: start failed:'
+  backup_setup: "cron: auto-backup setup"
+  backup_enable: '<tg-emoji emoji-id="6012610604131424315">🥺</tg-emoji> cron: enable auto-backup daemon?'
+  backup_interval: 'crontab -e: select interval:'
+  backup_created: "mcub-backup.service: started!"
+  backup_skip: "--skip"
+  backup_yes: '-y'
+  backup_no: '--no'
+  backup_enabled: '<tg-emoji emoji-id="6012423240478103267">🥰</tg-emoji> [  OK  ] mcub-backup.service started'
+  backup_disabled: "[  OK  ] mcub-backup.service stopped"
+  backup_not_found: "ENOENT: backup package not found"
+
+eval:
+  code: src
+  result: stdout
+  result_file: "stdout → file"
+  result_in_message: "stdout → msg"
+  executed_in: real
+  ms: ms
+
+zen:
+  success: "[  OK  ] Reboot <b>successful</b>"
+  loading: "[ .... ] Mounting packages..."
+  loaded: "[  OK  ] <b>{mcub}.service</b> — active (running)"
+  errors: "[FAILED] <b>{mcub}.service</b> — failed (exit-code)"
+
+kernel:
+  success: "[  OK  ] Reboot <b>successful</b>"
+  loading: "[ .... ] Mounting packages..."
+  loaded: "[  OK  ] <b>{mcub}.service</b> — active (running)"
+  errors: "[FAILED] <b>{mcub}.service</b> — failed (exit-code)"
+  rpc_error: <b>[RPC][STDERR]:</b> <code>{error}</code>
+  call_failed: <b>execve(<code>{cmd}</code>) failed — RPC errno:</b> <code>{rpc_msg}</code>
+  call_failed_traceback: '<b>execve(<code>{cmd}</code>) → exit 1</b>
+
+    <b><i>dmesg tail:</i></b>
+
+    <pre>{traceback}</pre>'
+  could_not_edit: 'EACCES: could not edit RPC error message: {error}'
+  full_log: <b><i>dmesg tail:</i></b>
+  warning_not_allowed_inline: "EPERM: inline forms not permitted in this context"
+  open_inline_form_error: '<i><b>EACCES: open() inline form failed</b></i>
+
+  <blockquote>stderr ▶</blockquote>
+  <pre>{raw_tb}</pre>'
+  open_inline_form: <i><b>[ .... ] Opening inline form...</b></i>
+
+tr:
+  loading: "[ .... ] Translating..."
+  no_args: "bash: missing operand"
+  specify_text: "read: specify stdin or reply to message"
+  no_text: "ENODATA: no stdin for translation"
+  translation_error: "[STDERR] Translation error"
+  network_error: 'ENETDOWN: Network error:'
+  translation_failed: "EFAULT: Failed to fetch translation"
+  request_timeout: "ETIMEDOUT: Connection timed out"
+  decode_error: "EILSEQ: Response decode error"
+  translation_error_generic: '[STDERR] Translation error:'
+
+utils_piped:
+  grep_usage: grep <pattern> [text]
+  no_match: "grep: no match — exit 1"
+  head_usage: head [-n] [text]
+  tail_usage: tail [-n] [text]
+  sed_usage: sed s/<old>/<new>/[g] [text]
+  wc_usage: wc [-l|-c|-w] [text]
+  open_usage: open <path>
+  open_info: '<b>{path}</b>
+
+    {lines} lines | {size} bytes | {ext}'
+  file_not_found: "ENOENT: No such file or directory: {path}"
+  file_error: 'errno: {err}'
+  write_usage: write [-n] <path> [text]
+  write_ok: "tee: written → {path}"
+  write_error: 'EACCES: write error: {err}'
+  export_usage: export <name> [text]
+  exported: 'export {name} → env'
+  import_usage: import <name>
+  var_not_found: 'ENOENT: not found: {name}'
+  calc_usage: calc <expr>
+  div_by_zero: 'SIGFPE: division by zero'
+  calc_error: 'bash: syntax error: invalid expression'
+  sleep_usage: sleep <N>
+  sort_usage: sort [-r] [-u] [text]
+  uniq_usage: uniq [-c] [text]
+  strip_usage: strip [-e] [text]
+  b64_usage: base64 [-d] [text]
+  b64_error: 'base64: decode error: {err}'
+  if_usage: if <pattern> [text]
+  if_no_match: "if: no match — pipeline stopped (exit 1)"
+  repeat_usage: "for i in $(seq <N>); do [text]; done"
+  repeat_range: 'ERANGE: N must be 1..100'
+  fwd_no_reply: "ENOENT: reply to a message first"
+  fwd_usage: fwd <N> [delay]
+  fwd_range: 'ERANGE: N must be 1..200'
+  fwd_get_error: 'EFAULT: failed to get message: {err}'
+  fwd_no_msg: "ENOENT: message not found"
+  fwd_start: "fork() × {n}..."
+  fwd_done: "exit 0: {sent}/{n} sent"
+  reply_not_found: "ENOENT: no reply found"
+  sed_regex_error: 'sed: regex error: {err}'
+  random_usage: shuf [-n N [M]] [-e list]
+  json_usage: jq [-s] <key1> [key2 ...]
+  json_parse_error: 'jq: parse error: {err}'
+  json_saved: 'Saved: {names}'
+  json_missing: 'ENOKEY: keys not found: {keys}'
+  script_usage: '<b>Usage:</b> .script run <source>'
+  script_list_empty: "ls /scripts: No such file or directory"
+  script_deleted: 'rm /scripts/<code>{name}</code> — done'
+  script_not_found: "ENOENT: /scripts/<code>{name}</code>: No such file or directory"
+  script_saved: 'tee /scripts/<code>{name}</code> — done'
+  script_running: '▶ sh /scripts/<code>{name}</code>…'
+  script_empty: "cat: /dev/stdin: empty"
+
+api_protection:
+  enabled: "[  OK  ] API protection enabled"
+  disabled: "[  --  ] API protection disabled"
+  usage: '⚙️ Usage: <code>.api_protection [on/off] [parameter value]</code>'
+  are_you_sure: "rm -rf: are you sure? [y/N]"
+  true: "iptables: DROP → ACCEPT"
+  false: "iptables: ACCEPT → DROP"
+  too_many_requests: "EUSERS: Too many requests — rate limited"
+  bot_stopped: '<tg-emoji emoji-id="5431895003821513760">❄️</tg-emoji> mcubd: SIGSTOP
+    for <b>{seconds}</b>s'
+  bot_unlocked: '<tg-emoji emoji-id="5431895003821513760">❄️</tg-emoji> mcubd: SIGCONT
+    after <b>{seconds}</b>s'
+  request_limit_exceeded: "ECONNREFUSED: Request limit exceeded (<u>{limit_type}</u>)"
+  insufficient_permissions: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji>
+    <b>EACCES: Permission denied</b>'
+  limits_reset: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <b>iptables -F — limits flushed</b>'
+  processing: "[ .... ] Processing..."
+  error_processing: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>[STDERR] processing failed</b>'
+  stats: '📋 API Statistics
+
+    <blockquote>⏱ Last <b>{interval}</b>s</blockquote>
+
+    • Total requests: <b>{total_all}</b>
+
+    • Relevant: <b>{total_relevant}</b>
+
+    📋 Top methods (all):
+
+    {methods}'
+  stats_empty: "📋 /dev/null — no requests in last {interval}s"
+  reset_done: "[  OK  ] iptables -F — stats, analytics and blocking flushed"
+  suspend: "🥶 iptables: protection suspended for <code>{seconds}</code>s"
+  param_set: "[  OK  ] sysctl {param}={value}"
+  param_error: "EINVAL: invalid parameter or value"
+  overload_notify: '⚠️ API limit exceeded!
+
+    <blockquote>⏱ Relevant requests in <b>{interval}</b>s: <b>{total}</b> (threshold
+    <u>{threshold}</u>)</blockquote>
+
+    • Trigger: <code>{trigger}</code>
+
+    • Blocking: <code>{block_seconds}</code>s (attempt #{trigger_count})
+
+    📋 Top methods:
+
+    {methods}'
+  warn_threshold: '🔶 WARN: <i>{percent}%</i> of threshold (<code>{current}/{threshold}</code>
+    in <b>{interval}</b>s)'
+  predict_block: '🔮 Predictive warning: threshold exceed in <code>~{eta}</code>s
+
+    <blockquote>⚡ Acceleration: <u>{accel}</u> req/s²</blockquote>'
+  ignore_usage: '⚙️ Usage: <code>.api_ignore [list|add|remove|clear] [method]</code>'
+  ignore_list: '📋 iptables --list ignored:
+
+    <code>{methods}</code>'
+  ignore_list_empty: "📋 iptables: ignore list is empty"
+  ignore_added: "[  OK  ] iptables: <code>{method}</code> → DROP (ignored)"
+  ignore_removed: "[  OK  ] iptables: <code>{method}</code> removed from DROP"
+  ignore_cleared: "[  OK  ] iptables -F: ignore list flushed"
+  ignore_not_found: "ENOENT: <code>{method}</code> not found in ignore list"
+  api_stats: '<tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <b>API Statistics</b>
+
+    <blockquote>⏱ Last <b>{interval}</b>s</blockquote>
+
+    • <u>Total requests</u>: <b>{total_all}</b>
+
+    • <u>Relevant</u>: <b>{total_relevant}</b>
+
+    📋 <b>Top methods (all):</b>
+
+    {methods}'
+  api_stats_empty: '<tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <i>No requests
+    in last {interval}s</i>'
+  api_reset_done: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <b>iptables -F — Statistics,
+    analytics and blocking flushed</b>'
+  api_suspend: '<tg-emoji emoji-id="5372892693024218813">🥶</tg-emoji> <b>iptables: protection
+    suspended</b> for <code>{seconds}</code>s'
+  api_param_set: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> sysctl <code>{param}</code>
+    = <code>{value}</code>'
+  api_param_error: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>EINVAL:
+    invalid parameter or value</b>'
+  api_overload_notify: '<tg-emoji emoji-id="5904692292324692386">⚠️</tg-emoji> <b>iptables:
+    API limit exceeded!</b>
+
+    <blockquote>⏱ Relevant requests in <b>{interval}</b>s: <b>{total}</b> (threshold
+    <u>{threshold}</u>)</blockquote>
+
+    • <b>Trigger</b>: <code>{trigger}</code>
+
+    • <b>Block</b>: <code>{block_seconds}</code>s (attempt #{trigger_count})
+
+    📋 <b>Top methods:</b>
+
+    {methods}'
+  api_warn_threshold: '<tg-emoji emoji-id="5406792732452613826">🔶</tg-emoji> <b>WARN:</b>
+    <i>{percent}%</i> of threshold (<code>{current}/{threshold}</code> in <b>{interval}</b>s)'
+  api_predict_block: '<tg-emoji emoji-id="5445259009311391329">🔮</tg-emoji> <b>Predictive
+    warning</b>: threshold exceeded in <code>~{eta}</code>s
+
+    <blockquote>⚡ Acceleration: <u>{accel}</u> req/s²</blockquote>'
+  api_ignore_usage: '<tg-emoji emoji-id="5332654441508119011">⚙️</tg-emoji> <b>Usage:</b>
+    <code>.api_ignore [list|add|remove|clear] [method]</code>'
+  api_ignore_list: '<tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <b>iptables --list ignored:</b>
+
+    <code>{methods}</code>'
+  api_ignore_list_empty: '<tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <i>iptables:
+    ignore list is empty</i>'
+  api_ignore_added: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> iptables: <code>{method}</code>
+    → DROP (ignored)'
+  api_ignore_removed: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> iptables: <code>{method}</code>
+    removed from DROP'
+  api_ignore_cleared: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <b>iptables -F:
+    ignore list flushed</b>'
+  api_ignore_not_found: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> ENOENT: <code>{method}</code>
+    not found in ignore list'
+  yes: "-y"
+  no: "--no"
+  analyze_report: '<tg-emoji emoji-id="4904936030232117798">🔬</tg-emoji> <b>Deep API Analysis</b>
+
+    <tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <b>Multi-window counters</b>
+    <code>{windows}</code>
+
+    <tg-emoji emoji-id="5373001317042101552">📈</tg-emoji> <b>Anomaly Z-score</b>: <code>{zscore}</code>  <i>(threshold ±{threshold}σ)</i>
+    <tg-emoji emoji-id="5445259009311391329">🔮</tg-emoji> <b>Predicted breach ETA</b>: <code>{eta}</code>
+    <tg-emoji emoji-id="5383140876316669109">⚡</tg-emoji> <b>Rate acceleration</b>: <code>{accel}</code>
+
+    <tg-emoji emoji-id="5368513458469878442">🧬</tg-emoji> <b>Profile similarity</b>: <code>{cosine}</code>
+
+    <tg-emoji emoji-id="5264727218734524899">🔀</tg-emoji> <b>Top method transitions</b>:
+    <code>{transitions}</code>
+
+    <tg-emoji emoji-id="5370872220149099318">🚨</tg-emoji> <b>Anomalous transitions</b>:
+    <code>{anomalous}</code>
+
+    ⏱<b>Next block (backoff)</b>: <code>{backoff}</code>'
+  analyze_eta_safe: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <i>Not expected</i>
+  analyze_eta_now: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Already exceeded</b>'
+  analyze_eta_in: <code>~{seconds}</code>s
+  analyze_profile_insufficient: <i>insufficient data</i>
+  mcub_not_supported: '<tg-emoji emoji-id="5904692292324692386">⚠️</tg-emoji> <b>Telethon-MCUB not detected</b> — native protection unavailable'
+  mcub_mode_set: '<tg-emoji emoji-id="5253671358734281000">🛡</tg-emoji> <b>MCUB protection mode:</b> <code>{mode}</code><i>{dry}</i>'
+  mcub_mode_dry: "<i>(dry-run: violations logged → /dev/null, not blocked)</i>"
+  mcub_mode_usage: '<tg-emoji emoji-id="5332654441508119011">⚙️</tg-emoji> <b>Usage:</b> <code>.api_mode [off|safe|strict|custom] [dry]</code>'
+  mcub_violation: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>MCUB: syscall blocked</b>
+
+    <blockquote>• <b>Method:</b> <code>{method}</code>
+    • <b>Mode:</b> <code>{mode}</code>
+    • <b>Reason:</b> <i>{reason}</i></blockquote>'
+  mcub_status: '<tg-emoji emoji-id="5253671358734281000">🛡</tg-emoji> <b>MCUB protection</b>
+
+    <blockquote>• <b>Mode:</b> <code>{mode}</code>
+    • <b>Dry-run:</b> <i>{dry}</i>
+    • <b>Allowlist:</b> <code>{allowlist}</code></blockquote>'
+  mcub_choose_mode: '<tg-emoji emoji-id="5253671358734281000">🛡</tg-emoji> <b>iptables: choose MCUB protection mode:</b>'
+  mcub_mode_default: 👾 Default ({mode})
+
+updates:
+  restarting: "[ .... ] systemctl restart <b>{mcub}</b>..."
+  restart_log: "[ .... ] Rebooting..."
+  already_updated: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> <b>Already
+    latest: {version} — nothing to do</b>'
+  git_pull_success: '<tg-emoji emoji-id="5332654441508119011">📝</tg-emoji> <b>git pull
+    → OK</b>
+
+
+    <code>{output}</code>'
+  update_success: '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji> <b>apt-get upgrade
+    → done</b> {emoji}
+
+    systemctl restart in 2s...'
+  trying_another_method: '<tg-emoji emoji-id="5174058394576882777">🔧</tg-emoji> <b>Trying
+    fallback update method...</b>'
+  updating_to_version: '<tg-emoji emoji-id="5286434424331775494">📥</tg-emoji> <b>apt-get install
+    {version}...</b> {emoji}'
+  update_success_with_backup: '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>
+    <b>apt-get upgrade → done</b> {emoji}
+
+
+    📦 tar czf backup.tar.gz — done
+
+    systemctl restart...'
+  cant_check_version: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>EACCES:
+    cannot read version</b>'
+  cant_get_update: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>ENETDOWN:
+    cannot fetch update</b>'
+  error: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>[STDERR]:</b> <code>{error}</code>'
+  stopping: '<tg-emoji emoji-id="5372892693024218813">🧲</tg-emoji> <b>kill -SIGTERM
+    <i>{mcub}</i>...</b> {emoji}'
+  backup_not_found: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>ENOENT: backup
+    not found</b>'
+  rolling_back: '<tg-emoji emoji-id="5248998218212392977">🔙</tg-emoji> <b>git revert HEAD~1
+    ...</b> <i>{emoji}</i>'
+  rollback_success: '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji> <b>git revert
+    → done</b> {emoji}
+
+
+    systemctl restart...'
+  rollback_error: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>git revert
+    failed:</b> <code>{error}</code>
+
+man:
+  help_not_command: 'Did you mean: '
+  module: Package
+  description: Description
+  version: Version
+  no_description: "(no manpage)"
+  unknown: Unknown
+  aliases: Aliases
+  no_commands: "(no commands)"
+  author: Maintainer
+  found_modules: Found packages
+  and_more: '... and <code>{count}</code> more'
+  no_exact_match: "grep: no exact match found"
+  module_not_found: "dpkg: package not found"
+  system_modules: System packages
+  user_modules_page: "User packages (pg {page} | count<code> {count}</code>)"
+  close: exit 0
+  inline_bot_not_configured: "ENOENT: inline bot not configured
+
+    Set inline_bot_token in /etc/mcub.conf"
+  no_inline_results: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> "grep: no inline results"'
+  error: "[STDERR]"
+  module_manager: 'apt — Package Manager
+
+
+    Use "man" to browse packages or "man [pkg]" to search.'
+  search_hint: '🔍 apt-cache search
+
+
+    Type "man [name]" to search for packages
+
+    Example: man ping'
+  search_results: Search results
+  command: cmd
+  and_more_commands: '... and {count} more cmds'
+  not_found_hint: "Try another query — exit 1"
+  closed: "exit 0"
+  page_error: "[STDERR]"
+  search_error: "[STDERR] Search failed"
+  search_error_desc: "EFAULT: An error occurred"
+  module_hidden: 👁️‍🗨️ <b>Package hidden from dpkg -l.</b>
+  module_already_hidden: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>EEXIST: Package is already hidden.</b>'
+  module_unhidden: "[  OK  ] Package removed from hidden list."
+  module_not_hidden: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>ENOENT: This package is not hidden.</b>'
+  manhide_usage: '😕 Usage: <code>.manhide [package]</code>'
+  manunhide_usage: '😕 Usage: <code>.manunhide [package]</code>'
+  system_module_note: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>EPERM: This is a system package — cannot be removed by package manager</b>'
+  kernel_not_full_loaded: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>[ .... ] Kernel has not yet mounted all packages</b>
+    (<code>{status}</code>)'
+  placeholders_title: Custom placeholders
+
+settings:
+  prefix_usage: '❌ Usage: {prefix}setprefix [symbol] [id/@username/reply]'
+  prefix_one_char: '❌ <b>EINVAL: Prefix must be exactly 1 character</b>'
+  prefix_changed: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> <b>setenv PREFIX=</b><code>{prefix}</code>, <b>to restore:</b>
+
+    <pre>{prefix}setprefix {prefix_old}</pre>'
+  prefix_target_invalid: '❌ <b>EINVAL: owner target is invalid</b>'
+  prefix_owner_changed: '✅ <b>owner</b> <code>{owner_id}</code> <b>prefix updated:</b> <code>{prefix_old}</code> → <code>{prefix}</code>'
+  alias_usage: '❌ Usage: `{prefix}addalias alias = command`'
+  alias_created: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> alias created:
+    <code>{prefix}{alias}</code>=<code>{prefix}{command}</code>'
+  alias_target_not_found: '❌ ENOENT: <code>{command}</code> not found — check command
+    name'
+  delalias_usage: '❌ Usage: `{prefix}delalias alias`'
+  delalias_done: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> unalias:
+    <code>{prefix}{alias}</code> — done'
+  delalias_not_found: "❌ ENOENT: alias <code>{alias}</code> not found"
+  aliases_empty: "📋 alias: no aliases defined"
+  2fa_enabled: 🔐 2FA <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji>
+    enabled (PAM inline confirmation)
+  2fa_disabled: 🔐 2FA ❌ disabled
+  powersave_enabled: 🔋 enabled
+  powersave_disabled: ⚡ disabled
+  powersave_features: '
+
+    • journald: disabled
+
+    • healthcheck: 3× less frequent
+
+    • nice +10 (reduced priority)'
+  lang_usage: '❌ Usage: {prefix}lang [ru/en]'
+  lang_available: '❌ locale-gen: available locales: {langs}'
+  lang_changed: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> locale-gen: locale
+    set to: {lang}'
+  inline_error: '❌ [STDERR]: {error}'
+  settings_title: ⚙️ "cat /etc/mcubd.conf"
+  prefix_reset: <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> "unset PREFIX — reset
+    to <code>.</code>"
+  aliases_cleared: <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> "unalias -a — aliases cleared"
+  api_enabled: <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> enabled
+  api_disabled: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> disabled
+  mcubinfo_error: '🌩️ <b>[STDERR] — check /var/log/mcub.log</b>
+
+    Full log: <pre>{e}<pre>'
+  powersave_status: 🔋 "nice {status}{features}"
+  select_language: '<tg-emoji emoji-id="5472164874886846699">✨</tg-emoji> locale-gen: select locale'
+  btn_ru: 🇷🇺 ru_RU.UTF-8
+  btn_en: 🇬🇧 en_US.UTF-8
+  settings_inline_title: ⚙️ /etc/mcubd.conf
+  piped_usage: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Usage: {prefix}piped [on/off]'
+  piped_on: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Pipeline <b>enabled</b>
+
+    <blockquote>Commands execute sequentially via |</blockquote>'
+  piped_off: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Pipeline <b>disabled</b>
+
+    <blockquote>Normal mode</blockquote>'
+  settings_inline_description: "cat /etc/mcubd.conf — daemon settings"
+  btn_reset_prefix: "unset PREFIX"
+  btn_reset_alias: "unalias -a"
+  btn_api_protection: '{status} iptables'
+  btn_powersave: '{status} nice'
+  btn_2fa: '{status} PAM 2fa'
+  btn_mcubinfo: uname -a
+  btn_kernel_version: 'uname -r: {version}'
+  api_protection_status: "iptables: {status}"
+  2fa_status: "PAM 2FA: {status}"
+  danger_inline_not_set: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> "ENOENT: inline bot not configured
+
+    PAM confirmation unavailable"'
+  btn_confirm: "[  OK  ] Confirm"
+  btn_cancel: "^C Cancel"
+  cleardb_confirm: '⚠️ <b>rm -f /var/db/mcub.db?</b>
+
+    <blockquote>This will permanently delete the database file.</blockquote>'
+  cleardb_done: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> "rm -f <code>{path}</code> — done"'
+  cleardb_missing: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> "ENOENT: <code>{path}</code> already missing"'
+  cleardb_error: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> "EACCES: rm -f failed: <code>{error}</code>"'
+  clearmodules_confirm: '⚠️ <b>rm -rf /usr/lib/mcub/packages/*?</b>
+
+    <blockquote>All files from <code>{path}</code> will be removed.</blockquote>'
+  clearmodules_done: '<tg-emoji emoji-id="5472164874886846699">✨</tg-emoji> "rm -rf: removed <code>{count}</code> packages"'
+  clearmodules_missing: '<tg-emoji emoji-id="5472164874886846699">✨</tg-emoji> ENOENT: <code>{path}</code> already empty or missing'
+  clearmodules_error: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> "EACCES: rm -rf failed: <code>{error}</code>"'
+  clearcache_confirm: '⚠️ <b>sync && echo 3 > /proc/sys/vm/drop_caches?</b>
+
+    <blockquote>Kernel and packages may store data in cache. After drop,
+    part of the data will be recreated.</blockquote>'
+  clearcache_done: '<tg-emoji emoji-id="5472164874886846699">✨</tg-emoji> sync && drop_caches — done'
+  clearcache_error: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> "EPERM: drop_caches failed: <code>{error}</code>"'
+  danger_cancelled: '<tg-emoji emoji-id="5453892731094973831">❄️</tg-emoji> ^C — SIGINT: action cancelled'
+  mcubinfo_html: '<tg-emoji emoji-id="5472164874886846699">✨</tg-emoji> <b>What is a userbot?</b>
+
+    <blockquote expandable>This is a program that works through your personal Telegram
+    account using the client API. Unlike regular bots (<code>Bot API</code>), a userbot
+    has access to all the functions of a regular user - can send messages, manage
+    groups, automate actions and much more.</blockquote>
+
+
+    <tg-emoji emoji-id="5435957248314579621">⭐️</tg-emoji> <b>Advantages:</b> <blockquote expandable><tg-emoji emoji-id="5226945370684140473">➕</tg-emoji> <b>Full automation</b> - can set up
+    auto-replies, chat monitoring, channel and group management
+
+    <tg-emoji emoji-id="5226945370684140473">➕</tg-emoji> <b>Unlimited capabilities</b> - access to all Telegram features, including those
+    unavailable to regular bots
+
+    <tg-emoji emoji-id="5226945370684140473">➕</tg-emoji> <b>Flexibility and customization</b> - can write custom code for any tasks
+
+    <tg-emoji emoji-id="5226945370684140473">➕</tg-emoji> <b>Direct connection</b> - work directly with Telegram servers without unnecessary
+    intermediate layers.</blockquote>
+
+
+    <tg-emoji emoji-id="5471950641918121951">☃️</tg-emoji> <b>Main risks and disadvantages:</b>
+
+    <blockquote expandable><tg-emoji emoji-id="5229113891081956317">➖</tg-emoji> <b>Account blocking</b> - Telegram may block an account
+    for suspicious activity (spam, mass actions)
+
+    <tg-emoji emoji-id="5229113891081956317">➖</tg-emoji> <b>Lack of official support</b> - User API is not officially documented, may
+    be unstable
+
+    <tg-emoji emoji-id="5229113891081956317">➖</tg-emoji> <b>User responsibility</b> - the account owner is responsible for the bot''s
+    actions that violate Telegram rules
+
+    <tg-emoji emoji-id="5229113891081956317">➖</tg-emoji> <b>Risk to main account</b> - it is recommended to use a separate account for
+    the userbot</blockquote>'
+
+loader:
+  wait: '{wait} <b>[ .... ] Please wait...</b>'
+  reply_to_py: '{warning} <b>EINVAL: Reply to a .py file</b>'
+  not_py_file: '{warning} <b>EINVAL: Not a .py file</b>'
+  system_module_update_attempt: '{confused} <b>EPERM: Tried to update
+    a system package</b> <code>{module_name}</code>
+
+    <blockquote><i>{blocked} Cannot update system packages using
+    <code>loadera</code></i></blockquote>'
+  system_module_unload_attempt: '{confused} <b>EPERM: Tried to unload
+    a system package</b> <code>{module_name}</code>
+
+    <blockquote><i>{blocked} Cannot unload system packages</i></blockquote>'
+  starting_install: '{action} <b>packages</b>'
+  installing: '{test} <b>apt-get install</b>'
+  updating: '{reload} <b>apt-get upgrade</b>'
+  updating_version: '{reload} <b>apt-get install</b> <code>{old_version}</code> <b>→
+    </b><code>{new_version}</code>'
+  log_start: "=- Starting {action} package {module_name}"
+  log_filename: '=> filename: {filename}'
+  log_downloading: "=- curl -O {file_path}"
+  log_downloaded: "=> curl: exit 0"
+  log_file_read: "=> cat: exit 0"
+  log_checking_compatibility: "=- Checking package compatibility..."
+  log_incompatible: "=X EINVAL: Package incompatible (Heroku/Hikka type)"
+  log_compatible: "=> exit 0 — compatible"
+  log_getting_metadata: "dpkg --info: reading metadata..."
+  log_author: 'Maintainer: {author}'
+  log_version: 'Version: {version}'
+  log_description: 'Description: {description}'
+  log_checking_deps: "=- apt-get check: dependencies..."
+  log_deps_found: '=> Found deps: {deps}'
+  installing_deps: '{dependencies} <b>apt-get install dependencies:</b>
+
+    <blockquote expandable><code>{deps_list}</code></blockquote>'
+  log_installing_dep: '=- pip install {dep}'
+  log_dep_installed: "=> {dep}: exit 0"
+  log_dep_error: '=X EFAULT: pip install {dep}: {error}'
+  log_deps_installer_missing: '=X ENOSYS: dependency installer "{fallback}" missing, using fallback'
+  log_removing_old: "=- rm: removing old cmds for {module_name}"
+  log_loading_module: "=- dlopen({module_name})..."
+  log_module_loaded: "=> dlopen: exit 0"
+  log_commands_found: '=> cmds found: {count}'
+  module_loaded: '{success} <b>apt-get install</b> <code>{module_name}</code> <b>— done</b>
+    (<code>{version}</code>) {emoji}
+
+    <blockquote expandable>{idea} <b>Description:</b> {description}</blockquote>
+
+    <blockquote expandable>{commands_list}</blockquote>
+
+    <blockquote>{emoji_author} Maintainer: {author}</blockquote>
+
+    {source_link}'
+  module_loaded_no_cmds: '{success} <b>apt-get install</b> <code>{module_name}</code> <b>— done</b>
+    (<code>{version}</code>) {emoji}
+
+    <blockquote expandable>{idea} <b>Description:</b> {description}</blockquote>
+
+    <blockquote>{emoji_author} Maintainer: {author}</blockquote>
+
+    <blockquote>{source_link}</blockquote>'
+  placeholders_title: Custom placeholders
+  placeholders_block: "\n<blockquote expandable>🧩 <b>{title}:</b>\n<i>{placeholders}</i></blockquote>"
+  no_cmd_desc: '{no_cmd} "(no manpage for this cmd)"'
+  command_line: '{crystal} <code>{prefix}{cmd}</code> – <b>{desc}</b>'
+  aliases_text: ' (alias: {alias_text})'
+  log_aliases_found: 'alias {cmd}={aliases}'
+  log_install_error: '=X EFAULT: dlopen error: {error}'
+  install_failed: '<b>{blocked} apt-get install → exit 1</b>
+
+    <b>{idea} Install log:</b>
+
+    <pre>{log}</pre>'
+  log_conflict: '✗ EEXIST: command conflict: {error}'
+  conflict_system: '{shield} <b>EEXIST: System command conflict!</b>
+
+    <blockquote>Command <code>{prefix}{command}</code> already owned by system
+    package.</blockquote>
+
+    <b>Install log:</b>
+
+    <pre>{log}</pre>'
+  conflict_user: '{error} <b>EEXIST: Package command conflict!</b>
+
+    <blockquote>Command <code>{prefix}{command}</code> already owned by package
+    <code>{owner_module}</code>.</blockquote>
+
+    <b>Install log:</b>
+
+    <pre>{log}</pre>'
+  log_critical: '=X Kernel panic: {error}'
+  log_traceback: 'dmesg:
+
+    {traceback}'
+  dlm_usage: '{warning} <b>Usage:</b> <code>{prefix}dlm [-send/-s/-list] module_name
+    or URL</code>'
+  dlm_list_loading: '{loading} <b>[ .... ] apt-cache search...</b>'
+  dlm_list_title: '{folder} <b>dpkg -l — packages from repositories:</b>
+
+    <blockquote expandable>{list}</blockquote>'
+  dlm_list_errors: '
+
+
+    {warning} <b>[STDERR]:</b>
+
+    <blockquote expandable>{errors}</blockquote>'
+  dlm_list_failed: '{warning} <b>EFAULT: apt-cache search failed</b>'
+  dlm_searching: '{loading} <b>[ .... ] apt-cache search {module_name}...</b>'
+  module_info: '{file} <b>Package:</b> <code>{module_name}</code>
+
+    {idea} <b>Description:</b> <i>{description}</i>
+
+    {crystal} <b>Version:</b> <code>{version}</code>
+
+    {angel} <b>Maintainer:</b> <i>{author}</i>
+
+    {folder} <b>Size:</b> <code>{size} bytes</code>
+
+    {cloud} <b>Repo:</b> <code>{repo}</code>'
+  module_not_found: '{warning} <b>ENOENT: {module_name} not found in any repository</b>'
+  dlm_send_usage: '{warning} <b>Usage:</b> <code>{prefix}dlm -send module_name or
+    URL</code>'
+  system_module_install_attempt: '{confused} <b>EPERM: Tried to install
+    a system package</b> <code>{module_name}</code>
+
+    <blockquote><i>{blocked} System packages cannot be installed via <code>dlm</code></i></blockquote>'
+  downloading_module: '{download} wget'
+  log_mode: '=+ mode: {mode}'
+  log_type: '=+ type: {type}'
+  log_download_url: '=- wget {url}'
+  log_download_success: '=> wget: exit 0 (HTTP {status})'
+  log_download_failed: '=X wget: exit 1 (HTTP {status})'
+  url_download_error: '{warning} <b>ENETDOWN: wget failed</b> (HTTP {status})'
+  log_download_exception: '=X wget: exception: {error}'
+  url_exception: '{warning} <b>ENETDOWN:</b> {error}'
+  log_checking_repos: "=- apt-cache: checking repos ({count} items)"
+  log_using_repo: '=- apt: using repo: {repo}'
+  log_found_in_repo: "=> apt: found in specified repo"
+  log_not_found_in_repo: "=X ENOENT: not found in specified repo"
+  log_checking_repo: '=- apt: checking repo {index}: {repo}'
+  log_repo_error: '=X EFAULT: repo {repo}: {error}'
+  module_not_found_repos: '{warning} <b>ENOENT:<code> {module_name} </code>not found
+    in repositories</b>'
+  log_saving_for_send: "=- tee: saving file for send"
+  sending_module: '{upload} <b>[ .... ] scp {module_name}...</b>'
+  file_sent_caption: '<blockquote expandable>{file} <b>Package:</b> <code>{module_name}.py</code>
+
+    {idea} <b>description:</b> <i>{description}</i>
+
+    {crystal} <b>version:</b> <code>{version}</code>
+
+    {angel} <b>maintainer:</b> <i>{author}</i>
+
+    {folder} <b>size:</b> <code>{size} bytes</code></blockquote>'
+  log_file_sent: "=> scp: exit 0 — rm tmp"
+  log_install_mode: "=- install mode — continuing..."
+  log_saving_file: '=- tee: {file_path}'
+  log_loading_to_kernel: "=- insmod: loading to kernel"
+  log_module_loaded_kernel: "=> insmod: exit 0"
+  conflict_system_alt: '{shield} <b>EEXIST: Package tried to overwrite a system
+    command</b> (<code>{command}</code>)
+
+    <blockquote><i>Not an error — <b>precaution</b></i></blockquote>
+
+    <b>Install log:</b>
+
+    <pre>{log}</pre>'
+  conflict_user_alt: '{error} <b>EEXIST: Package conflict</b> <i>(command overlap)</i>
+
+    <blockquote><i>See /var/log/mcub.log 🔭</i></blockquote>
+
+    <b>Install log:</b>
+
+    <pre>{log}</pre>'
+  log_deleting_due_conflict: "=> rm: removing package file (conflict)"
+  log_deleting_due_error: "=> rm: removing package file (error)"
+  um_usage: '{warning} <b>Usage:</b> <code>{prefix}um module_name</code>'
+  module_not_found_um: '{warning} <b>ENOENT: {module_name} not found</b>'
+  module_unloaded: '{success} <b>rmmod: {module_name} — done</b>'
+  unlm_usage: '{warning} <b>Usage:</b> <code>{prefix}unlm module_name</code>'
+  module_file_not_found: '{warning} <b>ENOENT: Package file not found</b>'
+  uploading_module: '{upload} <b>[ .... ] scp {module_name}...</b>'
+  file_upload_caption: '{file} <b>Package:</b> {module_name}.py
+
+
+    <blockquote><code>{prefix}im</code> to install</blockquote>
+
+    {source_link}'
+  reload_usage: '{warning} <b>Usage:</b> <code>{prefix}reload module_name</code>'
+  reloading: '{reload} <b>[ .... ] rmmod && insmod <code>{module_name}</code>...</b>'
+  reload_success: '{success} <b>insmod: {module_name} — done</b> {emoji}
+
+
+    <blockquote expandable>{cmd_text}</blockquote>'
+  no_commands: "(no commands)"
+  reload_error: '{warning} <b>[STDERR] — see /var/log/mcub.log</b>'
+  no_modules: '{folder} <b>dpkg -l: no packages loaded</b>'
+  loaded_modules: '{crystal} <b>dpkg -l — loaded packages:</b>
+
+
+    '
+  system_modules: '{shield} <b>System packages:</b>
+
+
+    '
+  user_modules: '{sparkle} <b>User packages:</b>
+
+
+    '
+  module_line: '• <b>{name}</b> <i>({count} cmds)</i>
+
+
+    '
+  addrepo_usage: '{warning} <b>Usage:</b> <code>{prefix}addrepo URL</code>'
+  delrepo_usage: '{warning} <b>Usage:</b> <code>{prefix}delrepo index</code>'
+  catalog_title: '<b>🌩️ Official MCUB Repository</b> <code>{repo_url}</code>
+
+
+    '
+  catalog_custom: '<i>{repo_name}</i> <code>{repo_url}</code>
+
+
+    '
+  no_modules_catalog: "📭 apt-cache: no packages"
+  catalog_page: <tg-emoji emoji-id="5453892731094973831">❄️</tg-emoji> pg {page}/{total_pages}
+  catalog_error: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> "EFAULT: apt-cache failed: {error}"'
+  dlm_repo_choice_title: '{cloud} <b>EEXIST: Package</b> <code>{module_name}</code> <b>found
+    in multiple repos</b>
+
+    <blockquote>Choose where to {action}</blockquote>'
+  dlm_repo_choice_action_install: "apt-get install"
+  dlm_repo_choice_action_send: "wget"
+  dlm_repo_choice_repo: '{index}. {repo_name}'
+  dlm_repo_choice_expired: '🗿 ETIMEDOUT: repo selection expired'
+  dlm_repo_choice_cancel: "^C Cancel"
+  dlm_repo_choice_cancelled: "^C — selection cancelled"
+  btn_back: cd ..
+  btn_next: cd ./next
+  modules_not_mcub: '{warning} EINVAL: Package is not {mcub} type [Heroku/Hikka]'
+  log_hikka_detected: "=+ Hikka/Heroku package detected — loading via compat layer"
+  hikka_no_compat: '{warning} <b>ENOENT: compat layer not found.</b>'
+  hikka_disabled: '{warning} <b>EPERM: Hikka/Heroku packages disabled via
+    loader config (loader_allow_hikka_modules).</b>'
+  reload_all: '{reload} <b>[ .... ] rmmod && insmod all packages...</b>'
+  reload_all_success: '{success} <b>insmod: all packages reloaded!</b>
+
+    <blockquote>{count}</blockquote>'
+  reload_all_success_one: '{success} <b>insmod: all packages reloaded!</b>
+
+    {count} (<code>{name}</code>)'
+  reload_all_failed: '{warning} <b>EFAULT: failed to reload {count} package(s):</b>
+
+    <blockquote expandable>{failed_list}</blockquote>'
+  reload_all_partial: '{success} <b>insmod: packages reloaded!</b>
+
+    {success_count}
+
+    {warning} <b>[STDERR]: {failed_count} failed</b>
+
+    <blockquote expandable>{failed_list}</blockquote>'
+  failed_module: '• <code>{name}</code>
+
+
+    '
+  and_more: • <code>+{count} more</code>
+
+log_bot:
+  git_timeout: '<tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> "git: ETIMEDOUT (no network)"'
+  updates_available: "🔄 apt: {count} updates available"
+  up_to_date: "[  OK  ] Already up to date"
+  git_error: '<tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> git: exit 1'
+  setup_log_group: "🤖 [ .... ] Setting up journald group"
+  searching_logs: "grep: error searching /var/log/mcub.log"
+  creating_log_group: "📝 [ .... ] Creating log group..."
+  bot_prepare_error: "EFAULT: Failed to prepare mcubd for adding"
+  chat_id_error: "❌ ENOENT: Failed to get created chat ID"
+  avatar_error: '<tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> EACCES: Failed to set avatar'
+  invite_error: '<tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> EPERM: Failed to get invite link'
+  bot_added: "[  OK  ] mcubd added"
+  bot_add_error: '<tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> EFAULT: Failed to add mcubd after creation'
+  chat_create_error: "❌ EFAULT: Chat creation error"
+  log_setup_title: "[ .... ] Setting up journald group..."
+  log_setup_success: "[  OK  ] journald group configured"
+  log_setup_fail: "[FAILED] Failed to configure"
+  test_title: "[ .... ] Testing log pipe..."
+  test_bot_available: "mcubd: active (running)"
+  test_bot_not_available: "mcubd: inactive (dead)"
+  test_bot_auth: "mcubd: authorized"
+  test_bot_not_auth: "mcubd: not authorized"
+  test_log_chat_id: "journald chat ID"
+  test_not_set: "not set"
+  test_time: "time"
+  test_success: "[  OK  ] Test message sent"
+  test_fail: "[FAILED] Failed to send"
+  test_error: "[STDERR] Test error"
+  log_status_on: "[  OK  ] enabled"
+  log_status_off: "[  --  ] disabled"
+  log_not_configured: "not configured"
+  bot_running: "[  OK  ] running"
+  bot_not_running: "[FAILED] not running"
+  errors_sent: "[  OK  ] sent"
+  errors_not_sent: "[FAILED] not sent"
+  log_status_title: "journald status"
+  log_group: "log group"
+  bot_sending: "pipe → mcubd"
+  errors: "[STDERR]"
+  startup_via_bot: "[  OK  ] Startup message via mcubd"
+  startup_via_userbot: "⚠️ Startup message via userbot"
+  startup_error: "[FAILED] send error"
+  send_log_error: "[FAILED] EPIPE: failed to send to log"
+  started: "started! PID ready"
+  update_status: "apt status"
+  prefix: "PREFIX"
+  new_commits_header: '<tg-emoji emoji-id="5465300082628763143">💬</tg-emoji> <b>git log: {count}
+    new commits on</b> <code>{branch}</code>'
+  new_commits_btn: 🔄 git pull && make
+  update_running: '<tg-emoji emoji-id="5326015457155620929">📦</tg-emoji> <b>[ .... ] apt-get upgrade...</b>'
+  update_done: '<tg-emoji emoji-id="5404733115245562664">🔋</tg-emoji> "HEAD → <code>{sha}</code>"
+
+    <blockquote><tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> systemctl restart</blockquote>'
+  update_error: '"[FAILED] apt error: <code>{error}</code>"'
+  update_no_log: "⚠️ journald not configured — update notifications unavailable"
+  and_more_commits: '... and {} more commits'
+  banner_load: '<tg-emoji emoji-id="5326015457155620929">😐</tg-emoji> <b>[ .... ] Loading banner...</b>'
+  version: '<tg-emoji emoji-id="5472164874886846699">✨</tg-emoji> <b>dpkg -l | grep:</b> <code>{version}</code> (<code>{name}</code>)'
+
+userbot_backup:
+  creating_backup: '<tg-emoji emoji-id="5426958067763804056">⏳</tg-emoji> <i>"[ .... ] tar czf backup.tar.gz..."</i>'
+  backup_created: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <b>"tar: exit 0 — backup created"</b>'
+  backup_failed: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <i><b>"tar: exit 1 — backup failed"</b></i>'
+  reply_to_backup: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <u>"EINVAL: Reply
+    to a backup message"</u>'
+  not_backup_file: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <u>"EINVAL: Not
+    a backup archive"</u>'
+  restoring: '<tg-emoji emoji-id="5426958067763804056">⏳</tg-emoji> <i>"[ .... ] tar xzf backup.tar.gz..."</i>'
+  restored: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> "tar xzf: exit 0 —"'
+  no_files: '<tg-emoji emoji-id="5409235172979672859">⚠️</tg-emoji> <u>"ENOENT: No files
+    to restore"</u>'
+  restore_error: '"[STDERR] tar: exit 1:"'
+  chat_id: 'Chat ID:'
+  interval: 'cron interval:'
+  auto_backup: 'cron: auto backup:'
+  last_backup: 'last tar czf:'
+  total_backups: 'du -sh backups:'
+  commands: 'cmds:'
+  set_interval: "crontab -e: set backup interval"
+  enable_disable: "systemctl enable/disable mcub-backup"
+  set_chat: "tee /etc/mcub-backup.conf"
+  interval_set: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> crontab: interval set
+    to {hours}h'
+  interval_invalid: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> ERANGE: interval
+    must be 1..168h'
+  backup_settings: '<tg-emoji emoji-id="5332654441508119011">⚙️</tg-emoji> cat /etc/mcub-backup.conf'
+  auto_enabled: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> [  OK  ] mcub-backup.service: enabled'
+  auto_disabled: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> [  OK  ] mcub-backup.service: disabled'
+  chat_set: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> tee: backup chat → {chat_id}'
+  check_pm: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Check your PM with
+    mcubd'
+  bot_not_available: '<tg-emoji emoji-id="5409235172979672859">⚠️</tg-emoji> ECONNREFUSED: mcubd not
+    available. Start a chat with mcubd first.'
+  cant_send_pm: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> EPIPE: Cannot send
+    PM. Start a chat with mcubd first.'
+  invalid_chat_id: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> EINVAL: Invalid chat
+    ID'
+  unknown_command: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> bash: command not found'
+  select_interval: '<tg-emoji emoji-id="5326015457155620929">🧳</tg-emoji> "crontab -e: select
+    interval:"'
+  processing: "[ .... ] Processing..."
+  group_created: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> [ ✓ ] Backup group
+    created'
+  tip_restore: 'hint: {prefix}restore → tar xzf'
+  btn_restore: 🔄 tar xzf
+  btn_1_hour: 1h
+  btn_6_hours: 6h
+  btn_12_hours: 12h
+  btn_24_hours: 24h
+  not_set: "(not set)"
+  hours: "h"
+  enabled: "active (running)"
+  disabled: "inactive (dead)"
+  invalid_interval: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> ERANGE: invalid
+    interval'
+  error_processing: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> [STDERR] processing'
+  encrypted_note: '<blockquote><tg-emoji emoji-id="5447644880824181073">🔐</tg-emoji>
+    "gpg: encrypted"</blockquote>'
+  wrong_password: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> gpg: EINVAL: wrong passphrase or corrupted archive'
+  hash_ok: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> sha256sum: OK —
+    file intact'
+  hash_mismatch: '<blockquote><tg-emoji emoji-id="5388785832956016892">❌</tg-emoji>
+    "sha256sum: MISMATCH — file corrupted!"</blockquote>'
+  hash_unknown: '<tg-emoji emoji-id="5409235172979672859">⚠️</tg-emoji> sha256sum: not
+    found in .sig'
+  cloud_ok: '<tg-emoji emoji-id="5359954476607521990">☁️</tg-emoji> "{provider}: rsync exit 0"'
+  cloud_fail: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> "{provider}: rsync exit 1"'
+  cleanup_done: '<tg-emoji emoji-id="5380186498827373381">🗑️</tg-emoji> "rm -rf: {count} old backups removed"'
+  no_backups_found: '<tg-emoji emoji-id="5409235172979672859">⚠️</tg-emoji> ENOENT: no backups
+    found in chat'
+  select_backup: '<tg-emoji emoji-id="5411192149058289173">☁️</tg-emoji> <b>"ls backups/ — select
+    backup to restore:"</b>'
+  delayed_scheduled: '<tg-emoji emoji-id="5326015457155620929">🧳</tg-emoji> cron: tar czf scheduled at <b>{time}</b>'
+  invalid_time: '"EINVAL: invalid time format. Example: 30m, 2h, 90s"'
+  unknown_arg: '"EINVAL: unknown argument.
+    Available: config, db, modules, in <time>, cleanup"'
+  low_disk: '"ENOSPC: low disk space:
+    need ~{needed}MB, free {free}MB"'
+  encrypted_restore: '"gpg: archive encrypted. Provide passphrase: <code>{prefix}restore_with &lt;password&gt;</code>"'
+  restore_with_usage: '"EINVAL: Usage:
+    <code>{prefix}restore_with &lt;password&gt;</code>"'
+
+tester:
+  error_logs: "{snowflake} <b>[STDERR] — see /var/log/mcub.log</b>"
+  logs_not_found: "{file} ENOENT: /var/log/kernel.log not found"
+  logs_sending: "{printer} [ .... ] cat /var/log/kernel.log | pipe..."
+  freezing_usage: "{speech} Usage: {prefix}freezing [seconds]"
+  freezing_range: "{speech} ERANGE: specify 1..60 seconds"
+  freezing_number: "{speech} EINVAL: specify number of seconds"
+  freezing_start: "{snowflake} kill -SIGSTOP mcubd for {seconds}s..."
+  freezing_done: "{check} kill -SIGCONT — unfrozen after {seconds}s"
+  custom_text_error: "<b>[STDERR] custom text format: {error}</b>"
+  logs: "/var/log/mcub.log"
+  kernel_version: "uname -r"
+  ping: "ping -c1"
+  uptime: "uptime"
+  ms: ms
+  hours: h
+  minutes: m
+  seconds: s
+  branch: "git branch"
+  logs_not_fount_args: "<b>Available args:</b> <code>clear</code>, <code>debug</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code>, <code>all</code>"
+  logs_clear: "<b>truncate -s0 /var/log/kernel.log — done</b>"
+  file_empty: "<b>ENODATA: /var/log/kernel.log is empty</b>"
+  logs_level_invalid: "<b>EINVAL: Available levels:</b> <code>debug</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code>, <code>all</code>"
+  logs_choose_level: "{paper} <b>journalctl -p: choose log level</b>"
+  logs_choose_desc: "Send only selected records from <code>/var/log/kernel.log</code>."
+  logs_level_warning: "{snowflake} <b>⚠️ Warning</b>
+
+  <blockquote>Logs with level <code>{level}</code> may contain tokens, UIDs, message text, and other sensitive data.</blockquote>
+
+  <b>pipe anyway?</b>"
+  logs_send_cancelled: "{snowflake} <b>^C — log pipe cancelled</b>"
+  logs_level_caption: '{logs_title} <b>{logs}</b> {mcub}
+
+  <blockquote>{pen} <b>{kernel_version}</b> {version}#<a href="{commit_url}">{commit_sha}</a>
+
+  {satellite} <b>{branch_label}:</b> {branch}
+
+  {printer} <b>-p:</b> <code>{level}</code></blockquote>'
+
+mcub_info:
+  custom_text_error: "<b>[STDERR] custom text format: {error}</b>"
+  error_see_logs: "{warning} <b>[STDERR] — tail -f /var/log/mcub.log</b>"
+
+trusted:
+  not_owner: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "EPERM: root only"'
+  usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.trust</code> / <code>.untrust</code> (reply, @username or UID)'
+  trust_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>usermod -aG sudoers — done.</b>'
+  trust_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>deluser from sudoers — done.</b>'
+  trust_already: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> <i>"EEXIST: User is already in sudoers."</i>'
+  trust_not_in_list: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "ENOENT: User is not in sudoers."'
+  trustlist_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "cat /etc/sudoers: empty"'
+  trustlist_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>cat /etc/sudoers:</b>'
+  ownerprefix_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.ownerprefix</code> [uid/@username] or reply'
+  ownerprefix_list_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>sudoers prefix map:</b>'
+  ownerprefix_list_item: '• {user} (<code>{user_id}</code>) — <code>{prefix}</code> <em>({source})</em>'
+  ownerprefix_one: '🔎 <b>prefix lookup:</b> {user} (<code>{user_id}</code>)\n• <b>prefix:</b> <code>{prefix}</code>\n• <b>source:</b> <em>{source}</em>'
+  ownerprefix_source_personal: user-local
+  ownerprefix_source_fallback: root fallback
+  btn_cancel: "^C Cancel"
+  nonick_step_title: '<tg-emoji emoji-id="5332723564711804828">✨</tg-emoji> <b>Enable NoNick for {name}?</b>'
+  nonick_step_desc: "With <b>NoNick</b> enabled, the user will be able to exec commands like <code>{prefix}command</code>.\nWithout it: <code>{prefix}command@{alias}</code>."
+  nonick_step_desc_no_alias: "With <b>NoNick</b> enabled the user can exec commands without suffix.\nWithout it they must include the owner's <code>@username</code> suffix."
+  btn_nonick_yes: "--nonick"
+  btn_nonick_no: "--no-nonick"
+  nonick_toggled_on: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> "--nonick enabled" for {name}.'
+  nonick_toggled_off: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> "--nonick disabled" for {name}.'
+  nonick_list_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "ENOENT: no sudoers with NoNick."'
+  nonick_list_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>grep --nonick /etc/sudoers:</b>'
+  nonick_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.nonickuser</code> (reply, @username or UID)'
+  watchers_title: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Active inotifywait watchers:</b>'
+  watchers_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "inotifywait: no active watchers."'
+  watchers_debug_title: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>inotifywait --debug:</b>'
+  watchers_debug_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "inotifywait: no watchers matched."'
+  watcher_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.watcher module watcher</code>'
+  watcher_disabled: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>inotifywait: disabled:</b> <code>{module}.{watcher}</code>'
+  watcher_enabled: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>inotifywait: enabled:</b> <code>{module}.{watcher}</code>'
+  watcher_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "ENOENT: watcher not found: <code>{module}.{watcher}</code>"'
+  trustaccess_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.trustaccess</code> (reply or @username or UID)'
+  trustaccess_footer: "<em>If access is off, mcubd will pipe the command to /dev/null.</em>"
+  trustaccess_title: "🔐 <b>ACL for {user}</b>"
+  btn_close: 🙈 exit 0
+  btn_allow_all: "chmod +x all"
+  btn_deny_all: "chmod -x all"
+  access_allowed: "allowed"
+  access_denied: "denied"
+  access_allowed_group: "allowed (group ACL)"
+  trustcmd_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>visudo: per-command ACL for sudoers</b>\n\n<code>.trustcmd @username +py</code> - chmod +x py\n<code>.trustcmd @username -py</code> - chmod -x py\n<code>.trustcmd @username list</code> - show ACL\n\n<i>Requires user to be in /etc/sudoers</i>'
+  trustcmd_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> "chmod +x <code>{cmd}</code> for {user} — done."'
+  trustcmd_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> "chmod -x <code>{cmd}</code> for {user} — done."'
+  trustcmd_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "ENOENT: cmd <code>{cmd}</code> not found."'
+  trustcmd_list_title: "🔐 <b>ACL for {user}:</b>"
+  trustcmd_list_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "visudo: no specific ACL set."'
+  percmd_title: "🔐 <b>ACL cmds for {user}</b>"
+  percmd_back: "← cd .."
+  btn_cmds: "📋 ls /cmds"
+  trust_time_title: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Add user with TTL?</b>'
+  trust_time_desc: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> "cron: deluser from sudoers after {time}."'
+  btn_1h: 1h
+  btn_24h: 24h
+  btn_7d: 7d
+  btn_permanent: "--permanent"
+  trust_added_timed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>"cron: user added to sudoers for {time}."</b>'
+  trust_expired: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "cron: TTL expired for <b>{user}</b>."'
+  timed_trusted_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>cron: temporary sudoers:</b>'
+  timed_trusted_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "cron: no temporary sudoers."'
+  trust_expiring: " (TTL: {time})"
+  sgroup_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>groupadd: security groups (ACL groups)</b>\n\n<b>cmds:</b>\n<code>.sgroup create mygroup</code> - groupadd mygroup\n<code>.sgroup delete mygroup</code> - groupdel mygroup\n<code>.sgroup add mygroup @user</code> - usermod -aG mygroup\n<code>.sgroup remove mygroup @user</code> - deluser from mygroup\n<code>.sgroup access mygroup</code> - edit group ACL (inline)\n<code>.sgroup list</code> - cat /etc/group\n<code>.sgroup info mygroup</code> - getent group mygroup\n\n<i>Groups allow managing ACL for multiple UIDs at once</i>'
+  sgroup_created: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> "groupadd {name} — done."'
+  sgroup_deleted: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> "groupdel {name} — done."'
+  sgroup_already_exists: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "EEXIST: group <b>{name}</b> already exists."'
+  sgroup_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "ENOENT: group <b>{name}</b> not found."'
+  sgroup_user_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> "usermod -aG {group}: <b>{user}</b> added."'
+  sgroup_user_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> "deluser {user} from {group} — done."'
+  sgroup_user_in_group: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "EEXIST: user is already in this group."'
+  sgroup_user_not_in_group: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "ENOENT: user is not in this group."'
+  sgroup_list_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>cat /etc/group:</b>'
+  sgroup_list_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "cat /etc/group: empty"'
+  sgroup_info_users_empty: "(no users)"
+  sgroup_info_access_empty: "(no ACL)"
+  sgroup_menu_title: "<b>groupmod: {name}</b>"
+  sgroup_btn_add_user: "usermod -aG"
+  sgroup_btn_remove_user: "deluser"
+  sgroup_btn_access: "chmod"
+  sgroup_btn_delete: "groupdel"
+  sgroup_confirm_delete: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> "groupdel <b>{name}</b>? [y/N]"'
+  btn_confirm_delete: "-y delete"
+
+access_categories:
+  modules:
+    label: Packages
+    desc: "rmmod, cleanup and dpkg -l"
+  loader:
+    label: "apt-get"
+    desc: "install packages from files, URLs and repos"
+  config:
+    label: "/etc/mcub.conf"
+    desc: "daemon settings and sysctl parameters"
+  backup:
+    label: "tar czf"
+    desc: "database and packages backup"
+  terminal:
+    label: "bash"
+    desc: "raw shell access on host"
+  eval:
+    label: "exec / eval"
+    desc: "eval and arbitrary code execution"
+  security:
+    label: "sudo / ACL"
+    desc: "root, visudo, chmod and ACL"
+  system:
+    label: "systemctl"
+    desc: "update, restart and system maintenance"
+  inline:
+    label: "Inline"
+    desc: "use inline cmds and mcubd"
+  callback:
+    label: "Callback"
+    desc: "press callback buttons"
+
+presets:
+  user:
+    label: 👤 User
+  programmer:
+    label: 💻 root
+  moderator:
+    label: 🛡 sudo
+
+config:
+  config_menu_text: "{menu_emoji} <b>vim /etc/mcubd.conf</b>\nChoose section:"
+  btn_kernel_config: 🪄 Kernel Config
+  btn_modules_config: 🚂 Packages Config
+  kernel_config_title: "{pencil} <b>Kernel Config</b>\n{page_emoji} pg <b>{page}/{total_pages}</b> ({total_keys} keys)"
+  modules_config_title: "{puzzle} <b>Packages Config</b>\n{page_emoji} pg <b>{page}/{total_pages}</b> ({total_modules} packages)"
+  module_config_title: "{puzzle} <b>Package:</b> <code>{module_name}</code>\n{page_emoji} pg <b>{page}/{total_pages}</b> ({total_items} keys)"
+  key_view: "{note} <b>{key}</b> ({type_emoji} {value_type})\n{display_value}"
+  btn_back: "⬅️"
+  btn_next: "➡️"
+  btn_menu: 🔙 Menu
+  btn_modules: 🔙 Packages
+  btn_back_simple: 🔙 cd ..
+  expired: "❌ ETIMEDOUT: TTL=0"
+  invalid_type: "❌ EINVAL: Invalid config type"
+  not_found: "❌ ENOKEY: No such key"
+  no_config: "❌ ENOENT: Package has no config"
+  no_default: "❌ ENODATA: No default value"
+  not_module_config: "❌ EINVAL: Not a ModuleConfig"
+  not_boolean: "❌ EINVAL: Not boolean"
+  btn_reset_default: ♻️ "git checkout -- key"
+  reset_success: "♻️ git checkout -- done"
+  changed_to: "✅ sysctl {value}"
+  error: "❌ [STDERR]: {error}"
+  cfg_usage: "{gear} <b>vim /etc/mcubd.conf</b>: inline or <code>.cfg [key]</code> or <code>.cfg [now/hide/unhide] [key]</code>"
+  hidden_key: "{briefcase} <b>hidden</b>: <code>{key}</code>"
+  key_not_found: "{ballot} <b>ENOKEY</b>: <code>{key}</code>"
+  system_key: "{paperclip} <b>System key (protected)</b>"
+  visible_key: "{book} <b>visible</b>: <code>{key}</code>"
+  fcfg_usage: "{gear} <code>.fcfg [set/del/add/dict/list] -m [packages]</code>"
+  specify_module: "{cross} EINVAL: Specify package name after -m"
+  not_enough_args: "{cross} EINVAL: Not enough arguments"
+  protected_key: "{cross} <b>EPERM: Protected</b>"
+  set_success: "{check} <b>sysctl</b> <code>{key}</code>=<code>{value}</code>"
+  set_module_success: "{check} <b>sysctl</b> pkg <code>{module}</code> <code>{key}</code>=<code>{value}</code>"
+  delete_success: "{ballot} <b>unset</b> <code>{key}</code>"
+  delete_module_success: "{ballot} <b>unset</b> pkg <code>{module}</code> key <code>{key}</code>"
+  not_found_in_module: "{cross} ENOKEY: Not found in package config"
+  key_exists: "{cross} EEXIST: key exists"
+  add_success: "{check} <b>export</b> <code>{key}</code>"
+  add_module_success: "{check} <b>export</b> pkg <code>{module}</code> key <code>{key}</code>"
+  not_dict: "{cross} EINVAL: Key is not a dict"
+  dict_success: "{check} <b>dict</b> <code>{key}[{subkey}]</code> updated"
+  dict_module_success: "{check} <b>dict</b> pkg <code>{module}</code> <code>{key}[{subkey}]</code> updated"
+  not_list: "{cross} EINVAL: Key is not a list"
+  list_success: "{check} <b>push</b> → <code>{key}</code>"
+  list_module_success: "{check} <b>push</b> pkg <code>{module}</code> key <code>{key}</code>"
+  toggle_false: "❌ false"
+  toggle_true: "✅ true"
+  cfg_range_both: "ERANGE: value must be {min}..{max}"
+  cfg_range_min: "ERANGE: value cannot be less than {min}"
+  cfg_range_max: "ERANGE: value cannot exceed {max}"
+  cfg_len_both: "ERANGE: length must be {min}..{max} chars"
+  cfg_len_min: "ERANGE: length must be at least {min} chars"
+  cfg_len_max: "ERANGE: length must be no more than {max} chars"
+  cfg_type_bool: "EINVAL: value must be boolean (true/false)"
+  cfg_choices: "Available options"
+  cfg_placeholders_title: "Custom placeholders"
+  invalid_format: "❌ EINVAL: invalid format"
+  btn_edit: "✏️ vim"
+  btn_delete: "🗑️ rm"
+  btn_reveal: "👁️ cat"
+  btn_list_add: "📝 push"
+  btn_list_del: "🗑️ pop"
+  btn_list_set: "✏️ sed -i"
+  btn_dict_add: "🔑 dict[key]="
+  btn_dict_del: "🗑️ del dict[key]"
+  btn_dict_set: "✏️ dict[key]= (edit)"
+  fcfg_inline_usage: "Usage: fcfg set <key_id> <value> | fcfg list/dict <add/del/set> <key_id> [value] | fcfg package <pkg> ..."
+  fcfg_inline_only_set: "❌ EINVAL: Only set supported in inline mode"
+  fcfg_inline_no_module: "❌ EINVAL: Invalid package/key combination"
+  fcfg_inline_success: "✅ sysctl {key}={value}"
+  fcfg_inline_id_not_found: "❌ ENOKEY: Key ID not found or TTL=0"
+  fcfg_inline_protected: "❌ EPERM: This key is protected"
+  fcfg_confirm_title: "✅ Confirm value"
+  fcfg_confirm_text: "Value will be piped to /etc/mcubd.conf"
+  fcfg_confirm_success: "✅ sysctl {key}={value} — done"
+  fcfg_confirm_error: "❌ [STDERR]: error updating config: {error}"
+  fcfg_confirm_expired: "❌ ETIMEDOUT: Confirmation expired or already used"
+  key_deleted: "🗑️ unset — done"
+  value_inserted: "✅ Value inserted"
+  list_empty: "📭 []: list is empty"
+  dict_empty: "📭 {}: dict is empty"
+  list_add_confirm: "➕ push: {value}"
+  list_remove_confirm: "🗑️ pop [{index}]: {value}"
+  list_set_confirm: "✏️ list[{index}]: {old} → {new}"
+  dict_add_confirm: "🔑 dict[{key}] = {value}"
+  dict_remove_confirm: "🗑️ del dict[{key}]"
+  dict_set_confirm: "✏️ dict[{key}]: {old} → {new}"
+  operation_success: "✅ exit 0"
+  operation_failed: "❌ exit 1: {error}"
+  btn_close: "❌ exit 0"
+  kernel_config_title_short: "Kernel Config — pg {page}"
+  modules_config_title_short: "Packages Config — pg {page}"

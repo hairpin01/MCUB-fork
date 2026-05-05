@@ -43,6 +43,18 @@ from .platform import (
     is_wsl,
 )
 from .restart import restart_kernel
+from .custom_placeholders import (
+    config_placeholders,
+    format_placeholders,
+    get_placeholders,
+    list_placeholder_keys,
+    placeholders,
+    register_decorated_placeholders,
+    register_placeholder,
+    resolve_placeholders,
+    unregister_placeholder,
+    unregister_scope,
+)
 
 try:
     from .html_parser import parse_html, telegram_to_html
@@ -181,6 +193,16 @@ __all__.extend(
         "pipe_edit",
         "relocate_entities",
         "resolve_peer",
+        "placeholders",
+        "register_placeholder",
+        "register_decorated_placeholders",
+        "unregister_placeholder",
+        "unregister_scope",
+        "list_placeholder_keys",
+        "format_placeholders",
+        "config_placeholders",
+        "get_placeholders",
+        "resolve_placeholders",
     ]
 )
 

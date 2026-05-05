@@ -18,6 +18,7 @@ from telethon.tl.types import (
 
 from core.lib.loader.module_base import ModuleBase, command, inline
 from core.lib.loader.module_config import Boolean, ConfigValue, ModuleConfig, String
+import utils
 
 CUSTOM_EMOJI = {
     "crystal": '<tg-emoji emoji-id="5361837567463399422">🔮</tg-emoji>',
@@ -158,11 +159,7 @@ class ManModule(ModuleBase):
         return f"{self.kernel.MODULES_LOADED_DIR}/{name}.py"
 
     async def _load_module_metadata(self, name: str, typ: str) -> dict:
-        file_path = self._resolve_module_path(name, typ)
-        s = self.strings
-        try:
-            mtime = os.path.getmtime(file_path)
-        except OSError:
+        def _fallback_metadata() -> dict:
             return {
                 "commands": {},
                 "description": s["no_description"],
@@ -171,6 +168,63 @@ class ManModule(ModuleBase):
                 "author": s["unknown"],
                 "banner_url": None,
             }
+
+        def _merge_runtime_metadata(metadata: dict) -> dict:
+            system_modules = getattr(self.kernel, "system_modules", {}) or {}
+            loaded_modules = getattr(self.kernel, "loaded_modules", {}) or {}
+            module_obj = (
+                system_modules.get(name)
+                if typ == "system"
+                else loaded_modules.get(name)
+            )
+            class_instance = getattr(module_obj, "_class_instance", None)
+            target = class_instance or module_obj
+            if target is None:
+                return metadata
+
+            if metadata.get("version") in (None, "", "?.?.?"):
+                runtime_version = getattr(target, "version", None)
+                if isinstance(runtime_version, str) and runtime_version.strip():
+                    metadata["version"] = runtime_version.strip()
+
+            author = metadata.get("author")
+            if (
+                not isinstance(author, str)
+                or not author.strip()
+                or author == s["unknown"]
+            ):
+                runtime_author = getattr(target, "author", None)
+                if isinstance(runtime_author, str) and runtime_author.strip():
+                    metadata["author"] = runtime_author.strip()
+
+            desc_i18n = metadata.get("description_i18n")
+            if not isinstance(desc_i18n, dict) or not desc_i18n:
+                runtime_desc = getattr(target, "description", None)
+                if isinstance(runtime_desc, dict):
+                    metadata["description_i18n"] = runtime_desc
+                    metadata["description"] = self.kernel._loader.pick_localized_text(
+                        runtime_desc,
+                        self.kernel.config.get("language", "ru"),
+                        s["no_description"],
+                    )
+                elif isinstance(runtime_desc, str) and runtime_desc.strip():
+                    metadata["description"] = runtime_desc.strip()
+
+            if not metadata.get("banner_url"):
+                for attr in ("banner_url", "banner", "image", "photo"):
+                    runtime_banner = getattr(target, attr, None)
+                    if isinstance(runtime_banner, str) and runtime_banner.strip():
+                        metadata["banner_url"] = runtime_banner.strip()
+                        break
+
+            return metadata
+
+        file_path = self._resolve_module_path(name, typ)
+        s = self.strings
+        try:
+            mtime = os.path.getmtime(file_path)
+        except OSError:
+            return _merge_runtime_metadata(_fallback_metadata())
 
         lock = _get_metadata_lock()
         async with lock:
@@ -183,14 +237,9 @@ class ManModule(ModuleBase):
                 code = f.read()
             metadata = await self.kernel.get_module_metadata(code)
         except Exception:
-            metadata = {
-                "commands": {},
-                "description": s["no_description"],
-                "description_i18n": {},
-                "version": "?.?.?",
-                "author": s["unknown"],
-                "banner_url": None,
-            }
+            metadata = _fallback_metadata()
+
+        metadata = _merge_runtime_metadata(metadata)
 
         async with lock:
             _METADATA_CACHE[file_path] = (mtime, metadata)
@@ -296,13 +345,15 @@ class ManModule(ModuleBase):
         msg += f"{CUSTOM_EMOJI['snowflake']} <b>{s['version']}:</b> <code>{metadata.get('version', '1.0.0')}</code>\n"
         msg += "<blockquote expandable>"
         if commands:
+            # Use list + join for O(n) instead of O(n²) string concatenation
+            cmd_lines = []
             for cmd in commands:
                 cmd_desc = (
                     descriptions.get(cmd)
                     or metadata.get("commands", {}).get(cmd)
                     or f"{CUSTOM_EMOJI['confused']} {s['no_description']}"
                 )
-                msg += f"{CUSTOM_EMOJI['tot']} <code>{self.kernel.custom_prefix}{cmd}</code> – <b>{cmd_desc}</b>"
+                line = f"{CUSTOM_EMOJI['tot']} <code>{self.kernel.custom_prefix}{cmd}</code> – <b>{cmd_desc}</b>"
 
                 if cmd in aliases_info:
                     aliases = aliases_info[cmd]
@@ -313,8 +364,9 @@ class ManModule(ModuleBase):
                             f"<code>{self.kernel.custom_prefix}{a}</code>"
                             for a in aliases
                         )
-                        msg += f" | {s['aliases']}: {alias_text}"
-                msg += "\n"
+                        line += f" | {s['aliases']}: {alias_text}"
+                cmd_lines.append(line)
+            msg += "\n".join(cmd_lines) + "\n"
         else:
             msg += f"{CUSTOM_EMOJI['blocked']} {s['no_commands']}\n"
         msg += "</blockquote>"
@@ -322,15 +374,28 @@ class ManModule(ModuleBase):
         inline_commands = self.kernel.get_module_inline_commands(name)
         if inline_commands:
             inline_emoji = '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
-            msg += "<blockquote expandable>"
+            # Use list + join for O(n) instead of O(n²) string concatenation
+            inline_lines = []
             for cmd, desc in inline_commands:
                 if desc:
-                    msg += f"{inline_emoji} <code>@{self.kernel.config.get('inline_bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>\n"
+                    inline_lines.append(
+                        f"{inline_emoji} <code>@{self.kernel.config.get('inline_bot_username', 'bot')} {cmd}</code> – <b>{desc}</b>"
+                    )
                 else:
-                    msg += f"{inline_emoji} <code>@{self.kernel.config.get('inline_bot_username', 'bot')} {cmd}</code>\n"
-            msg += "</blockquote>"
+                    inline_lines.append(
+                        f"{inline_emoji} <code>@{self.kernel.config.get('inline_bot_username', 'bot')} {cmd}</code>"
+                    )
+            msg += (
+                "<blockquote expandable>" + "\n".join(inline_lines) + "\n</blockquote>"
+            )
 
         msg += f"\n<blockquote>{CUSTOM_EMOJI['pancake']} <b>{s['author']}:</b> <i>{metadata.get('author', s['unknown'])}</i></blockquote>"
+        placeholder_docs = utils.config_placeholders(name)
+        if placeholder_docs:
+            msg += (
+                f"\n<blockquote expandable>{CUSTOM_EMOJI['map']} <b>{s['placeholders_title']}:</b>"
+                f"\n<i>{escape(placeholder_docs)}</i></blockquote>"
+            )
         if typ == "system":
             msg += f"\n<blockquote>{s['system_module_note']}</blockquote>"
         return msg, metadata.get("banner_url")

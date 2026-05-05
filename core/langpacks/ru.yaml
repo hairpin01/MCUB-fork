@@ -123,15 +123,21 @@ kernel:
   loading: но модули ещё загружаются...
   loaded: Твой <b>{mcub}</b> полностью загрузился!
   errors: Твой <b>{mcub}</b> <b>загрузился c ошибками</b> :(
-  rpc_error: <b>RPC error:</b> <code>{error}</code>
-  call_failed: <b>Call <code>{cmd}</code> failed due to RPC error:</b> <code>{rpc_msg}</code>
-  call_failed_traceback: '<b>Call <code>{cmd}</code> failed!</b>
+  rpc_error: <b>RPC Ошибка:</b> <code>{error}</code>
+  call_failed: <b>Вызов <code>{cmd</code> не выполнен из-за ошибки RPC:</b> <code>{rpc_msg</code>
+  call_failed_traceback: '<b>Вызов:<code> {cmd} </code>провалился!</b>
 
-    <b><i>Full log:</i></b>
+    <b><i>Полные логи:</i></b>
 
     <pre>{traceback}</pre>'
-  could_not_edit: 'Could not edit RPC error message: {error}'
-  full_log: <b><i>Full log:</i></b>
+  could_not_edit: 'Не удалось отредактировать сообщение об ошибке RPC: {error}'
+  full_log: <b><i>Полные логи:</i></b>
+  warning_not_allowed_inline: Инлайн-формы запрещены в этом чате.
+  open_inline_form_error: '<i><b>Не удалось открыть инлайн форму</b></i>
+
+  <blockquote>Ошибки:</blockquote>
+  <pre>{raw_tb}</pre>'
+  open_inline_form: <i><b>Открываю инлайн форму...</b></i>
 tr:
   loading: Перевожу...
   no_args: No args
@@ -190,6 +196,13 @@ utils_piped:
   json_parse_error: 'Ошибка парсинга JSON: {err}'
   json_saved: 'Сохранено: {names}'
   json_missing: 'Ключи не найдены: {keys}'
+  script_usage: '<b>Использование:</b> .script run <source>'
+  script_list_empty: Нет сохранённых скриптов.
+  script_deleted: 'Скрипт <code>{name}</code> удалён.'
+  script_not_found: 'Скрипт <code>{name}</code> не найден.'
+  script_saved: 'Скрипт <code>{name}</code> сохранён.'
+  script_running: '▶ Запуск скрипта <code>{name}</code>…'
+  script_empty: Скрипт пустой.
 api_protection:
   enabled: ✅ API защита включена
   disabled: ❌ API защита выключена
@@ -441,13 +454,16 @@ man:
   system_module_note: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>Это системный модуль, и его просто так нельзя выгрузить
     loader'ом</b>
   kernel_not_full_loaded: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>Ядро ещё не полностью загрузила все модули</b> (<code>{status}</code>)
+  placeholders_title: Кастомные плейсхолдеры
 settings:
-  prefix_usage: '❌ Использование: {prefix}setprefix [символ]'
+  prefix_usage: '❌ Использование: {prefix}setprefix [символ] [id/@username/reply]'
   prefix_one_char: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>Префикс должен быть ровно 1 символом</b>
   prefix_changed: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji><b> Префикс
     изменен на </b><code>{prefix}</code>, <b>чтобы вернуть, напишите:</b>
 
     <pre>{prefix}setprefix {prefix_old}</pre>'
+  prefix_target_invalid: ❌ <b>Неверно указана цель (овнер)</b>
+  prefix_owner_changed: ✅ <b>Префикс для</b> <code>{owner_id}</code> <b>изменён:</b> <code>{prefix_old}</code> → <code>{prefix}</code>
   alias_usage: '❌ Использование: `{prefix}addalias алиас = команда`'
   alias_created: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Алиас создан:
     <code>{prefix}{alias}</code> → <code>{prefix}{command}</code>'
@@ -602,6 +618,7 @@ loader:
   log_installing_dep: '=- Устанавливаю зависимость: {dep}'
   log_dep_installed: => Зависимость {dep} установлена успешно
   log_dep_error: '=X Ошибка установки {dep}: {error}'
+  log_deps_installer_missing: '=X Установщик зависимостей "{fallback}" недоступен, использую запасной способ'
   log_removing_old: =- Удаляю старые команды модуля {module_name}
   log_loading_module: =- Загружаю модуль {module_name}...
   log_module_loaded: => Модуль успешно загружен
@@ -624,6 +641,8 @@ loader:
     <blockquote>{emoji_author} Автор: {author}</blockquote>
 
     {source_link}'
+  placeholders_title: Кастомные плейсхолдеры
+  placeholders_block: "\n<blockquote expandable>🧩 <b>{title}:</b>\n<i>{placeholders}</i></blockquote>"
   no_cmd_desc: '{no_cmd} У команды нету описания'
   command_line: '{crystal} <code>{prefix}{cmd}</code> – <b>{desc}</b>'
   aliases_text: ' (Aliases: {alias_text})'
@@ -1026,10 +1045,20 @@ trusted:
   trust_not_in_list: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Пользователь не в списке доверенных.'
   trustlist_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Список доверенных пуст.'
   trustlist_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Доверенные пользователи:</b>'
+  ownerprefix_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Использование: <code>.ownerprefix</code> [id/@username] или реплай'
+  ownerprefix_list_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Овнеры и их префиксы:</b>'
+  ownerprefix_list_item: '• {user} (<code>{user_id}</code>) — <code>{prefix}</code> <em>({source})</em>'
+  ownerprefix_one: '🔎 <b>Префикс овнера:</b> {user} (<code>{user_id}</code>)\n• <b>Префикс:</b> <code>{prefix}</code>\n• <b>Источник:</b> <em>{source}</em>'
+  ownerprefix_source_personal: персональный
+  ownerprefix_source_fallback: fallback от админа
   btn_cancel: Отмена
   nonick_step_title: '<tg-emoji emoji-id="5332723564711804828">✨</tg-emoji> <b>Включить NoNick для {name}?</b>'
-  nonick_step_desc: "При включённом <b>NoNick</b> пользователь сможет выполнять команды просто как <code>{prefix}команда</code>.\nБез него нужно писать <code>{prefix}команда@{alias}</code>."
-  nonick_step_desc_no_alias: "При включённом <b>NoNick</b> пользователь сможет выполнять команды без суффикса.\nБез него нужно указывать <code>@username</code> владельца."
+  nonick_step_desc: |-
+                    При включённом <b>NoNick</b> пользователь сможет выполнять команды просто как <code>{prefix}команда</code>.
+                    Без него нужно писать <code>{prefix}команда@{alias}</code>.
+  nonick_step_desc_no_alias: |-
+                             При включённом <b>NoNick</b> пользователь сможет выполнять команды без суффикса.
+                             Без него нужно указывать <code>@username</code> владельца.
   btn_nonick_yes: Включить NoNick
   btn_nonick_no: Без NoNick
   nonick_toggled_on: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> NoNick <b>включён</b> для {name}.'
@@ -1054,7 +1083,14 @@ trusted:
   access_allowed: разрешено
   access_denied: запрещено
   access_allowed_group: разрешено (группа)
-  trustcmd_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Управление доступом к командам для доверенных</b>\n\n<code>.trustcmd @username +py</code> - разрешить команду py\n<code>.trustcmd @username -py</code> - запретить команду py\n<code>.trustcmd @username list</code> - показать права на команды\n\n<i>Требует чтобы пользователь был в списке доверенных</i>'
+  trustcmd_usage: |-
+                  <tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Управление доступом к командам для доверенных</b>
+
+                  <code>.trustcmd @username +py</code> - разрешить команду py
+                  <code>.trustcmd @username -py</code> - запретить команду py
+                  <code>.trustcmd @username list</code> - показать права на команды
+
+                  <i>Требует чтобы пользователь был в списке доверенных</i>
   trustcmd_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Доступ к <code>{cmd}</code> <b>разрешён</b> для {user}.'
   trustcmd_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Доступ к <code>{cmd}</code> <b>запрещён</b> для {user}.'
   trustcmd_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Команда <code>{cmd}</code> не найдена.'
@@ -1074,7 +1110,19 @@ trusted:
   timed_trusted_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Временные доверенные:</b>'
   timed_trusted_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Нет временных доверенных.'
   trust_expiring: " (истекает через {time})"
-  sgroup_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Группы доступа</b>\n\n<b>Команды:</b>\n<code>.sgroup create mygroup</code> - создать группу\n<code>.sgroup delete mygroup</code> - удалить группу\n<code>.sgroup add mygroup @user</code> - добавить пользователя\n<code>.sgroup remove mygroup @user</code> - удалить пользователя\n<code>.sgroup access mygroup</code> - настроить доступ (меню)\n<code>.sgroup list</code> - список групп\n<code>.sgroup info mygroup</code> - инфо о группе\n\n<i>Группы позволяют управлять доступом нескольких пользователей сразу</i>'
+  sgroup_usage: |-
+                <tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Группы доступа</b>
+
+                <b>Команды:</b>
+                <code>.sgroup create mygroup</code> - создать группу
+                <code>.sgroup delete mygroup</code> - удалить группу
+                <code>.sgroup add mygroup @user</code> - добавить пользователя
+                <code>.sgroup remove mygroup @user</code> - удалить пользователя
+                <code>.sgroup access mygroup</code> - настроить доступ (меню)
+                <code>.sgroup list</code> - список групп
+                <code>.sgroup info mygroup</code> - инфо о группе
+
+                <i>Группы позволяют управлять доступом нескольких пользователей сразу</i>
   sgroup_created: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Группа доступа <b>{name}</b> создана.'
   sgroup_deleted: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Группа доступа <b>{name}</b> удалена.'
   sgroup_already_exists: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Группа <b>{name}</b> уже существует.'
@@ -1133,13 +1181,23 @@ presets:
   moderator:
     label: 🛡 Модератор
 config:
-  config_menu_text: "{menu_emoji} <b>Меню конфига</b>\nВыберите раздел:"
+  config_menu_text: |-
+                    {menu_emoji} <b>Меню конфига</b>
+                    Выберите раздел:
   btn_kernel_config: 🪄 Конфиг ядра
   btn_modules_config: 🚂 Конфиг модулей
-  kernel_config_title: "{pencil} <b>Конфиг ядра</b>\n{page_emoji} Страница <b>{page}/{total_pages}</b> ({total_keys} ключей)"
-  modules_config_title: "{puzzle} <b>Конфиг модулей</b>\n{page_emoji} Страница <b>{page}/{total_pages}</b> ({total_modules} модулей)"
-  module_config_title: "{puzzle} <b>Модуль:</b> <code>{module_name}</code>\n{page_emoji} Страница <b>{page}/{total_pages}</b> ({total_items} ключей)"
-  key_view: "{note} <b>{key}</b> ({type_emoji} {value_type})\n{display_value}"
+  kernel_config_title: |-
+                       {pencil} <b>Конфиг ядра</b>
+                       {page_emoji} Страница <b>{page}/{total_pages}</b> ({total_keys} ключей)
+  modules_config_title: |-
+                        {puzzle} <b>Конфиг модулей</b>
+                        {page_emoji} Страница <b>{page}/{total_pages}</b> ({total_modules} модулей)
+  module_config_title: |-
+                       {puzzle} <b>Модуль:</b> <code>{module_name}</code>
+                       {page_emoji} Страница <b>{page}/{total_pages}</b> ({total_items} ключей)
+  key_view: |-
+            {note} <b>{key}</b> ({type_emoji} {value_type})
+            {display_value}
   btn_back: "⬅️"
   btn_next: "➡️"
   btn_menu: 🔙 Меню
@@ -1189,6 +1247,7 @@ config:
   cfg_len_max: Длина должна быть не более {max} символов
   cfg_type_bool: Значение должно быть логическим (true/false)
   cfg_choices: Доступные варианты
+  cfg_placeholders_title: Кастомные плейсхолдеры
   invalid_format: "❌ Неверный формат"
   btn_edit: "✏️ Изменить"
   btn_delete: "🗑️ Удалить"

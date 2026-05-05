@@ -58,27 +58,63 @@ class SettingsModule(ModuleBase):
             return os.path.abspath(db_manager._resolve_db_file())
         return os.path.abspath("userbot.db")
 
+    async def _resolve_prefix_target_id(
+        self, event: events.NewMessage.Event, target_raw: str | None
+    ) -> int | None:
+        if target_raw:
+            target = target_raw.strip()
+            if target.lower() == "reply":
+                if not event.is_reply:
+                    return None
+                reply = await event.get_reply_message()
+                return getattr(reply, "sender_id", None) if reply else None
+            if target.isdigit() or (target.startswith("-") and target[1:].isdigit()):
+                return int(target)
+            if target.startswith("@"):
+                target = target[1:]
+            try:
+                entity = await self.kernel.client.get_entity(target)
+                return getattr(entity, "id", None)
+            except Exception:
+                return None
+
+        owner_id = getattr(event, "owner_id", None)
+        if owner_id is not None:
+            return int(owner_id)
+
+        if event.is_reply:
+            reply = await event.get_reply_message()
+            reply_sender = getattr(reply, "sender_id", None) if reply else None
+            if reply_sender is not None:
+                return reply_sender
+
+        sender_id = getattr(event, "sender_id", None)
+        return int(sender_id) if sender_id is not None else None
+
     @command(
         "setprefix",
-        doc_ru="[префикс] - изменить префикс команд",
-        doc_en="[prefix] - change command prefix",
+        doc_ru="[префикс] [id/@username/reply] - изменить префикс овнера",
+        doc_en="[prefix] [id/@username/reply] - change owner prefix",
     )
     async def cmd_setprefix(self, event: events.NewMessage.Event) -> None:
         args = self.args_raw(event).split()
         piped = getattr(event, "piped", False)
+        sender_id = getattr(event, "sender_id", None)
+        sender_prefix = self.kernel.get_prefix_for_sender(sender_id)
 
         if len(args) < 1:
             if piped:
-                await self.edit(event, self.kernel.custom_prefix)
+                await self.edit(event, sender_prefix)
                 return
             await self.edit(
                 event,
-                self._s("prefix_usage", prefix=self.kernel.custom_prefix),
+                self._s("prefix_usage", prefix=sender_prefix),
                 parse_mode="html",
             )
             return
 
         new_prefix = args[0]
+        target_raw = args[1] if len(args) > 1 else None
         cfg = self.config
         any_prefix = cfg.get("settings_any_prefix", False) if cfg else False
 
@@ -86,14 +122,35 @@ class SettingsModule(ModuleBase):
             await self.edit(event, self._s("prefix_one_char"), parse_mode="html")
             return
 
-        prefix_old = self.kernel.custom_prefix
-        self.kernel.custom_prefix = new_prefix
-        self.kernel.config["command_prefix"] = new_prefix
-        self.kernel.save_config()
+        target_id = await self._resolve_prefix_target_id(event, target_raw)
+        if target_id is None:
+            await self.edit(event, self._s("prefix_target_invalid"), parse_mode="html")
+            return
 
+        prefix_old = self.kernel.get_prefix_for_sender(target_id)
+
+        owner_prefixes = self.kernel.config.get("owner_prefixes", {})
+        if not isinstance(owner_prefixes, dict):
+            owner_prefixes = {}
+
+        owner_prefixes = {str(k): str(v) for k, v in owner_prefixes.items() if str(v)}
+        owner_prefixes[str(target_id)] = new_prefix
+
+        self.kernel.owner_prefixes = owner_prefixes
+        self.kernel.config["owner_prefixes"] = owner_prefixes
+
+        if target_id == getattr(self.kernel, "ADMIN_ID", None):
+            self.kernel.custom_prefix = new_prefix
+            self.kernel.config["command_prefix"] = new_prefix
+        self.kernel.save_config()
         await self.edit(
             event,
-            self._s("prefix_changed", prefix=new_prefix, prefix_old=prefix_old),
+            self._s(
+                "prefix_owner_changed",
+                owner_id=target_id,
+                prefix_old=prefix_old,
+                prefix=new_prefix,
+            ),
             parse_mode="html",
         )
 

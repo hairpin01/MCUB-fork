@@ -1543,8 +1543,21 @@ class InlineHandlers:
                 handler = entry.get("handler")
                 if callable(handler):
                     try:
+                        from core.lib.loader.hikka_compat.inline_types import (
+                            CompatCallbackQuery,
+                        )
+
+                        call_args = list(entry.get("args", []))
+                        call_kwargs = dict(entry.get("kwargs", {}))
+                        if "data" not in call_kwargs and entry.get("data") is not None:
+                            call_kwargs["data"] = entry.get("data")
+                        inline_proxy = getattr(
+                            self.kernel, "_hikka_compat_inline_proxy", None
+                        )
                         await handler(
-                            event, *entry.get("args", []), **entry.get("kwargs", {})
+                            CompatCallbackQuery(event, inline_proxy),
+                            *call_args,
+                            **call_kwargs,
                         )
                     except Exception:
                         self.kernel.logger.error(

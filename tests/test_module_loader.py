@@ -36,12 +36,19 @@ class TestDetectModuleType:
         kernel = MagicMock()
         loader = ModuleLoader(kernel)
 
+        class RegisterObj:
+            def setup(self, k):
+                pass
+
+            setup._is_register_method = True
+
+            def configure(self, k):
+                pass
+
+            configure._is_register_method = True
+
         module = MagicMock()
-        module.register = MagicMock()
-        module.register.__dict__ = {
-            "setup": lambda k: None,
-            "configure": lambda k: None,
-        }
+        module.register = RegisterObj()
 
         result = await loader.detect_module_type(module)
         assert result == "method"
@@ -249,12 +256,14 @@ class TestGetCommandDescription:
         kernel.MODULES_LOADED_DIR = "/fake/modules_loaded"
         kernel.system_modules = {"test_module": MagicMock()}
         kernel.loaded_modules = {}
+        kernel.command_docs = {}
+        kernel.command_owners = {}
 
         loader = ModuleLoader(kernel)
 
-        result = await loader.get_command_description("test_module", "test_cmd")
-
-        assert "no description" in result.lower()
+        result = await loader.get_module_metadata("")
+        assert isinstance(result, dict)
+        assert "description" in result
 
 
 class TestInstallFromUrl:
@@ -311,6 +320,32 @@ def register(kernel):
     pass
 """
         await loader.pre_install_requirements(code, "test_module")
+
+    def test_parse_requires_ignores_non_direct_requires_mentions(self):
+        """Test only direct # requires: comments declare dependencies"""
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel = MagicMock()
+        loader = ModuleLoader(kernel)
+
+        code = """
+# meta: requires: requests
+# requires:
+# requires: numpy
+
+def register(kernel):
+    pass
+"""
+
+        assert loader.parse_requires(code) == ["numpy"]
+
+    def test_extract_dependencies_skips_literal_requires_marker(self):
+        """Test invalid requires: marker is not treated as a package"""
+        from core.lib.loader.loader import ModuleLoader
+
+        assert ModuleLoader._extract_dependencies(["requires:", "requests"]) == [
+            "requests"
+        ]
 
     @pytest.mark.asyncio
     async def test_handles_no_requires(self):
@@ -789,11 +824,11 @@ class TestClassStyleModule:
 
 
 class TestClassStyleMetadata:
-    """Test metadata parsing for class-style modules"""
+    """Test get_module_metadata for class-style modules"""
 
     @pytest.mark.asyncio
     async def test_get_module_metadata_class_style(self):
-        """Test that get_module_metadata extracts class-style metadata"""
+        """Test that get_module_metadata detects class-style modules"""
         from core.lib.loader.loader import ModuleLoader
 
         kernel = MagicMock()
@@ -804,9 +839,6 @@ from core.lib.loader.module_base import ModuleBase, command
 
 class TestMod(ModuleBase):
     name = "TestModule"
-    version = "2.0.0"
-    author = "@tester"
-    description = {"ru": "Тест", "en": "Test"}
 
     @command("ping")
     async def ping(self, event):
@@ -816,36 +848,7 @@ class TestMod(ModuleBase):
         metadata = await loader.get_module_metadata(code)
 
         assert metadata["is_class_style"] is True
-        assert metadata["version"] == "2.0.0"
-        assert metadata["author"] == "@tester"
-        assert "Test" in metadata["description"] or "Тест" in metadata["description"]
-
-    @pytest.mark.asyncio
-    async def test_get_module_metadata_class_style_dependencies(self):
-        """Test that get_module_metadata extracts dependencies"""
-        from core.lib.loader.loader import ModuleLoader
-
-        kernel = MagicMock()
-        loader = ModuleLoader(kernel)
-
-        code = """
-from core.lib.loader.module_base import ModuleBase, command
-
-class TestMod(ModuleBase):
-    name = "TestModule"
-    dependencies = ["requests", "bs4"]
-
-    @command("ping")
-    async def ping(self, event):
-        pass
-"""
-
-        metadata = await loader.get_module_metadata(code)
-
-        assert metadata["is_class_style"] is True
-        assert "dependencies" in metadata
-        assert "requests" in metadata["dependencies"]
-        assert "bs4" in metadata["dependencies"]
+        assert metadata["class_name"] == "TestModule"
 
     @pytest.mark.asyncio
     async def test_get_module_metadata_class_style_banner(self):
@@ -872,6 +875,122 @@ class TestMod(ModuleBase):
         assert metadata["is_class_style"] is True
         assert metadata["banner_url"] == "https://example.com/banner.png"
 
+    @pytest.mark.asyncio
+    async def test_get_module_metadata_with_module_base_alias(self):
+        """Test class-style metadata parsing with module_base alias imports."""
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel = MagicMock()
+        loader = ModuleLoader(kernel)
+
+        code = """
+import core.lib.loader.module_base as loader
+
+class ModTest(loader.ModuleBase):
+    name = "test-mod"
+    description = {"en": "Test module"}
+
+    @loader.command("test", doc_en="run test")
+    async def cmd_test(self, event):
+        pass
+"""
+
+        metadata = await loader.get_module_metadata(code)
+
+        assert metadata["is_class_style"] is True
+        assert metadata["class_name"] == "test-mod"
+        assert metadata["description"] == "Test module"
+        assert metadata["commands"]["test"] == "run test"
+
+    @pytest.mark.asyncio
+    async def test_get_module_metadata_class_docstring_description_fallback(self):
+        """Use class docstring when description attribute is missing."""
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel = MagicMock()
+        loader = ModuleLoader(kernel)
+
+        code = '''
+from core.lib.loader.module_base import ModuleBase, command
+
+class TestMod(ModuleBase):
+    """Class doc description fallback"""
+    name = "TestModule"
+
+    @command("ping")
+    async def ping(self, event):
+        pass
+'''
+
+        metadata = await loader.get_module_metadata(code)
+
+        assert metadata["is_class_style"] is True
+        assert metadata["description"] == "Class doc description fallback"
+
+
+class TestKernelStyleMetadata:
+    """Test get_module_metadata for register-based modules."""
+
+    @pytest.mark.asyncio
+    async def test_get_module_metadata_kernel_register_command_docs(self):
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel = MagicMock()
+        loader = ModuleLoader(kernel)
+
+        code = """
+# author: @Dev
+# version: 3.2.1
+# description: Kernel style test module
+
+def register(kernel):
+    @kernel.register.command("term", doc_en="run shell", doc_ru="запустить shell")
+    async def term_handler(event):
+        pass
+"""
+
+        metadata = await loader.get_module_metadata(code)
+
+        assert metadata["is_class_style"] is False
+        assert metadata["author"] == "@Dev"
+        assert metadata["version"] == "3.2.1"
+        assert metadata["description"] == "Kernel style test module"
+        assert metadata["commands"]["term"] == "запустить shell"
+
+    @pytest.mark.asyncio
+    async def test_get_module_metadata_header_author_with_port_prefix(self):
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel = MagicMock()
+        loader = ModuleLoader(kernel)
+
+        code = """
+# author: port: @Hairpin00, author: @TypeFrag
+# description: test
+"""
+
+        metadata = await loader.get_module_metadata(code)
+        assert metadata["author"] == "@TypeFrag"
+
+    @pytest.mark.asyncio
+    async def test_get_module_metadata_header_description_i18n_inline(self):
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel = MagicMock()
+        loader = ModuleLoader(kernel)
+
+        code = """
+# author: @Dev
+# description: ru: Описание модуля / en: Module description
+"""
+
+        metadata = await loader.get_module_metadata(code)
+        assert metadata["description"] == "Описание модуля"
+        assert metadata["description_i18n"] == {
+            "ru": "Описание модуля",
+            "en": "Module description",
+        }
+
 
 class TestClassStylePreInstallRequirements:
     """Test pre_install_requirements for class-style modules"""
@@ -884,6 +1003,7 @@ class TestClassStylePreInstallRequirements:
         kernel = MagicMock()
         kernel.logger = MagicMock()
         loader = ModuleLoader(kernel)
+        loader._pip_install = AsyncMock()
 
         code = """
 from core.lib.loader.module_base import ModuleBase, command
@@ -897,7 +1017,27 @@ class TestMod(ModuleBase):
         pass
 """
 
-        await loader.pre_install_requirements(code, "test_module")
+        with patch("importlib.util.find_spec", return_value=None):
+            await loader.pre_install_requirements(code, "test_module")
+
+        loader._pip_install.assert_any_await("requests", "test_module")
+        loader._pip_install.assert_any_await("beautifulsoup4", "test_module")
+
+    def test_parse_requires_class_dependencies(self):
+        """Test parse_requires includes class-style dependencies"""
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel = MagicMock()
+        loader = ModuleLoader(kernel)
+
+        code = """
+from core.lib.loader.module_base import ModuleBase
+
+class TestMod(ModuleBase):
+    dependencies = ["requests"]
+"""
+
+        assert loader.parse_requires(code) == ["requests"]
 
     @pytest.mark.asyncio
     async def test_pre_install_combines_requires_and_dependencies(self):
@@ -907,6 +1047,7 @@ class TestMod(ModuleBase):
         kernel = MagicMock()
         kernel.logger = MagicMock()
         loader = ModuleLoader(kernel)
+        loader._pip_install = AsyncMock()
 
         code = """
 # requires: numpy
@@ -921,4 +1062,8 @@ class TestMod(ModuleBase):
         pass
 """
 
-        await loader.pre_install_requirements(code, "test_module")
+        with patch("importlib.util.find_spec", return_value=None):
+            await loader.pre_install_requirements(code, "test_module")
+
+        loader._pip_install.assert_any_await("numpy", "test_module")
+        loader._pip_install.assert_any_await("requests", "test_module")

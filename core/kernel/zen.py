@@ -216,6 +216,7 @@ class Kernel:
         self.default_repo = self.MODULES_REPO
 
         self.cache = TTLCache(max_size=500, ttl=600)
+        self.logger = setup_logging()
         self.register = Register(self)
         self.callback_permissions = CallbackPermissionManager()
 
@@ -224,7 +225,6 @@ class Kernel:
 
         self._cfg = ConfigManager(self)
         self.load_or_create_config()
-        self.logger = setup_logging()
 
         self._loader = ModuleLoader(self)
         self._repo = RepositoryManager(self)
@@ -1066,6 +1066,7 @@ class Kernel:
             return False
 
         text = event.text
+        active_prefix = self.get_prefix_for_sender(getattr(event, "sender_id", None))
         self.logger.debug(
             "[process_command] depth=%d text=%r sender=%r chat=%r handlers=%d aliases=%d",
             depth,
@@ -1075,27 +1076,27 @@ class Kernel:
             len(self.command_handlers),
             len(self.aliases),
         )
-        if not text or not text.startswith(self.custom_prefix):
+        if not text or not text.startswith(active_prefix):
             self.logger.debug(
                 "[process_command] ignored text=%r reason=no_prefix prefix=%r",
                 text,
-                self.custom_prefix,
+                active_prefix,
             )
             return False
 
         cmd = (
-            text[len(self.custom_prefix) :].split()[0]
+            text[len(active_prefix) :].split()[0]
             if " " in text
-            else text[len(self.custom_prefix) :]
+            else text[len(active_prefix) :]
         )
 
         if cmd in self.aliases:
             alias = self.aliases[cmd]
             # Extract just the command name (first word) from alias for the check
             alias_cmd = alias.split()[0] if " " in alias else alias
-            args = text[len(self.custom_prefix) + len(cmd) :]
+            args = text[len(active_prefix) + len(cmd) :]
             # Use full alias (with its args) plus user args
-            new_text = self.custom_prefix + alias + args
+            new_text = active_prefix + alias + args
             self.logger.debug(
                 "[process_command] alias-hit cmd=%r target=%r text=%r",
                 cmd,
@@ -1140,6 +1141,18 @@ class Kernel:
             sorted(self.command_handlers.keys()),
         )
         return False
+
+    def get_prefix_for_sender(self, sender_id):
+        """Resolve sender prefix with admin fallback and global fallback."""
+        owner_prefixes = getattr(self, "owner_prefixes", {}) or {}
+        sender_key = str(sender_id) if sender_id is not None else ""
+        admin_key = str(getattr(self, "ADMIN_ID", "") or "")
+
+        if sender_key and sender_key in owner_prefixes:
+            return owner_prefixes[sender_key]
+        if admin_key and admin_key in owner_prefixes:
+            return owner_prefixes[admin_key]
+        return getattr(self, "custom_prefix", ".") or "."
 
     async def process_bot_command(self, event) -> bool:
         """Dispatch a bot command to its handler."""

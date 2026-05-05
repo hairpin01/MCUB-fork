@@ -4,8 +4,9 @@
 from __future__ import annotations
 
 # author: @Hairpin00
-# version: 1.0.0
+# version: 1.1.0
 # description: MCUB command argument parser
+import re
 import shlex
 from dataclasses import dataclass
 from typing import Any
@@ -340,21 +341,77 @@ class PipelineParser:
     Operators are matched left-to-right with longest-match priority:
       ' && ' before ' & ', ' || ' before ' | '
     Escape sequences (\\) and quoted strings are handled so that operators
-    inside quotes are treated as literal text.
+    inside quotes or preceded by \\ are treated as literal text.
 
-    Example::
+    Escape rules
+    ------------
+    A backslash before an operator core strips the backslash and prevents
+    the operator from being detected.  Supported escape targets (longest
+    match wins):
 
-        pp = PipelineParser("1man | 1grep foo | 1export bar && 1import bar | 1wc -l")
+        \\&&   →  literal ``&&``
+        \\||   →  literal ``||``
+        \\|    →  literal ``|``
+        \\&    →  literal ``&``
+        \\x    →  literal ``x``   (general single-char escape)
+
+    Examples::
+
+        # Escape && so the whole expression is one command:
+        .ping google.com \\&& bash -c 'ls'
+        # → single segment: .ping google.com && bash -c 'ls'
+
+        # Normal pipeline:
+        .man | .grep foo | .wc -l
+        # → three segments joined by '|'
+
+        pp = PipelineParser(".man | .grep foo")
         for seg in pp.segments:
             print(seg)
     """
 
+    # Checked in order; longest operators must come before their prefixes.
     _OPERATORS: list[tuple[str, str]] = [
+        (" | ", "|"),
+        ("& ", "&"),
         (" && ", "&&"),
         (" || ", "||"),
-        (" | ", "|"),
-        (" & ", "&"),
     ]
+
+    # Operator cores sorted longest-first for escape resolution.
+    # Must match _OPERATORS (with spaces) + variants with/without spaces.
+    _ESCAPE_CORES: tuple[str, ...] = (
+        " && ",
+        " || ",
+        " | ",
+        " &&",
+        " ||",
+        " |",
+        "&&",
+        "||",
+        "|",
+        "& ",
+        "&",
+    )
+
+    _OP_PATTERN = re.compile(r"^((\|\||&&)\s*)")
+
+    @staticmethod
+    def _detect_operator(text: str, i: int) -> tuple[str | None, str | None]:
+        """Detect operator at position i in text.
+
+        Returns (matched_string, operator_key) or (None, None).
+        """
+        remaining = text[i:]
+        for op_str, op_key in PipelineParser._OPERATORS:
+            if remaining.startswith(op_str):
+                return op_str, op_key
+        match = PipelineParser._OP_PATTERN.match(remaining)
+        if match:
+            op = match.group(2)
+            op_map = {"|": "|", "&": "&", "&&": "&&", "||": "||"}
+            return match.group(1), op_map.get(op)
+        return None, None
 
     def __init__(self, text: str) -> None:
         self.text = text
@@ -373,11 +430,31 @@ class PipelineParser:
             ch = self.text[i]
 
             if ch == "\\" and not in_quotes:
-                buf.append(ch)
                 i += 1
                 if i < length:
-                    buf.append(self.text[i])
-                    i += 1
+                    remaining_after = self.text[i:]
+                    escaped = False
+
+                    for core in self._ESCAPE_CORES:
+                        if remaining_after.startswith(core):
+                            result = core.strip()
+                            buf.append(result)
+                            i += len(core)
+                            escaped = True
+                            break
+
+                    if not escaped:
+                        # Try single operator (no leading space): \| -> |, &&& -> &&, etc.
+                        for op in ("||", "&&", "|", "&"):
+                            if remaining_after.startswith(op):
+                                buf.append(op)
+                                i += len(op)
+                                escaped = True
+                                break
+
+                    if not escaped:
+                        buf.append(self.text[i])
+                        i += 1
                 continue
 
             if ch in ('"', "'"):
@@ -396,13 +473,7 @@ class PipelineParser:
                 i += 1
                 continue
 
-            matched_str: str | None = None
-            matched_key: str | None = None
-            for op_str, op_key in self._OPERATORS:
-                if self.text[i : i + len(op_str)] == op_str:
-                    matched_str = op_str
-                    matched_key = op_key
-                    break
+            matched_str, matched_key = self._detect_operator(self.text, i)
 
             if matched_str and matched_key:
                 seg = "".join(buf).strip()

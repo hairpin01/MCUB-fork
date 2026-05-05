@@ -19,6 +19,7 @@ from telethon import Button, events, types
 from telethon.tl.types import DocumentAttributeImageSize, InputWebDocument
 
 from core.lib.loader.module_config import ModuleConfig, ValidationError
+import utils
 from utils.strings import Strings
 
 
@@ -227,7 +228,7 @@ class ConfigSettings:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
                     asyncio.create_task(self._update_cache())
-            except:
+            except Exception:
                 pass
         return self._items_per_page
 
@@ -240,7 +241,7 @@ class ConfigSettings:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
                     asyncio.create_task(self._update_cache())
-            except:
+            except Exception:
                 pass
         return self._modules_per_page
 
@@ -372,12 +373,12 @@ def register(kernel):
         elif value_str.startswith("{") and value_str.endswith("}"):
             try:
                 return json.loads(value_str)
-            except:
+            except Exception:
                 return value_str
         elif value_str.startswith("[") and value_str.endswith("]"):
             try:
                 return json.loads(value_str)
-            except:
+            except Exception:
                 return value_str
         else:
             value_str = re.sub(r"(?<!\\)\\n", "\n", value_str)
@@ -613,6 +614,229 @@ def register(kernel):
 
     async def config_menu_handler(event):
         await ensure_config_initialized()
+        query = event.text.strip()
+
+        if query.startswith("cfg key "):
+            key = query[8:].strip()
+            if not key:
+                await event.answer([])
+                return
+            if key not in kernel.config:
+                text = t("key_not_found", ballot=emoji_provider["🗳"], key=key)
+                buttons = [
+                    [Button.inline("❌ Close", data=b"cfg_close", style="danger")]
+                ]
+            else:
+                value = kernel.config[key]
+                value_type = type(value).__name__ if value is not None else "NoneType"
+                key_id = generate_key_id(key, 0, "kernel")
+                kernel.cache.set(f"cfg_view_{key_id}", (key, 0, "kernel"), ttl=86400)
+                text = format_key_value(key, value, reveal=False)
+                buttons = []
+                if value_type == "bool":
+                    toggle_text = t("toggle_false") if value else t("toggle_true")
+                    toggle_style = "danger" if value else "success"
+                    buttons.append(
+                        [
+                            Button.inline(
+                                toggle_text,
+                                data=f"cfg_bool_toggle_{key_id}".encode(),
+                                style=toggle_style,
+                            )
+                        ]
+                    )
+                else:
+                    if not is_key_hidden(key) or key not in SENSITIVE_KEYS:
+                        buttons.append(
+                            [
+                                Button.switch_inline(
+                                    text=t("btn_edit"),
+                                    query=f"fcfg set {key_id} ",
+                                    same_peer=True,
+                                    style="primary",
+                                )
+                            ]
+                        )
+
+                if value_type == "list":
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_list_add"),
+                                query=f"fcfg list add {key_id} ",
+                                same_peer=True,
+                                style="success",
+                            )
+                        ]
+                    )
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_list_del"),
+                                query=f"fcfg list del {key_id}",
+                                same_peer=True,
+                                style="danger",
+                            )
+                        ]
+                    )
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_list_set"),
+                                query=f"fcfg list set {key_id} ",
+                                same_peer=True,
+                                style="primary",
+                            )
+                        ]
+                    )
+                elif value_type == "dict":
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_dict_add"),
+                                query=f"fcfg dict add {key_id} ",
+                                same_peer=True,
+                                style="success",
+                            )
+                        ]
+                    )
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_dict_del"),
+                                query=f"fcfg dict del {key_id}",
+                                same_peer=True,
+                                style="danger",
+                            )
+                        ]
+                    )
+                    buttons.append(
+                        [
+                            Button.switch_inline(
+                                text=t("btn_dict_set"),
+                                query=f"fcfg dict set {key_id} ",
+                                same_peer=True,
+                                style="primary",
+                            )
+                        ]
+                    )
+
+                if key not in SENSITIVE_KEYS:
+                    buttons.append(
+                        [
+                            Button.inline(
+                                t("btn_delete"),
+                                data=f"cfg_delete_{key_id}".encode(),
+                                style="danger",
+                            )
+                        ]
+                    )
+
+                if is_key_hidden(key) and key not in SENSITIVE_KEYS:
+                    buttons.append(
+                        [
+                            Button.inline(
+                                t("btn_reveal"),
+                                data=f"cfg_reveal_{key_id}".encode(),
+                                style="primary",
+                            )
+                        ]
+                    )
+
+                buttons.append(
+                    [Button.inline("❌ Close", data=b"cfg_close", style="danger")]
+                )
+            builder = event.builder.article(
+                title=f"Config key: {key}",
+                text=text,
+                buttons=buttons,
+                parse_mode="html",
+            )
+            await event.answer([builder])
+            return
+
+        if query.startswith("cfg module "):
+            rest = query[11:].strip()
+            if not rest:
+                await event.answer([])
+                return
+            parts = rest.split(maxsplit=1)
+            module_name = parts[0]
+            module_key = parts[1].strip() if len(parts) > 1 else None
+
+            module_config = await kernel.get_module_config(module_name, None)
+            if module_config is None:
+                builder = event.builder.article(
+                    title=f"Module: {module_name}",
+                    text=t("no_config"),
+                    parse_mode="html",
+                )
+                await event.answer([builder])
+                return
+
+            if module_key:
+                payload = await _build_module_key_view_payload(
+                    module_name, module_key, 0
+                )
+                if payload is None:
+                    text = t("not_found")
+                    buttons = [
+                        [Button.inline("❌ Close", data=b"cfg_close", style="danger")]
+                    ]
+                else:
+                    text, buttons = payload
+
+                builder = event.builder.article(
+                    title=f"{module_name}: {module_key}",
+                    text=text,
+                    buttons=buttons,
+                    parse_mode="html",
+                )
+                await event.answer([builder])
+                return
+
+            if is_module_config_like(module_config):
+                items = list(module_config.items())
+            elif isinstance(module_config, dict) and module_config.get(
+                "__mcub_config__"
+            ):
+                items = [
+                    (k, v) for k, v in module_config.items() if k != "__mcub_config__"
+                ]
+            elif isinstance(module_config, dict):
+                items = list(module_config.items())
+            else:
+                items = []
+
+            total_items = len(items)
+            total_pages = (
+                (total_items + config_settings.items_per_page - 1)
+                // config_settings.items_per_page
+                if total_items > 0
+                else 1
+            )
+            page_keys = items[: config_settings.items_per_page]
+            text = t(
+                "module_config_title",
+                puzzle=emoji_provider["🧩"],
+                module_name=module_name,
+                page_emoji=emoji_provider["📰"],
+                page=1,
+                total_pages=total_pages,
+                total_items=total_items,
+            )
+            buttons = create_module_config_buttons(
+                module_name, page_keys, 0, total_pages
+            )
+            builder = event.builder.article(
+                title=f"Module Config: {module_name}",
+                text=text,
+                buttons=buttons,
+                parse_mode="html",
+            )
+            await event.answer([builder])
+            return
+
         text = t("config_menu_text", menu_emoji=emoji_provider["📋"])
 
         buttons = [
@@ -658,7 +882,7 @@ def register(kernel):
                 if len(parts) >= 4:
                     page_str = parts[3]
                     page = int(page_str)
-            except:
+            except Exception:
                 page = 0
 
         total_pages = (
@@ -724,7 +948,7 @@ def register(kernel):
         buttons = create_kernel_buttons_grid(page_keys, page, total_pages)
         try:
             await event.edit(text, buttons=buttons, parse_mode="html")
-        except:
+        except Exception:
             pass
 
     async def config_modules_handler(event):
@@ -742,7 +966,7 @@ def register(kernel):
                 if len(parts) >= 4:
                     page_str = parts[3]
                     page = int(page_str)
-            except:
+            except Exception:
                 page = 0
 
         total_modules = len(all_modules)
@@ -840,157 +1064,161 @@ def register(kernel):
         except Exception as e:
             await event.answer(t("error", error=str(e)[:50]), alert=True)
 
-    async def show_module_key_view(event, module_name, key, page):
-        try:
-            module_config = await kernel.get_module_config(module_name, {})
+    async def _build_module_key_view_payload(module_name, key, page):
+        module_config = await kernel.get_module_config(module_name, {})
+        is_module_config = is_module_config_like(module_config)
+        is_dict_config = isinstance(module_config, dict) and module_config.get(
+            "__mcub_config__"
+        )
+
+        if is_module_config:
+            if key not in module_config.keys():
+                return None
+            value = module_config[key]
+            config_value = module_config._values.get(key)
+            is_hidden = config_value.hidden if config_value else False
+            is_secret = (
+                bool(getattr(config_value.validator, "secret", False))
+                if config_value
+                else False
+            )
+        elif is_dict_config:
+            if key not in module_config or key == "__mcub_config__":
+                return None
+            value = module_config[key]
+            is_hidden = False
+            is_secret = False
+            config_value = None
+        else:
+            if key not in module_config:
+                return None
+            value = module_config[key]
+            is_hidden = False
+            is_secret = False
+            config_value = None
+
+        if config_value is None:
             is_module_config = is_module_config_like(module_config)
-            is_dict_config = isinstance(module_config, dict) and module_config.get(
-                "__mcub_config__"
-            )
-
-            if is_module_config:
-                if key not in module_config.keys():
-                    await event.answer(t("not_found"), alert=True)
-                    return
-                value = module_config[key]
-                config_value = module_config._values.get(key)
-                is_hidden = config_value.hidden if config_value else False
-                is_secret = (
-                    hasattr(config_value.validator, "secret") if config_value else False
-                )
-            elif is_dict_config:
-                if key not in module_config or key == "__mcub_config__":
-                    await event.answer(t("not_found"), alert=True)
-                    return
-                value = module_config[key]
-                is_hidden = False
-                is_secret = False
-                config_value = None
-            else:
-                # Old format - plain dict
-                if key not in module_config:
-                    await event.answer(t("not_found"), alert=True)
-                    return
-                value = module_config[key]
-                is_hidden = False
-                is_secret = False
-                config_value = None
-
-            # Even when stored config is a plain dict, the live ModuleConfig schema
-            # (with description, choices, validators) lives in the module instance.
-            # Try to get it from there so we can display metadata.
-            if config_value is None:
-                try:
-                    live_cfg = getattr(kernel, "_live_module_configs", {}).get(
+            try:
+                live_cfg = getattr(kernel, "_live_module_configs", {}).get(module_name)
+                if live_cfg is None:
+                    live_mod = kernel.loaded_modules.get(
                         module_name
-                    )
-                    if live_cfg is None:
-                        live_mod = kernel.loaded_modules.get(
-                            module_name
-                        ) or kernel.system_modules.get(module_name)
-                        if live_mod is not None:
-                            live_cfg = getattr(live_mod, "config", None)
-                    if is_module_config_like(live_cfg):
-                        config_value = live_cfg._values.get(key)
-                        if config_value is not None:
-                            is_hidden = is_hidden or config_value.hidden
-                            is_secret = is_secret or hasattr(
-                                config_value.validator, "secret"
-                            )
-                            # Also extract choices if available
-                            if choices is None:
-                                choices = getattr(
-                                    config_value.validator, "choices", None
-                                )
-                except Exception:
-                    pass
+                    ) or kernel.system_modules.get(module_name)
+                    if live_mod is not None:
+                        live_cfg = getattr(live_mod, "config", None)
+                if is_module_config_like(live_cfg):
+                    config_value = live_cfg._values.get(key)
+                    if config_value is not None:
+                        is_hidden = is_hidden or config_value.hidden
+                        is_secret = is_secret or bool(
+                            getattr(config_value.validator, "secret", False)
+                        )
+            except Exception:
+                pass
 
-            value_type = type(value).__name__
-            type_emoji = get_type_emoji(value_type)
+        value_type = type(value).__name__
+        type_emoji = get_type_emoji(value_type)
 
-            # Handle display based on hidden/secret status
-            if is_hidden or is_secret:
-                display_value = "<code>••••••••</code>"
-            elif isinstance(value, (dict, list)):
-                formatted_value = json.dumps(value, ensure_ascii=False, indent=2)
-                display_value = f"<pre>{html.escape(formatted_value)}</pre>"
-            elif value is None:
-                if config_value is not None and config_value.default is not None:
-                    default_str = str(config_value.default)
-                    display_value = (
-                        f"<code>{html.escape(default_str)}</code> <i>(default)</i>"
-                    )
-                else:
-                    display_value = "<code>null</code>"
-            elif isinstance(value, bool):
+        if is_hidden or is_secret:
+            display_value = "<code>••••••••</code>"
+        elif isinstance(value, (dict, list)):
+            formatted_value = json.dumps(value, ensure_ascii=False, indent=2)
+            display_value = f"<pre>{html.escape(formatted_value)}</pre>"
+        elif value is None:
+            if config_value is not None and config_value.default is not None:
+                default_str = str(config_value.default)
                 display_value = (
-                    "✔️ <code>true</code>" if value else "✖️ <code>false</code>"
+                    f"<code>{html.escape(default_str)}</code> <i>(default)</i>"
                 )
-            elif isinstance(value, str):
-                escaped_value = html.escape(value)
-                display_value = f"<code>{escaped_value}</code>"
             else:
-                display_value = f"<code>{html.escape(str(value))}</code>"
+                display_value = "<code>null</code>"
+        elif isinstance(value, bool):
+            display_value = "✔️ <code>true</code>" if value else "✖️ <code>false</code>"
+        elif isinstance(value, str):
+            escaped_value = html.escape(value)
+            display_value = f"<code>{escaped_value}</code>"
+        else:
+            display_value = f"<code>{html.escape(str(value))}</code>"
 
-            text = t(
-                "key_view",
-                note=emoji_provider["📝"],
-                key=key,
-                type_emoji=type_emoji,
-                value_type=value_type,
-                display_value=display_value,
-            )
+        text = t(
+            "key_view",
+            note=emoji_provider["📝"],
+            key=key,
+            type_emoji=type_emoji,
+            value_type=value_type,
+            display_value=display_value,
+        )
 
-            # Append ModuleConfig metadata if available (works for both live and dict-stored configs)
-            choices = None
-            # Final fallback - try to get choices from live config directly
-            if choices is None:
-                try:
-                    live_cfg = getattr(kernel, "_live_module_configs", {}).get(
+        # Append ModuleConfig metadata if available (works for both live and dict-stored configs)
+        choices = None
+        # Final fallback - try to get choices from live config directly
+        if choices is None:
+            try:
+                live_cfg = getattr(kernel, "_live_module_configs", {}).get(module_name)
+                if live_cfg is None:
+                    live_mod = kernel.loaded_modules.get(
                         module_name
-                    )
-                    if live_cfg is None:
-                        live_mod = kernel.loaded_modules.get(
-                            module_name
-                        ) or kernel.system_modules.get(module_name)
-                        if live_mod is not None:
-                            live_cfg = getattr(live_mod, "config", None)
-                    if is_module_config_like(live_cfg):
-                        cv = live_cfg._values.get(key)
-                        if cv and hasattr(cv, "validator"):
-                            choices = getattr(cv.validator, "choices", None)
-                except Exception:
-                    pass
+                    ) or kernel.system_modules.get(module_name)
+                    if live_mod is not None:
+                        live_cfg = getattr(live_mod, "config", None)
+                if is_module_config_like(live_cfg):
+                    cv = live_cfg._values.get(key)
+                    if cv and hasattr(cv, "validator"):
+                        choices = getattr(cv.validator, "choices", None)
+            except Exception:
+                pass
 
-            if config_value:
-                validator = config_value.validator
-                description = config_value.description
-                if description:
-                    text += f"\n\n{emoji_provider['📖']} <blockquote expandable><i>{html.escape(str(description))}</i></blockquote>"
-                choices = getattr(validator, "choices", None)
-                if choices:
-                    choices_str = ", ".join(f"<code>{c}</code>" for c in choices)
-                    text += f"\n{emoji_provider['📋']} <b>{t('cfg_choices')}</b>: {choices_str}"
-                v_min = getattr(validator, "min", None)
-                v_max = getattr(validator, "max", None)
-                if v_min is not None or v_max is not None:
-                    if v_min is not None and v_max is not None:
-                        text += f"\n{emoji_provider['🔢']} <b>{t('cfg_range_both', min=v_min, max=v_max)}</b>"
-                    elif v_min is not None:
-                        text += f"\n{emoji_provider['🔢']} <b>{t('cfg_range_min', min=v_min)}</b>"
-                    elif v_max is not None:
-                        text += f"\n{emoji_provider['🔢']} <b>{t('cfg_range_max', max=v_max)}</b>"
-                min_len = getattr(validator, "min_len", None)
-                max_len = getattr(validator, "max_len", None)
-                if min_len is not None or max_len is not None:
-                    if min_len is not None and max_len is not None:
-                        text += f"\n{emoji_provider['📝']} <b>{t('cfg_len_both', min=min_len, max=max_len)}</b>"
-                    elif min_len is not None:
-                        text += f"\n{emoji_provider['📝']} <b>{t('cfg_len_min', min=min_len)}</b>"
-                    elif max_len is not None:
-                        text += f"\n{emoji_provider['📝']} <b>{t('cfg_len_max', max=max_len)}</b>"
-                if value_type == "bool":
-                    text += f"\n{emoji_provider['☑️']} <b>{t('cfg_type_bool')}</b>"
+        if config_value:
+            validator = config_value.validator
+            description = config_value.description
+            if description:
+                text += f"\n\n{emoji_provider['📖']} <blockquote expandable><i>{html.escape(str(description))}</i></blockquote>"
+
+            if getattr(validator, "supports_placeholders", False):
+                scope_name = (
+                    getattr(validator, "placeholder_scope", None) or module_name
+                )
+                placeholders_help = utils.config_placeholders(scope_name)
+                if scope_name != module_name:
+                    module_placeholders = utils.config_placeholders(module_name)
+                    if module_placeholders:
+                        placeholders_help = (
+                            f"{module_placeholders}\n{placeholders_help}"
+                            if placeholders_help
+                            else module_placeholders
+                        )
+                if placeholders_help:
+                    text += (
+                        f"\n\n{emoji_provider['📋']} <b>{t('cfg_placeholders_title')}</b>:"
+                        f"\n<blockquote expandable><i>{html.escape(placeholders_help)}</i></blockquote>"
+                    )
+            choices = getattr(validator, "choices", None)
+            if choices:
+                choices_str = ", ".join(f"<code>{c}</code>" for c in choices)
+                text += (
+                    f"\n{emoji_provider['📋']} <b>{t('cfg_choices')}</b>: {choices_str}"
+                )
+            v_min = getattr(validator, "min", None)
+            v_max = getattr(validator, "max", None)
+            if v_min is not None or v_max is not None:
+                if v_min is not None and v_max is not None:
+                    text += f"\n{emoji_provider['🔢']} <b>{t('cfg_range_both', min=v_min, max=v_max)}</b>"
+                elif v_min is not None:
+                    text += f"\n{emoji_provider['🔢']} <b>{t('cfg_range_min', min=v_min)}</b>"
+                elif v_max is not None:
+                    text += f"\n{emoji_provider['🔢']} <b>{t('cfg_range_max', max=v_max)}</b>"
+            min_len = getattr(validator, "min_len", None)
+            max_len = getattr(validator, "max_len", None)
+            if min_len is not None or max_len is not None:
+                if min_len is not None and max_len is not None:
+                    text += f"\n{emoji_provider['📝']} <b>{t('cfg_len_both', min=min_len, max=max_len)}</b>"
+                elif min_len is not None:
+                    text += f"\n{emoji_provider['📝']} <b>{t('cfg_len_min', min=min_len)}</b>"
+                elif max_len is not None:
+                    text += f"\n{emoji_provider['📝']} <b>{t('cfg_len_max', max=max_len)}</b>"
+            if value_type == "bool":
+                text += f"\n{emoji_provider['☑️']} <b>{t('cfg_type_bool')}</b>"
 
             buttons = []
 
@@ -1215,8 +1443,16 @@ def register(kernel):
                 [Button.inline("❌ Close", data=b"cfg_close", style="danger")]
             )
 
-            await event.edit(text, buttons=buttons, parse_mode="html")
+        return text, buttons
 
+    async def show_module_key_view(event, module_name, key, page):
+        try:
+            payload = await _build_module_key_view_payload(module_name, key, page)
+            if payload is None:
+                await event.answer(t("not_found"), alert=True)
+                return
+            text, buttons = payload
+            await event.edit(text, buttons=buttons, parse_mode="html")
         except Exception as e:
             await event.answer(t("error", error=str(e)[:50]), alert=True)
 
@@ -2979,123 +3215,76 @@ def register(kernel):
 
                         if success:
                             await event.delete()
-                    except:
+                    except Exception:
                         await event.edit(
                             t("cfg_usage", gear=emoji_provider["⚙️"]),
                             parse_mode="html",
                         )
 
-            elif len(args) == 2:
+            else:
+                if args[1] == "module":
+                    if len(args) < 3:
+                        await event.edit(
+                            t("cfg_usage", gear=emoji_provider["⚙️"]),
+                            parse_mode="html",
+                        )
+                        return
+                    module_name = args[2].strip()
+                    module_key = args[3].strip() if len(args) > 3 else ""
+                    query = f"cfg module {module_name}" + (
+                        f" {module_key}" if module_key else ""
+                    )
+                    success, _msg = await kernel.inline_query_and_click(
+                        event.chat_id, query
+                    )
+                    if success:
+                        await event.delete()
+                    return
+
+                if args[1] == "key":
+                    if len(args) < 3:
+                        await event.edit(
+                            t("cfg_usage", gear=emoji_provider["⚙️"]),
+                            parse_mode="html",
+                        )
+                        return
+                    key = args[2].strip()
+                    success, _msg = await kernel.inline_query_and_click(
+                        event.chat_id, f"cfg key {key}"
+                    )
+                    if success:
+                        await event.delete()
+                    return
+
+                if args[1] == "-m":
+                    if len(args) < 3:
+                        await event.edit(
+                            t("cfg_usage", gear=emoji_provider["⚙️"]),
+                            parse_mode="html",
+                        )
+                        return
+                    module_name = args[2].strip()
+                    module_key = args[3].strip() if len(args) > 3 else ""
+                    query = f"cfg module {module_name}" + (
+                        f" {module_key}" if module_key else ""
+                    )
+                    success, _msg = await kernel.inline_query_and_click(
+                        event.chat_id, query
+                    )
+                    if success:
+                        await event.delete()
+                    return
+
                 key = args[1].strip()
-
-                if is_key_hidden(key):
-                    await event.edit(
-                        t("hidden_key", briefcase=emoji_provider["💼"], key=key),
-                        parse_mode="html",
-                    )
-                    return
-                if key not in kernel.config:
-                    await event.edit(
-                        t("key_not_found", ballot=emoji_provider["🗳"], key=key),
-                        parse_mode="html",
-                    )
-                    return
-
-                value = kernel.config[key]
-                value_type = type(value).__name__
-                if isinstance(value, (dict, list)):
-                    display_value = f"<pre>{html.escape(json.dumps(value, ensure_ascii=False, indent=2))}</pre>"
-                elif isinstance(value, str):
-                    escaped_value = html.escape(value)
-                    display_value = f"<code>{escaped_value}</code>"
-                else:
-                    display_value = f"<code>{html.escape(str(value))}</code>"
-
-                await event.edit(
-                    t(
-                        "key_view",
-                        note=emoji_provider["📝"],
-                        key=key,
-                        type_emoji=get_type_emoji(value_type),
-                        value_type=value_type,
-                        display_value=display_value,
-                    ),
-                    parse_mode="html",
+                if key == "key" and len(args) > 2:
+                    key = args[2].strip()
+                query = f"cfg key {key}"
+                success, _msg = await kernel.inline_query_and_click(
+                    event.chat_id, query
                 )
-
-            elif len(args) >= 3:
-                subcommand = args[1].lower()
-                key = args[2].strip()
-
-                if subcommand == "now":
-                    if is_key_hidden(key):
-                        await event.edit(
-                            t("hidden_key", briefcase=emoji_provider["💼"], key=key),
-                            parse_mode="html",
-                        )
-                        return
-                    if key not in kernel.config:
-                        await event.edit(
-                            t("key_not_found", ballot=emoji_provider["🗳"], key=key),
-                            parse_mode="html",
-                        )
-                        return
-
-                    value = kernel.config[key]
-                    value_type = type(value).__name__
-                    if isinstance(value, (dict, list)):
-                        display_value = f"<pre>{html.escape(json.dumps(value, ensure_ascii=False, indent=2))}</pre>"
-                    elif isinstance(value, str):
-                        escaped_value = html.escape(value)
-                        display_value = f"<code>{escaped_value}</code>"
-                    else:
-                        display_value = f"<code>{html.escape(str(value))}</code>"
-
-                    await event.edit(
-                        t(
-                            "key_view",
-                            note=emoji_provider["📝"],
-                            key=key,
-                            type_emoji=get_type_emoji(value_type),
-                            value_type=value_type,
-                            display_value=display_value,
-                        ),
-                        parse_mode="html",
-                    )
-
-                elif subcommand == "hide":
-                    if key in SENSITIVE_KEYS:
-                        await event.edit(
-                            t("system_key", paperclip=emoji_provider["📎"]),
-                            parse_mode="html",
-                        )
-                        return
-                    hidden = kernel.config.get("hidden_keys", [])
-                    if key not in hidden:
-                        hidden.append(key)
-                        kernel.config["hidden_keys"] = hidden
-                        await save_config()
-                    await event.edit(
-                        t("hidden_key", briefcase=emoji_provider["💼"], key=key),
-                        parse_mode="html",
-                    )
-
-                elif subcommand == "unhide":
-                    hidden = kernel.config.get("hidden_keys", [])
-                    if key in hidden:
-                        hidden.remove(key)
-                        kernel.config["hidden_keys"] = hidden
-                        await save_config()
-                    await event.edit(
-                        t("visible_key", book=emoji_provider["📖"], key=key),
-                        parse_mode="html",
-                    )
-                else:
-                    # Unknown subcommand
-                    await event.edit(
-                        t("cfg_usage", gear=emoji_provider["⚙️"]),
-                        parse_mode="html",
-                    )
+                if success:
+                    await event.delete()
+                return
         except Exception as e:
             await kernel.handle_error(e, source="cfg", event=event)
 
@@ -3181,11 +3370,17 @@ def register(kernel):
                         )
 
                         if is_new_format:
-                            # New format - use ModuleConfig with validation
                             if key not in module_config.keys():
-                                current_type = None
-                            else:
-                                current_type = type(module_config[key]).__name__
+                                await event.edit(
+                                    t(
+                                        "not_found_in_module",
+                                        cross=emoji_provider["❌"],
+                                    ),
+                                    parse_mode="html",
+                                )
+                                return
+                            # New format - use ModuleConfig with validation
+                            current_type = type(module_config[key]).__name__
 
                             value = parse_value(value_str, current_type)
 
@@ -3339,32 +3534,11 @@ def register(kernel):
                     value_str = strip_formatting(" ".join(args[3:]).strip())
 
                 if module_mode:
-                    module_config = await kernel.get_module_config(module_name, {})
-                    if key in module_config:
-                        await event.edit(
-                            t("key_exists", cross=emoji_provider["❌"]),
-                            parse_mode="html",
-                        )
-                        return
-                    try:
-                        value = parse_value(value_str)
-                        module_config[key] = value
-                        await kernel.save_module_config(module_name, module_config)
-                        add_module_to_config_cache(module_name)
-                        await event.edit(
-                            t(
-                                "add_module_success",
-                                check=emoji_provider["✅"],
-                                module=module_name,
-                                key=key,
-                            ),
-                            parse_mode="html",
-                        )
-                    except Exception as e:
-                        await event.edit(
-                            f"{emoji_provider['❌']} {html.escape(str(e))}",
-                            parse_mode="html",
-                        )
+                    await event.edit(
+                        t("not_found_in_module", cross=emoji_provider["❌"]),
+                        parse_mode="html",
+                    )
+                    return
                 else:
                     if key in kernel.config:
                         await event.edit(
@@ -3414,9 +3588,14 @@ def register(kernel):
 
                         if is_new_format:
                             if key not in module_config.keys():
-                                module_config._values[key] = ModuleConfig.ConfigValue(
-                                    key, {}
+                                await event.edit(
+                                    t(
+                                        "not_found_in_module",
+                                        cross=emoji_provider["❌"],
+                                    ),
+                                    parse_mode="html",
                                 )
+                                return
                             current_value = module_config[key]
                             if not isinstance(current_value, dict):
                                 await event.edit(
@@ -3436,7 +3615,14 @@ def register(kernel):
                             )
                         else:
                             if key not in module_config:
-                                module_config[key] = {}
+                                await event.edit(
+                                    t(
+                                        "not_found_in_module",
+                                        cross=emoji_provider["❌"],
+                                    ),
+                                    parse_mode="html",
+                                )
+                                return
                             if not isinstance(module_config[key], dict):
                                 await event.edit(
                                     t("not_dict", cross=emoji_provider["❌"]),
@@ -3517,9 +3703,14 @@ def register(kernel):
 
                         if is_new_format:
                             if key not in module_config.keys():
-                                from core.lib.module_config import ConfigValue
-
-                                module_config._values[key] = ConfigValue(key, [])
+                                await event.edit(
+                                    t(
+                                        "not_found_in_module",
+                                        cross=emoji_provider["❌"],
+                                    ),
+                                    parse_mode="html",
+                                )
+                                return
                             current_value = module_config[key]
                             if not isinstance(current_value, list):
                                 await event.edit(
@@ -3539,7 +3730,14 @@ def register(kernel):
                             )
                         else:
                             if key not in module_config:
-                                module_config[key] = []
+                                await event.edit(
+                                    t(
+                                        "not_found_in_module",
+                                        cross=emoji_provider["❌"],
+                                    ),
+                                    parse_mode="html",
+                                )
+                                return
                             if not isinstance(module_config[key], list):
                                 await event.edit(
                                     t("not_list", cross=emoji_provider["❌"]),

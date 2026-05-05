@@ -396,6 +396,10 @@ class Register:
             tg_client.add_event_handler(handler, event_obj)
 
             if _passed_module:
+                reg = self._get_or_create_register(_passed_module)
+                event_handlers = self._ensure_list(reg, "__event_handlers__")
+                # Keep per-module bindings for unload/reload/debug utilities.
+                event_handlers.append((handler, event_obj, tg_client))
                 # Check for duplicate event handler
                 for existing in self._all_event_handlers:
                     if existing[0] is handler and existing[1] is event_obj:
@@ -511,6 +515,14 @@ class Register:
             doc = kwargs.get("doc")
             doc_en = kwargs.get("doc_en")
             doc_ru = kwargs.get("doc_ru")
+            if not (doc or doc_en or doc_ru):
+                raw_doc = (getattr(func, "__doc__", None) or "").strip()
+                if raw_doc:
+                    first_line = raw_doc.splitlines()[0].strip()
+                    if first_line:
+                        # Fallback: same doc for RU/EN when localized docs are absent.
+                        doc_ru = first_line
+                        doc_en = first_line
             if doc or doc_en or doc_ru:
                 if not hasattr(self.kernel, "command_docs"):
                     self.kernel.command_docs = {}
@@ -756,6 +768,11 @@ class Register:
                     },
                 )
             )
+            if _passed_module is not None:
+                reg = self._get_or_create_register(_passed_module)
+                watchers = self._ensure_list(reg, "__watchers__")
+                # Keep per-module bindings for unload/reload/debug utilities.
+                watchers.append((_wrapper, event_obj, tg_client))
             target_module = None
             if _passed_module is not None:
                 target_module = _passed_module
@@ -1041,6 +1058,31 @@ class Register:
                             "enabled": watcher_key not in disabled,
                             "tags": dict(meta.get("tags", {})),
                             "bot_client": bool(meta.get("bot_client", False)),
+                            "wrapper": wrapper,
+                            "event": event_obj,
+                            "client": client,
+                        }
+                    )
+            elif reg and hasattr(reg, "__watchers__"):
+                for entry in reg.__watchers__:
+                    wrapper, event_obj = entry[0], entry[1]
+                    client = entry[2] if len(entry) > 2 else self.kernel.client
+                    watcher_module = getattr(
+                        wrapper, "__watcher_module__", module_name
+                    )
+                    watcher_name = getattr(
+                        wrapper,
+                        "__watcher_name__",
+                        getattr(wrapper, "__name__", "unknown"),
+                    )
+                    watcher_key = self._watcher_key(watcher_module, watcher_name)
+                    watchers.append(
+                        {
+                            "module": watcher_module,
+                            "method": watcher_name,
+                            "enabled": watcher_key not in disabled,
+                            "tags": {},
+                            "bot_client": bool(client is getattr(self.kernel, "bot_client", None)),
                             "wrapper": wrapper,
                             "event": event_obj,
                             "client": client,

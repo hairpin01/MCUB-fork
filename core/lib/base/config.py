@@ -1,14 +1,13 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлька | @hairpin01
 
+import hashlib
 import json
 import os
 import sys
 from typing import TYPE_CHECKING, Any
 
 from utils.security import ensure_locked_after_write
-
-from ..utils.colors import Colors
 
 if TYPE_CHECKING:
     from kernel import Kernel
@@ -17,8 +16,129 @@ if TYPE_CHECKING:
 class ConfigManager:
     """Handles kernel config file I/O and per-module config stored in the DB."""
 
+    BACKUP_FILENAME = ".backup-config.json"
+
     def __init__(self, kernel: "Kernel") -> None:
         self.k = kernel
+        self._backup_api_hash = ""
+        self._previous_config = {}
+
+    def _get_api_hash(self, cfg: dict) -> str:
+        """Generate hash from api_id + api_hash for backup folder naming."""
+        api_id = cfg.get("api_id")
+        api_hash = cfg.get("api_hash", "")
+        if not api_id:
+            return ""
+        combined = f"{api_id}:api_hash"
+        return hashlib.md5(combined.encode()).hexdigest()[:16]
+
+    def _get_backup_path(self, cfg: dict) -> str:
+        """Get backup file path ~/.MCUB/{hash}/.backup-config.json."""
+        api_hash = self._get_api_hash(cfg)
+        mcub_dir = os.path.expanduser(f"~/.MCUB/{api_hash}")
+        return os.path.join(mcub_dir, self.BACKUP_FILENAME)
+
+    def _save_backup(self, cfg: dict) -> bool:
+        """Save config to ~/.MCUB/{hash}/.backup-config.json."""
+        try:
+            api_hash = self._get_api_hash(cfg)
+            if not api_hash:
+                return False
+
+            mcub_dir = os.path.expanduser(f"~/.MCUB/{api_hash}")
+            os.makedirs(mcub_dir, exist_ok=True)
+
+            backup_path = os.path.join(mcub_dir, self.BACKUP_FILENAME)
+            with open(backup_path, "w", encoding="utf-8") as f:
+                json.dump(cfg, f, ensure_ascii=False, indent=2)
+
+            ensure_locked_after_write(backup_path, getattr(self.k, "logger", None))
+            self._backup_api_hash = api_hash
+
+            logger = getattr(self.k, "logger", None)
+            if logger:
+                logger.debug(f"Config backup saved: {backup_path}")
+            return True
+        except Exception as e:
+            logger = getattr(self.k, "logger", None)
+            if logger:
+                logger.debug(f"Error saving config backup: {e}")
+            return False
+
+    def _load_backup(self, cfg: dict) -> dict | None:
+        """Load config from ~/.MCUB/{hash}/.backup-config.json."""
+        # If we have api_id/api_hash, look in specific folder
+        api_hash = self._get_api_hash(cfg)
+        if api_hash:
+            backup_path = os.path.expanduser(
+                f"~/.MCUB/{api_hash}/{self.BACKUP_FILENAME}"
+            )
+            if os.path.exists(backup_path):
+                return self._load_backup_file(backup_path)
+            return None
+
+        # No api_hash - search all folders in ~/.MCUB/
+        mcub_home = os.path.expanduser("~/.MCUB")
+        if not os.path.exists(mcub_home):
+            return None
+
+        # Find all backup-config.json files
+        for item in os.listdir(mcub_home):
+            item_path = os.path.join(mcub_home, item)
+            if not os.path.isdir(item_path):
+                continue
+            backup_path = os.path.join(item_path, self.BACKUP_FILENAME)
+            if os.path.exists(backup_path):
+                result = self._load_backup_file(backup_path)
+                if result:
+                    return result
+        return None
+
+    def _load_backup_file(self, backup_path: str) -> dict | None:
+        """Load and validate a specific backup file."""
+        try:
+            with open(backup_path, encoding="utf-8") as f:
+                backup_cfg = json.load(f)
+        except Exception as e:
+            logger = getattr(self.k, "logger", None)
+            if logger:
+                logger.debug(f"[Config] Error loading backup {backup_path}: {e}")
+            return None
+
+        errors = self._validate_config(backup_cfg)
+        if errors:
+            logger = getattr(self.k, "logger", None)
+            if logger:
+                logger.debug(f"[Config] Backup validation errors: {errors}")
+            return None
+
+        return backup_cfg
+
+    def _config_changed(self, old_cfg: dict, new_cfg: dict) -> bool:
+        """Check if any config fields changed."""
+        if not old_cfg:
+            return bool(new_cfg)
+
+        old_keys = set(old_cfg.keys())
+        new_keys = set(new_cfg.keys())
+
+        if old_keys != new_keys:
+            return True
+
+        for key in old_keys:
+            if old_cfg.get(key) != new_cfg.get(key):
+                return True
+
+        return False
+
+    def _is_valid_json(self, file_path: str) -> bool:
+        """Check if file contains valid JSON."""
+        try:
+            with open(file_path, encoding="utf-8") as f:
+                json.load(f)
+            return True
+        except (json.JSONDecodeError, FileNotFoundError, OSError):
+            return False
 
     @staticmethod
     def _env_config() -> dict[str, Any]:
@@ -95,21 +215,51 @@ class ConfigManager:
                 errors = self._validate_config(k.config)
                 if errors:
                     for err in errors:
-                        print(f"{Colors.RED}❌ {err}{Colors.RESET}")
+                        print(f"ERROR: {err}")
                     return False
                 if logger:
                     logger.debug("Config created from environment variables")
                 self.setup()
+                self._save_backup(k.config)
+                self._previous_config = k.config.copy()
                 return True
 
             return False
 
-        # Tighten permissions on every load (covers files created before this
-        # version of the code was deployed)
+        # Load config file
         ensure_locked_after_write(k.CONFIG_FILE, getattr(k, "logger", None))
 
-        with open(k.CONFIG_FILE, encoding="utf-8") as f:
-            k.config = json.load(f)
+        try:
+            with open(k.CONFIG_FILE, encoding="utf-8") as f:
+                k.config = json.load(f)
+        except json.JSONDecodeError as e:
+            if logger:
+                logger.debug(f"[Config] JSON decode error: {e}")
+
+            backup_cfg = self._load_backup({})
+            if backup_cfg:
+                restore = (
+                    input("config.json is corrupted. Load from backup? [Y/n]: ")
+                    .strip()
+                    .lower()
+                )
+                if restore in ("", "y", "yes"):
+                    k.config = backup_cfg
+                    self.setup()
+
+                    # Write restored config to file
+                    with open(k.CONFIG_FILE, "w", encoding="utf-8") as f:
+                        json.dump(k.config, f, ensure_ascii=False, indent=2)
+                    ensure_locked_after_write(k.CONFIG_FILE, k.logger)
+
+                    self._save_backup(k.config)
+                    self._previous_config = k.config.copy()
+                    print("Config restored from backup")
+                    return True
+
+            print(f"Error reading config.json: {e}")
+            return False
+
         if logger:
             logger.debug(
                 "Config loaded file=%s keys=%s",
@@ -129,12 +279,17 @@ class ConfigManager:
                 )
                 logger.debug("Config validation succeeded")
             self.setup()
+
+            # Save/update backup
+            self._save_backup(k.config)
+            self._previous_config = k.config.copy()
+
             if logger:
                 logger.debug("[Config] load_or_create success")
             return True
 
         for err in errors:
-            print(f"{Colors.RED}❌ {err}{Colors.RESET}")
+            print(f"ERROR: {err}")
         if logger:
             logger.debug("[Config] load_or_create failed - errors: %s", errors)
         return False
@@ -147,6 +302,12 @@ class ConfigManager:
         ensure_locked_after_write(k.CONFIG_FILE, k.logger)
         k.logger.debug("Config saved")
 
+        # Update backup if config changed
+        if hasattr(k, "config") and self._backup_api_hash:
+            if self._config_changed(self._previous_config, k.config):
+                self._save_backup(k.config)
+                self._previous_config = k.config.copy()
+
     def setup(self) -> bool:
         """Apply config values to kernel attributes.
 
@@ -156,6 +317,15 @@ class ConfigManager:
         k = self.k
         try:
             k.custom_prefix = k.config.get("command_prefix", ".")
+            raw_owner_prefixes = k.config.get("owner_prefixes", {})
+            if isinstance(raw_owner_prefixes, dict):
+                k.owner_prefixes = {
+                    str(owner_id): str(prefix)
+                    for owner_id, prefix in raw_owner_prefixes.items()
+                    if str(prefix)
+                }
+            else:
+                k.owner_prefixes = {}
             k.aliases = k.config.get("aliases", {})
             k.power_save_mode = k.config.get("power_save_mode", False)
             k.API_ID = int(k.config["api_id"])
@@ -170,7 +340,7 @@ class ConfigManager:
             )
             return True
         except (KeyError, ValueError, TypeError) as e:
-            print(f"{Colors.RED}❌ Config error: {e}{Colors.RESET}")
+            print(f"ERROR: Config error: {e}")
             return False
 
     def first_time_setup(self) -> bool:

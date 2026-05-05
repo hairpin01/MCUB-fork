@@ -9,6 +9,8 @@ import time
 from collections import OrderedDict
 from typing import Any
 
+CacheType = OrderedDict[Any, tuple[float, Any]]
+
 
 class TTLCache:
     """
@@ -32,7 +34,7 @@ class TTLCache:
             max_size: Maximum number of items the cache can hold (default: 1000)
             ttl: Default time-to-live for cache entries in seconds (default: 300)
         """
-        self.cache = OrderedDict()
+        self.cache: CacheType = OrderedDict()
         self.max_size = max_size
         self.ttl = ttl
 

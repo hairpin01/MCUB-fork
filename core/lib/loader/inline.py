@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from telethon.types import Message
 
 from core_inline.handlers import InlineHandlers
+from utils import Strings
 
 
 @dataclass(slots=True)
@@ -41,6 +42,7 @@ class InlineManager:
         self._sessions: dict[str, _Session] = {}
         self._setup_temp_callback_handler()
         self.k.logger.debug("[InlineManager] __init__ done")
+        self.s = Strings(self.k, {"name": "kernel"})
 
     def _purge_expired_sessions(self) -> None:
         now = time.monotonic()
@@ -598,15 +600,9 @@ class InlineManager:
             return True, message
 
         except ChatSendInlineForbiddenError:
-            _warning_strings = {
-                "ru": "Инлайн-формы запрещены в этом чате.",
-                "en": "Inline forms are not allowed in this chat.",
-            }
-            lang = getattr(k, "config", {}).get("language", "en")
-            warning = _warning_strings.get(lang, _warning_strings["en"])
             if form_sms:
                 await form_sms.edit(
-                    f'<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>{warning}</b>',
+                    f'<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> {self.s("warning_not_allowed_inline")}',
                     parse_mode="html",
                 )
             return False, None
@@ -618,7 +614,7 @@ class InlineManager:
             )
             if form_sms:
                 await form_sms.edit(
-                    f'<tg-emoji emoji-id="5465665476971471368">❌</tg-emoji> <i><b>Open the inline form, failed!</b></i>\n<pre>{raw_tb}</pre>',
+                    f"<tg-emoji emoji-id='5465665476971471368'>❌</tg-emoji> {self.s('open_inline_form_error', raw_tb=raw_tb)}",
                     parse_mode="html",
                 )
             return False, None
@@ -680,7 +676,7 @@ class InlineManager:
                         send_kwargs["reply_to"] = reply_to
                     form_sms = await k.client.send_message(
                         chat_id,
-                        '<tg-emoji emoji-id="5204110240752110921">🕳️</tg-emoji> <i><b>Open inline form</b></i>',
+                        f'<tg-emoji emoji-id="5204110240752110921">🕳️</tg-emoji> {self.s("open_inline_form")}',
                         **send_kwargs,
                     )
                 except Exception:
@@ -702,7 +698,7 @@ class InlineManager:
             if auto_send:
                 if form_sms:
                     await form_sms.edit(
-                        f'<tg-emoji emoji-id="5465665476971471368">❌</tg-emoji> <i><b>Open the inline form, failed!</b></i>\n<pre>{raw_tb}</pre>',
+                        f'<tg-emoji emoji-id="5465665476971471368">❌</tg-emoji> {self.s("open_inline_form_error", raw_tb=raw_tb)}',
                         parse_mode="html",
                     )
             return (False, None) if auto_send else None

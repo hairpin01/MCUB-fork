@@ -121,6 +121,22 @@ class String(Validator):
         return value
 
 
+class Placeholders(String):
+    """String validator that marks config value as placeholder-aware."""
+
+    def __init__(
+        self,
+        default: Any = None,
+        min_len: int | None = None,
+        max_len: int | None = None,
+        *,
+        placeholder_scope: str = "any",
+    ):
+        super().__init__(default=default, min_len=min_len, max_len=max_len)
+        self.supports_placeholders = True
+        self.placeholder_scope = placeholder_scope
+
+
 class Choice(Validator):
     def __init__(self, choices: list[Any], default: Any = None):
         super().__init__(default)

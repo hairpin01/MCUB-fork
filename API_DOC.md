@@ -23,6 +23,7 @@
 | [Best Practices](doc/guides/best-practices.md) | Recommended patterns for modules |
 | [Custom Core](doc/guides/custom-core.md) | Creating custom kernel cores |
 | [Localization (i18n)](doc/guides/i18n.md) | Multi-language support |
+| [Pipeline](doc/guides/pipeline.md) | Command pipeline chaining |
 
 ---
 
@@ -59,6 +60,7 @@
 | Document | Description |
 |----------|-------------|
 | [Core Utils](doc/utils/core-utils.md) | Utility functions and helpers |
+| [Custom Placeholders API](doc/utils/core-utils.md#custom-placeholders-api) | Placeholder decorators, rendering helpers, and config integration |
 | [Examples](doc/utils/examples.md) | Complete module examples |
 
 ---

@@ -378,6 +378,7 @@ async def api_qr_poll(request: web.Request) -> web.Response:
 
     try:
         from telethon import functions, types
+        from telethon.errors import SessionPasswordNeededError
 
         if not client.is_connected():
             log.debug("[setup] Reconnecting client for QR poll")
@@ -394,11 +395,17 @@ async def api_qr_poll(request: web.Request) -> web.Response:
                 )
             )
             log.debug("[setup] Token check result: %s", type(result).__name__)
+        except SessionPasswordNeededError:
+            log.info("[setup] 2FA required for QR login")
+            state["awaiting_2fa"] = True
+            state["awaiting_qr"] = True
+            return web.json_response({"requires_2fa": True})
         except Exception as token_err:
             err_str = str(token_err).lower()
             if "password" in err_str or "2fa" in err_str or "two-steps" in err_str:
                 log.info("[setup] 2FA required for QR login")
                 state["awaiting_2fa"] = True
+                state["awaiting_qr"] = True
                 return web.json_response({"requires_2fa": True})
             if "expired" in err_str or "invalid" in err_str:
                 log.info("[setup] QR token expired, generating new token")
@@ -442,7 +449,15 @@ async def api_qr_poll(request: web.Request) -> web.Response:
         elif isinstance(result, types.auth.LoginTokenMigrateTo):
             log.info("[setup] Token migrated to DC %s", result.dc_id)
             await client._switch_dc(result.dc_id)
-            result = await client(functions.auth.ImportLoginTokenRequest(result.token))
+            try:
+                result = await client(
+                    functions.auth.ImportLoginTokenRequest(result.token)
+                )
+            except SessionPasswordNeededError:
+                log.info("[setup] 2FA required after QR token import")
+                state["awaiting_2fa"] = True
+                state["awaiting_qr"] = True
+                return web.json_response({"requires_2fa": True})
             if isinstance(result, types.auth.LoginTokenSuccess):
                 user = result.authorization.user
                 phone = (

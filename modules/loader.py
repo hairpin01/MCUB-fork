@@ -69,6 +69,10 @@ async def safe_edit(msg, *args, **kwargs):
         return await msg.edit(*args, **kwargs)
     except MessageNotModifiedError:
         return msg
+    except Exception as e:
+        if "Content of the message was not modified" in str(e):
+            return msg
+        raise
 
 
 logger = logging.getLogger("mcub.loader")

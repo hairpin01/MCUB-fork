@@ -12,7 +12,7 @@ from datetime import datetime
 
 import aiohttp
 from telethon import events
-from telethon.tl.functions.channels import EditPhotoRequest
+from telethon.tl.functions.channels import EditPhotoRequest, InviteToChannelRequest
 from telethon.tl.functions.messages import (
     AddChatUserRequest,
     CreateChatRequest,
@@ -318,6 +318,8 @@ class LogBot(ModuleBase):
 
         if self.kernel.config.get("log_chat_id"):
             self.kernel.log_chat_id = self.kernel.config["log_chat_id"]
+            bot_entity = await self._get_log_bot_entity()
+            await self._ensure_log_bot_access(bot_entity)
             return True
 
         self.log.info(
@@ -330,32 +332,24 @@ class LogBot(ModuleBase):
                     self.kernel.log_chat_id = dialog.id
                     self.kernel.config["log_chat_id"] = dialog.id
                     self.kernel.save_config()
+                    bot_entity = await self._get_log_bot_entity()
+                    await self._ensure_log_bot_access(bot_entity)
 
                     self.log.info(
                         f"{self.kernel.Colors.GREEN}✅ {dialog.title}{self.kernel.Colors.RESET}"
                     )
                     return True
         except Exception as e:
-            self.log.error(f"{self.ang['searching_logs']}: {e}")
+            self.log.error(f"{self.lang['searching_logs']}: {e}")
 
         self.log.info(
             f"{self.kernel.Colors.YELLOW}{self.lang['creating_log_group']}{self.kernel.Colors.RESET}"
         )
 
         users_to_invite = [InputUserSelf()]
-        bot_entity = None
-
-        if (
-            hasattr(self.kernel, "bot_client")
-            and self.kernel.bot_client
-            and await self.kernel.bot_client.is_user_authorized()
-        ):
-            try:
-                bot_me = await self.kernel.bot_client.get_me()
-                bot_entity = await self.kernel.client.get_input_entity(bot_me.username)
-                users_to_invite.append(bot_entity)
-            except Exception as e:
-                self.log.warning(f"{self.lang['bot_prepare_error']}: {e}")
+        bot_entity = await self._get_log_bot_entity()
+        if bot_entity:
+            users_to_invite.append(bot_entity)
 
         try:
             me = await self.kernel.client.get_me()
@@ -434,22 +428,7 @@ class LogBot(ModuleBase):
                     f"{self.kernel.Colors.YELLOW}{self.lang['invite_error']}: {e}{self.kernel.Colors.RESET}"
                 )
 
-            if bot_entity and len(users_to_invite) == 1:
-                try:
-                    await self.kernel.client(
-                        AddChatUserRequest(
-                            chat_id=self.kernel.log_chat_id,
-                            user_id=bot_entity,
-                            fwd_limit=0,
-                        )
-                    )
-                    self.log.info(
-                        f"{self.kernel.Colors.GREEN}{self.lang['bot_added']}{self.kernel.Colors.RESET}"
-                    )
-                except Exception as e:
-                    self.log.error(
-                        f"{self.kernel.Colors.YELLOW}{self.lang['bot_add_error']}: {e}{self.kernel.Colors.RESET}"
-                    )
+            await self._ensure_log_bot_access(bot_entity)
 
             self.kernel.save_config()
 
@@ -461,12 +440,100 @@ class LogBot(ModuleBase):
         except Exception as e:
             import traceback
 
-            tb = traceback.format_exc
+            tb = traceback.format_exc()
             self.log.error(
                 f"{self.kernel.Colors.RED}{self.lang['chat_create_error']}: {e}{self.kernel.Colors.RESET}\n{tb}"
             )
 
             return False
+
+    async def _get_log_bot_entity(self):
+        if not (
+            hasattr(self.kernel, "bot_client")
+            and self.kernel.bot_client
+            and await self.kernel.bot_client.is_user_authorized()
+        ):
+            self.log.warning(
+                f"{self.lang['bot_prepare_error']}: bot client is unavailable"
+            )
+            return None
+
+        try:
+            bot_me = await self.kernel.bot_client.get_me()
+            username = getattr(bot_me, "username", None)
+            if not username:
+                self.log.warning(
+                    f"{self.lang['bot_prepare_error']}: bot username is unavailable"
+                )
+                return None
+            return await self.kernel.client.get_input_entity(username)
+        except Exception as e:
+            self.log.warning(f"{self.lang['bot_prepare_error']}: {e}")
+            return None
+
+    async def _ensure_log_bot_access(self, bot_entity) -> bool:
+        if not self.kernel.log_chat_id or not bot_entity:
+            return False
+
+        added = await self._add_log_bot_to_chat(bot_entity)
+        if not added:
+            return False
+        promoted = await self._promote_log_bot(bot_entity)
+        return promoted
+
+    async def _add_log_bot_to_chat(self, bot_entity) -> bool:
+        try:
+            chat = await self.kernel.client.get_entity(self.kernel.log_chat_id)
+            if getattr(chat, "megagroup", False) or getattr(chat, "broadcast", False):
+                await self.kernel.client(InviteToChannelRequest(chat, [bot_entity]))
+            else:
+                await self.kernel.client(
+                    AddChatUserRequest(
+                        chat_id=getattr(chat, "id", self.kernel.log_chat_id),
+                        user_id=bot_entity,
+                        fwd_limit=0,
+                    )
+                )
+            self.log.info(
+                f"{self.kernel.Colors.GREEN}{self.lang['bot_added']}{self.kernel.Colors.RESET}"
+            )
+            return True
+        except Exception as e:
+            if self._is_already_participant_error(e):
+                self.log.debug("Log bot is already in the log chat")
+                return True
+            self.log.warning(
+                f"{self.kernel.Colors.YELLOW}{self.lang['bot_add_error']}: {e}{self.kernel.Colors.RESET}"
+            )
+            return False
+
+    async def _promote_log_bot(self, bot_entity) -> bool:
+        try:
+            chat = await self.kernel.client.get_entity(self.kernel.log_chat_id)
+            await self.kernel.client.edit_admin(
+                chat,
+                bot_entity,
+                is_admin=True,
+                title="MCUB logs",
+            )
+            self.log.info(
+                f"{self.kernel.Colors.GREEN}Log bot admin rights granted{self.kernel.Colors.RESET}"
+            )
+            return True
+        except Exception as e:
+            self.log.warning(
+                f"{self.kernel.Colors.YELLOW}Log bot admin rights were not granted: {e}{self.kernel.Colors.RESET}"
+            )
+            return False
+
+    @staticmethod
+    def _is_already_participant_error(error: Exception) -> bool:
+        error_name = type(error).__name__.lower()
+        error_text = str(error).lower()
+        return (
+            "useralreadyparticipant" in error_name
+            or "user_already_participant" in error_text
+        )
 
     @command("log_setup", doc_en="setup logging chat", doc_ru="настроить чат для логов")
     async def log_setup_handler(self, event: events.NewMessage.Event):

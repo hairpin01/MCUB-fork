@@ -24,6 +24,18 @@ def register(kernel):
     assert _detect_module_type(code) == "native"
 
 
+def test_detect_native_type_from_module_base_loader_alias():
+    code = """
+import core.lib.loader.module_base as loader
+
+class Fastfetch(loader.ModuleBase):
+    @loader.command("fastfetch", doc_en="Run fastfetch")
+    async def fastfetchcmd(self, event):
+        pass
+"""
+    assert _detect_module_type(code) == "native"
+
+
 def test_detect_geek_type_from_inline_bot_usage():
     code = """
 class X:

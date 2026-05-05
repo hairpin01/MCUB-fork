@@ -109,6 +109,9 @@ def _detect_module_type(source_code: str) -> str:
     hikka_score = 0
     geek_score = 0
     native_score = 0
+    native_loader_aliases: set[str] = set()
+    native_module_base_names: set[str] = set()
+    native_decorator_names: set[str] = set()
 
     def _attr_chain(node: ast.AST) -> list[str]:
         chain: list[str] = []
@@ -120,6 +123,25 @@ def _detect_module_type(source_code: str) -> str:
             chain.append(cur.id)
         return list(reversed(chain))
 
+    def _alias_name(alias: ast.alias) -> str:
+        return alias.asname or alias.name.rsplit(".", 1)[-1]
+
+    def _is_native_module_base_import(module: str) -> bool:
+        return module == "core.lib.loader.module_base"
+
+    def _is_native_loader_alias(chain: list[str]) -> bool:
+        return bool(chain) and chain[0] in native_loader_aliases
+
+    def _is_native_module_base_expr(chain: list[str]) -> bool:
+        if len(chain) >= 2 and _is_native_loader_alias(chain):
+            return chain[1] == "ModuleBase"
+        return len(chain) == 1 and chain[0] in native_module_base_names
+
+    def _is_native_decorator_expr(chain: list[str]) -> bool:
+        if len(chain) >= 2 and _is_native_loader_alias(chain):
+            return chain[1] == "command"
+        return len(chain) == 1 and chain[0] in native_decorator_names
+
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
             module = node.module or ""
@@ -128,11 +150,24 @@ def _detect_module_type(source_code: str) -> str:
                 hikka_score += 1
             if module.startswith("core.lib.loader"):
                 native_score += 1
+            if _is_native_module_base_import(module):
+                for alias in node.names:
+                    imported_name = _alias_name(alias)
+                    if alias.name == "ModuleBase":
+                        native_module_base_names.add(imported_name)
+                    elif alias.name == "command":
+                        native_decorator_names.add(imported_name)
+            elif module == "core.lib.loader":
+                for alias in node.names:
+                    if alias.name == "module_base":
+                        native_loader_aliases.add(_alias_name(alias))
 
         elif isinstance(node, ast.Import):
             for alias in node.names:
                 if alias.name.startswith("core.lib.loader"):
                     native_score += 1
+                if alias.name == "core.lib.loader.module_base":
+                    native_loader_aliases.add(_alias_name(alias))
 
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             if node.name == "register" and node.args.args:
@@ -144,6 +179,9 @@ def _detect_module_type(source_code: str) -> str:
                 if isinstance(dec, ast.Call):
                     dec = dec.func
                 chain = _attr_chain(dec)
+                if _is_native_decorator_expr(chain):
+                    native_score += 1
+                    continue
                 if (
                     len(chain) >= 2
                     and chain[0] == "loader"
@@ -159,6 +197,9 @@ def _detect_module_type(source_code: str) -> str:
         elif isinstance(node, ast.ClassDef):
             for base in node.bases:
                 chain = _attr_chain(base)
+                if _is_native_module_base_expr(chain):
+                    native_score += 1
+                    continue
                 if (
                     len(chain) >= 2
                     and chain[0] == "loader"

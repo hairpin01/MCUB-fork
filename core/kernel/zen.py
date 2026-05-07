@@ -1,7 +1,10 @@
+"""
+Zen Kernel — simple is better than complex.
+Flat is better than nested. Readability counts.
+"""
+
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлька | @hairpin01
-
-from __future__ import annotations
 
 # ---- meta data ------ kernel ----------------------
 # author: @Hairpin00
@@ -12,11 +15,7 @@ from __future__ import annotations
 # [🌐 https://github.com/hairpin01, 🌐 https://github.com/Mitrichdfklwhcluio, 🌐 https://t.me/HenerTLG]
 # ----------------------- end -----------------------
 
-"""
-Zen Kernel — simple is better than complex.
-Flat is better than nested. Readability counts.
-"""
-
+from __future__ import annotations
 
 import asyncio
 import html
@@ -30,6 +29,7 @@ import time
 import traceback
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 try:
     from telethon import events
@@ -42,11 +42,11 @@ try:
     from telethon import _check_mcub_installation, install_uvloop
 
     _check_mcub_installation()
-except Exception:
+except Exception as err:
     # tb = traceback.format_exc()
     raise McubTelethonError(
         "YOU is not install telethon-mcub, please run: 'pip install telethon-mcub' and 'pip uninstall telethon -y'! (or update telethon-mcub)"
-    )
+    ) from err
 
 try:
     from core.lib.utils.case_insensitive import CaseInsensitiveDict

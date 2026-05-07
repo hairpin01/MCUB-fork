@@ -1,5 +1,29 @@
 lang: ru  # Base language for fallback
 
+error:
+  __global__: on
+  error: "❌ Треш: {error}"
+  full_error: '🚫 <b>Error:</b> <code>{error}</code>
+
+  🥁 Full logs:
+
+  <pre>{full_error}</pre>'
+  timeout: "⏱ Запрос завис и ушёл в закат"
+  unknown: "❌ Непонятная ошибка, но точно не к добру"
+  api_error: "❌ API сломалось: {error}"
+  permission_denied: "❌ Нельзя. Прав нет."
+
+buttons:
+  __global__: 1
+  close: 🙈 Close
+  yes: 💠 Yes
+  no: 🚫 No
+  back: < Back
+  next: 'Next >'
+  update: 🔄 Update
+  page: 'Page: {}'
+  back_menu: 🔙 Menu
+
 core_inline:
   no_access: Ты кто вообще такой? Доступа нет, иди отсюда
   no_access_id: 'ID чужака:'

@@ -1,5 +1,29 @@
 lang: en
 
+error:
+  __global__: on
+  error: "❌ [STDERR]: {error}"
+  full_error: '🚫 <b>Error:</b> <code>{error}</code>
+
+  🥁 Full logs:
+
+  <pre>{full_error}</pre>'
+  timeout: "⏱ connection timed out"
+  unknown: "❌ unknown error"
+  api_error: "❌ api error: {error}"
+  permission_denied: "❌ permission denied"
+
+buttons:
+  __global__: 1
+  close: 🙈 Close
+  yes: 💠 Yes
+  no: 🚫 No
+  back: < Back
+  next: 'Next >'
+  update: 🔄 Update
+  page: 'Page: {}'
+  back_menu: 🔙 Menu
+
 core_inline:
   no_access: "bash: EACCES: Permission denied"
   no_access_id: 'UID: {sender_id}'

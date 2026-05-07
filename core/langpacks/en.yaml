@@ -1,8 +1,32 @@
 lang: en
 
+error:
+  __global__: on
+  full_error: '🚫 <b>Error:</b> <code>{error}</code>
+
+  🥁 Full logs:
+
+  <pre>{full_error}</pre>'
+  error: ❌ <b>Error:</b> <code>{error}</code>
+  timeout: ⏱ <b>Request timed out</b>
+  unknown: ❌ <b>Unknown error</b>
+  api_error: ❌ <b>API error:</b> <code>{error}</code>
+  permission_denied: 🚫 <b>Permission denied</b>
+
+buttons:
+  __global__: 1
+  close: 🙈 Close
+  yes: 💠 Yes
+  no: 🚫 No
+  back: < Back
+  next: 'Next >'
+  update: 🔄 Update
+  page: 'Page: {}'
+  back_menu: 🔙 Menu
+
 core_inline:
   no_access: You don't have access to inline MCUB bot
-  no_access_id: 'ID: {sender_id}'
+  no_access_id: 'ID:'
   mcub_bot_title: MCUB Bot
   version: Version
   modules: Modules

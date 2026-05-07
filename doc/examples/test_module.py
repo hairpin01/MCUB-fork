@@ -488,6 +488,5 @@ class TestModule(ModuleBase):
             self.log.error(f"Permission tags test failed: {e}")
             return False
 
-
-async def test_inline_button_click(self) -> bool:
-    return None
+    async def test_inline_button_click(self) -> bool:
+        return None

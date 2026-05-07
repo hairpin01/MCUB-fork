@@ -7,7 +7,8 @@ import json
 import os
 import shutil
 
-from telethon import events
+from telethon import events, __version__
+from telethon.tl.types import InputMediaWebPage
 
 from core.lib.loader.module_base import ModuleBase, callback, command
 from core.lib.loader.module_config import Boolean, ConfigValue, ModuleConfig
@@ -45,6 +46,14 @@ class SettingsModule(ModuleBase):
         }
         if config_dict_clean:
             await self.kernel.save_module_config(self.name, config_dict_clean)
+
+        self.user_emojis = {
+            6020965582: "5469888215802482605",
+            2037125547: "5467932472379480411",
+            779572293: "5470163024989952512",
+            8405520863: "5470170528297817805",
+            855890735: "5470063433288290290",
+        }
         self.kernel.store_module_config_schema(self.name, self.config)
 
     def _s(self, key: str, **kwargs) -> str:
@@ -335,7 +344,7 @@ class SettingsModule(ModuleBase):
                 buttons=button_rows,
             )
             if success:
-                await event.delete()
+                await self.client.delete_messages(event.chat_id, [event.message_id])
             return
 
         new_lang = args[0].lower()
@@ -386,8 +395,9 @@ class SettingsModule(ModuleBase):
                 ]
             ],
         )
+
         if success:
-            await event.delete()
+            await self.client.delete_messages(event.chat_id, [event.message_id])
 
     async def _clear_db(self) -> str:
         db_path = self._get_db_path()
@@ -523,3 +533,32 @@ class SettingsModule(ModuleBase):
             await self.edit(event, self._s("piped_on"), parse_mode="html")
         else:
             await self.edit(event, self._s("piped_off"), parse_mode="html")
+
+    @command("mcub", doc_ru="Инфо о MCUB", doc_en="Info MCUB")
+    async def cmd_mcub(self, event: events.NewMessage.Event) -> None:
+        version_kernel = self.kernel.VERSION
+        version_telethon = __version__
+        branch = await self.kernel.version_manager.detect_branch()
+        commit_sha = await self.kernel.version_manager.get_commit_sha()
+        commit_url = await self.kernel.version_manager.get_github_commit_url()
+        me = await self.client.get_me()
+        user = f'<tg-emoji emoji-id="{self.user_emojis.get(me.id, "5470015630302287916")}">{"Ⓜ️" if me.id in self.user_emojis else "🕳"}</tg-emoji>'
+        mcub_emoji = (
+            f'{user}<tg-emoji emoji-id="5469945764069280010">🔮</tg-emoji><tg-emoji emoji-id="5469943045354984820">🔮</tg-emoji><tg-emoji emoji-id="5469879466954098867">🔮</tg-emoji>'
+            if me.premium
+            else "Mitrich UserBot"
+        )
+
+        text = f"""<blockquote>{mcub_emoji} <code>{version_kernel}</code> #<a href="{commit_url}">{commit_sha}</a></blockquote>
+
+<blockquote><tg-emoji emoji-id="5397575638146110953">🌎</tg-emoji> <strong>Telethon-MCUB</strong>: <code>{version_telethon}</code>
+
+<tg-emoji emoji-id="5449918202718985124">🌳</tg-emoji> Branch <strong>{branch}</strong>!</blockquote>"""
+        banner_url = "https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/info.jpg"
+
+        await event.edit(
+            text,
+            file=InputMediaWebPage(banner_url, optional=True),
+            parse_mode="html",
+            invert_media=True,
+        )

@@ -3,43 +3,48 @@
 
 from __future__ import annotations
 
-# author: @Hairpin00
-# version: 1.0.6
-# description: Update module / Модуль обновлений
 import asyncio
 import os
 import random
 import subprocess
 
+from telethon import events
+from telethon.tl.types import InputMediaWebPage
+
+import core.lib.loader.module_base as loader
 from utils.restart import restart_kernel
 
 
-def register(kernel):
-    from utils.strings import Strings
+class UpdatesMod(loader.ModuleBase):
+    name = "updates"
+    description = {"ru": "Модуль обновлений", "en": "Update module"}
+    version = "1.0.6"
+    author = "@Hairpin00"
 
-    strings = Strings(kernel, {"name": "updates"})
+    strings = {"name": "updates"}
 
-    emojis = [
-        "ಠ_ಠ",
-        "( ཀ ʖ̯ ཀ)",
-        "(◕‿◕✿)",
-        "(つ･･)つ",
-        "༼つ◕_◕༽つ",
-        "(•_•)",
-        "☜(ﾟヮﾟ☜)",
-        "(☞ﾟヮﾟ)☞",
-        "ʕ•ᴥ•ʔ",
-        "(づ￣ ³￣)づ",
-    ]
+    async def on_load(self):
+        self.emojis = [
+            "ಠ_ಠ",
+            "( ཀ ʖ̯ ཀ)",
+            "(◕‿◕✿)",
+            "(つ･･)つ",
+            "༼つ◕_◕༽つ",
+            "(•_•)",
+            "☜(ﾟヮﾟ☜)",
+            "(☞ﾟヮﾟ)☞",
+            "ʕ•ᴥ•ʔ",
+            "(づ￣ ³￣)づ",
+        ]
 
-    PREMIUM_EMOJI = {
-        "telescope": '<tg-emoji emoji-id="5334904192622403796">🔭</tg-emoji>',
-        "alembic": '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>',
-        "package": '<tg-emoji emoji-id="5399898266265475100">📦</tg-emoji>',
-    }
+        self.PREMIUM_EMOJI = {
+            "telescope": '<tg-emoji emoji-id="5334904192622403796">🔭</tg-emoji>',
+            "alembic": '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>',
+            "package": '<tg-emoji emoji-id="5399898266265475100">📦</tg-emoji>',
+        }
 
-    async def mcub_handler():
-        me = await kernel.client.get_me()
+    async def mcub_handler(self) -> str:
+        me = await self.kernel.client.get_me()
         mcub_emoji = (
             '<tg-emoji emoji-id="5470015630302287916">🔮</tg-emoji><tg-emoji emoji-id="5469945764069280010">🔮</tg-emoji><tg-emoji emoji-id="5469943045354984820">🔮</tg-emoji><tg-emoji emoji-id="5469879466954098867">🔮</tg-emoji>'
             if me.premium
@@ -47,10 +52,8 @@ def register(kernel):
         )
         return mcub_emoji
 
-    @kernel.register.command(
-        "restart", doc_en="restart userbot", doc_ru="перезапустить юзербот"
-    )
-    async def restart_handler(event):
+    @loader.command("restart", doc_en="restart userbot", doc_ru="перезапустить юзербот")
+    async def restart_handler(self, event: events.NewMessage.Event):
         thread_id = None
         if event.reply_to:
             thread_id = getattr(event.reply_to, "reply_to_top_id", None) or getattr(
@@ -58,24 +61,29 @@ def register(kernel):
             )
 
         msg = await event.edit(
-            f"{PREMIUM_EMOJI['telescope']} <i>{strings('restarting').format(mcub=await mcub_handler())}</i>",
+            f"{self.PREMIUM_EMOJI['telescope']} <i>{self.strings('restarting').format(mcub=await self.mcub_handler())}</i>",
             parse_mode="html",
         )
         await restart_kernel(
-            kernel,
+            self.kernel,
             chat_id=event.chat_id,
             message_id=msg.id,
             thread_id=thread_id,
         )
 
-    @kernel.register.command(
+    @loader.command(
         "update", doc_en="update MCUB-fork from git", doc_ru="обновить MCUB-fork из git"
     )
-    async def update_handler(event):
+    async def cmd_update(self, event: events.NewMessage.Event):
         msg = await event.edit("❄️")
-        kernel.logger.info("Updating MCUB-fork")
+        self.log.info("Updating MCUB-fork")
 
-        branch = await kernel.version_manager.detect_branch()
+        branch = await self.kernel.version_manager.detect_branch()
+        thread_id = None
+        if event.reply_to:
+            thread_id = getattr(event.reply_to, "reply_to_top_id", None) or getattr(
+                event.reply_to, "reply_to_msg_id", None
+            )
 
         try:
             result = subprocess.run(
@@ -84,49 +92,61 @@ def register(kernel):
                 text=True,
                 cwd=os.path.dirname(os.path.abspath(__file__)),
             )
-            kernel.logger.debug("run -> 'git pull origin main'")
+            self.log.debug("run -> 'git pull origin main'")
 
             if result.returncode == 0:
                 if "Already up to date" in result.stdout:
                     await msg.edit(
-                        strings("already_updated").format(version=kernel.VERSION),
+                        self.strings("already_updated").format(
+                            version=self.kernel.VERSION
+                        ),
                         parse_mode="html",
                     )
-                    kernel.logger.info("Already up to date")
+                    self.log.info("Already up to date")
                     return
 
                 await msg.edit(
-                    strings("git_pull_success").format(output=result.stdout[:200]),
+                    self.strings("git_pull_success").format(output=result.stdout[:200]),
                     parse_mode="html",
                 )
-                kernel.logger.info("successfully git pull")
+                self.log.info("successfully git pull")
                 await asyncio.sleep(2)
 
-                emoji = random.choice(emojis)
+                emoji = random.choice(self.emojis)
                 await msg.edit(
-                    strings("update_success").format(emoji=emoji),
+                    self.strings("update_success").format(emoji=emoji),
                     parse_mode="html",
+                    file=InputMediaWebPage(
+                        "https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/update.png",
+                        optional=True,
+                    ),
+                    invert_media=True,
                 )
-                kernel.logger.info("Restarting...")
+                self.log.info("Restarting...")
                 await asyncio.sleep(2)
-                await restart_kernel(kernel)
+                await restart_kernel(
+                    self.kernel,
+                    chat_id=event.chat_id,
+                    message_id=msg.id,
+                    thread_id=thread_id,
+                )
 
         except Exception as e:
             await msg.edit(
-                strings("error").format(error=str(e)),
+                self.strings("error").format(error=str(e)),
                 parse_mode="html",
             )
 
-    @kernel.register.command("stop", doc_en="stop userbot", doc_ru="остановить юзербот")
-    async def stop_handler(event):
-        kernel.shutdown_flag = True
-        emoji = random.choice(emojis)
+    @loader.command("stop", doc_en="stop userbot", doc_ru="остановить юзербот")
+    async def cmd_stop(self, event: events.NewMessage.Event):
+        self.kernel.shutdown_flag = True
+        emoji = random.choice(self.emojis)
         await event.edit(
-            strings("stopping", mcub=await mcub_handler(), emoji=emoji),
+            self.strings("stopping", mcub=await self.mcub_handler(), emoji=emoji),
             parse_mode="html",
         )
         await asyncio.sleep(1)
-        await kernel.shutdown()
+        await self.kernel.shutdown()
 
     # потом переделаю ---
     # async def rollback_handler(event):

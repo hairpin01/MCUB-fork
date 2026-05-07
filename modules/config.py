@@ -307,6 +307,35 @@ def register(kernel):
             return string_key
         return lang[string_key].format(**kwargs)
 
+    def get_live_module_config(module_name):
+        """Return live ModuleConfig-like schema for a loaded module, if available."""
+        live_cfg = getattr(kernel, "_live_module_configs", {}).get(module_name)
+        if live_cfg is not None:
+            return live_cfg
+
+        live_mod = kernel.loaded_modules.get(module_name) or kernel.system_modules.get(
+            module_name
+        )
+        if live_mod is not None:
+            return getattr(live_mod, "config", None)
+
+        return None
+
+    def get_module_config_items(module_name, stored_config):
+        """Return config keys to display, preferring the live schema over stale DB data."""
+        live_cfg = get_live_module_config(module_name)
+        if is_module_config_like(live_cfg):
+            return list(live_cfg.items())
+
+        if is_module_config_like(stored_config):
+            return list(stored_config.items())
+        if isinstance(stored_config, dict) and stored_config.get("__mcub_config__"):
+            return [(k, v) for k, v in stored_config.items() if k != "__mcub_config__"]
+        if isinstance(stored_config, dict):
+            return list(stored_config.items())
+
+        return []
+
     SENSITIVE_KEYS = ["inline_bot_token", "api_id", "api_hash", "phone"]
 
     msg_manager = InlineMessageManager(kernel)

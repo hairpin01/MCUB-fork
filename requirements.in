@@ -7,3 +7,4 @@ cryptg
 socks
 jinja2
 aiohttp-jinja2
+PyYAML

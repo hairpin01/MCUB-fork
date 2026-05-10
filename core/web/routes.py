@@ -212,7 +212,7 @@ async def api_send_code(request: web.Request) -> web.Response:
 
     state: dict = request.app.setdefault("setup_state", {})
     await _cleanup_state_client(state)
-    _remove_session_files(_SETUP_SESSION)
+    _remove_session_files(_SETUP_SESSION, api_id, api_hash)
 
     try:
         from telethon import TelegramClient
@@ -292,10 +292,10 @@ async def api_qr_login(request: web.Request) -> web.Response:
 
     state: dict = request.app.setdefault("setup_state", {})
     await _cleanup_state_client(state)
-    _remove_session_files(_SETUP_SESSION)
+    _remove_session_files(_SETUP_SESSION, api_id, api_hash)
 
     try:
-        from telethon import TelegramClient, functions, types
+        from telethon import TelegramClient, functions
     except ImportError:
         return _err("telethon is not installed — run: pip install telethon")
 
@@ -719,9 +719,22 @@ async def _disconnect(client) -> None:
         pass
 
 
-def _remove_session_files(name: str) -> None:
+def _remove_session_files(
+    name: str, api_id: int | None = None, api_hash: str | None = None
+) -> None:
+    paths = []
     for ext in (".session", ".session-journal"):
-        p = name + ext
+        paths.append(name + ext)
+        if api_id and api_hash:
+            try:
+                from utils.security import get_sessions_dir
+
+                sessions_dir = get_sessions_dir(api_id, api_hash)
+                paths.append(os.path.join(sessions_dir, name + ext))
+            except Exception as e:
+                log.warning("[setup] cannot resolve secure session dir: %s", e)
+
+    for p in dict.fromkeys(paths):
         if os.path.exists(p):
             try:
                 os.remove(p)
@@ -912,6 +925,10 @@ async def api_bot_auto_create(request: web.Request) -> web.Response:
 
 async def api_setup_complete(request: web.Request) -> web.Response:
     """Fire setup_event to start the kernel after bot step."""
+    state: dict = request.app.get("setup_state") or {}
+    await _disconnect(state.get("client"))
+    _rename_session(_SETUP_SESSION, "user_session")
+
     ev: asyncio.Event | None = request.app.get("setup_event")
     if ev is not None:
         ev.set()

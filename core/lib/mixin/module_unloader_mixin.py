@@ -128,6 +128,45 @@ class ModuleUnloaderMixin:
                         f"Error removing event handler in {module_name}: {e}"
                     )
 
+            central_register = getattr(k, "register", None)
+            if central_register is not None:
+                central_watchers = getattr(central_register, "_all_watchers", None)
+                if isinstance(central_watchers, list):
+                    before_watchers = len(central_watchers)
+                    central_watchers[:] = [
+                        entry
+                        for entry in central_watchers
+                        if (entry[3] if len(entry) > 3 else {}).get("module")
+                        != module_name
+                    ]
+                    removed_watchers = before_watchers - len(central_watchers)
+                    if removed_watchers:
+                        k.logger.debug(
+                            "[loader.unregister] pruned central watchers module=%r count=%d",
+                            module_name,
+                            removed_watchers,
+                        )
+
+                central_events = getattr(central_register, "_all_event_handlers", None)
+                if isinstance(central_events, list):
+                    before_events = len(central_events)
+                    central_events[:] = [
+                        entry
+                        for entry in central_events
+                        if (
+                            (entry[3] if len(entry) > 3 else {}).get("module")
+                            or getattr(entry[0], "__module__", None)
+                        )
+                        != module_name
+                    ]
+                    removed_events = before_events - len(central_events)
+                    if removed_events:
+                        k.logger.debug(
+                            "[loader.unregister] pruned central events module=%r count=%d",
+                            module_name,
+                            removed_events,
+                        )
+
         # Remove raw client.on() handlers (Telethon-MCUB automatic tracking)
         try:
             if hasattr(k.client, "remove_module_handlers"):

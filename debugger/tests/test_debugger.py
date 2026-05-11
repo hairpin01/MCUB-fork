@@ -175,6 +175,157 @@ async def handler(event):
         assert "regiser" in mcub009[0].message
 
 
+class TestBareOrUnsafeExceptRule:
+    """Tests for MCUB027 - broad and bare except handling."""
+
+    def test_detects_bare_except(self):
+        """Should detect bare except even in fallback helpers."""
+        code = """
+def detect_value():
+    try:
+        return risky_probe()
+    except:
+        return "fallback"
+"""
+        rules = get_default_rules()
+        analyzer = SourceAnalyzer(code, "test.py", rules)
+        tree = ast.parse(code)
+        analyzer.warnings = []
+        ast.NodeVisitor.generic_visit(analyzer, tree)
+
+        mcub027 = [w for w in analyzer.warnings if w.rule_id == "MCUB027"]
+        assert len(mcub027) > 0
+        assert "Bare 'except:'" in mcub027[0].message
+
+    def test_allows_helper_fallback_return_default(self):
+        """Should not flag helper probes that fall back to a safe default."""
+        code = """
+def detect_branch():
+    try:
+        return read_branch()
+    except Exception:
+        pass
+    return "main"
+
+async def check_update():
+    try:
+        return await has_updates()
+    except Exception:
+        return False
+"""
+        rules = get_default_rules()
+        analyzer = SourceAnalyzer(code, "test.py", rules)
+        tree = ast.parse(code)
+        analyzer.warnings = []
+        ast.NodeVisitor.generic_visit(analyzer, tree)
+
+        mcub027 = [w for w in analyzer.warnings if w.rule_id == "MCUB027"]
+        assert len(mcub027) == 0
+
+    def test_allows_specific_exception_safe_fallback(self):
+        """Should not flag specific exceptions that return safe fallback values."""
+        code = """
+async def check_update():
+    try:
+        return await fetch_update_state()
+    except TimeoutError:
+        return False
+"""
+        rules = get_default_rules()
+        analyzer = SourceAnalyzer(code, "test.py", rules)
+        tree = ast.parse(code)
+        analyzer.warnings = []
+        ast.NodeVisitor.generic_visit(analyzer, tree)
+
+        mcub027 = [w for w in analyzer.warnings if w.rule_id == "MCUB027"]
+        assert len(mcub027) == 0
+
+    def test_allows_nested_helper_probe_fallback(self):
+        """Should not flag nested helper probes that keep initialized defaults."""
+        code = """
+def get_system_info():
+    cpu_usage = "N/A"
+    ram_usage = "N/A"
+    try:
+        try:
+            cpu_usage = read_cpu()
+            ram_usage = read_ram()
+        except Exception:
+            pass
+    except Exception:
+        return "N/A", "N/A"
+    return cpu_usage, ram_usage
+"""
+        rules = get_default_rules()
+        analyzer = SourceAnalyzer(code, "test.py", rules)
+        tree = ast.parse(code)
+        analyzer.warnings = []
+        ast.NodeVisitor.generic_visit(analyzer, tree)
+
+        mcub027 = [w for w in analyzer.warnings if w.rule_id == "MCUB027"]
+        assert len(mcub027) == 0
+
+    def test_allows_best_effort_error_feedback_fallback(self):
+        """Should not flag pass after a failed best-effort user notification."""
+        code = """
+@command("demo")
+async def handler(event):
+    try:
+        await risky_action()
+    except Exception:
+        self.log.error("failed")
+        try:
+            await event.edit("error")
+        except Exception:
+            pass
+"""
+        rules = get_default_rules()
+        analyzer = SourceAnalyzer(code, "test.py", rules)
+        tree = ast.parse(code)
+        analyzer.warnings = []
+        ast.NodeVisitor.generic_visit(analyzer, tree)
+
+        mcub027 = [w for w in analyzer.warnings if w.rule_id == "MCUB027"]
+        assert len(mcub027) == 0
+
+    def test_allows_helper_localized_error_fallback(self):
+        """Should not flag helper builders that return localized fallback text."""
+        code = """
+async def build_custom_text():
+    try:
+        return await resolve_placeholders()
+    except Exception as e:
+        return self.strings("custom_text_error", error=str(e))
+"""
+        rules = get_default_rules()
+        analyzer = SourceAnalyzer(code, "test.py", rules)
+        tree = ast.parse(code)
+        analyzer.warnings = []
+        ast.NodeVisitor.generic_visit(analyzer, tree)
+
+        mcub027 = [w for w in analyzer.warnings if w.rule_id == "MCUB027"]
+        assert len(mcub027) == 0
+
+    def test_detects_silent_broad_except_in_command_handler(self):
+        """Should still flag broad exceptions swallowed inside commands."""
+        code = """
+@command("demo")
+async def handler(event):
+    try:
+        await risky_action()
+    except Exception:
+        return False
+"""
+        rules = get_default_rules()
+        analyzer = SourceAnalyzer(code, "test.py", rules)
+        tree = ast.parse(code)
+        analyzer.warnings = []
+        ast.NodeVisitor.generic_visit(analyzer, tree)
+
+        mcub027 = [w for w in analyzer.warnings if w.rule_id == "MCUB027"]
+        assert len(mcub027) > 0
+
+
 class TestModuleDebugger:
     """Tests for ModuleDebugger class."""
 

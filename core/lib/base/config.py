@@ -26,7 +26,7 @@ class ConfigManager:
     def _get_api_hash(self, cfg: dict) -> str:
         """Generate hash from api_id + api_hash for backup folder naming."""
         api_id = cfg.get("api_id")
-        api_hash = cfg.get("api_hash", "")
+        cfg.get("api_hash", "")
         if not api_id:
             return ""
         combined = f"{api_id}:api_hash"

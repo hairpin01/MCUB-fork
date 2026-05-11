@@ -7,12 +7,12 @@ import asyncio
 import inspect
 from typing import TYPE_CHECKING, Any
 
-from ..utils.exceptions import CommandConflictError
 from ..loader.kernel_proxy import get_module_kernel, get_module_register
 from ..loader.module_base import ModuleBase
+from ..utils.exceptions import CommandConflictError
 
 if TYPE_CHECKING:
-    from kernel import Kernel
+    pass
 
 
 class ModuleDetectorMixin:

@@ -5,11 +5,11 @@ from __future__ import annotations
 
 import ast
 import os
-from typing import TYPE_CHECKING, Any
 import re
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from kernel import Kernel
+    pass
 
 
 def is_archive_url(url: str) -> bool:

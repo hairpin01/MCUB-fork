@@ -18,7 +18,7 @@ import sys
 import uuid
 from collections.abc import Callable
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any
 
 import aiohttp
 from telethon import Button, events
@@ -28,6 +28,7 @@ from telethon.types import InputMediaWebPage
 if TYPE_CHECKING:
     pass
 
+import utils
 from core.lib.loader.module_base import ModuleBase, command
 from core.lib.loader.module_config import (
     Boolean,
@@ -35,7 +36,6 @@ from core.lib.loader.module_config import (
     ModuleConfig,
 )
 from core.lib.utils.exceptions import CommandConflictError
-import utils
 
 try:
     from core.lib.loader.hikka_compat import (
@@ -191,7 +191,7 @@ class Loader(ModuleBase):
             return True
         return cfg.get("loader_allow_hikka_modules", True)
 
-    def _module_description(self, metadata: Optional[dict]) -> str:
+    def _module_description(self, metadata: dict | None) -> str:
         if not metadata:
             return ""
         current_lang = self.kernel.config.get("language", "en")
@@ -222,8 +222,8 @@ class Loader(ModuleBase):
 
     @staticmethod
     def _restore_backup_and_cleanup(
-        backup_content: Optional[str],
-        backup_path: Optional[str],
+        backup_content: str | None,
+        backup_path: str | None,
         new_file_path: str,
         add_log_fn: Callable,
     ) -> None:
@@ -243,7 +243,7 @@ class Loader(ModuleBase):
         self,
         module_name: str,
         is_system_target: bool,
-        backup_path: Optional[str],
+        backup_path: str | None,
         add_log_fn: Callable,
     ) -> None:
         """Reload module from restored backup so commands are not lost."""
@@ -279,9 +279,7 @@ class Loader(ModuleBase):
         except Exception:
             return False
 
-    async def _send_with_emoji(
-        self, chat_id: Union[int, str], text: str, **kwargs
-    ) -> Any:
+    async def _send_with_emoji(self, chat_id: int | str, text: str, **kwargs) -> Any:
         try:
             if "<emoji" in text:
                 text = text.replace("<emoji document_id=", "<tg-emoji emoji-id=")
@@ -331,7 +329,7 @@ class Loader(ModuleBase):
                 return f'<blockquote><tg-emoji emoji-id="5411527152212411235">🔗</tg-emoji> Source link {repo}/{module_name}.py</blockquote>'
         return ""
 
-    async def _get_inline_bot_username(self) -> Optional[str]:
+    async def _get_inline_bot_username(self) -> str | None:
         username = self.kernel.config.get("inline_bot_username")
         if username:
             return username.lstrip("@")
@@ -504,7 +502,7 @@ class Loader(ModuleBase):
         self,
         module_name: str,
         repos: list[str],
-        add_log: Optional[Callable] = None,
+        add_log: Callable | None = None,
     ) -> list[dict]:
         matches = []
         normalized = module_name.lower()
@@ -646,10 +644,10 @@ class Loader(ModuleBase):
         event,
         module_or_url: str,
         send_mode: bool = False,
-        repo_index: Optional[int] = None,
-        preloaded_code: Optional[str] = None,
-        preloaded_repo_url: Optional[str] = None,
-    ) -> Optional[str]:
+        repo_index: int | None = None,
+        preloaded_code: str | None = None,
+        preloaded_repo_url: str | None = None,
+    ) -> str | None:
         is_url = module_or_url.startswith(
             ("http://", "https://", "raw.githubusercontent.com")
         )
@@ -1377,7 +1375,7 @@ class Loader(ModuleBase):
         )
 
     def _resolve_actual_module_name(
-        self, module_name: str, metadata: Optional[dict] = None
+        self, module_name: str, metadata: dict | None = None
     ) -> str:
         if (
             module_name in self.kernel.loaded_modules

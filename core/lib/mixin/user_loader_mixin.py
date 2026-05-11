@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, cast
 from ..utils.exceptions import CommandConflictError
 
 if TYPE_CHECKING:
-    from kernel import Kernel
+    pass
 
 
 class UserLoaderMixin:

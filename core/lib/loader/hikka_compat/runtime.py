@@ -21,7 +21,7 @@ import types
 import uuid
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import aiohttp
 
@@ -920,7 +920,7 @@ class _CompatLoaderProxy:
 
 
 class _BotProxy:
-    def __init__(self, inline_proxy: "InlineProxy"):
+    def __init__(self, inline_proxy: InlineProxy):
         self._inline_proxy = inline_proxy
 
     @property
@@ -1759,9 +1759,9 @@ class InlineProxy:
         self,
         message,
         text: str,
-        rows: list = None,
+        rows: list | None = None,
         force_me: bool = False,
-        always_allow: list = None,
+        always_allow: list | None = None,
         disable_security: bool = False,
         ttl: int | None = None,
         silent: bool = False,
@@ -2671,7 +2671,7 @@ class Module:
     def get_prefixes(self, *_args, **_kwargs) -> list:
         return [self.get_prefix()]
 
-    def lookup(self, module_name: str) -> Optional["Module"]:
+    def lookup(self, module_name: str) -> Module | None:
         _, inst = _find_kernel_module(self._kernel, module_name)
         if inst is not None:
             if str(module_name).lower() == "loader":

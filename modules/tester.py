@@ -21,6 +21,7 @@ except ImportError:
 
 from telethon.tl.types import InputMediaWebPage
 
+import utils
 from core.lib.loader.module_base import ModuleBase, callback, command
 from core.lib.loader.module_config import (
     Boolean,
@@ -29,7 +30,6 @@ from core.lib.loader.module_config import (
     Placeholders,
     String,
 )
-import utils
 
 
 def _detect_branch_sync():

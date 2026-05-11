@@ -5,12 +5,10 @@
 Tests for core.web.plugins.api_extender
 """
 
-import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiohttp import web
-from aiohttp.test_utils import AioHTTPTestCase, unittest_run_loop
 
 from core.web.plugins.api_extender import (
     FORBIDDEN_CONFIG_KEYS,
@@ -682,7 +680,7 @@ class TestSetup:
         setup(app, kernel)
 
         # Check that routes were added
-        routes = [r for r in app.router.routes()]
+        routes = list(app.router.routes())
         paths = [r.get_info().get("path", "") for r in routes]
         # Should have both /api/ext and /api/ext/v1 routes
         assert any("/api/ext/health" in p for p in paths)

@@ -18,8 +18,8 @@ import uuid
 from telethon import Button, events, types
 from telethon.tl.types import DocumentAttributeImageSize, InputWebDocument
 
-from core.lib.loader.module_config import ModuleConfig, ValidationError
 import utils
+from core.lib.loader.module_config import ModuleConfig, ValidationError
 from utils.strings import Strings
 
 

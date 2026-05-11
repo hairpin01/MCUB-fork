@@ -20,6 +20,7 @@ from telethon.tl.functions.messages import (
 )
 from telethon.tl.types import InputMediaWebPage, InputUserSelf
 
+import utils
 from core.lib.loader.module_base import ModuleBase, callback, command, loop
 from core.lib.loader.module_config import (
     ConfigValue,
@@ -27,7 +28,6 @@ from core.lib.loader.module_config import (
     Placeholders,
     String,
 )
-import utils
 
 
 class LogBot(ModuleBase):

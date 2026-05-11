@@ -17,6 +17,7 @@ from typing import Any
 import psutil
 from telethon.tl.types import InputMediaWebPage, MessageEntityTextUrl
 
+import utils
 from core.lib.loader.module_base import ModuleBase, command
 from core.lib.loader.module_config import (
     Boolean,
@@ -25,7 +26,6 @@ from core.lib.loader.module_config import (
     Placeholders,
     String,
 )
-import utils
 
 
 def _detect_branch_sync():

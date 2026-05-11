@@ -6,19 +6,15 @@
 # --- meta data end ---------------------------------
 from __future__ import annotations
 
-import ast
 import html
 import importlib.util
 import os
-import re
 import sys
 import time
 import traceback
-from collections.abc import Callable
 from typing import Any
 
 try:
-    from telethon import events
 
     from core.lib.utils.exceptions import McubTelethonError
 except Exception as e:
@@ -27,7 +23,7 @@ except Exception as e:
     sys.exit(104)
 
 try:
-    from telethon import _check_mcub_installation, install_uvloop
+    from telethon import _check_mcub_installation
 
     _check_mcub_installation()
 except Exception:
@@ -46,7 +42,6 @@ try:
     from ..lib.base.database import DatabaseManager
     from ..lib.base.permissions import CallbackPermissionManager
     from ..lib.loader.inline import InlineManager
-    from ..lib.loader.inline import InlineMessage as _InlineMessage
     from ..lib.loader.loader import ModuleLoader
     from ..lib.loader.register import Register
     from ..lib.loader.repository import RepositoryManager
@@ -56,7 +51,6 @@ try:
     from ..lib.utils.logger import (
         KernelLogger,
         setup_logging,
-        setup_telegram_logging,
     )
     from ..version import VERSION, VersionManager
 except Exception as error_module:

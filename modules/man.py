@@ -16,9 +16,9 @@ from telethon.tl.types import (
     InputWebDocument,
 )
 
+import utils
 from core.lib.loader.module_base import ModuleBase, command, inline
 from core.lib.loader.module_config import Boolean, ConfigValue, ModuleConfig, String
-import utils
 
 CUSTOM_EMOJI = {
     "crystal": '<tg-emoji emoji-id="5361837567463399422">🔮</tg-emoji>',

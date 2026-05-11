@@ -7,7 +7,7 @@ import json
 import os
 import shutil
 
-from telethon import events, __version__
+from telethon import __version__, events
 from telethon.tl.types import InputMediaWebPage
 
 from core.lib.loader.module_base import ModuleBase, callback, command

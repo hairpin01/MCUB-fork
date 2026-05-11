@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлька | @hairpin00
 
-import asyncio
-import inspect
 from collections.abc import Callable
 from typing import Any
 

@@ -6,6 +6,18 @@
 # description: utils package initialization
 
 from . import platform
+from .custom_placeholders import (
+    config_placeholders,
+    format_placeholders,
+    get_placeholders,
+    list_placeholder_keys,
+    placeholders,
+    register_decorated_placeholders,
+    register_placeholder,
+    resolve_placeholders,
+    unregister_placeholder,
+    unregister_scope,
+)
 from .helpers import (
     answer,
     answer_file,
@@ -43,18 +55,6 @@ from .platform import (
     is_wsl,
 )
 from .restart import restart_kernel
-from .custom_placeholders import (
-    config_placeholders,
-    format_placeholders,
-    get_placeholders,
-    list_placeholder_keys,
-    placeholders,
-    register_decorated_placeholders,
-    register_placeholder,
-    resolve_placeholders,
-    unregister_placeholder,
-    unregister_scope,
-)
 
 try:
     from .html_parser import parse_html, telegram_to_html
@@ -174,9 +174,11 @@ __all__.extend(
     [
         "answer",
         "answer_file",
+        "config_placeholders",
         "escape_html",
         "escape_quotes",
         "format_date",
+        "format_placeholders",
         "format_relative_time",
         "format_time",
         "get_admins",
@@ -185,24 +187,22 @@ __all__.extend(
         "get_args_raw",
         "get_chat_id",
         "get_lang",
+        "get_placeholders",
         "get_prefix",
         "get_sender_info",
         "get_thread_id",
+        "list_placeholder_keys",
         "make_button",
         "make_buttons",
         "pipe_edit",
+        "placeholders",
+        "register_decorated_placeholders",
+        "register_placeholder",
         "relocate_entities",
         "resolve_peer",
-        "placeholders",
-        "register_placeholder",
-        "register_decorated_placeholders",
+        "resolve_placeholders",
         "unregister_placeholder",
         "unregister_scope",
-        "list_placeholder_keys",
-        "format_placeholders",
-        "config_placeholders",
-        "get_placeholders",
-        "resolve_placeholders",
     ]
 )
 

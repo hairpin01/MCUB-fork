@@ -5,10 +5,10 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from kernel import Kernel
+    pass
 
 
 class ModuleUnloaderMixin:

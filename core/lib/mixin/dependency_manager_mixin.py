@@ -5,17 +5,14 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
-import os
 import re
-import subprocess
 import sys
 from typing import TYPE_CHECKING, Any
 
-from ..utils.exceptions import CommandConflictError
 from .module_utils import parse_requires
 
 if TYPE_CHECKING:
-    from kernel import Kernel
+    pass
 
 _IMPORT_TO_PIP: dict[str, str] = {
     "PIL": "Pillow",
@@ -287,7 +284,7 @@ class DependencyManagerMixin:
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
-                stdout, stderr = await process.communicate()
+                _stdout, stderr = await process.communicate()
 
                 if process.returncode == 0:
                     k.logger.info(

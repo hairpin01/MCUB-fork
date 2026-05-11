@@ -13,8 +13,8 @@ from __future__ import annotations
 # Import all mixins for seamless backward compatibility
 from core.lib.kernel_core import KernelCoreMixin
 from core.lib.kernel_handlers import KernelHandlersMixin
-from core.lib.kernel_pipeline import KernelPipelineMixin
 from core.lib.kernel_lifecycle import KernelLifecycleMixin
+from core.lib.kernel_pipeline import KernelPipelineMixin
 
 
 class Kernel(

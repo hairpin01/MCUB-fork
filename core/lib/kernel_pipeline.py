@@ -10,7 +10,6 @@ import ast
 import re
 import signal
 import traceback
-from typing import Any
 
 
 class KernelPipelineMixin:
@@ -142,13 +141,13 @@ class KernelPipelineMixin:
         Called by ``cmd_script`` in utils_piped. All scripting logic lives here.
         """
         try:
-            from core.lib.script.engine import ScriptEngine, ScriptError
+            from core.lib.script.engine import ScriptError
         except Exception as e:
             self.logger.debug(f"error import script: {e}")
             return f"<b>Error</b> import script.engine: <code>{e}</code>"
 
         try:
-            ctx, log_lines = await self.script_engine.run(source, event)
+            _ctx, _log_lines = await self.script_engine.run(source, event)
         except ScriptError as exc:
             err_text = f"<b>Script error</b> [{name}]\n<code>{exc}</code>"
             try:

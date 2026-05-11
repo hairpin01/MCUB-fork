@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import ast
-import asyncio
 import hashlib
 import importlib.util
 import os
@@ -18,17 +17,24 @@ from urllib.parse import urlparse
 import aiohttp
 
 from ..utils.exceptions import CommandConflictError
-from ..loader.module_base import ModuleBase
 from .module_utils import (
     find_module_case_insensitive as _find_module_case_insensitive,
+)
+from .module_utils import (
     get_module_path as _get_module_path,
+)
+from .module_utils import (
     is_archive_url,
+)
+from .module_utils import (
     parse_requires as _parse_requires,
+)
+from .module_utils import (
     pick_localized_text as _pick_localized_text,
 )
 
 if TYPE_CHECKING:
-    from kernel import Kernel
+    pass
 
 
 class ModuleLoaderMixin:
@@ -794,10 +800,8 @@ class ModuleLoaderMixin:
         Returns:
             (success, message)
         """
-        import hashlib
         import os
         import tempfile
-        from urllib.parse import urlparse
 
         k = self.k
         k.logger.debug(
@@ -904,8 +908,6 @@ class ModuleLoaderMixin:
         """
         import os
         import shutil
-        import tempfile
-        from urllib.parse import urlparse
 
         k = self.k
         k.logger.debug(f"[Loader] install_from_archive start url={url}")
@@ -926,8 +928,8 @@ class ModuleLoaderMixin:
             extract_dir = os.path.join(temp_dir, "extracted")
             os.makedirs(extract_dir, exist_ok=True)
 
-            import zipfile
             import tarfile
+            import zipfile
 
             if archive_path.endswith((".zip", ".tar.gz", ".tgz", ".tar")):
                 if zipfile.is_zipfile(archive_path):

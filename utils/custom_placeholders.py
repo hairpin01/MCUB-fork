@@ -47,7 +47,7 @@ def placeholders(
                 "on_error": on_error,
             }
         )
-        setattr(func, "__custom_placeholders__", meta)
+        func.__custom_placeholders__ = meta
         return func
 
     return decorator

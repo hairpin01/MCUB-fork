@@ -4,47 +4,46 @@
 # Thin wrapper for backward compatibility
 # All logic moved to decorators.py and base.py
 
-from .decorators import (  # noqa: F401
-    command,
-    inline,
+from .base import (
+    ModuleBase,
+    _ModuleLoggerAdapter,
+)
+from .decorators import (
+    bot_command,
     callback,
-    watcher,
-    loop,
+    command,
+    error_handler,
     event,
+    inline,
     inline_temp,
+    loop,
     method,
     on_install,
     on_uninstall,
-    bot_command,
     owner_only,
     permissions,
-    error_handler,
-)
-
-from .base import (  # noqa: F401
-    ModuleBase,
-    _ModuleLoggerAdapter,
+    watcher,
 )
 
 # Alias for backward compatibility with docs
 permission = permissions
 
 __all__ = [
-    "command",
-    "inline",
+    "ModuleBase",
+    "_ModuleLoggerAdapter",
+    "bot_command",
     "callback",
-    "watcher",
-    "loop",
+    "command",
+    "error_handler",
     "event",
+    "inline",
     "inline_temp",
+    "loop",
     "method",
     "on_install",
     "on_uninstall",
-    "bot_command",
     "owner_only",
-    "permissions",
     "permission",
-    "error_handler",
-    "ModuleBase",
-    "_ModuleLoggerAdapter",
+    "permissions",
+    "watcher",
 ]

@@ -7,6 +7,7 @@ Tests for module loader
 
 import inspect
 import os
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -235,6 +236,182 @@ class TestUninstallCallback:
 
         client.remove_event_handler.assert_any_call(watcher, watcher_event)
         client.remove_event_handler.assert_any_call(event_handler, event_obj)
+
+    @pytest.mark.asyncio
+    async def test_uninstall_prunes_central_tracked_handlers_for_module(self):
+        """Unload must not leave central handlers that ensure() can resurrect."""
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel = MagicMock()
+        kernel.loaded_modules = {"test_module": MagicMock()}
+        kernel.system_modules = {}
+        kernel.command_handlers = {}
+        kernel.command_owners = {}
+        kernel.aliases = {}
+        kernel.inline_handlers = {}
+        kernel.inline_handlers_owners = {}
+        kernel.command_metadata = {}
+        kernel.unregister_module_inline_handlers = MagicMock()
+        kernel.logger = MagicMock()
+
+        client = MagicMock()
+        kernel.client = client
+        stale_watcher = MagicMock()
+        stale_watcher_event = MagicMock()
+        other_watcher = MagicMock()
+        other_watcher_event = MagicMock()
+
+        def stale_event_handler(_event):
+            pass
+
+        stale_event_handler.__module__ = "test_module"
+
+        def other_event_handler(_event):
+            pass
+
+        other_event_handler.__module__ = "other_module"
+
+        stale_event_obj = MagicMock()
+        other_event_obj = MagicMock()
+        kernel.register = SimpleNamespace(
+            _all_watchers=[
+                (
+                    stale_watcher,
+                    stale_watcher_event,
+                    client,
+                    {"module": "test_module", "method": "watch"},
+                ),
+                (
+                    other_watcher,
+                    other_watcher_event,
+                    client,
+                    {"module": "other_module", "method": "watch"},
+                ),
+            ],
+            _all_event_handlers=[
+                (stale_event_handler, stale_event_obj, client),
+                (other_event_handler, other_event_obj, client),
+            ],
+        )
+
+        test_module = kernel.loaded_modules["test_module"]
+        test_module.register = MagicMock()
+        test_module.register.__loops__ = []
+        test_module.register.__watchers__ = [
+            (stale_watcher, stale_watcher_event, client)
+        ]
+        test_module.register.__event_handlers__ = [
+            (stale_event_handler, stale_event_obj, client)
+        ]
+
+        loader = ModuleLoader(kernel)
+        await loader.unregister_module_commands("test_module")
+
+        assert kernel.register._all_watchers == [
+            (
+                other_watcher,
+                other_watcher_event,
+                client,
+                {"module": "other_module", "method": "watch"},
+            )
+        ]
+        assert kernel.register._all_event_handlers == [
+            (other_event_handler, other_event_obj, client)
+        ]
+
+    def test_duplicate_watcher_is_not_bound_before_skip(self):
+        """Duplicate watcher detection must not leak an untracked client binding."""
+        from core.lib.loader.register import Register
+
+        kernel = MagicMock()
+        kernel.client = MagicMock()
+        kernel.bot_client = None
+        kernel.current_loading_module = "test_module"
+        kernel.loaded_modules = {}
+        kernel.system_modules = {}
+        kernel.logger = MagicMock()
+        register = Register(kernel)
+
+        existing_wrapper = MagicMock()
+        existing_event = MagicMock()
+        register._all_watchers.append(
+            (
+                existing_wrapper,
+                existing_event,
+                kernel.client,
+                {"module": "test_module", "method": "watch"},
+            )
+        )
+        module = SimpleNamespace(__name__="test_module")
+
+        async def watch(_event):
+            pass
+
+        register.watcher(module=module)(watch)
+
+        kernel.client.add_event_handler.assert_not_called()
+        assert register._all_watchers == [
+            (
+                existing_wrapper,
+                existing_event,
+                kernel.client,
+                {"module": "test_module", "method": "watch"},
+            )
+        ]
+        assert not hasattr(module, "register")
+
+    def test_duplicate_event_is_not_bound_before_skip(self):
+        """Duplicate event detection must not leak an untracked client binding."""
+        from core.lib.loader.register import Register
+
+        kernel = MagicMock()
+        kernel.client = MagicMock()
+        kernel.bot_client = None
+        kernel.current_loading_module = "test_module"
+        kernel.loaded_modules = {}
+        kernel.system_modules = {}
+        kernel.logger = MagicMock()
+        register = Register(kernel)
+
+        def existing_handler(_event):
+            pass
+
+        from telethon import events
+
+        existing_event = events.NewMessage()
+        register._all_event_handlers.append(
+            (
+                existing_handler,
+                existing_event,
+                kernel.client,
+                {
+                    "module": "test_module",
+                    "handler": "watch_updates",
+                    "event_type": "NewMessage",
+                },
+            )
+        )
+        module = SimpleNamespace(__name__="test_module")
+
+        async def watch_updates(_event):
+            pass
+
+        register.event("message", module=module)(watch_updates)
+
+        kernel.client.add_event_handler.assert_not_called()
+        assert register._all_event_handlers == [
+            (
+                existing_handler,
+                existing_event,
+                kernel.client,
+                {
+                    "module": "test_module",
+                    "handler": "watch_updates",
+                    "event_type": "NewMessage",
+                },
+            )
+        ]
+        assert not hasattr(module, "register")
 
     @pytest.mark.asyncio
     async def test_uninstall_removes_aliases_for_module_commands(self):

@@ -109,6 +109,7 @@ def _detect_module_type(source_code: str) -> str:
     hikka_score = 0
     geek_score = 0
     native_score = 0
+    hikka_loader_aliases: set[str] = set()
     native_loader_aliases: set[str] = set()
     native_module_base_names: set[str] = set()
     native_decorator_names: set[str] = set()
@@ -139,8 +140,24 @@ def _detect_module_type(source_code: str) -> str:
 
     def _is_native_decorator_expr(chain: list[str]) -> bool:
         if len(chain) >= 2 and _is_native_loader_alias(chain):
-            return chain[1] == "command"
+            return chain[1] in {
+                "bot_command",
+                "callback",
+                "command",
+                "event",
+                "inline_temp",
+                "loop",
+                "method",
+                "on_install",
+                "owner",
+                "permission",
+                "uninstall",
+                "watcher",
+            }
         return len(chain) == 1 and chain[0] in native_decorator_names
+
+    def _is_hikka_loader_expr(chain: list[str]) -> bool:
+        return bool(chain) and chain[0] in hikka_loader_aliases
 
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
@@ -148,6 +165,17 @@ def _detect_module_type(source_code: str) -> str:
             imported = {alias.name for alias in node.names}
             if node.level > 0 and "loader" in imported:
                 hikka_score += 1
+                for alias in node.names:
+                    if alias.name == "loader":
+                        hikka_loader_aliases.add(_alias_name(alias))
+            if (
+                module in {"hikka", "hikka.loader", "heroku", "heroku.loader"}
+                and "loader" in imported
+            ):
+                hikka_score += 1
+                for alias in node.names:
+                    if alias.name == "loader":
+                        hikka_loader_aliases.add(_alias_name(alias))
             if module.startswith("core.lib.loader"):
                 native_score += 1
             if _is_native_module_base_import(module):
@@ -184,7 +212,7 @@ def _detect_module_type(source_code: str) -> str:
                     continue
                 if (
                     len(chain) >= 2
-                    and chain[0] == "loader"
+                    and _is_hikka_loader_expr(chain)
                     and chain[1]
                     in {
                         "tds",
@@ -202,7 +230,7 @@ def _detect_module_type(source_code: str) -> str:
                     continue
                 if (
                     len(chain) >= 2
-                    and chain[0] == "loader"
+                    and _is_hikka_loader_expr(chain)
                     and chain[1]
                     in {
                         "Module",
@@ -221,10 +249,10 @@ def _detect_module_type(source_code: str) -> str:
 
         elif isinstance(node, ast.Attribute):
             chain = _attr_chain(node)
-            if chain[:2] == ["loader", "ModuleConfig"] or chain[:2] == [
-                "loader",
-                "LibraryConfig",
-            ]:
+            if _is_hikka_loader_expr(chain) and (
+                chain[:2] == [chain[0], "ModuleConfig"]
+                or chain[:2] == [chain[0], "LibraryConfig"]
+            ):
                 hikka_score += 1
             if chain[:3] == ["self", "inline", "_bot"]:
                 geek_score += 1

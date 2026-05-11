@@ -36,6 +36,18 @@ class Fastfetch(loader.ModuleBase):
     assert _detect_module_type(code) == "native"
 
 
+def test_detect_native_type_with_module_base_watcher():
+    code = """
+import core.lib.loader.module_base as loader
+
+class KeyGuard(loader.ModuleBase):
+    @loader.watcher(incoming=True)
+    async def watcher_realtime(self, event):
+        pass
+"""
+    assert _detect_module_type(code) == "native"
+
+
 def test_detect_geek_type_from_inline_bot_usage():
     code = """
 class X:

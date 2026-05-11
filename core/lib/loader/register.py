@@ -383,6 +383,7 @@ class Register:
                     f"Valid: {', '.join(EVENT_TYPE_MAP)}"
                 )
             event_obj = EVENT_TYPE_MAP[key](*args, **kwargs)
+            handler_name = getattr(handler, "__name__", repr(handler))
 
             if (
                 bot_client
@@ -393,6 +394,23 @@ class Register:
             else:
                 tg_client = self.kernel.client
 
+            # Check for duplicate event handler before binding to Telethon, otherwise
+            # the skipped duplicate still leaves a live client handler behind.
+            for existing in self._all_event_handlers:
+                existing_meta = existing[3] if len(existing) > 3 else {}
+                existing_event = existing[1] if len(existing) > 1 else None
+                if (
+                    existing_meta.get("module") == _mod_name
+                    and existing_meta.get("handler") == handler_name
+                    and type(existing_event) is type(event_obj)
+                ):
+                    self.kernel.logger.debug(
+                        "[register.event] skip duplicate event_type=%r handler=%r",
+                        event_type,
+                        handler_name,
+                    )
+                    return handler
+
             tg_client.add_event_handler(handler, event_obj)
 
             if _passed_module:
@@ -400,16 +418,18 @@ class Register:
                 event_handlers = self._ensure_list(reg, "__event_handlers__")
                 # Keep per-module bindings for unload/reload/debug utilities.
                 event_handlers.append((handler, event_obj, tg_client))
-                # Check for duplicate event handler
-                for existing in self._all_event_handlers:
-                    if existing[0] is handler and existing[1] is event_obj:
-                        self.kernel.logger.debug(
-                            "[register.event] skip duplicate event_type=%r handler=%r",
-                            event_type,
-                            getattr(handler, "__name__", repr(handler)),
-                        )
-                        return handler
-                self._all_event_handlers.append((handler, event_obj, tg_client))
+                self._all_event_handlers.append(
+                    (
+                        handler,
+                        event_obj,
+                        tg_client,
+                        {
+                            "module": _mod_name,
+                            "handler": handler_name,
+                            "event_type": type(event_obj).__name__,
+                        },
+                    )
+                )
 
             return handler
 
@@ -731,15 +751,6 @@ class Register:
             else:
                 tg_client = self.kernel.client
 
-            tg_client.add_event_handler(_wrapper, event_obj)
-            self.kernel.logger.debug(
-                "[register.watcher] bound module=%r watcher=%r client=%r event=%r",
-                module_name,
-                watcher_name,
-                type(tg_client).__name__,
-                type(event_obj).__name__,
-            )
-
             # Check for duplicate watcher registration
             for existing in self._all_watchers:
                 existing_meta = existing[3] if len(existing) > 3 else {}
@@ -754,6 +765,15 @@ class Register:
                         watcher_name,
                     )
                     return f
+
+            tg_client.add_event_handler(_wrapper, event_obj)
+            self.kernel.logger.debug(
+                "[register.watcher] bound module=%r watcher=%r client=%r event=%r",
+                module_name,
+                watcher_name,
+                type(tg_client).__name__,
+                type(event_obj).__name__,
+            )
 
             self._all_watchers.append(
                 (
@@ -1067,9 +1087,7 @@ class Register:
                 for entry in reg.__watchers__:
                     wrapper, event_obj = entry[0], entry[1]
                     client = entry[2] if len(entry) > 2 else self.kernel.client
-                    watcher_module = getattr(
-                        wrapper, "__watcher_module__", module_name
-                    )
+                    watcher_module = getattr(wrapper, "__watcher_module__", module_name)
                     watcher_name = getattr(
                         wrapper,
                         "__watcher_name__",
@@ -1082,7 +1100,9 @@ class Register:
                             "method": watcher_name,
                             "enabled": watcher_key not in disabled,
                             "tags": {},
-                            "bot_client": bool(client is getattr(self.kernel, "bot_client", None)),
+                            "bot_client": bool(
+                                client is getattr(self.kernel, "bot_client", None)
+                            ),
                             "wrapper": wrapper,
                             "event": event_obj,
                             "client": client,

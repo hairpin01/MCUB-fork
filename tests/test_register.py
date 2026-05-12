@@ -446,6 +446,62 @@ class TestUnregisterCommand:
         assert "tt" not in kernel.aliases
 
 
+class TestCommandHijackProtection:
+    """Guard command ownership against accidental hijacks."""
+
+    def _kernel(self):
+        kernel = MagicMock()
+        kernel.custom_prefix = "."
+        kernel.command_handlers = {}
+        kernel.command_owners = {}
+        kernel.aliases = {}
+        kernel.system_modules = {}
+        kernel.current_loading_module = "user_module"
+        kernel.logger = MagicMock()
+        return kernel
+
+    def test_system_command_conflict_keeps_original_owner(self):
+        from core.lib.loader.register import Register
+        from core.lib.utils.exceptions import CommandConflictError
+
+        kernel = self._kernel()
+        kernel.command_handlers = {"restart": MagicMock()}
+        kernel.command_owners = {"restart": "core_restart"}
+        kernel.system_modules = {"core_restart": object()}
+        register = Register(kernel)
+
+        async def replacement(event):
+            return None
+
+        with pytest.raises(CommandConflictError) as exc_info:
+            register.command("restart")(replacement)
+
+        assert exc_info.value.command == "restart"
+        assert exc_info.value.conflict_type == "system"
+        assert kernel.command_owners["restart"] == "core_restart"
+        assert kernel.command_handlers["restart"] is not replacement
+
+    def test_user_command_conflict_keeps_original_owner(self):
+        from core.lib.loader.register import Register
+        from core.lib.utils.exceptions import CommandConflictError
+
+        kernel = self._kernel()
+        kernel.command_handlers = {"ping": MagicMock()}
+        kernel.command_owners = {"ping": "first_user_module"}
+        register = Register(kernel)
+
+        async def replacement(event):
+            return None
+
+        with pytest.raises(CommandConflictError) as exc_info:
+            register.command("ping")(replacement)
+
+        assert exc_info.value.command == "ping"
+        assert exc_info.value.conflict_type == "user"
+        assert kernel.command_owners["ping"] == "first_user_module"
+        assert kernel.command_handlers["ping"] is not replacement
+
+
 class TestGetRegisteredMethods:
     """Test get_registered_methods method"""
 

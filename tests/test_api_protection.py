@@ -4,7 +4,12 @@
 import time
 from collections import deque
 
-from modules.api_protection import DEFAULT_CONFIG, LIMIT_PROFILES, RequestAnalyzer
+from modules.api_protection import (
+    DEFAULT_CONFIG,
+    LIMIT_PROFILES,
+    RequestAnalyzer,
+    _coerce_method_list,
+)
 
 
 class TestRequestAnalyzer:
@@ -259,3 +264,31 @@ class TestLimitProfiles:
         """Test profiles are in increasing order"""
         assert LIMIT_PROFILES["conservative"] < LIMIT_PROFILES["normal"]
         assert LIMIT_PROFILES["normal"] < LIMIT_PROFILES["aggressive"]
+
+
+class TestMethodListCoercion:
+    """Test list config normalization helper."""
+
+    def test_keeps_clean_list(self):
+        assert _coerce_method_list(["GetUsersRequest", "GetChatsRequest"]) == [
+            "GetUsersRequest",
+            "GetChatsRequest",
+        ]
+
+    def test_parses_json_string(self):
+        value = '["GetUsersRequest", "GetChatsRequest"]'
+        assert _coerce_method_list(value) == ["GetUsersRequest", "GetChatsRequest"]
+
+    def test_parses_csv_string(self):
+        value = "GetUsersRequest, GetChatsRequest"
+        assert _coerce_method_list(value) == ["GetUsersRequest", "GetChatsRequest"]
+
+    def test_fallback_on_invalid_type(self):
+        assert _coerce_method_list(123, ["GetMessagesRequest"]) == [
+            "GetMessagesRequest"
+        ]
+
+    def test_filters_empty_values(self):
+        assert _coerce_method_list(["GetUsersRequest", "", None, "   "]) == [
+            "GetUsersRequest"
+        ]

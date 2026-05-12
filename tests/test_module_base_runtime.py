@@ -294,3 +294,27 @@ class TestModuleBaseRuntime:
 
         with pytest.raises(CallInsecure):
             proxy.loaded_modules = {}
+
+    def test_kernel_proxy_blocks_core_registry_reads(self):
+        from core.lib.loader.kernel_proxy import ModuleKernelProxy
+        from core.lib.utils.exceptions import CallInsecure
+
+        real_kernel = make_kernel()
+        real_kernel.register = DummyRegister()
+        proxy = ModuleKernelProxy(real_kernel, "guarded-MCUB-repo")
+
+        for name in (
+            "loaded_modules",
+            "command_handlers",
+            "inline_callback_map",
+            "loader",
+        ):
+            with pytest.raises(CallInsecure) as exc_info:
+                getattr(proxy, name)
+            assert exc_info.value.name == name
+            assert exc_info.value.module_name == "guarded-MCUB-repo"
+
+        with pytest.raises(CallInsecure) as exc_info:
+            proxy.register.kernel
+        assert exc_info.value.name == "kernel"
+        assert exc_info.value.module_name == "guarded-MCUB-repo"

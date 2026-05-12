@@ -23,8 +23,11 @@ class ArgumentParser:
             text: Full message text (with command and arguments)
             prefix: Command prefix (default '.')
         """
-        self.full_text = text.strip()
-        self.prefix = prefix
+        normalized_text = "" if text is None else str(text)
+        normalized_prefix = "." if prefix is None else str(prefix)
+
+        self.full_text = normalized_text.strip()
+        self.prefix = normalized_prefix
         self.command = ""
         self.args = []
         self.kwargs = {}
@@ -35,6 +38,9 @@ class ArgumentParser:
 
     def _parse(self):
         """Parse text into command and arguments"""
+        if not self.full_text:
+            return
+
         if not self.full_text.startswith(self.prefix):
             raise ValueError(f"Text doesn't start with prefix '{self.prefix}'")
 
@@ -243,11 +249,12 @@ def extract_command(text: str, prefix: str = ".") -> tuple[str, str]:
 
 def split_args(args_string: str) -> list[str]:
     """Split argument string into tokens considering quotes"""
+    normalized_args = "" if args_string is None else str(args_string)
     try:
-        return shlex.split(args_string)
+        return shlex.split(normalized_args)
     except ValueError:
-        parser = ArgumentParser(f".cmd {args_string}", ".")
-        return parser.args
+        parser = ArgumentParser(".cmd", ".")
+        return parser._simple_split(normalized_args)
 
 
 def parse_kwargs(args_string: str) -> dict[str, Any]:
@@ -263,7 +270,18 @@ class ArgumentValidator:
     def validate_required(parser: ArgumentParser, *args: str) -> bool:
         """Check if required arguments exist"""
         for arg in args:
-            if arg not in parser.kwargs and not parser.args:
+            if isinstance(arg, int):
+                if arg < 0 or arg >= len(parser.args):
+                    return False
+                continue
+
+            if arg.isdigit():
+                index = int(arg)
+                if index >= len(parser.args):
+                    return False
+                continue
+
+            if arg not in parser.kwargs:
                 return False
         return True
 

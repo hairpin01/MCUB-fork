@@ -25,6 +25,33 @@ class TestModuleLoading:
 
         assert loader is not None
 
+    @pytest.mark.asyncio
+    async def test_package_load_clears_loading_state_on_error(self, tmp_path):
+        """Package loader must clear loading state even when execution fails."""
+        from core.lib.loader.loader import ModuleLoader
+
+        modules_loaded_dir = tmp_path / "modules_loaded"
+        pkg_dir = modules_loaded_dir / "broken_pkg"
+        pkg_dir.mkdir(parents=True)
+        init_file = pkg_dir / "__init__.py"
+        init_file.write_text("def broken(:\n", encoding="utf-8")
+
+        kernel = MagicMock()
+        kernel.MODULES_LOADED_DIR = str(modules_loaded_dir)
+        kernel.client = MagicMock()
+        kernel.custom_prefix = "."
+        kernel.loaded_modules = {}
+        kernel.logger = MagicMock()
+        kernel.set_loading_module = MagicMock()
+        kernel.clear_loading_module = MagicMock()
+
+        loader = ModuleLoader(kernel)
+
+        with pytest.raises(Exception, match="Failed to execute module"):
+            await loader._load_package_module("broken_pkg", str(init_file), kernel)
+
+        kernel.clear_loading_module.assert_called_once()
+
 
 class TestHikkaInlineDelete:
     """Test Hikka inline message deletion safety."""

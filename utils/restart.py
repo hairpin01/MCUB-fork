@@ -5,13 +5,28 @@
 # version: 1.1.0
 # description: kernel restart
 
+import csv
 import inspect
+import json
 import os
 import sys
 import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 ALLOWED_RESTART_ARGS = {"--no-web", "--proxy-web", "--port", "--host", "--core"}
 ARGS_WITH_VALUES = {"--proxy-web", "--port", "--host", "--core"}
+
+
+@dataclass(frozen=True)
+class RestartContext:
+    """Parsed restart notification context."""
+
+    chat_id: int
+    message_id: int
+    timestamp: float
+    thread_id: int | None = None
 
 
 async def _maybe_await(result) -> None:
@@ -107,13 +122,78 @@ def write_restart_file(
 ) -> None:
     """
     Persist restart context for post-restart notification.
-    Format: chat_id,msg_id,timestamp[,thread_id]
+
+    Current format is JSON. Readers intentionally keep support for the
+    historical ``chat_id,msg_id,timestamp[,thread_id]`` CSV-like format so an
+    update can still finish a restart that was initiated by an older build.
     """
-    parts = [str(chat_id), str(message_id), str(time.time())]
+    payload: dict[str, int | float] = {
+        "chat_id": chat_id,
+        "message_id": message_id,
+        "timestamp": time.time(),
+    }
     if thread_id is not None:
-        parts.append(str(thread_id))
+        payload["thread_id"] = thread_id
     with open(restart_file, "w", encoding="utf-8") as f:
-        f.write(",".join(parts))
+        json.dump(payload, f, separators=(",", ":"))
+
+
+def _coerce_restart_context(payload: dict[str, Any]) -> RestartContext:
+    """Validate and normalize restart context values."""
+    chat_id = int(payload["chat_id"])
+    message_id = int(payload.get("message_id", payload.get("msg_id")))
+    timestamp = float(payload.get("timestamp", payload.get("restart_time")))
+
+    thread_value = payload.get("thread_id")
+    thread_id = None if thread_value in (None, "") else int(thread_value)
+
+    return RestartContext(
+        chat_id=chat_id,
+        message_id=message_id,
+        timestamp=timestamp,
+        thread_id=thread_id,
+    )
+
+
+def parse_restart_context(raw: str) -> RestartContext:
+    """Parse restart context from robust JSON or legacy CSV data.
+
+    Raises ``ValueError`` when the file is empty, malformed or missing required
+    fields. Legacy CSV is parsed with ``csv.reader`` instead of brittle
+    ``str.split(',')`` to handle whitespace and quoted values predictably.
+    """
+    text = raw.strip()
+    if not text:
+        raise ValueError("restart context is empty")
+
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        rows = list(csv.reader([text], skipinitialspace=True))
+        if not rows or len(rows[0]) < 3:
+            raise ValueError("legacy restart context must have at least 3 fields")
+
+        row = rows[0]
+        payload = {
+            "chat_id": row[0],
+            "message_id": row[1],
+            "timestamp": row[2],
+        }
+        if len(row) >= 4:
+            payload["thread_id"] = row[3]
+    else:
+        if not isinstance(payload, dict):
+            raise ValueError("restart context JSON must be an object")
+
+    try:
+        return _coerce_restart_context(payload)
+    except (KeyError, TypeError, ValueError) as e:
+        raise ValueError(f"invalid restart context: {e}") from e
+
+
+def read_restart_context(restart_file: str | os.PathLike[str]) -> RestartContext:
+    """Read and parse a restart context file."""
+    return parse_restart_context(Path(restart_file).read_text(encoding="utf-8"))
 
 
 async def restart_kernel(

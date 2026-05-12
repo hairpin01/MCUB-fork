@@ -259,6 +259,20 @@ class TestArgumentParserEdgeCases:
         assert "WORLD" in parser.args
         assert "test123" in parser.args
 
+    def test_none_text_is_handled(self):
+        parser = parse_arguments(None)  # type: ignore[arg-type]
+        assert parser.command == ""
+        assert parser.args == []
+
+    def test_split_args_fallback_keeps_strings(self):
+        result = split_args('"unterminated')
+        assert result == ["unterminated"]
+
+    def test_validate_required_respects_positional_indexes(self):
+        parser = parse_arguments(".cmd onlyone")
+        assert ArgumentValidator.validate_required(parser, "0") is True
+        assert ArgumentValidator.validate_required(parser, "1") is False
+
     def test_args_with_special_chars(self):
         parser = parse_arguments(".cmd arg@email.com http://url.com #tag")
         assert len(parser.args) == 3

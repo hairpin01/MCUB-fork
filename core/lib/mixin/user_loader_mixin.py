@@ -236,19 +236,20 @@ class UserLoaderMixin:
 
         try:
             spec.loader.exec_module(module)
+
+            if not hasattr(module, "register"):
+                raise Exception(f"Module {module_name} has no register function")
+
+            if inspect.iscoroutinefunction(module.register):
+                await module.register(k)
+            else:
+                module.register(k)
+
+            k.loaded_modules[module_name] = module
+            k.logger.info(f"Module loaded [user (archive package)]: {module_name}")
+
+            await self.run_post_load(module, module_name, is_install=False)
         except Exception as e:
             raise Exception(f"Failed to execute module: {e}")
-
-        if not hasattr(module, "register"):
-            raise Exception(f"Module {module_name} has no register function")
-
-        if inspect.iscoroutinefunction(module.register):
-            await module.register(k)
-        else:
-            module.register(k)
-
-        k.loaded_modules[module_name] = module
-        k.logger.info(f"Module loaded [user (archive package)]: {module_name}")
-
-        await self.run_post_load(module, module_name, is_install=False)
-        k.clear_loading_module()
+        finally:
+            k.clear_loading_module()

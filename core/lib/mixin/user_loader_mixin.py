@@ -186,6 +186,7 @@ class UserLoaderMixin:
 
             except CommandConflictError as e:
                 k.logger.error(f"Command conflict loading {file_name}: {e}")
+                self._rollback_orphaned_commands(k, module_name)
                 if hasattr(k, "_log") and k._log:
                     try:
                         await asyncio.wait_for(
@@ -201,6 +202,7 @@ class UserLoaderMixin:
                 k.error_load_modules += 1
             except Exception as e:
                 k.logger.error(f"Error loading module {file_name}: {e}")
+                self._rollback_orphaned_commands(k, module_name)
                 if hasattr(k, "_log") and k._log:
                     try:
                         await asyncio.wait_for(
@@ -275,6 +277,7 @@ class UserLoaderMixin:
 
             await self.run_post_load(module, module_name, is_install=False)
         except Exception as e:
+            self._rollback_orphaned_commands(k, module_name)
             raise Exception(f"Failed to execute module: {e}") from e
         finally:
             k.clear_loading_module()

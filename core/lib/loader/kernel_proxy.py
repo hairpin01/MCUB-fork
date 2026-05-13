@@ -8,6 +8,8 @@ from typing import Any
 
 from ..utils.exceptions import CallInsecure
 
+# Modules with a ModuleKernelProxy cannot read or write these directly.
+
 PROTECTED_KERNEL_NAMES = frozenset(
     {
         "loaded_modules",
@@ -29,6 +31,16 @@ PROTECTED_KERNEL_NAMES = frozenset(
         "_class_module_instances",
         "_loader",
         "loader",
+        # Internal runtime state that modules must not touch
+        "current_loading_module",
+        "current_loading_module_type",
+        "error_load_modules",
+        "_module_sources",
+        "_log",
+        "_inline_cb_lock",
+        "MODULES_DIR",
+        "MODULES_LOADED_DIR",
+        "CONFIG_FILE",
     }
 )
 
@@ -36,8 +48,54 @@ PROTECTED_KERNEL_NAMES = frozenset(
 PROTECTED_REGISTER_NAMES = frozenset({"kernel", "_kernel"})
 
 
+# These could be used to hijack, disconnect, or reconfigure the Telegram
+# session outside the kernel's lifecycle.
+
+_CLIENT_DANGEROUS_METHODS = frozenset(
+    {
+        "disconnect",
+        "disconnect_coro",
+        "reconnect",
+        "logout",
+        "sign_out",
+        "session",
+        "session_name",
+        "session_path",
+        "on",
+        "add_event_handler",
+        "remove_event_handler",
+        "list_event_handlers",
+        "flood_sleep_threshold",
+        "parse_mode",
+        "set_parse_mode",
+        "phone_code_hash",
+        "phone",
+        "authorization_key",
+        "unread_count",
+        "catch_up",
+    }
+)
+
+_DB_DANGEROUS_METHODS = frozenset(
+    {
+        "close",
+        "drop_db",
+        "delete_db",
+        "remove_db",
+        "execute",
+        "cur",
+        "cursor",
+        "conn",
+        "connection",
+        "_conn",
+        "_cursor",
+        "_close",
+    }
+)
+
+
 def _raise_insecure(name: str, module_name: str) -> None:
-    raise CallInsecure(name, module_name)
+    raise CallInsecure(name, module_name) from None
 
 
 class ModuleRegisterProxy:
@@ -118,6 +176,7 @@ class ModuleKernelProxy:
             "loaded_module_names",
             "loaded_modules_view",
             "system_modules_view",
+            "client",
             "_live_module_configs",
             "remove_inline_callback_tokens",
             "store_inline_callback",
@@ -137,6 +196,8 @@ class ModuleKernelProxy:
         object.__setattr__(self, "_kernel", kernel)
         object.__setattr__(self, "_module_name", module_name)
         object.__setattr__(self, "_register_proxy", None)
+        object.__setattr__(self, "_client_proxy", None)
+        object.__setattr__(self, "_config_proxy", None)
         object.__setattr__(self, "_module_state", {})
 
     @property
@@ -150,6 +211,16 @@ class ModuleKernelProxy:
             kernel = object.__getattribute__(self, "_kernel")
             cached = ModuleRegisterProxy(kernel.register, self.module_name)
             object.__setattr__(self, "_register_proxy", cached)
+        return cached
+
+    @property
+    def client(self) -> ClientProxy:
+        """Safe client proxy - blocks destructive Telegram API calls."""
+        cached = object.__getattribute__(self, "_client_proxy")
+        if cached is None:
+            kernel = object.__getattribute__(self, "_kernel")
+            cached = ClientProxy(kernel.client, self.module_name)
+            object.__setattr__(self, "_client_proxy", cached)
         return cached
 
     def is_protected(self, name: str) -> bool:
@@ -330,6 +401,7 @@ class ModuleKernelProxy:
             {
                 "module_name",
                 "register",
+                "client",
                 "is_protected",
                 "lookup_module",
                 "get_loaded_module",
@@ -351,13 +423,318 @@ class ModuleKernelProxy:
         return f"<ModuleKernelProxy module={self.module_name!r}>"
 
 
+class ClientProxy:
+    """Safe TelegramClient facade for user modules.
+
+    Allows benign Telegram API calls (``send_message``, ``get_entity``,
+    ``get_messages``, ``upload_file``, etc.) but blocks destructive operations
+    like ``disconnect``, ``logout``, ``session`` access, or direct event
+    subscription that should be managed by the kernel.
+
+    The real client is accessible only from kernel/system code; user modules
+    receive this proxy as ``module.client``.
+    """
+
+    _LOCAL_NAMES = frozenset(
+        {
+            "module_name",
+            "is_safe_method",
+            "_deny",
+            "__class__",
+            "__repr__",
+            "__dir__",
+        }
+    )
+
+    def __init__(self, client: Any, module_name: str) -> None:
+        object.__setattr__(self, "_client", client)
+        object.__setattr__(self, "_module_name", module_name)
+
+    @property
+    def module_name(self) -> str:
+        return object.__getattribute__(self, "_module_name")
+
+    @staticmethod
+    def is_safe_method(name: str) -> bool:
+        """Return True if *name* is a safe client attribute/method for modules."""
+        if name.startswith("_"):
+            return False
+        if name in ("is_safe_method", "module_name"):
+            return True
+        return name not in _CLIENT_DANGEROUS_METHODS
+
+    def _deny(self, name: str) -> None:
+        _raise_insecure(name, self.module_name)
+
+    def __getattribute__(self, name: str) -> Any:
+        if name == "__dict__":
+            _raise_insecure(name, object.__getattribute__(self, "_module_name"))
+        if name in object.__getattribute__(self, "_LOCAL_NAMES"):
+            return object.__getattribute__(self, name)
+        if not ClientProxy.is_safe_method(name):
+            _raise_insecure(name, object.__getattribute__(self, "_module_name"))
+        return getattr(object.__getattribute__(self, "_client"), name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        self._deny(name)
+
+    def __delattr__(self, name: str) -> None:
+        self._deny(name)
+
+    def __dir__(self) -> list[str]:
+        client = object.__getattribute__(self, "_client")
+        return sorted(name for name in dir(client) if ClientProxy.is_safe_method(name))
+
+    def __repr__(self) -> str:
+        return f"<ClientProxy module={self.module_name!r}>"
+
+
+class ConfigProxy:
+    """Backward-compatible config view for user modules.
+
+    Old modules frequently write their own keys directly into ``kernel.config``
+    (``kernel.config["my_key"] = value``).  This proxy preserves that pattern
+    for **reads** - it checks a per-module override dict first, then falls
+    through to the global kernel config.
+
+    **Writes** are redirected into the module's own override dict so they never
+    pollute the global config.  This keeps both old and new modules working
+    without risk of one module corrupting another module's or the kernel's
+    configuration keys.
+    """
+
+    def __init__(self, config: dict[str, Any] | Any, module_name: str) -> None:
+        object.__setattr__(self, "_config", config)
+        object.__setattr__(self, "_module_name", module_name)
+        object.__setattr__(self, "_overrides", {})
+
+    @property
+    def module_name(self) -> str:
+        return object.__getattribute__(self, "_module_name")
+
+    def _deny(self, name: str) -> None:
+        _raise_insecure(name, self.module_name)
+
+    # Reads: override dict first, then global config
+
+    def _merged(self) -> dict[str, Any]:
+        """Return a merged view: overrides shadow global config keys."""
+        overrides = object.__getattribute__(self, "_overrides")
+        config = object.__getattribute__(self, "_config")
+        merged = dict(config)
+        merged.update(overrides)
+        return merged
+
+    def get(self, key: str, default: Any = None) -> Any:
+        overrides = object.__getattribute__(self, "_overrides")
+        if key in overrides:
+            return overrides[key]
+        return object.__getattribute__(self, "_config").get(key, default)
+
+    def __getitem__(self, key: str) -> Any:
+        overrides = object.__getattribute__(self, "_overrides")
+        if key in overrides:
+            return overrides[key]
+        return object.__getattribute__(self, "_config")[key]
+
+    def __contains__(self, key: str) -> bool:
+        overrides = object.__getattribute__(self, "_overrides")
+        return key in overrides or key in object.__getattribute__(self, "_config")
+
+    def __len__(self) -> int:
+        return len(self._merged())
+
+    def __iter__(self):
+        return iter(self._merged())
+
+    def __bool__(self) -> bool:
+        return bool(self._merged())
+
+    def keys(self):
+        return self._merged().keys()
+
+    def values(self):
+        return self._merged().values()
+
+    def items(self):
+        return self._merged().items()
+
+    def __str__(self) -> str:
+        return str(self._merged())
+
+    def __repr__(self) -> str:
+        return f"<ConfigProxy module={self.module_name!r}>"
+
+    # Writes: module-scoped override dict
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        object.__getattribute__(self, "_overrides")[key] = value
+
+    def __delitem__(self, key: str) -> None:
+        overrides = object.__getattribute__(self, "_overrides")
+        if key in overrides:
+            del overrides[key]
+        else:
+            self._deny(f"__delitem__[{key!r}] (global config key)")
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name.startswith("_"):
+            object.__setattr__(self, name, value)
+        else:
+            object.__getattribute__(self, "_overrides")[name] = value
+
+    def update(self, *args, **kwargs) -> None:
+        object.__getattribute__(self, "_overrides").update(*args, **kwargs)
+
+    def pop(self, key: str, *args) -> Any:
+        overrides = object.__getattribute__(self, "_overrides")
+        if key in overrides:
+            return overrides.pop(key, *args)
+        self._deny(f"pop:{key} (global config key)")
+
+    def popitem(self):
+        overrides = object.__getattribute__(self, "_overrides")
+        if overrides:
+            return overrides.popitem()
+        self._deny("popitem (no module-scoped keys)")
+
+    def clear(self) -> None:
+        object.__getattribute__(self, "_overrides").clear()
+
+    def setdefault(self, key: str, *args) -> Any:
+        overrides = object.__getattribute__(self, "_overrides")
+        config = object.__getattribute__(self, "_config")
+        if key in overrides:
+            return overrides[key]
+        if key in config:
+            return config[key]
+        return overrides.setdefault(key, *args)
+
+    def __ior__(self, other):
+        object.__getattribute__(self, "_overrides").update(other)
+        return self
+
+
+class DatabaseProxy:
+    """Safe database facade for user modules.
+
+    Allows read/write operations scoped to the calling module's namespace,
+    but blocks raw SQL execution, cross-module key access through dangerous
+    methods, and database lifecycle operations.
+
+    All keys are automatically prefixed with ``{module_name}:`` so modules
+    cannot read or write outside their own namespace through this proxy.
+    """
+
+    _LOCAL_NAMES = frozenset(
+        {
+            "module_name",
+            "get",
+            "set",
+            "delete",
+            "contains",
+            "keys",
+            "_deny",
+            "__class__",
+            "__repr__",
+            "__dir__",
+            "_prefix_key",
+        }
+    )
+
+    def __init__(self, db_manager: Any, module_name: str) -> None:
+        object.__setattr__(self, "_db", db_manager)
+        object.__setattr__(self, "_module_name", module_name)
+
+    @property
+    def module_name(self) -> str:
+        return object.__getattribute__(self, "_module_name")
+
+    def _deny(self, name: str) -> None:
+        _raise_insecure(name, self.module_name)
+
+    def _prefix_key(self, key: str) -> str:
+        return f"{self.module_name}:{key}"
+
+    async def get(self, key: str, default: Any = None) -> Any:
+        """Read a value scoped to this module."""
+        db = object.__getattribute__(self, "_db")
+        return await db.get(self._prefix_key(key), default)
+
+    async def set(self, key: str, value: Any) -> None:
+        """Write a value scoped to this module."""
+        db = object.__getattribute__(self, "_db")
+        await db.set(self._prefix_key(key), value)
+
+    async def delete(self, key: str) -> bool:
+        """Delete a key scoped to this module."""
+        db = object.__getattribute__(self, "_db")
+        return await db.delete(self._prefix_key(key))
+
+    async def contains(self, key: str) -> bool:
+        """Check if a key exists in this module's namespace."""
+        db = object.__getattribute__(self, "_db")
+        try:
+            val = await db.get(self._prefix_key(key), ...)
+            return val is not ...
+        except Exception:
+            return False
+
+    async def keys(self, pattern: str | None = None) -> list[str]:
+        """Return all key names in this module's namespace, prefix-stripped."""
+        db = object.__getattribute__(self, "_db")
+        prefix = f"{self.module_name}:"
+        all_keys = await db.keys(prefix + (pattern or "*"))
+        prefix_len = len(prefix)
+        return [k[prefix_len:] for k in all_keys if k.startswith(prefix)]
+
+    def __getattribute__(self, name: str) -> Any:
+        if name in object.__getattribute__(self, "_LOCAL_NAMES"):
+            return object.__getattribute__(self, name)
+        if name in _DB_DANGEROUS_METHODS or name.startswith("_"):
+            _raise_insecure(name, object.__getattribute__(self, "_module_name"))
+        return getattr(object.__getattribute__(self, "_db"), name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        self._deny(name)
+
+    def __delattr__(self, name: str) -> None:
+        self._deny(name)
+
+    def __repr__(self) -> str:
+        return f"<DatabaseProxy module={self.module_name!r}>"
+
+
 def get_module_kernel(kernel: Any, module_name: str, is_system: bool) -> Any:
+    """Return a proxied kernel for user modules, raw kernel for system."""
     if is_system:
         return kernel
     return ModuleKernelProxy(kernel, module_name)
 
 
 def get_module_register(kernel: Any, module_name: str, is_system: bool) -> Any:
+    """Return a proxied register for user modules, raw for system."""
     if is_system:
         return kernel.register
     return ModuleRegisterProxy(kernel.register, module_name)
+
+
+def get_module_client(kernel: Any, module_name: str, is_system: bool) -> Any:
+    """Return a proxied client for user modules, raw for system."""
+    if is_system:
+        return kernel.client
+    return ClientProxy(kernel.client, module_name)
+
+
+def get_module_config(kernel: Any, module_name: str, is_system: bool) -> Any:
+    """Return a read-only config proxy for user modules, raw for system."""
+    if is_system:
+        return kernel.config
+    return ConfigProxy(kernel.config, module_name)
+
+
+def get_module_db(kernel: Any, module_name: str, is_system: bool) -> Any:
+    """Return a scoped database proxy for user modules, raw for system."""
+    if is_system:
+        return kernel.db_manager
+    return DatabaseProxy(kernel.db_manager, module_name)

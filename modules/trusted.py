@@ -53,6 +53,7 @@ ACCESS_CATEGORIES = {
             "api_protection",
             "piped",
             "api_reset",
+            "api_suspend",
         ],
     },
     "backup": {
@@ -146,6 +147,45 @@ PRESETS = {
         },
     },
 }
+
+
+def _trusted_resolve_alias(kernel, command: str) -> str:
+    """Return canonical command name for trusted ACL checks.
+
+    Trusted access must be checked against the real command, not only
+    against a user-facing alias. Keep this helper intentionally tiny:
+    it supports both config aliases and register aliases if present.
+    """
+    if not command:
+        return command
+
+    aliases = {}
+    try:
+        aliases = getattr(getattr(kernel, "config", None), "aliases", {}) or {}
+    except Exception:
+        aliases = {}
+
+    if not aliases:
+        try:
+            aliases = getattr(kernel, "aliases", {}) or {}
+        except Exception:
+            aliases = {}
+
+    if not aliases:
+        try:
+            aliases = getattr(getattr(kernel, "register", None), "aliases", {}) or {}
+        except Exception:
+            aliases = {}
+
+    seen = set()
+    current = command
+    while isinstance(aliases, dict) and current in aliases and current not in seen:
+        seen.add(current)
+        target = aliases.get(current)
+        if not isinstance(target, str) or not target:
+            break
+        current = target.split(maxsplit=1)[0].lstrip("./!#")
+    return current
 
 
 def register(kernel):
@@ -301,8 +341,8 @@ def register(kernel):
         return None
 
     def _get_command_category(cmd: str) -> str:
-        """Return category key for a command; falls back to 'modules'."""
-        return _CMD_TO_CAT.get(cmd, "modules")
+        """Return category key for a command; unknown commands are denied by default."""
+        return _CMD_TO_CAT.get(cmd, "unknown")
 
     def _build_access_text(
         user_display: str, access: dict, group_access: dict | None = None
@@ -1431,12 +1471,15 @@ def register(kernel):
         if not has_alias and not sender_has_nonick:
             return
 
-        resolved_cmd = actual_cmd
         all_aliases = kernel.register.get_all_aliases()
+        resolved_cmd = _trusted_resolve_alias(kernel, actual_cmd)
         if resolved_cmd in all_aliases:
             resolved_cmd = all_aliases[resolved_cmd]
 
         category = _get_command_category(resolved_cmd)
+        if category == "unknown":
+            return
+
         access = await get_access(sender_id)
 
         cmd_access = await get_cmd_access(sender_id)
@@ -1464,16 +1507,13 @@ def register(kernel):
             if not user_has_access:
                 return
 
+        actual_cmd = resolved_cmd
+        if actual_cmd not in kernel.command_handlers:
+            return
+
         cmd_text = owner_prefix + actual_cmd
         if rest:
             cmd_text += " " + " ".join(rest)
-
-        if actual_cmd not in kernel.command_handlers:
-            if actual_cmd not in all_aliases:
-                return
-            actual_cmd = all_aliases.get(actual_cmd, actual_cmd)
-            if actual_cmd not in kernel.command_handlers:
-                return
 
         cmd = await kernel.client.send_message(
             event.chat_id, cmd_text, reply_to=event.reply_to_msg_id

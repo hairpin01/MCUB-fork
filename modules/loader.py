@@ -1491,6 +1491,7 @@ class Loader(ModuleBase):
             os.makedirs(temp_dir, exist_ok=True)
 
             try:
+                rollback_created_paths: Callable[[], None] = lambda: None
                 archive_path = os.path.join(temp_dir, file_name)
                 await reply.download_media(archive_path)
                 add_log(f"Archive downloaded to {archive_path}")
@@ -1551,6 +1552,57 @@ class Loader(ModuleBase):
 
                 target_dir = self.kernel.MODULES_LOADED_DIR
                 loaded_modules: list[str] = []
+                created_paths: list[str] = []
+                backup_root = os.path.join(temp_dir, "_pre_update_backup")
+                os.makedirs(backup_root, exist_ok=True)
+                path_backups: list[tuple[str, str, bool]] = []
+                backed_up_paths: set[str] = set()
+
+                def backup_existing_path(path: str) -> None:
+                    if path in backed_up_paths or not os.path.exists(path):
+                        return
+
+                    is_dir = os.path.isdir(path)
+                    backup_path = os.path.join(
+                        backup_root,
+                        f"{len(path_backups)}_{os.path.basename(path)}",
+                    )
+                    if is_dir:
+                        shutil.copytree(path, backup_path)
+                    else:
+                        shutil.copy2(path, backup_path)
+
+                    path_backups.append((path, backup_path, is_dir))
+                    backed_up_paths.add(path)
+
+                def rollback_created_paths() -> None:
+                    for created_path in reversed(created_paths):
+                        try:
+                            if os.path.isdir(created_path):
+                                shutil.rmtree(created_path)
+                            elif os.path.exists(created_path):
+                                os.remove(created_path)
+                        except Exception as cleanup_err:
+                            add_log(f"Cleanup failed for {created_path}: {cleanup_err}")
+
+                    for original_path, backup_path, is_dir in path_backups:
+                        try:
+                            if os.path.exists(original_path):
+                                if os.path.isdir(original_path):
+                                    shutil.rmtree(original_path)
+                                else:
+                                    os.remove(original_path)
+                            if is_dir:
+                                shutil.copytree(backup_path, original_path)
+                            else:
+                                os.makedirs(
+                                    os.path.dirname(original_path), exist_ok=True
+                                )
+                                shutil.copy2(backup_path, original_path)
+                        except Exception as restore_err:
+                            add_log(
+                                f"Rollback failed for {original_path}: {restore_err}"
+                            )
 
                 if result.pack_type == "single":
                     main_mod = next(
@@ -1567,9 +1619,11 @@ class Loader(ModuleBase):
 
                     if has_local_import:
                         module_dir = os.path.join(target_dir, module_name)
+                        backup_existing_path(module_dir)
                         if os.path.exists(module_dir):
                             shutil.rmtree(module_dir)
                         os.makedirs(module_dir, exist_ok=True)
+                        created_paths.append(module_dir)
 
                         for root, _dirs, files in os.walk(temp_dir):
                             rel_dir = os.path.relpath(root, temp_dir)
@@ -1607,7 +1661,9 @@ class Loader(ModuleBase):
                         msg_txt = res[1] if len(res) >= 2 else ""
                     else:
                         target_file = os.path.join(target_dir, f"{module_name}.py")
+                        backup_existing_path(target_file)
                         shutil.copy2(source_file, target_file)
+                        created_paths.append(target_file)
                         res = await self.kernel._loader.load_module_from_file(
                             target_file, module_name, False
                         )
@@ -1624,6 +1680,7 @@ class Loader(ModuleBase):
                             "pack_type": "single",
                         }
                     else:
+                        rollback_created_paths()
                         await self._edit_with_emoji(
                             event,
                             f"{CUSTOM_EMOJI['error']} <b>Failed to load module:</b> {msg_txt}",
@@ -1648,7 +1705,9 @@ class Loader(ModuleBase):
                         target_file = os.path.join(target_dir, f"{mod.name}.py")
                         source_file = os.path.join(temp_dir, mod.file_path)
                         if os.path.exists(source_file):
+                            backup_existing_path(target_file)
                             shutil.copy2(source_file, target_file)
+                            created_paths.append(target_file)
                             res = await self.kernel._loader.load_module_from_file(
                                 target_file, mod.name, False
                             )
@@ -1666,6 +1725,15 @@ class Loader(ModuleBase):
                             else:
                                 failed_modules.append(f"{mod.name}: {msg_txt}")
                                 add_log(f"Failed to load {mod.name}: {msg_txt}")
+                                rollback_created_paths()
+                                break
+
+                    if failed_modules:
+                        await self._edit_with_emoji(
+                            event,
+                            f"{CUSTOM_EMOJI['error']} <b>Failed to load module:</b> {failed_modules[0]}",
+                        )
+                        return
 
                 await self.kernel.save_module_sources()
 
@@ -1720,6 +1788,7 @@ class Loader(ModuleBase):
                 return
 
             except Exception as e:
+                rollback_created_paths()
                 await self.kernel.handle_error(e, source="iload_archive", event=event)
                 await self._edit_with_emoji(
                     event,

@@ -22,8 +22,10 @@ from core.lib.loader.module_config import (
     ConfigValue,
     Float,
     Integer,
-    List as ListValidator,
     ModuleConfig,
+)
+from core.lib.loader.module_config import (
+    List as ListValidator,
 )
 from utils.strings import Strings
 

@@ -69,16 +69,16 @@ class TestWriteRestartFile:
         restart_utils.write_restart_file(
             str(restart_file), chat_id=1, message_id=2, thread_id=3
         )
-        parts = restart_file.read_text(encoding="utf-8").split(",")
-        assert parts[0] == "1"
-        assert parts[1] == "2"
-        assert parts[3] == "3"
-        assert float(parts[2]) > 0
+        context = restart_utils.read_restart_context(restart_file)
+        assert context.chat_id == 1
+        assert context.message_id == 2
+        assert context.thread_id == 3
+        assert context.timestamp > 0
 
 
 class TestRestartKernel:
     @pytest.mark.asyncio
-    async def test_restart_kernel_writes_csv_and_closes_resources(
+    async def test_restart_kernel_writes_context_and_closes_resources(
         self, tmp_path: Path, monkeypatch
     ):
         restart_file = tmp_path / "restart.tmp"
@@ -103,10 +103,10 @@ class TestRestartKernel:
         kernel.db_conn.close.assert_awaited_once()
         kernel.scheduler.cancel_all_tasks.assert_called_once()
 
-        parts = restart_file.read_text(encoding="utf-8").split(",")
-        assert parts[0] == "10"
-        assert parts[1] == "20"
-        assert parts[3] == "30"
+        context = restart_utils.read_restart_context(restart_file)
+        assert context.chat_id == 10
+        assert context.message_id == 20
+        assert context.thread_id == 30
 
     @pytest.mark.asyncio
     async def test_restart_kernel_without_message_id_does_not_write_file(

@@ -6,8 +6,14 @@ from __future__ import annotations
 import asyncio
 import inspect
 from typing import TYPE_CHECKING, Any
-
-from ..loader.kernel_proxy import get_module_kernel, get_module_register
+import builtins
+import importlib
+import sys
+from ..loader.kernel_proxy import (
+    get_module_kernel,
+    get_module_register,
+    get_module_client,
+)
 from ..loader.module_base import ModuleBase
 from ..utils.exceptions import CommandConflictError
 
@@ -25,9 +31,6 @@ class ModuleDetectorMixin:
         self, spec, file_path: str, module_name: str, *, is_system: bool = False
     ):
         """Create a module object preloaded with kernel context."""
-        import builtins
-        import importlib
-        import sys
 
         self.k.logger.debug(
             f"[Loader] _build_module name={module_name} path={file_path}"
@@ -38,7 +41,7 @@ class ModuleDetectorMixin:
         module.__builtins__ = builtins
         module.sys = sys
         module.kernel = get_module_kernel(self.k, module_name, is_system)
-        module.client = self.k.client
+        module.client = get_module_client(self.k, module_name, is_system)
         module.custom_prefix = self.k.custom_prefix
         self.k.logger.debug(f"[Loader] _build_module done name={module_name}")
         return module

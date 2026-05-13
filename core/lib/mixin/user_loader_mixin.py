@@ -25,7 +25,6 @@ class UserLoaderMixin:
 
     async def load_user_modules(self) -> None:
         """Load all .py files from the user modules directory."""
-        import os
 
         k = self.k
 
@@ -88,10 +87,18 @@ class UserLoaderMixin:
 
                 spec = importlib.util.spec_from_file_location(module_name, file_path)
                 module = importlib.util.module_from_spec(spec)
-                if inject_kernel:
-                    module.kernel = k
-                    module.client = k.client
-                    module.custom_prefix = k.custom_prefix
+
+                from ..loader.kernel_proxy import (
+                    get_module_kernel,
+                    get_module_client,
+                    get_module_register,
+                    get_module_config,
+                )
+
+                proxied_kernel = get_module_kernel(k, module_name, is_system=False)
+                module.kernel = proxied_kernel
+                module.client = get_module_client(k, module_name, is_system=False)
+                module.custom_prefix = k.custom_prefix
                 sys.modules[module_name] = module
 
                 k.set_loading_module(module_name, "user")
@@ -103,10 +110,19 @@ class UserLoaderMixin:
                     cls = self._find_module_base_class(module)
                     if cls is not None:
                         if not inject_kernel:
-                            module.kernel = k
-                            module.client = k.client
+                            # Only set kernel/client if exec_with_auto_deps
+                            # didn't already do it via _build_module
+                            module.kernel = proxied_kernel
+                            module.client = get_module_client(
+                                k, module_name, is_system=False
+                            )
                             module.custom_prefix = k.custom_prefix
-                        instance = cls(k, k.client, k.register)
+
+                        instance = cls(
+                            proxied_kernel,
+                            get_module_client(k, module_name, is_system=False),
+                            get_module_register(k, module_name, is_system=False),
+                        )
                         if not hasattr(k, "_class_module_instances"):
                             k._class_module_instances = {}
                         k._class_module_instances[module_name] = instance
@@ -159,9 +175,9 @@ class UserLoaderMixin:
                     continue
 
                 if inspect.iscoroutinefunction(module.register):
-                    await module.register(k)
+                    await module.register(proxied_kernel)
                 else:
-                    module.register(k)
+                    module.register(proxied_kernel)
 
                 k.loaded_modules[module_name] = module
                 label = "user" if inject_kernel else "user (legacy style)"
@@ -203,7 +219,6 @@ class UserLoaderMixin:
         self, module_name: str, init_file: str, k: Any
     ) -> None:
         """Load a module that was installed as a package (from archive with local imports)."""
-        import sys
 
         # Add parent directory to sys.path
         parent_dir = os.path.dirname(k.MODULES_LOADED_DIR.rstrip("/"))
@@ -225,8 +240,16 @@ class UserLoaderMixin:
             raise Exception(f"Cannot create spec for {module_name}")
 
         module = importlib.util.module_from_spec(spec)
-        module.kernel = k
-        module.client = k.client
+
+        from ..loader.kernel_proxy import (
+            get_module_kernel,
+            get_module_client,
+            get_module_register,
+        )
+
+        proxied_kernel = get_module_kernel(k, module_name, is_system=False)
+        module.kernel = proxied_kernel
+        module.client = get_module_client(k, module_name, is_system=False)
         module.custom_prefix = k.custom_prefix
         module.__file__ = init_file
         module.__name__ = module_name
@@ -238,18 +261,20 @@ class UserLoaderMixin:
             spec.loader.exec_module(module)
 
             if not hasattr(module, "register"):
-                raise Exception(f"Module {module_name} has no register function")
+                raise Exception(
+                    f"Module {module_name} has no register function"
+                ) from None
 
             if inspect.iscoroutinefunction(module.register):
-                await module.register(k)
+                await module.register(proxied_kernel)
             else:
-                module.register(k)
+                module.register(proxied_kernel)
 
             k.loaded_modules[module_name] = module
             k.logger.info(f"Module loaded [user (archive package)]: {module_name}")
 
             await self.run_post_load(module, module_name, is_install=False)
         except Exception as e:
-            raise Exception(f"Failed to execute module: {e}")
+            raise Exception(f"Failed to execute module: {e}") from e
         finally:
             k.clear_loading_module()

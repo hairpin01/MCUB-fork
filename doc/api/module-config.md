@@ -42,11 +42,18 @@ The recommended way to create module configuration. Provides:
 | `Choice(choices=[...], default=...)` | One of a list of choices |
 | `MultiChoice(choices=[...], default=[...])` | List of choices |
 | `Secret(default=...)` | Secret value (hidden in UI) |
+| `Link(default=..., schemes=("http", "https"), require_netloc=True)` | Valid URL |
+| `RegExp(pattern=..., default=..., flags=0, fullmatch=True)` | String that matches the given regular expression |
+| `TelegramID(default=..., allow_zero=False)` | Telegram ID |
+| `Union(*validators, default=...)` | Combines multiple validators, e.g. `Union(Integer(), Float())` |
+| `NoneType()` | `None` / `null` value |
+| `Emoji(default=..., min_count=1, max_count=None)` | Valid emoji or emoji sequence |
+| `EntityLike(default=...)` | Telegram entity-like value: ID, `@username`, `t.me` link or URL |
 
 ### Usage
 
 ```python
-from core.lib.loader.module_config import ModuleConfig, ConfigValue, Boolean, String, Choice
+from core.lib.loader.module_config import ModuleConfig, ConfigValue, Boolean, String, Choice, Link, Union, Integer, Float
 
 def register(kernel):
     config = ModuleConfig(

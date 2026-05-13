@@ -16,7 +16,7 @@ async def setup(kernel):
     kernel.logger.info("module initialised")
 ```
 
-### `@kernel.register.command(pattern, alias=None, more=None, doc=None, doc_ru=None, doc_en=None)`
+### `@kernel.register.command(pattern, alias=None, doc=None, doc_ru=None, doc_en=None, **kwargs)`
 
 Register a userbot command.
 
@@ -33,7 +33,7 @@ async def ping(event):
 - Raises `CommandConflictError` if the command or alias is already registered.
 - Raises `ValueError` if called while no module is being loaded.
 
-### `@kernel.register.bot_command(pattern, doc=None, doc_ru=None, doc_en=None)`
+### `@kernel.register.bot_command(pattern, alias=None, doc=None, doc_ru=None, doc_en=None, **kwargs)`
 
 Register a Telegram native `/command` (requires bot client).
 

@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Any
 from telethon import events
 
-from core.lib.loader.module_base import ModuleBase, command, bot_command, owner_only, event, method
+from core.lib.loader.module_base import ModuleBase, command, bot_command, owner_only, event, method, on_uninstall
 
 class MyModule(ModuleBase):
     name = "MyModule"
@@ -71,8 +71,7 @@ Class attributes define module metadata:
 
 ## Decorators
 
-### `@command(pattern, *, alias=None, doc=None, doc_ru=None, doc_en=None)`
-
+### `@command(pattern: str, *, alias: str | list[str] | None=None, doc: dict | None=None, doc_ru: str | None=None, doc_en: str | None=None)`
 Register a userbot command. The decorated method receives `self` and the `event`.
 
 ```python
@@ -88,8 +87,7 @@ async def cmd_ping(self, event):
 - `doc_ru` (str): Russian description shorthand
 - `doc_en` (str): English description shorthand
 
-### `@bot_command(pattern, *, alias=None, doc=None, doc_ru=None, doc_en=None)`
-
+### `@bot_command(pattern: str, *, alias: str | list[str] | None=None, doc: dict | None=None, doc_ru: str | None=None, doc_en: str | None=None)`
 Register a command via bot account (not userbot). The decorated method receives `self` and the `event`.
 
 ```python
@@ -155,8 +153,7 @@ async def cmd_stats(self, event):
 - Add regex/text matching conditions to commands
 - Combine with `@owner_only` for both permission and chat type filtering
 
-### `@error_handler(*, log_level="error", reraise=False, message=None)`
-
+### `@error_handler(func: Callable | None=None, *, log_level: str='error', reraise: bool=False, message: str | None=None)`
 Decorator for automatic error handling in module methods. Catches exceptions and logs them with optional custom message.
 
 ```python
@@ -179,8 +176,7 @@ async def cmd_critical(self, event):
 - Custom error messages for debugging
 - Conditional reraise for critical operations
 
-### `@callback(ttl=900)`
-
+### `@callback(func: Callable | None=None, *, ttl: int=900)`
 Decorator for inline callback handlers. Generates a uuid and registers the handler in `kernel.inline_callback_map`.
 
 ```python
@@ -200,8 +196,7 @@ Use with `self.callback_button()` to create buttons.
 > [!NOTE]
 > `data` is optional for callback handlers. If your handler has `data` parameter (or `**kwargs`), button `data` is passed there; otherwise it is ignored.
 
-### `@inline_temp(ttl=300, allow_user=None, allow_ttl=100, article=None, data=None)`
-
+### `@inline_temp(func: Callable | None=None, *, ttl: int=300, allow_user: int | list[int] | str | None=None, allow_ttl: int=100, article: Callable | None=None, data: Any | None=None)`
 Decorator for temporary inline command handlers. When a user enters `@bot <uuid> <args>`, the article is shown. When they send it, the handler is called with `(event, args, data)`.
 
 ```python
@@ -237,8 +232,7 @@ await event.edit("Search", buttons=[[self.Button.switch("Search", f"{form_id} ")
 > [!NOTE]
 > The form_id is 8 characters long. User enters `@bot <form_id> <args>` to trigger. When they send the article, your handler receives the full query args string.
 
-### `@inline(pattern)`
-
+### `@inline(pattern: str)`
 Register an inline query handler.
 
 ```python
@@ -252,8 +246,7 @@ async def inline_handler(self, event):
     await event.answer([article])
 ```
 
-### `@event(event_type, *args, bot_client=False, **kwargs)`
-
+### `@event(event_type: str, *args: Any, bot_client: bool=False, **kwargs: Any)`
 Register a custom Telethon event handler.
 
 ```python
@@ -269,8 +262,7 @@ async def handle_hello(self, event):
 **Available event types:**
 `newmessage`, `message`, `messageedited`, `edited`, `messagedeleted`, `deleted`, `messageread`, `read`, `userupdate`, `user`, `chataction`, `action`, `joinrequest`, `request`, `album`, `inlinequery`, `inline`, `callbackquery`, `callback`, `raw`, `custom`
 
-### `@method()`
-
+### `@method(func: Callable | None=None)`
 Register a method called automatically during module load.
 
 ```python
@@ -299,8 +291,7 @@ async def on_load(self):
     self.log.info("Module ready")
 ```
 
-### `@on_install()`
-
+### `@on_install(func: Callable | None=None)`
 Register a one-time callback called only on first install (not on reload).
 
 ```python
@@ -309,20 +300,19 @@ async def first_time_setup(self):
     await self.client.send_message("me", "Module installed!")
 ```
 
-### `@uninstall()`
+### `@on_uninstall(func: Callable | None=None)`
 
 Register a cleanup callback called when the module is unloaded.
 
 ```python
-@uninstall
+@on_uninstall
 async def cleanup(self):
     await self._close_connections()
 ```
 
 The decorated method is called automatically during `on_unload()`.
 
-### `@watcher(bot_client=False, **tags)`
-
+### `@watcher(func: Callable | None=None, *, bot_client: bool=False, **tags: Any)`
 Register a message watcher that filters events declaratively.
 
 ```python
@@ -739,7 +729,7 @@ async def on_unload(self) -> None:
     self.log.info("Cleanup complete")
 ```
 
-If you use `@uninstall`, call `await super().on_unload()` inside your override.
+If you override `on_unload()` and also rely on decorated uninstall hooks, call `await super().on_unload()` inside your override.
 
 ### `async def on_install()`
 
@@ -925,7 +915,7 @@ from typing import Any
 from telethon import events
 
 from core.lib.loader.module_base import (
-    ModuleBase, command, bot_command, owner_only, callback, watcher, loop, event, method
+    ModuleBase, command, bot_command, owner_only, callback, watcher, loop, event, method, on_uninstall
 )
 
 class CounterModule(ModuleBase):
@@ -989,7 +979,7 @@ class CounterModule(ModuleBase):
     async def first_run(self) -> None:
         await self.client.send_message("me", "Counter module installed!")
 
-    @uninstall
+    @on_uninstall
     async def cleanup(self) -> None:
         self.log.info("Service disconnected")
 

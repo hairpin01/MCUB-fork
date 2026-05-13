@@ -14,6 +14,8 @@ import os
 import time
 from typing import Any
 
+from utils.restart import read_restart_context
+
 from .standard import Kernel as _StandardKernel
 
 
@@ -128,27 +130,24 @@ class Kernel(_StandardKernel):
         await self.load_system_modules()
         if os.path.exists(self.RESTART_FILE):
             try:
-                with open(self.RESTART_FILE) as f:
-                    data = f.read().split(",")
-                if len(data) >= 3:
+                restart_ctx = read_restart_context(self.RESTART_FILE)
+                restart_chat_id = restart_ctx.chat_id
+                restart_msg_id = restart_ctx.message_id
+                restart_time = restart_ctx.timestamp
+                total_ms = round(time.time() - restart_time, 2)
 
-                    restart_chat_id = int(data[0])
-                    restart_msg_id = int(data[1])
-                    restart_time = float(data[2])
-                    total_ms = round(time.time() - restart_time, 2)
+                em_alembic = '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>'
+                lang = self.config.get("language", "ru")
+                from core.langpacks import get_kernel_strings
 
-                    em_alembic = '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>'
-                    lang = self.config.get("language", "ru")
-                    from core.langpacks import get_kernel_strings
-
-                    s = get_kernel_strings(lang)
-                    await self.client.edit_message(
-                        restart_chat_id,
-                        restart_msg_id,
-                        f"{em_alembic} {s['success']} (*.*)\n"
-                        f"<i>{s['loading']}</i> <b>Kernel boot:</b><code> {total_ms} </code>s",
-                        parse_mode="html",
-                    )
+                s = get_kernel_strings(lang)
+                await self.client.edit_message(
+                    restart_chat_id,
+                    restart_msg_id,
+                    f"{em_alembic} {s['success']} (*.*)\n"
+                    f"<i>{s['loading']}</i> <b>Kernel boot:</b><code> {total_ms} </code>s",
+                    parse_mode="html",
+                )
             except Exception:
                 pass
 
@@ -224,17 +223,11 @@ class Kernel(_StandardKernel):
         The restart.tmp file contains:  chat_id,msg_id,timestamp[,thread_id]
         """
         try:
-            with open(self.RESTART_FILE) as f:
-                data = f.read().split(",")
-
-            if len(data) < 3:
-                os.remove(self.RESTART_FILE)
-                return
-
-            chat_id = int(data[0])
-            msg_id = int(data[1])
-            restart_time = float(data[2])
-            thread_id = int(data[3]) if len(data) >= 4 else None
+            restart_ctx = read_restart_context(self.RESTART_FILE)
+            chat_id = restart_ctx.chat_id
+            msg_id = restart_ctx.message_id
+            restart_time = restart_ctx.timestamp
+            thread_id = restart_ctx.thread_id
 
             os.remove(self.RESTART_FILE)
 

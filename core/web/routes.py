@@ -1,11 +1,9 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлькa | @hairpin01
 
-from __future__ import annotations
+"""Setup wizard API."""
 
-"""
-setup wizard API
-"""
+from __future__ import annotations
 
 import asyncio
 import json
@@ -150,32 +148,6 @@ async def index(request: web.Request) -> web.Response:
 
 async def status(request: web.Request) -> web.Response:
     return web.json_response(_build_setup_status(request.app))
-
-    auth_middleware = request.app.get("auth_middleware")
-
-    if auth_middleware and auth_middleware.auth_enabled:
-        auth_header = request.headers.get("Authorization", "")
-        if not auth_header.startswith("Bearer "):
-            return web.json_response({"error": "Unauthorized"}, status=401)
-        token = auth_header[7:]
-        from .auth import hash_token
-
-        if hash_token(token) != auth_middleware.token_hash:
-            return web.json_response({"error": "Unauthorized"}, status=401)
-
-    kernel = request.app.get("kernel")
-    if kernel is None or not _is_configured(kernel):
-        return web.json_response({"error": "Kernel not available"}, status=503)
-    return web.json_response(
-        {
-            "version": kernel.VERSION,
-            "prefix": kernel.custom_prefix,
-            "modules": list(kernel.loaded_modules.keys()),
-            "commands": list(kernel.command_handlers.keys()),
-            "uptime": time.time() - kernel.start_time,
-            "error_load_modules": kernel.error_load_modules,
-        }
-    )
 
 
 async def api_setup_state(request: web.Request) -> web.Response:

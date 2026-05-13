@@ -7,7 +7,7 @@ Web panel authentication middleware.
 
 import hashlib
 import secrets
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 from aiohttp import web
 
@@ -54,6 +54,7 @@ class AuthMiddleware:
         self.token_hash: str | None = None
         self.auth_enabled: bool = False
         self._setup_auth()
+        self.install(app)
 
     def _setup_auth(self) -> None:
         """Load auth configuration from app state."""
@@ -76,10 +77,13 @@ class AuthMiddleware:
                     pass
 
         web_token = config.get("web_panel_token")
-        self.auth_enabled = bool(web_token)
+        configured_hash = config.get("web_panel_token_hash")
+        self.auth_enabled = bool(web_token or configured_hash)
 
         if web_token:
             self.token_hash = hash_token(web_token)
+        elif configured_hash:
+            self.token_hash = configured_hash
 
     def _is_public_path(self, path: str) -> bool:
         """Check if path is public (setup wizard)."""
@@ -89,9 +93,37 @@ class AuthMiddleware:
             return True
         if path in self.PUBLIC_API_PATHS:
             return True
-        if path.startswith("/api/setup") or path.startswith("/api/bot"):
+        if path.startswith("/api/setup"):
             return True
         return False
+
+    def install(self, app: web.Application) -> None:
+        """Install auth middleware into aiohttp app once."""
+        middlewares = getattr(app, "middlewares", None)
+        if middlewares is None or self.middleware in middlewares:
+            return
+        middlewares.append(self.middleware)
+
+    @web.middleware
+    async def middleware(
+        self,
+        request: web.Request,
+        handler: Callable[[web.Request], Awaitable[web.StreamResponse]],
+    ) -> web.StreamResponse:
+        """Validate requests before protected handlers run."""
+        if not self.auth_enabled:
+            return await handler(request)
+
+        if self._is_public_path(request.path):
+            return await handler(request)
+
+        if await self._authenticate(request):
+            return await handler(request)
+
+        return web.json_response(
+            {"error": "Unauthorized. Provide valid token in Authorization header."},
+            status=401,
+        )
 
     async def _authenticate(self, request: web.Request) -> bool:
         """Authenticate request using token from Authorization header."""
@@ -106,27 +138,8 @@ class AuthMiddleware:
         return provided_hash == self.token_hash
 
     async def __call__(self, app: web.Application) -> None:
-        """Middleware factory."""
-
-        @web.middleware
-        async def auth_middleware(
-            request: web.Request, handler: Callable
-        ) -> web.Response:
-            if not self.auth_enabled:
-                return await handler(request)
-
-            if self._is_public_path(request.path):
-                return await handler(request)
-
-            if await self._authenticate(request):
-                return await handler(request)
-
-            return web.json_response(
-                {"error": "Unauthorized. Provide valid token in Authorization header."},
-                status=401,
-            )
-
-        app.middlewares.append(auth_middleware)
+        """Backward-compatible middleware installer."""
+        self.install(app)
 
 
 def require_auth(func: Callable) -> Callable:

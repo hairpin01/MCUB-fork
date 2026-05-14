@@ -35,7 +35,6 @@ PROTECTED_KERNEL_NAMES = frozenset(
         "current_loading_module",
         "current_loading_module_type",
         "error_load_modules",
-        "_module_sources",
         "_log",
         "_inline_cb_lock",
         "MODULES_DIR",
@@ -126,7 +125,9 @@ class ModuleRegisterProxy:
         return object.__getattribute__(self, "_module_name")
 
     def is_protected(self, name: str) -> bool:
-        return name in PROTECTED_REGISTER_NAMES or name.startswith("_")
+        return name in PROTECTED_REGISTER_NAMES or (
+            name.startswith("_") and not (name.startswith("__") and name.endswith("__"))
+        )
 
     def _deny(self, name: str) -> None:
         _raise_insecure(name, self.module_name)
@@ -136,9 +137,15 @@ class ModuleRegisterProxy:
             _raise_insecure(name, object.__getattribute__(self, "_module_name"))
         if name in object.__getattribute__(self, "_LOCAL_NAMES"):
             return object.__getattribute__(self, name)
-        if name in PROTECTED_REGISTER_NAMES or name.startswith("_"):
+        if name in PROTECTED_REGISTER_NAMES or (
+            name.startswith("_") and not (name.startswith("__") and name.endswith("__"))
+        ):
             _raise_insecure(name, object.__getattribute__(self, "_module_name"))
         return getattr(object.__getattribute__(self, "_register"), name)
+
+    async def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        """Allow direct Telethon API calls: ``await client(SomeRequest(...))``."""
+        return await object.__getattribute__(self, "_client")(*args, **kwargs)
 
     def __setattr__(self, name: str, value: Any) -> None:
         self._deny(name)
@@ -149,7 +156,12 @@ class ModuleRegisterProxy:
     def __dir__(self) -> list[str]:
         register = object.__getattribute__(self, "_register")
         names = set(dir(register)) - PROTECTED_REGISTER_NAMES
-        names = {name for name in names if not name.startswith("_")}
+        names = {
+            name
+            for name in names
+            if not name.startswith("_")
+            or (name.startswith("__") and name.endswith("__"))
+        }
         names.update({"module_name", "is_protected"})
         return sorted(names)
 
@@ -378,7 +390,9 @@ class ModuleKernelProxy:
             _raise_insecure(name, object.__getattribute__(self, "_module_name"))
         if name in object.__getattribute__(self, "_LOCAL_NAMES"):
             return object.__getattribute__(self, name)
-        if name in PROTECTED_KERNEL_NAMES or name.startswith("_"):
+        if name in PROTECTED_KERNEL_NAMES or (
+            name.startswith("_") and not (name.startswith("__") and name.endswith("__"))
+        ):
             _raise_insecure(name, object.__getattribute__(self, "_module_name"))
         module_state = object.__getattribute__(self, "_module_state")
         if name in module_state:
@@ -386,7 +400,9 @@ class ModuleKernelProxy:
         return getattr(object.__getattribute__(self, "_kernel"), name)
 
     def __setattr__(self, name: str, value: Any) -> None:
-        if name.startswith("_") or name in PROTECTED_KERNEL_NAMES:
+        if (
+            name.startswith("_") and not (name.startswith("__") and name.endswith("__"))
+        ) or name in PROTECTED_KERNEL_NAMES:
             self._deny(name)
         object.__getattribute__(self, "_module_state")[name] = value
 
@@ -396,7 +412,12 @@ class ModuleKernelProxy:
     def __dir__(self) -> list[str]:
         kernel = object.__getattribute__(self, "_kernel")
         names = set(dir(kernel)) - PROTECTED_KERNEL_NAMES
-        names = {name for name in names if not name.startswith("_")}
+        names = {
+            name
+            for name in names
+            if not name.startswith("_")
+            or (name.startswith("__") and name.endswith("__"))
+        }
         names.update(
             {
                 "module_name",
@@ -457,6 +478,8 @@ class ClientProxy:
     @staticmethod
     def is_safe_method(name: str) -> bool:
         """Return True if *name* is a safe client attribute/method for modules."""
+        if name.startswith("__") and name.endswith("__"):
+            return True
         if name.startswith("_"):
             return False
         if name in ("is_safe_method", "module_name"):
@@ -471,9 +494,16 @@ class ClientProxy:
             _raise_insecure(name, object.__getattribute__(self, "_module_name"))
         if name in object.__getattribute__(self, "_LOCAL_NAMES"):
             return object.__getattribute__(self, name)
+        # Allow __dunder__ methods through (__class__, __call__, etc.)
+        if name.startswith("__") and name.endswith("__"):
+            return object.__getattribute__(self, name)
         if not ClientProxy.is_safe_method(name):
             _raise_insecure(name, object.__getattribute__(self, "_module_name"))
         return getattr(object.__getattribute__(self, "_client"), name)
+
+    async def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        """Allow direct Telethon API calls: ``await client(SomeRequest(...))``."""
+        return await object.__getattribute__(self, "_client")(*args, **kwargs)
 
     def __setattr__(self, name: str, value: Any) -> None:
         self._deny(name)
@@ -691,9 +721,15 @@ class DatabaseProxy:
     def __getattribute__(self, name: str) -> Any:
         if name in object.__getattribute__(self, "_LOCAL_NAMES"):
             return object.__getattribute__(self, name)
-        if name in _DB_DANGEROUS_METHODS or name.startswith("_"):
+        if name in _DB_DANGEROUS_METHODS or (
+            name.startswith("_") and not (name.startswith("__") and name.endswith("__"))
+        ):
             _raise_insecure(name, object.__getattribute__(self, "_module_name"))
         return getattr(object.__getattribute__(self, "_db"), name)
+
+    async def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        """Allow direct Telethon API calls: ``await client(SomeRequest(...))``."""
+        return await object.__getattribute__(self, "_client")(*args, **kwargs)
 
     def __setattr__(self, name: str, value: Any) -> None:
         self._deny(name)

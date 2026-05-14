@@ -134,7 +134,6 @@ class UserLoaderMixin:
                             and class_display_name != "Unnamed"
                             and class_display_name != module_name
                         ):
-                            import os
 
                             old_path = file_path
                             new_path = os.path.join(
@@ -187,32 +186,10 @@ class UserLoaderMixin:
             except CommandConflictError as e:
                 k.logger.error(f"Command conflict loading {file_name}: {e}")
                 self._rollback_orphaned_commands(k, module_name)
-                if hasattr(k, "_log") and k._log:
-                    try:
-                        await asyncio.wait_for(
-                            k._log.log_error_from_exc(
-                                f"load_module_conflict:{file_name}"
-                            ),
-                            timeout=5.0,
-                        )
-                    except TimeoutError:
-                        k.logger.warning("log_error_from_exc timed out")
-                    except Exception as log_err:
-                        k.logger.error(f"log_error_from_exc failed: {log_err}")
                 k.error_load_modules += 1
             except Exception as e:
                 k.logger.error(f"Error loading module {file_name}: {e}")
                 self._rollback_orphaned_commands(k, module_name)
-                if hasattr(k, "_log") and k._log:
-                    try:
-                        await asyncio.wait_for(
-                            k._log.log_error_from_exc(f"load_module:{file_name}"),
-                            timeout=5.0,
-                        )
-                    except TimeoutError:
-                        k.logger.warning("log_error_from_exc timed out")
-                    except Exception as log_err:
-                        k.logger.error(f"log_error_from_exc failed: {log_err}")
                 k.error_load_modules += 1
             finally:
                 k.clear_loading_module()
@@ -281,3 +258,22 @@ class UserLoaderMixin:
             raise Exception(f"Failed to execute module: {e}") from e
         finally:
             k.clear_loading_module()
+
+    def _rollback_orphaned_commands(self, k, module_name: str) -> None:
+        """Remove commands registered during a failed module load."""
+        if not module_name:
+            return
+        for cmd in list(k.command_owners.keys()):
+            if k.command_owners.get(cmd) == module_name:
+                k.command_handlers.pop(cmd, None)
+                k.command_owners.pop(cmd, None)
+                k.logger.debug(
+                    "[rollback] removed orphan command %r from %r", cmd, module_name
+                )
+        bot_owners = getattr(k, "bot_command_owners", None)
+        bot_handlers = getattr(k, "bot_command_handlers", None)
+        if bot_owners is not None and bot_handlers is not None:
+            for cmd in list(bot_owners.keys()):
+                if bot_owners.get(cmd) == module_name:
+                    bot_handlers.pop(cmd, None)
+                    bot_owners.pop(cmd, None)

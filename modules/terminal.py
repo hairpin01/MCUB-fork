@@ -13,7 +13,7 @@ import os
 import signal
 import time
 
-from core.lib.loader.module_config import ConfigValue, Integer, ModuleConfig
+from core.lib.loader.module_config import Choice, ConfigValue, Integer, ModuleConfig
 from utils.strings import Strings
 
 CUSTOM_EMOJI = {
@@ -61,15 +61,26 @@ def register(kernel):
             description=lambda: lang["config_update_interval"],
             validator=Integer(default=3, min=1, max=30),
         ),
+        ConfigValue(
+            "shell",
+            "bash",
+            description=lambda: "Shell to use for command execution",
+            validator=Choice(
+                choices=["zsh", "sh", "fish", "dash", "bash"], default="bash"
+            ),
+        ),
     )
 
     async def _startup():
-        cfg_dict = await kernel.get_module_config(__name__, {"update_interval": 3})
+        # Register schema FIRST so save_module_config doesn't crash on new keys
+        kernel.store_module_config_schema(__name__, config)
+        cfg_dict = await kernel.get_module_config(
+            __name__, {"update_interval": 3, "shell": "bash"}
+        )
         config.from_dict(cfg_dict)
         clean = {k: v for k, v in config.to_dict().items() if v is not None}
         if clean:
             await kernel.save_module_config(__name__, clean)
-        kernel.store_module_config_schema(__name__, config)
 
     asyncio.create_task(_startup())
 
@@ -146,7 +157,10 @@ def register(kernel):
                     "piped": piped,
                 }
 
-                process = await asyncio.create_subprocess_shell(
+                shell_path = _get_config().get("shell") or "bash"
+                process = await asyncio.create_subprocess_exec(
+                    shell_path,
+                    "-c",
                     command,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
@@ -190,7 +204,10 @@ def register(kernel):
             self, chat_id, command, message_id=None, quiet=False
         ):
             try:
-                process = await asyncio.create_subprocess_shell(
+                shell_path = _get_config().get("shell") or "bash"
+                process = await asyncio.create_subprocess_exec(
+                    shell_path,
+                    "-c",
                     command,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,

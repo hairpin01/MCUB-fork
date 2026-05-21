@@ -10,10 +10,17 @@ from __future__ import annotations
 import asyncio
 import html
 import os
+import re
 import signal
 import time
 
-from core.lib.loader.module_config import Choice, ConfigValue, Integer, ModuleConfig
+from core.lib.loader.module_config import (
+    Boolean,
+    Choice,
+    ConfigValue,
+    Integer,
+    ModuleConfig,
+)
 from utils.strings import Strings
 
 CUSTOM_EMOJI = {
@@ -47,6 +54,13 @@ CUSTOM_EMOJI = {
 _MIN_EDIT_INTERVAL = 1.0
 
 
+def _filter_proxychains_output(text: str) -> str:
+    """Remove lines containing [proxychains] markers from output."""
+    if not text:
+        return text
+    return "\n".join(line for line in text.split("\n") if "[proxychains]" not in line)
+
+
 def register(kernel):
     client = kernel.client
     logger = kernel.logger
@@ -69,13 +83,20 @@ def register(kernel):
                 choices=["zsh", "sh", "fish", "dash", "bash"], default="bash"
             ),
         ),
+        ConfigValue(
+            "filter_proxychains",
+            True,
+            description=lambda: "Filter [proxychains] noise from stdout/stderr output",
+            validator=Boolean(default=True),
+        ),
     )
 
     async def _startup():
         # Register schema FIRST so save_module_config doesn't crash on new keys
         kernel.store_module_config_schema(__name__, config)
         cfg_dict = await kernel.get_module_config(
-            __name__, {"update_interval": 3, "shell": "bash"}
+            __name__,
+            {"update_interval": 3, "shell": "bash", "filter_proxychains": True},
         )
         config.from_dict(cfg_dict)
         clean = {k: v for k, v in config.to_dict().items() if v is not None}
@@ -106,6 +127,9 @@ def register(kernel):
         def _build_message(self, cmd_data: dict, *, final: bool = False) -> str:
             stdout_raw = cmd_data["stdout"].decode("utf-8", errors="ignore")
             stderr_raw = cmd_data["stderr"].decode("utf-8", errors="ignore")
+            if _get_config().get("filter_proxychains", True):
+                stdout_raw = _filter_proxychains_output(stdout_raw)
+                stderr_raw = _filter_proxychains_output(stderr_raw)
 
             stdout_block = f"<pre>{self._format_output(stdout_raw)}</pre>"
             stderr_block = (
@@ -113,9 +137,10 @@ def register(kernel):
                 if stderr_raw.strip()
                 else ""
             )
-
+            cfg = _get_config()
             elapsed = time.time() - cmd_data["start_time"]
             cmd_escaped = html.escape(cmd_data["command"])
+            shell = html.escape(cfg.get("shell") or "bash")
 
             if final:
                 time_label = lang["completed_in"]
@@ -128,7 +153,8 @@ def register(kernel):
                 f"{CUSTOM_EMOJI['💻']} <i>{lang['system_command']}</i> <blockquote><code>{cmd_escaped}</code></blockquote>\n"
                 f"{extra}"
                 f"{stdout_block}{stderr_block}"
-                f"<blockquote>{CUSTOM_EMOJI['🧮']} <b>{time_label}</b> "
+                f"<blockquote>{CUSTOM_EMOJI['🉐']} <b>{lang['shell']}</b> {shell}\n"
+                f"{CUSTOM_EMOJI['🧮']} <b>{time_label}</b> "
                 f"<mono>{elapsed:.2f} {lang['seconds']}</mono></blockquote>"
             )
 
@@ -216,6 +242,9 @@ def register(kernel):
                 output = stdout.decode("utf-8", errors="ignore")
                 if not quiet:
                     output += stderr.decode("utf-8", errors="ignore")
+
+                if _get_config().get("filter_proxychains", True):
+                    output = _filter_proxychains_output(output)
                 return output
             except Exception as e:
                 return f"Error: {e!s}"
@@ -337,6 +366,8 @@ def register(kernel):
             try:
                 if piped:
                     stdout = cmd_data["stdout"].decode("utf-8", errors="ignore")
+                    if _get_config().get("filter_proxychains", True):
+                        stdout = _filter_proxychains_output(stdout)
                     output = stdout
                     await client.edit_message(
                         chat_id,

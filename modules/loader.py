@@ -2378,8 +2378,8 @@ class Loader(ModuleBase):
         doc_ru="<имя> выгpyзить мoдyль пo имeни",
     )
     async def cmd_um(self, event) -> None:
-        args = event.text.split()
-        if len(args) < 2:
+        args = self.args_raw(event)
+        if not args:
             await self._edit_with_emoji(
                 event,
                 self.strings(
@@ -2390,7 +2390,7 @@ class Loader(ModuleBase):
             )
             return
 
-        module_name = args[1]
+        module_name = args
         actual_name, _ = self.kernel._loader.find_module_case_insensitive(module_name)
         if actual_name is None:
             await self._edit_with_emoji(

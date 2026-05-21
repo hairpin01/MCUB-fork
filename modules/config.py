@@ -139,6 +139,7 @@ async def init_module_config(kernel):
         "use_premium_emoji": True,
         "items_per_page": 16,
         "modules_per_page": 12,
+        "module_filter": "all",
     }
     config = await kernel.get_module_config("config", None)
 
@@ -272,6 +273,23 @@ def register(kernel):
         result = sorted(modules_with_config)
         kernel.cache.set(cache_key, result, ttl=MODULES_WITH_CONFIG_CACHE_TTL)
         return result
+
+    def _get_filtered_modules(filter_value: str = "all") -> list[str]:
+        """Return module list filtered by type: all / core / user.
+        Only includes modules that have config entries in _live_module_configs."""
+        live_configs = getattr(kernel, "_live_module_configs", {})
+        with_config = set(live_configs.keys())
+
+        if filter_value == "core":
+            modules = set(kernel.system_modules.keys())
+        elif filter_value == "user":
+            modules = set(kernel.loaded_modules.keys())
+        else:
+            modules = set(kernel.system_modules.keys()) | set(
+                kernel.loaded_modules.keys()
+            )
+
+        return sorted(modules & with_config)
 
     def add_module_to_config_cache(module_name):
         """Add a module to the config cache (called when config is saved)"""
@@ -559,8 +577,26 @@ def register(kernel):
 
         return buttons
 
-    def create_modules_buttons_grid(modules, page, total_pages):
+    def create_modules_buttons_grid(modules, page, total_pages, current_filter="all"):
         buttons = []
+        # Filter row: all | core | user
+        filter_label = {
+            "all": t("filter_all"),
+            "core": t("filter_core"),
+            "user": t("filter_user"),
+        }
+        filter_row = []
+        for f_val in ("all", "core", "user"):
+            label = filter_label[f_val]
+            if f_val == current_filter:
+                label = f"✅ {label}"
+            filter_row.append(
+                Button.inline(
+                    label,
+                    data=f"config_modules_filter_{f_val}".encode(),
+                )
+            )
+        buttons.append(filter_row)
         row = []
         for _i, module_name in enumerate(modules):
             display_name = truncate_module_name(module_name)
@@ -983,10 +1019,14 @@ def register(kernel):
     async def config_modules_handler(event):
         await ensure_config_initialized()
         query = event.text.strip()
-        all_modules = list(kernel.system_modules.keys()) + list(
-            kernel.loaded_modules.keys()
-        )
-        all_modules = sorted(set(all_modules))
+
+        # Read current filter from config
+        cfg_config = await kernel.get_module_config("config", None)
+        filter_val = "all"
+        if isinstance(cfg_config, dict):
+            filter_val = cfg_config.get("module_filter", "all")
+
+        all_modules = _get_filtered_modules(filter_val)
 
         page = 0
         if query.startswith("config_modules_"):
@@ -1023,7 +1063,9 @@ def register(kernel):
             total_modules=total_modules,
         )
 
-        buttons = create_modules_buttons_grid(page_modules, page, total_pages)
+        buttons = create_modules_buttons_grid(
+            page_modules, page, total_pages, filter_val
+        )
         thumb = InputWebDocument(
             url="https://kappa.lol/GaFZ9I",
             size=0,
@@ -2521,10 +2563,50 @@ def register(kernel):
             except Exception as e:
                 await event.answer(str(e)[:50], alert=True)
 
+        elif data.startswith("config_modules_filter_"):
+            try:
+                filter_val = data.split("_")[3]  # all / core / user
+                cfg = await kernel.get_module_config("config", None)
+                if isinstance(cfg, dict):
+                    cfg["module_filter"] = filter_val
+                    await kernel.save_module_config("config", cfg)
+                page = 0
+                all_modules = _get_filtered_modules(filter_val)
+                total_modules = len(all_modules)
+                total_pages = (
+                    (total_modules + config_settings.modules_per_page - 1)
+                    // config_settings.modules_per_page
+                    if total_modules > 0
+                    else 1
+                )
+                start_idx = page * config_settings.modules_per_page
+                end_idx = start_idx + config_settings.modules_per_page
+                page_modules = all_modules[start_idx:end_idx]
+
+                text = t(
+                    "modules_config_title",
+                    puzzle=emoji_provider["🧩"],
+                    page_emoji=emoji_provider["📰"],
+                    page=page + 1,
+                    total_pages=total_pages,
+                    total_modules=total_modules,
+                )
+                buttons = create_modules_buttons_grid(
+                    page_modules, page, total_pages, filter_val
+                )
+                await event.edit(text, buttons=buttons, parse_mode="html")
+            except Exception as e:
+                await event.answer(str(e)[:50], alert=True)
+
         elif data.startswith("config_modules_page_"):
             try:
                 page = int(data.split("_")[3])
-                all_modules = get_modules_with_config()
+                # Read current filter from config
+                cfg = await kernel.get_module_config("config", None)
+                filter_val = "all"
+                if isinstance(cfg, dict):
+                    filter_val = cfg.get("module_filter", "all")
+                all_modules = _get_filtered_modules(filter_val)
 
                 total_modules = len(all_modules)
                 total_pages = (
@@ -2550,7 +2632,9 @@ def register(kernel):
                     total_pages=total_pages,
                     total_modules=total_modules,
                 )
-                buttons = create_modules_buttons_grid(page_modules, page, total_pages)
+                buttons = create_modules_buttons_grid(
+                    page_modules, page, total_pages, filter_val
+                )
                 await event.edit(text, buttons=buttons, parse_mode="html")
             except Exception as e:
                 await event.answer(str(e)[:50], alert=True)
@@ -3824,6 +3908,7 @@ def register(kernel):
     kernel.register_callback_handler("config_menu", config_callback_handler)
     kernel.register_callback_handler("config_kernel_page_", config_callback_handler)
     kernel.register_callback_handler("config_modules_page_", config_callback_handler)
+    kernel.register_callback_handler("config_modules_filter_", config_callback_handler)
     kernel.register_callback_handler("module_select_", config_callback_handler)
     kernel.register_callback_handler("module_cfg_page_", config_callback_handler)
     kernel.register_callback_handler("module_cfg_view_", config_callback_handler)

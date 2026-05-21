@@ -962,6 +962,17 @@ tester:
   logs_choose_desc: "Пpишлю тoлькo зaпиcи выбpaннoгo ypoвня из <code>kernel.log</code>. Любoпытный."
   logs_level_warning: "{snowflake} <b>Ocтopoжнo</b>\n<blockquote>Лoги ypoвня <code>{level}</code> мoгyт coдepжaть тoкeны, личныe дaнныe и пpoчиe ceкpeты. Бyдь aккypaтeн.</blockquote>\n<b>Вcё paвнo oтпpaвить?</b>"
   logs_send_cancelled: "{snowflake} <b>Oтпpaвкa лoгoв oтмeнeнa. Пpaвильнoe peшeниe.</b>"
+
+  teaser_recording: "🎥 Записываю <code>{cmd}</code> (надеюсь он не сломается)..."
+  teaser_done: "✅ <b>Готово!</b> <code>{cmd}</code> выполнен и задокументирован"
+  teaser_no_cmd: "❌ <b>Что тестируем?</b> Напиши команду, например: <code>{{prefix}}teaser ping</code>"
+  teaser_cmd_not_found: "❌ <b>Команда</b> <code>{cmd}</code> <b>не найдена. Создай свою?</b>"
+  teaser_report_header: "<b>📊 Teaser Отчёт:</b> <code>{cmd}</code>\n\n"
+  teaser_event_log: "<b>📋 Что было:</b>\n<blockquote expandable>{log}</blockquote>"
+  teaser_kernel_log: "<b>📝 Что в логах:</b>\n<blockquote expandable>{log}</blockquote>"
+  teaser_empty_log: "<b>Логи пусты. Как моя голова после вчерашнего.</b>"
+  teaser_recording_event: "⏺️ Слежка за events начата..."
+  teaser_recording_kernel: "⏺️ Читаю kernel.log (может быть больно)..."
   logs_level_caption: '{logs_title} <b>{logs}</b> {mcub}
 
     <blockquote>{pen} <b>{kernel_version}</b> {version}#<a href="{commit_url}">{commit_sha}</a>

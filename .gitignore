@@ -30,3 +30,9 @@ __pycache__/
 config.json
 modules_loaded/
 *.egg-*/
+*/script/*
+*script*
+.default_core
+.cache
+base16-opencode/*
+*answer.*

@@ -130,12 +130,13 @@ def build_button_url(text: str, url: str, emoji: str | None = None) -> dict[str,
 def cleanup_inline_callback_map(kernel) -> None:
     """Remove expired entries from kernel.inline_callback_map in-place."""
 
-    lock = getattr(kernel, "_inline_cb_lock", None)
+    real_kernel = _get_real_kernel(kernel)
+    lock = getattr(real_kernel, "_inline_cb_lock", None)
     if lock is None:
         return
 
     with lock:
-        cb_map = getattr(kernel, "inline_callback_map", None)
+        cb_map = getattr(real_kernel, "inline_callback_map", None)
         if not cb_map:
             return
 
@@ -147,6 +148,13 @@ def cleanup_inline_callback_map(kernel) -> None:
         ]
         for k in expired:
             cb_map.pop(k, None)
+
+
+def _get_real_kernel(kernel: Any) -> Any:
+    """Unwrap ModuleKernelProxy to access real kernel internals."""
+    if type(kernel).__name__ == "ModuleKernelProxy":
+        return object.__getattribute__(kernel, "_kernel")
+    return kernel
 
 
 def make_cb_button(
@@ -170,15 +178,18 @@ def make_cb_button(
     if not callable(callback):
         raise TypeError("callback must be callable")
 
-    if not hasattr(kernel, "_inline_cb_lock"):
-        kernel._inline_cb_lock = threading.Lock()
-    lock = kernel._inline_cb_lock
+    # Use the real kernel for internal attributes (bypass ModuleKernelProxy)
+    real_kernel = _get_real_kernel(kernel)
+
+    if not hasattr(real_kernel, "_inline_cb_lock"):
+        real_kernel._inline_cb_lock = threading.Lock()
+    lock = real_kernel._inline_cb_lock
 
     with lock:
-        cb_map = getattr(kernel, "inline_callback_map", None)
+        cb_map = getattr(real_kernel, "inline_callback_map", None)
         if cb_map is None:
             cb_map = {}
-            kernel.inline_callback_map = cb_map
+            real_kernel.inline_callback_map = cb_map
 
         now = time.time()
         expired = [

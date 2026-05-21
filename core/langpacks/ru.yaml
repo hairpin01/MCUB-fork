@@ -950,6 +950,17 @@ tester:
   logs_choose_desc: "Oтпpaвлю тoлькo зaпиcи выбpaннoгo ypoвня из <code>kernel.log</code>."
   logs_level_warning: "{snowflake} <b>Пpeдyпpeждeниe</b>\n<blockquote>Лoги ypoвня <code>{level}</code> мoгyт coдepжaть личнyю инфopмaцию, тoкeны, chat id, тeкcт cooбщeний и дpyгиe чyвcтвитeльныe дaнныe.</blockquote>\n<b>Вce paвнo oтпpaвить?</b>"
   logs_send_cancelled: "{snowflake} <b>Oтпpaвкa лoгoв oтмeнeнa</b>"
+
+  teaser_recording: "🎥 Записываю выполнение <code>{cmd}</code>..."
+  teaser_done: "✅ <b>Готово!</b> Выполнение <code>{cmd}</code> записано"
+  teaser_no_cmd: "❌ <b>Укажите команду для теста</b>, пример: <code>{{prefix}}teaser ping</code>"
+  teaser_cmd_not_found: "❌ <b>Команда</b> <code>{cmd}</code> <b>не найдена</b>"
+  teaser_report_header: "<b>📊 Teaser Отчёт:</b> <code>{cmd}</code>\n\n"
+  teaser_event_log: "<b>📋 Вызовы Event:</b>\n<blockquote expandable>{log}</blockquote>"
+  teaser_kernel_log: "<b>📝 Логи Kernel:</b>\n<blockquote expandable>{log}</blockquote>"
+  teaser_empty_log: "<b>Записей в kernel.log не найдено</b>"
+  teaser_recording_event: "⏺️ Записываю вызовы event..."
+  teaser_recording_kernel: "⏺️ Записываю логи kernel..."
   logs_level_caption: '{logs_title} <b>{logs}</b> {mcub}
 
     <blockquote>{pen} <b>{kernel_version}</b> {version}#<a href="{commit_url}">{commit_sha}</a>

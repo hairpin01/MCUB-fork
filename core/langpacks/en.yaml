@@ -1088,6 +1088,17 @@ tester:
 
   <b>Send anyway?</b>"
   logs_send_cancelled: "{snowflake} <b>Log sending cancelled</b>"
+
+  teaser_recording: "🎥 Recording <code>{cmd}</code> execution..."
+  teaser_done: "✅ <b>Done!</b> <code>{cmd}</code> execution recorded"
+  teaser_no_cmd: "❌ <b>Specify a command to test</b>, example: <code>{{prefix}}teaser ping</code>"
+  teaser_cmd_not_found: "❌ <b>Command</b> <code>{cmd}</code> <b>not found</b>"
+  teaser_report_header: "<b>📊 Teaser Report:</b> <code>{cmd}</code>\n\n"
+  teaser_event_log: "<b>📋 Event Calls:</b>\n<blockquote expandable>{log}</blockquote>"
+  teaser_kernel_log: "<b>📝 Kernel Log:</b>\n<blockquote expandable>{log}</blockquote>"
+  teaser_empty_log: "<b>No kernel log entries recorded</b>"
+  teaser_recording_event: "⏺️ Recording event calls..."
+  teaser_recording_kernel: "⏺️ Recording kernel logs..."
   logs_level_caption: '{logs_title} <b>{logs}</b> {mcub}
 
   <blockquote>{pen} <b>{kernel_version}</b> {version}#<a href="{commit_url}">{commit_sha}</a>

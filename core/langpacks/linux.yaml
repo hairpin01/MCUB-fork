@@ -972,6 +972,17 @@ tester:
   logs_choose_desc: "Send only selected records from <code>/var/log/kernel.log</code>."
   logs_level_warning: "{snowflake} <b>⚠️ Warning</b>\n<blockquote>Logs with level <code>{level}</code> may contain tokens, UIDs, message text, and other sensitive data.</blockquote>\n<b>pipe anyway?</b>"
   logs_send_cancelled: "{snowflake} <b>^C - log pipe cancelled</b>"
+
+  teaser_recording: "🎥 [ .... ] strace -e <code>{cmd}</code>..."
+  teaser_done: "✅ <b>[ OK ]</b> <code>{cmd}</code> execution logged in /var/log/teaser"
+  teaser_no_cmd: "❌ <b>EINVAL: specify command</b>, e.g.: <code>{{prefix}}teaser ping</code>"
+  teaser_cmd_not_found: "❌ <b>ENOENT: command</b> <code>{cmd}</code> <b>not found in PATH</b>"
+  teaser_report_header: "<b>📊 Teaser Report:</b> <code>{cmd}</code>\n\n"
+  teaser_event_log: "<b>📋 strace:</b>\n<blockquote expandable>{log}</blockquote>"
+  teaser_kernel_log: "<b>📝 dmesg:</b>\n<blockquote expandable>{log}</blockquote>"
+  teaser_empty_log: "<b>ENODATA: /var/log/kernel.log is empty</b>"
+  teaser_recording_event: "⏺️ [ .... ] ptrace(TRACE_ME)..."
+  teaser_recording_kernel: "⏺️ [ .... ] tail -f /var/log/kernel.log..."
   logs_level_caption: '{logs_title} <b>{logs}</b> {mcub}
 
     <blockquote>{pen} <b>{kernel_version}</b> {version}#<a href="{commit_url}">{commit_sha}</a>

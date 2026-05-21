@@ -37,7 +37,7 @@ class EvalModule(ModuleBase):
         doc_en="<code> execute Python code",
     )
     async def cmd_py(self, event: events.NewMessage.Event) -> None:
-        code = html.unescape(self.args_raw(event).strip())
+        code = html.unescape(self.args_raw(event).strip()).replace("\u00a0", " ")
         pipe_input = getattr(event, "pipe_input", None) or ""
 
         if not code and pipe_input:

@@ -71,6 +71,7 @@ core_inline:
   nav_back: Back
   nav_forward: Forward
 terminal:
+  shell: 'Shell:'
   empty: empty
   command_already_running: Command already running
   system_command: 'system command:'
@@ -89,6 +90,27 @@ terminal:
   command_not_specified: Command not specified
   config_update_interval: Terminal output update interval (sec, 1-30). Update also
     happens when new data arrives.
+  config_filter_proxychains: Filter [proxychains] noise from stdout/stderr output
+  config_custom_shell: Custom shell path (used when shell=custom)
+  config_args: "Shell arguments (default: -c)"
+  # Filters
+  config_filter_ansi: "Strip ANSI escape codes from output"
+  config_filter_pattern: "Custom regex: remove lines matching this pattern"
+  config_strip_trailing_whitespace: "Strip trailing whitespace from each line"
+  config_max_lines: "Truncate output to last N lines (0 = byte limit)"
+  config_tail_lines: "Show only last N lines (0 = disabled)"
+  # Process
+  config_timeout: "Auto-kill process after N seconds (0 = disabled)"
+  config_cwd: "Working directory (empty = bot cwd)"
+  config_env_extra: "Extra env vars KEY=VAL (space-separated)"
+  config_stdin_eof: "Close stdin immediately after start"
+  # Display
+  config_show_stderr_inline: "Merge stderr into stdout inline"
+  config_show_pid: "Show process PID in footer"
+  config_compact_mode: "Hide footer during execution, show on completion"
+  # Throttling
+  config_min_edit_interval: "Min interval between edits (seconds)"
+  config_edit_on_newline_only: "Only edit on newline arrival"
 command:
   hello: <tg-emoji emoji-id="6012620675829734836">❤️</tg-emoji> Hello! I am a bot
     from MCUB-fork
@@ -1240,6 +1262,9 @@ config:
             {display_value}
   btn_back: "⬅️"
   btn_next: "➡️"
+  filter_all: "❌ All"
+  filter_core: "🛰 Core"
+  filter_user: "🎯 User"
   btn_menu: 🔙 Menu
   btn_modules: 🔙 Modules
   btn_back_simple: 🔙 Back

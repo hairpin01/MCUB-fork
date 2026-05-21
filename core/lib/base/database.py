@@ -40,6 +40,7 @@ class DatabaseManager:
         "reverse_unordered_selects",
         "cell_size_check",
     }
+    _VALID_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_.\-:]+$")
 
     def __init__(self, kernel):
         self.kernel = kernel
@@ -185,7 +186,12 @@ class DatabaseManager:
             return False
         if len(value) > 64:
             return False
-        return bool(re.match(r"^[a-zA-Z0-9_.\-:]+$", value))
+        return bool(self._VALID_ID_PATTERN.match(value))
+
+    @staticmethod
+    def sanitize_key(value: str) -> str:
+        """Replace characters not allowed in identifiers with underscores."""
+        return re.sub(r"[^a-zA-Z0-9_.\-:]+", "_", value)
 
     async def db_set(self, module: str, key: str, value: Any):
         """Save value for a module key."""

@@ -11,6 +11,7 @@ import asyncio
 import html
 import os
 import re
+import shlex
 import signal
 import time
 
@@ -20,6 +21,7 @@ from core.lib.loader.module_config import (
     ConfigValue,
     Integer,
     ModuleConfig,
+    String,
 )
 from utils.strings import Strings
 
@@ -61,6 +63,20 @@ def _filter_proxychains_output(text: str) -> str:
     return "\n".join(line for line in text.split("\n") if "[proxychains]" not in line)
 
 
+def _get_shell_path(cfg) -> str:
+    """Return effective shell path: custom_shell when shell=custom, else shell name."""
+    shell = cfg.get("shell") or "bash"
+    if shell == "custom":
+        return cfg.get("custom_shell") or shell
+    return shell
+
+
+def _get_shell_args(cfg) -> list[str]:
+    """Return shell arguments as a list (supports multi-part via shlex.split)."""
+    args_str = cfg.get("args") or "-c"
+    return shlex.split(args_str)
+
+
 def register(kernel):
     client = kernel.client
     logger = kernel.logger
@@ -80,7 +96,7 @@ def register(kernel):
             "bash",
             description=lambda: "Shell to use for command execution",
             validator=Choice(
-                choices=["zsh", "sh", "fish", "dash", "bash"], default="bash"
+                choices=["zsh", "sh", "fish", "dash", "bash", "custom"], default="bash"
             ),
         ),
         ConfigValue(
@@ -89,6 +105,18 @@ def register(kernel):
             description=lambda: "Filter [proxychains] noise from stdout/stderr output",
             validator=Boolean(default=True),
         ),
+        ConfigValue(
+            "custom_shell",
+            "",
+            description=lambda: "Custom shell path (used when shell=custom)",
+            validator=String(default=""),
+        ),
+        ConfigValue(
+            "args",
+            "-c",
+            description=lambda: "Shell arguments (default: -c)",
+            validator=String(default="-c"),
+        ),
     )
 
     async def _startup():
@@ -96,7 +124,13 @@ def register(kernel):
         kernel.store_module_config_schema(__name__, config)
         cfg_dict = await kernel.get_module_config(
             __name__,
-            {"update_interval": 3, "shell": "bash", "filter_proxychains": True},
+            {
+                "update_interval": 3,
+                "shell": "bash",
+                "filter_proxychains": True,
+                "custom_shell": "",
+                "args": "-c",
+            },
         )
         config.from_dict(cfg_dict)
         clean = {k: v for k, v in config.to_dict().items() if v is not None}
@@ -140,7 +174,7 @@ def register(kernel):
             cfg = _get_config()
             elapsed = time.time() - cmd_data["start_time"]
             cmd_escaped = html.escape(cmd_data["command"])
-            shell = html.escape(cfg.get("shell") or "bash")
+            shell = html.escape(_get_shell_path(cfg))
 
             if final:
                 time_label = lang["completed_in"]
@@ -183,10 +217,12 @@ def register(kernel):
                     "piped": piped,
                 }
 
-                shell_path = _get_config().get("shell") or "bash"
+                cfg_shell = _get_config()
+                shell_path = _get_shell_path(cfg_shell)
+                shell_args = _get_shell_args(cfg_shell)
                 process = await asyncio.create_subprocess_exec(
                     shell_path,
-                    "-c",
+                    *shell_args,
                     command,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
@@ -230,10 +266,12 @@ def register(kernel):
             self, chat_id, command, message_id=None, quiet=False
         ):
             try:
-                shell_path = _get_config().get("shell") or "bash"
+                cfg_shell = _get_config()
+                shell_path = _get_shell_path(cfg_shell)
+                shell_args = _get_shell_args(cfg_shell)
                 process = await asyncio.create_subprocess_exec(
                     shell_path,
-                    "-c",
+                    *shell_args,
                     command,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,

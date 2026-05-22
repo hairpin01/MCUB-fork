@@ -76,7 +76,9 @@ class Integer(Validator):
         self.min = min
         self.max = max
 
-    def validate(self, value: Any) -> int:
+    def validate(self, value: Any) -> int | None:
+        if value is None:
+            return value
         if isinstance(value, bool):
             raise ValidationError("Expected integer, got bool")
         if isinstance(value, float) and not value.is_integer():
@@ -107,7 +109,9 @@ class Float(Validator):
         self.min = min
         self.max = max
 
-    def validate(self, value: Any) -> float:
+    def validate(self, value: Any) -> float | None:
+        if value is None:
+            return value
         if isinstance(value, bool):
             raise ValidationError("Expected float, got bool")
         try:

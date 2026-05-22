@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 
+import aiohttp
 from telethon import __version__, events
 from telethon.tl.types import InputMediaWebPage
 
@@ -301,6 +302,134 @@ class SettingsModule(ModuleBase):
             f"<blockquote expandable>{text_html}</blockquote>",
             parse_mode="html",
         )
+
+    @command(
+        "iloadalias",
+        alias="ila",
+        doc_ru="[ccылкa / oтвeт нa фaйл] - импopтиpoвaть aлиacы из JSON",
+        doc_en="[url / reply to file] - import aliases from JSON",
+    )
+    async def cmd_iloadalias(self, event: events.NewMessage.Event) -> None:
+        args = self.args_raw(event).strip()
+        data: str | None = None
+
+        if event.is_reply:
+            reply = await event.get_reply_message()
+            if reply and reply.file:
+                data = await reply.download_media(bytes)
+                if isinstance(data, bytes):
+                    data = data.decode("utf-8")
+            elif reply and reply.text:
+                data = reply.text
+
+        if not data and args:
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(args, timeout=10) as resp:
+                        if resp.status == 200:
+                            data = await resp.text()
+                        else:
+                            await self.edit(
+                                event,
+                                self._s("iloadalias_fetch_error", url=args),
+                                parse_mode="html",
+                            )
+                            return
+            except Exception:
+                data = args
+
+        if not data:
+            await self.edit(
+                event,
+                self._s("iloadalias_usage", prefix=self.kernel.custom_prefix),
+                parse_mode="html",
+            )
+            return
+
+        try:
+            parsed = json.loads(data)
+        except json.JSONDecodeError:
+            await self.edit(
+                event,
+                self._s("iloadalias_invalid_json"),
+                parse_mode="html",
+            )
+            return
+
+        aliases_dict = parsed.get("aliases", parsed)
+        if not isinstance(aliases_dict, dict):
+            await self.edit(
+                event,
+                self._s("iloadalias_invalid_format"),
+                parse_mode="html",
+            )
+            return
+
+        loaded = 0
+        for alias, cmd in aliases_dict.items():
+            if not isinstance(alias, str) or not isinstance(cmd, str):
+                continue
+            self.kernel.aliases[alias] = cmd
+            loaded += 1
+
+        self.kernel.config["aliases"] = self.kernel.aliases
+        with open(self.kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(self.kernel.config, f, ensure_ascii=False, indent=2)
+
+        await self.edit(
+            event,
+            self._s("iloadalias_done", count=loaded),
+            parse_mode="html",
+        )
+
+    @command(
+        "unla",
+        doc_ru="экcпopтиpoвaть aлиacы в JSON-фaйл",
+        doc_en="export aliases to JSON file",
+    )
+    async def cmd_unla(self, event: events.NewMessage.Event) -> None:
+        import tempfile
+
+        aliases_export = {}
+        for alias, cmd in sorted(self.kernel.aliases.items()):
+            aliases_export[alias] = cmd
+
+        if not aliases_export:
+            await self.edit(
+                event,
+                self._s("aliases_empty"),
+                parse_mode="html",
+            )
+            return
+
+        export_data = json.dumps(
+            {"aliases": aliases_export}, ensure_ascii=False, indent=2
+        )
+
+        await self.edit(
+            event,
+            self._s("unla_uploading"),
+            parse_mode="html",
+        )
+
+        tmp_path = os.path.join(tempfile.gettempdir(), "aliases.json")
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            f.write(export_data)
+
+        try:
+            await event.edit(
+                self._s(
+                    "unla_file_caption",
+                    prefix=self.kernel.custom_prefix,
+                ),
+                file=tmp_path,
+                parse_mode="html",
+            )
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
     @command(
         "lang",

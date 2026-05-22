@@ -264,8 +264,8 @@ class ModuleLoaderMixin:
             return "No description", {}
 
         # Supports patterns like:
-        # "ru: Oпиcaниe / en: Description"
-        # "en: Description | ru: Oпиcaниe"
+        # "ru: Description / en: Description"
+        # "en: Description | ru: Description"
         i18n_matches = re.findall(
             r"(?:^|\s*[|/]\s*)(ru|en)\s*:\s*(.*?)(?=\s*[|/]\s*(?:ru|en)\s*:|$)",
             value,

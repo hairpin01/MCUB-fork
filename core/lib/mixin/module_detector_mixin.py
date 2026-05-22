@@ -4,11 +4,13 @@
 from __future__ import annotations
 
 import asyncio
-import inspect
-from typing import TYPE_CHECKING, Any
 import builtins
 import importlib
+import inspect
+import re
 import sys
+from typing import TYPE_CHECKING, Any
+
 from ..loader.kernel_proxy import (
     get_module_client,
     get_module_kernel,
@@ -312,7 +314,8 @@ class ModuleDetectorMixin:
                     k.logger.error(f"on_reload error in {module_name}: {e}")
 
             if is_install:
-                flag = f"__installed__{module_name}"
+                sanitized = re.sub(r"[^a-zA-Z0-9_.\-:]+", "_", module_name)
+                flag = f"__installed__{sanitized}"
                 already = await k.db_get("mcub_module_flags", flag)
                 if not already:
                     try:
@@ -353,7 +356,8 @@ class ModuleDetectorMixin:
 
         on_install = getattr(reg, "__on_install__", None)
         if on_install is not None and is_install:
-            flag = f"__installed__{module_name}"
+            sanitized = re.sub(r"[^a-zA-Z0-9_.\-:]+", "_", module_name)
+            flag = f"__installed__{sanitized}"
             already = await k.db_get("mcub_module_flags", flag)
             if not already:
                 try:

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 # author: @Hairpin00
 # version: 1.4.0-beta
-# description: Trusted users can execute owner commands / Дoвepeнныe пoльзoвaтeли мoгyт выпoлнять кoмaнды влaдeльцa
+# description: Trusted users can execute owner commands
 import json
 
 from core.langpacks import get_all_module_strings

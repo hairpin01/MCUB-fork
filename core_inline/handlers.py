@@ -474,6 +474,16 @@ class InlineHandlers:
                 )
 
     def _setup_inline_send_handler(self) -> None:
+        # Only register with Telethon clients (which have .on() method).
+        # Aiogram Bot objects do not have .on() — they use Dispatcher routers,
+        # and there is no aiogram equivalent for UpdateBotInlineSend.
+        if not hasattr(self.bot_client, "on"):
+            self.kernel.logger.debug(
+                "[InlineHandlers] bot_client is not a Telethon client, "
+                "skipping inline send handler"
+            )
+            return
+
         @self.bot_client.on(events.Raw)
         async def inline_send_handler(event):
             from telethon.tl.types import UpdateBotInlineSend

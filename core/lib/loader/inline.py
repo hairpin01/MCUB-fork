@@ -21,8 +21,8 @@ if TYPE_CHECKING:
     from kernel import Kernel
     from telethon.types import Message
 
-from core_inline.handlers import InlineHandlers
 from core.lib.loader.kernel_proxy import wrap_event_for_module
+from core_inline.handlers import InlineHandlers
 from utils import Strings
 
 

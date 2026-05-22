@@ -763,9 +763,9 @@ class EventProxy:
 
     __slots__ = (
         "_proxied_event",
-        "_proxy_module_name",
-        "_proxy_kernel",
         "_proxy_client_cache",
+        "_proxy_kernel",
+        "_proxy_module_name",
     )
 
     def __init__(self, event: Any, module_name: str, kernel: Any) -> None:
@@ -788,7 +788,7 @@ class EventProxy:
     # -- attribute access ---------------------------------------------------
 
     def __getattribute__(self, name: str) -> Any:
-        # Intercept .client and ._client – return a proxied version
+        # Intercept .client and ._client - return a proxied version
         if name in ("client", "_client"):
             return object.__getattribute__(self, "_get_proxy_client")()
 
@@ -796,7 +796,7 @@ class EventProxy:
         if name in EventProxy.__slots__:
             return object.__getattribute__(self, name)
 
-        # Block __dict__ – prevents event.__dict__["_client"] bypass
+        # Block __dict__ - prevents event.__dict__["_client"] bypass
         if name == "__dict__":
             _raise_insecure(
                 name,
@@ -823,7 +823,7 @@ class EventProxy:
     # -- forwarding dunder methods -----------------------------------------
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        """Forward event(...) – Telethon raw API calls."""
+        """Forward event(...) - Telethon raw API calls."""
         return object.__getattribute__(self, "_proxied_event")(*args, **kwargs)
 
     def __repr__(self) -> str:
@@ -841,7 +841,7 @@ def wrap_event_for_module(event: Any, module_name: str, kernel: Any) -> Any:
     This keeps calls that pass non-event objects (pipeline contexts, mock
     events in tests) working without changes.
     """
-    # Quick heuristic – Telethon events always have _client / client
+    # Quick heuristic - Telethon events always have _client / client
     if hasattr(event, "_client") or hasattr(event, "client"):
         return EventProxy(event, module_name, kernel)
     return event

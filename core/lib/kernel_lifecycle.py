@@ -19,8 +19,8 @@ try:
 except ImportError:
     HTML_PARSER_AVAILABLE = False
 from telethon import events, install_uvloop
-from core.lib.loader.kernel_proxy import wrap_event_for_module
 
+from core.lib.loader.kernel_proxy import wrap_event_for_module
 from core.lib.utils.colors import Colors
 from core.lib.utils.logger import KernelLogger, setup_telegram_logging
 from utils.restart import read_restart_context
@@ -521,7 +521,7 @@ class KernelLifecycleMixin:
             self.logger.error(f"Failed to start web panel: {e}")
             await self.log_error_async(f"Failed to start web panel: {e}")
 
-    # --- Command processing ---
+    # Command processing
 
     async def process_command(self, event: Any, depth: int = 0) -> bool:
         """Match and dispatch an outgoing message event to a command handler.
@@ -883,7 +883,7 @@ class KernelLifecycleMixin:
             explicit if explicit is not None else (captured[-1] if captured else None)
         )
 
-    # --- User/Thread utilities ---
+    # User/Thread utilities
 
     async def get_user_info(self, user_id: int) -> str:
         """Return a formatted string with the user's name and username."""
@@ -916,7 +916,7 @@ class KernelLifecycleMixin:
 
         return thread_id
 
-    # --- Emoji support ---
+    # Emoji support
 
     async def send_with_emoji(self, chat_id: int, text: str, **kwargs):
         """Send a message with custom emoji support."""

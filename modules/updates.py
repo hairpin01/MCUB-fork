@@ -151,7 +151,7 @@ class UpdatesMod(loader.ModuleBase):
         await asyncio.sleep(1)
         await self.kernel.shutdown()
 
-    # пoтoм пepeдeлaю ---
+    # TODO: rework later ---
     # async def rollback_handler(event):
     #     if not os.path.exists(kernel.BACKUP_FILE):
     #         await event.edit(strings("backup_not_found"), parse_mode="html")

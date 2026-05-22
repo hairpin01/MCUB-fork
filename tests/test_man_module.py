@@ -47,7 +47,7 @@ async def test_load_module_metadata_uses_cache(tmp_path, monkeypatch):
 
 
 def test_gather_all_modules_hides_modules():
-    """gather_all_modules cкpывaeт мoдyли, ecли show_hidden=False."""
+    """gather_all_modules hides modules if show_hidden=False."""
 
     kernel = SimpleNamespace(
         system_modules={"sys": object()},

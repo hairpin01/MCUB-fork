@@ -399,7 +399,7 @@ class InlineBot:
         if setup_choice == "y":
             await self._configure_bot(botfather_client=self.kernel.client)
 
-        await self.start_bot()
+        await self._save_config_and_restart()
 
     async def _ask_bot_username(self) -> str:
         """Request and validate desired bot username from CLI."""
@@ -619,7 +619,7 @@ class InlineBot:
         """Configure bot profile, commands, inline mode and inline feedback.
 
         Uses aiogram/Bot API for description and commands, then always
-        runs BotFather config for /setinline and /setinlinefeedback —
+        runs BotFather config for /setinline and /setinlinefeedback -
         the Bot API cannot set those, only BotFather can.
         """
 
@@ -733,7 +733,14 @@ class InlineBot:
                 await session.close()
 
     async def _configure_bot_via_botfather(self, client: Any) -> None:
-        """Fallback configuration flow via BotFather chat commands."""
+        """Configure bot via BotFather with proper response waiting.
+
+        Each message is sent only after BotFather's previous response is received.
+        Uses get_messages() polling to wait for replies, preventing out-of-sync
+        conversational state.
+
+        The flow configures: description, inline mode, inline feedback.
+        """
 
         if not self.username:
             return
@@ -741,26 +748,44 @@ class InlineBot:
         try:
             botfather = await client.get_entity("BotFather")
 
-            await client.send_message(botfather, "/setdescription")
-            await asyncio.sleep(1)
-            await client.send_message(botfather, f"@{self.username}")
-            await asyncio.sleep(1)
-            await client.send_message(
-                botfather,
+            steps = [
+                "/setdescription",
+                f"@{self.username}",
                 "I'm a bot from MCUB for inline actions.",
-            )
+                "/setinline",
+                f"@{self.username}",
+                "mcub@MCUB~$ ",
+                "/setinlinefeedback",
+                f"@{self.username}",
+                "Enabled",
+            ]
 
-            await client.send_message(botfather, "/setinline")
-            await asyncio.sleep(1)
-            await client.send_message(botfather, f"@{self.username}")
-            await asyncio.sleep(1)
-            await client.send_message(botfather, "mcub@MCUB~$ ")
+            last_msg_id = 0
 
-            await client.send_message(botfather, "/setinlinefeedback")
-            await asyncio.sleep(1)
-            await client.send_message(botfather, f"@{self.username}")
-            await asyncio.sleep(1)
-            await client.send_message(botfather, "Enabled")
+            for msg_text in steps:
+                await client.send_message(botfather, msg_text)
+
+                # Wait for BotFather's response before sending next message
+                start_wait = time.monotonic()
+                timeout = 15
+                responded = False
+
+                while time.monotonic() - start_wait < timeout:
+                    await asyncio.sleep(1.5)
+                    messages = await client.get_messages(botfather, limit=5)
+                    new_msgs = [m for m in messages if m.id > last_msg_id]
+
+                    if new_msgs:
+                        last_msg_id = max(last_msg_id, max(m.id for m in new_msgs))
+                        responded = True
+                        break
+
+                if not responded:
+                    self.logger.warning(
+                        "[InlineBot] BotFather did not respond within %ds to: %s",
+                        timeout,
+                        msg_text[:40],
+                    )
 
             self.logger.info("[InlineBot] fallback BotFather configuration complete")
         except Exception:
@@ -804,7 +829,10 @@ class InlineBot:
             self.logger.error("[InlineBot] cannot start: token is missing")
             return
 
-        session_name = "inline_bot_session"
+        from utils.security import get_sessions_dir
+
+        sessions_dir = get_sessions_dir(self.kernel.API_ID, self.kernel.API_HASH)
+        session_name = os.path.join(sessions_dir, "inline_bot")
         self.logger.info("[InlineBot] starting runtime client session=%s", session_name)
         self.bot_client = TelegramClient(
             session_name,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 from types import SimpleNamespace
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -50,8 +50,8 @@ class TestModuleKernelProxy:
 
     def test_user_module_gets_kernel_proxy_and_client_proxy(self):
         from core.lib.loader.kernel_proxy import (
-            ModuleKernelProxy,
             ClientProxy,
+            ModuleKernelProxy,
         )
         from core.lib.loader.loader import ModuleLoader
         from core.lib.utils.exceptions import CallInsecure
@@ -151,6 +151,7 @@ class TestModuleKernelProxy:
 
     def test_proxy_modules_view_is_mappingproxy(self):
         from types import MappingProxyType
+
         from core.lib.loader.kernel_proxy import ModuleKernelProxy
 
         kernel = make_kernel()
@@ -421,8 +422,8 @@ class TestFactoryHelpers:
 
     def test_get_module_kernel_proxies_user(self):
         from core.lib.loader.kernel_proxy import (
-            get_module_kernel,
             ModuleKernelProxy,
+            get_module_kernel,
         )
 
         kernel = make_kernel()
@@ -438,8 +439,8 @@ class TestFactoryHelpers:
 
     def test_get_module_client_proxies_user(self):
         from core.lib.loader.kernel_proxy import (
-            get_module_client,
             ClientProxy,
+            get_module_client,
         )
 
         kernel = make_kernel()
@@ -455,8 +456,8 @@ class TestFactoryHelpers:
 
     def test_get_module_register_proxies_user(self):
         from core.lib.loader.kernel_proxy import (
-            get_module_register,
             ModuleRegisterProxy,
+            get_module_register,
         )
 
         kernel = make_kernel()
@@ -472,8 +473,8 @@ class TestFactoryHelpers:
 
     def test_get_module_config_proxies_user(self):
         from core.lib.loader.kernel_proxy import (
-            get_module_config,
             ConfigProxy,
+            get_module_config,
         )
 
         kernel = make_kernel()
@@ -489,8 +490,8 @@ class TestFactoryHelpers:
 
     def test_get_module_db_proxies_user(self):
         from core.lib.loader.kernel_proxy import (
-            get_module_db,
             DatabaseProxy,
+            get_module_db,
         )
 
         kernel = make_kernel()
@@ -511,10 +512,10 @@ class TestUserLoadsViaProxiedKernel:
     def test_inject_kernel_path_gets_proxy(self):
         """The inject_kernel=True path must get proxied kernel, not raw k."""
         from core.lib.loader.kernel_proxy import (
-            ModuleKernelProxy,
             ClientProxy,
-            get_module_kernel,
+            ModuleKernelProxy,
             get_module_client,
+            get_module_kernel,
         )
 
         k = make_kernel()

@@ -68,6 +68,64 @@ CUSTOM_EMOJI = {
 }
 
 
+class _FakeEventProxy:
+    """Proxies an event and logs all method calls and attribute accesses."""
+
+    def __init__(self, original, *, fake_text=None):
+        self._orig = original
+        self._fake_text = fake_text
+        self._call_log = []
+
+    def _log(self, msg):
+        self._call_log.append(msg)
+
+    def get_log(self):
+        return list(self._call_log)
+
+    def __getattr__(self, name):
+        if name == "text" and self._fake_text is not None:
+            self._log(f"[ATTR] text -> '{self._fake_text}' (fake)")
+            return self._fake_text
+        if name.startswith("_"):
+            raise AttributeError(name)
+        orig_attr = getattr(self._orig, name)
+        if not callable(orig_attr):
+            self._log(f"[ATTR] {name} = {orig_attr!r}")
+            return orig_attr
+        if asyncio.iscoroutinefunction(orig_attr):
+
+            async def async_wrapper(*args, **kwargs):
+                self._log(f"[CALL] {name}(args={args}, kwargs={kwargs})")
+                try:
+                    result = await orig_attr(*args, **kwargs)
+                    self._log(f"[RESULT] {name} -> {result!r}")
+                    return result
+                except Exception as e:
+                    self._log(f"[ERROR] {name} -> {e}")
+                    raise
+
+            return async_wrapper
+        else:
+
+            def sync_wrapper(*args, **kwargs):
+                self._log(f"[CALL] {name}(args={args}, kwargs={kwargs})")
+                try:
+                    result = orig_attr(*args, **kwargs)
+                    self._log(f"[RESULT] {name} -> {result!r}")
+                    return result
+                except Exception as e:
+                    self._log(f"[ERROR] {name} -> {e}")
+                    raise
+
+            return sync_wrapper
+
+    def __setattr__(self, name, value):
+        if name.startswith("_"):
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self._orig, name, value)
+
+
 class TesterMod(ModuleBase):
     name = "tester"
     version = "1.0.0"
@@ -593,7 +651,9 @@ class TesterMod(ModuleBase):
 
         await self.inline(
             event.chat_id,
-            f"{self.strings('logs_choose_level', paper=CUSTOM_EMOJI['📰'])}\n{self.strings('logs_choose_desc')}",
+            f"{self.strings('logs_choose_level', paper=CUSTOM_EMOJI['📰'])}"
+            + "\n"
+            + f"{self.strings('logs_choose_desc')}",
             buttons=[
                 [
                     self.Button.inline(
@@ -648,7 +708,9 @@ class TesterMod(ModuleBase):
 
         if data_str.startswith("back:") or data_str == "tester_logs:back":
             await call.edit(
-                f"{self.strings('logs_choose_level', paper=CUSTOM_EMOJI['📰'])}\n{self.strings('logs_choose_desc')}",
+                f"{self.strings('logs_choose_level', paper=CUSTOM_EMOJI['📰'])}"
+                + "\n"
+                + f"{self.strings('logs_choose_desc')}",
                 parse_mode="html",
                 buttons=[
                     [
@@ -779,3 +841,104 @@ class TesterMod(ModuleBase):
             self.strings("freezing_done", check=CUSTOM_EMOJI["☑️"], seconds=seconds),
             parse_mode="html",
         )
+
+    @command(
+        "teaser",
+        doc_ru="тестировать команду с логированием",
+        doc_en="test a command with logging",
+    )
+    async def cmd_teaser(self, event) -> None:
+        """(cmd) - execute cmd with full logging"""
+        args = self.args(event)
+        if not args:
+            await event.edit(
+                self.strings("teaser_no_cmd", prefix=self.get_prefix()),
+                parse_mode="html",
+            )
+            return
+
+        cmd_name = args.get(0)
+        prefix = self.get_prefix()
+        cmd_args_raw = event.text[len(prefix) + len("teaser ") :]
+        full_cmd = cmd_args_raw
+
+        # Build fake text as if the command was called directly
+        # e.g. ".teaser reload terminal" -> fake ".reload terminal"
+        fake_text = prefix + cmd_args_raw
+
+        handler = self.kernel.command_handlers.get(cmd_name)
+        if not handler:
+            await event.edit(
+                self.strings("teaser_cmd_not_found", cmd=cmd_name), parse_mode="html"
+            )
+            return
+
+        kernel_log_path = os.path.join(self.kernel.LOGS_DIR, "kernel.log")
+        initial_size = 0
+        if os.path.exists(kernel_log_path):
+            initial_size = os.path.getsize(kernel_log_path)
+
+        await event.edit(
+            self.strings("teaser_recording", cmd=full_cmd), parse_mode="html"
+        )
+
+        fake = _FakeEventProxy(event, fake_text=fake_text)
+        self.log.info(f"Teaser: executing {full_cmd} with FakeEvent")
+
+        try:
+            if asyncio.iscoroutinefunction(handler):
+                await handler(fake)
+            else:
+                handler(fake)
+        except Exception as e:
+            self.log.error(f"Teaser: command {full_cmd} error: {e}")
+
+        # Build report
+        report_parts = [self.strings("teaser_report_header", cmd=full_cmd)]
+
+        event_log = fake.get_log()
+        if event_log:
+            report_parts.append(
+                self.strings("teaser_event_log", log="\n".join(event_log))
+            )
+        else:
+            report_parts.append("<b>No event calls recorded</b>\n")
+
+        new_log_entries = ""
+        if os.path.exists(kernel_log_path):
+            with open(kernel_log_path, encoding="utf-8", errors="ignore") as f:
+                f.seek(initial_size)
+                new_log_entries = f.read().strip()
+
+        if new_log_entries:
+            report_parts.append(self.strings("teaser_kernel_log", log=new_log_entries))
+        else:
+            report_parts.append(self.strings("teaser_empty_log"))
+
+        report = "\n".join(report_parts)
+
+        import tempfile
+
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".html", delete=False, encoding="utf-8"
+        )
+        try:
+            tmp.write("<html><body><pre>" + report + "</pre></body></html>")
+            tmp.close()
+            try:
+                await event.edit(
+                    self.strings("teaser_done", cmd=full_cmd),
+                    file=tmp.name,
+                    parse_mode="html",
+                )
+            except Exception:
+                await event.respond(
+                    self.strings("teaser_done", cmd=full_cmd),
+                    file=tmp.name,
+                    parse_mode="html",
+                )
+        finally:
+            try:
+                os.unlink(tmp.name)
+            except OSError:
+                pass

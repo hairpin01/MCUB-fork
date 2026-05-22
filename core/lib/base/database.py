@@ -40,6 +40,7 @@ class DatabaseManager:
         "reverse_unordered_selects",
         "cell_size_check",
     }
+    _VALID_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_.\-:]+$")
 
     def __init__(self, kernel):
         self.kernel = kernel
@@ -83,7 +84,7 @@ class DatabaseManager:
     def _strip_comments(self, query: str) -> str:
         """Remove SQL comments from query before validation."""
         query = re.sub(r"/\*.*?\*/", " ", query, flags=re.DOTALL)
-        query = re.sub(r"\s+--[^\n]*", " ", query, flags=re.MULTILINE)
+        query = re.sub(r"--[^\n]*", "", query, flags=re.MULTILINE)
         return query
 
     def _validate_query(self, query: str) -> bool:
@@ -118,10 +119,27 @@ class DatabaseManager:
                 )
                 return False
 
-        # Block PRAGMA entirely — it is too risky for arbitrary module queries
+        # Block dangerous PRAGMAs (assignments or known dangerous ones)
         if re.match(r"\s*PRAGMA\b", query_upper):
-            self.logger.warning(f"db_query: PRAGMA blocked: {query[:80]}...")
-            return False
+            m_pragma = re.match(r"\s*PRAGMA\b\s*(.*)", query_upper, re.DOTALL)
+            pragma_rest = m_pragma.group(1) if m_pragma else ""
+            # Block assignments like PRAGMA journal_mode=WAL
+            if "=" in pragma_rest:
+                self.logger.warning(
+                    f"db_query: PRAGMA assignment blocked: {query[:80]}..."
+                )
+                return False
+            # Block known dangerous pragmas (schema modification, etc.)
+            for dangerous in self.DANGEROUS_PRAGMAS:
+                if re.search(
+                    rf"\b{re.escape(dangerous)}\b", pragma_rest, re.IGNORECASE
+                ):
+                    self.logger.warning(
+                        f"db_query: dangerous PRAGMA blocked: {query[:80]}..."
+                    )
+                    return False
+            # Safe read-only PRAGMA (e.g. table_info, index_list) - allow
+            return True
 
         # Only allow read-only operations
         first_word = query_upper.split()[0] if query_upper.split() else ""
@@ -168,7 +186,12 @@ class DatabaseManager:
             return False
         if len(value) > 64:
             return False
-        return bool(re.match(r"^[a-zA-Z0-9_.\-:]+$", value))
+        return bool(self._VALID_ID_PATTERN.match(value))
+
+    @staticmethod
+    def sanitize_key(value: str) -> str:
+        """Replace characters not allowed in identifiers with underscores."""
+        return re.sub(r"[^a-zA-Z0-9_.\-:]+", "_", value)
 
     async def db_set(self, module: str, key: str, value: Any):
         """Save value for a module key."""

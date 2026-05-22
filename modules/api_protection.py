@@ -5,7 +5,7 @@ from __future__ import annotations
 
 # author: @Hairpin00
 # version: 2.1.0-beta
-# description: API protection with request analytics / Зaщитa API c aнaлитикoй зaпpocoв
+# description: API protection with request analytics
 import asyncio
 import datetime
 import json

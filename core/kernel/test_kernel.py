@@ -244,7 +244,7 @@ class TestKernel:
         self.response_history = []
 
     async def run(self) -> None:
-        """Зaпycк тecтoвoгo ядpa - инициaлизaция ecли нe гoтoвo"""
+        """Launch test kernel - initialize if not ready"""
         if self.kernel is None:
             await self.setup()
         print("=> TestKernel ready")

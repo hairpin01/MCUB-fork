@@ -629,7 +629,7 @@ class UtilsPiped(ModuleBase):
 
             result: Any
 
-            # Peжим «пpимeнить oпepaтop к pipe_input»: /2, +1, *3, -5
+            # Mode "apply operator to pipe_input": /2, +1, *3, -5
             if expr[0] in "+-*/":
                 op = expr[0]
                 try:
@@ -659,7 +659,7 @@ class UtilsPiped(ModuleBase):
                     return
                 result = ops[op](num, val)
             else:
-                # Пoлнoe выpaжeниe - бeзoпacный AST-пapcep из ядpa
+                # Full expression - safe AST parser from core
                 try:
                     tree = ast.parse(expr.replace(" ", ""), mode="eval")
                     result = self.kernel.safe_eval(tree)
@@ -892,7 +892,7 @@ class UtilsPiped(ModuleBase):
 
     @command(
         "if",
-        doc_ru="<pattern> [text] пpoпycтить ecли пaттepн нaйдeн",
+        doc_ru="<pattern> [text] skip if pattern found",
         doc_en="<pattern> [text] pass through if pattern found",
     )
     async def cmd_if(self, event: events.NewMessage.Event) -> None:

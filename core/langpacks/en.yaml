@@ -71,6 +71,7 @@ core_inline:
   nav_back: Back
   nav_forward: Forward
 terminal:
+  shell: 'Shell:'
   empty: empty
   command_already_running: Command already running
   system_command: 'system command:'
@@ -89,6 +90,27 @@ terminal:
   command_not_specified: Command not specified
   config_update_interval: Terminal output update interval (sec, 1-30). Update also
     happens when new data arrives.
+  config_filter_proxychains: Filter [proxychains] noise from stdout/stderr output
+  config_custom_shell: Custom shell path (used when shell=custom)
+  config_args: "Shell arguments (default: -c)"
+  # Filters
+  config_filter_ansi: "Strip ANSI escape codes from output"
+  config_filter_pattern: "Custom regex: remove lines matching this pattern"
+  config_strip_trailing_whitespace: "Strip trailing whitespace from each line"
+  config_max_lines: "Truncate output to last N lines (0 = byte limit)"
+  config_tail_lines: "Show only last N lines (0 = disabled)"
+  # Process
+  config_timeout: "Auto-kill process after N seconds (0 = disabled)"
+  config_cwd: "Working directory (empty = bot cwd)"
+  config_env_extra: "Extra env vars KEY=VAL (space-separated)"
+  config_stdin_eof: "Close stdin immediately after start"
+  # Display
+  config_show_stderr_inline: "Merge stderr into stdout inline"
+  config_show_pid: "Show process PID in footer"
+  config_compact_mode: "Hide footer during execution, show on completion"
+  # Throttling
+  config_min_edit_interval: "Min interval between edits (seconds)"
+  config_edit_on_newline_only: "Only edit on newline arrival"
 command:
   hello: <tg-emoji emoji-id="6012620675829734836">❤️</tg-emoji> Hello! I am a bot
     from MCUB-fork
@@ -503,6 +525,15 @@ settings:
     <code>{prefix}{alias}</code>'
   delalias_not_found: ❌ Alias <code>{alias}</code> not found.
   aliases_empty: 📋 No aliases found.
+  iloadalias_usage: '❌ Usage: `{prefix}iloadalias <url>` or reply to a JSON file'
+  iloadalias_fetch_error: ❌ Failed to fetch aliases from <code>{url}</code>
+  iloadalias_invalid_json: ❌ Invalid JSON format
+  iloadalias_invalid_format: ❌ JSON must contain an "aliases" object with alias→command mappings
+  iloadalias_done: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Imported <b>{count}</b> alias(es)'
+  unla_uploading: '<tg-emoji emoji-id="5465665470560665491">📤</tg-emoji> <b>Exporting aliases...</b>'
+  unla_file_caption: '<tg-emoji emoji-id="5465745157655762334">📄</tg-emoji> <b>Aliases:</b> aliases.json
+
+    <blockquote><code>{prefix}iloadalias</code> to import</blockquote>'
   2fa_enabled: 🔐 Two-factor authentication <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji>
     enabled (inline confirmation)
   2fa_disabled: 🔐 Two-factor authentication ❌ disabled
@@ -1057,6 +1088,17 @@ tester:
 
   <b>Send anyway?</b>"
   logs_send_cancelled: "{snowflake} <b>Log sending cancelled</b>"
+
+  teaser_recording: "🎥 Recording <code>{cmd}</code> execution..."
+  teaser_done: "✅ <b>Done!</b> <code>{cmd}</code> execution recorded"
+  teaser_no_cmd: "❌ <b>Specify a command to test</b>, example: <code>{{prefix}}teaser ping</code>"
+  teaser_cmd_not_found: "❌ <b>Command</b> <code>{cmd}</code> <b>not found</b>"
+  teaser_report_header: "<b>📊 Teaser Report:</b> <code>{cmd}</code>\n\n"
+  teaser_event_log: "<b>📋 Event Calls:</b>\n<blockquote expandable>{log}</blockquote>"
+  teaser_kernel_log: "<b>📝 Kernel Log:</b>\n<blockquote expandable>{log}</blockquote>"
+  teaser_empty_log: "<b>No kernel log entries recorded</b>"
+  teaser_recording_event: "⏺️ Recording event calls..."
+  teaser_recording_kernel: "⏺️ Recording kernel logs..."
   logs_level_caption: '{logs_title} <b>{logs}</b> {mcub}
 
   <blockquote>{pen} <b>{kernel_version}</b> {version}#<a href="{commit_url}">{commit_sha}</a>
@@ -1231,6 +1273,9 @@ config:
             {display_value}
   btn_back: "⬅️"
   btn_next: "➡️"
+  filter_all: "❌ All"
+  filter_core: "🛰 Core"
+  filter_user: "🎯 User"
   btn_menu: 🔙 Menu
   btn_modules: 🔙 Modules
   btn_back_simple: 🔙 Back

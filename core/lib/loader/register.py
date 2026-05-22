@@ -15,8 +15,8 @@ from typing import Any
 
 from telethon import events
 
-from core.lib.utils.exceptions import CommandConflictError
 from core.lib.loader.kernel_proxy import wrap_event_for_module
+from core.lib.utils.exceptions import CommandConflictError
 
 
 class InfiniteLoop:

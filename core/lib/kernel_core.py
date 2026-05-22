@@ -504,7 +504,7 @@ class KernelCoreMixin:
         """Send an error to the log chat using RichException formatting."""
         await self._log.log_error_from_exc(source)
 
-    # --- Repository management ---
+    # Repository management
 
     def load_repositories(self) -> None:
         """Load repository list from config."""
@@ -727,7 +727,7 @@ class KernelCoreMixin:
         _strings = Strings(self, _cache_strings)
         return _strings
 
-    # --- Topic/chat utilities ---
+    # Topic/chat utilities
 
     def iter_topic_messages(self, entity, topic, *args, **kwargs):
         """Iterate messages from a single forum topic thread."""

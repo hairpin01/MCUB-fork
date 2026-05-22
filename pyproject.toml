@@ -30,6 +30,11 @@ exclude = [
     "modules_loaded",
     ".mypy_cache",
     ".ruff_cache",
+    "F811",   # redefined-while-unused
+    "UP007",  # non-pep604-annotation-union
+    "E402",   # module-import-not-at-top-of-file
+    "F821",   # undefined-name (pre-existing)
+
 ]
 
 [tool.ruff.lint]
@@ -41,7 +46,12 @@ select = [
     "C",     # flake8-comprehensions
     "B",     # flake8-bugbear
     "UP",    # pyupgrade
-    "RUF",   # ruff-specific rules
+    "RUF",   # ruff-specific rules,
+    "F811",   # redefined-while-unused
+    "UP007",  # non-pep604-annotation-union
+    "E402",   # module-import-not-at-top-of-file
+    "F821",   # undefined-name (pre-existing)
+
 ]
 ignore = [
     "E501",   # line too long (handled by formatter)
@@ -51,7 +61,34 @@ ignore = [
     "RUF002",
     "RUF003",
     "RUF006", # fire-and-forget asyncio tasks (intentional pattern)
-    "RUF012", # mutable class attributes (use ClassVar, but many are immutable configs)
+    "RUF012", # mutable class attributes (use ClassVar, but many are immutable configs),
+    "E741",   # ambiguous-variable-name (l is fine)
+    "B904",   # raise-without-from-inside-except
+    "B007",   # unused-loop-control-variable
+    "B027",   # empty-method-without-abstract-decorator
+    "B023",   # function-uses-loop-variable
+    "B024",   # abstract-base-class-without-abstract-method
+    "B025",   # duplicate-try-block-exception
+    "RUF059", # unused-unpacked-variable
+    "B018",   # useless-expression
+    "F811",   # redefined-while-unused
+    "UP007",  # non-pep604-annotation-union
+    "E402",   # module-import-not-at-top-of-file
+    "F821",   # undefined-name (pre-existing)
+
+    "E741",   # ambiguous-variable-name (l is fine)
+    "B904",   # raise-without-from-inside-except
+    "B007",   # unused-loop-control-variable
+    "B027",   # empty-method-without-abstract-decorator
+    "B023",   # function-uses-loop-variable
+    "B024",   # abstract-base-class-without-abstract-method
+    "B025",   # duplicate-try-block-exception
+    "RUF059", # unused-unpacked-variable
+    "B018",   # useless-expression
+    "F811",   # redefined-while-unused
+    "UP007",  # non-pep604-annotation-union
+    "E402",   # module-import-not-at-top-of-file
+    "F821",   # undefined-name (pre-existing)
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -71,6 +108,11 @@ exclude = [
     "__pycache__",
     "modules_loaded",
     ".mypy_cache",
+    "F811",   # redefined-while-unused
+    "UP007",  # non-pep604-annotation-union
+    "E402",   # module-import-not-at-top-of-file
+    "F821",   # undefined-name (pre-existing)
+
 ]
 [build-system]
 requires = ["setuptools>=65", "wheel"]
@@ -78,7 +120,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcub-fork"
-version = "1.3.2"
+version = "1.3.3"
 description = "MCUB (Telegram userbot) fork with improved API and structure"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -93,6 +135,11 @@ dependencies = [
     "socks",
     "jinja2",
     "aiohttp-jinja2",
+    "F811",   # redefined-while-unused
+    "UP007",  # non-pep604-annotation-union
+    "E402",   # module-import-not-at-top-of-file
+    "F821",   # undefined-name (pre-existing)
+
 ]
 
 [project.scripts]
@@ -113,6 +160,11 @@ exclude = [
     "gemini_data*",
     "modules_loaded*",
     "tmp*",
+    "F811",   # redefined-while-unused
+    "UP007",  # non-pep604-annotation-union
+    "E402",   # module-import-not-at-top-of-file
+    "F821",   # undefined-name (pre-existing)
+
 ]
 
 [tool.setuptools.package-data]

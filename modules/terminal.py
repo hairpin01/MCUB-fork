@@ -6,14 +6,24 @@ from __future__ import annotations
 # requires:
 # author: @Hairpin00
 # version: 2.0.0
-# description: Terminal commands with real-time output streaming / Тepминaл c пoтoкoвым вывoдoм
+# description: Terminal commands with real-time output streaming
 import asyncio
 import html
 import os
+import re
+import shlex
 import signal
 import time
 
-from core.lib.loader.module_config import Choice, ConfigValue, Integer, ModuleConfig
+from core.lib.loader.module_config import (
+    Boolean,
+    Choice,
+    ConfigValue,
+    Float,
+    Integer,
+    ModuleConfig,
+    String,
+)
 from utils.strings import Strings
 
 CUSTOM_EMOJI = {
@@ -43,8 +53,83 @@ CUSTOM_EMOJI = {
     "✅": '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji>',
 }
 
-# Minimum interval between edits (Telegram flood protection)
-_MIN_EDIT_INTERVAL = 1.0
+# output filter helpers
+
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*[mABCDEFGHJKSTfhilmnprsu]")
+
+
+def _filter_proxychains_output(text: str) -> str:
+    """Remove lines containing [proxychains] markers from output."""
+    if not text:
+        return text
+    return "\n".join(line for line in text.split("\n") if "[proxychains]" not in line)
+
+
+def _filter_ansi(text: str) -> str:
+    """Strip ANSI escape codes from text."""
+    if not text:
+        return text
+    return ANSI_RE.sub("", text)
+
+
+def _filter_by_pattern(text: str, pattern: str) -> str:
+    """Remove lines matching a custom regex pattern."""
+    if not text or not pattern:
+        return text
+    try:
+        return "\n".join(
+            line for line in text.split("\n") if not re.search(pattern, line)
+        )
+    except re.error:
+        return text
+
+
+def _strip_trailing_whitespace(text: str) -> str:
+    """Strip trailing spaces and tabs from each line."""
+    if not text:
+        return text
+    return "\n".join(line.rstrip(" \t") for line in text.split("\n"))
+
+
+def _truncate_lines(text: str, max_lines: int) -> str:
+    """Return last max_lines lines. If max_lines <= 0, return text unchanged."""
+    if max_lines <= 0 or not text:
+        return text
+    lines = text.split("\n")
+    if len(lines) <= max_lines:
+        return text
+    return "\n".join(lines[-max_lines:])
+
+
+def _apply_output_filters(text: str, cfg) -> str:
+    """Apply all configured output filters in order."""
+    if cfg.get("filter_ansi", True):
+        text = _filter_ansi(text)
+    if cfg.get("filter_proxychains", True):
+        text = _filter_proxychains_output(text)
+    if cfg.get("strip_trailing_whitespace"):
+        text = _strip_trailing_whitespace(text)
+    pattern = cfg.get("filter_pattern", "")
+    if pattern:
+        text = _filter_by_pattern(text, pattern)
+    return text
+
+
+# shell helpers
+
+
+def _get_shell_path(cfg) -> str:
+    """Return effective shell path: custom_shell when shell=custom, else shell name."""
+    shell = cfg.get("shell") or "bash"
+    if shell == "custom":
+        return cfg.get("custom_shell") or shell
+    return shell
+
+
+def _get_shell_args(cfg) -> list[str]:
+    """Return shell arguments as a list (supports multi-part via shlex.split)."""
+    args_str = cfg.get("args") or "-c"
+    return shlex.split(args_str)
 
 
 def register(kernel):
@@ -66,8 +151,114 @@ def register(kernel):
             "bash",
             description=lambda: "Shell to use for command execution",
             validator=Choice(
-                choices=["zsh", "sh", "fish", "dash", "bash"], default="bash"
+                choices=["zsh", "sh", "fish", "dash", "bash", "custom"], default="bash"
             ),
+        ),
+        ConfigValue(
+            "filter_proxychains",
+            True,
+            description=lambda: "Filter [proxychains] noise from stdout/stderr output",
+            validator=Boolean(default=True),
+        ),
+        ConfigValue(
+            "custom_shell",
+            "",
+            description=lambda: "Custom shell path (used when shell=custom)",
+            validator=String(default=""),
+        ),
+        ConfigValue(
+            "args",
+            "-c",
+            description=lambda: "Shell arguments (default: -c)",
+            validator=String(default="-c"),
+        ),
+        # Filters
+        ConfigValue(
+            "filter_ansi",
+            True,
+            description=lambda: "Strip ANSI escape codes from output",
+            validator=Boolean(default=True),
+        ),
+        ConfigValue(
+            "filter_pattern",
+            "",
+            description=lambda: "Custom regex: remove lines matching this pattern",
+            validator=String(default=""),
+        ),
+        ConfigValue(
+            "strip_trailing_whitespace",
+            False,
+            description=lambda: "Strip trailing whitespace from each output line",
+            validator=Boolean(default=False),
+        ),
+        ConfigValue(
+            "max_lines",
+            0,
+            description=lambda: "Truncate output to last N lines (0 = disabled, uses byte limit)",
+            validator=Integer(default=0, min=0),
+        ),
+        ConfigValue(
+            "tail_lines",
+            0,
+            description=lambda: "Show only last N lines in output (0 = disabled)",
+            validator=Integer(default=0, min=0),
+        ),
+        # Process
+        ConfigValue(
+            "timeout",
+            0,
+            description=lambda: "Auto-kill process after N seconds (0 = disabled)",
+            validator=Integer(default=0, min=0),
+        ),
+        ConfigValue(
+            "cwd",
+            "",
+            description=lambda: "Working directory for command (empty = bot's cwd)",
+            validator=String(default=""),
+        ),
+        ConfigValue(
+            "env_extra",
+            "",
+            description=lambda: "Extra env vars: KEY=VAL KEY2=VAL2 (space-separated)",
+            validator=String(default=""),
+        ),
+        ConfigValue(
+            "stdin_eof",
+            False,
+            description=lambda: "Close stdin immediately after process start",
+            validator=Boolean(default=False),
+        ),
+        # Display
+        ConfigValue(
+            "show_stderr_inline",
+            False,
+            description=lambda: "Merge stderr into stdout in order of arrival",
+            validator=Boolean(default=False),
+        ),
+        ConfigValue(
+            "show_pid",
+            False,
+            description=lambda: "Show process PID in command footer",
+            validator=Boolean(default=False),
+        ),
+        ConfigValue(
+            "compact_mode",
+            False,
+            description=lambda: "Hide shell/elapsed footer during execution, show on completion",
+            validator=Boolean(default=False),
+        ),
+        # Throttling
+        ConfigValue(
+            "min_edit_interval",
+            1.0,
+            description=lambda: "Minimum interval between message edits (seconds)",
+            validator=Float(default=1.0),
+        ),
+        ConfigValue(
+            "edit_on_newline_only",
+            False,
+            description=lambda: "Only edit message when newline arrives in output",
+            validator=Boolean(default=False),
         ),
     )
 
@@ -75,7 +266,14 @@ def register(kernel):
         # Register schema FIRST so save_module_config doesn't crash on new keys
         kernel.store_module_config_schema(__name__, config)
         cfg_dict = await kernel.get_module_config(
-            __name__, {"update_interval": 3, "shell": "bash"}
+            __name__,
+            {
+                "update_interval": 3,
+                "shell": "bash",
+                "filter_proxychains": True,
+                "custom_shell": "",
+                "args": "-c",
+            },
         )
         config.from_dict(cfg_dict)
         clean = {k: v for k, v in config.to_dict().items() if v is not None}
@@ -99,13 +297,27 @@ def register(kernel):
             if not text:
                 return lang["empty"]
             text = str(text)
-            if len(text) > max_length:
+            cfg = _get_config()
+            line_limit = cfg.get("max_lines") or cfg.get("tail_lines") or 0
+            if line_limit > 0:
+                lines = text.split("\n")
+                if len(lines) > line_limit:
+                    text = "...\n" + "\n".join(lines[-line_limit:])
+            elif len(text) > max_length:
                 text = "...\n" + text[-max_length:]
             return html.escape(text)
 
         def _build_message(self, cmd_data: dict, *, final: bool = False) -> str:
             stdout_raw = cmd_data["stdout"].decode("utf-8", errors="ignore")
             stderr_raw = cmd_data["stderr"].decode("utf-8", errors="ignore")
+            cfg = _get_config()
+
+            stdout_raw = _apply_output_filters(stdout_raw, cfg)
+            stderr_raw = _apply_output_filters(stderr_raw, cfg)
+
+            if cfg.get("show_stderr_inline") and stderr_raw.strip():
+                stdout_raw = stdout_raw + "\n" + stderr_raw
+                stderr_raw = ""
 
             stdout_block = f"<pre>{self._format_output(stdout_raw)}</pre>"
             stderr_block = (
@@ -113,23 +325,46 @@ def register(kernel):
                 if stderr_raw.strip()
                 else ""
             )
-
             elapsed = time.time() - cmd_data["start_time"]
             cmd_escaped = html.escape(cmd_data["command"])
+            shell = html.escape(_get_shell_path(cfg))
 
             if final:
                 time_label = lang["completed_in"]
                 extra = f"{CUSTOM_EMOJI['📰']} <b>{lang['exit_code']}</b> <mono>{cmd_data['return_code']}</mono>\n"
+                # Build footer parts
+                footer_parts = [
+                    f"{CUSTOM_EMOJI['🉐']} <b>{lang['shell']}</b> {shell}",
+                ]
+                if cfg.get("show_pid") and cmd_data.get("pid"):
+                    footer_parts.append(f"<b>PID</b> <mono>{cmd_data['pid']}</mono>")
+                footer_parts.append(
+                    f"{CUSTOM_EMOJI['🧮']} <b>{time_label}</b> <mono>{elapsed:.2f} {lang['seconds']}</mono>"
+                )
+                footer = f"<blockquote>{' | '.join(footer_parts)}</blockquote>"
             else:
                 time_label = lang["running_time"]
                 extra = ""
+                if cfg.get("compact_mode"):
+                    footer = ""
+                else:
+                    footer_parts = [
+                        f"{CUSTOM_EMOJI['🉐']} <b>{lang['shell']}</b> {shell}",
+                    ]
+                    if cfg.get("show_pid") and cmd_data.get("pid"):
+                        footer_parts.append(
+                            f"<b>PID</b> <mono>{cmd_data['pid']}</mono>"
+                        )
+                    footer_parts.append(
+                        f"{CUSTOM_EMOJI['🧮']} <b>{time_label}</b> <mono>{elapsed:.2f} {lang['seconds']}</mono>"
+                    )
+                    footer = f"<blockquote>{' | '.join(footer_parts)}</blockquote>"
 
             return (
                 f"{CUSTOM_EMOJI['💻']} <i>{lang['system_command']}</i> <blockquote><code>{cmd_escaped}</code></blockquote>\n"
                 f"{extra}"
                 f"{stdout_block}{stderr_block}"
-                f"<blockquote>{CUSTOM_EMOJI['🧮']} <b>{time_label}</b> "
-                f"<mono>{elapsed:.2f} {lang['seconds']}</mono></blockquote>"
+                f"{footer}"
             )
 
         async def run_command(self, chat_id, command, message_id=None):
@@ -152,23 +387,62 @@ def register(kernel):
                     "completed": False,
                     "return_code": None,
                     "process": None,
+                    "pid": None,
                     "start_time": time.time(),
                     "data_event": data_event,
                     "piped": piped,
+                    "timeout_task": None,
                 }
 
-                shell_path = _get_config().get("shell") or "bash"
+                cfg_shell = _get_config()
+                shell_path = _get_shell_path(cfg_shell)
+                shell_args = _get_shell_args(cfg_shell)
+
+                # cwd
+                cwd_val = cfg_shell.get("cwd") or None
+                # env_extra
+                env_val = None
+                env_extra = cfg_shell.get("env_extra", "")
+                if env_extra.strip():
+                    env_val = os.environ.copy()
+                    for pair in shlex.split(env_extra):
+                        if "=" in pair:
+                            k, v = pair.split("=", 1)
+                            env_val[k] = v
+
                 process = await asyncio.create_subprocess_exec(
                     shell_path,
-                    "-c",
+                    *shell_args,
                     command,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
+                    cwd=cwd_val,
+                    env=env_val,
                     preexec_fn=os.setsid if os.name != "nt" else None,
                 )
 
                 cmd_data["process"] = process
+                cmd_data["pid"] = process.pid
                 self.running_commands[chat_id] = cmd_data
+
+                # stdin_eof: close stdin immediately
+                if cfg_shell.get("stdin_eof") and process.stdin:
+                    process.stdin.close()
+
+                # timeout: auto-kill after N seconds
+                timeout = cfg_shell.get("timeout") or 0
+                if timeout > 0:
+
+                    async def _kill_timeout(proc=process):
+                        await asyncio.sleep(timeout)
+                        if proc.returncode is None:
+                            try:
+                                proc.kill()
+                            except ProcessLookupError:
+                                pass
+
+                    timeout_task = asyncio.create_task(_kill_timeout())
+                    cmd_data["timeout_task"] = timeout_task
 
                 if message_id:
                     cmd_data["message_id"] = message_id
@@ -204,18 +478,54 @@ def register(kernel):
             self, chat_id, command, message_id=None, quiet=False
         ):
             try:
-                shell_path = _get_config().get("shell") or "bash"
+                cfg_shell = _get_config()
+                shell_path = _get_shell_path(cfg_shell)
+                shell_args = _get_shell_args(cfg_shell)
+
+                # cwd
+                cwd_val = cfg_shell.get("cwd") or None
+                # env_extra
+                env_val = None
+                env_extra = cfg_shell.get("env_extra", "")
+                if env_extra.strip():
+                    env_val = os.environ.copy()
+                    for pair in shlex.split(env_extra):
+                        if "=" in pair:
+                            k, v = pair.split("=", 1)
+                            env_val[k] = v
+
                 process = await asyncio.create_subprocess_exec(
                     shell_path,
-                    "-c",
+                    *shell_args,
                     command,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
+                    cwd=cwd_val,
+                    env=env_val,
                 )
-                stdout, stderr = await process.communicate()
+
+                # stdin_eof: close stdin immediately
+                if cfg_shell.get("stdin_eof") and process.stdin:
+                    process.stdin.close()
+
+                # timeout: auto-kill
+                timeout = cfg_shell.get("timeout") or 0
+                if timeout > 0:
+                    try:
+                        await asyncio.wait_for(process.wait(), timeout=timeout)
+                    except TimeoutError:
+                        process.kill()
+                        stdout, stderr = await process.communicate()
+                    else:
+                        stdout, stderr = await process.communicate()
+                else:
+                    stdout, stderr = await process.communicate()
+
                 output = stdout.decode("utf-8", errors="ignore")
                 if not quiet:
                     output += stderr.decode("utf-8", errors="ignore")
+
+                output = _apply_output_filters(output, _get_config())
                 return output
             except Exception as e:
                 return f"Error: {e!s}"
@@ -260,6 +570,15 @@ def register(kernel):
                 logger.error(f"terminal: read_output error: {e}")
                 await kernel.handle_error(e, source="terminal:read_output")
             finally:
+                # Cancel timeout task if still running
+                timeout_task = cmd_data.get("timeout_task")
+                if timeout_task and not timeout_task.done():
+                    timeout_task.cancel()
+                    try:
+                        await timeout_task
+                    except asyncio.CancelledError:
+                        pass
+
                 # Stop update_loop
                 tasks = self.update_tasks.pop(chat_id, None)
                 if tasks:
@@ -281,7 +600,8 @@ def register(kernel):
             Update message in real-time:
             - on each new chunk (data_event) or
             - on timeout (update_interval from config).
-            Edits are throttled to 1/sec to avoid Telegram API flood.
+            Edits are throttled to avoid Telegram API flood.
+            Only edits when the formatted message actually changed.
             """
             last_edit = 0.0
 
@@ -308,16 +628,33 @@ def register(kernel):
                 if cmd_data["completed"]:
                     break
 
-                # Throttling: not more than 1 time in _MIN_EDIT_INTERVAL sec
+                cfg = _get_config()
+
+                # edit_on_newline_only: skip if no newline in new data
+                if cfg.get("edit_on_newline_only") and not cmd_data["completed"]:
+                    prev_len = cmd_data.get("_prev_stdout_len", 0)
+                    new_bytes = cmd_data["stdout"][prev_len:]
+                    if b"\n" not in new_bytes:
+                        continue
+                cmd_data["_prev_stdout_len"] = len(cmd_data["stdout"])
+
+                # Throttling: respect min_edit_interval from config
                 now = time.time()
-                if now - last_edit < _MIN_EDIT_INTERVAL:
+                min_edit = cfg.get("min_edit_interval") or 1.0
+                if now - last_edit < min_edit:
                     continue
+
+                # Build message and compare - skip if identical to avoid "not modified"
+                new_text = self._build_message(cmd_data)
+                if new_text == cmd_data.get("_last_sent_text"):
+                    continue
+                cmd_data["_last_sent_text"] = new_text
 
                 try:
                     await client.edit_message(
                         chat_id,
                         cmd_data["message_id"],
-                        self._build_message(cmd_data),
+                        new_text,
                         parse_mode="html",
                     )
                     last_edit = time.time()
@@ -337,6 +674,7 @@ def register(kernel):
             try:
                 if piped:
                     stdout = cmd_data["stdout"].decode("utf-8", errors="ignore")
+                    stdout = _apply_output_filters(stdout, _get_config())
                     output = stdout
                     await client.edit_message(
                         chat_id,

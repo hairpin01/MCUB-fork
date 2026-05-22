@@ -1300,7 +1300,7 @@ class Kernel:
 
     async def run(self) -> None:
         """Boot sequence: config → scheduler → client → modules → event loop."""
-        no_web = not getattr(self, "web_enabled", True)  # True ecли --no-web
+        no_web = not getattr(self, "web_enabled", True)  # True if --no-web
         _true = install_uvloop()
         if not _true:
             self.logger.info("failed install uvloop")

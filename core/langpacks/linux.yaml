@@ -72,6 +72,7 @@ core_inline:
   nav_forward: cd ./next
 
 terminal:
+  shell: 'shell:'
   empty: "→ /dev/null"
   command_already_running: "EBUSY: Process already running (PID exists)"
   system_command: 'syscall:'
@@ -88,6 +89,23 @@ terminal:
   stdout: 'stdout ▶'
   stderr: 'stderr ▶'
   command_not_specified: "bash: $1: unbound variable"
+  config_filter_proxychains: "grep -v '[proxychains]' from stdout/stderr"
+  config_custom_shell: "custom shell binary (used when shell=custom)"
+  config_args: "shell argv[1] (default: -c)"
+  config_filter_ansi: "sed 's/\\x1b\\[[0-9;]*[mABCDEFGHJKSTfhilmnprsu]//g'"
+  config_filter_pattern: "grep -v -E (custom pattern)"
+  config_strip_trailing_whitespace: "sed 's/[ \\t]*$//'"
+  config_max_lines: "tail -n N (0 = cat, no limit)"
+  config_tail_lines: "tail -n N display (0 = full)"
+  config_timeout: "timeout N (0 = no timeout)"
+  config_cwd: "cd (empty = $PWD of daemon)"
+  config_env_extra: "env KEY=VAL"
+  config_stdin_eof: "</dev/null"
+  config_show_stderr_inline: "2>&1"
+  config_show_pid: "ps --pid $PID"
+  config_compact_mode: "silent exec; verbose exit"
+  config_min_edit_interval: "rate-limit interval (seconds)"
+  config_edit_on_newline_only: "block-buffered; flush on \\n"
   config_update_interval: "stdout flush interval (sec, 1-30). Also triggered on SIGIO."
 
 command:
@@ -454,6 +472,15 @@ settings:
   delalias_done: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> unalias: <code>{prefix}{alias}</code> - done'
   delalias_not_found: "❌ ENOENT: alias <code>{alias}</code> not found"
   aliases_empty: "📋 alias: no aliases defined"
+  iloadalias_usage: '❌ Usage: `{prefix}iloadalias <url>` | pipe JSON file via reply'
+  iloadalias_fetch_error: '❌ EIO: failed to fetch aliases from <code>{url}</code>'
+  iloadalias_invalid_json: '❌ EILSEQ: invalid JSON format'
+  iloadalias_invalid_format: '❌ EINVAL: JSON must contain "aliases" mapping'
+  iloadalias_done: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> aliases loaded: <b>{count}</b>'
+  unla_uploading: '<tg-emoji emoji-id="5465665470560665491">📤</tg-emoji> <b>exporting aliases...</b>'
+  unla_file_caption: '<tg-emoji emoji-id="5465745157655762334">📄</tg-emoji> <b>Aliases:</b> aliases.json
+
+    <blockquote><code>{prefix}iloadalias</code> to import</blockquote>'
   2fa_enabled: 🔐 2FA <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> enabled (PAM inline confirmation)
   2fa_disabled: 🔐 2FA ❌ disabled
   powersave_enabled: 🔋 enabled
@@ -945,6 +972,17 @@ tester:
   logs_choose_desc: "Send only selected records from <code>/var/log/kernel.log</code>."
   logs_level_warning: "{snowflake} <b>⚠️ Warning</b>\n<blockquote>Logs with level <code>{level}</code> may contain tokens, UIDs, message text, and other sensitive data.</blockquote>\n<b>pipe anyway?</b>"
   logs_send_cancelled: "{snowflake} <b>^C - log pipe cancelled</b>"
+
+  teaser_recording: "🎥 [ .... ] strace -e <code>{cmd}</code>..."
+  teaser_done: "✅ <b>[ OK ]</b> <code>{cmd}</code> execution logged in /var/log/teaser"
+  teaser_no_cmd: "❌ <b>EINVAL: specify command</b>, e.g.: <code>{{prefix}}teaser ping</code>"
+  teaser_cmd_not_found: "❌ <b>ENOENT: command</b> <code>{cmd}</code> <b>not found in PATH</b>"
+  teaser_report_header: "<b>📊 Teaser Report:</b> <code>{cmd}</code>\n\n"
+  teaser_event_log: "<b>📋 strace:</b>\n<blockquote expandable>{log}</blockquote>"
+  teaser_kernel_log: "<b>📝 dmesg:</b>\n<blockquote expandable>{log}</blockquote>"
+  teaser_empty_log: "<b>ENODATA: /var/log/kernel.log is empty</b>"
+  teaser_recording_event: "⏺️ [ .... ] ptrace(TRACE_ME)..."
+  teaser_recording_kernel: "⏺️ [ .... ] tail -f /var/log/kernel.log..."
   logs_level_caption: '{logs_title} <b>{logs}</b> {mcub}
 
     <blockquote>{pen} <b>{kernel_version}</b> {version}#<a href="{commit_url}">{commit_sha}</a>
@@ -1091,6 +1129,9 @@ config:
   key_view: "{note} <b>{key}</b> ({type_emoji} {value_type})\n{display_value}"
   btn_back: "⬅️"
   btn_next: "➡️"
+  filter_all: "❌ all"
+  filter_core: "🛰 system"
+  filter_user: "🎯 user"
   btn_menu: 🔙 Menu
   btn_modules: 🔙 Packages
   btn_back_simple: 🔙 cd ..

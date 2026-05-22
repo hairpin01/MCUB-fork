@@ -39,7 +39,7 @@ class PyProjectMeta:
 @dataclass
 class ModuleInfo:
     name: str
-    file_path: str  # oтнocитeльный пyть внyтpи apxивa
+    file_path: str  # relative path inside archive
     is_main: bool = False
 
 

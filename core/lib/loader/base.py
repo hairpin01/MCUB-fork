@@ -9,8 +9,8 @@ from abc import ABC
 from collections.abc import Callable
 from typing import Any
 
-from utils.strings import Strings
 from core.lib.loader.kernel_proxy import wrap_event_for_module
+from utils.strings import Strings
 
 
 class _ModuleLoggerAdapter(logging.LoggerAdapter):

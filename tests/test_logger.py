@@ -76,7 +76,7 @@ _logger_mod = importlib.import_module("core.lib.utils.logger")
 
 import logging
 
-from core.lib.utils.logger import (  # noqa: E402
+from core.lib.utils.logger import (
     ErrorFormatter,
     KernelLogger,
     RichException,

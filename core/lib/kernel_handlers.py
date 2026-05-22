@@ -16,7 +16,10 @@ except ImportError:
 try:
     from core.lib.loader.kernel_proxy import wrap_event_for_module
 except ImportError:
-    wrap_event_for_module = lambda e, *a, **kw: e
+
+    def wrap_event_for_module(e, *a, **kw):
+        return e
+
 
 try:
     from ..lib.loader.inline import InlineMessage as _InlineMessage

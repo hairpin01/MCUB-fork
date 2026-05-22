@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import importlib.util
 import inspect
 import os
@@ -89,10 +88,9 @@ class UserLoaderMixin:
                 module = importlib.util.module_from_spec(spec)
 
                 from ..loader.kernel_proxy import (
-                    get_module_kernel,
                     get_module_client,
+                    get_module_kernel,
                     get_module_register,
-                    get_module_config,
                 )
 
                 proxied_kernel = get_module_kernel(k, module_name, is_system=False)
@@ -221,9 +219,8 @@ class UserLoaderMixin:
         module = importlib.util.module_from_spec(spec)
 
         from ..loader.kernel_proxy import (
-            get_module_kernel,
             get_module_client,
-            get_module_register,
+            get_module_kernel,
         )
 
         proxied_kernel = get_module_kernel(k, module_name, is_system=False)

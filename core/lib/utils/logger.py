@@ -916,7 +916,7 @@ class TelegramLogHandler:
         self._rate_window = rate_window
         self._dedup_ttl = dedup_ttl
 
-        self._queue: asyncio.Queue[str] = asyncio.Queue()
+        self._queue: asyncio.Queue[str] = asyncio.Queue(maxsize=2000)
         self._task: asyncio.Task[None] | None = None
         self._shutdown = False
 

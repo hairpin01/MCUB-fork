@@ -21,6 +21,7 @@ except ImportError:
 from telethon import events, install_uvloop
 
 from core.lib.loader.kernel_proxy import wrap_event_for_module
+from core.lib.utils import purge_caches
 from core.lib.utils.colors import Colors
 from core.lib.utils.logger import KernelLogger, setup_telegram_logging
 from utils.restart import read_restart_context
@@ -305,6 +306,78 @@ class KernelLifecycleMixin:
         del logo
         self.load_kernel = "full"
 
+        async def _memory_monitor():
+            """Periodically check RSS vs total RAM and purge caches when memory is high."""
+            CHECK_INTERVAL = 30
+            PCT_L1 = 0.55  # 55% → L1
+            PCT_L2 = 0.70  # 70% → L2
+            PCT_L3 = 0.85  # 85% → L3
+            RSS_L1 = 600 * 1024 * 1024  # 600 MB absolute → L1
+            RSS_L2 = 1200 * 1024 * 1024  # 1.2 GB absolute → L2
+            RSS_L3 = 2000 * 1024 * 1024  # 2.0 GB absolute → L3
+
+            def _read_rss_no_psutil():
+                try:
+                    with open("/proc/self/statm") as f:
+                        pages = int(f.read().split()[1])
+                        return pages * 4096
+                except Exception:
+                    return None
+
+            _psutil = None
+            try:
+                import psutil as _psutil
+            except ImportError:
+                self.logger.info(
+                    "[memmon] psutil not available — using /proc/self/statm"
+                )
+
+            while not self.shutdown_flag:
+                try:
+                    if _psutil is not None:
+                        proc = _psutil.Process()
+                        rss = proc.memory_info().rss
+                    else:
+                        rss = _read_rss_no_psutil()
+                    if rss is None:
+                        await asyncio.sleep(CHECK_INTERVAL)
+                        continue
+
+                    if _psutil is not None:
+                        total = _psutil.virtual_memory().total
+                        ratio = rss / total if total > 0 else 0.0
+                    else:
+                        ratio = 0.0
+
+                    if ratio >= PCT_L3 or rss >= RSS_L3:
+                        level = 3
+                    elif ratio >= PCT_L2 or rss >= RSS_L2:
+                        level = 2
+                    elif ratio >= PCT_L1 or rss >= RSS_L1:
+                        level = 1
+                    else:
+                        level = 0
+
+                    if level:
+                        result = purge_caches(self, level=level)
+                        cleared = result.get("cleared", [])
+                        self.logger.info(
+                            "[memmon] RSS %.0f MB (%.1f%%) — " "purge level %d: %s",
+                            rss / 1024 / 1024,
+                            ratio * 100,
+                            level,
+                            ", ".join(cleared) if cleared else "nothing",
+                        )
+                except Exception as exc:
+                    self.logger.debug("[memmon] check error: %s", exc)
+
+                try:
+                    await asyncio.sleep(CHECK_INTERVAL)
+                except asyncio.CancelledError:
+                    break
+
+        self._memory_monitor_task = asyncio.create_task(_memory_monitor())
+
         if os.path.exists(self.RESTART_FILE):
             await self._handle_restart_notification(modules_start, modules_end)
 
@@ -365,6 +438,13 @@ class KernelLifecycleMixin:
             self._connection_monitor.cancel()
             try:
                 await self._connection_monitor
+            except asyncio.CancelledError:
+                pass
+
+        if hasattr(self, "_memory_monitor_task") and self._memory_monitor_task:
+            self._memory_monitor_task.cancel()
+            try:
+                await self._memory_monitor_task
             except asyncio.CancelledError:
                 pass
 

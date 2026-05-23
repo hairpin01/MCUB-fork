@@ -70,6 +70,21 @@ def purge_caches(kernel: Any, level: int = 1) -> dict[str, Any]:
     _dict_clear(kernel, "inline_callback_map")
     cleared.append("inline_callback_map")
 
+    # Hikka-compat inline state (units + custom_map)
+    hikka_state = getattr(kernel, "_hikka_compat_inline_state", None)
+    if isinstance(hikka_state, dict):
+        for _sub in ("units", "custom_map"):
+            sub = hikka_state.get(_sub)
+            if isinstance(sub, dict):
+                sub.clear()
+        cleared.append("hikka_compat_inline_state")
+
+    # Hikka-compat inline units direct references (aliases)
+    _dict_clear(kernel, "_hikka_compat_inline_units")
+    cleared.append("hikka_compat_inline_units")
+    _dict_clear(kernel, "_hikka_compat_inline_custom_map")
+    cleared.append("hikka_compat_inline_custom_map")
+
     # Kernel runtime dicts
     for attr in (
         "catalog_cache",
@@ -138,8 +153,11 @@ def purge_caches(kernel: Any, level: int = 1) -> dict[str, Any]:
 
     # ── Level 3: Hardcore ──────────────────────────────────────────────────
     if level >= 3:
-        # Force garbage collection
-        gc.collect()
+        # Generational GC sweep (all 3 generations)
+        for _ in range(3):
+            gc.collect(0)
+            gc.collect(1)
+            gc.collect(2)
         cleared.append("gc_collect")
 
         # Telegram log queue flush
@@ -152,5 +170,46 @@ def purge_caches(kernel: Any, level: int = 1) -> dict[str, Any]:
         _set_clear(kernel, "_event_middleware_ids")
         _set_clear(kernel, "_request_middleware_ids")
         cleared.append("middleware_id_sets")
+
+        # Telethon entity caches
+        for client_attr in ("client", "bot_client"):
+            client = getattr(kernel, client_attr, None)
+            if client is None:
+                continue
+            mb_cache = getattr(client, "_mb_entity_cache", None)
+            if mb_cache:
+                mb_cache.clear()
+                cleared.append(f"{client_attr}_mb_entity_cache")
+            mg_cache = getattr(client, "_megagroup_cache", None)
+            if mg_cache:
+                mg_cache.clear()
+                cleared.append(f"{client_attr}_megagroup_cache")
+
+        # aiohttp connector cache (default ClientSession connector pool)
+        aio_connector = getattr(kernel, "_aiohttp_connector", None)
+        if aio_connector is not None:
+            try:
+                aio_connector._conns.clear()
+                aio_connector._cleanup_closed_transports()
+                cleared.append("aiohttp_connector")
+            except Exception:
+                pass
+
+        class_mods = getattr(kernel, "_class_module_instances", {})
+        if class_mods:
+            for mod_name, inst in list(class_mods.items()):
+                _dict_clear(inst, "_inline_temp_registry")
+                loops = getattr(inst, "_loops", None)
+                if loops and isinstance(loops, dict):
+                    loops.clear()
+            cleared.append(f"module_inline_clean:{len(class_mods)}")
+
+        # Scheduler task registry
+        sched = getattr(kernel, "scheduler", None)
+        if sched is not None:
+            reg = getattr(sched, "_task_registry", None)
+            if reg:
+                reg.clear()
+                cleared.append("scheduler_registry")
 
     return {"level": level, "cleared": cleared}

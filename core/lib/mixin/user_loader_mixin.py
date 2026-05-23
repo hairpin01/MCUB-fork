@@ -8,6 +8,7 @@ import importlib.util
 import inspect
 import os
 import sys
+import warnings
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
@@ -18,6 +19,20 @@ if TYPE_CHECKING:
 
 # Max modules loaded concurrently. Higher = faster startup but more RAM pressure.
 _LOAD_CONCURRENCY = 8
+
+# Memory guard thresholds (Linux /proc/self/statm)
+_MEM_SPIKE_MB = 300  # skip module if RSS jumps more than this
+_MEM_TOTAL_MAX_MB = 1500  # stop loading if total RSS exceeds this
+
+
+def _get_rss_mb() -> int | None:
+    """Return current RSS in megabytes, or None on non-Linux / error."""
+    try:
+        with open("/proc/self/statm") as f:
+            pages = int(f.read().split()[1])
+            return (pages * 4096) // (1024 * 1024)
+    except Exception:
+        return None
 
 
 class UserLoaderMixin:
@@ -91,10 +106,37 @@ class UserLoaderMixin:
 
         async def _load_one(file_name: str) -> None:
             async with semaphore:
+                nonlocal modules_code
+
+                rss_before = _get_rss_mb()
+
                 cached_code = code_cache.get(file_name)
                 await self._load_single_user_module(
                     file_name, k, _hikka_compat, cached_code=cached_code
                 )
+
+                rss_after = _get_rss_mb()
+                if rss_before is not None and rss_after is not None:
+                    jump = rss_after - rss_before
+                    if jump > _MEM_SPIKE_MB:
+                        k.logger.error(
+                            "[memguard] MODULE %s spike +%d MB "
+                            "(total %d MB) — possibly leaking!",
+                            file_name,
+                            jump,
+                            rss_after,
+                        )
+
+                if rss_after is not None and rss_after > _MEM_TOTAL_MAX_MB:
+                    k.logger.error(
+                        "[memguard] ABORT module loading at %s — RSS %d MB exceeds %d MB limit",
+                        file_name,
+                        rss_after,
+                        _MEM_TOTAL_MAX_MB,
+                    )
+                    raise MemoryError(
+                        f"RSS {rss_after} MB > {_MEM_TOTAL_MAX_MB} MB limit"
+                    )
 
         # Package directories first (they have an __init__.py)
         pkg_tasks = []
@@ -124,7 +166,16 @@ class UserLoaderMixin:
                 continue
             file_tasks.append(_load_one(file_name))
 
-        await asyncio.gather(*pkg_tasks, *file_tasks)
+        try:
+            await asyncio.gather(*pkg_tasks, *file_tasks)
+        except MemoryError as _mem_err:
+            k.logger.error(
+                "[memguard] load_user_modules stopped early: %s — "
+                "%d of %d modules loaded",
+                _mem_err,
+                len(k.loaded_modules),
+                len(modules_code),
+            )
 
     async def _load_single_user_module(
         self,

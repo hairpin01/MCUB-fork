@@ -2272,6 +2272,48 @@ async def load_hikka_module(
     return True, "", {"registered": registered_cmds, "conflicts": conflicts}
 
 
+def _clean_module_inline_units(
+    module_name: str,
+    units: dict,
+    custom_map: dict,
+    kernel: Any,
+) -> None:
+    """Remove all inline units and custom_map entries belonging to *module_name*."""
+    module_lower = module_name.lower()
+
+    # Collect unit IDs whose module reference matches
+    stale_unit_ids = []
+    for uid, unit_data in list(units.items()):
+        owner = unit_data.get("module_name", "")
+        if isinstance(owner, str) and owner.lower() == module_lower:
+            stale_unit_ids.append(uid)
+        elif unit_data.get("uid", "").startswith(module_lower):
+            stale_unit_ids.append(uid)
+
+    # Call on_unload for each stale unit
+    for uid in stale_unit_ids:
+        unit_data = units.pop(uid, None)
+        if unit_data:
+            on_unload = unit_data.get("on_unload")
+            if callable(on_unload):
+                try:
+                    asyncio.ensure_future(_maybe_await(on_unload()))
+                except Exception:
+                    pass
+
+    for key in list(custom_map):
+        payload = custom_map.get(key) or {}
+        if payload.get("unit_id") in stale_unit_ids:
+            custom_map.pop(key, None)
+
+    if stale_unit_ids:
+        kernel.logger.debug(
+            "[hikka_compat] inline cleanup module=%r removed_units=%d",
+            module_name,
+            len(stale_unit_ids),
+        )
+
+
 async def unload_hikka_module(kernel, module_name: str) -> bool:
     actual_name = None
     for key in kernel.loaded_modules:
@@ -2333,6 +2375,19 @@ async def unload_hikka_module(kernel, module_name: str) -> bool:
             kernel.client.remove_event_handler(handle)
         except Exception:
             pass
+
+    try:
+        inline_state = getattr(kernel, "_hikka_compat_inline_state", None)
+        if isinstance(inline_state, dict):
+            units = inline_state.get("units", {})
+            custom_map = inline_state.get("custom_map", {})
+            _clean_module_inline_units(module_name, units, custom_map, kernel)
+    except Exception as e:
+        kernel.logger.debug(
+            "[hikka_compat] inline unit cleanup error for %r: %s",
+            module_name,
+            e,
+        )
 
     kernel.loaded_modules.pop(module_name, None)
 

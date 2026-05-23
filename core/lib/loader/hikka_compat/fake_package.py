@@ -1914,8 +1914,7 @@ async def load_hikka_module(
     inline_patterns: list[str] = []
     loop_handles: list[InfiniteLoop] = []
 
-    if not kernel.current_loading_module:
-        kernel.set_loading_module(module_name, "hikka")
+    kernel.set_loading_module(module_name, "hikka")
 
     def _register_alias(alias_name: str, target_cmd: str) -> None:
         alias_name = str(alias_name).strip()

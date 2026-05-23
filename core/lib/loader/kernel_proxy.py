@@ -201,6 +201,8 @@ class ModuleKernelProxy:
             "__class__",
             "__repr__",
             "__dir__",
+            "MODULES_DIR",
+            "MODULES_LOADED_DIR",
         }
     )
 
@@ -307,6 +309,14 @@ class ModuleKernelProxy:
     def system_modules_view(self) -> MappingProxyType:
         kernel = object.__getattribute__(self, "_kernel")
         return MappingProxyType(dict(getattr(kernel, "system_modules", {})))
+
+    @property
+    def MODULES_DIR(self) -> str:
+        return object.__getattribute__(self, "_kernel").MODULES_DIR
+
+    @property
+    def MODULES_LOADED_DIR(self) -> str:
+        return object.__getattribute__(self, "_kernel").MODULES_LOADED_DIR
 
     @property
     def _live_module_configs(self) -> MappingProxyType:
@@ -430,6 +440,8 @@ class ModuleKernelProxy:
                 "loaded_module_names",
                 "loaded_modules_view",
                 "system_modules_view",
+                "MODULES_DIR",
+                "MODULES_LOADED_DIR",
                 "_live_module_configs",
                 "remove_inline_callback_tokens",
                 "store_inline_callback",

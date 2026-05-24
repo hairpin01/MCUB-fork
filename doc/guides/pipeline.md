@@ -202,7 +202,7 @@ class MyModule(ModuleBase):
 Pipeline can be enabled/disabled in settings:
 
 ```
-.pipeline # Enable/Disabled pipeline (toggle command)
+.piped # Enable/Disabled pipeline (toggle command)
 ```
 
 Commands work regardless of pipeline status - they just won't receive `pipe_input` when pipeline is disabled.

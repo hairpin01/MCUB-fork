@@ -13,6 +13,7 @@ import os
 import time
 import traceback
 from typing import Any
+import secrets
 
 try:
     from utils.html_parser import HTML_PARSER_AVAILABLE
@@ -209,16 +210,30 @@ class KernelLifecycleMixin:
                 restart_chat_id = restart_ctx.chat_id
                 restart_msg_id = restart_ctx.message_id
                 restart_time = restart_ctx.timestamp
+                emojis = [
+                    "ಠ_ಠ",
+                    "( ཀ ʖ̯ ཀ)",
+                    "(◕‿◕✿)",
+                    "(つ･･)つ",
+                    "༼つ◕_◕༽つ",
+                    "(•_•)",
+                    "☜(ﾟヮﾟ☜)",
+                    "(☞ﾟヮﾟ)☞",
+                    "ʕ•ᴥ•ʔ",
+                    "(づ￣ ³￣)づ",
+                    ">_<",
+                    "0_o",
+                ]
 
-                em_alembic = '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>'
-                emoji = "(*.*)"
+                em_alembic = '<tg-emoji emoji-id="5310041868191407556">🔭</tg-emoji>'
+                emoji = secrets.choice(emojis)
                 total_ms = round(time.time() - restart_time, 2) if restart_time else 0
 
                 await self.client.edit_message(
                     restart_chat_id,
                     restart_msg_id,
-                    f"{em_alembic} {strings('success')} {emoji}\n"
-                    f"<i>{strings('loading')}</i> <b>Kernel boot:</b><code> {total_ms} </code>s",
+                    f"<blockquote>{em_alembic} <b>{strings('success')}</b> <i>{emoji}</i></blockquote>\n"
+                    f"<blockquote><i>{strings('loading')}</i> <b>Kernel boot:</b><code> {total_ms} </code>s</blockquote>",
                     parse_mode="html",
                 )
             except Exception:
@@ -283,9 +298,16 @@ class KernelLifecycleMixin:
             f"• Version: {self.VERSION}\n"
             f"• Prefix: {self.custom_prefix}\n"
         )
+        if getattr(self, "error_load_modules_name", False):
+            modules_items = "\n".join(
+                f"- {name}" for name in self.error_load_modules_name
+            )
+        else:
+            modules_items = None
+
         _errors = (
             Colors.paint(
-                f"• Module load errors: {self.error_load_modules}\n",
+                f"• Module load errors: {self.error_load_modules}\n" f"{modules_items}",
                 Colors.BOLD,
                 Colors.BRIGHT_RED,
             )
@@ -512,6 +534,7 @@ class KernelLifecycleMixin:
 
             em_package = '<tg-emoji emoji-id="5399898266265475100">📦</tg-emoji>'
             em_error = '<tg-emoji emoji-id="5208923808169222461">🥀</tg-emoji>'
+            em_items = '<tg-emoji emoji-id="5375106250449100282">🧳</tg-emoji>'
 
             kernel_s = round(modules_start - restart_time, 2)
             mod_s = round(modules_end - modules_start, 2)
@@ -529,10 +552,16 @@ class KernelLifecycleMixin:
                         f"<b>Modules:</b><code> {mod_s} </code>s.</blockquote>"
                     )
                 else:
+                    modules_items = "\n".join(
+                        f"{em_items} <code>{name}</code>"
+                        for name in self.error_load_modules_name
+                    )
                     msg_text = (
                         f"{em_error} {s('errors', mcub=mcub)}\n"
                         f"<blockquote><b>Kernel:</b><code> {kernel_s} </code>s. "
-                        f"<b>Modules Error:</b><code> {int(self.error_load_modules)} </code>s.</blockquote>"
+                        f"<b>Modules Error:</b><code> {int(self.error_load_modules)}</code></blockquote>"
+                        f"<b>{s('modules_not_loaded')}</b>\n"
+                        f"<blockquote expandable>{modules_items}</blockquote>"
                     )
 
                 try:

@@ -55,6 +55,9 @@ class UserLoaderMixin:
         """
         k = self.k
 
+        if getattr(k, "_lock_loader_user", False):
+            raise RuntimeError("The method can only be called once!") from None
+
         purge_stale_modules = getattr(self, "_purge_stale_loaded_module_entries", None)
         if callable(purge_stale_modules):
             cast(Callable[[], None], purge_stale_modules)()
@@ -79,7 +82,6 @@ class UserLoaderMixin:
             files.remove("log_bot.py")
             files.insert(0, "log_bot.py")
 
-        # ── Phase 1: batch pre-install + cache file contents ─────────────────
         # Read every .py file **once**, cache code for phase 2.
         modules_code: list[tuple[str, str]] = []
         code_cache: dict[str, str] = {}  # filename -> code
@@ -101,7 +103,6 @@ class UserLoaderMixin:
         if callable(batch_install):
             await batch_install(modules_code)
 
-        # ── Phase 2: concurrent load ─────────────────────────────────────────
         semaphore = asyncio.Semaphore(_LOAD_CONCURRENCY)
 
         async def _load_one(file_name: str) -> None:
@@ -159,12 +160,15 @@ class UserLoaderMixin:
                                 except Exception as e:
                                     k.logger.error(f"Error loading package {fn}: {e}")
                                     k.error_load_modules += 1
+                                    k.error_load_modules_name.append(file_name)
 
                         pkg_tasks.append(_load_pkg())
                 continue
             if not file_name.endswith(".py"):
                 continue
             file_tasks.append(_load_one(file_name))
+
+            k._lock_loader_user = True
 
         try:
             await asyncio.gather(*pkg_tasks, *file_tasks)
@@ -212,6 +216,7 @@ class UserLoaderMixin:
                     if not ok:
                         k.logger.error(f"Error loading module {file_name}: {err}")
                         k.error_load_modules += 1
+                        k.error_load_modules_name.append(module_name)
                     return
 
             # Deps were pre-installed in phase 1; this is now a fast no-op for
@@ -315,10 +320,12 @@ class UserLoaderMixin:
             k.logger.error(f"Command conflict loading {file_name}: {e}")
             self._rollback_orphaned_commands(k, module_name)
             k.error_load_modules += 1
+            k.error_load_modules_name.append(module_name)
         except Exception as e:
             k.logger.error(f"Error loading module {file_name}: {e}")
             self._rollback_orphaned_commands(k, module_name)
             k.error_load_modules += 1
+            k.error_load_modules_name.append(module_name)
         finally:
             k.clear_loading_module()
 

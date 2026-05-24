@@ -36,6 +36,9 @@ class SystemLoaderMixin:
         """
         k = self.k
 
+        if getattr(k, "_lock_loader_system", False):
+            raise RuntimeError("The method can only be called once!") from None
+
         files = [
             f
             for f in os.listdir(k.MODULES_DIR)
@@ -68,6 +71,8 @@ class SystemLoaderMixin:
                 await self._load_single_system_module(
                     file_name, k, cached_code=cached_code
                 )
+
+        k._lock_loader_system = True
 
         await asyncio.gather(*[_load_one(f) for f in files])
 
@@ -158,6 +163,7 @@ class SystemLoaderMixin:
                     return
                 k.logger.error(f"No register() in system module: {module_name}")
                 k.error_load_modules += 1
+                k.error_load_modules_name.append(module_name)
                 return
 
             if inspect.iscoroutinefunction(module.register):
@@ -184,6 +190,7 @@ class SystemLoaderMixin:
                 except Exception as log_err:
                     k.logger.error(f"log_error_from_exc failed: {log_err}")
             k.error_load_modules += 1
+            k.error_load_modules_name.append(file_name)
         except Exception as e:
             k.logger.error(f"Error loading system module {file_name}: {e}")
             if hasattr(k, "_log") and k._log:
@@ -197,5 +204,6 @@ class SystemLoaderMixin:
                 except Exception as log_err:
                     k.logger.error(f"log_error_from_exc failed: {log_err}")
             k.error_load_modules += 1
+            k.error_load_modules_name.append(file_name)
         finally:
             k.clear_loading_module()

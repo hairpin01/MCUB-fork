@@ -141,6 +141,7 @@ class KernelCoreMixin:
         self.shutdown_flag = False
         self.power_save_mode = False
         self.error_load_modules = 0
+        self.error_load_modules_name = []
         self.load_kernel = "kernel"
         self.current_loading_module = None
         self.current_loading_module_type = None

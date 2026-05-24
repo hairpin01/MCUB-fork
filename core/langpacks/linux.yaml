@@ -169,6 +169,7 @@ kernel:
   loading: "[ .... ] Mounting packages..."
   loaded: "[  OK  ] <b>{mcub}.service</b> - active (running)"
   errors: "[FAILED] <b>{mcub}.service</b> - failed (exit-code)"
+  modules_not_loaded: "Failed packages:"
   rpc_error: <b>[RPC][STDERR]:</b> <code>{error}</code>
   call_failed: <b>execve(<code>{cmd}</code>) failed - RPC errno:</b> <code>{rpc_msg}</code>
   call_failed_traceback: '<b>execve(<code>{cmd}</code>) → exit 1</b>

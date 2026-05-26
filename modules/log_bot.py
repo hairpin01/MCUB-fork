@@ -10,6 +10,7 @@ import io
 import os
 import subprocess
 from datetime import datetime
+import traceback
 
 import aiohttp
 from telethon import events
@@ -19,6 +20,8 @@ from telethon.tl.functions.messages import (
     CreateChatRequest,
     ExportChatInviteRequest,
 )
+from telethon.tl.functions.messages import GetBotCallbackAnswerRequest
+
 from telethon.tl.types import InputMediaWebPage, InputUserSelf
 
 import utils
@@ -28,6 +31,7 @@ from core.lib.loader.module_config import (
     ModuleConfig,
     Placeholders,
     String,
+    Boolean,
 )
 
 
@@ -68,6 +72,12 @@ class LogBot(ModuleBase):
             default="",
             description="Available placeholders (auto-generated, read-only)",
             validator=String(default=""),
+        ),
+        ConfigValue(
+            "auto_update",
+            default=False,
+            description="Auto update MCUB",
+            validator=Boolean(default=False),
         ),
     )
 
@@ -212,14 +222,35 @@ class LogBot(ModuleBase):
                 self.strings("banner_load"),
             )
 
-            await _message_load.edit(
+            _message_edit = await _message_load.edit(
                 text,
                 file=InputMediaWebPage(update_image_url, optional=True),
                 invert_media=True,
                 parse_mode="html",
                 buttons=[[btn]],
             )
+            if self.config.get("auto_update") or False:
+                try:
+                    all_buttons = [btn for row in _message_edit.buttons for btn in row]
+                    button = all_buttons[0]
 
+                    await self.client(
+                        GetBotCallbackAnswerRequest(
+                            peer=_message_edit.peer_id,
+                            msg_id=_message_edit.id,
+                            data=button.data,
+                        )
+                    )
+                except Exception as e:
+                    await self.kernel.handle_error(
+                        e, source='Failed call "click"', event=_message_edit
+                    )
+                    raw_tb = "".join(
+                        traceback.format_exception(type(e), e, e.__traceback__)
+                    ).replace("Traceback (most recent call last):\n", "")
+                    await _message_edit.edit(
+                        self.strings["error"]("full_error", error=e, full_error=raw_tb)
+                    )
         except Exception as e:
             self.kernel.logger.error(f"notify_new_commits error: {e}")
 
@@ -735,6 +766,7 @@ class LogBot(ModuleBase):
             "banner_url": "https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/start_userbot.png",
             "start_message": "",
             "placeholders": "",
+            "auto_update": False,
         }
         config_dict = await self.kernel.get_module_config(self.name, defaults)
         config_dict["placeholders"] = utils.format_placeholders(self.name)

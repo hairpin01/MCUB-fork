@@ -1595,9 +1595,9 @@ def register(kernel):
                 e, source='Failed call "process_command"', event=cmd
             )
             raw_tb = "".join(
-                traceback.format_exception(exc_type, exc_value, tb)
+                traceback.format_exception(type(e), e, e.__traceback__)
             ).replace("Traceback (most recent call last):\n", "")
-            await cmd.edit(s("error"("full_error", error=e, full_error=raw_tb)))
+            await cmd.edit(_strings["error"]("full_error", error=e, full_error=raw_tb))
 
     @kernel.register.loop(interval=30, autostart=True)
     async def update_callback_permissions(_kernel):

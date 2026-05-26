@@ -1545,9 +1545,7 @@ def register(kernel):
                 self._msg = msg
 
             def __getattr__(self, name):
-                if self._msg is None:
-                    return None
-                return getattr(self._msg, name, None)
+                return getattr(self._msg, name)
 
             @property
             def message(self):
@@ -1568,6 +1566,11 @@ def register(kernel):
                     return None
                 return getattr(self._msg, "document", None)
 
+            def __getattr__(self, name):
+                if self._msg is None:
+                    return None
+                return getattr(self._msg, name, None)
+
             async def edit(self, *args, **kwargs):
                 return await self._msg.edit(*args, **kwargs)
 
@@ -1580,7 +1583,12 @@ def register(kernel):
             def no_owner(self):
                 return True
 
-        await kernel.process_command(_MessageEventProxy(cmd))
+        try:
+            await kernel.process_command(_MessageEventProxy(cmd))
+        except Exception as e:
+            await kernel.handle_error(
+                e, source='Failed call "process_command"', event=cmd
+            )
 
     @kernel.register.loop(interval=30, autostart=True)
     async def update_callback_permissions(_kernel):

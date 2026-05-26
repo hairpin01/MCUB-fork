@@ -1560,6 +1560,10 @@ def register(kernel):
                 rt = getattr(self._msg, "reply_to", None)
                 return getattr(rt, "reply_to_msg_id", None) if rt else None
 
+            @property
+            def document(self):
+                return getattr(self._msg, "document")
+
             async def edit(self, *args, **kwargs):
                 return await self._msg.edit(*args, **kwargs)
 

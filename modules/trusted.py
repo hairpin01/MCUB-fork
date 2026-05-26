@@ -7,6 +7,7 @@ from __future__ import annotations
 # version: 1.4.0-beta
 # description: Trusted users can execute owner commands
 import json
+import traceback
 
 from core.langpacks import get_all_module_strings
 from core_inline.api.inline import make_cb_button
@@ -1589,6 +1590,10 @@ def register(kernel):
             await kernel.handle_error(
                 e, source='Failed call "process_command"', event=cmd
             )
+            raw_tb = "".join(
+                traceback.format_exception(exc_type, exc_value, tb)
+            ).replace("Traceback (most recent call last):\n", "")
+            await cmd.edit(s("error"("full_error", error=e, full_error=raw_tb)))
 
     @kernel.register.loop(interval=30, autostart=True)
     async def update_callback_permissions(_kernel):

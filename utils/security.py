@@ -336,12 +336,21 @@ def lock_sensitive_files(
                         _log(f"🔒 locked: {session_path}")
 
 
+_locked_files: set[str] = set()
+
+
 def ensure_locked_after_write(path: str, logger=None) -> None:
     """Call immediately after writing a sensitive file.
 
     Convenience wrapper around lock_file() that also logs.
+    Already-locked files are skipped (in-memory set) so repeated
+    calls for the same path after every config.save() are cheap.
     """
+    if path in _locked_files:
+        return
     ok = lock_file(path)
+    if ok:
+        _locked_files.add(path)
     if logger:
         logger.debug(f"{'🔒 lock:' if ok else '⚠️ chmod failed:'} {path}")
 

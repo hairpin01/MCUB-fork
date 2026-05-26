@@ -122,6 +122,8 @@ class DependencyManagerMixin:
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
+        # Cache for importlib.util.find_spec results to avoid redundant I/O
+        self._find_spec_cache: dict[str, bool] = {}
 
     def resolve_pip_name(self, import_name: str) -> str:
         """Convert import name to pip package name."""
@@ -170,8 +172,35 @@ class DependencyManagerMixin:
         """Filter out non-installable modules."""
         return [d for d in deps if d not in _NON_INSTALLABLE]
 
+    def _is_dep_installed(self, dep: str) -> bool:
+        """Check if a dependency is installed, using a cache to avoid repeated I/O."""
+        if dep in self._find_spec_cache:
+            return self._find_spec_cache[dep]
+        try:
+            result = importlib.util.find_spec(dep) is not None
+        except ImportError:
+            result = False
+        self._find_spec_cache[dep] = result
+        return result
+
+    def _invalidate_dep_cache(self, dep: str) -> None:
+        """Invalidate cache entry for a dep after installation."""
+        self._find_spec_cache.pop(dep, None)
+
+    async def _install_dep_if_missing(self, dep: str, module_name: str) -> None:
+        """Install a single dep if not already present."""
+        k = self.k
+        if self._is_dep_installed(dep):
+            k.logger.debug(f"[{module_name}] {dep} already installed")
+            return
+        pip_name = self.resolve_pip_name(dep)
+        k.logger.info(f"[{module_name}] Installing: {pip_name}")
+        await self._pip_install(pip_name, module_name)
+        # Bust the cache so future checks see the freshly installed package
+        self._invalidate_dep_cache(dep)
+
     async def pre_install_requirements(self, code: str, module_name: str) -> None:
-        """Parse dependency declarations and install missing packages."""
+        """Parse dependency declarations and install missing packages in parallel."""
         reqs = parse_requires(code)
 
         if not reqs:
@@ -186,19 +215,10 @@ class DependencyManagerMixin:
         k = self.k
         k.logger.info(f"[{module_name}] Dependencies found: {deps}")
 
-        for dep in deps:
-            pip_name = self.resolve_pip_name(dep)
-            try:
-                spec = importlib.util.find_spec(dep)
-            except ImportError:
-                spec = None
-
-            if spec is not None:
-                k.logger.debug(f"[{module_name}] {dep} already installed")
-                continue
-
-            k.logger.info(f"[{module_name}] Installing: {pip_name}")
-            await self._pip_install(pip_name, module_name)
+        # Install all missing deps concurrently instead of one by one
+        await asyncio.gather(
+            *[self._install_dep_if_missing(dep, module_name) for dep in deps]
+        )
 
     async def install_dependencies_batch(
         self,
@@ -247,6 +267,47 @@ class DependencyManagerMixin:
                     pass
 
             await self._pip_install(install_target, module_name)
+
+    async def pre_install_requirements_batch(
+        self, modules_code: list[tuple[str, str]]
+    ) -> None:
+        """Scan all modules at once, collect all deps, install missing ones in parallel.
+
+        This is the fast path used during startup: instead of installing deps
+        module-by-module (serial), we gather every requirement from every file,
+        deduplicate, and launch all pip installs concurrently.
+
+        Args:
+            modules_code: List of (module_name, source_code) pairs.
+        """
+        k = self.k
+        # Map dep -> list[module_name] for logging
+        dep_owners: dict[str, list[str]] = {}
+
+        for module_name, code in modules_code:
+            reqs = parse_requires(code)
+            deps = self._extract_dependencies(reqs)
+            deps = self._filter_valid_deps(deps)
+            for dep in deps:
+                dep_owners.setdefault(dep, []).append(module_name)
+
+        if not dep_owners:
+            return
+
+        missing = [dep for dep in dep_owners if not self._is_dep_installed(dep)]
+        if not missing:
+            k.logger.debug("[batch-deps] all dependencies already installed")
+            return
+
+        k.logger.info(
+            f"[batch-deps] installing {len(missing)} packages in parallel: {missing}"
+        )
+        await asyncio.gather(
+            *[
+                self._install_dep_if_missing(dep, "/".join(dep_owners[dep][:3]))
+                for dep in missing
+            ]
+        )
 
     async def _pip_install(self, pip_name: str, module_name: str) -> None:
         """Install a pip package with multiple fallback strategies."""

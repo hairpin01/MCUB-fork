@@ -3,10 +3,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import inspect
 import os
 import sys
+import warnings
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
@@ -14,6 +16,23 @@ from ..utils.exceptions import CommandConflictError
 
 if TYPE_CHECKING:
     pass
+
+# Max modules loaded concurrently. Higher = faster startup but more RAM pressure.
+_LOAD_CONCURRENCY = 8
+
+# Memory guard thresholds (Linux /proc/self/statm)
+_MEM_SPIKE_MB = 300  # skip module if RSS jumps more than this
+_MEM_TOTAL_MAX_MB = 1500  # stop loading if total RSS exceeds this
+
+
+def _get_rss_mb() -> int | None:
+    """Return current RSS in megabytes, or None on non-Linux / error."""
+    try:
+        with open("/proc/self/statm") as f:
+            pages = int(f.read().split()[1])
+            return (pages * 4096) // (1024 * 1024)
+    except Exception:
+        return None
 
 
 class UserLoaderMixin:
@@ -23,19 +42,39 @@ class UserLoaderMixin:
         super().__init__(**kwargs)
 
     async def load_user_modules(self) -> None:
-        """Load all .py files from the user modules directory."""
+        """Load all .py files from the user modules directory.
 
+        Two-phase approach for faster startup:
+          1. Pre-scan every file for ``# requires:`` deps and install them all
+             in parallel before any module is executed.
+          2. Load modules concurrently (up to _LOAD_CONCURRENCY at a time) so
+             async parts (run_post_load, etc.) can overlap.
+
+        Phase 1 reads every file once and caches the content so that
+        Phase 2 (``_load_single_user_module``) does **not** re-read it.
+        """
         k = self.k
+
+        if getattr(k, "_lock_loader_user", False):
+            raise RuntimeError("The method can only be called once!") from None
 
         purge_stale_modules = getattr(self, "_purge_stale_loaded_module_entries", None)
         if callable(purge_stale_modules):
             cast(Callable[[], None], purge_stale_modules)()
 
-        try:
-            from core.lib.loader.hikka_compat import is_hikka_module, load_hikka_module
+        # Hikka-compat can be disabled via config for faster startup
+        _hikka_compat = getattr(k, "config", {}).get("hikka_compat", True)
+        if _hikka_compat:
+            try:
+                from core.lib.loader.hikka_compat import (
+                    is_hikka_module,
+                    load_hikka_module,
+                )
 
-            _hikka_compat = True
-        except ImportError:
+                _hikka_compat = True
+            except ImportError:
+                _hikka_compat = False
+        else:
             _hikka_compat = False
 
         files = os.listdir(k.MODULES_LOADED_DIR)
@@ -43,34 +82,133 @@ class UserLoaderMixin:
             files.remove("log_bot.py")
             files.insert(0, "log_bot.py")
 
+        # Read every .py file **once**, cache code for phase 2.
+        modules_code: list[tuple[str, str]] = []
+        code_cache: dict[str, str] = {}  # filename -> code
         for file_name in files:
-            # Check for package directories (modules with local imports)
+            module_path = os.path.join(k.MODULES_LOADED_DIR, file_name)
+            if os.path.isdir(module_path):
+                continue
+            if not file_name.endswith(".py"):
+                continue
+            try:
+                with open(module_path, encoding="utf-8") as f:
+                    code = f.read()
+                modules_code.append((file_name[:-3], code))
+                code_cache[file_name] = code
+            except OSError:
+                pass
+
+        batch_install = getattr(self, "pre_install_requirements_batch", None)
+        if callable(batch_install):
+            await batch_install(modules_code)
+
+        semaphore = asyncio.Semaphore(_LOAD_CONCURRENCY)
+
+        async def _load_one(file_name: str) -> None:
+            async with semaphore:
+                nonlocal modules_code
+
+                rss_before = _get_rss_mb()
+
+                cached_code = code_cache.get(file_name)
+                await self._load_single_user_module(
+                    file_name, k, _hikka_compat, cached_code=cached_code
+                )
+
+                rss_after = _get_rss_mb()
+                if rss_before is not None and rss_after is not None:
+                    jump = rss_after - rss_before
+                    if jump > _MEM_SPIKE_MB:
+                        k.logger.error(
+                            "[memguard] MODULE %s spike +%d MB "
+                            "(total %d MB) — possibly leaking!",
+                            file_name,
+                            jump,
+                            rss_after,
+                        )
+
+                if rss_after is not None and rss_after > _MEM_TOTAL_MAX_MB:
+                    k.logger.error(
+                        "[memguard] ABORT module loading at %s — RSS %d MB exceeds %d MB limit",
+                        file_name,
+                        rss_after,
+                        _MEM_TOTAL_MAX_MB,
+                    )
+                    raise MemoryError(
+                        f"RSS {rss_after} MB > {_MEM_TOTAL_MAX_MB} MB limit"
+                    )
+
+        # Package directories first (they have an __init__.py)
+        pkg_tasks = []
+        file_tasks = []
+        for file_name in files:
             module_path = os.path.join(k.MODULES_LOADED_DIR, file_name)
             if os.path.isdir(module_path):
                 init_file = os.path.join(module_path, "__init__.py")
                 if os.path.exists(init_file):
-                    # Check if it's an archive-installed package
                     source_info = k._module_sources.get(file_name, {})
                     if (
                         source_info.get("type") == "archive"
                         and source_info.get("pack_type") == "single"
                     ):
-                        try:
-                            await self._load_package_module(file_name, init_file, k)
-                        except Exception as e:
-                            k.logger.error(f"Error loading package {file_name}: {e}")
-                            k.error_load_modules += 1
-                    continue
 
+                        async def _load_pkg(fn=file_name, init=init_file):
+                            async with semaphore:
+                                try:
+                                    await self._load_package_module(fn, init, k)
+                                except Exception as e:
+                                    k.logger.error(f"Error loading package {fn}: {e}")
+                                    k.error_load_modules += 1
+                                    k.error_load_modules_name.append(file_name)
+
+                        pkg_tasks.append(_load_pkg())
+                continue
             if not file_name.endswith(".py"):
                 continue
-            module_name = file_name[:-3]
-            file_path = os.path.join(k.MODULES_LOADED_DIR, file_name)
-            try:
+            file_tasks.append(_load_one(file_name))
+
+            k._lock_loader_user = True
+
+        try:
+            await asyncio.gather(*pkg_tasks, *file_tasks)
+        except MemoryError as _mem_err:
+            k.logger.error(
+                "[memguard] load_user_modules stopped early: %s — "
+                "%d of %d modules loaded",
+                _mem_err,
+                len(k.loaded_modules),
+                len(modules_code),
+            )
+
+    async def _load_single_user_module(
+        self,
+        file_name: str,
+        k: Any,
+        _hikka_compat: bool,
+        *,
+        cached_code: str | None = None,
+    ) -> None:
+        """Load one user module file.  Called concurrently from load_user_modules.
+
+        If *cached_code* is provided (from Phase 1), the file is **not** re-read.
+        """
+        module_name = file_name[:-3]
+        file_path = os.path.join(k.MODULES_LOADED_DIR, file_name)
+        try:
+            if cached_code is not None:
+                code = cached_code
+            else:
                 with open(file_path, encoding="utf-8") as f:
                     code = f.read()
 
-                if _hikka_compat and is_hikka_module(code):
+            if _hikka_compat:
+                from core.lib.loader.hikka_compat import (
+                    is_hikka_module,
+                    load_hikka_module,
+                )
+
+                if is_hikka_module(code):
                     k.set_loading_module(module_name, "user")
                     ok, err, _ = await load_hikka_module(
                         k, os.path.abspath(file_path), module_name
@@ -78,119 +216,118 @@ class UserLoaderMixin:
                     if not ok:
                         k.logger.error(f"Error loading module {file_name}: {err}")
                         k.error_load_modules += 1
-                    continue
+                        k.error_load_modules_name.append(module_name)
+                    return
 
-                await self.pre_install_requirements(code, module_name)
+            # Deps were pre-installed in phase 1; this is now a fast no-op for
+            # most modules.  It still handles any dep that was missed (e.g. a
+            # module added after the initial scan).
+            await self.pre_install_requirements(code, module_name)
 
-                inject_kernel = "def register(kernel):" in code
+            inject_kernel = "def register(kernel):" in code
 
-                spec = importlib.util.spec_from_file_location(module_name, file_path)
-                module = importlib.util.module_from_spec(spec)
+            spec = importlib.util.spec_from_file_location(module_name, file_path)
+            module = importlib.util.module_from_spec(spec)
 
-                from ..loader.kernel_proxy import (
-                    get_module_client,
-                    get_module_kernel,
-                    get_module_register,
-                )
+            from ..loader.kernel_proxy import (
+                get_module_client,
+                get_module_kernel,
+                get_module_register,
+            )
 
-                proxied_kernel = get_module_kernel(k, module_name, is_system=False)
-                module.kernel = proxied_kernel
-                module.client = get_module_client(k, module_name, is_system=False)
-                module.custom_prefix = k.custom_prefix
-                sys.modules[module_name] = module
+            proxied_kernel = get_module_kernel(k, module_name, is_system=False)
+            module.kernel = proxied_kernel
+            module.client = get_module_client(k, module_name, is_system=False)
+            module.custom_prefix = k.custom_prefix
+            sys.modules[module_name] = module
 
-                k.set_loading_module(module_name, "user")
-                module = await self.exec_with_auto_deps(
-                    spec, module, file_path, module_name, code
-                )
+            k.set_loading_module(module_name, "user")
+            module = await self.exec_with_auto_deps(
+                spec, module, file_path, module_name, code
+            )
 
-                if not hasattr(module, "register"):
-                    cls = self._find_module_base_class(module)
-                    if cls is not None:
-                        if not inject_kernel:
-                            # Only set kernel/client if exec_with_auto_deps
-                            # didn't already do it via _build_module
-                            module.kernel = proxied_kernel
-                            module.client = get_module_client(
-                                k, module_name, is_system=False
-                            )
-                            module.custom_prefix = k.custom_prefix
-
-                        instance = cls(
-                            proxied_kernel,
-                            get_module_client(k, module_name, is_system=False),
-                            get_module_register(k, module_name, is_system=False),
+            if not hasattr(module, "register"):
+                cls = self._find_module_base_class(module)
+                if cls is not None:
+                    if not inject_kernel:
+                        module.kernel = proxied_kernel
+                        module.client = get_module_client(
+                            k, module_name, is_system=False
                         )
-                        if not hasattr(k, "_class_module_instances"):
-                            k._class_module_instances = {}
-                        k._class_module_instances[module_name] = instance
-                        module._class_instance = instance
+                        module.custom_prefix = k.custom_prefix
 
-                        class_display_name = getattr(cls, "name", None)
-                        if (
-                            class_display_name
-                            and class_display_name != "Unnamed"
-                            and class_display_name != module_name
-                        ):
+                    instance = cls(
+                        proxied_kernel,
+                        get_module_client(k, module_name, is_system=False),
+                        get_module_register(k, module_name, is_system=False),
+                    )
+                    if not hasattr(k, "_class_module_instances"):
+                        k._class_module_instances = {}
+                    k._class_module_instances[module_name] = instance
+                    module._class_instance = instance
 
-                            old_path = file_path
-                            new_path = os.path.join(
-                                k.MODULES_LOADED_DIR, f"{class_display_name}.py"
-                            )
+                    class_display_name = getattr(cls, "name", None)
+                    if (
+                        class_display_name
+                        and class_display_name != "Unnamed"
+                        and class_display_name != module_name
+                    ):
+                        old_path = file_path
+                        new_path = os.path.join(
+                            k.MODULES_LOADED_DIR, f"{class_display_name}.py"
+                        )
 
-                            if not os.path.exists(new_path):
-                                try:
-                                    os.rename(old_path, new_path)
-                                    k.logger.info(
-                                        f"Renamed module file: {module_name} -> {class_display_name}"
-                                    )
-                                    file_path = new_path
-                                except Exception as e:
-                                    k.logger.warning(
-                                        f"Failed to rename module file: {e}"
-                                    )
-
-                            rename_sys_module = getattr(
-                                self, "_rename_sys_module_entry", None
-                            )
-                            if callable(rename_sys_module):
-                                cast(Callable[..., None], rename_sys_module)(
-                                    module_name, class_display_name, module, file_path
+                        if not os.path.exists(new_path):
+                            try:
+                                os.rename(old_path, new_path)
+                                k.logger.info(
+                                    f"Renamed module file: {module_name} -> {class_display_name}"
                                 )
-                            else:
-                                sys.modules.pop(module_name, None)
-                                sys.modules[class_display_name] = module
+                                file_path = new_path
+                            except Exception as e:
+                                k.logger.warning(f"Failed to rename module file: {e}")
 
-                            module_name = class_display_name
-
-                        k.loaded_modules[module_name] = module
-                        k.logger.info(
-                            f"Module loaded [user class-style]: {module_name}"
+                        rename_sys_module = getattr(
+                            self, "_rename_sys_module_entry", None
                         )
-                        await self.run_post_load(module, module_name, is_install=False)
-                        continue
-                    continue
+                        if callable(rename_sys_module):
+                            cast(Callable[..., None], rename_sys_module)(
+                                module_name, class_display_name, module, file_path
+                            )
+                        else:
+                            sys.modules.pop(module_name, None)
+                            sys.modules[class_display_name] = module
 
-                if inspect.iscoroutinefunction(module.register):
-                    await module.register(proxied_kernel)
-                else:
-                    module.register(proxied_kernel)
+                        module_name = class_display_name
 
-                k.loaded_modules[module_name] = module
-                label = "user" if inject_kernel else "user (legacy style)"
-                k.logger.info(f"Module loaded [{label}]: {module_name}")
-                await self.run_post_load(module, module_name, is_install=False)
+                    k.loaded_modules[module_name] = module
+                    k.logger.info(f"Module loaded [user class-style]: {module_name}")
+                    await self.run_post_load(module, module_name, is_install=False)
+                    return
+                return
 
-            except CommandConflictError as e:
-                k.logger.error(f"Command conflict loading {file_name}: {e}")
-                self._rollback_orphaned_commands(k, module_name)
-                k.error_load_modules += 1
-            except Exception as e:
-                k.logger.error(f"Error loading module {file_name}: {e}")
-                self._rollback_orphaned_commands(k, module_name)
-                k.error_load_modules += 1
-            finally:
-                k.clear_loading_module()
+            if inspect.iscoroutinefunction(module.register):
+                await module.register(proxied_kernel)
+            else:
+                module.register(proxied_kernel)
+
+            k.loaded_modules[module_name] = module
+            label = "user" if inject_kernel else "user (legacy style)"
+            k.logger.info(f"Module loaded [{label}]: {module_name}")
+            await self.run_post_load(module, module_name, is_install=False)
+
+        except CommandConflictError as e:
+            k.logger.error(f"Command conflict loading {file_name}: {e}")
+            self._rollback_orphaned_commands(k, module_name)
+            k.error_load_modules += 1
+            k.error_load_modules_name.append(module_name)
+        except Exception as e:
+            k.logger.error(f"Error loading module {file_name}: {e}")
+            self._rollback_orphaned_commands(k, module_name)
+            k.error_load_modules += 1
+            k.error_load_modules_name.append(module_name)
+        finally:
+            k.clear_loading_module()
 
     async def _load_package_module(
         self, module_name: str, init_file: str, k: Any

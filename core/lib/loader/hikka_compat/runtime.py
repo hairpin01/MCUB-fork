@@ -903,7 +903,7 @@ class _CompatLoaderProxy:
         is_system: bool = False,
         **kwargs,
     ):
-        loader = getattr(self._kernel, "loader", None)
+        loader = getattr(self._kernel, "_loader", None)
         if loader is not None and hasattr(loader, "load_module_from_file"):
             return await loader.load_module_from_file(path, module_name, is_system)
         return (False, "Loader not available")
@@ -1073,6 +1073,8 @@ class _BotProxy:
 
 
 class InlineProxy:
+    MAX_UNITS = 2048  # Soft cap; oldest entry evicted once exceeded.
+
     def __init__(self, kernel):
         self._kernel = kernel
         state = getattr(kernel, "_hikka_compat_inline_state", None)
@@ -1432,7 +1434,22 @@ class InlineProxy:
         return result or None
 
     def _register_unit(self, unit_id: str, payload: dict) -> None:
+        payload["module_name"] = self._module_name
+        if len(self._units) >= self.MAX_UNITS:
+            oldest = next(iter(self._units))
+            self._unload_unit_sync(oldest)
         self._units[unit_id] = payload
+
+    def _unload_unit_sync(self, unit_id: str) -> bool:
+        """Synchronous version of _unload_unit — no await, no callback."""
+        unit = self._units.pop(unit_id, None)
+        if not unit:
+            return False
+        for key in list(self._custom_map):
+            payload = self._custom_map.get(key) or {}
+            if payload.get("unit_id") == unit_id:
+                self._custom_map.pop(key, None)
+        return True
 
     def _find_unit(
         self, *, unit_id=None, chat_id=None, message_id=None, inline_message_id=None

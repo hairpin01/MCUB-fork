@@ -209,16 +209,15 @@ def _watcher_passes_filters(event: Any, tags: dict[str, Any]) -> bool:
 
 
 class Register:
-    """
-    Central registration system for MCUB module handlers.
+    """Central command / watcher / inline / callback / loop registration.
 
-    All handlers registered through this class (commands, events, watchers,
-    loops) are tracked per-module and cleaned up automatically on unload.
-
-    Attributes:
-        kernel: Reference to the main bot kernel.
-        _methods: Internal registry of @method-decorated functions.
+    System and user modules register their behaviour through the single
+    ``kernel.register`` object so the kernel can track ownership, enforce
+    conflict rules, and clean up on module unload.
     """
+
+    # Soft cap — modules with more loops get a warning; loop still works.
+    MAX_LOOPS_PER_MODULE = 5
 
     def __init__(self, kernel: Any) -> None:
         self.kernel = kernel
@@ -436,6 +435,29 @@ class Register:
 
         return decorator
 
+    def _update_module_commands_index(self, cmd: str, owner: str | None) -> None:
+        """Update the reverse module→commands index when a command is registered."""
+        index = getattr(self.kernel, "_module_commands_index", None)
+        if index is None:
+            index = {}
+            self.kernel._module_commands_index = index
+        if owner is None:
+            return
+        if cmd not in index.get(owner, []):
+            index.setdefault(owner, []).append(cmd)
+
+    def _remove_from_module_commands_index(self, cmd: str) -> None:
+        """Remove *cmd* from the reverse module→commands index."""
+        index = getattr(self.kernel, "_module_commands_index", None)
+        if index is None:
+            return
+        for owner, cmds in list(index.items()):
+            if cmd in cmds:
+                cmds.remove(cmd)
+                if not cmds:
+                    del index[owner]
+                return
+
     def command(self, pattern: str, **kwargs: Any) -> Callable:
         """
         Register a userbot command triggered by the custom prefix.
@@ -485,6 +507,7 @@ class Register:
 
             self.kernel.command_handlers[cmd] = func
             self.kernel.command_owners[cmd] = self.kernel.current_loading_module
+            self._update_module_commands_index(cmd, self.kernel.current_loading_module)
             self.kernel.logger.debug(
                 "[register.command] registered cmd=%r owner=%r handler=%r total=%d",
                 cmd,
@@ -886,6 +909,14 @@ class Register:
             if module:
                 reg = self._get_or_create_register(module)
                 loops: list[InfiniteLoop] = self._ensure_list(reg, "__loops__")
+                if len(loops) >= self.MAX_LOOPS_PER_MODULE:
+                    self.kernel.logger.warning(
+                        "[register.loop] max loops (%d) reached for module, "
+                        "skipping %r",
+                        self.MAX_LOOPS_PER_MODULE,
+                        getattr(raw_func, "__name__", repr(raw_func)),
+                    )
+                    return il
                 # Check for duplicate loop by checking function identity
                 for existing_loop in loops:
                     if getattr(existing_loop, "func", None) is loop_caller:
@@ -1197,6 +1228,7 @@ class Register:
             del self.kernel.command_handlers[cmd]
             self.kernel.command_owners.pop(cmd, None)
             self.kernel.command_metadata.pop(cmd, None)
+            self._remove_from_module_commands_index(cmd)
 
             for alias, target in list(self.kernel.aliases.items()):
                 if target == cmd:

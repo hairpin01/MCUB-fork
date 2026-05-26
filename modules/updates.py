@@ -29,7 +29,7 @@ class UpdatesMod(loader.ModuleBase):
         """Return a localized string without confusing static analyzers."""
         return self._get_strings()(key, **kwargs)
 
-    async def on_load(self):
+    async def on_load(self) -> None:
         self.emojis = [
             "ಠ_ಠ",
             "( ཀ ʖ̯ ཀ)",
@@ -41,10 +41,12 @@ class UpdatesMod(loader.ModuleBase):
             "(☞ﾟヮﾟ)☞",
             "ʕ•ᴥ•ʔ",
             "(づ￣ ³￣)づ",
+            ">_<",
+            "0_o",
         ]
 
         self.PREMIUM_EMOJI = {
-            "telescope": '<tg-emoji emoji-id="5334904192622403796">🔭</tg-emoji>',
+            "telescope": '<tg-emoji emoji-id="5310041868191407556">🔭</tg-emoji>',
             "alembic": '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>',
             "package": '<tg-emoji emoji-id="5399898266265475100">📦</tg-emoji>',
         }
@@ -59,7 +61,7 @@ class UpdatesMod(loader.ModuleBase):
         return mcub_emoji
 
     @loader.command("restart", doc_en="restart userbot", doc_ru="пepeзaпycтить юзepбoт")
-    async def restart_handler(self, event: events.NewMessage.Event):
+    async def restart_handler(self, event: events.NewMessage.Event) -> None:
         thread_id = None
         if event.reply_to:
             thread_id = getattr(event.reply_to, "reply_to_top_id", None) or getattr(
@@ -67,7 +69,7 @@ class UpdatesMod(loader.ModuleBase):
             )
 
         msg = await event.edit(
-            f"{self.PREMIUM_EMOJI['telescope']} <i>{self._s('restarting').format(mcub=await self.mcub_handler())}</i>",
+            f"<blockquote>{self.PREMIUM_EMOJI['telescope']} <i>{self._s('restarting').format(mcub=await self.mcub_handler())}</i></blockquote>",
             parse_mode="html",
         )
         await restart_kernel(

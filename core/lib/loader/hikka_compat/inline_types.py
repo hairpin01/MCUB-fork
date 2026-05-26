@@ -77,6 +77,9 @@ class CompatCallbackQuery:
         return getattr(self._event, name)
 
     async def edit(self, *args, **kwargs):
+        if "parse_mode" not in kwargs:
+            kwargs["parse_mode"] = "html"
+
         _normalize_edit_reply_markup(kwargs, self._inline_proxy)
         edit_unit = getattr(self._inline_proxy, "_edit_unit", None)
         if callable(edit_unit) and (self.unit_id or self.inline_message_id):

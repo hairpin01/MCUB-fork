@@ -181,6 +181,7 @@ class Kernel:
         self.inline_handlers_owners: dict = {}
         self.callback_handlers: dict = {}
         self.aliases: dict = {}
+        self._module_commands_index: dict = {}
 
         # Module source tracking: {module_name: {"url": str, "repo": str or None}}
         self._module_sources: dict = {}

@@ -44,32 +44,42 @@ class InlineManager:
         self._setup_temp_callback_handler()
         self.k.logger.debug("[InlineManager] __init__ done")
         self.s = Strings(self.k, {"name": "kernel"})
+        # Periodic cleanup counter: purge at most once every N operations
+        self._cleanup_counter = 0
+        self._cleanup_interval = 10  # every 10th put/get
 
-    def _purge_expired_sessions(self) -> None:
+    def _purge_expired_sessions(self, force: bool = False) -> None:
+        """Remove expired sessions.  Runs at most every *cleanup_interval*
+        calls unless *force* is True."""
+        if not force:
+            self._cleanup_counter += 1
+            if self._cleanup_counter < self._cleanup_interval:
+                return
+            self._cleanup_counter = 0
         now = time.monotonic()
         expired = [k for k, v in self._sessions.items() if v.expires_at <= now]
         for k in expired:
             self._sessions.pop(k, None)
 
     def _session_put(self, key: str, data: dict[str, Any], ttl: int) -> None:
-        self.k.logger.debug(f"[InlineManager] _session_put key={key} ttl={ttl}")
+        self.k.logger.debug("[InlineManager] _session_put key=%s ttl=%d", key, ttl)
         self._purge_expired_sessions()
         self._sessions[key] = _Session(
             expires_at=time.monotonic() + max(int(ttl), 1),
             data=data,
         )
-        self.k.logger.debug(f"[InlineManager] _session_put done key={key}")
+        self.k.logger.debug("[InlineManager] _session_put done key=%s", key)
 
     def _session_get(self, key: str, *, pop: bool = False) -> dict[str, Any] | None:
-        self.k.logger.debug(f"[InlineManager] _session_get key={key} pop={pop}")
+        self.k.logger.debug("[InlineManager] _session_get key=%s pop=%s", key, pop)
         self._purge_expired_sessions()
         session = self._sessions.get(key)
         if not session:
-            self.k.logger.debug(f"[InlineManager] _session_get miss key={key}")
+            self.k.logger.debug("[InlineManager] _session_get miss key=%s", key)
             return None
         if pop:
             self._sessions.pop(key, None)
-            self.k.logger.debug(f"[InlineManager] _session_get pop key={key}")
+            self.k.logger.debug("[InlineManager] _session_get pop key=%s", key)
         return session.data
 
     @staticmethod

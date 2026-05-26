@@ -13,6 +13,19 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+try:
+    from core.lib.utils.colors import Colors as _C
+except ImportError:
+
+    class _C:  # bare fallback if colors not available yet
+        RESET = BOLD = BRIGHT_GREEN = BRIGHT_RED = YELLOW = CYAN = MUTED = (
+            BRIGHT_WHITE
+        ) = ""
+
+        @staticmethod
+        def paint(t, *_):
+            return t
+
 
 def _get_available_cores():
     """Return list of available kernel cores."""
@@ -40,17 +53,22 @@ def _get_default_core() -> str | None:
 def _set_default_core(core: str) -> None:
     """Persist *core* as the default for future launches."""
     _DEFAULT_CORE_FILE.write_text(core)
-    print(f"✓  Default core set to: {core!r}", flush=True)
-    print(f"   (saved to -> {_DEFAULT_CORE_FILE})", flush=True)
+    print(
+        f"{_C.BRIGHT_GREEN}{_C.BOLD}✓  Default core set to:{_C.RESET} {_C.BRIGHT_WHITE}{core!r}{_C.RESET}",
+        flush=True,
+    )
+    print(f"{_C.MUTED}   (saved to -> {_DEFAULT_CORE_FILE}){_C.RESET}", flush=True)
 
 
 def _clear_default_core() -> None:
     """Remove the saved default core."""
     if _DEFAULT_CORE_FILE.exists():
         _DEFAULT_CORE_FILE.unlink()
-        print("✓  Default core cleared", flush=True)
+        print(
+            f"{_C.BRIGHT_GREEN}{_C.BOLD}✓  Default core cleared{_C.RESET}", flush=True
+        )
     else:
-        print("  No default core was set", flush=True)
+        print(f"{_C.MUTED}  No default core was set{_C.RESET}", flush=True)
 
 
 def _parse_args():
@@ -117,11 +135,21 @@ async def _main() -> None:
     if args.set_default_core:
         core = args.set_default_core
         if not available_cores:
-            print("Error: No kernel cores found!", flush=True)
+            print(
+                f"{_C.BRIGHT_RED}{_C.BOLD}Error:{_C.RESET}{_C.BRIGHT_RED} No kernel cores found!{_C.RESET}",
+                flush=True,
+            )
             sys.exit(1)
         if core not in available_cores:
-            print(f"Error: Core '{core}' not found.", flush=True)
-            print(f"Available: {', '.join(available_cores)}", flush=True)
+            print(
+                f"{_C.BRIGHT_RED}{_C.BOLD}Error:{_C.RESET}{_C.BRIGHT_RED} Core '{core}' not found.{_C.RESET}",
+                flush=True,
+            )
+            print(
+                f"{_C.MUTED}Available: {_C.RESET}"
+                + _C.paint(", ".join(available_cores), _C.CYAN),
+                flush=True,
+            )
             sys.exit(1)
         _set_default_core(core)
         sys.exit(0)
@@ -139,7 +167,11 @@ async def _main() -> None:
         elif len(available_cores) == 1:
             selected_core = available_cores[0]
         else:
-            print(f"Available cores: {', '.join(available_cores)}", flush=True)
+            print(
+                f"{_C.MUTED}Available cores: {_C.RESET}"
+                + _C.paint(", ".join(available_cores), _C.CYAN),
+                flush=True,
+            )
             print(
                 "Tip: --set-default-core <n> to skip this prompt next time", flush=True
             )
@@ -149,11 +181,21 @@ async def _main() -> None:
             selected_core = answer or saved or available_cores[0]
 
     if selected_core not in available_cores:
-        print(f"Error: Kernel: '{selected_core}' not found!", flush=True)
-        print(f"Available: {', '.join(available_cores)}", flush=True)
+        print(
+            f"{_C.BRIGHT_RED}{_C.BOLD}Error:{_C.RESET}{_C.BRIGHT_RED} Kernel: '{selected_core}' not found!{_C.RESET}",
+            flush=True,
+        )
+        print(
+            f"{_C.MUTED}Available: {_C.RESET}"
+            + _C.paint(", ".join(available_cores), _C.CYAN),
+            flush=True,
+        )
         sys.exit(1)
 
-    print(f"=> Kernel Load: kernel.{selected_core}()", flush=True)
+    print(
+        f"\n{_C.MUTED}=>{_C.RESET} Kernel Load: {_C.BRIGHT_WHITE}{_C.BOLD}kernel.{selected_core}(){_C.RESET}\n",
+        flush=True,
+    )
 
     from importlib import import_module
 
@@ -177,7 +219,7 @@ if __name__ == "__main__":
     try:
         asyncio.run(_main())
     except KeyboardInterrupt:
-        print("\n-> exit kernel…", flush=True)
+        print(f"\n{_C.MUTED}-> exit kernel…{_C.RESET}", flush=True)
 
 
 def main() -> None:
@@ -187,4 +229,4 @@ def main() -> None:
     try:
         asyncio.run(_main())
     except KeyboardInterrupt:
-        print("\n-> exit kernel…", flush=True)
+        print(f"\n{_C.MUTED}-> exit kernel…{_C.RESET}", flush=True)

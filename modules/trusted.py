@@ -94,6 +94,7 @@ ACCESS_CATEGORIES = {
             "nonickuser",
             "nonickusers",
             "trustaccess",
+            "teaser",
         ],
     },
     "system": {

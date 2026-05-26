@@ -46,11 +46,9 @@ class Kernel(_StandardKernel):
         try:
             await self.init_db()
         except ImportError:
-            self.cprint(
-                f"{self.Colors.YELLOW}Install: pip install aiosqlite{self.Colors.RESET}"
-            )
+            self.cprint("⚠  Install: pip install aiosqlite", self.Colors.YELLOW)
         except Exception as e:
-            self.cprint(f"{self.Colors.RED}=X DB init error: {e}{self.Colors.RESET}")
+            self.cprint(f"=X DB init error: {e}", self.Colors.BRIGHT_RED)
             await self.log_error_async(f"DB init error: {e}")
 
         if self.config.get("inline_bot_token"):
@@ -155,17 +153,35 @@ class Kernel(_StandardKernel):
         await self.load_user_modules()
         modules_end = time.time()
 
-        logo = (
-            f"\n ___  ___ ___ _  _ ___ \n"
-            f"| \\/ |_ _| _ \\ || |_ _|\n"
-            f"| |\\/| || ||  / __ || | \n"
-            f"|_|  |_|___|_|_|_||_|___|\n"
-            f"Mini kernel loaded.\n\n"
+        _mini_art = (
+            " ___  ___ ___ _  _ ___ \n"
+            "| \\/ |_ _| _ \\ || |_ _|\n"
+            "| |\\/| || ||  / __ || | \n"
+            "|_|  |_|___|_|_|_||_|___|"
+        )
+        _mini_info = (
+            f"\nMini kernel loaded.\n\n"
             f"• Version:  {self.VERSION}\n"
             f"• Prefix:   {self.custom_prefix}\n"
         )
-        if self.error_load_modules:
-            logo += f"• Module load errors: {self.error_load_modules}\n"
+        _mini_err = (
+            self.Colors.paint(
+                f"• Module load errors: {self.error_load_modules}\n",
+                self.Colors.BOLD,
+                self.Colors.BRIGHT_RED,
+            )
+            if self.error_load_modules
+            else ""
+        )
+        logo = (
+            "\n"
+            + self.Colors.gradient_multicolor(
+                _mini_art + _mini_info,
+                [(200, 0, 0), (230, 60, 0), (255, 140, 0), (220, 220, 220)],
+                bold=True,
+            )
+            + _mini_err
+        )
         print(logo)
         self.logger.info("Start MCUB Mini!")
         del logo

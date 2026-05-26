@@ -46,6 +46,9 @@ class DatabaseManager:
         self.kernel = kernel
         self.conn = None
         self.logger = kernel.logger
+        # Write-through cache for db_get: { "module:key": value }
+        # Cleared on any db_set/db_delete for the same module:key.
+        self._get_cache: dict[str, str | None] = {}
 
     def _resolve_db_file(self) -> str:
         """Resolve database path from kernel settings with a safe fallback."""
@@ -194,7 +197,7 @@ class DatabaseManager:
         return re.sub(r"[^a-zA-Z0-9_.\-:]+", "_", value)
 
     async def db_set(self, module: str, key: str, value: Any):
-        """Save value for a module key."""
+        """Save value for a module key (write-through cache invalidate)."""
         self.logger.debug(f"[DB] db_set module={module} key={key}")
         if not self.conn:
             raise RuntimeError("Database is not initialized")
@@ -209,10 +212,11 @@ class DatabaseManager:
             (module, key, str(value)),
         )
         await self.conn.commit()
+        self._get_cache.pop(f"{module}:{key}", None)
         self.logger.debug("[DB] db_set done")
 
     async def db_get(self, module: str, key: str) -> str | None:
-        """Get value for a module key."""
+        """Get value for a module key (cached)."""
         self.logger.debug(f"[DB] db_get module={module} key={key}")
         if not self.conn:
             raise RuntimeError("Database is not initialized")
@@ -222,17 +226,24 @@ class DatabaseManager:
                 "Invalid module or key name. Use only alphanumeric and underscore."
             )
 
+        cache_key = f"{module}:{key}"
+        cached = self._get_cache.get(cache_key, ...)
+        if cached is not ...:
+            self.logger.debug(f"[DB] db_get cache-hit key={cache_key}")
+            return cached
+
         cursor = await self.conn.execute(
             "SELECT value FROM module_data WHERE module = ? AND key = ?", (module, key)
         )
         row = await cursor.fetchone()
         await cursor.close()
         result = row[0] if row else None
+        self._get_cache[cache_key] = result
         self.logger.debug(f"[DB] db_get result={'found' if result else 'none'}")
         return result
 
     async def db_delete(self, module: str, key: str):
-        """Delete key from module storage."""
+        """Delete key from module storage (write-through cache invalidate)."""
         if not self.conn:
             raise RuntimeError("Database is not initialized")
 
@@ -245,6 +256,7 @@ class DatabaseManager:
             "DELETE FROM module_data WHERE module = ? AND key = ?", (module, key)
         )
         await self.conn.commit()
+        self._get_cache.pop(f"{module}:{key}", None)
 
     async def db_query(self, query: str, parameters: tuple = ()):
         """Execute custom SQL query (SELECT/PRAGMA/EXPLAIN only)."""

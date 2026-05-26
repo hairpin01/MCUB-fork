@@ -75,6 +75,11 @@ class ModuleUnloaderMixin:
                 module_name,
             )
 
+        # Clean sys.modules stale entries on every unload
+        _purge = getattr(self, "_purge_stale_loaded_module_entries", None)
+        if callable(_purge):
+            _purge()
+
         if module is not None:
             if reg is None:
                 k.logger.debug(

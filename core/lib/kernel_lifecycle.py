@@ -13,6 +13,7 @@ import os
 import time
 import traceback
 from typing import Any
+import secrets
 
 try:
     from utils.html_parser import HTML_PARSER_AVAILABLE
@@ -21,6 +22,7 @@ except ImportError:
 from telethon import events, install_uvloop
 
 from core.lib.loader.kernel_proxy import wrap_event_for_module
+from core.lib.utils import purge_caches
 from core.lib.utils.colors import Colors
 from core.lib.utils.logger import KernelLogger, setup_telegram_logging
 from utils.restart import read_restart_context
@@ -208,16 +210,30 @@ class KernelLifecycleMixin:
                 restart_chat_id = restart_ctx.chat_id
                 restart_msg_id = restart_ctx.message_id
                 restart_time = restart_ctx.timestamp
+                emojis = [
+                    "ಠ_ಠ",
+                    "( ཀ ʖ̯ ཀ)",
+                    "(◕‿◕✿)",
+                    "(つ･･)つ",
+                    "༼つ◕_◕༽つ",
+                    "(•_•)",
+                    "☜(ﾟヮﾟ☜)",
+                    "(☞ﾟヮﾟ)☞",
+                    "ʕ•ᴥ•ʔ",
+                    "(づ￣ ³￣)づ",
+                    ">_<",
+                    "0_o",
+                ]
 
-                em_alembic = '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>'
-                emoji = "(*.*)"
+                em_alembic = '<tg-emoji emoji-id="5310041868191407556">🔭</tg-emoji>'
+                emoji = secrets.choice(emojis)
                 total_ms = round(time.time() - restart_time, 2) if restart_time else 0
 
                 await self.client.edit_message(
                     restart_chat_id,
                     restart_msg_id,
-                    f"{em_alembic} {strings('success')} {emoji}\n"
-                    f"<i>{strings('loading')}</i> <b>Kernel boot:</b><code> {total_ms} </code>s",
+                    f"<blockquote>{em_alembic} <b>{strings('success')}</b> <i>{emoji}</i></blockquote>\n"
+                    f"<blockquote><i>{strings('loading')}</i> <b>Kernel boot:</b><code> {total_ms} </code>s</blockquote>",
                     parse_mode="html",
                 )
             except Exception:
@@ -270,22 +286,119 @@ class KernelLifecycleMixin:
                                 f"Could not edit error message: {edit_err}"
                             )
 
-        logo = (
-            f"\n _    _  ____ _   _ ____\n"
-            f"| \\  / |/ ___| | | | __ )\n"
-            f"| |\\/| | |   | | | |  _ \\\n"
-            f"| |  | | |___| |_| | |_) |\n"
-            f"|_|  |_|\\____|\\___/|____/\n"
-            f"Kernel loaded.\n\n"
+        _logo_art = (
+            " _    _  ____ _   _ ____\n"
+            "| \\  / |/ ___| | | | __ )\n"
+            "| |\\/| | |   | | | |  _ \\\n"
+            "| |  | | |___| |_| | |_) |\n"
+            "|_|  |_|\\____|\\___/|____/"
+        )
+        _info = (
+            f"\nKernel loaded.\n\n"
             f"• Version: {self.VERSION}\n"
             f"• Prefix: {self.custom_prefix}\n"
         )
-        if self.error_load_modules:
-            logo += f"• Module load errors: {self.error_load_modules}\n"
+        if getattr(self, "error_load_modules_name", False):
+            modules_items = "\n".join(
+                f"- {name}" for name in self.error_load_modules_name
+            )
+        else:
+            modules_items = None
+
+        _errors = (
+            Colors.paint(
+                f"• Module load errors: {self.error_load_modules}\n" f"{modules_items}",
+                Colors.BOLD,
+                Colors.BRIGHT_RED,
+            )
+            if self.error_load_modules
+            else ""
+        )
+        logo = (
+            "\n"
+            + Colors.gradient_multicolor(
+                _logo_art + _info,
+                [(200, 0, 0), (230, 60, 0), (255, 140, 0), (220, 220, 220)],
+                bold=True,
+            )
+            + _errors
+        )
         print(logo)
         self.logger.info("Start MCUB!")
         del logo
         self.load_kernel = "full"
+
+        async def _memory_monitor():
+            """Periodically check RSS vs total RAM and purge caches when memory is high."""
+            CHECK_INTERVAL = 30
+            PCT_L1 = 0.55  # 55% → L1
+            PCT_L2 = 0.70  # 70% → L2
+            PCT_L3 = 0.85  # 85% → L3
+            RSS_L1 = 600 * 1024 * 1024  # 600 MB absolute → L1
+            RSS_L2 = 1200 * 1024 * 1024  # 1.2 GB absolute → L2
+            RSS_L3 = 2000 * 1024 * 1024  # 2.0 GB absolute → L3
+
+            def _read_rss_no_psutil():
+                try:
+                    with open("/proc/self/statm") as f:
+                        pages = int(f.read().split()[1])
+                        return pages * 4096
+                except Exception:
+                    return None
+
+            _psutil = None
+            try:
+                import psutil as _psutil
+            except ImportError:
+                self.logger.info(
+                    "[memmon] psutil not available — using /proc/self/statm"
+                )
+
+            while not self.shutdown_flag:
+                try:
+                    if _psutil is not None:
+                        proc = _psutil.Process()
+                        rss = proc.memory_info().rss
+                    else:
+                        rss = _read_rss_no_psutil()
+                    if rss is None:
+                        await asyncio.sleep(CHECK_INTERVAL)
+                        continue
+
+                    if _psutil is not None:
+                        total = _psutil.virtual_memory().total
+                        ratio = rss / total if total > 0 else 0.0
+                    else:
+                        ratio = 0.0
+
+                    if ratio >= PCT_L3 or rss >= RSS_L3:
+                        level = 3
+                    elif ratio >= PCT_L2 or rss >= RSS_L2:
+                        level = 2
+                    elif ratio >= PCT_L1 or rss >= RSS_L1:
+                        level = 1
+                    else:
+                        level = 0
+
+                    if level:
+                        result = purge_caches(self, level=level)
+                        cleared = result.get("cleared", [])
+                        self.logger.info(
+                            "[memmon] RSS %.0f MB (%.1f%%) — " "purge level %d: %s",
+                            rss / 1024 / 1024,
+                            ratio * 100,
+                            level,
+                            ", ".join(cleared) if cleared else "nothing",
+                        )
+                except Exception as exc:
+                    self.logger.debug("[memmon] check error: %s", exc)
+
+                try:
+                    await asyncio.sleep(CHECK_INTERVAL)
+                except asyncio.CancelledError:
+                    break
+
+        self._memory_monitor_task = asyncio.create_task(_memory_monitor())
 
         if os.path.exists(self.RESTART_FILE):
             await self._handle_restart_notification(modules_start, modules_end)
@@ -347,6 +460,13 @@ class KernelLifecycleMixin:
             self._connection_monitor.cancel()
             try:
                 await self._connection_monitor
+            except asyncio.CancelledError:
+                pass
+
+        if hasattr(self, "_memory_monitor_task") and self._memory_monitor_task:
+            self._memory_monitor_task.cancel()
+            try:
+                await self._memory_monitor_task
             except asyncio.CancelledError:
                 pass
 
@@ -414,6 +534,7 @@ class KernelLifecycleMixin:
 
             em_package = '<tg-emoji emoji-id="5399898266265475100">📦</tg-emoji>'
             em_error = '<tg-emoji emoji-id="5208923808169222461">🥀</tg-emoji>'
+            em_items = '<tg-emoji emoji-id="5375106250449100282">🧳</tg-emoji>'
 
             kernel_s = round(modules_start - restart_time, 2)
             mod_s = round(modules_end - modules_start, 2)
@@ -431,10 +552,16 @@ class KernelLifecycleMixin:
                         f"<b>Modules:</b><code> {mod_s} </code>s.</blockquote>"
                     )
                 else:
+                    modules_items = "\n".join(
+                        f"{em_items} <code>{name}</code>"
+                        for name in self.error_load_modules_name
+                    )
                     msg_text = (
                         f"{em_error} {s('errors', mcub=mcub)}\n"
                         f"<blockquote><b>Kernel:</b><code> {kernel_s} </code>s. "
-                        f"<b>Modules Error:</b><code> {int(self.error_load_modules)} </code>s.</blockquote>"
+                        f"<b>Modules Error:</b><code> {int(self.error_load_modules)}</code></blockquote>"
+                        f"<b>{s('modules_not_loaded')}</b>\n"
+                        f"<blockquote expandable>{modules_items}</blockquote>"
                     )
 
                 try:

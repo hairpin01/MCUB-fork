@@ -64,11 +64,9 @@ class Kernel(_StandardKernel):
         try:
             await self.init_db()
         except ImportError:
-            self.cprint(
-                f"{self.Colors.YELLOW}Install: pip install aiosqlite{self.Colors.RESET}"
-            )
+            self.cprint("⚠  Install: pip install aiosqlite", self.Colors.YELLOW)
         except Exception as e:
-            self.cprint(f"{self.Colors.RED}=X DB init error: {e}{self.Colors.RESET}")
+            self.cprint(f"=X DB init error: {e}", self.Colors.BRIGHT_RED)
             await self.log_error_async(f"DB init error: {e}")
 
         from ..lib.utils.logger import KernelLogger, setup_telegram_logging
@@ -92,18 +90,36 @@ class Kernel(_StandardKernel):
 
         me = await self.client.get_me()
         bot_name = getattr(me, "username", None) or getattr(me, "first_name", "bot")
-        logo = (
-            f"\n ___  ___ _____   _  _____ ___ _  _ ___ _    \n"
-            f"| _ )/ _ \\_   _| | |/ / __| _ \\ \\| | __| |   \n"
-            f"| _ \\ (_) || |   | ' <| _||   / .` | _|| |__ \n"
-            f"|___/\\___/ |_|   |_|\\_\\___|_|_\\_|\\_|___|____|\n"
-            f"Bot kernel loaded.\n\n"
+        _bot_art = (
+            " ___  ___ _____   _  _____ ___ _  _ ___ _    \n"
+            "| _ )/ _ \\_   _| | |/ / __| _ \\ \\| | __| |   \n"
+            "| _ \\ (_) || |   | ' <| _||   / .` | _|| |__ \n"
+            "|___/\\___/ |_|   |_|\\_\\___|_|_\\_|\\_|___|____|"
+        )
+        _bot_info = (
+            f"\nBot kernel loaded.\n\n"
             f"• Bot:      @{bot_name}\n"
             f"• Version:  {self.VERSION}\n"
             f"• Prefix:   {self.custom_prefix}\n"
         )
-        if self.error_load_modules:
-            logo += f"• Module load errors: {self.error_load_modules}\n"
+        _bot_err = (
+            self.Colors.paint(
+                f"• Module load errors: {self.error_load_modules}\n",
+                self.Colors.BOLD,
+                self.Colors.BRIGHT_RED,
+            )
+            if self.error_load_modules
+            else ""
+        )
+        logo = (
+            "\n"
+            + self.Colors.gradient_multicolor(
+                _bot_art + _bot_info,
+                [(200, 0, 0), (230, 60, 0), (255, 140, 0), (220, 220, 220)],
+                bold=True,
+            )
+            + _bot_err
+        )
         print(logo)
         self.logger.info("Start MCUB Bot!")
         del logo

@@ -19,7 +19,7 @@ try:
     from core.lib.utils.exceptions import McubTelethonError
 except Exception as e:
     tb = traceback.format_exc()
-    print(f"E: {e}\n>: {tb}")
+    print(f"\033[91m\033[1mE:\033[0m\033[91m {e}\n\033[2m>: {tb}\033[0m")
     sys.exit(104)
 
 try:
@@ -55,7 +55,9 @@ try:
     from ..version import VERSION, VersionManager
 except Exception as error_module:
     tb = traceback.format_exc()
-    print(f"⚠️, Error loaded lib modules!\n🔎, {error_module}!\n🗓, {tb}")
+    print(
+        f"\033[91m\033[1m⚠️  Error loaded lib modules!\033[0m\n\033[93m🔎  {error_module}\033[0m\n\033[2m🗓  {tb}\033[0m"
+    )
     sys.exit(105)
 
 try:
@@ -69,7 +71,7 @@ try:
 
     HTML_PARSER_AVAILABLE = True
 except ImportError as e:
-    print(f"=X HTML parser not loaded: {e}")
+    print(f"\033[93m=X HTML parser not loaded:\033[0m {e}")
     HTML_PARSER_AVAILABLE = False
 
 try:
@@ -113,6 +115,7 @@ class KernelCoreMixin:
         self.inline_handlers_owners = {}
         self.callback_handlers = {}
         self.aliases = {}
+        self._module_commands_index = {}
         self._pipe_vars = {}
         self._pipe_macros = {}
 
@@ -138,6 +141,7 @@ class KernelCoreMixin:
         self.shutdown_flag = False
         self.power_save_mode = False
         self.error_load_modules = 0
+        self.error_load_modules_name = []
         self.load_kernel = "kernel"
         self.current_loading_module = None
         self.current_loading_module_type = None
@@ -277,7 +281,9 @@ class KernelCoreMixin:
             return
 
         for _, mod in missing:
-            print(f"No module named '{mod}'")
+            print(
+                f"  {Colors.BRIGHT_RED}✗  No module named {Colors.BOLD}'{mod}'{Colors.RESET}"
+            )
 
         print()
 
@@ -327,9 +333,16 @@ class KernelCoreMixin:
             if not ok:
                 _stop.set()
                 t.join(timeout=1)
-                print(f"\n✗  pip failed for '{pip_name}':")
+                print(
+                    f"\n{Colors.BRIGHT_RED}{Colors.BOLD}✗  pip failed for '{pip_name}':{Colors.RESET}"
+                )
                 if last_err:
-                    print("   " + last_err.replace("\n", "\n   "))
+                    print(
+                        Colors.MUTED
+                        + "   "
+                        + last_err.replace("\n", "\n   ")
+                        + Colors.RESET
+                    )
                 _stop.clear()
                 thread2 = threading.Thread(target=_spin, daemon=True)
                 thread2.start()
@@ -340,11 +353,19 @@ class KernelCoreMixin:
         t.join(timeout=1)
 
         if failed:
-            print(f"✗  Failed to install: {', '.join(failed)}")
-            print("   Run manually:  pip install " + " ".join(failed))
+            print(
+                f"{Colors.BRIGHT_RED}{Colors.BOLD}✗  Failed to install: {', '.join(failed)}{Colors.RESET}"
+            )
+            print(
+                f"{Colors.YELLOW}   Run manually:  pip install {Colors.BOLD}"
+                + " ".join(failed)
+                + Colors.RESET
+            )
             sys.exit(1)
 
-        print("✓  Dependencies installed\n")
+        print(
+            f"{Colors.BRIGHT_GREEN}{Colors.BOLD}✓  Dependencies installed{Colors.RESET}\n"
+        )
 
     def cprint(self, text: str, color: str = "") -> None:
         """Print text wrapped in color and reset."""

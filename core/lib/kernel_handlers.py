@@ -6,6 +6,7 @@
 # --- meta data end ---------------------------------
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -77,7 +78,17 @@ class KernelHandlersMixin:
         return removed
 
     def ensure_core_message_handlers(self, reason: str = "manual") -> None:
-        """Re-register core outgoing command handlers if they disappeared."""
+        """Re-register core outgoing command handlers if they disappeared.
+
+        Debounced: ignores calls more frequent than 1 second apart.
+        """
+        now = time.time()
+        last = getattr(self, "_core_handlers_last_call", 0.0)
+        if now - last < 1.0:
+            self.logger.debug("[core_handlers] debounce reason=%r", reason)
+            return
+        self._core_handlers_last_call = now
+
         if not getattr(self, "client", None):
             self.logger.debug("[core_handlers] skip reason=%r missing-client", reason)
             return

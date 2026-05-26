@@ -28,6 +28,16 @@ class ModuleDetectorMixin:
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
+        # Cache for detect_module_type results: {module_name: type_str}
+        # Cleared on module reload/unload
+        self._module_type_cache: dict[str, str] = {}
+
+    def _clear_module_type_cache(self, module_name: str | None = None) -> None:
+        """Invalidate type cache for *module_name* or all if None."""
+        if module_name:
+            self._module_type_cache.pop(module_name, None)
+        else:
+            self._module_type_cache.clear()
 
     def _build_module(
         self, spec, file_path: str, module_name: str, *, is_system: bool = False
@@ -82,14 +92,26 @@ class ModuleDetectorMixin:
     async def detect_module_type(self, module) -> str:
         """Detect the registration pattern used by a module.
 
+        Results are cached per module name — call
+        ``_clear_module_type_cache()`` to invalidate on reload/unload.
+
         Returns:
             'class' | 'method' | 'new' | 'old' | 'none'
         """
-        self.k.logger.debug(
-            f"[Loader] detect_module_type start module={getattr(module, '__name__', 'unknown')}"
-        )
+        module_name = getattr(module, "__name__", "unknown")
+        cached = self._module_type_cache.get(module_name)
+        if cached is not None:
+            self.k.logger.debug(
+                "[Loader] detect_module_type cache-hit module=%r result=%r",
+                module_name,
+                cached,
+            )
+            return cached
+
+        self.k.logger.debug("[Loader] detect_module_type start module=%r", module_name)
 
         if self._find_module_base_class(module) is not None:
+            self._module_type_cache[module_name] = "class"
             self.k.logger.debug("[Loader] detect_module_type result=class")
             return "class"
 
@@ -97,21 +119,26 @@ class ModuleDetectorMixin:
             self.k.logger.debug(
                 "[Loader] detect_module_type result=none (no register attr)"
             )
+            self._module_type_cache[module_name] = "none"
             return "none"
 
         if self._iter_register_methods(module.register):
             self.k.logger.debug("[Loader] detect_module_type result=method")
+            self._module_type_cache[module_name] = "method"
             return "method"
 
         param_name = self._get_register_param_name(module.register)
         if param_name == "kernel":
             self.k.logger.debug("[Loader] detect_module_type result=new")
+            self._module_type_cache[module_name] = "new"
             return "new"
         if param_name is not None:
             self.k.logger.debug("[Loader] detect_module_type result=old")
+            self._module_type_cache[module_name] = "old"
             return "old"
 
         self.k.logger.debug("[Loader] detect_module_type result=none")
+        self._module_type_cache[module_name] = "none"
         return "none"
 
     async def register_module(

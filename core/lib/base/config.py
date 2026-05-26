@@ -8,6 +8,7 @@ import sys
 from typing import TYPE_CHECKING, Any
 
 from utils.security import ensure_locked_after_write
+from core.lib.utils.colors import Colors as _C
 
 if TYPE_CHECKING:
     from kernel import Kernel
@@ -215,7 +216,9 @@ class ConfigManager:
                 errors = self._validate_config(k.config)
                 if errors:
                     for err in errors:
-                        print(f"ERROR: {err}")
+                        print(
+                            f"{_C.BRIGHT_RED}{_C.BOLD}ERROR:{_C.RESET} {_C.BRIGHT_RED}{err}{_C.RESET}"
+                        )
                     return False
                 if logger:
                     logger.debug("Config created from environment variables")
@@ -254,10 +257,12 @@ class ConfigManager:
 
                     self._save_backup(k.config)
                     self._previous_config = k.config.copy()
-                    print("Config restored from backup")
+                    print(
+                        f"{_C.BRIGHT_GREEN}{_C.BOLD}✓  Config restored from backup{_C.RESET}"
+                    )
                     return True
 
-            print(f"Error reading config.json: {e}")
+            print(f"{_C.BRIGHT_RED}Error reading config.json:{_C.RESET} {e}")
             return False
 
         if logger:
@@ -289,7 +294,9 @@ class ConfigManager:
             return True
 
         for err in errors:
-            print(f"ERROR: {err}")
+            print(
+                f"{_C.BRIGHT_RED}{_C.BOLD}ERROR:{_C.RESET} {_C.BRIGHT_RED}{err}{_C.RESET}"
+            )
         if logger:
             logger.debug("[Config] load_or_create failed - errors: %s", errors)
         return False
@@ -340,7 +347,9 @@ class ConfigManager:
             )
             return True
         except (KeyError, ValueError, TypeError) as e:
-            print(f"ERROR: Config error: {e}")
+            print(
+                f"{_C.BRIGHT_RED}{_C.BOLD}ERROR:{_C.RESET} {_C.BRIGHT_RED}Config error: {e}{_C.RESET}"
+            )
             return False
 
     def first_time_setup(self) -> bool:
@@ -353,36 +362,58 @@ class ConfigManager:
         """
         k = self.k
 
+        _banner = (
+            "\n"
+            "███╗   ███╗ ██████╗██╗   ██╗██████╗       ███████╗ ██████╗ ██████╗ ██╗  ██╗\n"
+            "████╗ ████║██╔════╝██║   ██║██╔══██╗      ██╔════╝██╔═══██╗██╔══██╗██║ ██╔╝\n"
+            "██╔████╔██║██║     ██║   ██║██████╔╝█████╗█████╗  ██║   ██║██████╔╝█████╔╝\n"
+            "██║╚██╔╝██║██║     ██║   ██║██╔══██╗╚════╝██╔══╝  ██║   ██║██╔══██╗██╔═██╗\n"
+            "██║ ╚═╝ ██║╚██████╗╚██████╔╝██████╔╝      ██║     ╚██████╔╝██║  ██║██║  ██╗\n"
+            "╚═╝     ╚═╝ ╚═════╝ ╚═════╝ ╚═════╝       ╚═╝      ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝"
+        )
+        _steps = (
+            "\n"
+            + _C.paint("1.", _C.MUTED)
+            + " Go to "
+            + _C.paint("https://my.telegram.org", _C.BRIGHT_CYAN)
+            + " and login\n"
+            + _C.paint("2.", _C.MUTED)
+            + " Click on "
+            + _C.paint("API development tools", _C.BRIGHT_WHITE)
+            + "\n"
+            + _C.paint("3.", _C.MUTED)
+            + " Create a new application\n"
+            + _C.paint("4.", _C.MUTED)
+            + " Copy your "
+            + _C.paint("API ID", _C.BRIGHT_YELLOW)
+            + " and "
+            + _C.paint("API hash", _C.BRIGHT_YELLOW)
+            + "\n"
+        )
         print(
-            """
-███╗   ███╗ ██████╗██╗   ██╗██████╗       ███████╗ ██████╗ ██████╗ ██╗  ██╗
-████╗ ████║██╔════╝██║   ██║██╔══██╗      ██╔════╝██╔═══██╗██╔══██╗██║ ██╔╝
-██╔████╔██║██║     ██║   ██║██████╔╝█████╗█████╗  ██║   ██║██████╔╝█████╔╝
-██║╚██╔╝██║██║     ██║   ██║██╔══██╗╚════╝██╔══╝  ██║   ██║██╔══██╗██╔═██╗
-██║ ╚═╝ ██║╚██████╗╚██████╔╝██████╔╝      ██║     ╚██████╔╝██║  ██║██║  ██╗
-╚═╝     ╚═╝ ╚═════╝ ╚═════╝ ╚═════╝       ╚═╝      ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝
-1. Go to https://my.telegram.org and login
-2. Click on API development tools
-3. Create a new application
-4. Copy your API ID and API hash
-        """
+            _C.gradient_multicolor(
+                _banner, [(200, 0, 0), (230, 60, 0), (255, 140, 0)], bold=True
+            )
+            + _steps
         )
 
         while True:
             try:
                 api_id_raw = input("API ID: ").strip()
                 if not api_id_raw.isdigit():
-                    print("API ID must be a number\n")
+                    print(f"{_C.YELLOW}⚠  API ID must be a number{_C.RESET}\n")
                     continue
 
                 api_hash = input("API HASH: ").strip()
                 if not api_hash:
-                    print("API HASH cannot be empty\n")
+                    print(f"{_C.YELLOW}⚠  API HASH cannot be empty{_C.RESET}\n")
                     continue
 
                 phone = input("Phone number (e.g. +1234567890): ").strip()
                 if not phone.startswith("+"):
-                    print("Phone must start with + (e.g. +1234567890)\n")
+                    print(
+                        f"{_C.YELLOW}⚠  Phone must start with + (e.g. +1234567890){_C.RESET}\n"
+                    )
                     continue
 
                 k.config = {
@@ -407,11 +438,11 @@ class ConfigManager:
                 # Lock immediately after first write
                 ensure_locked_after_write(k.CONFIG_FILE)
                 self.setup()
-                print("Config saved")
+                print(f"{_C.BRIGHT_GREEN}{_C.BOLD}✓  Config saved{_C.RESET}")
                 return True
 
             except KeyboardInterrupt:
-                print("\nSetup interrupted\n")
+                print(f"\n{_C.MUTED}Setup interrupted{_C.RESET}\n")
                 sys.exit(1)
 
     async def get_module_config(self, module_name: str, default: Any = None) -> dict:

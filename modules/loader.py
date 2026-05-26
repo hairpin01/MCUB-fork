@@ -2404,93 +2404,100 @@ class Loader(ModuleBase):
             )
             return
 
-        module_name = args
-        actual_name, _ = self.kernel._loader.find_module_case_insensitive(module_name)
-        if actual_name is None:
-            await self._edit_with_emoji(
-                event,
-                self.strings(
-                    "module_not_found_um",
-                    warning=CUSTOM_EMOJI["warning"],
-                    module_name=module_name,
-                ),
-            )
-            return
+        module_names = [n.strip() for n in args.split(",") if n.strip()]
 
-        module_name = actual_name
+        success: list[str] = []
+        failed: list[str] = []
         cfg = self.get_config()
         force_unload = not (cfg and cfg.get("loader_protect_system", True))
 
-        try:
-            await self.kernel.unregister_module_commands(
-                module_name, force=force_unload
-            )
-        except PermissionError:
-            await self._edit_with_emoji(
-                event,
-                self.strings(
-                    "system_module_unload_attempt",
-                    confused=CUSTOM_EMOJI["confused"],
-                    blocked=CUSTOM_EMOJI["blocked"],
-                    module_name=module_name,
-                ),
-            )
-            return
+        for raw_name in module_names:
+            actual_name, _ = self.kernel._loader.find_module_case_insensitive(raw_name)
+            if actual_name is None:
+                failed.append(self.strings("um_not_found", module_name=raw_name))
+                continue
 
-        instance = self.kernel.loaded_modules.get(module_name)
-        if instance and getattr(instance, "_hikka_compat", False):
-            await unload_hikka_module(self.kernel, module_name)
-        else:
-            commands_to_remove = [
-                cmd
-                for cmd, owner in self.kernel.command_owners.items()
-                if owner == module_name
-            ]
+            module_name = actual_name
+
             try:
                 await self.kernel.unregister_module_commands(
                     module_name, force=force_unload
                 )
             except PermissionError:
-                await self._edit_with_emoji(
-                    event,
-                    self.strings(
-                        "system_module_unload_attempt",
-                        confused=CUSTOM_EMOJI["confused"],
-                        blocked=CUSTOM_EMOJI["blocked"],
-                        module_name=module_name,
-                    ),
+                failed.append(self.strings("um_system_module", module_name=module_name))
+                continue
+
+            instance = self.kernel.loaded_modules.get(module_name)
+            if instance and getattr(instance, "_hikka_compat", False):
+                await unload_hikka_module(self.kernel, module_name)
+            else:
+                commands_to_remove = [
+                    cmd
+                    for cmd, owner in self.kernel.command_owners.items()
+                    if owner == module_name
+                ]
+                try:
+                    await self.kernel.unregister_module_commands(
+                        module_name, force=force_unload
+                    )
+                except PermissionError:
+                    failed.append(
+                        self.strings("um_system_module", module_name=module_name)
+                    )
+                    continue
+                self.kernel._loader.remove_module_aliases(
+                    module_name, commands_to_remove
                 )
-                return
-            self.kernel._loader.remove_module_aliases(module_name, commands_to_remove)
 
-        file_path = self.kernel._loader.get_module_path(module_name)
-        if os.path.exists(file_path):
-            os.remove(file_path)
+            file_path = self.kernel._loader.get_module_path(module_name)
+            if os.path.exists(file_path):
+                os.remove(file_path)
 
-        package_dir = os.path.join(self.kernel.MODULES_LOADED_DIR, module_name)
-        if os.path.isdir(package_dir):
-            shutil.rmtree(package_dir)
+            package_dir = os.path.join(self.kernel.MODULES_LOADED_DIR, module_name)
+            if os.path.isdir(package_dir):
+                shutil.rmtree(package_dir)
 
-        for mod in list(sys.modules.keys()):
-            if mod == module_name or mod.startswith(f"{module_name}."):
-                del sys.modules[mod]
+            for mod in list(sys.modules.keys()):
+                if mod == module_name or mod.startswith(f"{module_name}."):
+                    del sys.modules[mod]
 
-        if module_name in self.kernel.loaded_modules:
-            del self.kernel.loaded_modules[module_name]
-        if module_name in self.kernel.system_modules:
-            del self.kernel.system_modules[module_name]
+            if module_name in self.kernel.loaded_modules:
+                del self.kernel.loaded_modules[module_name]
+            if module_name in self.kernel.system_modules:
+                del self.kernel.system_modules[module_name]
 
-        await self._log_to_bot(f"Moдyль {module_name} yдaлён")
-        await self._edit_with_emoji(
-            event,
-            self.strings(
-                "module_unloaded",
-                success=CUSTOM_EMOJI["success"],
-                module_name=module_name,
-            ),
-        )
-        self.kernel._module_sources.pop(module_name, None)
+            await self._log_to_bot(f"Moдyль {module_name} yдaлён")
+            self.kernel._module_sources.pop(module_name, None)
+            success.append(module_name)
+
         await self.kernel.save_module_sources()
+
+        msg_parts: list[str] = []
+        if success:
+            names = ", ".join(f"<code>{m}</code>" for m in success)
+            msg_parts.append(
+                self.strings(
+                    "um_success_header",
+                    success=CUSTOM_EMOJI["success"],
+                    count=str(len(success)),
+                )
+                + "\n"
+                + f"<blockquote>{names}</blockquote>"
+            )
+        if failed:
+            msg_parts.append(
+                self.strings(
+                    "um_failed_header",
+                    blocked=CUSTOM_EMOJI["blocked"],
+                    count=str(len(failed)),
+                )
+                + "\n"
+                + "<blockquote>"
+                + "\n".join(f for f in failed)
+                + "</blockquote>"
+            )
+
+        await self._edit_with_emoji(event, "\n".join(msg_parts))
 
     @command(
         "unlm",

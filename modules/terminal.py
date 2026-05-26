@@ -5,8 +5,9 @@ from __future__ import annotations
 
 # requires:
 # author: @Hairpin00
-# version: 2.0.0
-# description: Terminal commands with real-time output streaming
+# version: 3.0.0
+# description: Terminal commands with real-time output streaming, parallel slots and stdin input
+
 import asyncio
 import html
 import os
@@ -50,10 +51,11 @@ CUSTOM_EMOJI = {
     "❄️": '<tg-emoji emoji-id="5431895003821513760">❄️</tg-emoji>',
     "🔔": '<tg-emoji emoji-id="5413720894091851002">🔔</tg-emoji>',
     "⚠️": '<tg-emoji emoji-id="5453943626921666997">⚠️</tg-emoji>',
-    "✅": '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji>',
+    "✅": '<tg-emoji emoji-id="5332762073388578651">✅</tg-emoji>',
+    "loading": '<tg-emoji emoji-id="5310041868191407556">🔘</tg-emoji>',
+    "done": '<tg-emoji emoji-id="5332533929020761310">☑️</tg-emoji>',
+    "done_error_code": '<tg-emoji emoji-id="5330273431898318607">😖</tg-emoji>',
 }
-
-# output filter helpers
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*[mABCDEFGHJKSTfhilmnprsu]")
 
@@ -81,6 +83,7 @@ def _filter_by_pattern(text: str, pattern: str) -> str:
             line for line in text.split("\n") if not re.search(pattern, line)
         )
     except re.error:
+        # Invalid regex — return text unchanged; not a runtime error.
         return text
 
 
@@ -115,9 +118,6 @@ def _apply_output_filters(text: str, cfg) -> str:
     return text
 
 
-# shell helpers
-
-
 def _get_shell_path(cfg) -> str:
     """Return effective shell path: custom_shell when shell=custom, else shell name."""
     shell = cfg.get("shell") or "bash"
@@ -132,13 +132,31 @@ def _get_shell_args(cfg) -> list[str]:
     return shlex.split(args_str)
 
 
+def _parse_slot(text: str) -> tuple[str, str]:
+    """
+    Parse optional '@N' slot prefix from command text.
+
+    Examples:
+        '@2 ls -la'  → ('2', 'ls -la')
+        '@all'       → ('all', '')       ← for tkill @all
+        'ls -la'     → ('1', 'ls -la')   ← default slot
+        ''           → ('1', '')
+    """
+    text = text.strip()
+    if text.startswith("@"):
+        parts = text.split(maxsplit=1)
+        slot = parts[0][1:]  # strip leading '@'
+        rest = parts[1] if len(parts) > 1 else ""
+        return slot, rest
+    return "1", text
+
+
 def register(kernel):
     client = kernel.client
     logger = kernel.logger
 
     lang = Strings(kernel, {"name": "terminal"})
 
-    # ModuleConfig
     config = ModuleConfig(
         ConfigValue(
             "update_interval",
@@ -289,11 +307,13 @@ def register(kernel):
 
     class TerminalModule:
         def __init__(self):
+            # Keys are (chat_id, slot) tuples to support parallel execution.
+            # slot is a string, default "1".
             self.running_commands: dict = {}
             self.update_tasks: dict = {}
 
         def _format_output(self, text: str, max_length: int = 2000) -> str:
-            """Escape and truncate output. Show tail - it's more recent."""
+            """Escape and truncate output. Shows tail — it's more recent."""
             if not text:
                 return lang["empty"]
             text = str(text)
@@ -308,6 +328,7 @@ def register(kernel):
             return html.escape(text)
 
         def _build_message(self, cmd_data: dict, *, final: bool = False) -> str:
+            """Build the Telegram message for a running/completed command."""
             stdout_raw = cmd_data["stdout"].decode("utf-8", errors="ignore")
             stderr_raw = cmd_data["stderr"].decode("utf-8", errors="ignore")
             cfg = _get_config()
@@ -329,10 +350,13 @@ def register(kernel):
             cmd_escaped = html.escape(cmd_data["command"])
             shell = html.escape(_get_shell_path(cfg))
 
+            # Slot label — shown only when not the default slot.
+            slot = cmd_data.get("slot", "1")
+            slot_label = f"| <code>@{html.escape(slot)}</code>" if slot != "1" else ""
+
             if final:
                 time_label = lang["completed_in"]
                 extra = f"{CUSTOM_EMOJI['📰']} <b>{lang['exit_code']}</b> <mono>{cmd_data['return_code']}</mono>\n"
-                # Build footer parts
                 footer_parts = [
                     f"{CUSTOM_EMOJI['🉐']} <b>{lang['shell']}</b> {shell}",
                 ]
@@ -342,9 +366,16 @@ def register(kernel):
                     f"{CUSTOM_EMOJI['🧮']} <b>{time_label}</b> <mono>{elapsed:.2f} {lang['seconds']}</mono>"
                 )
                 footer = f"<blockquote>{' | '.join(footer_parts)}</blockquote>"
+
+                final_emoji = (
+                    CUSTOM_EMOJI["done"]
+                    if cmd_data["return_code"] == 0
+                    else CUSTOM_EMOJI["done_error_code"]
+                )
             else:
                 time_label = lang["running_time"]
                 extra = ""
+                final_emoji = CUSTOM_EMOJI["loading"]
                 if cfg.get("compact_mode"):
                     footer = ""
                 else:
@@ -361,17 +392,69 @@ def register(kernel):
                     footer = f"<blockquote>{' | '.join(footer_parts)}</blockquote>"
 
             return (
-                f"{CUSTOM_EMOJI['💻']} <i>{lang['system_command']}</i> <blockquote><code>{cmd_escaped}</code></blockquote>\n"
+                f"{final_emoji} {'<b>' if final else '<i>'}{lang['system_command']}{'</b>' if final else '</i>'} {slot_label}"
+                f" <blockquote><code>{cmd_escaped}</code></blockquote>\n"
                 f"{extra}"
                 f"{stdout_block}{stderr_block}"
                 f"{footer}"
             )
 
-        async def run_command(self, chat_id, command, message_id=None):
-            if chat_id in self.running_commands:
+        async def _build_process(
+            self,
+            command: str,
+            cfg,
+            *,
+            use_setsid: bool = True,
+        ):
+            """
+            Build and launch a subprocess.
+
+            stdin is always PIPE so that `ti` can send input later.
+            `use_setsid=True`  → wrap in a new process group (interactive mode).
+            `use_setsid=False` → flat process (piped/one-shot mode).
+            """
+            shell_path = _get_shell_path(cfg)
+            shell_args = _get_shell_args(cfg)
+
+            cwd_val = cfg.get("cwd") or None
+
+            env_val = None
+            env_extra = cfg.get("env_extra", "")
+            if env_extra.strip():
+                env_val = os.environ.copy()
+                for pair in shlex.split(env_extra):
+                    if "=" in pair:
+                        k, v = pair.split("=", 1)
+                        env_val[k] = v
+
+            kwargs: dict = dict(
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=cwd_val,
+                env=env_val,
+            )
+            if use_setsid and os.name != "nt":
+                kwargs["preexec_fn"] = os.setsid
+
+            return await asyncio.create_subprocess_exec(
+                shell_path, *shell_args, command, **kwargs
+            )
+
+        async def run_command(
+            self,
+            chat_id,
+            command,
+            message_id=None,
+            slot: str = "1",
+        ):
+            """Launch a shell command in the given slot with live streaming output."""
+            key = (chat_id, slot)
+            if key in self.running_commands:
+                slot_label = f" (@{slot})" if slot != "1" else ""
                 await client.send_message(
                     chat_id,
-                    f"{CUSTOM_EMOJI['🗯']} <i>{lang['command_already_running']}</i>",
+                    f"{CUSTOM_EMOJI['🗯']} <i>{lang['command_already_running']}{slot_label}</i>",
                     parse_mode="html",
                 )
                 return
@@ -382,6 +465,7 @@ def register(kernel):
                 data_event = asyncio.Event()
                 cmd_data = {
                     "command": command,
+                    "slot": slot,
                     "stdout": b"",
                     "stderr": b"",
                     "completed": False,
@@ -395,37 +479,13 @@ def register(kernel):
                 }
 
                 cfg_shell = _get_config()
-                shell_path = _get_shell_path(cfg_shell)
-                shell_args = _get_shell_args(cfg_shell)
-
-                # cwd
-                cwd_val = cfg_shell.get("cwd") or None
-                # env_extra
-                env_val = None
-                env_extra = cfg_shell.get("env_extra", "")
-                if env_extra.strip():
-                    env_val = os.environ.copy()
-                    for pair in shlex.split(env_extra):
-                        if "=" in pair:
-                            k, v = pair.split("=", 1)
-                            env_val[k] = v
-
-                process = await asyncio.create_subprocess_exec(
-                    shell_path,
-                    *shell_args,
-                    command,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    cwd=cwd_val,
-                    env=env_val,
-                    preexec_fn=os.setsid if os.name != "nt" else None,
-                )
+                process = await self._build_process(command, cfg_shell, use_setsid=True)
 
                 cmd_data["process"] = process
                 cmd_data["pid"] = process.pid
-                self.running_commands[chat_id] = cmd_data
+                self.running_commands[key] = cmd_data
 
-                # stdin_eof: close stdin immediately
+                # stdin_eof: close stdin immediately (opt-in; ti won't work then)
                 if cfg_shell.get("stdin_eof") and process.stdin:
                     process.stdin.close()
 
@@ -439,6 +499,7 @@ def register(kernel):
                             try:
                                 proc.kill()
                             except ProcessLookupError:
+                                # Process already gone — acceptable.
                                 pass
 
                     timeout_task = asyncio.create_task(_kill_timeout())
@@ -446,19 +507,28 @@ def register(kernel):
 
                 if message_id:
                     cmd_data["message_id"] = message_id
+                    await client.edit_message(
+                        chat_id,
+                        message_id,
+                        self._build_message(cmd_data),
+                        parse_mode="html",
+                    )
                 else:
+                    slot_label = (
+                        f" <code>@{html.escape(slot)}</code>" if slot != "1" else ""
+                    )
                     msg = await client.send_message(
                         chat_id,
-                        f"{CUSTOM_EMOJI['💻']} <i>{lang['system_command']}</i> "
+                        f"{CUSTOM_EMOJI['loading']} <i>{lang['system_command']}</i>{slot_label} "
                         f"<blockquote><code>{html.escape(command)}</code></blockquote>\n"
                         f"{CUSTOM_EMOJI['❄️']} <i>{lang['executing']}</i>",
                         parse_mode="html",
                     )
                     cmd_data["message_id"] = msg.id
 
-                update_task = asyncio.create_task(self._update_loop(chat_id))
-                read_task = asyncio.create_task(self._read_output(chat_id))
-                self.update_tasks[chat_id] = {"update": update_task, "read": read_task}
+                update_task = asyncio.create_task(self._update_loop(key))
+                read_task = asyncio.create_task(self._read_output(key))
+                self.update_tasks[key] = {"update": update_task, "read": read_task}
 
             except Exception as e:
                 error_msg = (
@@ -471,49 +541,34 @@ def register(kernel):
                     )
                 else:
                     await client.send_message(chat_id, error_msg, parse_mode="html")
-                self.running_commands.pop(chat_id, None)
+                self.running_commands.pop(key, None)
                 await kernel.handle_error(e, source="terminal:run_command")
 
         async def run_command_piped(
-            self, chat_id, command, message_id=None, quiet=False
+            self,
+            chat_id,
+            command,
+            message_id=None,
+            quiet=False,
         ):
+            """Run a command and return its output as a string (pipe mode)."""
             try:
                 cfg_shell = _get_config()
-                shell_path = _get_shell_path(cfg_shell)
-                shell_args = _get_shell_args(cfg_shell)
-
-                # cwd
-                cwd_val = cfg_shell.get("cwd") or None
-                # env_extra
-                env_val = None
-                env_extra = cfg_shell.get("env_extra", "")
-                if env_extra.strip():
-                    env_val = os.environ.copy()
-                    for pair in shlex.split(env_extra):
-                        if "=" in pair:
-                            k, v = pair.split("=", 1)
-                            env_val[k] = v
-
-                process = await asyncio.create_subprocess_exec(
-                    shell_path,
-                    *shell_args,
-                    command,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    cwd=cwd_val,
-                    env=env_val,
+                process = await self._build_process(
+                    command, cfg_shell, use_setsid=False
                 )
 
-                # stdin_eof: close stdin immediately
+                # stdin_eof
                 if cfg_shell.get("stdin_eof") and process.stdin:
                     process.stdin.close()
 
-                # timeout: auto-kill
+                # timeout
                 timeout = cfg_shell.get("timeout") or 0
                 if timeout > 0:
                     try:
                         await asyncio.wait_for(process.wait(), timeout=timeout)
                     except TimeoutError:
+                        # Timeout expired — kill and collect what we have.
                         process.kill()
                         stdout, stderr = await process.communicate()
                     else:
@@ -528,14 +583,43 @@ def register(kernel):
                 output = _apply_output_filters(output, _get_config())
                 return output
             except Exception as e:
+                logger.error(f"terminal: piped command error: {e}")
+                await kernel.handle_error(e, source="terminal:run_command_piped")
                 return f"Error: {e!s}"
 
-        async def _read_output(self, chat_id):
+        async def send_stdin(
+            self,
+            chat_id,
+            slot: str,
+            text: str,
+        ) -> tuple[bool, str | None]:
+            """
+            Write *text* (+ newline) to the stdin of a running slot.
+            Returns (True, None) on success, (False, reason) on failure.
+            """
+            key = (chat_id, slot)
+            if key not in self.running_commands:
+                return False, "no_running"
+            cmd_data = self.running_commands[key]
+            if cmd_data["completed"]:
+                return False, "completed"
+            process = cmd_data["process"]
+            if not process or not process.stdin or process.stdin.is_closing():
+                return False, "no_stdin"
+            try:
+                process.stdin.write((text + "\n").encode())
+                await process.stdin.drain()
+                return True, None
+            except Exception as e:
+                logger.error(f"terminal: stdin write error (slot {slot}): {e}")
+                return False, str(e)
+
+        async def _read_output(self, key: tuple):
             """Reads stdout/stderr in chunks and signals update_loop about new data."""
-            if chat_id not in self.running_commands:
+            if key not in self.running_commands:
                 return
 
-            cmd_data = self.running_commands[chat_id]
+            cmd_data = self.running_commands[key]
             process = cmd_data["process"]
 
             async def _read_stream(stream, is_stderr: bool):
@@ -548,7 +632,6 @@ def register(kernel):
                             cmd_data["stderr"] += chunk
                         else:
                             cmd_data["stdout"] += chunk
-                        # Notify update_loop: new data arrived
                         cmd_data["data_event"].set()
                 except Exception as e:
                     logger.error(f"terminal: stream read error: {e}")
@@ -580,7 +663,7 @@ def register(kernel):
                         pass
 
                 # Stop update_loop
-                tasks = self.update_tasks.pop(chat_id, None)
+                tasks = self.update_tasks.pop(key, None)
                 if tasks:
                     t = tasks["update"]
                     if not t.done():
@@ -591,11 +674,11 @@ def register(kernel):
                             pass
 
                 # Send final output and clean state
-                if chat_id in self.running_commands:
-                    await self._send_final(chat_id)
-                    del self.running_commands[chat_id]
+                if key in self.running_commands:
+                    await self._send_final(key)
+                    del self.running_commands[key]
 
-        async def _update_loop(self, chat_id):
+        async def _update_loop(self, key: tuple):
             """
             Update message in real-time:
             - on each new chunk (data_event) or
@@ -605,13 +688,12 @@ def register(kernel):
             """
             last_edit = 0.0
 
-            while chat_id in self.running_commands:
-                cmd_data = self.running_commands[chat_id]
+            while key in self.running_commands:
+                cmd_data = self.running_commands[key]
 
                 if cmd_data["completed"]:
                     break
 
-                # Wait for new data or timeout
                 interval = _get_config().get("update_interval") or 3
                 try:
                     await asyncio.wait_for(
@@ -619,6 +701,7 @@ def register(kernel):
                         timeout=float(interval),
                     )
                 except TimeoutError:
+                    # Normal poll timeout — continue loop.
                     pass
                 except asyncio.CancelledError:
                     break
@@ -641,15 +724,20 @@ def register(kernel):
                 # Throttling: respect min_edit_interval from config
                 now = time.time()
                 min_edit = cfg.get("min_edit_interval") or 1.0
-                if now - last_edit < min_edit:
-                    continue
+                wait_time = min_edit - (now - last_edit)
+                if wait_time > 0:
+                    try:
+                        await asyncio.sleep(wait_time)
+                    except asyncio.CancelledError:
+                        break
 
-                # Build message and compare - skip if identical to avoid "not modified"
+                # Build message and compare — skip if identical
                 new_text = self._build_message(cmd_data)
                 if new_text == cmd_data.get("_last_sent_text"):
                     continue
                 cmd_data["_last_sent_text"] = new_text
 
+                chat_id = key[0]
                 try:
                     await client.edit_message(
                         chat_id,
@@ -661,13 +749,15 @@ def register(kernel):
                 except asyncio.CancelledError:
                     break
                 except Exception:
-                    # Ignore "message not modified" and other temporary errors
+                    # Ignore "message not modified" and other temporary Telegram errors.
                     pass
 
-        async def _send_final(self, chat_id):
-            if chat_id not in self.running_commands:
+        async def _send_final(self, key: tuple):
+            """Edit the message one last time with final output + exit code."""
+            if key not in self.running_commands:
                 return
-            cmd_data = self.running_commands[chat_id]
+            cmd_data = self.running_commands[key]
+            chat_id = key[0]
 
             piped = cmd_data.get("piped", False)
 
@@ -675,11 +765,10 @@ def register(kernel):
                 if piped:
                     stdout = cmd_data["stdout"].decode("utf-8", errors="ignore")
                     stdout = _apply_output_filters(stdout, _get_config())
-                    output = stdout
                     await client.edit_message(
                         chat_id,
                         cmd_data["message_id"],
-                        output,
+                        stdout,
                     )
                 else:
                     await client.edit_message(
@@ -691,8 +780,52 @@ def register(kernel):
             except Exception as e:
                 logger.error(f"terminal: final edit error: {e}")
 
-        async def kill_command(self, chat_id, message_id=None):
-            if chat_id not in self.running_commands:
+        async def kill_command(
+            self,
+            chat_id,
+            slot: str = "1",
+            message_id=None,
+        ):
+            """Kill slot *slot* or all slots in the chat when slot='all'."""
+            if slot == "all":
+                keys = [k for k in self.running_commands if k[0] == chat_id]
+                if not keys:
+                    msg_text = (
+                        f"{CUSTOM_EMOJI['🗯']} <i>{lang['no_running_commands']}</i>"
+                    )
+                    if message_id:
+                        await client.edit_message(
+                            chat_id, message_id, msg_text, parse_mode="html"
+                        )
+                    else:
+                        await client.send_message(chat_id, msg_text, parse_mode="html")
+                    return
+                # Kill every running slot concurrently.
+                await asyncio.gather(
+                    *[self._kill_one(chat_id, k[1]) for k in keys],
+                    return_exceptions=True,
+                )
+                if message_id:
+                    count = len(keys)
+                    await client.edit_message(
+                        chat_id,
+                        message_id,
+                        f"{CUSTOM_EMOJI['☑️']} <i>{lang['command_stopped']} ({count})</i>",
+                        parse_mode="html",
+                    )
+                return
+
+            await self._kill_one(chat_id, slot, message_id)
+
+        async def _kill_one(
+            self,
+            chat_id,
+            slot: str,
+            message_id=None,
+        ):
+            """Kill a single slot."""
+            key = (chat_id, slot)
+            if key not in self.running_commands:
                 msg_text = f"{CUSTOM_EMOJI['🗯']} <i>{lang['no_running_commands']}</i>"
                 if message_id:
                     await client.edit_message(
@@ -702,7 +835,7 @@ def register(kernel):
                     await client.send_message(chat_id, msg_text, parse_mode="html")
                 return
 
-            cmd_data = self.running_commands[chat_id]
+            cmd_data = self.running_commands[key]
 
             if cmd_data["completed"]:
                 msg_text = f"{CUSTOM_EMOJI['💬']} <i>{lang['already_completed']}</i>"
@@ -729,16 +862,15 @@ def register(kernel):
                             if process.returncode is None:
                                 os.killpg(os.getpgid(process.pid), signal.SIGKILL)
                         except (ProcessLookupError, OSError):
+                            # Process already gone — acceptable.
                             pass
 
                     try:
                         await asyncio.wait_for(process.wait(), timeout=5.0)
                     except TimeoutError:
+                        # Process didn't exit within 5 s — give up waiting.
                         pass
 
-                # Process killed - read_output will catch EOF, send final
-                # output to cmd_data["message_id"] and clean state.
-                # Here we only edit .tkill message (separate message_id).
                 if message_id:
                     await client.edit_message(
                         chat_id,
@@ -764,10 +896,11 @@ def register(kernel):
 
     @kernel.register.command(
         "t",
-        doc_en="[command] execute shell command",
-        doc_ru="[кoмaндa] выпoлнить shell кoмaндy",
+        doc_en="[@N] [command] execute shell command (optional slot @1–@N)",
+        doc_ru="[@N] [кoмaндa] выпoлнить shell кoмaндy (cлoт @1–@N нeoбязaтeлeн)",
     )
     async def terminal_handler(event):
+        """Execute a shell command. Prefix with @N to use a named parallel slot."""
         args = event.text.split(maxsplit=1)
         pipe_input = getattr(event, "pipe_input", None)
         piped = getattr(event, "piped", False)
@@ -779,7 +912,8 @@ def register(kernel):
             )
             return
 
-        cmd = args[1]
+        slot, cmd = _parse_slot(args[1])
+
         quiet = False
         if cmd.startswith("-q "):
             quiet = True
@@ -788,18 +922,79 @@ def register(kernel):
         if pipe_input:
             cmd = f"{pipe_input}\n{cmd}"
 
+        if not cmd.strip():
+            await event.edit(
+                f"{CUSTOM_EMOJI['🗯']} <i>{lang['command_not_specified']}</i>",
+                parse_mode="html",
+            )
+            return
+
         if piped:
             output = await terminal.run_command_piped(
                 event.chat_id, cmd, event.id, quiet
             )
             await event.edit(output if output else "done")
         else:
-            await terminal.run_command(event.chat_id, cmd, event.id)
+            await terminal.run_command(event.chat_id, cmd, event.id, slot=slot)
 
     @kernel.register.command(
         "tkill",
-        doc_en="stop running terminal command",
-        doc_ru="ocтaнoвить выпoлняeмyю кoмaндy тepминaлa",
+        doc_en="[@N|@all] stop running terminal command(s)",
+        doc_ru="[@N|@all] ocтaнoвить выпoлняeмyю кoмaндy тepминaлa",
     )
     async def terminal_kill_handler(event):
-        await terminal.kill_command(event.chat_id, event.id)
+        """Kill a slot (@N) or all slots (@all). Defaults to slot @1."""
+        args = event.text.split(maxsplit=1)
+        rest = args[1].strip() if len(args) > 1 else ""
+        slot, _ = _parse_slot(rest) if rest else ("1", "")
+        await terminal.kill_command(event.chat_id, slot=slot, message_id=event.id)
+
+    @kernel.register.command(
+        "ti",
+        doc_en="[@N] <text> send text to stdin of a running command",
+        doc_ru="[@N] <тeкcт> oтпpaвить тeкcт в stdin зaпyщeннoй кoмaнды",
+    )
+    async def terminal_input_handler(event):
+        """Write text to the stdin of a running process (useful for interactive programs)."""
+        args = event.text.split(maxsplit=1)
+        if len(args) < 2:
+            await event.edit(
+                f"{CUSTOM_EMOJI['🗯']} <i>{lang['command_not_specified']}</i>",
+                parse_mode="html",
+            )
+            return
+
+        slot, text = _parse_slot(args[1])
+
+        ok, err = await terminal.send_stdin(event.chat_id, slot, text)
+
+        slot_label = f" <code>@{html.escape(slot)}</code>" if slot != "1" else ""
+
+        if ok:
+            await event.edit(
+                f"{CUSTOM_EMOJI['☑️']} <i>stdin{slot_label} ← </i>"
+                f"<code>{html.escape(text)}</code>",
+                parse_mode="html",
+            )
+        elif err == "no_running":
+            await event.edit(
+                f"{CUSTOM_EMOJI['🗯']} <i>{lang['no_running_commands']}{slot_label}</i>",
+                parse_mode="html",
+            )
+        elif err == "completed":
+            await event.edit(
+                f"{CUSTOM_EMOJI['💬']} <i>{lang['already_completed']}{slot_label}</i>",
+                parse_mode="html",
+            )
+        elif err == "no_stdin":
+            await event.edit(
+                f"{CUSTOM_EMOJI['⚠️']} <i>stdin{slot_label} closed "
+                f"(stdin_eof enabled?)</i>",
+                parse_mode="html",
+            )
+        else:
+            await event.edit(
+                f"{CUSTOM_EMOJI['🗯']} <i>stdin error{slot_label}:</i> "
+                f"<code>{html.escape(str(err))}</code>",
+                parse_mode="html",
+            )

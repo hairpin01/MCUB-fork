@@ -358,6 +358,15 @@ class SettingsModule(ModuleBase):
             return
 
         aliases_dict = parsed.get("aliases", parsed)
+
+        # Support array format [{"alias": "foo", "command": "bar"}, ...]
+        if isinstance(aliases_dict, list):
+            converted = {}
+            for item in aliases_dict:
+                if isinstance(item, dict) and "alias" in item and "command" in item:
+                    converted[str(item["alias"])] = str(item["command"])
+            aliases_dict = converted
+
         if not isinstance(aliases_dict, dict):
             await self.edit(
                 event,

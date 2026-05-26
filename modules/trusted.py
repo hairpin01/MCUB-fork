@@ -1542,11 +1542,9 @@ def register(kernel):
         )
 
         class _MessageEventProxy:
-            def __init__(self, msg):
+            def __init__(self, msg, original_event=None):
                 self._msg = msg
-
-            def __getattr__(self, name):
-                return getattr(self._msg, name)
+                self._original_event = original_event
 
             @property
             def message(self):
@@ -1554,10 +1552,14 @@ def register(kernel):
 
             @property
             def is_reply(self):
+                if self._msg is None:
+                    return False
                 return bool(getattr(self._msg, "reply_to", None))
 
             @property
             def reply_to_msg_id(self):
+                if self._msg is None:
+                    return None
                 rt = getattr(self._msg, "reply_to", None)
                 return getattr(rt, "reply_to_msg_id", None) if rt else None
 
@@ -1579,13 +1581,15 @@ def register(kernel):
                 return await self._msg.reply(*args, **kwargs)
 
             async def get_reply_message(self):
+                if self._original_event is not None:
+                    return await self._original_event.get_reply_message()
                 return await self._msg.get_reply_message()
 
             def no_owner(self):
                 return True
 
         try:
-            await kernel.process_command(_MessageEventProxy(cmd))
+            await kernel.process_command(_MessageEventProxy(cmd, original_event=event))
         except Exception as e:
             await kernel.handle_error(
                 e, source='Failed call "process_command"', event=cmd

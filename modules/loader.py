@@ -1462,21 +1462,24 @@ class Loader(ModuleBase):
             return
 
         reply = await event.get_reply_message()
-        if reply is None:
+
+        file_name = next(
+            (
+                getattr(attr, "file_name", None)
+                for attr in (
+                    reply.document.attributes if reply and reply.document else []
+                )
+                if hasattr(attr, "file_name")
+            ),
+            None,
+        )
+
+        if not file_name:
             await self._edit_with_emoji(
                 event,
                 self.strings("reply_to_py", warning=CUSTOM_EMOJI["warning"]),
             )
             return
-
-        file_name = next(
-            (
-                getattr(attr, "file_name", None)
-                for attr in (reply.document.attributes if reply.document else [])
-                if hasattr(attr, "file_name")
-            ),
-            None,
-        )
 
         install_log: list[str] = []
 

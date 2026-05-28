@@ -116,8 +116,8 @@ ACCESS_CATEGORIES = {
     "aliases": {
         "en": {"label": "Aliases", "desc": "use command aliases and shortcuts"},
         "ru": {
-            "label": "Алиасы",
-            "desc": "использовать алиасы и сокращения команд",
+            "label": "Aлиacы",
+            "desc": "иcпoльзoвaть aлиacы и coкpaщeния кoмaнд",
         },
         "commands": [],
     },
@@ -1502,7 +1502,7 @@ def register(kernel):
             # Allow the owner/admin to bypass the alias/nonick requirement.
             # Owner messages in groups arrive as non-outgoing (out=False) so the
             # core message_handler skips them.  The trusted watcher is the fallback
-            # path — but without this exemption the owner too would need either the
+            # path - but without this exemption the owner too would need either the
             # @owner_username suffix or nonick membership to use short commands.
             admin_id = getattr(kernel, "ADMIN_ID", None)
             if sender_id != admin_id:

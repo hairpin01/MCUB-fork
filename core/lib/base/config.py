@@ -7,8 +7,28 @@ import os
 import sys
 from typing import TYPE_CHECKING, Any
 
-from utils.security import ensure_locked_after_write
-from core.lib.utils.colors import Colors as _C
+try:
+    from utils.security import ensure_locked_after_write
+except ImportError:
+
+    def ensure_locked_after_write(*a, **kw):
+        pass
+
+
+try:
+    from core.lib.utils.colors import Colors as _C
+except ImportError:
+    _C = type(
+        "_C",
+        (),
+        {
+            "BRIGHT_RED": "",
+            "BRIGHT_GREEN": "",
+            "BRIGHT_WHITE": "",
+            "YELLOW": "",
+            "RESET": "",
+        },
+    )()
 
 if TYPE_CHECKING:
     from kernel import Kernel

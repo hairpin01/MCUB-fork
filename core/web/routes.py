@@ -21,6 +21,32 @@ log = logging.getLogger("mcub.web.setup")
 _SETUP_SESSION = "_mcub_setup_tmp"
 
 
+def _has_valid_auth(request: web.Request) -> bool:
+    auth_middleware = request.app.get("auth_middleware")
+    if auth_middleware is None or not auth_middleware.auth_enabled:
+        return False
+
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return False
+
+    token = auth_header[7:]
+    from .auth import hash_token
+
+    provided_hash = hash_token(token)
+    return bool(auth_middleware.token_hash) and secrets.compare_digest(
+        provided_hash, auth_middleware.token_hash
+    )
+
+
+def _ensure_setup_or_auth(request: web.Request) -> web.Response | None:
+    if request.app.get("setup_mode", False):
+        return None
+    if _has_valid_auth(request):
+        return None
+    return web.json_response({"error": "Unauthorized"}, status=401)
+
+
 def _redact(value: object, visible: int = 2) -> str:
     """Return a masked representation for sensitive values in logs."""
     text = str(value or "")
@@ -151,10 +177,18 @@ async def status(request: web.Request) -> web.Response:
 
 
 async def api_setup_state(request: web.Request) -> web.Response:
+    guard = _ensure_setup_or_auth(request)
+    if guard is not None:
+        return guard
+
     return web.json_response(_build_setup_status(request.app))
 
 
 async def api_send_code(request: web.Request) -> web.Response:
+    guard = _ensure_setup_or_auth(request)
+    if guard is not None:
+        return guard
+
     log.info("[setup] /api/setup/send_code called")
 
     try:
@@ -242,6 +276,10 @@ async def api_send_code(request: web.Request) -> web.Response:
 
 async def api_qr_login(request: web.Request) -> web.Response:
     """Initiate QR login procedure."""
+    guard = _ensure_setup_or_auth(request)
+    if guard is not None:
+        return guard
+
     log.info("[setup] /api/setup/qr_login called")
 
     try:
@@ -339,6 +377,10 @@ async def api_qr_login(request: web.Request) -> web.Response:
 
 async def api_qr_poll(request: web.Request) -> web.Response:
     """Poll for QR login completion - manually check token status."""
+    guard = _ensure_setup_or_auth(request)
+    if guard is not None:
+        return guard
+
     log.debug("[setup] /api/setup/qr_poll called")
 
     state: dict = request.app.get("setup_state") or {}
@@ -454,6 +496,10 @@ async def api_qr_poll(request: web.Request) -> web.Response:
 
 
 async def api_verify_code(request: web.Request) -> web.Response:
+    guard = _ensure_setup_or_auth(request)
+    if guard is not None:
+        return guard
+
     log.info("[setup] /api/setup/verify_code called")
 
     state: dict = request.app.get("setup_state") or {}
@@ -610,6 +656,10 @@ def _err(msg: str, status: int = 400) -> web.Response:
 
 async def setup_reset(request: web.Request) -> web.Response:
     """Reset the setup and clear config.json and session files."""
+    guard = _ensure_setup_or_auth(request)
+    if guard is not None:
+        return guard
+
     log.info("[setup] /setup/reset called")
 
     config_path = "config.json"
@@ -780,6 +830,10 @@ async def api_bot_status(request: web.Request) -> web.Response:
 
 
 async def api_bot_verify_token(request: web.Request) -> web.Response:
+    guard = _ensure_setup_or_auth(request)
+    if guard is not None:
+        return guard
+
     try:
         data = await request.json()
     except Exception:
@@ -821,6 +875,10 @@ async def api_bot_verify_token(request: web.Request) -> web.Response:
 
 
 async def api_bot_save_token(request: web.Request) -> web.Response:
+    guard = _ensure_setup_or_auth(request)
+    if guard is not None:
+        return guard
+
     try:
         data = await request.json()
     except Exception:
@@ -848,6 +906,9 @@ async def api_bot_save_token(request: web.Request) -> web.Response:
 
 async def api_bot_auto_create(request: web.Request) -> web.Response:
     """Create bot automatically via BotFather."""
+    guard = _ensure_setup_or_auth(request)
+    if guard is not None:
+        return guard
 
     state: dict = request.app.get("setup_state") or {}
     client = state.get("client")
@@ -897,6 +958,10 @@ async def api_bot_auto_create(request: web.Request) -> web.Response:
 
 async def api_setup_complete(request: web.Request) -> web.Response:
     """Fire setup_event to start the kernel after bot step."""
+    guard = _ensure_setup_or_auth(request)
+    if guard is not None:
+        return guard
+
     state: dict = request.app.get("setup_state") or {}
     await _disconnect(state.get("client"))
     _rename_session(_SETUP_SESSION, "user_session")
@@ -930,6 +995,10 @@ async def api_bot_start(request: web.Request) -> web.Response:
 
 async def api_setup_prefill(request: web.Request) -> web.Response:
     """Return saved api_id, api_hash, phone for reauth pre-fill."""
+    guard = _ensure_setup_or_auth(request)
+    if guard is not None:
+        return guard
+
     config_path = "config.json"
     if not os.path.exists(config_path):
         return web.json_response({"ok": False})
@@ -940,8 +1009,8 @@ async def api_setup_prefill(request: web.Request) -> web.Response:
             {
                 "ok": True,
                 "api_id": cfg.get("api_id", ""),
-                "api_hash": cfg.get("api_hash", ""),
-                "phone": cfg.get("phone", ""),
+                "api_hash": "",
+                "phone": _redact(cfg.get("phone", ""), visible=2),
             }
         )
     except Exception as e:
@@ -978,13 +1047,7 @@ async def api_auth_generate_token(request: web.Request) -> web.Response:
     has_valid_auth = False
 
     if auth_middleware:
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-            from .auth import hash_token
-
-            provided_hash = hash_token(token)
-            has_valid_auth = provided_hash == auth_middleware.token_hash
+        has_valid_auth = _has_valid_auth(request)
 
     if not is_setup and not has_valid_auth:
         return web.json_response({"error": "Unauthorized"}, status=401)
@@ -997,7 +1060,10 @@ async def api_auth_generate_token(request: web.Request) -> web.Response:
         with open(config_path) as f:
             config = json.load(f)
 
-    config["web_panel_token"] = new_token
+    from .auth import hash_token
+
+    config.pop("web_panel_token", None)
+    config["web_panel_token_hash"] = hash_token(new_token)
 
     with open(config_path, "w") as f:
         json.dump(config, f, indent=2)
@@ -1009,7 +1075,7 @@ async def api_auth_generate_token(request: web.Request) -> web.Response:
     return web.json_response(
         {
             "success": True,
-            "token": new_token,
+            "token_preview": _redact(new_token, visible=4),
             "message": "New token generated and saved to config.json",
         }
     )

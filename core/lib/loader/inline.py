@@ -12,18 +12,45 @@ from dataclasses import dataclass
 from html import escape as html_escape
 from typing import TYPE_CHECKING, Any
 
-from telethon import Button, events
-from telethon.errors import ChatSendInlineForbiddenError
+try:
+    from telethon import Button, events
+except ImportError:
+    Button = events = None
 
-from core_inline.api.inline import make_cb_button
+try:
+    from telethon.errors import ChatSendInlineForbiddenError
+except ImportError:
+    ChatSendInlineForbiddenError = Exception
+
+try:
+    from core_inline.api.inline import make_cb_button
+except ImportError:
+
+    def make_cb_button(*a, **kw):
+        return {}
+
 
 if TYPE_CHECKING:
     from kernel import Kernel
     from telethon.types import Message
 
-from core.lib.loader.kernel_proxy import wrap_event_for_module
-from core_inline.handlers import InlineHandlers
-from utils import Strings
+try:
+    from core.lib.loader.kernel_proxy import wrap_event_for_module
+except ImportError:
+
+    def wrap_event_for_module(e, *a, **kw):
+        return e
+
+
+try:
+    from core_inline.handlers import InlineHandlers
+except ImportError:
+    InlineHandlers = None
+
+try:
+    from utils import Strings
+except ImportError:
+    Strings = None
 
 
 @dataclass(slots=True)

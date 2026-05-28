@@ -1301,6 +1301,17 @@ class Kernel:
 
     async def run(self) -> None:
         """Boot sequence: config → scheduler → client → modules → event loop."""
+        try:
+            await self._run_zen_impl()
+        except Exception as e:
+            import traceback as _tb
+
+            _tb.print_exc()
+            msg = f"\033[91m\033[1mZen kernel crashed:\033[0m\033[91m {e}\033[0m"
+            print(msg, flush=True)
+
+    async def _run_zen_impl(self) -> None:
+        """Inner zen boot - wrapped by run() so no crash kills the process."""
         no_web = not getattr(self, "web_enabled", True)  # True if --no-web
         _true = install_uvloop()
         if not _true:
@@ -1319,10 +1330,9 @@ class Kernel:
             if web_via_env or web_via_config or no_session or no_config:
                 await self.run_panel()
 
-        if not self.load_or_create_config():
-            if not self.first_time_setup():
-                self.logger.error("setup failed")
-                return
+        if not getattr(self, "_config_loaded", False) and not self.first_time_setup():
+            self.logger.error("setup failed")
+            return
 
         self.load_repositories()
         logging.basicConfig(level=logging.INFO)
@@ -1413,6 +1423,7 @@ class Kernel:
         await self.load_system_modules()
         await self.load_module_sources()
         await self.load_user_modules()
+        self._loader.save_persistent_type_cache()
         modules_end = time.time()
 
         if getattr(self, "bot_client", None):

@@ -10,9 +10,24 @@ from typing import Any
 # author: @Hairpin00
 # version: 1.0.3
 # description: SQLite database manager for the userbot.
-import aiosqlite
+try:
+    import aiosqlite
+except ImportError:
+    aiosqlite = None
+    print(
+        "\033[93m⚠  Degraded: aiosqlite not installed - DB read/write will fail\033[0m"
+    )
 
-from utils.security import ensure_locked_after_write
+try:
+    from utils.security import ensure_locked_after_write
+except ImportError:
+
+    def ensure_locked_after_write(*a, **kw):
+        pass
+
+    print(
+        "\033[93m⚠  Degraded: utils.security.ensure_locked_after_write not available\033[0m"
+    )
 
 
 class DatabaseManager:

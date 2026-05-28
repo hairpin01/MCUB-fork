@@ -47,7 +47,6 @@ class Kernel(_StandardKernel):
         """Bot startup: ask for token → connect → load modules → loop."""
         import logging
 
-        self.load_or_create_config()
         logging.basicConfig(level=logging.DEBUG)
 
         await self._ensure_api_credentials()

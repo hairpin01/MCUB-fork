@@ -13,7 +13,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
-import aiohttp
+from .repository import validate_remote_url
+
+try:
+    import aiohttp
+except ImportError:
+    aiohttp = None
 
 if TYPE_CHECKING:
     from kernel import Kernel
@@ -78,42 +83,28 @@ class ArchiveManager:
                     return await resp.read()
         except Exception as e:
             self.k.logger.error(f"[ArchiveManager] Download error: {e}")
+            if hasattr(self.k, "handle_error"):
+                await self.k.handle_error(e, source="archive_download")
             return None
 
     def _validate_url(self, url: str) -> tuple[bool, str]:
         """Validate URL for SSRF protection."""
-        try:
-            parsed = urlparse(url)
+        valid, error = validate_remote_url(url)
+        if not valid:
+            return valid, error
 
-            if parsed.scheme not in {"https", "http"}:
-                return False, "Only https/http protocols allowed"
-
-            host = parsed.hostname
-            if not host:
-                return False, "Invalid URL: no hostname"
-
-            host_lower = host.lower()
-            if host_lower in {
-                "localhost",
-                "localhost.localdomain",
-                "0.0.0.0",
-                "127.0.0.1",
-                "::1",
-            }:
-                return False, "Internal hosts not allowed"
-
-            is_trusted = any(
-                host_lower == trusted or host_lower.endswith(f".{trusted}")
-                for trusted in TRUSTED_DOMAINS
+        parsed = urlparse(url)
+        host_lower = (parsed.hostname or "").lower()
+        is_trusted = any(
+            host_lower == trusted or host_lower.endswith(f".{trusted}")
+            for trusted in TRUSTED_DOMAINS
+        )
+        if not is_trusted:
+            self.k.logger.warning(
+                f"[ArchiveManager] Installing from untrusted domain: {host_lower}"
             )
-            if not is_trusted:
-                self.k.logger.warning(
-                    f"[ArchiveManager] Installing from untrusted domain: {host_lower}"
-                )
 
-            return True, "OK"
-        except Exception as e:
-            return False, f"URL validation error: {e}"
+        return True, "OK"
 
     def validate(self, archive_bytes: bytes) -> bool:
         """Validate archive contains Python files."""
@@ -238,9 +229,13 @@ class ArchiveManager:
 
                 return await self._process_extracted(target_dir)
             except Exception as e:
+                if hasattr(self.k, "handle_error"):
+                    await self.k.handle_error(e, source="archive_extract_tar")
                 return ExtractionResult(success=False, error=f"Extract error: {e}")
 
         except Exception as e:
+            if hasattr(self.k, "handle_error"):
+                await self.k.handle_error(e, source="archive_extract")
             return ExtractionResult(success=False, error=f"Extract error: {e}")
 
     async def _process_extracted(self, extracted_dir: str) -> ExtractionResult:
@@ -334,6 +329,12 @@ class ArchiveManager:
 
         except Exception as e:
             self.k.logger.error(f"[ArchiveManager] pyproject parse error: {e}")
+            if hasattr(self.k, "handle_error"):
+                import asyncio
+
+                asyncio.ensure_future(
+                    self.k.handle_error(e, source="archive_parse_pyproject")
+                )
 
         return meta
 

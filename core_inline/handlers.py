@@ -31,8 +31,17 @@ from .api import (
     build_inline_result_media,
     build_inline_result_text,
 )
-from .lib import InlineManager
-from .strings import get_strings
+
+try:
+    from .lib import InlineManager
+except Exception as e:
+    print(f"\033[93mInlineManager import failed: {e}\033[0m")
+    InlineManager = None
+try:
+    from .strings import get_strings
+except Exception as e:
+    print(f"\033[93mfrom strings import get_strings failed: {e}\033[0m")
+    get_strings = None
 
 try:
     from aiogram import Bot as AioBot
@@ -475,7 +484,7 @@ class InlineHandlers:
 
     def _setup_inline_send_handler(self) -> None:
         # Only register with Telethon clients (which have .on() method).
-        # Aiogram Bot objects do not have .on() — they use Dispatcher routers,
+        # Aiogram Bot objects do not have .on() - they use Dispatcher routers,
         # and there is no aiogram equivalent for UpdateBotInlineSend.
         if not hasattr(self.bot_client, "on"):
             self.kernel.logger.debug(
@@ -1214,7 +1223,11 @@ class InlineHandlers:
     async def check_admin(self, event):
         try:
             user_id = int(event.sender_id)
-            result = await self._inline_manager.is_allowed(user_id)
+            if getattr(self, "_inline_manager", False):
+                result = await self._inline_manager.is_allowed(user_id)
+            else:
+                result = False
+
             return result
         except (ValueError, TypeError) as e:
             self.kernel.logger.error(f"Oшибкa в check_admin: {e}")
@@ -1320,7 +1333,7 @@ class InlineHandlers:
                             buttons=[
                                 [
                                     Button.switch_inline(
-                                        f"🏄♀️ {self.lang['execute']}: {pattern}",
+                                        f"🏄 {self.lang['execute']}: {pattern}",
                                         query=pattern,
                                         same_peer=True,
                                     )

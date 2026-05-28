@@ -10,11 +10,59 @@
 # ----------------------- end -----------------------
 from __future__ import annotations
 
-# Import all mixins for seamless backward compatibility
-from core.lib.kernel_core import KernelCoreMixin
-from core.lib.kernel_handlers import KernelHandlersMixin
-from core.lib.kernel_lifecycle import KernelLifecycleMixin
-from core.lib.kernel_pipeline import KernelPipelineMixin
+
+class _MissingMeta(type):
+    """Metaclass for a kernel that failed to load its mixins."""
+
+    def __getattr__(cls, name):
+        return cls
+
+
+class _MissingKernel(metaclass=_MissingMeta):
+    """Fallback kernel when mixin imports fail - prevents crash."""
+
+    def __init__(self, *a, **kw):
+        print("\033[91m\033[1mKernel unavailable - mixin imports failed\033[0m")
+
+    def __getattr__(self, name):
+        return self
+
+    async def __call__(self, *a, **kw):
+        pass
+
+    def __bool__(self):
+        return False
+
+
+def _make_fallback(name: str):
+    """Create a unique fallback class for a failed mixin import."""
+    return type(f"_{name}Fallback", (), {})
+
+
+# Import mixins - if any fails, use the fallback
+try:
+    from core.lib.kernel_core import KernelCoreMixin
+except Exception as e:
+    print(f"\033[93mKernelCoreMixin import failed: {e}\033[0m")
+    KernelCoreMixin = _MissingKernel  # type: ignore
+
+try:
+    from core.lib.kernel_handlers import KernelHandlersMixin
+except Exception as e:
+    print(f"\033[93mKernelHandlersMixin import failed: {e}\033[0m")
+    KernelHandlersMixin = _make_fallback("KernelHandlers")  # type: ignore
+
+try:
+    from core.lib.kernel_lifecycle import KernelLifecycleMixin
+except Exception as e:
+    print(f"\033[93mKernelLifecycleMixin import failed: {e}\033[0m")
+    KernelLifecycleMixin = _make_fallback("KernelLifecycle")  # type: ignore
+
+try:
+    from core.lib.kernel_pipeline import KernelPipelineMixin
+except Exception as e:
+    print(f"\033[93mKernelPipelineMixin import failed: {e}\033[0m")
+    KernelPipelineMixin = _make_fallback("KernelPipeline")  # type: ignore
 
 
 class Kernel(

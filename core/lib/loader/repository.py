@@ -8,23 +8,75 @@ import json
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
-import aiohttp
+try:
+    import aiohttp
+except ImportError:
+    aiohttp = None
+    print(
+        "\033[93m⚠  Degraded: aiohttp not installed - repo listing/download will fail\033[0m"
+    )
 
 if TYPE_CHECKING:
     from kernel import Kernel
 
 
+ALLOWED_REMOTE_PROTOCOLS = {"https"}
+BLOCKED_REMOTE_HOSTS = {
+    "localhost",
+    "localhost.localdomain",
+    "0.0.0.0",
+    "127.0.0.1",
+    "::1",
+}
+
+
+def validate_remote_url(
+    url: str,
+    *,
+    allowed_protocols: set[str] | None = None,
+) -> tuple[bool, str]:
+    """Validate remote URL against basic SSRF protections."""
+    import ipaddress
+
+    protocols = allowed_protocols or ALLOWED_REMOTE_PROTOCOLS
+    try:
+        parsed = urlparse(url)
+
+        if parsed.scheme not in protocols:
+            return False, f"Only {', '.join(sorted(protocols))} protocols allowed"
+
+        host = parsed.hostname
+        if not host:
+            return False, "Invalid URL: no hostname"
+
+        host_lower = host.lower()
+        if host_lower in BLOCKED_REMOTE_HOSTS:
+            return False, "Internal hosts not allowed"
+
+        try:
+            ip = ipaddress.ip_address(host)
+            if (
+                ip.is_private
+                or ip.is_loopback
+                or ip.is_reserved
+                or ip.is_link_local
+                or ip.is_multicast
+                or ip.is_unspecified
+            ):
+                return False, "Private/reserved IP addresses not allowed"
+        except ValueError:
+            pass
+
+        return True, "OK"
+    except Exception as e:
+        return False, f"URL validation error: {e}"
+
+
 class RepositoryManager:
     """Manages module repository URLs: loading, saving, querying."""
 
-    ALLOWED_PROTOCOLS = {"https"}
-    BLOCKED_HOSTS = {
-        "localhost",
-        "localhost.localdomain",
-        "0.0.0.0",
-        "127.0.0.1",
-        "::1",
-    }
+    ALLOWED_PROTOCOLS = ALLOWED_REMOTE_PROTOCOLS
+    BLOCKED_HOSTS = BLOCKED_REMOTE_HOSTS
 
     def __init__(self, kernel: Kernel) -> None:
         self.k = kernel
@@ -33,33 +85,7 @@ class RepositoryManager:
     def _validate_url(self, url: str) -> tuple[bool, str]:
         """Validate URL for SSRF protection."""
         self.k.logger.debug(f"[RepoManager] _validate_url url={url}")
-        try:
-            parsed = urlparse(url)
-
-            if parsed.scheme not in self.ALLOWED_PROTOCOLS:
-                return (
-                    False,
-                    f"Only {', '.join(self.ALLOWED_PROTOCOLS)} protocols allowed",
-                )
-
-            host = parsed.hostname
-            if not host:
-                return False, "Invalid URL: no hostname"
-
-            host_lower = host.lower()
-            if host_lower in self.BLOCKED_HOSTS:
-                return False, "Internal hosts not allowed"
-
-            try:
-                ip = ipaddress.ip_address(host)
-                if ip.is_private or ip.is_loopback or ip.is_reserved:
-                    return False, "Private/reserved IP addresses not allowed"
-            except ValueError:
-                pass
-
-            return True, "OK"
-        except Exception as e:
-            return False, f"URL validation error: {e}"
+        return validate_remote_url(url, allowed_protocols=self.ALLOWED_PROTOCOLS)
 
     def load(self) -> None:
         """Load repository list from config into kernel.repositories."""
@@ -105,7 +131,9 @@ class RepositoryManager:
                 await self.save()
                 return True, f"Repository added ({len(modules)} modules)"
             return False, "Could not retrieve module list"
-        except Exception:
+        except Exception as e:
+            if hasattr(self.k, "handle_error"):
+                await self.k.handle_error(e, source="repo_add")
             return False, "Error verifying repository"
 
     async def remove(self, index: int | str) -> tuple[bool, str]:
@@ -124,6 +152,8 @@ class RepositoryManager:
             return False, "Invalid index"
         except Exception as e:
             k.logger.error(f"Remove repository error: {e}")
+            if hasattr(k, "handle_error"):
+                await k.handle_error(e, source="repo_remove")
             return False, f"Error: {e}"
 
     async def get_name(self, url: str) -> str:
@@ -136,8 +166,9 @@ class RepositoryManager:
                 async with session.get(f"{url}/name.ini") as resp:
                     if resp.status == 200:
                         return (await resp.text()).strip()
-        except Exception:
-            pass
+        except Exception as e:
+            if hasattr(self.k, "handle_error"):
+                await self.k.handle_error(e, source="repo_get_name")
         return url.rstrip("/").split("/")[-1]
 
     async def get_modules_list(self, repo_url: str) -> list[str]:
@@ -155,8 +186,9 @@ class RepositoryManager:
                             for line in (await resp.text()).split("\n")
                             if line.strip()
                         ]
-        except Exception:
-            pass
+        except Exception as e:
+            if hasattr(self.k, "handle_error"):
+                await self.k.handle_error(e, source="repo_get_modules_list")
         return []
 
     async def download_module(self, repo_url: str, module_name: str) -> str | None:

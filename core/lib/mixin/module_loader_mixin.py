@@ -14,22 +14,50 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
-from ..utils.exceptions import CommandConflictError
-from .module_utils import (
-    find_module_case_insensitive as _find_module_case_insensitive,
-)
-from .module_utils import (
-    get_module_path as _get_module_path,
-)
-from .module_utils import (
-    is_archive_url,
-)
-from .module_utils import (
-    parse_requires as _parse_requires,
-)
-from .module_utils import (
-    pick_localized_text as _pick_localized_text,
-)
+from ..loader.repository import validate_remote_url
+
+try:
+    from ..utils.exceptions import CommandConflictError
+except ImportError:
+
+    class CommandConflictError(Exception):
+        pass
+
+
+try:
+    from .module_utils import (
+        find_module_case_insensitive as _find_module_case_insensitive,
+    )
+except ImportError:
+    _find_module_case_insensitive = None
+
+try:
+    from .module_utils import (
+        get_module_path as _get_module_path,
+    )
+except ImportError:
+    _get_module_path = None
+
+try:
+    from .module_utils import (
+        is_archive_url,
+    )
+except ImportError:
+    is_archive_url = None
+
+try:
+    from .module_utils import (
+        parse_requires as _parse_requires,
+    )
+except ImportError:
+    _parse_requires = None
+
+try:
+    from .module_utils import (
+        pick_localized_text as _pick_localized_text,
+    )
+except ImportError:
+    _pick_localized_text = None
 
 if TYPE_CHECKING:
     pass
@@ -597,7 +625,7 @@ class ModuleLoaderMixin:
                 return False, f"Kernel version mismatch: {msg}"
 
             # If AST detection already classified as native, skip text-based
-            # Hikka fallback — the text patterns can match string literals inside
+            # Hikka fallback - the text patterns can match string literals inside
             # the module's own code (e.g. compat_markers), causing recursion.
             if module_type != "native":
                 incompatible = [
@@ -820,6 +848,9 @@ class ModuleLoaderMixin:
             parsed = urlparse(url)
             host = (parsed.hostname or "").lower()
             domain = parsed.netloc.lower()
+            valid, error = validate_remote_url(url)
+            if not valid:
+                return False, error
             is_trusted = any(
                 host == trusted or host.endswith(f".{trusted}")
                 for trusted in TRUSTED_DOMAINS

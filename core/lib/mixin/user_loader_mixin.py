@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     pass
 
 # Max modules loaded concurrently. Higher = faster startup but more RAM pressure.
-_LOAD_CONCURRENCY = 8
+_LOAD_CONCURRENCY = 16
 
 # Memory guard thresholds (Linux /proc/self/statm)
 _MEM_SPIKE_MB = 300  # skip module if RSS jumps more than this
@@ -105,16 +105,22 @@ class UserLoaderMixin:
 
         semaphore = asyncio.Semaphore(_LOAD_CONCURRENCY)
 
+        _memguard = getattr(k, "_memory_guard_enabled", False)
+
         async def _load_one(file_name: str) -> None:
             async with semaphore:
                 nonlocal modules_code
 
-                rss_before = _get_rss_mb()
+                if _memguard:
+                    rss_before = _get_rss_mb()
 
                 cached_code = code_cache.get(file_name)
                 await self._load_single_user_module(
                     file_name, k, _hikka_compat, cached_code=cached_code
                 )
+
+                if not _memguard:
+                    return
 
                 rss_after = _get_rss_mb()
                 if rss_before is not None and rss_after is not None:
@@ -122,7 +128,7 @@ class UserLoaderMixin:
                     if jump > _MEM_SPIKE_MB:
                         k.logger.error(
                             "[memguard] MODULE %s spike +%d MB "
-                            "(total %d MB) — possibly leaking!",
+                            "(total %d MB) - possibly leaking!",
                             file_name,
                             jump,
                             rss_after,
@@ -130,7 +136,7 @@ class UserLoaderMixin:
 
                 if rss_after is not None and rss_after > _MEM_TOTAL_MAX_MB:
                     k.logger.error(
-                        "[memguard] ABORT module loading at %s — RSS %d MB exceeds %d MB limit",
+                        "[memguard] ABORT module loading at %s - RSS %d MB exceeds %d MB limit",
                         file_name,
                         rss_after,
                         _MEM_TOTAL_MAX_MB,
@@ -174,7 +180,7 @@ class UserLoaderMixin:
             await asyncio.gather(*pkg_tasks, *file_tasks)
         except MemoryError as _mem_err:
             k.logger.error(
-                "[memguard] load_user_modules stopped early: %s — "
+                "[memguard] load_user_modules stopped early: %s - "
                 "%d of %d modules loaded",
                 _mem_err,
                 len(k.loaded_modules),

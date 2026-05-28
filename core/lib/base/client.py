@@ -8,7 +8,11 @@ import sys
 import traceback
 from typing import TYPE_CHECKING
 
-from telethon import TelegramClient
+try:
+    from telethon import TelegramClient
+except Exception as e:
+    print(f"\033[93m⚠  Degraded: telethon import failed in client.py: {e}\033[0m")
+    TelegramClient = None
 
 if TYPE_CHECKING:
     from kernel import Kernel

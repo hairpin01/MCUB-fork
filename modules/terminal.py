@@ -83,7 +83,7 @@ def _filter_by_pattern(text: str, pattern: str) -> str:
             line for line in text.split("\n") if not re.search(pattern, line)
         )
     except re.error:
-        # Invalid regex — return text unchanged; not a runtime error.
+        # Invalid regex - return text unchanged; not a runtime error.
         return text
 
 
@@ -313,7 +313,7 @@ def register(kernel):
             self.update_tasks: dict = {}
 
         def _format_output(self, text: str, max_length: int = 2000) -> str:
-            """Escape and truncate output. Shows tail — it's more recent."""
+            """Escape and truncate output. Shows tail - it's more recent."""
             if not text:
                 return lang["empty"]
             text = str(text)
@@ -350,7 +350,7 @@ def register(kernel):
             cmd_escaped = html.escape(cmd_data["command"])
             shell = html.escape(_get_shell_path(cfg))
 
-            # Slot label — shown only when not the default slot.
+            # Slot label - shown only when not the default slot.
             slot = cmd_data.get("slot", "1")
             slot_label = f"| <code>@{html.escape(slot)}</code>" if slot != "1" else ""
 
@@ -499,7 +499,7 @@ def register(kernel):
                             try:
                                 proc.kill()
                             except ProcessLookupError:
-                                # Process already gone — acceptable.
+                                # Process already gone - acceptable.
                                 pass
 
                     timeout_task = asyncio.create_task(_kill_timeout())
@@ -568,7 +568,7 @@ def register(kernel):
                     try:
                         await asyncio.wait_for(process.wait(), timeout=timeout)
                     except TimeoutError:
-                        # Timeout expired — kill and collect what we have.
+                        # Timeout expired - kill and collect what we have.
                         process.kill()
                         stdout, stderr = await process.communicate()
                     else:
@@ -701,7 +701,7 @@ def register(kernel):
                         timeout=float(interval),
                     )
                 except TimeoutError:
-                    # Normal poll timeout — continue loop.
+                    # Normal poll timeout - continue loop.
                     pass
                 except asyncio.CancelledError:
                     break
@@ -731,7 +731,7 @@ def register(kernel):
                     except asyncio.CancelledError:
                         break
 
-                # Build message and compare — skip if identical
+                # Build message and compare - skip if identical
                 new_text = self._build_message(cmd_data)
                 if new_text == cmd_data.get("_last_sent_text"):
                     continue
@@ -862,13 +862,13 @@ def register(kernel):
                             if process.returncode is None:
                                 os.killpg(os.getpgid(process.pid), signal.SIGKILL)
                         except (ProcessLookupError, OSError):
-                            # Process already gone — acceptable.
+                            # Process already gone - acceptable.
                             pass
 
                     try:
                         await asyncio.wait_for(process.wait(), timeout=5.0)
                     except TimeoutError:
-                        # Process didn't exit within 5 s — give up waiting.
+                        # Process didn't exit within 5 s - give up waiting.
                         pass
 
                 if message_id:
@@ -896,8 +896,8 @@ def register(kernel):
 
     @kernel.register.command(
         "t",
-        doc_en="[@N] [command] execute shell command (optional slot @1–@N)",
-        doc_ru="[@N] [кoмaндa] выпoлнить shell кoмaндy (cлoт @1–@N нeoбязaтeлeн)",
+        doc_en="[@N] [command] execute shell command (optional slot @1-@N)",
+        doc_ru="[@N] [кoмaндa] выпoлнить shell кoмaндy (cлoт @1-@N нeoбязaтeлeн)",
     )
     async def terminal_handler(event):
         """Execute a shell command. Prefix with @N to use a named parallel slot."""

@@ -6,7 +6,23 @@ from __future__ import annotations
 from types import MappingProxyType
 from typing import Any
 
-from ..utils.exceptions import CallInsecure
+try:
+    from ..utils.exceptions import CallInsecure
+except ImportError:
+
+    class CallInsecure(Exception):
+        def __init__(self, name: str, module_name: str | None = None):
+            target = f"'{name}'"
+            if module_name:
+                message = (
+                    f"Module '{module_name}' attempted insecure access to {target}"
+                )
+            else:
+                message = f"Insecure access to protected core attribute {target}"
+            super().__init__(message)
+            self.name = name
+            self.module_name = module_name
+
 
 # Modules with a ModuleKernelProxy cannot read or write these directly.
 

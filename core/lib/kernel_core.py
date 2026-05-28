@@ -14,14 +14,16 @@ import time
 import traceback
 from typing import Any
 
+# McubTelethonError (graceful fallback)───────
 try:
-
     from core.lib.utils.exceptions import McubTelethonError
-except Exception as e:
-    tb = traceback.format_exc()
-    print(f"\033[91m\033[1mE:\033[0m\033[91m {e}\n\033[2m>: {tb}\033[0m")
-    sys.exit(104)
+except Exception:
 
+    class McubTelethonError(Exception):
+        pass
+
+
+# Telethon installation check (KEEP CRASH)────
 try:
     from telethon import _check_mcub_installation
 
@@ -33,32 +35,100 @@ except Exception:
         "(or update telethon-mcub)"
     ) from None
 
+# Core lib imports (graceful - each can fail independently)
 try:
     from core.lib.utils.case_insensitive import CaseInsensitiveDict
-    from utils.strings import Strings
+except Exception:
+    print("\033[93m⚠  Degraded: CaseInsensitiveDict - using plain dict\033[0m")
+    CaseInsensitiveDict = dict  # type: ignore
 
+try:
+    from utils.strings import Strings
+except Exception as e:
+    print(f"\033[93m⚠  Degraded: Strings not loaded: {e}\033[0m")
+    Strings = None
+
+try:
     from ..lib.base.client import ClientManager
+except Exception as e:
+    print(f"\033[93m⚠  Degraded: ClientManager not loaded: {e}\033[0m")
+    ClientManager = None
+
+try:
     from ..lib.base.config import ConfigManager
+except Exception as e:
+    print(f"\033[93m⚠  Degraded: ConfigManager not loaded: {e}\033[0m")
+    ConfigManager = None
+
+try:
     from ..lib.base.database import DatabaseManager
+except Exception as e:
+    print(f"\033[93m⚠  Degraded: DatabaseManager not loaded: {e}\033[0m")
+    DatabaseManager = None
+
+try:
     from ..lib.base.permissions import CallbackPermissionManager
+except Exception as e:
+    print(f"\033[93m⚠  Degraded: CallbackPermissionManager not loaded: {e}\033[0m")
+    CallbackPermissionManager = None
+
+try:
     from ..lib.loader.inline import InlineManager
-    from ..lib.loader.loader import ModuleLoader
+except Exception as e:
+    print(f"\033[93m⚠  Degraded: InlineManager not loaded: {e}\033[0m")
+    InlineManager = None
+
+try:
+    from ..lib.loader.loader import ModuleLoader as _ModuleLoader
+except Exception as e:
+    print(f"\033[93m⚠  Degraded: ModuleLoader not loaded: {e}\033[0m")
+    _ModuleLoader = None
+
+ModuleLoader = _ModuleLoader  # public alias
+
+try:
     from ..lib.loader.register import Register
+except Exception as e:
+    print(f"\033[93m⚠  Degraded: Register not loaded: {e}\033[0m")
+    Register = None
+
+try:
     from ..lib.loader.repository import RepositoryManager
+except Exception as e:
+    print(f"\033[93m⚠  Degraded: RepositoryManager not loaded: {e}\033[0m")
+    RepositoryManager = None
+
+try:
     from ..lib.time.cache import TTLCache
+except Exception as e:
+    print(f"\033[93m⚠  Degraded: TTLCache not loaded - using dict cache: {e}\033[0m")
+    TTLCache = None
+
+try:
     from ..lib.time.scheduler import TaskScheduler
+except Exception as e:
+    print(f"\033[93m⚠  Degraded: TaskScheduler not loaded: {e}\033[0m")
+    TaskScheduler = None
+
+try:
     from ..lib.utils.colors import Colors
-    from ..lib.utils.logger import (
-        KernelLogger,
-        setup_logging,
-    )
+except Exception as e:
+    print(f"\033[93m⚠  Degraded: Colors not loaded: {e}\033[0m")
+    Colors = None
+
+try:
+    from ..lib.utils.logger import KernelLogger, setup_logging
+except Exception as e:
+    print(f"\033[93m⚠  Degraded: KernelLogger / setup_logging not loaded: {e}\033[0m")
+    KernelLogger = None
+    setup_logging = None
+
+try:
     from ..version import VERSION, VersionManager
-except Exception as error_module:
-    tb = traceback.format_exc()
-    print(
-        f"\033[91m\033[1m⚠️  Error loaded lib modules!\033[0m\n\033[93m🔎  {error_module}\033[0m\n\033[2m🗓  {tb}\033[0m"
-    )
-    sys.exit(105)
+except Exception as e:
+    print(f"\033[93m⚠  Degraded: VersionManager not loaded: {e}\033[0m")
+    VERSION = "?.?.?"
+    VersionManager = None
 
 try:
     from utils.html_parser import parse_html
@@ -78,6 +148,36 @@ try:
     from utils.restart import restart_kernel
 except ImportError:
     restart_kernel = None
+
+
+class _DictCache:
+    """Drop-in replacement for TTLCache when it's unavailable - uses a plain dict."""
+
+    def __init__(self, max_size=500, ttl=600):
+        self._store: dict = {}
+        self._max_size = max_size
+        self._ttl = ttl
+
+    def set(self, key, value, ttl=None):
+        if len(self._store) >= self._max_size:
+            self._store.clear()
+        self._store[key] = (value, time.time() + (ttl or self._ttl))
+
+    def get(self, key, default=None):
+        entry = self._store.get(key)
+        if entry is None:
+            return default
+        value, expires = entry
+        if time.time() > expires:
+            self._store.pop(key, None)
+            return default
+        return value
+
+    def delete(self, key):
+        self._store.pop(key, None)
+
+    def clear(self):
+        self._store.clear()
 
 
 class KernelCoreMixin:
@@ -119,13 +219,8 @@ class KernelCoreMixin:
         self._pipe_vars = {}
         self._pipe_macros = {}
 
-        # Script engine (beta)
-        try:
-            from core.lib.script.engine import ScriptEngine
-
-            self.script_engine = ScriptEngine(self)
-        except Exception:
-            pass
+        # Script engine (beta) - lazy import on first use
+        self.script_engine = None
 
         # Module source tracking: {module_name: {"url": str, "repo": str or None}}
         self._module_sources = {}
@@ -140,6 +235,7 @@ class KernelCoreMixin:
         self.pending_confirmations = {}
         self.shutdown_flag = False
         self.power_save_mode = False
+        self._memory_guard_enabled = False  # skip /proc/self/statm reads per module; enable via config "memory_guard": true
         self.error_load_modules = 0
         self.error_load_modules_name = []
         self.load_kernel = "kernel"
@@ -179,40 +275,132 @@ class KernelCoreMixin:
         self.default_repo = self.MODULES_REPO
 
     def _init_subsystems(self) -> None:
-        """Initialize core subsystems."""
-        self.cache = TTLCache(max_size=500, ttl=600)
-        self.register = Register(self)
-        self.callback_permissions = CallbackPermissionManager()
+        """Initialize core subsystems (each wrapped - kernel survives partial failure)."""
+        # Cache
+        try:
+            self.cache = TTLCache(max_size=500, ttl=600) if TTLCache else _DictCache()
+        except Exception as e:
+            self._warn("TTLCache", e)
+            self.cache = _DictCache()
 
-        # Setup dirs & config early (logger depends on them)
-        self.logger = setup_logging()
-        self.setup_directories()
-        self.check_dependencies()
-        self._cfg = ConfigManager(self)
-        self.load_or_create_config()
+        # Register
+        try:
+            self.register = Register(self) if Register else None
+        except Exception as e:
+            self._warn("Register", e)
+            self.register = None
 
-        # Subsystem managers (delegate objects)
-        self._loader = ModuleLoader(self)
-        self._repo = RepositoryManager(self)
-        self._log = KernelLogger(self)
-        self._client_mgr = ClientManager(self)
-        self._inline = InlineManager(self)
+        # Callback permissions
+        try:
+            self.callback_permissions = (
+                CallbackPermissionManager() if CallbackPermissionManager else None
+            )
+        except Exception as e:
+            self._warn("CallbackPermissionManager", e)
+            self.callback_permissions = None
 
-        self.version_manager = VersionManager(self)
-        self.db_manager = DatabaseManager(self)
+        # Logger
+        try:
+            self.logger = setup_logging() if setup_logging else None
+        except Exception as e:
+            self._warn("setup_logging", e)
+            self.logger = None
+
+        # Dirs
+        try:
+            self.setup_directories()
+        except Exception as e:
+            self._warn("setup_directories", e)
+
+        # Dependencies
+        try:
+            self.check_dependencies()
+        except Exception as e:
+            self._warn("check_dependencies", e)
+
+        # Config
+        try:
+            self._cfg = ConfigManager(self) if ConfigManager else None
+            self._config_loaded = self.load_or_create_config() if self._cfg else False
+        except Exception as e:
+            self._warn("ConfigManager", e)
+            self._cfg = None
+            self._config_loaded = False
+        if self.config.get("memory_guard"):
+            self._memory_guard_enabled = True
+
+        # ModuleLoader
+        try:
+            self._loader = ModuleLoader(self) if ModuleLoader else None
+        except Exception as e:
+            self._warn("ModuleLoader", e)
+            self._loader = None
+
+        # RepositoryManager
+        try:
+            self._repo = RepositoryManager(self) if RepositoryManager else None
+        except Exception as e:
+            self._warn("RepositoryManager", e)
+            self._repo = None
+
+        # KernelLogger
+        try:
+            self._log = KernelLogger(self) if KernelLogger else None
+        except Exception as e:
+            self._warn("KernelLogger", e)
+            self._log = None
+
+        # ClientManager
+        try:
+            self._client_mgr = ClientManager(self) if ClientManager else None
+        except Exception as e:
+            self._warn("ClientManager", e)
+            self._client_mgr = None
+
+        # InlineManager
+        try:
+            self._inline = InlineManager(self) if InlineManager else None
+        except Exception as e:
+            self._warn("InlineManager", e)
+            self._inline = None
+
+        # VersionManager
+        try:
+            self.version_manager = VersionManager(self) if VersionManager else None
+        except Exception as e:
+            self._warn("VersionManager", e)
+            self.version_manager = None
+
+        # DatabaseManager
+        try:
+            self.db_manager = DatabaseManager(self) if DatabaseManager else None
+        except Exception as e:
+            self._warn("DatabaseManager", e)
+            self.db_manager = None
 
         # HTML parser helpers
         self.HTML_PARSER_AVAILABLE = HTML_PARSER_AVAILABLE
-        self._init_html_parser()
+        try:
+            self._init_html_parser()
+        except Exception as e:
+            self._warn("_init_html_parser", e)
 
         # Emoji parser
         try:
             from utils.emoji_parser import emoji_parser
 
             self.emoji_parser = emoji_parser
-        except ImportError:
+        except Exception:
             self.emoji_parser = None
-            self.logger.error("=X Emoji parser not loaded")
+            if self.logger:
+                self.logger.error("=X Emoji parser not loaded")
+
+    def _warn(self, subsystem: str, exc: Exception) -> None:
+        """Log a subsystem init failure (kernel continues)."""
+        msg = f"\033[93m⚠  Degraded: {subsystem} init failed: {exc}\033[0m"
+        print(msg, flush=True)
+        if getattr(self, "logger", None):
+            self.logger.warning("[degraded] %s init failed: %s", subsystem, exc)
 
     def _init_html_parser(self) -> None:
         """Initialize HTML parser helpers."""

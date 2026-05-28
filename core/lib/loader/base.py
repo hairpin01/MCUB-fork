@@ -9,8 +9,18 @@ from abc import ABC
 from collections.abc import Callable
 from typing import Any
 
-from core.lib.loader.kernel_proxy import wrap_event_for_module
-from utils.strings import Strings
+try:
+    from core.lib.loader.kernel_proxy import wrap_event_for_module
+except ImportError:
+
+    def wrap_event_for_module(e, *a, **kw):
+        return e
+
+
+try:
+    from utils.strings import Strings
+except ImportError:
+    Strings = None
 
 
 class _ModuleLoggerAdapter(logging.LoggerAdapter):
@@ -1224,6 +1234,8 @@ class ModuleBase(ABC):
         import types
         import urllib.request
 
+        from .repository import validate_remote_url
+
         if name is None:
             name = url.split("/")[-1]
             if name.endswith(".py"):
@@ -1232,6 +1244,10 @@ class ModuleBase(ABC):
                 name = "xlib"
 
         try:
+            valid, error = validate_remote_url(url)
+            if not valid:
+                raise ValueError(error)
+
             with urllib.request.urlopen(url) as response:
                 code = response.read().decode("utf-8")
 

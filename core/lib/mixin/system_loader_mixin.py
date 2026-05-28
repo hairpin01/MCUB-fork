@@ -16,7 +16,7 @@ from ..utils.exceptions import CommandConflictError
 if TYPE_CHECKING:
     pass
 
-_LOAD_CONCURRENCY = 8
+_LOAD_CONCURRENCY = 16
 
 
 class SystemLoaderMixin:

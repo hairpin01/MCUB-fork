@@ -7,6 +7,8 @@ import asyncio
 import builtins
 import importlib
 import inspect
+import json
+import os
 import re
 import sys
 from typing import TYPE_CHECKING, Any
@@ -22,15 +24,57 @@ from ..utils.exceptions import CommandConflictError
 if TYPE_CHECKING:
     pass
 
+# Cache for detect_module_type results: {module_name: type_str}
+_MODULE_TYPE_CACHE: dict[str, str] = {}
+
 
 class ModuleDetectorMixin:
-    """Mixin for detecting module types and registering them."""
+    """Mixin for detecting module type based on registration patterns."""
+
+    _persistent_cache_path = "data/module_type_cache.json"
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
-        # Cache for detect_module_type results: {module_name: type_str}
-        # Cleared on module reload/unload
         self._module_type_cache: dict[str, str] = {}
+        self._load_persistent_type_cache()
+
+    def _load_persistent_type_cache(self) -> None:
+        """Load the persistent type cache from disk on startup."""
+        path = self._persistent_cache_path
+        if not os.path.exists(path):
+            return
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, dict):
+                return
+            self._persistent_type_cache: dict = data
+            self.k.logger.debug(
+                "[Loader] loaded persistent type cache %d entries", len(data)
+            )
+        except (OSError, json.JSONDecodeError):
+            self._persistent_type_cache = {}
+
+    def save_persistent_type_cache(self) -> None:
+        """Persist the in-memory type cache to disk."""
+        data = {}
+        for module_name, type_str in self._module_type_cache.items():
+            data[module_name] = {"type": type_str, "mtime": 0}
+        if not data:
+            return
+        try:
+            import pathlib
+
+            pathlib.Path(self._persistent_cache_path).parent.mkdir(
+                parent=True, exist_ok=True
+            )
+            with open(self._persistent_cache_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            self.k.logger.debug(
+                "[Loader] saved persistent type cache %d entries", len(data)
+            )
+        except OSError as e:
+            self.k.logger.debug("[Loader] failed to save persistent type cache: %s", e)
 
     def _clear_module_type_cache(self, module_name: str | None = None) -> None:
         """Invalidate type cache for *module_name* or all if None."""
@@ -92,26 +136,53 @@ class ModuleDetectorMixin:
     async def detect_module_type(self, module) -> str:
         """Detect the registration pattern used by a module.
 
-        Results are cached per module name — call
+        Results are cached per module name - call
         ``_clear_module_type_cache()`` to invalidate on reload/unload.
+
+        Uses a two-level cache: in-memory (fastest, per-run) and
+        persistent (survives restarts, validated by file mtime).
 
         Returns:
             'class' | 'method' | 'new' | 'old' | 'none'
         """
         module_name = getattr(module, "__name__", "unknown")
+
+        # Level 1: in-memory cache
         cached = self._module_type_cache.get(module_name)
         if cached is not None:
             self.k.logger.debug(
-                "[Loader] detect_module_type cache-hit module=%r result=%r",
+                "[Loader] detect_module_type mem-cache hit module=%r result=%r",
                 module_name,
                 cached,
             )
             return cached
 
+        # Level 2: persistent cache (cross-run) with mtime validation
+        persistent = getattr(self, "_persistent_type_cache", None)
+        if persistent is not None:
+            entry = persistent.get(module_name)
+            if entry is not None:
+                module_file = getattr(module, "__file__", None)
+                if module_file and os.path.exists(module_file):
+                    try:
+                        current_mtime = os.path.getmtime(module_file)
+                        stored_mtime = entry.get("mtime", 0)
+                        if current_mtime == stored_mtime:
+                            result = entry["type"]
+                            self._module_type_cache[module_name] = result
+                            self.k.logger.debug(
+                                "[Loader] detect_module_type disk-cache hit module=%r result=%r",
+                                module_name,
+                                result,
+                            )
+                            return result
+                    except OSError:
+                        pass
+
         self.k.logger.debug("[Loader] detect_module_type start module=%r", module_name)
 
         if self._find_module_base_class(module) is not None:
-            self._module_type_cache[module_name] = "class"
+            self._cache_detection_result(module, "class")
             self.k.logger.debug("[Loader] detect_module_type result=class")
             return "class"
 
@@ -119,27 +190,44 @@ class ModuleDetectorMixin:
             self.k.logger.debug(
                 "[Loader] detect_module_type result=none (no register attr)"
             )
-            self._module_type_cache[module_name] = "none"
+            self._cache_detection_result(module, "none")
             return "none"
 
         if self._iter_register_methods(module.register):
             self.k.logger.debug("[Loader] detect_module_type result=method")
-            self._module_type_cache[module_name] = "method"
+            self._cache_detection_result(module, "method")
             return "method"
 
         param_name = self._get_register_param_name(module.register)
         if param_name == "kernel":
             self.k.logger.debug("[Loader] detect_module_type result=new")
-            self._module_type_cache[module_name] = "new"
+            self._cache_detection_result(module, "new")
             return "new"
         if param_name is not None:
             self.k.logger.debug("[Loader] detect_module_type result=old")
-            self._module_type_cache[module_name] = "old"
+            self._cache_detection_result(module, "old")
             return "old"
 
         self.k.logger.debug("[Loader] detect_module_type result=none")
-        self._module_type_cache[module_name] = "none"
+        self._cache_detection_result(module, "none")
         return "none"
+
+    def _cache_detection_result(self, module, result: str) -> None:
+        """Store detection result in both in-memory and persistent caches."""
+        module_name = getattr(module, "__name__", "unknown")
+        self._module_type_cache[module_name] = result
+
+        persistent = getattr(self, "_persistent_type_cache", None)
+        if persistent is None:
+            return
+        mtime = 0
+        module_file = getattr(module, "__file__", None)
+        if module_file and os.path.exists(module_file):
+            try:
+                mtime = os.path.getmtime(module_file)
+            except OSError:
+                pass
+        persistent[module_name] = {"type": result, "mtime": mtime}
 
     async def register_module(
         self, module, module_type: str, module_name: str, *, is_system: bool = True

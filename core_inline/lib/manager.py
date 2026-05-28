@@ -23,6 +23,7 @@ class InlineManager:
         if await self.is_admin(user_id):
             return True
 
+        # Check inline_permissions module
         try:
             all_users = await self.kernel.db_get(self.MODULE, "allowed_users")
             if all_users:
@@ -32,6 +33,18 @@ class InlineManager:
                 if command and user_id in allowed.get(command, []):
                     return True
         except (json.JSONDecodeError, TypeError):
+            pass
+
+        # Also check trusted users list (from modules/trusted.py)
+        try:
+            data = await self.kernel.db_get("trusted", "users")
+            if data:
+                trusted = (
+                    json.loads(data) if isinstance(data, str) else json.loads(str(data))
+                )
+                if user_id in trusted:
+                    return True
+        except Exception:
             pass
 
         return False

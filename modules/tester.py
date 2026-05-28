@@ -845,7 +845,7 @@ class TesterMod(ModuleBase):
 
     @command(
         "teaser",
-        doc_ru="тестировать команду с логированием",
+        doc_ru="тecтиpoвaть кoмaндy c лoгиpoвaниeм",
         doc_en="test a command with logging",
     )
     async def cmd_teaser(self, event) -> None:

@@ -141,7 +141,10 @@ class KernelPipelineMixin:
         Called by ``cmd_script`` in utils_piped. All scripting logic lives here.
         """
         try:
-            from core.lib.script.engine import ScriptError
+            from core.lib.script.engine import ScriptEngine, ScriptError
+
+            if self.script_engine is None:
+                self.script_engine = ScriptEngine(self)
         except Exception as e:
             self.logger.debug(f"error import script: {e}")
             return f"<b>Error</b> import script.engine: <code>{e}</code>"

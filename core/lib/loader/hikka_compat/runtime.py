@@ -1441,7 +1441,7 @@ class InlineProxy:
         self._units[unit_id] = payload
 
     def _unload_unit_sync(self, unit_id: str) -> bool:
-        """Synchronous version of _unload_unit — no await, no callback."""
+        """Synchronous version of _unload_unit - no await, no callback."""
         unit = self._units.pop(unit_id, None)
         if not unit:
             return False

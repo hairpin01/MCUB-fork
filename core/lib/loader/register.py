@@ -13,10 +13,26 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
-from telethon import events
+try:
+    from telethon import events
+except ImportError:
+    events = None
+    print("\033[93m⚠  Degraded: telethon.events not available in register.py\033[0m")
 
-from core.lib.loader.kernel_proxy import wrap_event_for_module
-from core.lib.utils.exceptions import CommandConflictError
+try:
+    from core.lib.loader.kernel_proxy import wrap_event_for_module
+except ImportError:
+
+    def wrap_event_for_module(e, *a, **kw):
+        return e
+
+
+try:
+    from core.lib.utils.exceptions import CommandConflictError
+except ImportError:
+
+    class CommandConflictError(Exception):
+        pass
 
 
 class InfiniteLoop:
@@ -92,6 +108,8 @@ class InfiniteLoop:
                         self._kernel.logger.error(
                             f"InfiniteLoop error in '{self.func.__name__}': {exc}"
                         )
+                        if hasattr(self._kernel, "handle_error"):
+                            await self._kernel.handle_error(exc, source="infinite_loop")
                 if not self._wait_before:
                     await asyncio.sleep(self.interval)
         finally:
@@ -216,7 +234,7 @@ class Register:
     conflict rules, and clean up on module unload.
     """
 
-    # Soft cap — modules with more loops get a warning; loop still works.
+    # Soft cap - modules with more loops get a warning; loop still works.
     MAX_LOOPS_PER_MODULE = 5
 
     def __init__(self, kernel: Any) -> None:
@@ -759,6 +777,8 @@ class Register:
                     )
                 except Exception as exc:
                     self.kernel.logger.error(f"Watcher '{watcher_name}' raised: {exc}")
+                    if hasattr(self.kernel, "handle_error"):
+                        await self.kernel.handle_error(exc, source="watcher")
 
             _wrapper.__name__ = f"watcher:{module_name}:{watcher_name}"
             _wrapper.__module__ = module_name

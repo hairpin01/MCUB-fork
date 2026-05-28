@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     pass
 
 import utils
+from core.lib.loader.repository import validate_remote_url
 from core.lib.loader.module_base import ModuleBase, command
 from core.lib.loader.module_config import (
     Boolean,
@@ -782,6 +783,17 @@ class Loader(ModuleBase):
 
                 try:
                     add_log(self.strings("log_download_url", url=module_or_url))
+                    valid_url, url_error = validate_remote_url(module_or_url)
+                    if not valid_url:
+                        await self._edit_with_emoji(
+                            msg or event,
+                            self.strings(
+                                "url_exception",
+                                warning=CUSTOM_EMOJI["warning"],
+                                error=url_error[:100],
+                            ),
+                        )
+                        return
                     async with aiohttp.ClientSession() as session:
                         async with session.get(module_or_url) as resp:
                             if resp.status == 200:

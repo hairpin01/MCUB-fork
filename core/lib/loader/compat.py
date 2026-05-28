@@ -3,7 +3,10 @@
 
 import shutil
 
-from core.version import VersionManager
+try:
+    from core.version import VersionManager
+except ImportError:
+    VersionManager = None
 
 
 class ModuleCompatChecker:

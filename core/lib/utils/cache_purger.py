@@ -5,15 +5,15 @@
 
 Three levels of aggression:
 
-    Level 1 — Safe caches
+    Level 1 - Safe caches
         Clears TTL, inline sessions, callback maps, docs, metadata.
         All auto-rebuild on next use.  Zero side-effects.
 
-    Level 2 — Extended + stale registries
+    Level 2 - Extended + stale registries
         Adds stale sys.modules entries, pipe vars, orphan aliases,
         callback permissions, live module configs of unloaded modules.
 
-    Level 3 — Hardcore
+    Level 3 - Hardcore
         Adds gc.collect(), full sys.modules sweep,
         log queue flush, stale scheduler tasks.
 """
@@ -107,7 +107,7 @@ def purge_caches(kernel: Any, level: int = 1) -> dict[str, Any]:
         _dict_clear(db, "_get_cache")
         cleared.append("db_get_cache")
 
-    # Inline temp registries (ModuleBase class-level — shared across instances)
+    # Inline temp registries (ModuleBase class-level - shared across instances)
     for mod_instance in getattr(kernel, "_class_module_instances", {}).values():
         for reg_attr in ("_inline_temp_registry",):
             _dict_clear(mod_instance, reg_attr)
@@ -121,7 +121,7 @@ def purge_caches(kernel: Any, level: int = 1) -> dict[str, Any]:
             perms.clear()
             cleared.append("callback_permissions")
 
-        # Live configs of unloaded modules — only keep configs for still-loaded
+        # Live configs of unloaded modules - only keep configs for still-loaded
         live = getattr(kernel, "_live_module_configs", {})
         if live:
             loaded = set(getattr(kernel, "loaded_modules", {})).union(

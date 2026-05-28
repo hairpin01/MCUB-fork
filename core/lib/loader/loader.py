@@ -3,13 +3,45 @@
 
 from __future__ import annotations
 
-from ..mixin.dependency_manager_mixin import DependencyManagerMixin
-from ..mixin.module_detector_mixin import ModuleDetectorMixin
-from ..mixin.module_loader_mixin import ModuleLoaderMixin
-from ..mixin.module_unloader_mixin import ModuleUnloaderMixin
-from ..mixin.system_loader_mixin import SystemLoaderMixin
-from ..mixin.user_loader_mixin import UserLoaderMixin
-from .archive import ArchiveManager
+
+def _mkfallback(name: str):
+    return type(f"_{name}Fallback", (), {})
+
+
+try:
+    from ..mixin.dependency_manager_mixin import DependencyManagerMixin
+except ImportError:
+    DependencyManagerMixin = _mkfallback("DependencyManager")
+
+try:
+    from ..mixin.module_detector_mixin import ModuleDetectorMixin
+except ImportError:
+    ModuleDetectorMixin = _mkfallback("ModuleDetector")
+
+try:
+    from ..mixin.module_loader_mixin import ModuleLoaderMixin
+except ImportError:
+    ModuleLoaderMixin = _mkfallback("ModuleLoader")
+
+try:
+    from ..mixin.module_unloader_mixin import ModuleUnloaderMixin
+except ImportError:
+    ModuleUnloaderMixin = _mkfallback("ModuleUnloader")
+
+try:
+    from ..mixin.system_loader_mixin import SystemLoaderMixin
+except ImportError:
+    SystemLoaderMixin = _mkfallback("SystemLoader")
+
+try:
+    from ..mixin.user_loader_mixin import UserLoaderMixin
+except ImportError:
+    UserLoaderMixin = _mkfallback("UserLoader")
+
+try:
+    from .archive import ArchiveManager
+except ImportError:
+    ArchiveManager = None
 
 
 class ModuleLoader(
@@ -24,5 +56,5 @@ class ModuleLoader(
 
     def __init__(self, kernel: Kernel) -> None:
         self.k = kernel
-        self._archive_mgr = ArchiveManager(kernel)
+        self._archive_mgr = ArchiveManager(kernel) if ArchiveManager else None
         super().__init__()

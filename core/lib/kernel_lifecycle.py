@@ -33,64 +33,117 @@ class KernelLifecycleMixin:
 
     async def run(self) -> None:
         """Setup, connect, load modules, and run until disconnected."""
+        try:
+            await self._run_impl()
+        except Exception as e:
+            import traceback as _tb
+
+            _tb.print_exc()
+            msg = f"\033[91m\033[1mKernel crashed:\033[0m\033[91m {e}\033[0m"
+            print(msg, flush=True)
+            if getattr(self, "logger", None):
+                self.logger.critical("Kernel crashed: %s", e, exc_info=True)
+
+    async def _run_impl(self) -> None:
+        """Inner startup - wrapped by run() so no crash kills the process."""
         import logging
 
-        _true = install_uvloop()
-        if not _true:
-            self.logger.info("failed install uvloop")
+        try:
+            _true = install_uvloop()
+            if not _true:
+                self._log_if_logger("info", "failed install uvloop")
+        except Exception as e:
+            self._log_if_logger("info", "uvloop install failed: %s", e)
+            await self.handle_error(e, source="uvloop")
 
         no_web = not getattr(self, "web_enabled", True)
 
         if not no_web:
-            web_via_env = os.environ.get("MCUB_WEB", "0") == "1"
-            web_via_config = self.config.get("web_panel_enabled", False)
-            from utils.security import session_exists
+            try:
+                web_via_env = os.environ.get("MCUB_WEB", "0") == "1"
+                web_via_config = self.config.get("web_panel_enabled", False)
+                from utils.security import session_exists
 
-            api_id = getattr(self, "API_ID", None)
-            api_hash = getattr(self, "API_HASH", None)
-            no_session = not session_exists(api_id, api_hash)
-            no_config = not os.path.exists(self.CONFIG_FILE)
+                api_id = getattr(self, "API_ID", None)
+                api_hash = getattr(self, "API_HASH", None)
+                no_session = not session_exists(api_id, api_hash)
+                no_config = not os.path.exists(self.CONFIG_FILE)
 
-            if web_via_env or web_via_config or no_session or no_config:
-                await self.run_panel()
+                if web_via_env or web_via_config or no_session or no_config:
+                    await self.run_panel()
+            except Exception as e:
+                self._log_if_logger("warning", "web panel setup failed: %s", e)
+                await self.handle_error(e, source="web_panel")
 
-        if not self.load_or_create_config():
-            if not self.first_time_setup():
-                self.logger.error("Setup failed")
-                return
+        if not getattr(self, "_config_loaded", False) and not self.first_time_setup():
+            self._log_if_logger("error", "Setup failed")
+            return
         logging.basicConfig(level=logging.DEBUG)
 
-        self.load_repositories()
-        await self.init_scheduler()
-
-        if not await self.init_client():
-            return
         try:
-            await self.init_db()
-        except ImportError:
-            self.cprint(f"{Colors.YELLOW}Install: pip install aiosqlite{Colors.RESET}")
-            await self.log_error_async("DB init failed: aiosqlite not installed")
+            self.load_repositories()
         except Exception as e:
-            self.cprint(f"{Colors.RED}=X DB init error: {e}{Colors.RESET}")
-            await self.log_error_async(f"DB init error: {e}")
+            self._log_if_logger("warning", "load_repositories failed: %s", e)
+            await self.handle_error(e, source="load_repositories")
+        try:
+            await self.init_scheduler()
+        except Exception as e:
+            self._log_if_logger("warning", "init_scheduler failed: %s", e)
+            await self.handle_error(e, source="init_scheduler")
 
-        await self.setup_inline_bot()
+        # Parallel: start client, db, and inline bot concurrently
+        async def _init_db_safe():
+            try:
+                await self.init_db()
+            except ImportError:
+                self.cprint(
+                    f"{Colors.YELLOW}Install: pip install aiosqlite{Colors.RESET}"
+                )
+                await self.log_error_async("DB init failed: aiosqlite not installed")
+            except Exception as e:
+                self.cprint(f"{Colors.RED}=X DB init error: {e}{Colors.RESET}")
+                await self.log_error_async(f"DB init error: {e}")
 
-        if not self.config.get("inline_bot_token"):
-            from core_inline.bot import InlineBot
+        try:
+            client_task = asyncio.create_task(self.init_client())
+            db_task = asyncio.create_task(_init_db_safe())
+            inline_task = asyncio.create_task(self.setup_inline_bot())
 
-            self.inline_bot = InlineBot(self)
-            await self.inline_bot.setup()
+            client_ok = await client_task
+            if not client_ok:
+                db_task.cancel()
+                inline_task.cancel()
+                return
 
-        kernel_logger = KernelLogger(self)
-        telegram_handler = setup_telegram_logging(
-            self.logger,
-            kernel_logger,
-        )
-        await telegram_handler.start()
+            await asyncio.gather(db_task, inline_task, return_exceptions=True)
+        except Exception as e:
+            self._log_if_logger("error", "client/db/inline init failed: %s", e)
+            await self.handle_error(e, source="client_db_inline")
+            return
 
-        self._telegram_handler = telegram_handler
-        self._kernel_logger = kernel_logger
+        try:
+            if not self.config.get("inline_bot_token"):
+                from core_inline.bot import InlineBot
+
+                self.inline_bot = InlineBot(self)
+                await self.inline_bot.setup()
+        except Exception as e:
+            self._log_if_logger("warning", "InlineBot setup failed: %s", e)
+            await self.handle_error(e, source="inline_bot_setup")
+
+        try:
+            kernel_logger = KernelLogger(self) if KernelLogger else None
+            if setup_telegram_logging:
+                telegram_handler = setup_telegram_logging(
+                    self.logger,
+                    kernel_logger,
+                )
+                await telegram_handler.start()
+                self._telegram_handler = telegram_handler
+                self._kernel_logger = kernel_logger
+        except Exception as e:
+            self._log_if_logger("warning", "telegram logging setup failed: %s", e)
+            await self.handle_error(e, source="telegram_logging")
         strings = self._get_strings()
         from telethon.errors import RPCError
 
@@ -240,11 +293,31 @@ class KernelLifecycleMixin:
                 pass
         self.client.set_protection_mode("safe")
         modules_start = time.time()
-        self.load_kernel = "system"
-        await self.load_system_modules()
-        await self.load_module_sources()
-        self.load_kernel = "user"
-        await self.load_user_modules()
+
+        try:
+            self.load_kernel = "system"
+            await self.load_system_modules()
+        except Exception as e:
+            self._log_if_logger("error", "load_system_modules failed: %s", e)
+            await self.handle_error(e, source="load_system_modules")
+        try:
+            await self.load_module_sources()
+        except Exception as e:
+            self._log_if_logger("warning", "load_module_sources failed: %s", e)
+            await self.handle_error(e, source="load_module_sources")
+        try:
+            self.load_kernel = "user"
+            await self.load_user_modules()
+        except Exception as e:
+            self._log_if_logger("error", "load_user_modules failed: %s", e)
+            await self.handle_error(e, source="load_user_modules")
+        try:
+            if self._loader:
+                self._loader.save_persistent_type_cache()
+        except Exception as e:
+            self._log_if_logger("warning", "save_type_cache failed: %s", e)
+            await self.handle_error(e, source="save_type_cache")
+
         modules_end = time.time()
 
         if hasattr(self, "bot_client") and self.bot_client:
@@ -351,7 +424,7 @@ class KernelLifecycleMixin:
                 import psutil as _psutil
             except ImportError:
                 self.logger.info(
-                    "[memmon] psutil not available — using /proc/self/statm"
+                    "[memmon] psutil not available - using /proc/self/statm"
                 )
 
             while not self.shutdown_flag:
@@ -384,7 +457,7 @@ class KernelLifecycleMixin:
                         result = purge_caches(self, level=level)
                         cleared = result.get("cleared", [])
                         self.logger.info(
-                            "[memmon] RSS %.0f MB (%.1f%%) — " "purge level %d: %s",
+                            "[memmon] RSS %.0f MB (%.1f%%) - " "purge level %d: %s",
                             rss / 1024 / 1024,
                             ratio * 100,
                             level,
@@ -451,6 +524,14 @@ class KernelLifecycleMixin:
             pass
         finally:
             await self.shutdown()
+
+    def _log_if_logger(self, level: str, msg: str, *args) -> None:
+        """Log if self.logger exists, otherwise print.  Handles degraded mode."""
+        logger = getattr(self, "logger", None)
+        if logger:
+            getattr(logger, level, logger.info)(msg, *args)
+        else:
+            print(f"[{level}] {msg % args if args else msg}", flush=True)
 
     async def shutdown(self) -> None:
         """Gracefully close all sessions and disconnect clients."""
@@ -637,6 +718,7 @@ class KernelLifecycleMixin:
                 print("\nStarting kernel…\n", flush=True)
             except Exception as e:
                 self.logger.error(f"Setup wizard failed: {e}")
+                await self.handle_error(e, source="setup_wizard")
                 return
 
         # Start the actual web panel in the background
@@ -646,6 +728,7 @@ class KernelLifecycleMixin:
             _task = asyncio.create_task(start_web_panel(self, host, port))
         except Exception as e:
             self.logger.error(f"Failed to start web panel: {e}")
+            await self.handle_error(e, source="web_panel_start")
             await self.log_error_async(f"Failed to start web panel: {e}")
 
     # Command processing

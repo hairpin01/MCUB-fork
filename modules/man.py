@@ -98,6 +98,12 @@ class ManModule(ModuleBase):
             description="emoji main inline panel",
             validator=String(default=str(CUSTOM_EMOJI["crystal"])),
         ),
+        ConfigValue(
+            "man_emoji_no_command",
+            "❔",
+            description="emoji for No command module",
+            validator=String(default="❔"),
+        ),
     )
 
     async def on_load(self) -> None:
@@ -110,6 +116,7 @@ class ManModule(ModuleBase):
                 "man_emoji_user_list": "▪️",
                 "man_emoji_system_list": "▫️",
                 "man_emoji": CUSTOM_EMOJI["crystal"],
+                "man_emoji_no_command": "❔",
             },
         )
         self.config.from_dict(config_dict)
@@ -527,7 +534,7 @@ class ManModule(ModuleBase):
                 return f"<b>{display_name}</b>{hidden_mark}: {inline_cmds}\n"
             else:
                 no_cmd_emoji = '<tg-emoji emoji-id="5431895003821513760">❄️</tg-emoji>'
-                return f"<b>{display_name}</b>{hidden_mark}: {no_cmd_emoji} <i>{s.get('no_commands', 'no commands')}</i>\n"
+                return f"{cfg.get('man_emoji_no_command') or '❔'} <b>{display_name}</b>{hidden_mark}: {no_cmd_emoji} <i>{s.get('no_commands', 'no commands')}</i>\n"
 
         def chunk_by_size(items: list, start_msg: str = "") -> list[list]:
             chunks = []

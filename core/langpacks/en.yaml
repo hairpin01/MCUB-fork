@@ -14,7 +14,7 @@ error:
   permission_denied: 🚫 <b>Permission denied</b>
 
 buttons:
-  __global__: 1
+  __global__: on
   close: 🙈 Close
   yes: 💠 Yes
   no: 🚫 No
@@ -112,8 +112,7 @@ terminal:
   config_min_edit_interval: "Min interval between edits (seconds)"
   config_edit_on_newline_only: "Only edit on newline arrival"
 command:
-  hello: <tg-emoji emoji-id="6012620675829734836">❤️</tg-emoji> Hello! I am a bot
-    from MCUB-fork
+  hello: <tg-emoji emoji-id="6012620675829734836">❤️</tg-emoji> Hello! I am a bot from MCUB-fork
   developers: 'Developers:'
   fork: 'fork:'
   original: 'Original:'
@@ -129,8 +128,7 @@ command:
   goodbye: <tg-emoji emoji-id="6012610604131424315">🥺</tg-emoji> Goodbye!
   bot_removed: Bot removed from chat
   delete_error: Failed to remove bot from chat.
-  hello_installed: <tg-emoji emoji-id="6012620675829734836">❤️</tg-emoji> Hello, MCUB
-    installed!
+  hello_installed: <tg-emoji emoji-id="6012620675829734836">❤️</tg-emoji> Hello, MCUB installed!
   main_commands: 'Main commands:'
   new_prefix: new prefix
   module_name: name
@@ -142,8 +140,7 @@ command:
   load: 'Load:'
   remove: 'Remove:'
   list_modules: 'List repo:'
-  choose_language: <tg-emoji emoji-id="6010399722471168034">❔</tg-emoji> Choose a
-    language
+  choose_language: <tg-emoji emoji-id="6010399722471168034">❔</tg-emoji> Choose a language
   setup_completed: <tg-emoji emoji-id="6012423240478103267">🥰</tg-emoji> Setup completed!
   start_init_error: 'Error start_init:'
   backup_setup: Auto-backup setup
@@ -153,8 +150,7 @@ command:
   backup_skip: Skip
   backup_yes: 'Yes'
   backup_no: 'No'
-  backup_enabled: <tg-emoji emoji-id="6012423240478103267">🥰</tg-emoji> Auto-backup
-    enabled
+  backup_enabled: <tg-emoji emoji-id="6012423240478103267">🥰</tg-emoji> Auto-backup enabled
   backup_disabled: Auto-backup disabled
   backup_not_found: Backup module not found
 eval:
@@ -976,8 +972,7 @@ userbot_backup:
     failed</b></i>
   reply_to_backup: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <u>Reply
     to a backup message</u>
-  not_backup_file: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <u>This is
-    not a backup file</u>
+  not_backup_file: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <u>This is not a backup file</u>
   restoring: <tg-emoji emoji-id="5426958067763804056">⏳</tg-emoji> <i>Restoring...</i>
   restored: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Restored:'
   no_files: <tg-emoji emoji-id="5409235172979672859">⚠️</tg-emoji> <u>No files to
@@ -1027,31 +1022,19 @@ userbot_backup:
   hours: hours
   enabled: Enabled
   disabled: Disabled
-  invalid_interval: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Invalid
-    interval
+  invalid_interval: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Invalid interval
   error_processing: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Error processing
-  encrypted_note: <blockquote><tg-emoji emoji-id="5447644880824181073">🔐</tg-emoji>
-    Encrypted</blockquote>
-  wrong_password: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Wrong password
-    or archive corrupted
-  hash_ok: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> SHA256 matches -
-    file intact
-  hash_mismatch: <blockquote><tg-emoji emoji-id="5388785832956016892">❌</tg-emoji>
-    SHA256 mismatch - file corrupted!</blockquote>
-  hash_unknown: <tg-emoji emoji-id="5409235172979672859">⚠️</tg-emoji> SHA256 not
-    found in signature
-  cloud_ok: '<tg-emoji emoji-id="5359954476607521990">☁️</tg-emoji> {provider}: uploaded
-    successfully'
-  cloud_fail: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> {provider}: upload
-    failed'
-  cleanup_done: '<tg-emoji emoji-id="5380186498827373381">🗑️</tg-emoji> Old backups
-    removed: {count}'
-  no_backups_found: <tg-emoji emoji-id="5409235172979672859">⚠️</tg-emoji> No backups
-    found in chat
-  select_backup: <tg-emoji emoji-id="5411192149058289173">☁️</tg-emoji> <b>Select
-    backup to restore:</b>
-  delayed_scheduled: <tg-emoji emoji-id="5326015457155620929">🧳</tg-emoji> Backup
-    will be created at <b>{time}</b>
+  encrypted_note: <blockquote><tg-emoji emoji-id="5447644880824181073">🔐</tg-emoji> Encrypted</blockquote>
+  wrong_password: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Wrong password or archive corrupted
+  hash_ok: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> SHA256 matches - file intact
+  hash_mismatch: <blockquote><tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> SHA256 mismatch - file corrupted!</blockquote>
+  hash_unknown: <tg-emoji emoji-id="5409235172979672859">⚠️</tg-emoji> SHA256 not found in signature
+  cloud_ok: '<tg-emoji emoji-id="5359954476607521990">☁️</tg-emoji> {provider}: uploaded successfully'
+  cloud_fail: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> {provider}: upload failed'
+  cleanup_done: '<tg-emoji emoji-id="5380186498827373381">🗑️</tg-emoji> Old backups removed: {count}'
+  no_backups_found: <tg-emoji emoji-id="5409235172979672859">⚠️</tg-emoji> No backups found in chat
+  select_backup: <tg-emoji emoji-id="5411192149058289173">☁️</tg-emoji> <b>Select backup to restore:</b>
+  delayed_scheduled: <tg-emoji emoji-id="5326015457155620929">🧳</tg-emoji> Backup will be created at <b>{time}</b>
   invalid_time: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Invalid time
     format. Example: 30m, 2h, 90s'
   unknown_arg: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Unknown argument.

@@ -1,9 +1,40 @@
+
+
 # MCUB Module API Documentation
 
 > **Version:** 1.3.3
 
 > [!IMPORTANT]
 > Recent Telethon-MCUB changes: [CHANGELOG.md](https://github.com/hairpin01/Telethon-MCUB/blob/v1/CHANGELOG.md)
+
+
+<details>
+  <summary><b>Code style</b></summary>
+  
+  **Kernel-style**
+
+  <div align="levt">
+
+  <img src="https://x0.at/7qx4.png" alt="code" width="600"/>
+
+  </div>
+
+  **Class-style**
+
+  <div align="levt">
+
+  <img src="https://x0.at/K6o_.jpg" alt="code" width="600"/>
+
+  </div>
+
+  **Client-style**
+
+  <div align="levt">
+
+  <img src="https://x0.at/uzoL.jpg" alt="code" width="600"/>
+
+  </div>
+</details>
 
 ---
 

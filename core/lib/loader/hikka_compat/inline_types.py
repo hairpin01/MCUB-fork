@@ -251,12 +251,12 @@ class InlineMessage:
         if "parse_mode" not in kwargs and self._default_parse_mode is not None:
             kwargs["parse_mode"] = self._default_parse_mode
 
-        _normalize_edit_reply_markup(kwargs, getattr(self, "_inline_proxy", None))
+        # Don't pre-convert reply_markup here - _edit_unit handles it
+        reply_markup = kwargs.pop("reply_markup", None)
 
         manager = self.inline_manager
         edit_unit = getattr(manager, "_edit_unit", None) if manager else None
         if callable(edit_unit):
-            edit_reply_markup = kwargs.pop("buttons", None)
             try:
                 result = await edit_unit(
                     *args,
@@ -264,7 +264,7 @@ class InlineMessage:
                     inline_message_id=self.inline_message_id or None,
                     chat_id=self.chat_id,
                     message_id=self.message_id,
-                    reply_markup=edit_reply_markup,
+                    reply_markup=reply_markup,
                     **kwargs,
                 )
                 if isinstance(result, InlineMessage):
@@ -734,7 +734,29 @@ class _InlineQueryBuilder:
 class InlineResults:
     """Stub for inline query results"""
 
-    pass
+    def __init__(self):
+        self._results: list[dict] = []
+
+    def __len__(self) -> int:
+        return len(self._results)
+
+    def add_article(
+        self,
+        title: str,
+        description: str = "",
+        text: str = "",
+        parse_mode: str = "html",
+        **kwargs,
+    ) -> dict:
+        result = {
+            "title": title,
+            "description": description,
+            "text": text,
+            "parse_mode": parse_mode,
+            **kwargs,
+        }
+        self._results.append(result)
+        return result
 
 
 _inline_types_mod = types.ModuleType("__hikka_mcub_compat_inline_types__")

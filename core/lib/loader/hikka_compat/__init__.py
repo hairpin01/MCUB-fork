@@ -3,6 +3,7 @@
 
 from . import geek, inline_types, inline_utils, loader, security, utils
 from . import translat as translations
+from . import proxies
 from .config import ConfigValue, LibraryConfig, ModuleConfig
 from .decorators import (
     InfiniteLoop,
@@ -49,6 +50,35 @@ from .runtime import (
     Module,
     _AllModulesStub,
     _CallableStringsDict,
+)
+from .types import (
+    CacheRecordEntity,
+    CacheRecordFullChannel,
+    CacheRecordFullUser,
+    CacheRecordPerms,
+    Command,
+    CoreOverwriteError,
+    CoreUnloadError,
+    HerokuReplyMarkup,
+    JSONSerializable,
+    ListLike,
+    LoadError,
+    SelfSuspend,
+    SelfUnload,
+    StopLoop,
+    StringLoader,
+    get_callback_handlers,
+    get_commands,
+    get_inline_handlers,
+    get_watchers,
+)
+from .proxies import (
+    PointerDict,
+    PointerList,
+    SafeAllModulesProxy,
+    SafeClientProxy,
+    SafeDatabaseProxy,
+    SafeInlineProxy,
 )
 from .types import (
     CacheRecordEntity,
@@ -122,21 +152,22 @@ __all__ = [
     "get_inline_handlers",
     "get_watchers",
     "inline_handler",
-    "inline_types",
     "inline_utils",
-    "is_hikka_module",
-    "load_hikka_module",
     "loader",
     "loop",
     "on",
-    "process_buttons",
+    "PointerDict",
+    "PointerList",
+    "proxies",
     "raw_handler",
-    "sanitise_text",
+    "SafeAllModulesProxy",
+    "SafeClientProxy",
+    "SafeDatabaseProxy",
+    "SafeInlineProxy",
     "security",
     "tag",
     "tds",
     "translations",
-    "unload_hikka_module",
     "utils",
     "validators",
     "watcher",

@@ -152,5 +152,9 @@ class FakeClient:
     ) -> typing.Any:
         return False
 
+    async def __call__(self, *args: typing.Any, **kwargs: typing.Any) -> typing.Any:
+        """Allow call syntax like ``await client(SomeRequest(...))`` as in Telethon."""
+        return await self._client(*args, **kwargs)
+
     def __getattr__(self, name: str) -> typing.Any:
         return getattr(self._client, name)

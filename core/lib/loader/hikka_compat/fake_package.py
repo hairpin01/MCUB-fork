@@ -66,6 +66,14 @@ from .types import (
     get_inline_handlers,
     get_watchers,
 )
+from .proxies import (
+    PointerDict,
+    PointerList,
+    SafeAllModulesProxy,
+    SafeClientProxy,
+    SafeDatabaseProxy,
+    SafeInlineProxy,
+)
 from .utils import _Utils
 from .validators import validators
 
@@ -87,7 +95,7 @@ def _parse_saved_config(raw: Any) -> dict:
     return {}
 
 
-_FAKE_PKG_NAME = "__hikka_mcub_compat__"
+_FAKE_PKG_NAME = "heroku"
 
 
 _MODULE_ALIASES: dict[str, str] = {
@@ -486,6 +494,12 @@ def _create_types_stub(parent_pkg_name: str) -> types.ModuleType:
         "Library": Library,
         "InlineProxy": InlineProxy,
         "DbProxy": DbProxy,
+        "PointerList": PointerList,
+        "PointerDict": PointerDict,
+        "SafeClientProxy": SafeClientProxy,
+        "SafeDatabaseProxy": SafeDatabaseProxy,
+        "SafeInlineProxy": SafeInlineProxy,
+        "SafeAllModulesProxy": SafeAllModulesProxy,
         "get_commands": get_commands,
         "get_inline_handlers": get_inline_handlers,
         "get_callback_handlers": get_callback_handlers,
@@ -960,6 +974,26 @@ def _install_extended_submodules(
     sys.modules[f"{parent_pkg_name}.tl_cache"] = tl_cache_mod
     sys.modules[f"{parent_pkg_name}.web"] = web_mod
     sys.modules[f"{parent_pkg_name}.web.core"] = web_core_mod
+
+    # Also expose as 'heroku' and 'hikka' sys.modules aliases
+    for _alias in ("heroku", "hikka"):
+        if _alias not in sys.modules:
+            sys.modules[_alias] = parent_mod
+            for _sub, _submod in [
+                (f"{_alias}.main", main_mod),
+                (f"{_alias}.version", version_mod),
+                (f"{_alias}.types", types_mod),
+                (f"{_alias}.log", log_mod),
+                (f"{_alias}._internal", internal_mod),
+                (f"{_alias}._local_storage", local_storage_mod),
+                (f"{_alias}.compat", compat_mod),
+                (f"{_alias}.compat.geek", geek_mod),
+                (f"{_alias}.tl_cache", tl_cache_mod),
+                (f"{_alias}.web", web_mod),
+                (f"{_alias}.web.core", web_core_mod),
+            ]:
+                if _sub not in sys.modules:
+                    sys.modules[_sub] = _submod
 
 
 def _ensure_fake_package() -> str:

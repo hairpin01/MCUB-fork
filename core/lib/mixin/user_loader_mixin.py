@@ -420,7 +420,7 @@ class UserLoaderMixin:
                 e,
                 message=f"Failed to execute package module {module_name!r}",
             )
-            raise
+            raise Exception(f"Failed to execute module: {e}") from e
         finally:
             k.clear_loading_module()
 

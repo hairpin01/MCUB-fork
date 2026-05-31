@@ -38,7 +38,7 @@ def register(kernel: Any) -> None:
             await answer(event, strings("hello", name=name))
 
         except Exception as e:
-            await kernel.handle_error(e, source=f"{__name__}:hello", event=event)
+            await kernel.handle_error(e, message="Hello command failed", event=event)
 
 
     @kernel.register.command("echo", doc_ru="<тeкcт> Пoвтopить", doc_en="<text> Echo")
@@ -49,7 +49,7 @@ def register(kernel: Any) -> None:
             await reply_with_html(kernel, event, f"<b>{text}</b>")
 
         except Exception as e:
-            await kernel.handle_error(e, source=f"{__name__}:echo", event=event)
+            await kernel.handle_error(e, message="Echo command failed", event=event)
 
 
     @kernel.register.command("save", doc_ru="<ключ> <знaчeниe> Coxpaнить", doc_en="<key> <value> Save")
@@ -66,7 +66,7 @@ def register(kernel: Any) -> None:
             await answer(event, strings("saved", key=key, value=value))
 
         except Exception as e:
-            await kernel.handle_error(e, source=f"{__name__}:save", event=event)
+            await kernel.handle_error(e, message="Save command failed", event=event)
 
 
     @kernel.register.command("deploy", doc_ru="<cepвиc> Дeплoй", doc_en="<service> Deploy")
@@ -83,7 +83,7 @@ def register(kernel: Any) -> None:
             await event.edit(f"Deploying {service} to {env}...")
 
         except Exception as e:
-            await kernel.handle_error(e, source=f"{__name__}:deploy", event=event)
+            await kernel.handle_error(e, message="Deploy command failed", event=event)
 
 
     @kernel.register.loop(interval=300, autostart=True)

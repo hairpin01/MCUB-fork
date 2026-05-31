@@ -10,6 +10,7 @@ from __future__ import annotations
 # 🌐 fork MCUBFB: https://github.com/Mitrichdfklwhcluio/MCUBFB
 # 🌐 github MCUB-fork: https://github.com/hairpin01/MCUB-fork
 import asyncio
+import hashlib
 import html
 import os
 import time
@@ -185,6 +186,39 @@ class Kernel(_StandardKernel):
         if log_chat:
             self.log_chat_id = int(log_chat)
 
+    @staticmethod
+    def _invalidate_bot_session_on_token_change(session_path: str, token: str) -> None:
+        """Remove stale session files when the bot token has changed.
+
+        Compares a SHA-256 hash of *token* against a ``.token_marker`` file
+        placed next to the session.  If the hashes differ the token was
+        rotated and the old session must be deleted so that Telethon
+        re-authorises with the new credentials on the next ``start()`` call.
+        """
+        marker_path = f"{session_path}.token_marker"
+
+        try:
+            with open(marker_path, encoding="utf-8") as f:
+                stored_hash = f.read().strip()
+        except FileNotFoundError:
+            stored_hash = ""
+
+        current_hash = hashlib.sha256(token.encode()).hexdigest()
+
+        if stored_hash == current_hash:
+            return
+
+        for suffix in (".session", ".session-journal"):
+            fpath = f"{session_path}{suffix}"
+            if os.path.exists(fpath):
+                os.remove(fpath)
+
+        try:
+            with open(marker_path, "w", encoding="utf-8") as f:
+                f.write(current_hash)
+        except OSError:
+            pass
+
     async def init_client(self) -> bool:
         """Connect the Telethon client using the bot token."""
         try:
@@ -193,6 +227,10 @@ class Kernel(_StandardKernel):
             sessions_dir = "sessions"
             os.makedirs(sessions_dir, exist_ok=True)
             session_path = os.path.join(sessions_dir, f"bot_{self.API_ID}")
+
+            # If the bot token changed since the last run, delete the stale
+            # session so Telethon re-authorises with the new credentials.
+            self._invalidate_bot_session_on_token_change(session_path, self._bot_token)
 
             self.client = TelegramClient(
                 session_path,
@@ -249,7 +287,9 @@ class Kernel(_StandardKernel):
             try:
                 await self.process_command(event)
             except Exception as e:
-                await self.handle_error(e, source="bot_message_handler", event=event)
+                await self.handle_error(
+                    e, message="Bot message handler error", event=event
+                )
 
                 from telethon.errors import RPCError
 

@@ -826,7 +826,7 @@ class TestHikkaModuleConfigSchema:
         _ensure_fake_package()
         import sys
 
-        loader_mod = sys.modules.get("__hikka_mcub_compat__.loader")
+        loader_mod = sys.modules.get("heroku.loader")
         assert loader_mod is not None
 
         ConfigValue = loader_mod.ConfigValue
@@ -856,7 +856,7 @@ class TestHikkaModuleConfigSchema:
         _ensure_fake_package()
         import sys
 
-        loader_mod = sys.modules.get("__hikka_mcub_compat__.loader")
+        loader_mod = sys.modules.get("heroku.loader")
         assert loader_mod is not None
 
         ConfigValue = loader_mod.ConfigValue

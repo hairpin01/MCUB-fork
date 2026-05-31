@@ -417,7 +417,9 @@ class Backup(ModuleBase):
                 except asyncio.CancelledError:
                     break
                 except Exception as e:
-                    await self.kernel.handle_error(e, source="backup_loop", event=None)
+                    await self.kernel.handle_error(
+                        e, message="Backup loop failed", event=None
+                    )
                     await asyncio.sleep(60)
 
         self._backup_task = asyncio.create_task(_loop())
@@ -773,7 +775,9 @@ class Backup(ModuleBase):
                         archive_path, cloud_provider, cloud_token
                     )
                 except Exception as e:
-                    await self.kernel.handle_error(e, source="cloud_upload", event=None)
+                    await self.kernel.handle_error(
+                        e, message="Cloud upload failed", event=None
+                    )
                 cloud_send_tg = cfg.get("cloud_also_telegram", True) if cfg else True
 
             if cloud_send_tg:
@@ -821,7 +825,7 @@ class Backup(ModuleBase):
             return True
 
         except Exception as e:
-            await self.kernel.handle_error(e, source="send_backup", event=None)
+            await self.kernel.handle_error(e, message="Backup send failed", event=None)
             return False
 
     async def ensure_backup_chat(self):
@@ -909,7 +913,9 @@ class Backup(ModuleBase):
             )
             return None
         except Exception as e:
-            await self.kernel.handle_error(e, source="ensure_backup_chat", event=None)
+            await self.kernel.handle_error(
+                e, message="Backup chat check failed", event=None
+            )
             return None
 
     async def set_group_photo(self, chat_id: int, photo_url: str) -> None:
@@ -935,7 +941,9 @@ class Backup(ModuleBase):
                             EditPhotoRequest(channel=chat_id, photo=input_file)
                         )
         except Exception as e:
-            await self.kernel.handle_error(e, source="set_group_photo", event=None)
+            await self.kernel.handle_error(
+                e, message="Group photo set failed", event=None
+            )
 
     async def _restore_from_backup_message(
         self, backup_message, status_event, password: str | None = None
@@ -1267,7 +1275,9 @@ class Backup(ModuleBase):
             backup_message = await event.get_message()
             await self._restore_from_backup_message(backup_message, event)
         except Exception as e:
-            await self.kernel.handle_error(e, source="restore_callback", event=event)
+            await self.kernel.handle_error(
+                e, message="Restore callback error", event=event
+            )
             await event.answer(self.strings["error_processing"], alert=True)
 
     @callback()

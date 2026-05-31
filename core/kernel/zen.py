@@ -372,9 +372,13 @@ class Kernel:
         await self._log.send_error_log(error_text, source_file, message_info)
 
     async def handle_error(
-        self, error: Exception, source: str = "unknown", event=None
+        self,
+        error: Exception,
+        source: str = "unknown",
+        message: str | None = None,
+        event=None,
     ) -> None:
-        await self._log.handle_error(error, source, event)
+        await self._log.handle_error(error, source, message=message, event=event)
 
     def save_error_to_file(self, error_text: str) -> None:
         self._log.save_error_to_file(error_text)
@@ -1379,7 +1383,7 @@ class Kernel:
             try:
                 await self.process_command(event)
             except Exception as e:
-                await self.handle_error(e, source="message_handler", event=event)
+                await self.handle_error(e, message="Message handler error", event=event)
                 tb = traceback.format_exc()
                 if len(tb) > 1000:
                     tb = "…" + tb[-997:]
@@ -1434,7 +1438,7 @@ class Kernel:
                     await self.process_bot_command(event)
                 except Exception as e:
                     await self.handle_error(
-                        e, source="bot_command_handler", event=event
+                        e, message="Bot command handler error", event=event
                     )
 
         logo = (

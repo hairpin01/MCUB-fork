@@ -376,7 +376,7 @@ def register(kernel):
                     cls=CustomJSONEncoder,
                 )
         except Exception as e:
-            await kernel.handle_error(e, source="save_config")
+            await kernel.handle_error(e, message="Config save failed")
 
     def parse_value(value_str, expected_type=None):
         value_str = value_str.strip()
@@ -2237,7 +2237,7 @@ def register(kernel):
 
         except Exception as e:
             kernel.logger.debug(f"FCFG confirm error: {e}")
-            kernel.handle_error(e, source="FCFG:chosen_result_handler", event=event)
+            kernel.handle_error(e, message="Config result handler error", event=event)
 
     async def fcfg_inline_handler(event):
 
@@ -3399,7 +3399,7 @@ def register(kernel):
                     await event.delete()
                 return
         except Exception as e:
-            await kernel.handle_error(e, source="cfg", event=event)
+            await kernel.handle_error(e, message="Config command error", event=event)
 
     @kernel.register.command(
         "fcfg",
@@ -3898,7 +3898,7 @@ def register(kernel):
                         )
 
         except Exception as e:
-            await kernel.handle_error(e, source="fcfg", event=event)
+            await kernel.handle_error(e, message="Config command error", event=event)
 
     kernel.register_inline_handler("cfg", config_menu_handler)
     kernel.register_inline_handler("config_kernel", config_kernel_handler)

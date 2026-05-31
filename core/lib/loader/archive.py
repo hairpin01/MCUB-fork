@@ -84,7 +84,7 @@ class ArchiveManager:
         except Exception as e:
             self.k.logger.error(f"[ArchiveManager] Download error: {e}")
             if hasattr(self.k, "handle_error"):
-                await self.k.handle_error(e, source="archive_download")
+                await self.k.handle_error(e, message="Archive download failed")
             return None
 
     def _validate_url(self, url: str) -> tuple[bool, str]:
@@ -230,12 +230,14 @@ class ArchiveManager:
                 return await self._process_extracted(target_dir)
             except Exception as e:
                 if hasattr(self.k, "handle_error"):
-                    await self.k.handle_error(e, source="archive_extract_tar")
+                    await self.k.handle_error(
+                        e, message="Archive tar extraction failed"
+                    )
                 return ExtractionResult(success=False, error=f"Extract error: {e}")
 
         except Exception as e:
             if hasattr(self.k, "handle_error"):
-                await self.k.handle_error(e, source="archive_extract")
+                await self.k.handle_error(e, message="Archive extraction failed")
             return ExtractionResult(success=False, error=f"Extract error: {e}")
 
     async def _process_extracted(self, extracted_dir: str) -> ExtractionResult:
@@ -333,7 +335,7 @@ class ArchiveManager:
                 import asyncio
 
                 asyncio.ensure_future(
-                    self.k.handle_error(e, source="archive_parse_pyproject")
+                    self.k.handle_error(e, message="Archive pyproject parsing failed")
                 )
 
         return meta

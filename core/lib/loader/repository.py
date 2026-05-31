@@ -133,7 +133,7 @@ class RepositoryManager:
             return False, "Could not retrieve module list"
         except Exception as e:
             if hasattr(self.k, "handle_error"):
-                await self.k.handle_error(e, source="repo_add")
+                await self.k.handle_error(e, message="Repository add failed")
             return False, "Error verifying repository"
 
     async def remove(self, index: int | str) -> tuple[bool, str]:
@@ -153,7 +153,7 @@ class RepositoryManager:
         except Exception as e:
             k.logger.error(f"Remove repository error: {e}")
             if hasattr(k, "handle_error"):
-                await k.handle_error(e, source="repo_remove")
+                await k.handle_error(e, message="Repository remove failed")
             return False, f"Error: {e}"
 
     async def get_name(self, url: str) -> str:
@@ -168,7 +168,7 @@ class RepositoryManager:
                         return (await resp.text()).strip()
         except Exception as e:
             if hasattr(self.k, "handle_error"):
-                await self.k.handle_error(e, source="repo_get_name")
+                await self.k.handle_error(e, message="Repository name fetch failed")
         return url.rstrip("/").split("/")[-1]
 
     async def get_modules_list(self, repo_url: str) -> list[str]:
@@ -188,7 +188,9 @@ class RepositoryManager:
                         ]
         except Exception as e:
             if hasattr(self.k, "handle_error"):
-                await self.k.handle_error(e, source="repo_get_modules_list")
+                await self.k.handle_error(
+                    e, message="Repository modules list fetch failed"
+                )
         return []
 
     async def download_module(self, repo_url: str, module_name: str) -> str | None:

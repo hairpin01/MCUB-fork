@@ -651,7 +651,9 @@ class SettingsModule(ModuleBase):
             info_text = self._s("mcubinfo_html")
             await self.edit(event, info_text, parse_mode="html")
         except Exception as e:
-            await self.kernel.handle_error(e, source="mcubinfo", event=event)
+            await self.kernel.handle_error(
+                e, message="MCUB info command error", event=event
+            )
             await self.edit(event, self._s("mcubinfo_error"), parse_mode="html")
 
     @command(

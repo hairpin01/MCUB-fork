@@ -137,7 +137,9 @@ class InlineManager:
     def _list_session_key(list_uuid: str) -> str:
         return f"list:{list_uuid}"
 
-    def _nav_buttons(self, kind: str, uid: str, *, ttl: int = 900) -> list[list[Any]]:
+    def _nav_buttons(
+        self, kind: str, uid: str, *, ttl: int = 900, page: int = 0, total: int = 1
+    ) -> list[list[Any]]:
         handler: Callable | None = None
         match kind:
             case "gallery":
@@ -147,13 +149,19 @@ class InlineManager:
         if handler is None:
             return []
 
-        return [
-            [
-                make_cb_button(self.k, "◀", handler, args=[uid, "prev"], ttl=ttl),
-                make_cb_button(self.k, "🔄", handler, args=[uid, "refresh"], ttl=ttl),
-                make_cb_button(self.k, "▶", handler, args=[uid, "next"], ttl=ttl),
-            ]
+        nav_row = [
+            make_cb_button(self.k, "⏪", handler, args=[uid, "first"], ttl=ttl),
+            make_cb_button(self.k, "◀️", handler, args=[uid, "prev"], ttl=ttl),
+            make_cb_button(
+                self.k, f" {page + 1}/{total} ", handler, args=[uid, "refresh"], ttl=ttl
+            ),
+            make_cb_button(self.k, "▶️", handler, args=[uid, "next"], ttl=ttl),
+            make_cb_button(self.k, "⏩", handler, args=[uid, "last"], ttl=ttl),
         ]
+        close_row = [
+            make_cb_button(self.k, "✖️ Close", handler, args=[uid, "close"], ttl=ttl),
+        ]
+        return [nav_row, close_row]
 
     def _render_gallery(
         self,
@@ -246,8 +254,19 @@ class InlineManager:
                 current_index = (current_index - 1) % total
             case "next":
                 current_index = (current_index + 1) % total
+            case "first":
+                current_index = 0
+            case "last":
+                current_index = total - 1
             case "refresh":
                 current_index = current_index % total
+            case "close":
+                try:
+                    await event.delete()
+                except Exception:
+                    pass
+                self._sessions.pop(session_key, None)
+                return
             case _:
                 current_index = 0
 
@@ -261,7 +280,9 @@ class InlineManager:
         gallery_text, media, _media_type = self._render_gallery(
             title, rows, current_index, escape_html=escape_html_flag
         )
-        nav_buttons = self._nav_buttons("gallery", gallery_uuid)
+        nav_buttons = self._nav_buttons(
+            "gallery", gallery_uuid, page=current_index, total=total
+        )
         try:
             await event.edit(
                 gallery_text,
@@ -296,8 +317,19 @@ class InlineManager:
                 page = (page - 1) % total_pages
             case "next":
                 page = (page + 1) % total_pages
+            case "first":
+                page = 0
+            case "last":
+                page = total_pages - 1
             case "refresh":
                 page = page % total_pages
+            case "close":
+                try:
+                    await event.delete()
+                except Exception:
+                    pass
+                self._sessions.pop(session_key, None)
+                return
             case _:
                 page = 0
 
@@ -311,7 +343,7 @@ class InlineManager:
                 expires_at=session.expires_at, data=list_data
             )
 
-        nav_buttons = self._nav_buttons("list", list_uuid)
+        nav_buttons = self._nav_buttons("list", list_uuid, page=page, total=total_pages)
         try:
             await event.edit(list_text, buttons=nav_buttons, parse_mode="html")
             await event.answer()
@@ -447,7 +479,9 @@ class InlineManager:
                         )
                         await handler(_pe)
                     except Exception as e:
-                        await k.handle_error(e, source="callback_handler", event=event)
+                        await k.handle_error(
+                            e, message="Callback handler error", event=event
+                        )
 
         except Exception as e:
             k.logger.error(f"Callback registration error: {e}")
@@ -649,7 +683,7 @@ class InlineManager:
             return False, None
 
         except Exception as e:
-            await k.handle_error(e, source="inline_query_and_click")
+            await k.handle_error(e, message="Inline query/click error")
             raw_tb = "".join(traceback.format_exception(*sys.exc_info())).replace(
                 "Traceback (most recent call last):\n", ""
             )
@@ -732,7 +766,7 @@ class InlineManager:
             return form_id
 
         except Exception as e:
-            await k.handle_error(e, source="inline_form")
+            await k.handle_error(e, message="Inline form error")
             raw_tb = "".join(traceback.format_exception(*sys.exc_info())).replace(
                 "Traceback (most recent call last):\n", ""
             )
@@ -790,10 +824,13 @@ class InlineManager:
                 ttl=ttl,
             )
 
+            total_items = len(rows)
             gallery_text, media, media_type = self._render_gallery(
                 title, rows, 0, escape_html=bool(escape_html)
             )
-            nav_buttons = self._nav_buttons("gallery", gallery_uuid)
+            nav_buttons = self._nav_buttons(
+                "gallery", gallery_uuid, page=0, total=total_items
+            )
 
             return await self.inline_form(
                 chat_id=chat_id,
@@ -808,7 +845,7 @@ class InlineManager:
             )
 
         except Exception as e:
-            await k.handle_error(e, source="gallery")
+            await k.handle_error(e, message="Inline gallery error")
             return (False, None)
 
     async def list(
@@ -854,10 +891,12 @@ class InlineManager:
                 ttl=ttl,
             )
 
-            list_text, _page, _tp = self._render_list(
+            list_text, _page, total_pages = self._render_list(
                 title, items, page=0, per_page=per_page, escape_html=bool(escape_html)
             )
-            nav_buttons = self._nav_buttons("list", list_uuid)
+            nav_buttons = self._nav_buttons(
+                "list", list_uuid, page=0, total=total_pages
+            )
 
             return await self.inline_form(
                 chat_id=chat_id,
@@ -870,7 +909,7 @@ class InlineManager:
             )
         except Exception as e:
             k.logger.error(f"list error: {e}")
-            await k.handle_error(e, source="list")
+            await k.handle_error(e, message="Inline list error")
             return (False, None)
 
     def get_module_inline_commands(self, module_name: str) -> list:

@@ -783,7 +783,9 @@ class Register:
                 except Exception as exc:
                     self.kernel.logger.error(f"Watcher '{watcher_name}' raised: {exc}")
                     if hasattr(self.kernel, "handle_error"):
-                        await self.kernel.handle_error(exc, source="watcher")
+                        await self.kernel.handle_error(
+                            exc, message="Module watcher error"
+                        )
 
             _wrapper.__name__ = f"watcher:{module_name}:{watcher_name}"
             _wrapper.__module__ = module_name

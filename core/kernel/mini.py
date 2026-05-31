@@ -81,7 +81,7 @@ class Kernel(_StandardKernel):
             try:
                 await self.process_command(event)
             except Exception as e:
-                await self.handle_error(e, source="message_handler", event=event)
+                await self.handle_error(e, message="Message handler error", event=event)
                 from telethon.errors import RPCError
 
                 lang = self.config.get("language", "ru")

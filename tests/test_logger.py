@@ -375,7 +375,7 @@ class TestHandleError(unittest.TestCase):
         try:
             raise ValueError("test error")
         except ValueError as e:
-            run(kl.handle_error(e, source="test_source"))
+            run(kl.handle_error(e, message="test_source"))
         k.bot_client.send_message.assert_called_once()
 
     def test_deduplication_skips_second_call(self):
@@ -385,7 +385,7 @@ class TestHandleError(unittest.TestCase):
         try:
             raise ValueError("dup")
         except ValueError as e:
-            run(kl.handle_error(e, source="src"))
+            run(kl.handle_error(e, message="src"))
         k.bot_client.send_message.assert_not_called()
 
     def test_message_contains_source(self):
@@ -394,7 +394,7 @@ class TestHandleError(unittest.TestCase):
         try:
             raise RuntimeError("boom")
         except RuntimeError as e:
-            run(kl.handle_error(e, source="my_module"))
+            run(kl.handle_error(e, message="my_module"))
 
         call_args = k.bot_client.send_message.call_args
         sent_text = call_args[1].get("message") or call_args[0][1]
@@ -406,7 +406,7 @@ class TestHandleError(unittest.TestCase):
         try:
             raise RuntimeError("x")
         except RuntimeError as e:
-            run(kl.handle_error(e, source="src"))
+            run(kl.handle_error(e, message="src"))
         k.bot_client.send_message.assert_not_called()
 
     def test_error_id_cached_for_traceback(self):
@@ -415,7 +415,7 @@ class TestHandleError(unittest.TestCase):
         try:
             raise RuntimeError("cache_me")
         except RuntimeError as e:
-            run(kl.handle_error(e, source="src"))
+            run(kl.handle_error(e, message="src"))
 
         # cache.set must have been called with a tb_err_* key
         set_keys = [call[0][0] for call in k.cache.set.call_args_list]
@@ -428,7 +428,7 @@ class TestHandleError(unittest.TestCase):
         try:
             raise RuntimeError("token='supersecret123'")
         except RuntimeError as e:
-            run(kl.handle_error(e, source="src"))
+            run(kl.handle_error(e, message="src"))
 
         call_args = k.bot_client.send_message.call_args
         sent_text = call_args[1].get("message") or call_args[0][1]
@@ -486,7 +486,7 @@ class TestErrorFormatter(unittest.TestCase):
     def test_format_traceback_line_with_file(self):
         line = '  File "/path/to/file.py", line 42, in main'
         result = ErrorFormatter.format_traceback_line(line)
-        self.assertIn("file.py:42", result)
+        self.assertIn("file:42", result)
         self.assertIn("main", result)
 
     def test_format_traceback_line_without_file(self):
@@ -499,8 +499,8 @@ class TestErrorFormatter(unittest.TestCase):
             '  File "x.py", line 1, in <module>\n  File "y.py", line 2, in <module>'
         )
         result = ErrorFormatter.format_full_traceback(raw_tb)
-        self.assertIn("x.py", result)
-        self.assertIn("y.py", result)
+        self.assertIn("x:1", result)
+        self.assertIn("y:2", result)
 
     def test_find_source_location_returns_first_match(self):
         raw_tb = '  File "a.py", line 10, in foo\n  File "b.py", line 20, in bar'

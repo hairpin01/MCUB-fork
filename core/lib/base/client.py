@@ -2,7 +2,9 @@
 # Copyright (c) 2026 Шмэлькa | @hairpin01
 
 import asyncio
+import hashlib
 import json
+import os
 import random
 import sys
 import traceback
@@ -218,6 +220,48 @@ class ClientManager:
             traceback.print_exc()
             return False
 
+    async def _invalidate_session_on_token_change(
+        self, session_path: str, token: str
+    ) -> None:
+        """Delete old session files when the bot token has changed.
+
+        Compares a SHA-256 hash of *token* against a ``.token_marker`` file
+        stored next to the session.  If they differ the token has been
+        rotated and the stale session must be removed so that Telethon
+        re-authorises with the new credentials.
+        """
+        k = self.k
+        marker_path = f"{session_path}.token_marker"
+
+        current_hash = hashlib.sha256(token.encode()).hexdigest()
+
+        stored_hash = ""
+        try:
+            with open(marker_path, encoding="utf-8") as f:
+                stored_hash = f.read().strip()
+        except FileNotFoundError:
+            pass
+
+        if stored_hash == current_hash:
+            return  # token unchanged, keep session
+
+        k.logger.info(
+            "Bot token changed (hash mismatch) - removing stale session files"
+        )
+        for suffix in (".session", ".session-journal"):
+            fpath = f"{session_path}{suffix}"
+            if os.path.exists(fpath):
+                os.remove(fpath)
+                k.logger.debug("Removed stale session file: %s", fpath)
+
+        # Write the new marker right away so a subsequent failure
+        # will not cause repeated deletion on the next attempt.
+        try:
+            with open(marker_path, "w", encoding="utf-8") as f:
+                f.write(current_hash)
+        except OSError as exc:
+            k.logger.warning("Could not write token marker: %s", exc)
+
     async def setup_inline_bot(self) -> bool:
         """Start the inline bot client if a token is configured.
 
@@ -242,6 +286,7 @@ class ClientManager:
         )
 
         session_path = self._get_session_path("inline_bot_session")
+        await self._invalidate_session_on_token_change(session_path, token)
         k.bot_client = TelegramClient(session_path, k.API_ID, k.API_HASH, timeout=30)
 
         try:

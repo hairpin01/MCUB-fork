@@ -1334,7 +1334,7 @@ def register(kernel):
             lines.append("</blockquote>")
             await event.edit("\n".join(lines), parse_mode="html")
         except Exception as e:
-            await kernel.handle_error(e, source="watchers", event=event)
+            await kernel.handle_error(e, message="Watchers command error", event=event)
 
     @kernel.register.command(
         "watchersdebug",
@@ -1395,7 +1395,7 @@ def register(kernel):
 
             await event.edit("\n".join(lines), parse_mode="html")
         except Exception as e:
-            await kernel.handle_error(e, source="watchersdebug", event=event)
+            await kernel.handle_error(e, message="Watchers debug error", event=event)
 
     async def toggle_watcher_handler(event):
         """Toggle a specific watcher on/off"""

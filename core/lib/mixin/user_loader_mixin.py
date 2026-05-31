@@ -82,7 +82,7 @@ class UserLoaderMixin:
             files.remove("log_bot.py")
             files.insert(0, "log_bot.py")
 
-        # Read every .py file **once**, cache code for phase 2.
+        # Read every .py file once, cache code for phase 2.
         modules_code: list[tuple[str, str]] = []
         code_cache: dict[str, str] = {}  # filename -> code
         for file_name in files:
@@ -201,6 +201,16 @@ class UserLoaderMixin:
         """
         module_name = file_name[:-3]
         file_path = os.path.join(k.MODULES_LOADED_DIR, file_name)
+
+        # Reject forbidden module names before any registration happens
+        if hasattr(self, "_raise_forbidden_module_name"):
+            try:
+                self._raise_forbidden_module_name(module_name, file_path)
+            except ValueError:
+                k.error_load_modules += 1
+                k.error_load_modules_name.append(module_name)
+                return
+
         try:
             if cached_code is not None:
                 code = cached_code
@@ -306,6 +316,9 @@ class UserLoaderMixin:
 
                         module_name = class_display_name
 
+                    if hasattr(self, "_raise_forbidden_module_name"):
+                        self._raise_forbidden_module_name(module_name, file_path)
+
                     k.loaded_modules[module_name] = module
                     k.logger.info(f"Module loaded [user class-style]: {module_name}")
                     await self.run_post_load(module, module_name, is_install=False)
@@ -339,6 +352,14 @@ class UserLoaderMixin:
         self, module_name: str, init_file: str, k: Any
     ) -> None:
         """Load a module that was installed as a package (from archive with local imports)."""
+
+        if hasattr(self, "_raise_forbidden_module_name"):
+            try:
+                self._raise_forbidden_module_name(module_name, init_file)
+            except ValueError:
+                k.error_load_modules += 1
+                k.error_load_modules_name.append(module_name)
+                return
 
         # Add parent directory to sys.path
         parent_dir = os.path.dirname(k.MODULES_LOADED_DIR.rstrip("/"))
@@ -395,6 +416,10 @@ class UserLoaderMixin:
             await self.run_post_load(module, module_name, is_install=False)
         except Exception as e:
             self._rollback_orphaned_commands(k, module_name)
+            k.handle_error(
+                e,
+                message=f"Failed to execute package module {module_name!r}",
+            )
             raise Exception(f"Failed to execute module: {e}") from e
         finally:
             k.clear_loading_module()
@@ -403,17 +428,23 @@ class UserLoaderMixin:
         """Remove commands registered during a failed module load."""
         if not module_name:
             return
-        for cmd in list(k.command_owners.keys()):
-            if k.command_owners.get(cmd) == module_name:
-                k.command_handlers.pop(cmd, None)
-                k.command_owners.pop(cmd, None)
-                k.logger.debug(
-                    "[rollback] removed orphan command %r from %r", cmd, module_name
-                )
-        bot_owners = getattr(k, "bot_command_owners", None)
-        bot_handlers = getattr(k, "bot_command_handlers", None)
-        if bot_owners is not None and bot_handlers is not None:
-            for cmd in list(bot_owners.keys()):
-                if bot_owners.get(cmd) == module_name:
-                    bot_handlers.pop(cmd, None)
-                    bot_owners.pop(cmd, None)
+        try:
+            for cmd in list(k.command_owners.keys()):
+                if k.command_owners.get(cmd) == module_name:
+                    k.command_handlers.pop(cmd, None)
+                    k.command_owners.pop(cmd, None)
+                    k.logger.debug(
+                        "[rollback] removed orphan command %r from %r", cmd, module_name
+                    )
+            bot_owners = getattr(k, "bot_command_owners", None)
+            bot_handlers = getattr(k, "bot_command_handlers", None)
+            if bot_owners is not None and bot_handlers is not None:
+                for cmd in list(bot_owners.keys()):
+                    if bot_owners.get(cmd) == module_name:
+                        bot_handlers.pop(cmd, None)
+                        bot_owners.pop(cmd, None)
+        except Exception as e:
+            k.handle_error(
+                e,
+                message=f"Error rolling back orphaned commands for {module_name!r}",
+            )

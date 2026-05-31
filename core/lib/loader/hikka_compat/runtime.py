@@ -25,6 +25,8 @@ from typing import Any
 
 import aiohttp
 
+from core.lib.base.database import DatabaseManager
+
 from .types import get_callback_handlers, get_inline_handlers, get_watchers
 
 logger = logging.getLogger(__name__)
@@ -150,6 +152,9 @@ class _StringsShim:
             for v in value.values():
                 if isinstance(v, str) and v:
                     return v
+        grouped = self._group_value(key)
+        if grouped is not None:
+            return grouped
         return f"Unknown strings: {key}"
 
     def __call__(self, key: str, _=None):
@@ -549,7 +554,8 @@ class DbProxy:
                 await self._kernel.db_set(module, key, value)
             except Exception as e:
                 self._kernel.logger.warning(
-                    f"[hikka_compat] DbProxy write failed ({module}.{key}): {e}"
+                    f"[hikka_compat] DbProxy write failed "
+                    f"({module}.{DatabaseManager.mask_key(key)}): {e}"
                 )
 
         try:
@@ -602,7 +608,8 @@ class DbProxy:
                 conn.close()
         except Exception as e:
             self._kernel.logger.warning(
-                f"[hikka_compat] DbProxy read failed ({module}.{key}): {e}"
+                f"[hikka_compat] DbProxy read failed "
+                f"({module}.{DatabaseManager.mask_key(key)}): {e}"
             )
             return default
 
@@ -629,8 +636,10 @@ class DbProxy:
     def _resolve_get_args(self, args, default=None):
         if len(args) == 1:
             return self._module_name, args[0], default
-        if len(args) >= 2:
-            return args[0], args[1], args[2] if len(args) >= 3 else default
+        if len(args) == 2:
+            return self._module_name, args[0], args[1]
+        if len(args) >= 3:
+            return args[0], args[1], args[2]
         raise TypeError("get() missing required arguments")
 
     def _resolve_set_args(self, args):
@@ -710,10 +719,10 @@ class DbProxy:
         return self._mem_key(self._module_name, key) in self._mem
 
     def __getitem__(self, key: str) -> Any:
-        return self.get(self._module_name, key)
+        return self.get(key)
 
     def __setitem__(self, key: str, value: Any) -> None:
-        self.set(self._module_name, key, value)
+        self.set(key, value)
 
     def __delitem__(self, key: str) -> None:
         self._mem.pop(self._mem_key(self._module_name, key), None)
@@ -1130,8 +1139,17 @@ class InlineProxy:
             uname = getattr(inline, "bot_username", None)
             if uname:
                 return uname
-        cfg = getattr(self._kernel, "config", {}) or {}
-        return cfg.get("inline_bot_username")
+        cfg = getattr(self._kernel, "config", None)
+        if isinstance(cfg, dict):
+            return cfg.get("inline_bot_username")
+        if cfg is not None and hasattr(cfg, "get"):
+            try:
+                val = cfg.get("inline_bot_username")
+                if isinstance(val, str):
+                    return val
+            except Exception:
+                pass
+        return None
 
     async def check_bot(self, username: str) -> bool:
         current = (self.bot_username or "").strip("@").lower()
@@ -1198,10 +1216,22 @@ class InlineProxy:
         if always_allow is None:
             always_allow = []
 
+        try:
+            from telethon.tl.custom.button import Button as TelethonButton
+            from telethon.tl.tlobject import TLObject
+        except Exception:
+            TLObject = TelethonButton = ()
+
         prepared_rows = []
         for row in rows:
             prepared_row = []
             for button in row:
+                if isinstance(button, (TLObject, TelethonButton)):
+                    prepared_row.append(button)
+                    continue
+
+                if not isinstance(button, dict):
+                    continue
                 btn = dict(button)
 
                 # Handle non-callback buttons (URL, switch, phone, location, game)
@@ -1423,8 +1453,19 @@ class InlineProxy:
                 elif "game" in button:
                     out_row.append(Button.game(text))
                 else:
-                    data = button.get("callback_data", button.get("data", ""))
-                    if isinstance(data, bytes):
+                    data = button.get(
+                        "callback_data",
+                        button.get("data", button.get("callback", "")),
+                    )
+                    if callable(data) or not data:
+                        cb_key = _rand_token(12)
+                        self._custom_map[cb_key] = {
+                            "handler": data if callable(data) else None,
+                            "args": [],
+                            "kwargs": {},
+                        }
+                        cb_data = cb_key.encode("utf-8", errors="replace")
+                    elif isinstance(data, bytes):
                         cb_data = data
                     else:
                         cb_data = str(data).encode("utf-8", errors="replace")
@@ -2259,6 +2300,44 @@ class InlineProxy:
                 return await message.respond(text, parse_mode="html")
             except Exception:
                 return None
+
+    async def query_gallery(
+        self,
+        query,
+        items,
+        *,
+        force_me: bool = False,
+        disable_security: bool = False,
+        always_allow=None,
+    ) -> bool:
+        logger.warning("[hikka_compat] query_gallery not implemented")
+        return False
+
+    # ── FSM (Finite State Machine) ──────────────────────────────────
+
+    fsm: dict[str, str] = {}
+
+    def set_fsm_state(self, user, state) -> bool:
+        if not isinstance(user, (str, int)):
+            logger.error("Invalid type for `user` in `set_fsm_state`")
+            return False
+        if not isinstance(state, (str, bool)):
+            logger.error("Invalid type for `state` in `set_fsm_state`")
+            return False
+        if state:
+            self.fsm[str(user)] = state
+        elif str(user) in self.fsm:
+            del self.fsm[str(user)]
+        return True
+
+    def get_fsm_state(self, user):
+        if not isinstance(user, (str, int)):
+            logger.error("Invalid type for `user` in `get_fsm_state`")
+            return False
+        return self.fsm.get(str(user), False)
+
+    ss = set_fsm_state
+    gs = get_fsm_state
 
 
 def _get_members(

@@ -89,6 +89,10 @@ _API_HASH_RE = re.compile(
     r"""api[_-]?hash(?:['"\s:=]|&#x27;|&quot;)+(?:['"\s]|&#x27;|&quot;)?([A-Za-z0-9_-]+)""",
     re.IGNORECASE,
 )
+_API_KEY_RE = re.compile(
+    r"""api[_-]?key(?:['"\s:=]|&#x27;|&quot;)+(?:['"\s]|&#x27;|&quot;)?([^,}\])"']+)""",
+    re.IGNORECASE,
+)
 _PASSWORD_RE = re.compile(
     r"""password(?:['"\s:=]|&#x27;|&quot;)+(?:['"\s]|&#x27;|&quot;)?([^\s"'&]+)""",
     re.IGNORECASE,
@@ -104,6 +108,7 @@ SENSITIVE_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     (_TOKEN_RE, 'token="***"'),
     (_API_ID_RE, "api_id=***"),
     (_API_HASH_RE, "api_hash=***"),
+    (_API_KEY_RE, "api_key=***"),
     (_PASSWORD_RE, "password=***"),
     (_SESSION_RE, "session=***"),
     (_AUTH_HEADER_RE, "Authorization: ***"),
@@ -197,6 +202,90 @@ _LOGGER_FRAMES = frozenset(
 )
 
 
+# Filled at first call by _build_mcub_roots(); avoids importing the kernel here.
+_MCUB_ROOTS: dict[str, str] = (
+    {}
+)  # abs_path  →  logical prefix (system / custom_modules)
+
+
+def _build_mcub_roots() -> None:
+    """Lazily populate _MCUB_ROOTS from the kernel instance if available."""
+    if _MCUB_ROOTS:
+        return
+    for name, mod in list(sys.modules.items()):
+        k = getattr(mod, "k", None) or getattr(mod, "kernel", None)
+        if k is None:
+            continue
+        loaded = getattr(k, "MODULES_LOADED_DIR", None)
+        system = getattr(k, "MODULES_DIR", None)
+        if loaded:
+            _MCUB_ROOTS[os.path.abspath(loaded)] = "custom_modules"
+        if system:
+            _MCUB_ROOTS[os.path.abspath(system)] = "system"
+        break
+
+
+def _strip_py(path: str) -> str:
+    """Remove ``__init__.py`` or ``.py`` suffix from a relative path string."""
+    if path.endswith(f"{os.sep}__init__.py"):
+        return path[: -(len(os.sep) + len("__init__.py"))]
+    if path.endswith("__init__.py"):
+        parent = os.path.dirname(path)
+        return parent if parent else path
+    if path.endswith(".py"):
+        return path[:-3]
+    return path
+
+
+def path_to_module(filepath: str) -> str:
+    """Convert a .py file path to dotted module notation."""
+    if not filepath or filepath.startswith("<"):
+        return filepath
+
+    try:
+        norm = os.path.normpath(os.path.abspath(filepath))
+    except ValueError:
+        return filepath
+
+    for mod_name, mod in list(sys.modules.items()):
+        mod_file = getattr(mod, "__file__", None)
+        if not mod_file:
+            continue
+        try:
+            if os.path.normpath(os.path.abspath(mod_file)) == norm:
+                return mod_name
+        except ValueError:
+            pass
+
+    _build_mcub_roots()
+    for root_abs, prefix in _MCUB_ROOTS.items():
+        sep = root_abs + os.sep
+        if norm.startswith(sep):
+            rel = norm[len(sep) :]
+            rel = _strip_py(rel)
+            return f"{prefix}.{rel.replace(os.sep, '.')}"
+
+    candidates: list[str] = []
+    for base in sys.path:
+        if not base:
+            continue
+        try:
+            base_abs = os.path.normpath(os.path.abspath(base))
+        except ValueError:
+            continue
+        sep = base_abs + os.sep
+        if norm.startswith(sep):
+            rel = norm[len(sep) :]
+            candidates.append(rel)
+
+    if candidates:
+        rel = min(candidates, key=len)
+        rel = _strip_py(rel)
+        return rel.replace(os.sep, ".")
+
+    return _strip_py(os.path.basename(norm))
+
+
 class ErrorFormatter:
     """Converts exceptions to HTML messages."""
 
@@ -206,8 +295,9 @@ class ErrorFormatter:
         m = _LINE_RE.search(line)
         if m:
             fn_, ln_, nm_ = m.groups()
+            short = path_to_module(fn_)
             return (
-                f"👉 <code>{html.escape(fn_)}:{ln_}</code>"
+                f"👉 <code>{html.escape(short)}:{ln_}</code>"
                 f" <b>in</b> <code>{html.escape(nm_)}</code>"
             )
         return f"<code>{html.escape(line)}</code>"
@@ -279,9 +369,10 @@ class ErrorFormatter:
                     ).strip()
                 )
             )
+            short_file = path_to_module(filename) if filename else ""
             src_part = (
                 f'<blockquote><tg-emoji emoji-id="5379679518740978720">🎯</tg-emoji>'
-                f" <b>Source:</b> <code>{html.escape(filename or '')}:{lineno or ''}</code>"
+                f" <b>Source:</b> <code>{html.escape(short_file)}:{lineno or ''}</code>"
                 f" <b>in</b> <code>{html.escape(name or '')}</code></blockquote>\n"
                 if filename
                 else ""
@@ -379,6 +470,9 @@ def setup_logging() -> logging.Logger:
     telethon_logger = logging.getLogger("telethon")
     telethon_logger.setLevel(logging.WARNING)
     telethon_logger.addFilter(_NoiseFilter())
+
+    aiosqlite_logger = logging.getLogger("aiosqlite")
+    aiosqlite_logger.setLevel(logging.WARNING)
 
     return kernel_logger
 
@@ -729,7 +823,8 @@ class KernelLogger:
             return
 
         safe_error = mask_sensitive_data(error_text[:_MAX_ERROR_TEXT_LEN])
-        safe_source = html.escape(mask_sensitive_data(source_file))
+        short_source = path_to_module(source_file)
+        safe_source = html.escape(mask_sensitive_data(short_source))
 
         error_id: str | None = None
         masked_tb = ""
@@ -760,20 +855,33 @@ class KernelLogger:
     async def handle_error(
         self,
         error: Exception,
-        source: str = "unknown",
+        source: str = "No message",
+        message: str | None = None,
         event=None,
     ) -> None:
         """Log an error to file and send a formatted report to the log chat."""
         if not self.log_chat_id:
             return
 
+        display_text = message or source
         error_type = type(error).__name__
 
-        if self._is_muted(error_type, source):
-            self.k.logger.debug(f"Muted error suppressed: {error_type} in {source}")
+        exc_info = (type(error), error, error.__traceback__)
+        rich = RichException.from_exc_info(*exc_info)
+        real_file, real_line, source_func = ErrorFormatter.find_source_location(
+            rich.full_stack
+        )
+        real_source = (
+            f"{real_file}:{real_line} in {source_func}" if real_file else source
+        )
+
+        if self._is_muted(error_type, real_source):
+            self.k.logger.debug(
+                f"Muted error suppressed: {error_type} in {real_source}"
+            )
             return
 
-        signature = f"error:{source}:{error_type}:{error}"
+        signature = f"error:{real_source}:{error_type}:{error}"
         sig_key = _sig_hash(signature)
         if self._is_duplicate(signature):
             return
@@ -781,15 +889,11 @@ class KernelLogger:
         error_id = f"err_{uuid.uuid4().hex[:8]}"
         lifetime_html = self._get_lifetime_info(sig_key)
 
-        exc_info = (type(error), error, error.__traceback__)
-        rich = RichException.from_exc_info(*exc_info)
-        _, _, source_func = ErrorFormatter.find_source_location(rich.full_stack)
-
-        src_esc = html.escape(mask_sensitive_data(source or "unknown"), quote=False)
+        src_esc = html.escape(mask_sensitive_data(display_text), quote=False)
         body = (
-            f'<blockquote><tg-emoji emoji-id="5372846474881146350">🔭</tg-emoji>'
-            f" <b>Source Message:</b> <code>{src_esc}</code></blockquote>\n"
             f"{lifetime_html}{rich.message}"
+            f'<blockquote><tg-emoji emoji-id="5372846474881146350">🔭</tg-emoji>'
+            f" <b>Message:</b> <code>{src_esc}</code></blockquote>"
         )
 
         if event:
@@ -824,10 +928,10 @@ class KernelLogger:
             rich.full_stack,
             error_id=error_id,
             error_type=error_type,
-            source=source,
+            source=real_source,
             source_func=source_func,
         )
-        await self._maybe_attach_log_file(source, repeat_count)
+        await self._maybe_attach_log_file(real_source, repeat_count)
 
     async def log(self, message: str, emoji: str = "ℹ️") -> None:
         """Send an event to the log chat and write it to the rotating log file."""

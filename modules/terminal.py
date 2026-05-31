@@ -542,7 +542,7 @@ def register(kernel):
                 else:
                     await client.send_message(chat_id, error_msg, parse_mode="html")
                 self.running_commands.pop(key, None)
-                await kernel.handle_error(e, source="terminal:run_command")
+                await kernel.handle_error(e, message="Terminal command failed")
 
         async def run_command_piped(
             self,
@@ -584,7 +584,7 @@ def register(kernel):
                 return output
             except Exception as e:
                 logger.error(f"terminal: piped command error: {e}")
-                await kernel.handle_error(e, source="terminal:run_command_piped")
+                await kernel.handle_error(e, message="Terminal piped command failed")
                 return f"Error: {e!s}"
 
         async def send_stdin(
@@ -651,7 +651,7 @@ def register(kernel):
                 pass
             except Exception as e:
                 logger.error(f"terminal: read_output error: {e}")
-                await kernel.handle_error(e, source="terminal:read_output")
+                await kernel.handle_error(e, message="Terminal output read failed")
             finally:
                 # Cancel timeout task if still running
                 timeout_task = cmd_data.get("timeout_task")
@@ -890,7 +890,7 @@ def register(kernel):
                     )
                 else:
                     await client.send_message(chat_id, error_msg, parse_mode="html")
-                await kernel.handle_error(e, source="terminal:kill_command")
+                await kernel.handle_error(e, message="Terminal kill command failed")
 
     terminal = TerminalModule()
 

@@ -202,7 +202,9 @@ class TrModule(ModuleBase):
             return event
 
         except Exception as e:
-            await self.kernel.handle_error(e, source="tr", event=event)
+            await self.kernel.handle_error(
+                e, message="Translate command error", event=event
+            )
             s = self.strings
             await self.edit(
                 event,

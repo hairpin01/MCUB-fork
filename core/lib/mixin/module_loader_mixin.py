@@ -62,6 +62,30 @@ except ImportError:
 if TYPE_CHECKING:
     pass
 
+try:
+    _STDLIB_MODULES: frozenset[str] = sys.stdlib_module_names  # Python ≥3.10
+except AttributeError:
+    # Fallback for older Python — define known subset
+    _STDLIB_MODULES = frozenset()
+
+# Additional names frequently used as local modules/packages that would
+_EXTRA_FORBIDDEN: frozenset[str] = frozenset(
+    {
+        "core",
+        "core_inline",
+        "utils",
+        "scripts",
+        "lib",
+        "modules",
+        "modules_loaded",
+        "os",
+        "sys",
+        "tests",
+    }
+)
+
+FORBIDDEN_MODULE_NAMES: frozenset[str] = _STDLIB_MODULES | _EXTRA_FORBIDDEN
+
 
 class ModuleLoaderMixin:
     """Mixin for loading modules from file, URL, and archives."""
@@ -91,25 +115,87 @@ class ModuleLoaderMixin:
         """Parse ``# requires:`` comments from module source."""
         return _parse_requires(code)
 
+    @staticmethod
+    def _check_forbidden_module_name(module_name: str) -> str | None:
+        """Return a human-readable conflict reason if *module_name* is forbidden, else ``None``."""
+        if module_name in FORBIDDEN_MODULE_NAMES:
+            return (
+                f"Module name '{module_name}' is reserved — it shadows a Python "
+                f"stdlib or core library import ({module_name!r}). "
+                f"Rename your module file."
+            )
+        if module_name.startswith("_") or module_name.startswith("."):
+            return (
+                f"Module name '{module_name}' starts with '_' or '.' — "
+                f"these prefixes are reserved."
+            )
+        return None
+
+    def _raise_forbidden_module_name(
+        self, module_name: str, file_path: str, *, is_system: bool = False
+    ) -> None:
+        """Raise :exc:`ValueError` if *module_name* is forbidden.
+
+        Before raising, the method performs best-effort cleanup:
+        * removes the entry from ``sys.modules`` if present,
+        * removes the module file from the filesystem.
+        """
+        reason = self._check_forbidden_module_name(module_name)
+        if reason is None:
+            return
+
+        k = self.k
+
+        try:
+            sys.modules.pop(module_name, None)
+            k.loaded_modules.pop(module_name, None)
+            k.system_modules.pop(module_name, None)
+            if hasattr(k, "_class_module_instances"):
+                k._class_module_instances.pop(module_name, None)
+
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+        except Exception as e:
+            k.handle_error(
+                e,
+                message=f"Error during cleanup of forbidden module '{module_name}'",
+            )
+
+        k.logger.error(
+            "[loader] FORBIDDEN module name %r (%s) — %s",
+            module_name,
+            "system" if is_system else "user",
+            reason,
+        )
+
+        raise ValueError(reason)
+
     def _purge_stale_loaded_module_entries(self) -> None:
         """Remove sys.modules entries that point to deleted user module files."""
-        loaded_dir = os.path.abspath(self.k.MODULES_LOADED_DIR)
-        for imported_name, imported_module in list(sys.modules.items()):
-            imported_file = getattr(imported_module, "__file__", None)
-            if not imported_file:
-                continue
+        k = self.k
+        loaded_dir = os.path.abspath(k.MODULES_LOADED_DIR)
+        try:
+            for imported_name, imported_module in list(sys.modules.items()):
+                imported_file = getattr(imported_module, "__file__", None)
+                if not imported_file:
+                    continue
 
-            imported_path = os.path.abspath(imported_file)
-            if not imported_path.startswith(loaded_dir + os.sep):
-                continue
+                imported_path = os.path.abspath(imported_file)
+                if not imported_path.startswith(loaded_dir + os.sep):
+                    continue
 
-            if not os.path.exists(imported_path):
-                sys.modules.pop(imported_name, None)
-                self.k.logger.debug(
-                    "[loader.load] purged stale sys.modules entry name=%r path=%r",
-                    imported_name,
-                    imported_file,
-                )
+                if not os.path.exists(imported_path):
+                    sys.modules.pop(imported_name, None)
+                    k.logger.debug(
+                        "[loader.load] purged stale sys.modules entry name=%r path=%r",
+                        imported_name,
+                        imported_file,
+                    )
+        except Exception as e:
+            k.handle_error(
+                e,
+                message="Error purging stale module entries from sys.modules",
+            )
 
     def _rename_sys_module_entry(
         self,
@@ -119,26 +205,33 @@ class ModuleLoaderMixin:
         file_path: str | None = None,
     ) -> None:
         """Move a loaded module in sys.modules after class-style name resolution."""
-        module.__name__ = new_name
-        module.__package__ = ""
-        if file_path:
-            module.__file__ = file_path
-            spec = getattr(module, "__spec__", None)
-            if spec is not None:
-                spec.name = new_name
-                spec.origin = file_path
+        k = self.k
+        try:
+            module.__name__ = new_name
+            module.__package__ = ""
+            if file_path:
+                module.__file__ = file_path
+                spec = getattr(module, "__spec__", None)
+                if spec is not None:
+                    spec.name = new_name
+                    spec.origin = file_path
 
-        if old_name == new_name:
+            if old_name == new_name:
+                sys.modules[new_name] = module
+                return
+
+            sys.modules.pop(old_name, None)
             sys.modules[new_name] = module
-            return
-
-        sys.modules.pop(old_name, None)
-        sys.modules[new_name] = module
-        self.k.logger.debug(
-            "[loader.load] renamed sys.modules entry %r -> %r",
-            old_name,
-            new_name,
-        )
+            k.logger.debug(
+                "[loader.load] renamed sys.modules entry %r -> %r",
+                old_name,
+                new_name,
+            )
+        except Exception as e:
+            k.handle_error(
+                e,
+                message=f"Error renaming sys.modules entry {old_name!r} -> {new_name!r}",
+            )
 
     def _parse_source_ast(self, code: str) -> ast.Module | None:
         """Parse python source code into AST."""
@@ -588,6 +681,11 @@ class ModuleLoaderMixin:
         """
         k = self.k
         try:
+            # Reject forbidden module names before any registration
+            self._raise_forbidden_module_name(
+                module_name, file_path, is_system=is_system
+            )
+
             self._purge_stale_loaded_module_entries()
 
             with open(file_path, encoding="utf-8") as f:
@@ -724,6 +822,10 @@ class ModuleLoaderMixin:
                         original_module_name, class_display_name, module, file_path
                     )
                     module_name = class_display_name
+
+                    self._raise_forbidden_module_name(
+                        module_name, file_path, is_system=is_system
+                    )
 
             k.set_loading_module(module_name, "system" if is_system else "user")
 

@@ -84,14 +84,18 @@ if 'ping' in kernel.command_handlers:
 
 ### Error Handling
 
-`kernel.handle_error(e, source="module:function", event=None)`
-Centralized error handling.
+`kernel.handle_error(e, message="Operation failed", event=None)`
+Centralized error handling. Writes the error to the log chat with a formatted traceback.
+
+- `message` (str, optional) — human-readable description of what failed (e.g. `"Command failed"`). Falls back to `source` if not set.
+- `source` (str, optional, default `"No message"`) — legacy parameter kept for backward compatibility. **Do not use together with `message`** — only one of them should be set.
+- `event` (Event, optional) — the original event, attached for extra context in the report.
 
 ```python
 try:
     await some_operation()
 except Exception as e:
-    await kernel.handle_error(e, source="module:function", event=event)
+    await kernel.handle_error(e, message="Database query failed", event=event)
 ```
 
 ### Utility Methods

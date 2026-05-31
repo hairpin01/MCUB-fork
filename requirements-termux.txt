@@ -1,0 +1,8 @@
+telethon_mcub
+aiohttp
+pysocks
+aiosqlite
+socks
+jinja2
+aiohttp-jinja2
+PyYAML

@@ -11,7 +11,7 @@ async def risky_handler(event):
         result = await risky_operation()
         await event.edit(f"Success: {result}")
     except Exception as e:
-        await kernel.handle_error(e, source="risky_handler", event=event)
+        await kernel.handle_error(e, message="Risky operation failed", event=event)
         await event.edit("Operation failed")
 ```
 
@@ -44,6 +44,6 @@ async def safe_handler(event):
         await event.edit("Network error")
 
     except Exception as e:
-        await kernel.handle_error(e, source="safe_handler", event=event)
+        await kernel.handle_error(e, message="Safe handler unexpected error", event=event)
         await event.edit("Unexpected error occurred")
 ```

@@ -15,6 +15,7 @@ from telethon import events
 
 import core.lib.loader.module_base as loader
 from core.lib.loader.module_base import ModuleBase, command
+from core.lib.utils.logger import ErrorFormatter
 
 CUSTOM_EMOJI = {
     "🧿": '<tg-emoji emoji-id="5426900601101374618">🧿</tg-emoji>',
@@ -79,6 +80,7 @@ class EvalModule(ModuleBase):
             "_": pipe_input,
         }
 
+        _tb_raw: str | None = None
         try:
             exec(
                 "async def __exec():\n    " + "\n    ".join(code.split("\n")),
@@ -89,7 +91,17 @@ class EvalModule(ModuleBase):
             if result is not None:
                 complete += str(result)
         except Exception:
-            complete = traceback.format_exc()
+            _tb_raw = traceback.format_exc()
+            _tb_clean = _tb_raw.replace("Traceback (most recent call last):\n", "", 1)
+            _tb_lines = [l for l in _tb_clean.split("\n") if l]
+            if len(_tb_lines) > 1:
+                stack_part = "\n".join(_tb_lines[:-1])
+                error_part = _tb_lines[-1]
+                complete = ErrorFormatter.format_full_traceback(stack_part) + "\n"
+            else:
+                error_part = _tb_lines[0] if _tb_lines else "Unknown error"
+                complete = ""
+            complete += f'{CUSTOM_EMOJI["❌"]} <code>{html.escape(error_part)}</code>'
 
         sys.stdout = old_stdout
         sys.stderr = old_stderr
@@ -101,13 +113,14 @@ class EvalModule(ModuleBase):
         result_text = complete if complete else "[no output]"
 
         if getattr(event, "piped", False):
-            await self.edit(event, result_text)
+            await self.edit(event, _tb_raw or result_text)
             return
 
         s = self.strings
 
         if len(result_text) > 4000:
-            result_file = io.BytesIO(result_text.encode("utf-8", errors="replace"))
+            file_content = _tb_raw or result_text
+            result_file = io.BytesIO(file_content.encode("utf-8", errors="replace"))
             result_file.name = "eval_result.txt"
 
             response = f"""{CUSTOM_EMOJI["🧿"]} <b>{s["code"]}</b>
@@ -138,11 +151,14 @@ class EvalModule(ModuleBase):
                     except Exception:
                         pass
         else:
-            result_display = html.escape(result_text)
+            if _tb_raw:
+                result_block = f"<blockquote expandable>{result_text}</blockquote>"
+            else:
+                result_block = f"<blockquote expandable><code>{html.escape(result_text)}</code></blockquote>"
             response = f"""{CUSTOM_EMOJI["🧿"]} <b>{s["code"]}</b>
 <blockquote expandable><code>{code_display}</code></blockquote>
 {CUSTOM_EMOJI["🧬"]} <b>{s["result_in_message"]}</b>
-<blockquote expandable><code>{result_display}</code></blockquote>
+{result_block}
 <blockquote>{CUSTOM_EMOJI["💠"]} <i>{s["executed_in"]}</i> <code>{elapsed}{s["ms"]}</code></blockquote>"""
             try:
                 await self.edit(event, response, as_html=True)

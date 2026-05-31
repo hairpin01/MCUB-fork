@@ -754,7 +754,9 @@ class ManModule(ModuleBase):
                             pass
 
                 except Exception as e:
-                    await self.kernel.handle_error(e, source="man_inline", event=event)
+                    await self.kernel.handle_error(
+                        e, message="Man inline error", event=event
+                    )
                     await self.edit(
                         event, f"{self.strings['error']}: {str(e)[:100]}", as_html=True
                     )
@@ -770,13 +772,13 @@ class ManModule(ModuleBase):
                             event, msg, file=media, parse_mode="html", invert_media=True
                         )
                     except Exception as e:
-                        await self.kernel.handle_error(e, source="man_banner")
+                        await self.kernel.handle_error(e, message="Man banner error")
                         await self.edit(event, msg, parse_mode="html")
                 else:
                     await self.edit(event, msg, parse_mode="html")
 
         except Exception as e:
-            await self.kernel.handle_error(e, source="man", event=event)
+            await self.kernel.handle_error(e, message="Man command error", event=event)
 
     @command(
         "manhide",
@@ -819,7 +821,9 @@ class ManModule(ModuleBase):
                 parse_mode="html",
             )
         except Exception as e:
-            await self.kernel.handle_error(e, source="manhide", event=event)
+            await self.kernel.handle_error(
+                e, message="Manhide command error", event=event
+            )
 
     @command(
         "manunhide",
@@ -854,7 +858,9 @@ class ManModule(ModuleBase):
                 parse_mode="html",
             )
         except Exception as e:
-            await self.kernel.handle_error(e, source="manunhide", event=event)
+            await self.kernel.handle_error(
+                e, message="Manunhide command error", event=event
+            )
 
     @command("help", doc_ru="пepeнaпpaвляeт нa man", doc_en="redirects to man")
     async def cmd_help(self, event: events.NewMessage.Event) -> None:

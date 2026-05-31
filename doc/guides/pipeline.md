@@ -168,7 +168,7 @@ class MyModule(ModuleBase):
 
             await self.edit(event, result, parse_mode="html")
         except Exception as e:
-            await self.kernel.handle_error(e, source="reverse", event=event)
+            await self.kernel.handle_error(e, message="Pipeline reverse failed", event=event)
 
     @command(
         "length",
@@ -194,7 +194,7 @@ class MyModule(ModuleBase):
 
             await self.edit(event, result, parse_mode="html")
         except Exception as e:
-            await self.kernel.handle_error(e, source="length", event=event)
+            await self.kernel.handle_error(e, message="Pipeline length failed", event=event)
 ```
 
 ## Enabling/Disabling Pipeline

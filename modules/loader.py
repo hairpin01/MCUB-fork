@@ -294,7 +294,7 @@ class Loader(ModuleBase):
             else:
                 return await self.client.send_message(chat_id, text, **kwargs)
         except Exception as e:
-            await self.kernel.handle_error(e, source="send_with_emoji")
+            await self.kernel.handle_error(e, message="Send with emoji failed")
             fallback = re.sub(r"<tg-emoji[^>]*>.*?</tg-emoji>", "", text)
             fallback = re.sub(r"<emoji[^>]*>.*?</emoji>", "", fallback)
             fallback = re.sub(r"<[^>]+>", "", fallback)
@@ -1815,7 +1815,9 @@ class Loader(ModuleBase):
 
             except Exception as e:
                 rollback_created_paths()
-                await self.kernel.handle_error(e, source="iload_archive", event=event)
+                await self.kernel.handle_error(
+                    e, message="Archive install failed", event=event
+                )
                 await self._edit_with_emoji(
                     event,
                     f"{CUSTOM_EMOJI['error']} <b>Archive install error:</b> {str(e)[:200]}",

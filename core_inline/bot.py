@@ -462,16 +462,22 @@ class InlineBot:
                     interactive=interactive_username
                 )
 
-            await client.send_message(botfather, "/newbot")
+            newbot_msg = await client.send_message(botfather, "/newbot")
             await asyncio.sleep(1)
             await client.send_message(botfather, "MCUB Inline Bot")
             await asyncio.sleep(1)
-            await client.send_message(botfather, requested_username)
+            username_msg = await client.send_message(botfather, requested_username)
+
+            # Only consider messages that arrived *after* we sent the username,
+            # so old BotFather "Done!" replies from previous bot creations are
+            # not accidentally picked up.
+            since_id = max(username_msg.id, newbot_msg.id)
 
             token, actual_username = await self._wait_for_bot_token(
                 botfather=botfather,
                 expected_username=requested_username,
                 client=client,
+                since_msg_id=since_id,
             )
             if not token or not actual_username:
                 return BotProvisionResult(
@@ -518,11 +524,19 @@ class InlineBot:
         expected_username: str,
         client: Any,
         timeout: int = 45,
+        since_msg_id: int = 0,
     ) -> tuple[str | None, str | None]:
-        """Wait for token and username in recent BotFather replies."""
+        """Wait for token and username in recent BotFather replies.
+
+        Args:
+            since_msg_id: Only consider messages with an ID strictly greater
+                than this value.  Pass the message ID of the username sent
+                to BotFather to avoid picking up tokens from *previous* bot
+                creations in the same conversation.
+        """
 
         start = time.monotonic()
-        last_msg_id = 0
+        last_msg_id = since_msg_id
         token: str | None = None
         actual_username: str | None = None
 
@@ -673,8 +687,9 @@ class InlineBot:
                 self.logger.info("[InlineBot] bot configured via aiogram Bot API")
                 return True
             except Exception:
-                self.logger.error("[InlineBot] aiogram configure failed", exc_info=True)
-                return False
+                self.logger.warning(
+                    "[InlineBot] aiogram configure failed, trying HTTP fallback"
+                )
             finally:
                 await bot.session.close()
 
@@ -1032,7 +1047,7 @@ class InlineBot:
                     except Exception as exc:
                         await self.kernel.handle_error(
                             exc,
-                            source=f"bot_command:{pattern}",
+                            message=f"bot_command:{pattern}",
                             event=event,
                         )
 

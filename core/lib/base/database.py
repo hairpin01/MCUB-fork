@@ -57,6 +57,31 @@ class DatabaseManager:
     }
     _VALID_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_.\-:]+$")
 
+    SENSITIVE_KEY_PATTERNS: list[re.Pattern[str]] = [
+        re.compile(r"token", re.IGNORECASE),
+        re.compile(r"password|passwd", re.IGNORECASE),
+        re.compile(r"secret", re.IGNORECASE),
+        re.compile(r"session", re.IGNORECASE),
+        re.compile(r"api[_\s]?(?:id|key|hash|secret)", re.IGNORECASE),
+        re.compile(r"auth", re.IGNORECASE),
+        re.compile(r"private[_\s]key", re.IGNORECASE),
+        re.compile(r"access[_\s]token", re.IGNORECASE),
+        re.compile(r"refresh[_\s]token", re.IGNORECASE),
+    ]
+
+    @staticmethod
+    def mask_key(key: str) -> str:
+        """Mask a key if it looks sensitive - keeps first + last char.
+
+        Used in log messages to avoid leaking sensitive key names.
+        """
+        for pattern in DatabaseManager.SENSITIVE_KEY_PATTERNS:
+            if pattern.search(key):
+                if len(key) <= 4:
+                    return "***"
+                return key[0] + "***" + key[-1]
+        return key
+
     def __init__(self, kernel):
         self.kernel = kernel
         self.conn = None
@@ -213,7 +238,7 @@ class DatabaseManager:
 
     async def db_set(self, module: str, key: str, value: Any):
         """Save value for a module key (write-through cache invalidate)."""
-        self.logger.debug(f"[DB] db_set module={module} key={key}")
+        self.logger.debug(f"[DB] db_set module={module} key={self.mask_key(key)}")
         if not self.conn:
             raise RuntimeError("Database is not initialized")
 
@@ -232,7 +257,7 @@ class DatabaseManager:
 
     async def db_get(self, module: str, key: str) -> str | None:
         """Get value for a module key (cached)."""
-        self.logger.debug(f"[DB] db_get module={module} key={key}")
+        self.logger.debug(f"[DB] db_get module={module} key={self.mask_key(key)}")
         if not self.conn:
             raise RuntimeError("Database is not initialized")
 
@@ -244,7 +269,7 @@ class DatabaseManager:
         cache_key = f"{module}:{key}"
         cached = self._get_cache.get(cache_key, ...)
         if cached is not ...:
-            self.logger.debug(f"[DB] db_get cache-hit key={cache_key}")
+            self.logger.debug(f"[DB] db_get cache-hit key={self.mask_key(cache_key)}")
             return cached
 
         cursor = await self.conn.execute(

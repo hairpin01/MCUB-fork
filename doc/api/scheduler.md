@@ -90,7 +90,7 @@ Tasks spawned by the scheduler automatically:
 - Support graceful cancellation via `asyncio.CancelledError`
 
 Interval and one-shot task errors call `kernel.log_error(...)`. Daily task errors call
-`kernel.handle_error(error, source="scheduler:wrapper")` and then wait 60 seconds before retrying.
+`kernel.handle_error(error, message="Scheduled task failed")` and then wait 60 seconds before retrying.
 
 ---
 

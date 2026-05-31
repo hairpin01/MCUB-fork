@@ -51,13 +51,13 @@ python3 -m core --set-default-core mycore
 | `process_command` | Intercept or transform commands before dispatch |
 | `handle_error` | Custom error reporting |
 
-## Example - Custom Error Handler
+## Example — Custom Error Handler
 
 ```python
 class Kernel(_StandardKernel):
-    async def handle_error(self, e, source="unknown", event=None):
-        await super().handle_error(e, source=source, event=event)
-        await my_monitoring.send(f"[{source}] {e}")
+    async def handle_error(self, e, message=None, event=None, source="unknown"):
+        await super().handle_error(e, message=message, event=event, source=source)
+        await my_monitoring.send(f"[{message or source}] {e}")
 ```
 
 ## Core Naming Conventions

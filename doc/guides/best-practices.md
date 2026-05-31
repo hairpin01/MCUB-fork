@@ -135,7 +135,7 @@ async def safe_handler(event):
         await event.edit("Network error")
 
     except Exception as e:
-        await kernel.handle_error(e, source="safe_handler", event=event)
+        await kernel.handle_error(e, message="Safe handler failed", event=event)
         await event.edit("Unexpected error occurred")
 ```
 

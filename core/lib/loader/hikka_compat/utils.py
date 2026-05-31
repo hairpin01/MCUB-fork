@@ -57,210 +57,139 @@ class _Utils:
         reply_markup = kwargs.pop("reply_markup", None)
         parse_mode = kwargs.pop("parse_mode", "html")
         file = kwargs.pop("file", None)
-        via_bot_id = getattr(message, "via_bot_id", None) or getattr(
-            getattr(message, "message", None), "via_bot_id", None
-        )
 
         if file is not None:
             return await _Utils.answer_file(message, file, text, **kwargs)
 
-        if reply_markup is not None:
-            inner_message = getattr(message, "_message", None)
-            inline_proxy = getattr(message, "_inline_proxy", None) or getattr(
-                inner_message, "_inline_proxy", None
-            )
-            if inline_proxy is None:
-                client = getattr(message, "client", None) or getattr(
-                    message, "_client", None
-                )
-                inline_proxy = getattr(client, "_inline_proxy", None)
-
-            unit_id = getattr(message, "unit_id", None) or getattr(
-                inner_message, "unit_id", None
-            )
-            inline_message_id = getattr(message, "inline_message_id", None) or getattr(
-                inner_message, "inline_message_id", None
-            )
-            chat_id = (
-                getattr(message, "chat_id", None)
-                or getattr(inner_message, "chat_id", None)
-                or getattr(getattr(message, "message", None), "chat_id", None)
-            )
-            message_id = (
-                getattr(message, "message_id", None)
-                or getattr(message, "id", None)
-                or getattr(inner_message, "message_id", None)
-                or getattr(inner_message, "id", None)
-            )
-
-            edit_unit = getattr(inline_proxy, "_edit_unit", None)
-            has_inline_context = bool(
-                unit_id
-                or inline_message_id
-                or getattr(message, "original_call", None) is not None
-            )
-            if callable(edit_unit) and has_inline_context:
-                edit_unit_kwargs = dict(kwargs)
-                edit_unit_kwargs.pop("buttons", None)
-                edit_unit_kwargs.pop("parse_mode", None)
-                try:
-                    result = await edit_unit(
-                        str(text or ""),
-                        unit_id=unit_id or None,
-                        inline_message_id=inline_message_id,
-                        chat_id=chat_id,
-                        message_id=message_id,
-                        reply_markup=reply_markup,
-                        **edit_unit_kwargs,
-                    )
-                    if result:
-                        return result
-                except Exception:
-                    pass
-
-            if (
-                has_inline_context
-                and hasattr(message, "edit")
-                and callable(message.edit)
-            ):
-                edit_kwargs = dict(kwargs)
-                edit_kwargs.setdefault("reply_markup", reply_markup)
-                edit_kwargs.setdefault("buttons", reply_markup)
-                try:
-                    return await message.edit(
-                        text, parse_mode=parse_mode, **edit_kwargs
-                    )
-                except TypeError:
-                    edit_kwargs.pop("reply_markup", None)
-                    return await message.edit(
-                        text, parse_mode=parse_mode, **edit_kwargs
-                    )
-                except Exception:
-                    return None
-
-            if has_inline_context:
-                return None
+        via_bot_id = getattr(message, "via_bot_id", None) or getattr(
+            getattr(message, "message", None), "via_bot_id", None
+        )
 
         if reply_markup is not None and not via_bot_id:
-            kernel = getattr(message, "_kernel", None) or getattr(
-                getattr(message, "_message", None), "_kernel", None
+            return await _Utils._answer_send_inline(
+                message, text, reply_markup, parse_mode, kwargs
             )
-            kernel_inline_form = getattr(kernel, "inline_form", None)
-            chat_id = getattr(message, "chat_id", None) or getattr(
-                getattr(message, "message", None), "chat_id", None
+
+        if reply_markup is not None and via_bot_id:
+            return await _Utils._answer_edit_inline(
+                message, text, reply_markup, parse_mode, kwargs
             )
-            if callable(kernel_inline_form) and chat_id is not None:
-                form_kwargs = dict(kwargs)
-                ttl = form_kwargs.pop("ttl", 200)
-                media = form_kwargs.pop("photo", None)
-                media_type = "photo"
-                if form_kwargs.get("gif"):
-                    media = form_kwargs.pop("gif", None)
-                    media_type = "gif"
-                elif form_kwargs.get("video"):
-                    media = form_kwargs.pop("video", None)
-                    media_type = "document"
-                elif form_kwargs.get("file"):
-                    media = form_kwargs.pop("file", None)
-                    media_type = "document"
 
-                for key in ("buttons", "reply_markup", "parse_mode"):
-                    form_kwargs.pop(key, None)
-
-                try:
-                    result = await kernel_inline_form(
-                        chat_id,
-                        str(text or ""),
-                        buttons=reply_markup,
-                        auto_send=True,
-                        ttl=ttl,
-                        media=media,
-                        media_type=media_type,
-                        parse_mode=parse_mode,
-                        **form_kwargs,
-                    )
-                    if isinstance(result, tuple) and len(result) == 2:
-                        success, sent_msg = result
-                        if success:
-                            return sent_msg or result
-                    elif result:
-                        return result
-                except Exception:
-                    pass
-
-            client = getattr(message, "client", None) or getattr(
-                message, "_client", None
-            )
-            form = getattr(client, "form", None)
-            if callable(form):
-                form_kwargs = dict(kwargs)
-                for key in ("buttons", "parse_mode"):
-                    form_kwargs.pop(key, None)
-                try:
-                    result = await form(
-                        str(text or ""),
-                        message,
-                        reply_markup,
-                        **form_kwargs,
-                    )
-                    if result:
-                        return result
-                except Exception:
-                    pass
-
-            inline_proxy = getattr(message, "_inline_proxy", None) or getattr(
-                client, "_inline_proxy", None
-            )
-            inline_form = getattr(inline_proxy, "form", None)
-            if callable(inline_form):
-                form_kwargs = dict(kwargs)
-                for key in ("buttons", "parse_mode"):
-                    form_kwargs.pop(key, None)
-                try:
-                    result = await inline_form(
-                        str(text or ""),
-                        message,
-                        reply_markup,
-                        **form_kwargs,
-                    )
-                    if result:
-                        return result
-                except Exception:
-                    pass
-
-        edit_kwargs = dict(kwargs)
-        if reply_markup is not None:
-            edit_kwargs.setdefault("reply_markup", reply_markup)
-            edit_kwargs.setdefault("buttons", reply_markup)
-
-        if hasattr(message, "edit") and callable(message.edit):
+        client = getattr(message, "client", None) or getattr(message, "_client", None)
+        chat_id = getattr(message, "chat_id", None)
+        if chat_id and getattr(message, "out", False) and hasattr(message, "edit"):
             try:
-                return await message.edit(text, parse_mode=parse_mode, **edit_kwargs)
-            except TypeError:
-                edit_kwargs.pop("reply_markup", None)
-                edit_kwargs.pop("reply_to", None)
-                return await message.edit(text, parse_mode=parse_mode, **edit_kwargs)
+                return await message.edit(text, parse_mode=parse_mode, **kwargs)
             except Exception:
                 pass
-
-        send_kwargs = dict(kwargs)
-        if reply_markup is not None:
-            send_kwargs["buttons"] = reply_markup
-
-        sender = getattr(message, "respond", None) or getattr(message, "reply", None)
-        if callable(sender):
-            chunks_ = _split_html_text(str(text or ""))
-            result = None
-            for part in chunks_:
-                try:
-                    result = await sender(part, parse_mode=parse_mode, **send_kwargs)
-                except TypeError:
-                    result = await sender(part, **send_kwargs)
-            return result
-
+        if client and hasattr(client, "send_message") and chat_id:
+            return await client.send_message(
+                chat_id, text, parse_mode=parse_mode, **kwargs
+            )
         return None
 
     @staticmethod
+    @staticmethod
+    def _answer_find_proxy(message):
+        inner = getattr(message, "_message", None)
+        proxy = getattr(message, "_inline_proxy", None) or getattr(
+            inner, "_inline_proxy", None
+        )
+        if proxy is not None:
+            return proxy
+        client = getattr(message, "client", None) or getattr(message, "_client", None)
+        return getattr(client, "_inline_proxy", None)
+
+    @staticmethod
+    async def _answer_send_inline(message, text, reply_markup, parse_mode, extra):
+        proxy = _Utils._answer_find_proxy(message)
+        if proxy is not None and hasattr(proxy, "form"):
+            try:
+                result = await proxy.form(text, message, reply_markup, **extra)
+                if result:
+                    return result
+            except Exception:
+                pass
+        kernel = getattr(message, "_kernel", None) or getattr(
+            getattr(message, "_message", None), "_kernel", None
+        )
+        kf = getattr(kernel, "inline_form", None)
+        chat_id = getattr(message, "chat_id", None) or getattr(
+            getattr(message, "message", None), "chat_id", None
+        )
+        if callable(kf) and chat_id is not None:
+            fw = dict(extra)
+            ttl = fw.pop("ttl", 200)
+            for k in ("buttons", "parse_mode"):
+                fw.pop(k, None)
+            try:
+                r = await kf(
+                    chat_id,
+                    str(text or ""),
+                    buttons=reply_markup,
+                    auto_send=True,
+                    ttl=ttl,
+                    parse_mode=parse_mode,
+                    **fw,
+                )
+                if isinstance(r, tuple) and len(r) == 2:
+                    if r[0]:
+                        return r[1] or r
+                elif r:
+                    return r
+            except Exception:
+                pass
+        client = getattr(message, "client", None) or getattr(message, "_client", None)
+        if client and hasattr(client, "send_message") and chat_id:
+            return await client.send_message(
+                chat_id,
+                text,
+                parse_mode=parse_mode,
+                buttons=reply_markup,
+                **extra,
+            )
+        return None
+
+    @staticmethod
+    async def _answer_edit_inline(message, text, reply_markup, parse_mode, extra):
+        proxy = _Utils._answer_find_proxy(message)
+        if proxy is not None:
+            eu = getattr(proxy, "_edit_unit", None)
+            if callable(eu):
+                uid = getattr(message, "unit_id", None)
+                imid = getattr(message, "inline_message_id", None)
+                cid = getattr(message, "chat_id", None)
+                mid = getattr(message, "message_id", None) or getattr(
+                    message, "id", None
+                )
+                try:
+                    r = await eu(
+                        str(text or ""),
+                        unit_id=uid,
+                        inline_message_id=imid,
+                        chat_id=cid,
+                        message_id=mid,
+                        reply_markup=reply_markup,
+                        parse_mode=parse_mode,
+                        **extra,
+                    )
+                    if r:
+                        return r
+                except Exception:
+                    pass
+        if hasattr(message, "edit") and callable(message.edit):
+            try:
+                return await message.edit(
+                    text,
+                    parse_mode=parse_mode,
+                    reply_markup=reply_markup,
+                    buttons=reply_markup,
+                    **extra,
+                )
+            except Exception:
+                pass
+        return None
+
     async def answer_file(message, file: Any, caption: str | None = None, **kwargs):
         parse_mode = kwargs.pop("parse_mode", "html")
         if hasattr(message, "client") and hasattr(message, "chat_id"):

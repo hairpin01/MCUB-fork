@@ -172,12 +172,6 @@ class ModuleUnloaderMixin:
                             removed_events,
                         )
 
-        # Do not call Telethon-MCUB ``remove_module_handlers(module_name)`` here.
-        # MCUB has already removed exact callbacks tracked in the module
-        # register above.  A broad client-side cleanup can invalidate unrelated
-        # core handlers or leave Telethon's type-dispatch cache incomplete during
-        # reload/install flows.
-
         uninstall = getattr(reg, "__uninstall__", None)
         if uninstall is not None:
             try:
@@ -225,17 +219,6 @@ class ModuleUnloaderMixin:
                 if cmd in k.bot_command_owners:
                     del k.bot_command_owners[cmd]
                 k.logger.debug(f"Unregistered bot command: {cmd}")
-
-        # Don't remove aliases on unregister - they persist across reloads
-        # aliases_to_remove = [
-        #     alias
-        #     for alias, target_cmd in k.aliases.items()
-        #     if k.command_owners.get(target_cmd) == module_name
-        #     or target_cmd in to_remove
-        # ]
-        # for alias in aliases_to_remove:
-        #     del k.aliases[alias]
-        #     k.logger.debug(f"Unregistered alias: {alias}")
 
         if not to_remove:
             k.logger.debug(

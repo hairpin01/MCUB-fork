@@ -63,7 +63,7 @@ class TestIntegration:
         try:
             raise ValueError("test error")
         except ValueError as e:
-            await kernel.handle_error(e, source="test")
+            await kernel.handle_error(e, message="test")
 
         assert kernel.handle_error.called
 

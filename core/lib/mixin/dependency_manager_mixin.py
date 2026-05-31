@@ -302,12 +302,24 @@ class DependencyManagerMixin:
         k.logger.info(
             f"[batch-deps] installing {len(missing)} packages in parallel: {missing}"
         )
-        await asyncio.gather(
+        results = await asyncio.gather(
             *[
                 self._install_dep_if_missing(dep, "/".join(dep_owners[dep][:3]))
                 for dep in missing
-            ]
+            ],
+            return_exceptions=True,
         )
+
+        # Log individual failures but continue – a single failed dep should not
+        # block *all* modules from loading.  The per-module loading phase will
+        # catch missing deps again and skip affected modules gracefully.
+        for dep, result in zip(missing, results):
+            if isinstance(result, Exception):
+                k.logger.warning(
+                    f"[batch-deps] failed to install '{dep}' "
+                    f"(owners: {dep_owners.get(dep, [])}): {result}. "
+                    "The module that requires it will be skipped."
+                )
 
     async def _pip_install(self, pip_name: str, module_name: str) -> None:
         """Install a pip package with multiple fallback strategies."""

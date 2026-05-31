@@ -310,7 +310,7 @@ class DependencyManagerMixin:
             return_exceptions=True,
         )
 
-        # Log individual failures but continue – a single failed dep should not
+        # Log individual failures but continue - a single failed dep should not
         # block *all* modules from loading.  The per-module loading phase will
         # catch missing deps again and skip affected modules gracefully.
         for dep, result in zip(missing, results):

@@ -54,7 +54,7 @@ class KernelLifecycleMixin:
                 self._log_if_logger("info", "failed install uvloop")
         except Exception as e:
             self._log_if_logger("info", "uvloop install failed: %s", e)
-            await self.handle_error(e, source="uvloop")
+            await self.handle_error(e, message="uvloop setup failed")
 
         no_web = not getattr(self, "web_enabled", True)
 
@@ -73,7 +73,7 @@ class KernelLifecycleMixin:
                     await self.run_panel()
             except Exception as e:
                 self._log_if_logger("warning", "web panel setup failed: %s", e)
-                await self.handle_error(e, source="web_panel")
+                await self.handle_error(e, message="Web panel startup failed")
 
         if not getattr(self, "_config_loaded", False) and not self.first_time_setup():
             self._log_if_logger("error", "Setup failed")
@@ -84,12 +84,12 @@ class KernelLifecycleMixin:
             self.load_repositories()
         except Exception as e:
             self._log_if_logger("warning", "load_repositories failed: %s", e)
-            await self.handle_error(e, source="load_repositories")
+            await self.handle_error(e, message="Repository loading failed")
         try:
             await self.init_scheduler()
         except Exception as e:
             self._log_if_logger("warning", "init_scheduler failed: %s", e)
-            await self.handle_error(e, source="init_scheduler")
+            await self.handle_error(e, message="Scheduler initialization failed")
 
         # Parallel: start client, db, and inline bot concurrently
         async def _init_db_safe():
@@ -118,7 +118,7 @@ class KernelLifecycleMixin:
             await asyncio.gather(db_task, inline_task, return_exceptions=True)
         except Exception as e:
             self._log_if_logger("error", "client/db/inline init failed: %s", e)
-            await self.handle_error(e, source="client_db_inline")
+            await self.handle_error(e, message="Client/DB/Inline setup failed")
             return
 
         try:
@@ -129,7 +129,7 @@ class KernelLifecycleMixin:
                 await self.inline_bot.setup()
         except Exception as e:
             self._log_if_logger("warning", "InlineBot setup failed: %s", e)
-            await self.handle_error(e, source="inline_bot_setup")
+            await self.handle_error(e, message="Inline bot setup failed")
 
         try:
             kernel_logger = KernelLogger(self) if KernelLogger else None
@@ -143,7 +143,7 @@ class KernelLifecycleMixin:
                 self._kernel_logger = kernel_logger
         except Exception as e:
             self._log_if_logger("warning", "telegram logging setup failed: %s", e)
-            await self.handle_error(e, source="telegram_logging")
+            await self.handle_error(e, message="Telegram logging setup failed")
         strings = self._get_strings()
         from telethon.errors import RPCError
 
@@ -200,7 +200,7 @@ class KernelLifecycleMixin:
             try:
                 await self.process_command(event)
             except Exception as e:
-                await self.handle_error(e, source="message_handler", event=event)
+                await self.handle_error(e, message="Message handler error", event=event)
 
                 if isinstance(e, RPCError):
                     cmd_text = html.escape(event.text or "")
@@ -299,24 +299,24 @@ class KernelLifecycleMixin:
             await self.load_system_modules()
         except Exception as e:
             self._log_if_logger("error", "load_system_modules failed: %s", e)
-            await self.handle_error(e, source="load_system_modules")
+            await self.handle_error(e, message="System modules loading failed")
         try:
             await self.load_module_sources()
         except Exception as e:
             self._log_if_logger("warning", "load_module_sources failed: %s", e)
-            await self.handle_error(e, source="load_module_sources")
+            await self.handle_error(e, message="Module sources loading failed")
         try:
             self.load_kernel = "user"
             await self.load_user_modules()
         except Exception as e:
             self._log_if_logger("error", "load_user_modules failed: %s", e)
-            await self.handle_error(e, source="load_user_modules")
+            await self.handle_error(e, message="User modules loading failed")
         try:
             if self._loader:
                 self._loader.save_persistent_type_cache()
         except Exception as e:
             self._log_if_logger("warning", "save_type_cache failed: %s", e)
-            await self.handle_error(e, source="save_type_cache")
+            await self.handle_error(e, message="Type cache save failed")
 
         modules_end = time.time()
 
@@ -659,7 +659,7 @@ class KernelLifecycleMixin:
                     await self.client.send_message(chat_id, msg_text, **send_kwargs)
             except Exception as e:
                 self.logger.error(f"Could not send restart notification: {e}")
-                await self.handle_error(e, source="restart")
+                await self.handle_error(e, message="Restart failed")
 
         except (OSError, FileNotFoundError, ValueError) as e:
             self.logger.error(f"Restart file error: {e}")
@@ -718,7 +718,7 @@ class KernelLifecycleMixin:
                 print("\nStarting kernel…\n", flush=True)
             except Exception as e:
                 self.logger.error(f"Setup wizard failed: {e}")
-                await self.handle_error(e, source="setup_wizard")
+                await self.handle_error(e, message="Setup wizard failed")
                 return
 
         # Start the actual web panel in the background
@@ -728,7 +728,7 @@ class KernelLifecycleMixin:
             _task = asyncio.create_task(start_web_panel(self, host, port))
         except Exception as e:
             self.logger.error(f"Failed to start web panel: {e}")
-            await self.handle_error(e, source="web_panel_start")
+            await self.handle_error(e, message="Web panel start failed")
             await self.log_error_async(f"Failed to start web panel: {e}")
 
     # Command processing

@@ -161,7 +161,7 @@ class TaskScheduler:
                     # Log the error but keep the task running
                     error_msg = f"Daily task error in {func.__name__}: {e}\n"
                     error_msg += traceback.format_exc()
-                    await self.kernel.handle_error(e, source="scheduler:wrapper")
+                    await self.kernel.handle_error(e, message="Scheduled task error")
                     await asyncio.sleep(60)
 
         task_name = f"daily_{func.__name__}_{hour:02d}:{minute:02d}"

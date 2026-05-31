@@ -616,8 +616,11 @@ class KernelCoreMixin:
 
     async def save_module_config(self, module_name: str, config_data: dict) -> bool:
         """Save a module's config to the database."""
+        from core.lib.utils.logger import mask_sensitive_data
+
         self.logger.debug(
-            f"[Kernel] save_module_config module={module_name} data={config_data}"
+            f"[Kernel] save_module_config module={module_name} "
+            f"data={mask_sensitive_data(str(config_data))}"
         )
         try:
             result = await self._cfg.save_module_config(module_name, config_data)
@@ -688,10 +691,14 @@ class KernelCoreMixin:
         await self._log.send_error_log(error_text, source_file, message_info)
 
     async def handle_error(
-        self, error: Exception, source: str = "unknown", event: Any = None
+        self,
+        error: Exception,
+        source: str = "unknown",
+        message: str | None = None,
+        event: Any = None,
     ) -> None:
         """Log an error to file and send a report to the log chat."""
-        await self._log.handle_error(error, source, event)
+        await self._log.handle_error(error, source, message=message, event=event)
 
     def save_error_to_file(self, error_text: str) -> None:
         """Append an error to logs/kernel.log."""

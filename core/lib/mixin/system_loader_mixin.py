@@ -86,6 +86,17 @@ class SystemLoaderMixin:
         module_name = file_name[:-3]
         original_module_name = module_name
         file_path = os.path.join(k.MODULES_DIR, file_name)
+
+        if hasattr(self, "_raise_forbidden_module_name"):
+            try:
+                self._raise_forbidden_module_name(
+                    module_name, file_path, is_system=True
+                )
+            except ValueError:
+                k.error_load_modules += 1
+                k.error_load_modules_name.append(module_name)
+                return
+
         try:
             if cached_code is not None:
                 code = cached_code
@@ -148,6 +159,11 @@ class SystemLoaderMixin:
                             sys.modules[class_display_name] = module
 
                         module_name = class_display_name
+
+                    if hasattr(self, "_raise_forbidden_module_name"):
+                        self._raise_forbidden_module_name(
+                            module_name, file_path, is_system=True
+                        )
 
                     k.set_loading_module(module_name, "system")
 

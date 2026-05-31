@@ -46,7 +46,7 @@ run_cmd() {
         printf "\n— Successfully installed\n| Code • %s\n| PID  • %s\n" "$exit_code" "$pid"
     fi
 }
-
+run_cmd "pip3 install --upgrade pip"
 run_cmd "pip3 install -r $file" || exit 1
 if ! command -v pkg &> /dev/null; then
     echo '- Unknown command: pkg'

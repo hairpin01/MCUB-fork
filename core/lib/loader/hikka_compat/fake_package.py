@@ -1034,6 +1034,22 @@ def _ensure_fake_package() -> str:
             if not hasattr(loader_mod, "set_session_access_hashes"):
                 loader_mod.set_session_access_hashes = lambda values: True
         _install_extended_submodules(_FAKE_PKG_NAME, parent_mod)
+
+        if not hasattr(parent_mod, "validators"):
+            from .validators import validators as _validators_namespace
+
+            _validators_mod = types.ModuleType(f"{_FAKE_PKG_NAME}.validators")
+            for _attr_name in dir(_validators_namespace):
+                if _attr_name.startswith("_"):
+                    continue
+                setattr(
+                    _validators_mod,
+                    _attr_name,
+                    getattr(_validators_namespace, _attr_name),
+                )
+            parent_mod.validators = _validators_mod
+            sys.modules.setdefault(f"{_FAKE_PKG_NAME}.validators", _validators_mod)
+
         return _FAKE_PKG_NAME
 
     parent = types.ModuleType(_FAKE_PKG_NAME)
@@ -1455,6 +1471,15 @@ def _ensure_fake_package() -> str:
     strings_mod = types.ModuleType(f"{_FAKE_PKG_NAME}.strings")
     strings_mod.Strings = translations._StringsShim
 
+    from .validators import validators as _validators_namespace
+
+    validators_mod = types.ModuleType(f"{_FAKE_PKG_NAME}.validators")
+    for _attr_name in dir(_validators_namespace):
+        if _attr_name.startswith("_"):
+            continue
+        setattr(validators_mod, _attr_name, getattr(_validators_namespace, _attr_name))
+
+    parent.validators = validators_mod
     parent.loader = loader_mod
     parent.utils = utils_mod
     parent.security = security._security_mod
@@ -1470,6 +1495,7 @@ def _ensure_fake_package() -> str:
     sys.modules[f"{_FAKE_PKG_NAME}.inline"] = inline_mod
     sys.modules[f"{_FAKE_PKG_NAME}.inline.types"] = inline_types_mod
     sys.modules[f"{_FAKE_PKG_NAME}.inline.utils"] = inline_utils_mod
+    sys.modules[f"{_FAKE_PKG_NAME}.validators"] = validators_mod
     sys.modules[f"{_FAKE_PKG_NAME}.strings"] = strings_mod
     _install_extended_submodules(_FAKE_PKG_NAME, parent)
 

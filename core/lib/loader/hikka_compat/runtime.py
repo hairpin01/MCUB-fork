@@ -934,11 +934,13 @@ class _BotProxy:
 
     @property
     def _client(self):
+        from ..kernel_proxy import ClientProxy
+
         k = self._inline_proxy._kernel
-        bot_client = getattr(k, "bot_client", None)
-        if bot_client:
-            return bot_client
-        return getattr(k, "client", None)
+        bc = getattr(k, "bot_client", None)
+        if bc:
+            return ClientProxy(bc, module_name="inline_bot")
+        return ClientProxy(k.client, module_name="inline_bot")
 
     @property
     def id(self) -> int | None:
@@ -2370,13 +2372,12 @@ class _AllModulesStub:
         from ..kernel_proxy import ClientProxy
 
         self._kernel = kernel
+        self._client_proxy = ClientProxy(kernel.client, module_name="allmodules")
         self.db = getattr(kernel, "_hikka_compat_db_facade", None)
         if self.db is None:
             self.db = _KernelDbFacade(kernel)
             kernel._hikka_compat_db_facade = self.db
-        self.client = ClientProxy(kernel.client, module_name="allmodules")
         self.inline = None
-        self.allclients = [self.client]
         self.translator = getattr(kernel, "_hikka_compat_translator", None)
         if self.translator is None:
             self.translator = _CompatTranslatorFacade()
@@ -2385,6 +2386,27 @@ class _AllModulesStub:
         self.aliases = getattr(kernel, "aliases", {})
         self.secure_boot = bool(getattr(kernel, "secure_boot", False))
         self._patched_register = None
+
+    @property
+    def client(self):
+        return self._client_proxy
+
+    @property
+    def allclients(self) -> list:
+        clients = [self._client_proxy]
+        bot_proxy = self.bot_client
+        if bot_proxy is not None:
+            clients.append(bot_proxy)
+        return clients
+
+    @property
+    def bot_client(self):
+        bc = getattr(self._kernel, "bot_client", None)
+        if bc is None:
+            return None
+        from ..kernel_proxy import ClientProxy
+
+        return ClientProxy(bc, module_name="allmodules")
 
     def lookup(self, name: str):
         _, inst = _find_kernel_module(self._kernel, name)
@@ -3099,7 +3121,11 @@ class Library:
         self.get_prefix = self.allmodules.get_prefix
         self.get_prefixes = self.allmodules.get_prefixes
         self.inline = self.allmodules.inline
-        self.allclients = self.allmodules.allclients
+        self._allmodules_ref = self.allmodules
+
+    @property
+    def allclients(self) -> list:
+        return self._allmodules_ref.allclients
 
     def _lib_get(self, key: str, default=None):
         return self._db.get(self.__class__.__name__, key, default)

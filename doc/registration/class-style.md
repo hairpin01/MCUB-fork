@@ -537,7 +537,7 @@ async def cmd_call(self, event):
 | `self.answer(event, text, **kwargs)` | Universal send/edit/reply |
 | `self.edit(event, text, **kwargs)` | Edit or send message |
 | `self.reply(event, text, **kwargs)` | Reply to message |
-| `self.inline(chat_id, title, ...)` | Send inline form message |
+| `self.inline(chat_id, title, ..., reply_to=...)` | Send inline form message (optional `reply_to` for topics) |
 
 ### Database and Cache Usage
 

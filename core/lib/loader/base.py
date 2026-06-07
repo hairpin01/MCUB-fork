@@ -390,9 +390,20 @@ class ModuleBase(ABC):
         buttons: list[Any] | None = None,
         auto_send: bool = True,
         ttl: int = 200,
+        reply_to: int | None = None,
         **kwargs,
     ) -> Any:
-        """Send an inline form message."""
+        """Send an inline form message.
+
+        Args:
+            chat_id: Target chat ID.
+            title: Form title / first line.
+            fields: Dict or list of field values appended below the title.
+            buttons: Buttons in any supported format.
+            auto_send: If True, send immediately and return (success, message).
+            ttl: Cache TTL for the form (seconds).
+            reply_to: Topic/thread message ID for supergroups with topics.
+        """
         return await self.kernel.inline_form(
             chat_id,
             title,
@@ -400,6 +411,7 @@ class ModuleBase(ABC):
             buttons=buttons,
             auto_send=auto_send,
             ttl=ttl,
+            reply_to=reply_to,
             **kwargs,
         )
 

@@ -14,6 +14,8 @@ Sends an inline message with formatted fields and buttons.
 - `buttons` (list, optional): Button configuration
 - `auto_send` (bool, default=True): If `True`, sends immediately
 - `ttl` (int, default=200): Cache TTL for form (seconds)
+- `reply_to` (int, optional): Topic/thread message ID for supergroups with topics.
+  The inline form message and its result will be sent into this topic.
 
 ### Button Configuration
 
@@ -83,6 +85,12 @@ success, msg = await kernel.inline_form(event.chat_id, "Profile", fields=fields)
 # Form with buttons
 buttons = [{"text": "Edit", "type": "callback", "data": "edit"}]
 success, msg = await kernel.inline_form(event.chat_id, "Profile", buttons=buttons)
+
+# Form in a topic (supergroup with topics)
+reply_to = getattr(event.message, "reply_to", None) or event.message.id
+success, msg = await kernel.inline_form(
+    event.chat_id, "Topic Menu", fields=fields, reply_to=reply_to
+)
 ```
 
 ---
@@ -134,8 +142,12 @@ async def profile_handler(event):
     fields = {"name": "user", "status": "Active"}
     buttons = [{"text": "Play", "type": "callback", "data": "casino_play"}]
 
+    # Detect topic context for supergroups with topics
+    reply_to = getattr(event.message, "reply_to", None) or event.message.id
+
     success, msg = await kernel.inline_form(
-        event.chat_id, "User Profile", fields=fields, buttons=buttons
+        event.chat_id, "User Profile", fields=fields, buttons=buttons,
+        reply_to=reply_to,
     )
     if success:
         await event.delete()

@@ -964,10 +964,11 @@ class Kernel:
         buttons: list[Any] | None = None,
         auto_send=True,
         ttl=200,
+        reply_to: int | None = None,
         **kwargs,
     ):
         return await self._inline.inline_form(
-            chat_id, title, fields, buttons, auto_send, ttl, **kwargs
+            chat_id, title, fields, buttons, auto_send, ttl, reply_to=reply_to, **kwargs
         )
 
     @property

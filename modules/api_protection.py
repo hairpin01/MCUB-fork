@@ -1081,7 +1081,10 @@ def register(kernel):
                 ],
             ]
             await kernel.inline_form(
-                event.chat_id, lang["are_you_sure"], buttons=buttons
+                event.chat_id,
+                lang["are_you_sure"],
+                buttons=buttons,
+                reply_to=getattr(event.message, "reply_to", None),
             )
             await event.delete()
             return

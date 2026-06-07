@@ -483,6 +483,7 @@ class SettingsModule(ModuleBase):
                 event.chat_id,
                 self._s("select_language"),
                 buttons=button_rows,
+                reply_to=getattr(event.message, "reply_to", None),
             )
             if success:
                 await event.delete()
@@ -519,6 +520,7 @@ class SettingsModule(ModuleBase):
         success, _form_message = await self.inline(
             event.chat_id,
             text,
+            reply_to=getattr(event.message, "reply_to", None),
             buttons=[
                 [
                     self.Button.inline(

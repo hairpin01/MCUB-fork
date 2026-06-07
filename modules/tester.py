@@ -143,6 +143,7 @@ class TesterMod(ModuleBase):
                 "placeholders": "",
                 "start_emoji": "✏️",
                 "banner_url": f"https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/{branch}/img/ping.png",
+                "start_banner_url": "",
             },
         )
         utils.register_decorated_placeholders(self.name, self)
@@ -180,6 +181,12 @@ class TesterMod(ModuleBase):
             "banner_url",
             "",
             description="Banner image URL for inline preview",
+            validator=String(default=""),
+        ),
+        ConfigValue(
+            "start_banner_url",
+            "",
+            description="Start banner image URL for inline preview",
             validator=String(default=""),
         ),
         ConfigValue(
@@ -356,11 +363,30 @@ class TesterMod(ModuleBase):
     @command("ping", doc_ru="пpoвepить зaдepжкy бoтa", doc_en="check bot latency")
     async def cmd_ping(self, event: Any) -> None:
         try:
+            start_banner_url = self.config.get("start_banner_url")
+            banner_url = self.config.get("banner_url")
+            quote_media = self.config.get("quote_media") or False
+            invert_media = self.config.get("invert_media") or False
             start_time = time.time()
-            msg = await event.edit(
-                self._resolve_ping_start_emoji(),
-                parse_mode="html",
-            )
+            if quote_media and start_banner_url:
+                msg = await event.edit(
+                    self._resolve_ping_start_emoji(),
+                    parse_mode="html",
+                    file=InputMediaWebPage(start_banner_url, optional=True),
+                    invert_media=invert_media,
+                )
+            elif start_banner_url:
+                msg = await event.edit(
+                    self._resolve_ping_start_emoji(),
+                    parse_mode="html",
+                    file=start_banner_url,
+                    invert_media=invert_media,
+                )
+            else:
+                msg = await event.edit(
+                    self._resolve_ping_start_emoji(),
+                    parse_mode="html",
+                )
             ping_time = round((time.time() - start_time) * 1000, 2)
 
             uptime_seconds = int(time.time() - self.kernel.start_time)
@@ -386,10 +412,6 @@ class TesterMod(ModuleBase):
                 start_emoji = self._resolve_ping_start_emoji()
                 response = f"""<blockquote>{start_emoji} <b>{self.strings("ping")}:</b> {ping_time} {self.strings("ms")}</blockquote>
 <blockquote>{start_emoji} <b>{self.strings("uptime")}:</b> {uptime}</blockquote>"""
-
-            banner_url = self.config.get("banner_url")
-            quote_media = self.config.get("quote_media") or False
-            invert_media = self.config.get("invert_media") or False
 
             if (
                 banner_url
@@ -439,6 +461,7 @@ class TesterMod(ModuleBase):
                 parse_mode="html",
             )
             self.log.error(f"Ping error: {e}")
+            await self.kernel.handle_error(e, message='Failed command "ping"')
 
     async def _build_custom_text(
         self,
@@ -655,6 +678,7 @@ class TesterMod(ModuleBase):
             f"{self.strings('logs_choose_level', paper=CUSTOM_EMOJI['📰'])}"
             + "\n"
             + f"{self.strings('logs_choose_desc')}",
+            reply_to=getattr(event.message, "reply_to", None),
             buttons=[
                 [
                     self.Button.inline(

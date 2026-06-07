@@ -836,7 +836,13 @@ def register(kernel):
         text = _build_access_text(name, access, group_access)
         buttons = _build_access_buttons(kernel, user_id, access, None, group_access)
 
-        await kernel.inline_form(event.chat_id, text, buttons=buttons, ttl=600)
+        await kernel.inline_form(
+            event.chat_id,
+            text,
+            buttons=buttons,
+            ttl=600,
+            reply_to=getattr(event.message, "reply_to", None),
+        )
         await event.delete()
 
     @kernel.register.command(
@@ -1045,7 +1051,12 @@ def register(kernel):
                 ),
             ],
         ]
-        await kernel.inline_form(event.chat_id, text, buttons=rows)
+        await kernel.inline_form(
+            event.chat_id,
+            text,
+            buttons=rows,
+            reply_to=getattr(event.message, "reply_to", None),
+        )
 
     @kernel.register.command(
         "untrust",
@@ -1877,7 +1888,12 @@ def register(kernel):
                 ]
             )
 
-            await kernel.inline_form(event.chat_id, text, buttons=rows)
+            await kernel.inline_form(
+                event.chat_id,
+                text,
+                buttons=rows,
+                reply_to=getattr(event.message, "reply_to", None),
+            )
             await event.delete()
             return
 

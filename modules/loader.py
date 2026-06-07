@@ -602,6 +602,7 @@ class Loader(ModuleBase):
             buttons=buttons,
             auto_send=True,
             ttl=300,
+            reply_to=getattr(event.message, "reply_to", None),
         )
 
         if success:

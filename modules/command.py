@@ -163,6 +163,10 @@ class CommandModule(ModuleBase):
             parse_mode="html",
         )
 
+    @bot_command("mitrich")
+    async def cmd_mitrich(self, event: events.NewMessage.Event) -> None:
+        await event.reply("чoooooooooo, митpич????")
+
     @callback()
     async def cb_language(
         self, event: events.CallbackQuery.Event, data: str | None = None

@@ -1210,6 +1210,7 @@ class Backup(ModuleBase):
                 self.strings["select_backup"],
                 buttons=buttons,
                 parse_mode="html",
+                reply_to=getattr(event.message, "reply_to", None),
             )
             if ok:
                 await event.delete()

@@ -94,7 +94,9 @@ class TestModuleKernelProxy:
         proxy = ClientProxy(client, "test_module")
 
         # Safe methods should work
-        assert proxy.send_message is client.send_message
+        # send_message is wrapped to inject parse_mode='html'
+        assert callable(proxy.send_message)
+        assert proxy.send_message is not client.send_message
         assert proxy.get_entity is client.get_entity
 
         # Dangerous methods should raise
@@ -193,7 +195,9 @@ class TestClientProxy:
         client = MagicMock()
         proxy = ClientProxy(client, "mod")
 
-        assert proxy.send_message is client.send_message
+        # send_message is wrapped to inject parse_mode='html' for Hikka compat
+        assert callable(proxy.send_message)
+        assert proxy.send_message is not client.send_message
         assert proxy.get_entity is client.get_entity
         assert proxy.get_messages is client.get_messages
         assert proxy.inline_query is client.inline_query

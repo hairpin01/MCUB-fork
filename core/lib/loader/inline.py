@@ -693,6 +693,15 @@ class InlineManager:
             (success: bool, message | None)
         """
         k = self.k
+        # Normalize reply_to in case it's called directly with a
+        # MessageReplyHeader from event.message.reply_to
+        if reply_to is not None and not isinstance(reply_to, int):
+            if hasattr(reply_to, "reply_to_top_id") and reply_to.reply_to_top_id:
+                reply_to = reply_to.reply_to_top_id
+            elif hasattr(reply_to, "reply_to_msg_id"):
+                reply_to = reply_to.reply_to_msg_id
+            else:
+                reply_to = None
         try:
             k.logger.debug(
                 "[inline] inline_query_and_click start chat_id=%s query=%s bot=%s",

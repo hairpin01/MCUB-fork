@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import functools
 from types import MappingProxyType
 from typing import Any
 
@@ -517,17 +518,56 @@ class ClientProxy:
     def _deny(self, name: str) -> None:
         _raise_insecure(name, self.module_name)
 
+    # Hikka/Heroku modules expect HTML parse mode by default, but Telethon
+    # methods like send_file/send_message read self._parse_mode on the real
+    # TelegramClient internally (bypassing the proxy). Wrap those methods to
+    # inject parse_mode='html' when not explicitly provided.
+    _PARSE_MODE_METHODS = frozenset(
+        {
+            "send_file",
+            "send_message",
+            "edit_message",
+            "send_photo",
+            "send_video",
+            "send_audio",
+            "send_document",
+            "send_voice",
+            "send_sticker",
+            "send_animation",
+            "forward_messages",
+            "respond",
+        }
+    )
+
+    @staticmethod
+    def _with_hikka_parse(method):
+        """Wrap a Telethon method so parse_mode defaults to 'html'."""
+
+        @functools.wraps(method)
+        async def wrapper(*args, **kwargs):
+            if "parse_mode" not in kwargs:
+                kwargs["parse_mode"] = "html"
+            return await method(*args, **kwargs)
+
+        return wrapper
+
     def __getattribute__(self, name: str) -> Any:
         if name == "__dict__":
             _raise_insecure(name, object.__getattribute__(self, "_module_name"))
         if name in object.__getattribute__(self, "_LOCAL_NAMES"):
             return object.__getattribute__(self, name)
+        # Hikka/Heroku modules expect HTML parse mode by default
+        if name == "parse_mode":
+            return "html"
         # Allow __dunder__ methods through (__class__, __call__, etc.)
         if name.startswith("__") and name.endswith("__"):
             return object.__getattribute__(self, name)
         if not ClientProxy.is_safe_method(name):
             _raise_insecure(name, object.__getattribute__(self, "_module_name"))
-        return getattr(object.__getattribute__(self, "_client"), name)
+        real_attr = getattr(object.__getattribute__(self, "_client"), name)
+        if name in ClientProxy._PARSE_MODE_METHODS and callable(real_attr):
+            return ClientProxy._with_hikka_parse(real_attr)
+        return real_attr
 
     async def __call__(self, *args: Any, **kwargs: Any) -> Any:
         """Allow direct Telethon API calls: ``await client(SomeRequest(...))``."""

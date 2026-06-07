@@ -824,11 +824,22 @@ class InlineManager:
             media: Public URL or file_id of a photo/document/gif to attach.
             media_type: One of "photo", "document", "gif" (default "photo").
             reply_to: Topic/thread message ID for supergroups with topics.
+                      Can be an int, or a MessageReplyHeader object from
+                      event.message.reply_to — will be normalized to int.
             parse_mode: Parse mode for the form message (default "html").
 
         Returns:
             (success, message) when auto_send=True, else form_id str.
         """
+        # Normalize reply_to: event.message.reply_to in newer Telegram API
+        # gives MessageReplyHeader, not an int. Extract the actual ID.
+        if reply_to is not None and not isinstance(reply_to, int):
+            if hasattr(reply_to, "reply_to_top_id") and reply_to.reply_to_top_id:
+                reply_to = reply_to.reply_to_top_id
+            elif hasattr(reply_to, "reply_to_msg_id"):
+                reply_to = reply_to.reply_to_msg_id
+            else:
+                reply_to = None
         k = self.k
         form_sms = None
         try:

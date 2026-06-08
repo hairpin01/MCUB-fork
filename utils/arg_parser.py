@@ -413,11 +413,14 @@ class PipelineParser:
         "|> ",
         " && ",
         " || ",
+        " |>",
         " | ",
         "|>",
         " &&",
         " ||",
+        " |>",
         " |",
+        "|>",
         "&&",
         "||",
         "|",
@@ -425,7 +428,7 @@ class PipelineParser:
         "&",
     )
 
-    _OP_PATTERN = re.compile(r"^((\|\||&&)\s*)")
+    _OP_PATTERN = re.compile(r"^((\|>|\|\||&&)\s*)")
 
     @staticmethod
     def _detect_operator(text: str, i: int) -> tuple[str | None, str | None]:
@@ -440,7 +443,7 @@ class PipelineParser:
         match = PipelineParser._OP_PATTERN.match(remaining)
         if match:
             op = match.group(2)
-            op_map = {"|": "|", "&": "&", "&&": "&&", "||": "||"}
+            op_map = {"|": "|", "|>": "|>", "&": "&", "&&": "&&", "||": "||"}
             return match.group(1), op_map.get(op)
         return None, None
 

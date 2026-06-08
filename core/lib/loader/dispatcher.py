@@ -183,6 +183,18 @@ class CommandDispatcher:
             )
             return False
 
+        # Try pipeline execution first
+        try:
+            from utils.arg_parser import PipelineParser
+
+            pipeline = PipelineParser(text)
+        except ImportError:
+            pipeline = None
+
+        piped_enabled = self.kernel.config.get("piped", True)
+        if pipeline is not None and not pipeline.is_simple() and piped_enabled:
+            return await self._execute_pipeline(event, pipeline, depth)
+
         if "@{" in text:
             pipe_in = getattr(event, "pipe_input", None) or ""
             interpolated = self.kernel.pipe_interpolate(text, pipe_in)
@@ -202,18 +214,6 @@ class CommandDispatcher:
             if interpolated != text:
                 self.kernel._set_event_text(event, interpolated)
                 text = interpolated
-
-        # Try pipeline execution first
-        try:
-            from utils.arg_parser import PipelineParser
-
-            pipeline = PipelineParser(text)
-        except ImportError:
-            pipeline = None
-
-        piped_enabled = self.kernel.config.get("piped", True)
-        if pipeline is not None and not pipeline.is_simple() and piped_enabled:
-            return await self._execute_pipeline(event, pipeline, depth)
 
         return await self._dispatch_single_command(event, depth, active_prefix)
 

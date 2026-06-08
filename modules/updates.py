@@ -98,17 +98,25 @@ class UpdatesMod(loader.ModuleBase):
             # git pull is running (can take several seconds on slow networks).
             repo_path = os.path.dirname(os.path.abspath(__file__))
             proc = await asyncio.create_subprocess_exec(
-                "git", "pull", "origin", branch,
+                "git",
+                "pull",
+                "origin",
+                branch,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=repo_path,
             )
             try:
-                stdout_b, stderr_b = await asyncio.wait_for(proc.communicate(), timeout=60)
+                stdout_b, stderr_b = await asyncio.wait_for(
+                    proc.communicate(), timeout=60
+                )
             except TimeoutError:
                 proc.kill()
                 await proc.communicate()
-                await msg.edit(self._s("error").format(error="git pull timed out (60s)"), parse_mode="html")
+                await msg.edit(
+                    self._s("error").format(error="git pull timed out (60s)"),
+                    parse_mode="html",
+                )
                 return
             result_stdout = stdout_b.decode(errors="replace")
             result_stderr = stderr_b.decode(errors="replace")
@@ -119,6 +127,7 @@ class UpdatesMod(loader.ModuleBase):
                 returncode = result_returncode
                 stdout = result_stdout
                 stderr = result_stderr
+
             result = _Result()
             self.log.debug("run -> 'git pull origin main'")
 

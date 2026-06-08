@@ -351,7 +351,14 @@ class DependencyManagerMixin:
         # -q suppresses progress bars and verbose output — significantly
         # reduces subprocess I/O overhead, especially for packages already
         # satisfied by pip's local cache.
-        cmd = [sys.executable, "-m", "pip", "install", "-q", "--disable-pip-version-check"]
+        cmd = [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "-q",
+            "--disable-pip-version-check",
+        ]
         if break_system:
             cmd.append("--break-system-packages")
         cmd.extend(packages)
@@ -411,7 +418,9 @@ class DependencyManagerMixin:
                     )
                     return
                 msg = (
-                    stderr.decode("utf-8", errors="replace") if stderr else "Unknown error"
+                    stderr.decode("utf-8", errors="replace")
+                    if stderr
+                    else "Unknown error"
                 )
                 k.logger.debug(f"[{module_name}] Strategy {i+1} failed: {msg}")
             except Exception as e:

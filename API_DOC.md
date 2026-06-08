@@ -10,7 +10,7 @@
 
 <details>
   <summary><b>Code style</b></summary>
-  
+
   **Kernel-style**
 
   <div align="levt">

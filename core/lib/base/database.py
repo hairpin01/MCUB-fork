@@ -235,16 +235,14 @@ class DatabaseManager:
 
     async def _create_tables(self):
         """Create required tables."""
-        await self.conn.execute(
-            """
+        await self.conn.execute("""
             CREATE TABLE IF NOT EXISTS module_data (
                 module TEXT,
                 key TEXT,
                 value TEXT,
                 PRIMARY KEY (module, key)
             )
-        """
-        )
+        """)
         await self.conn.commit()
 
     def _validate_identifier(self, value: str) -> bool:
@@ -310,7 +308,9 @@ class DatabaseManager:
 
         validated = []
         for module, key, value in rows:
-            if not self._validate_identifier(module) or not self._validate_identifier(key):
+            if not self._validate_identifier(module) or not self._validate_identifier(
+                key
+            ):
                 self.logger.warning(
                     f"[DB] db_set_many skipping invalid identifier: module={module!r} key={key!r}"
                 )

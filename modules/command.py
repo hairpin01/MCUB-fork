@@ -2,13 +2,13 @@
 # Copyright (c) 2026 Шмэлькa | @hairpin01
 
 from __future__ import annotations
-from utils.strings import Strings
 
 import asyncio
 
 from telethon import events
 
 from core.lib.loader.module_base import ModuleBase, bot_command, callback
+from utils.strings import Strings
 
 
 class CommandModule(ModuleBase):

@@ -630,7 +630,6 @@ def register(kernel):
         try:
             if mode == "custom":
                 from telethon.client.protection import (
-                    ProtectionPolicy,
                     STRICT_DANGEROUS_REQUESTS,
                     build_protection_policy,
                 )
@@ -640,51 +639,53 @@ def register(kernel):
 
                 if lockdown:
                     from telethon.tl.functions.account import (
-                        UpdateProfileRequest,
-                        UpdateUsernameRequest,
-                        UpdateStatusRequest,
-                        UpdateColorRequest,
-                        UpdateEmojiStatusRequest,
-                        UpdateBirthdayRequest,
-                        UpdatePersonalChannelRequest,
                         DeleteSecureValueRequest,
                         ResetNotifySettingsRequest,
                         SaveWallPaperRequest,
-                    )
-                    from telethon.tl.functions.messages import (
-                        CreateChatRequest,
-                        AddChatUserRequest,
-                        DeleteChatRequest,
-                        EditChatAboutRequest,
-                        ImportChatInviteRequest,
-                        ClearAllDraftsRequest,
-                        DeleteHistoryRequest,
-                        DeleteMessagesRequest,
-                        DeleteScheduledMessagesRequest,
-                        SaveDraftRequest,
-                        UpdateDialogFilterRequest,
+                        UpdateBirthdayRequest,
+                        UpdateColorRequest,
+                        UpdateEmojiStatusRequest,
+                        UpdatePersonalChannelRequest,
+                        UpdateProfileRequest,
+                        UpdateStatusRequest,
+                        UpdateUsernameRequest,
                     )
                     from telethon.tl.functions.channels import (
                         CreateChannelRequest,
-                        InviteToChannelRequest,
+                        DeleteChannelRequest,
                         EditAdminRequest,
                         EditBannedRequest,
-                        EditTitleRequest,
-                        EditPhotoRequest,
                         EditCreatorRequest,
-                        ToggleAntiSpamRequest,
-                        DeleteChannelRequest,
+                        EditPhotoRequest,
+                        EditTitleRequest,
+                        InviteToChannelRequest,
                         JoinChannelRequest,
                         LeaveChannelRequest,
+                        ToggleAntiSpamRequest,
                     )
                     from telethon.tl.functions.contacts import (
                         DeleteContactsRequest,
                         UnblockRequest,
                     )
+                    from telethon.tl.functions.messages import (
+                        AddChatUserRequest,
+                        ClearAllDraftsRequest,
+                        CreateChatRequest,
+                        DeleteChatRequest,
+                        DeleteHistoryRequest,
+                        DeleteMessagesRequest,
+                        DeleteScheduledMessagesRequest,
+                        EditChatAboutRequest,
+                        ImportChatInviteRequest,
+                        SaveDraftRequest,
+                        UpdateDialogFilterRequest,
+                    )
+                    from telethon.tl.functions.photos import (
+                        DeletePhotosRequest,
+                        UploadProfilePhotoRequest,
+                    )
                     from telethon.tl.functions.photos import (
                         UpdateProfilePhotoRequest as PhotosUpdateProfilePhotoRequest,
-                        UploadProfilePhotoRequest,
-                        DeletePhotosRequest,
                     )
                     from telethon.tl.functions.stories import (
                         DeleteStoriesRequest,
@@ -730,29 +731,31 @@ def register(kernel):
                         DeletePhotosRequest,
                         DeleteStoriesRequest,
                     )
+                    from telethon.tl.functions.channels import (
+                        CreateChannelRequest,
+                        DeleteChannelRequest,
+                        EditAdminRequest,
+                        EditBannedRequest,
+                        EditCreatorRequest,
+                        EditPhotoRequest,
+                        EditTitleRequest,
+                        InviteToChannelRequest,
+                        JoinChannelRequest,
+                        ToggleAntiSpamRequest,
+                    )
                     from telethon.tl.functions.messages import (
-                        CreateChatRequest,
                         AddChatUserRequest,
+                        CreateChatRequest,
                         DeleteChatRequest,
                         EditChatAboutRequest,
                         ImportChatInviteRequest,
                     )
-                    from telethon.tl.functions.channels import (
-                        CreateChannelRequest,
-                        InviteToChannelRequest,
-                        EditAdminRequest,
-                        EditBannedRequest,
-                        EditTitleRequest,
-                        EditPhotoRequest,
-                        EditCreatorRequest,
-                        ToggleAntiSpamRequest,
-                        DeleteChannelRequest,
-                        JoinChannelRequest,
+                    from telethon.tl.functions.photos import (
+                        DeletePhotosRequest,
+                        UploadProfilePhotoRequest,
                     )
                     from telethon.tl.functions.photos import (
                         UpdateProfilePhotoRequest as PhotosUpdateProfilePhotoRequest,
-                        UploadProfilePhotoRequest,
-                        DeletePhotosRequest,
                     )
 
                     extra_blocked = (

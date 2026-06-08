@@ -3,10 +3,7 @@
 
 """Tests for Heroku/Hikka compatibility layer."""
 
-import json
-import time
-import types
-from unittest.mock import AsyncMock, MagicMock, PropertyMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -22,25 +19,11 @@ class TestImportsAndConstants:
     def test_import_security_constants(self):
         from core.lib.loader.hikka_compat.security import (
             ALL,
-            BITMAP,
-            DEFAULT_PERMISSIONS,
             EVERYONE,
-            GROUP_ADMIN,
-            GROUP_ADMIN_ANY,
-            GROUP_MEMBER,
-            GROUP_OWNER,
             GROUP_ADMIN_ADD_ADMINS,
+            GROUP_ADMIN_ANY,
             GROUP_ADMIN_BAN_USERS,
-            GROUP_ADMIN_CHANGE_INFO,
-            GROUP_ADMIN_DELETE_MESSAGES,
-            GROUP_ADMIN_INVITE_USERS,
-            GROUP_ADMIN_PIN_MESSAGES,
-            GROUP_MEMBER,
             OWNER,
-            PM,
-            PUBLIC_PERMISSIONS,
-            SUDO,
-            SUPPORT,
         )
 
         assert OWNER == 1
@@ -51,16 +34,6 @@ class TestImportsAndConstants:
 
     def test_import_security_decorators(self):
         from core.lib.loader.hikka_compat.security import (
-            group_admin,
-            group_admin_add_admins,
-            group_admin_ban_users,
-            group_admin_change_info,
-            group_admin_delete_messages,
-            group_admin_invite_users,
-            group_admin_pin_messages,
-            group_member,
-            group_owner,
-            inline_everyone,
             owner,
             pm,
             unrestricted,

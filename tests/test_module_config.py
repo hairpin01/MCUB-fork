@@ -29,7 +29,6 @@ from core.lib.loader.module_config import (
     Validator,
 )
 
-
 # ─── Validator base ────────────────────────────────────────────────────
 
 
@@ -163,9 +162,9 @@ class TestFloat:
 
     def test_min_max(self):
         fv = Float(default=0, min=0.0, max=1.0)
-        with pytest.raises(ValidationError, match=">= 0.0"):
+        with pytest.raises(ValidationError, match=r">= 0\.0"):
             fv.validate(-1.0)
-        with pytest.raises(ValidationError, match="<= 1.0"):
+        with pytest.raises(ValidationError, match=r"<= 1\.0"):
             fv.validate(2.0)
         assert fv.validate(0.5) == 0.5
 

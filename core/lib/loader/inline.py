@@ -249,8 +249,8 @@ class InlineManager:
         Returns:
             (safe_block, current_page, total_pages)
         """
-        from html import escape as html_escape
         import re
+        from html import escape as html_escape
 
         chars_per_page = max(int(chars_per_page), 1)
 

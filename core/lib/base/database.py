@@ -235,16 +235,14 @@ class DatabaseManager:
 
     async def _create_tables(self):
         """Create required tables."""
-        await self.conn.execute(
-            """
+        await self.conn.execute("""
             CREATE TABLE IF NOT EXISTS module_data (
                 module TEXT,
                 key TEXT,
                 value TEXT,
                 PRIMARY KEY (module, key)
             )
-        """
-        )
+        """)
         await self.conn.commit()
 
     def _validate_identifier(self, value: str) -> bool:

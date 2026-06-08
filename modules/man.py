@@ -2,7 +2,6 @@
 # Copyright (c) 2026 Шмэлькa | @hairpin01
 
 from __future__ import annotations
-from utils.strings import Strings
 
 import asyncio
 import json
@@ -20,6 +19,7 @@ from telethon.tl.types import (
 import utils
 from core.lib.loader.module_base import ModuleBase, command, inline
 from core.lib.loader.module_config import Boolean, ConfigValue, ModuleConfig, String
+from utils.strings import Strings
 
 CUSTOM_EMOJI = {
     "crystal": '<tg-emoji emoji-id="5361837567463399422">🔮</tg-emoji>',

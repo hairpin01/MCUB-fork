@@ -2,7 +2,6 @@
 # Copyright (c) 2026 Шмэлькa | @hairpin01
 
 from __future__ import annotations
-from utils.strings import Strings
 
 # author: @Hairpin00
 # version: 1.1.5
@@ -26,17 +25,19 @@ from telethon import Button, events
 from telethon.errors.rpcerrorlist import MessageNotModifiedError
 from telethon.types import InputMediaWebPage
 
+from utils.strings import Strings
+
 if TYPE_CHECKING:
     pass
 
 import utils
-from core.lib.loader.repository import validate_remote_url
 from core.lib.loader.module_base import ModuleBase, command
 from core.lib.loader.module_config import (
     Boolean,
     ConfigValue,
     ModuleConfig,
 )
+from core.lib.loader.repository import validate_remote_url
 from core.lib.utils.exceptions import CommandConflictError
 
 try:

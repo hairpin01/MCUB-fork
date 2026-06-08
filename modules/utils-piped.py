@@ -2,7 +2,6 @@
 # Copyright (c) 2026 Шмэлькa | @hairpin01
 
 from __future__ import annotations
-from utils.strings import Strings
 
 import ast
 import asyncio
@@ -19,6 +18,7 @@ from typing import Any
 from telethon import events
 
 from core.lib.loader.module_base import ModuleBase, command
+from utils.strings import Strings
 
 
 def _get_text(event, args: str) -> str:

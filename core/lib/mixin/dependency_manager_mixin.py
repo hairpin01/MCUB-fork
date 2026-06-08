@@ -312,8 +312,7 @@ class DependencyManagerMixin:
         k.logger.info(
             f"[batch-deps] batch-installing {len(missing)} packages: {missing}"
         )
-
-        # ── Single pip call with all packages ─────────────────────────────
+        
         try:
             await self._pip_install_batch(missing)
             # Bust the spec cache for everything we just installed.
@@ -327,7 +326,7 @@ class DependencyManagerMixin:
                 "falling back to per-package installs"
             )
 
-        # ── Fallback: individual installs (original behaviour) ─────────────
+        # Fallback: individual installs (original behaviour)
         still_missing = [dep for dep in dep_owners if not self._is_dep_installed(dep)]
         results = await asyncio.gather(
             *[
@@ -337,7 +336,10 @@ class DependencyManagerMixin:
             return_exceptions=True,
         )
 
-        for dep, result in zip(still_missing, results, strict=True):
+        # Log individual failures but continue - a single failed dep should not
+        # block *all* modules from loading.  The per-module loading phase will
+        # catch missing deps again and skip affected modules gracefully.
+        for dep, result in zip(missing, results, strict=False):
             if isinstance(result, Exception):
                 k.logger.warning(
                     f"[batch-deps] failed to install '{dep}' "

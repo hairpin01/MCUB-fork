@@ -3,7 +3,6 @@
 
 """Integration tests: load real Heroku modules via hikka_compat."""
 
-import importlib
 import sys
 import types
 from pathlib import Path
@@ -42,7 +41,7 @@ def _setup_mock_kernel():
 
     k.db_set = db_set
 
-    from core.lib.loader.hikka_compat.runtime import DbProxy, _AllModulesStub
+    from core.lib.loader.hikka_compat.runtime import DbProxy
 
     k._hikka_compat_db = DbProxy(k, "test")
     k._allclients = []
@@ -77,7 +76,7 @@ class TestHerokuModuleLoading:
 
     def _load_module(self, module_path: str, module_name: str):
         """Load a Heroku module via hikka_compat's load_hikka_module."""
-        from core.lib.loader.hikka_compat import load_hikka_module, is_hikka_module
+        from core.lib.loader.hikka_compat import is_hikka_module, load_hikka_module
 
         path = Path(module_path)
         source = path.read_text(encoding="utf-8")
@@ -280,8 +279,8 @@ class TestHerokuModuleLoading:
             InlineCall,
             InlineMessage,
             InlineQuery,
-            InlineUnit,
             InlineResults,
+            InlineUnit,
         )
 
         assert InlineCall is not None
@@ -292,7 +291,7 @@ class TestHerokuModuleLoading:
 
     def test_pointers_available(self):
         """Test PointerList/PointerDict from heroku.types."""
-        from heroku.types import PointerList, PointerDict
+        from heroku.types import PointerDict, PointerList
 
         assert PointerList is not None
         assert PointerDict is not None

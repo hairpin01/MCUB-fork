@@ -2,7 +2,6 @@
 # Copyright (c) 2026 Шмэлькa | @hairpin01
 
 from __future__ import annotations
-from utils.strings import Strings
 
 import asyncio
 import json
@@ -14,6 +13,7 @@ from telethon import events
 
 from core.lib.loader.module_base import ModuleBase, command
 from core.lib.loader.module_config import Choice, ConfigValue, ModuleConfig
+from utils.strings import Strings
 
 
 class TrModule(ModuleBase):

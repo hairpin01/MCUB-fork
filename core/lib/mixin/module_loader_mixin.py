@@ -1020,30 +1020,11 @@ class ModuleLoaderMixin:
             f"[Loader] install_from_url start url={url} module_name={module_name}"
         )
 
-        TRUSTED_DOMAINS = [
-            "raw.githubusercontent.com",
-            "github.com",
-            "raw.githubusercontentusercontent.com",
-        ]
-
         try:
             parsed = urlparse(url)
-            host = (parsed.hostname or "").lower()
-            domain = parsed.netloc.lower()
             valid, error = validate_remote_url(url)
             if not valid:
                 return False, error
-            is_trusted = any(
-                host == trusted or host.endswith(f".{trusted}")
-                for trusted in TRUSTED_DOMAINS
-            )
-
-            if not is_trusted:
-                k.logger.warning(
-                    f"⚠️ SECURITY: Installing from untrusted domain: {domain}\n"
-                    f"   URL: {url}\n"
-                    f"   Trusted domains: {', '.join(TRUSTED_DOMAINS)}"
-                )
 
             if not module_name:
                 base = os.path.basename(parsed.path)

@@ -11,8 +11,6 @@ import tomllib
 import zipfile
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
-from urllib.parse import urlparse
-
 from .repository import validate_remote_url
 
 try:
@@ -22,14 +20,6 @@ except ImportError:
 
 if TYPE_CHECKING:
     from kernel import Kernel
-
-
-TRUSTED_DOMAINS = {
-    "raw.githubusercontent.com",
-    "github.com",
-    "raw.githubusercontentusercontent.com",
-    "raw.github.com",
-}
 
 
 @dataclass
@@ -92,17 +82,6 @@ class ArchiveManager:
         valid, error = validate_remote_url(url)
         if not valid:
             return valid, error
-
-        parsed = urlparse(url)
-        host_lower = (parsed.hostname or "").lower()
-        is_trusted = any(
-            host_lower == trusted or host_lower.endswith(f".{trusted}")
-            for trusted in TRUSTED_DOMAINS
-        )
-        if not is_trusted:
-            self.k.logger.warning(
-                f"[ArchiveManager] Installing from untrusted domain: {host_lower}"
-            )
 
         return True, "OK"
 

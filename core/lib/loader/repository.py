@@ -59,7 +59,6 @@ def validate_remote_url(
                 or ip.is_loopback
                 or ip.is_reserved
                 or ip.is_link_local
-                or ip.is_multicast
                 or ip.is_unspecified
             ):
                 return False, "Private/reserved IP addresses not allowed"
@@ -82,7 +81,6 @@ def validate_remote_url(
                         or resolved.is_loopback
                         or resolved.is_reserved
                         or resolved.is_link_local
-                        or resolved.is_multicast
                         or resolved.is_unspecified
                     ):
                         return (

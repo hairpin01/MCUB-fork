@@ -968,16 +968,21 @@ class ModuleLoaderMixin:
                 except Exception as e:
                     k.logger.error(f"Module {module_name} init() failed: {e}")
 
-            final_module_name = module_name
             return (
                 True,
-                f"Module {final_module_name} loaded ({mod_type} type)",
+                f"Module {module_name} loaded ({mod_type} type)",
             )
 
         except CommandConflictError:
             raise
         except Exception as e:
             k.logger.error(f"Failed to load {module_name}: {e}", exc_info=True)
+            # Clean up any commands that might have been registered
+            # before the error occurred
+            try:
+                await self.unregister_module_commands(module_name)
+            except Exception:
+                pass
             if hasattr(k, "_log") and k._log:
                 await k._log.log_error_from_exc(f"load_module:{module_name}")
             return False, f"Module loading error: {e}"

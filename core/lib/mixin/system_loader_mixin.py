@@ -226,6 +226,11 @@ class SystemLoaderMixin:
             k.error_load_modules_name.append(file_name)
         except Exception as e:
             k.logger.error(f"Error loading system module {file_name}: {e}")
+            # Clean up any commands that might have been registered
+            # before the error occurred (e.g. module.register(k) succeeded
+            # but loading failed later)
+            if hasattr(self, "unregister_module_commands"):
+                await self.unregister_module_commands(module_name)
             if hasattr(k, "_log") and k._log:
                 try:
                     await asyncio.wait_for(

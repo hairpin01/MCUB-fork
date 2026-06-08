@@ -318,6 +318,10 @@ class ModuleDetectorMixin:
 
                 return True
 
+            # Clean up old module commands before re-registration
+            # (class-style cleanup already done above)
+            await self.unregister_module_commands(module_name)
+
             if module_type == "method":
                 methods = self._iter_register_methods(getattr(module, "register", None))
                 if not methods:

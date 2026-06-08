@@ -1054,6 +1054,47 @@ class Loader(ModuleBase):
                     module_name, force=force_unload
                 )
 
+            # Resolve # name: from code — the URL / repo filename may differ
+            # from the module's canonical name in its header.
+            post_meta_name = None
+            try:
+                if code and not is_archive:
+                    post_meta_name = self.kernel._loader._parse_module_name_from_code(
+                        code
+                    )
+            except Exception:
+                pass
+            if post_meta_name and post_meta_name != module_name:
+                # Re-check protection with the real name from # name:
+                if (
+                    cfg
+                    and cfg.get("loader_protect_system", True)
+                    and post_meta_name in self.kernel.system_modules
+                ):
+                    add_log(
+                        self.strings(
+                            "log_system_module_protected",
+                            module_name=post_meta_name,
+                        )
+                    )
+                    await self._edit_with_emoji(
+                        msg or event,
+                        self.strings(
+                            "system_module_install_attempt",
+                            confused=CUSTOM_EMOJI["confused"],
+                            module_name=post_meta_name,
+                            blocked=CUSTOM_EMOJI["blocked"],
+                        ),
+                    )
+                    return
+                # Update name & path so the rest of the flow uses the
+                # canonical name (the file will be saved where it belongs)
+                module_name = post_meta_name
+                file_path = os.path.join(
+                    self.kernel.MODULES_LOADED_DIR,
+                    f"{module_name}.py",
+                )
+
             add_log(self.strings("log_saving_file", file_path=file_path))
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(code)
@@ -1149,7 +1190,7 @@ class Loader(ModuleBase):
             result = await self.kernel.load_module_from_file(
                 file_path,
                 module_name,
-                False,
+                is_system_target,
                 source_url=module_or_url if is_url else None,
                 source_repo=repo_url if not is_url and repo_url else None,
             )
@@ -1399,13 +1440,16 @@ class Loader(ModuleBase):
         ):
             return module_name
 
-        meta_name = (metadata or {}).get("class_name")
-        if isinstance(meta_name, str):
-            if (
-                meta_name in self.kernel.loaded_modules
-                or meta_name in self.kernel.system_modules
-            ):
-                return meta_name
+        meta = metadata or {}
+        # Check both class_name (class-style) and name (function-style # name:)
+        for key in ("class_name", "name"):
+            meta_name = meta.get(key)
+            if isinstance(meta_name, str):
+                if (
+                    meta_name in self.kernel.loaded_modules
+                    or meta_name in self.kernel.system_modules
+                ):
+                    return meta_name
 
         module_name_lower = str(module_name).lower()
         for mod_name in self.kernel.loaded_modules:

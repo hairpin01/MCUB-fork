@@ -66,6 +66,7 @@ class UtilsPiped(ModuleBase):
 
             await self.edit(event, text, parse_mode="html")
         except Exception as e:
+            event.pipe_exit_code = 1
             await self.kernel.handle_error(
                 e, message="Echo command failed", event=event
             )
@@ -80,6 +81,7 @@ class UtilsPiped(ModuleBase):
             if getattr(event, "piped", False):
                 await self.edit(event, "")
         except Exception as e:
+            event.pipe_exit_code = 1
             await self.kernel.handle_error(e, message="Nop command failed", event=event)
 
     @command(
@@ -94,6 +96,7 @@ class UtilsPiped(ModuleBase):
             if chat_id and message_id:
                 await self.client.delete_messages(chat_id, [message_id])
         except Exception as e:
+            event.pipe_exit_code = 1
             await self.kernel.handle_error(
                 e, message="Delete command failed", event=event
             )
@@ -283,10 +286,12 @@ class UtilsPiped(ModuleBase):
             pipe_input = getattr(event, "pipe_input", None) or ""
 
             if not args and not pipe_input:
+                event.pipe_exit_code = 3
                 await self.edit(event, self.strings("export_usage"), parse_mode="html")
                 return
 
             if not args:
+                event.pipe_exit_code = 3
                 await self.edit(event, pipe_input)
                 return
 
@@ -295,10 +300,12 @@ class UtilsPiped(ModuleBase):
             value = parts[1] if len(parts) > 1 else pipe_input
 
             if not value:
+                event.pipe_exit_code = 3
                 await self.edit(event, self.strings("export_usage"), parse_mode="html")
                 return
 
             self.kernel._pipe_vars[name] = value
+            event.pipe_exit_code = 0
 
             await self.edit(
                 event,
@@ -306,6 +313,7 @@ class UtilsPiped(ModuleBase):
                 parse_mode="html",
             )
         except Exception as e:
+            event.pipe_exit_code = 1
             await self.kernel.handle_error(
                 e, message="Export command failed", event=event
             )
@@ -320,6 +328,7 @@ class UtilsPiped(ModuleBase):
             args = self.args_raw(event).strip()
 
             if not args:
+                event.pipe_exit_code = 3
                 await self.edit(event, self.strings("import_usage"), parse_mode="html")
                 return
 
@@ -327,6 +336,7 @@ class UtilsPiped(ModuleBase):
             pipe_vars = self.kernel._pipe_vars
 
             if name not in pipe_vars:
+                event.pipe_exit_code = 4
                 await self.edit(
                     event,
                     self.strings("var_not_found", name=name),
@@ -335,6 +345,7 @@ class UtilsPiped(ModuleBase):
                 return
 
             value = pipe_vars[name]
+            event.pipe_exit_code = 0
 
             if getattr(event, "piped", False):
                 await self.edit(event, value)
@@ -342,6 +353,7 @@ class UtilsPiped(ModuleBase):
 
             await self.edit(event, value, parse_mode="html")
         except Exception as e:
+            event.pipe_exit_code = 1
             await self.kernel.handle_error(
                 e, message="Import command failed", event=event
             )
@@ -376,8 +388,10 @@ class UtilsPiped(ModuleBase):
 
             if not args:
                 if pipe_input:
+                    event.pipe_exit_code = 0
                     await self.edit(event, pipe_input)
                     return
+                event.pipe_exit_code = 3
                 await self.edit(event, self.strings("grep_usage"), parse_mode="html")
                 return
 
@@ -399,7 +413,7 @@ class UtilsPiped(ModuleBase):
             text = inline_text or pipe_input
 
             if not text:
-                event.pipe_exit_code = 1
+                event.pipe_exit_code = 3
                 await self.edit(event, self.strings("grep_usage"), parse_mode="html")
                 return
 
@@ -425,7 +439,7 @@ class UtilsPiped(ModuleBase):
 
             result = "\n".join(result_lines)
             if not result_lines:
-                event.pipe_exit_code = 1
+                event.pipe_exit_code = 4
                 result = self.strings("no_match")
 
             if getattr(event, "piped", False):
@@ -436,8 +450,10 @@ class UtilsPiped(ModuleBase):
                 await self.edit(event, self.strings("no_match"), parse_mode="html")
                 return
 
+            event.pipe_exit_code = 0
             await self.edit(event, result)
         except Exception as e:
+            event.pipe_exit_code = 1
             await self.kernel.handle_error(
                 e, message="Grep command failed", event=event
             )
@@ -478,6 +494,7 @@ class UtilsPiped(ModuleBase):
 
             await self.edit(event, result, parse_mode="html")
         except Exception as e:
+            event.pipe_exit_code = 1
             await self.kernel.handle_error(
                 e, message="Head command failed", event=event
             )
@@ -518,6 +535,7 @@ class UtilsPiped(ModuleBase):
 
             await self.edit(event, result, parse_mode="html")
         except Exception as e:
+            event.pipe_exit_code = 1
             await self.kernel.handle_error(
                 e, message="Tail command failed", event=event
             )
@@ -581,6 +599,7 @@ class UtilsPiped(ModuleBase):
 
             await self.edit(event, result, parse_mode="html")
         except Exception as e:
+            event.pipe_exit_code = 1
             await self.kernel.handle_error(e, message="Sed command failed", event=event)
 
     @command(
@@ -619,6 +638,7 @@ class UtilsPiped(ModuleBase):
 
             await self.edit(event, result, parse_mode="html")
         except Exception as e:
+            event.pipe_exit_code = 1
             await self.kernel.handle_error(e, message="wc", event=event)
 
     @command(
@@ -641,12 +661,12 @@ class UtilsPiped(ModuleBase):
 
             if not expr:
                 if num is not None:
+                    event.pipe_exit_code = 0
                     await self.edit(event, str(int(num) if num == int(num) else num))
                     return
+                event.pipe_exit_code = 3
                 await self.edit(event, self.strings("calc_usage"), parse_mode="html")
                 return
-
-            result: Any
 
             # Mode "apply operator to pipe_input": /2, +1, *3, -5
             if expr[0] in "+-*/":
@@ -654,12 +674,14 @@ class UtilsPiped(ModuleBase):
                 try:
                     val = float(expr[1:])
                 except ValueError:
+                    event.pipe_exit_code = 3
                     await self.edit(
                         event, self.strings("calc_usage"), parse_mode="html"
                     )
                     return
 
                 if num is None:
+                    event.pipe_exit_code = 3
                     await self.edit(
                         event, self.strings("calc_usage"), parse_mode="html"
                     )
@@ -672,6 +694,7 @@ class UtilsPiped(ModuleBase):
                     "/": operator.truediv,
                 }
                 if op == "/" and val == 0:
+                    event.pipe_exit_code = 6
                     await self.edit(
                         event, self.strings("div_by_zero"), parse_mode="html"
                     )
@@ -686,6 +709,7 @@ class UtilsPiped(ModuleBase):
                     if num is not None:
                         result = num
                     else:
+                        event.pipe_exit_code = 6
                         await self.edit(
                             event,
                             self.strings("calc_error", err=str(exc)),
@@ -707,6 +731,7 @@ class UtilsPiped(ModuleBase):
 
             await self.edit(event, result_str, parse_mode="html")
         except Exception as e:
+            event.pipe_exit_code = 1
             await self.kernel.handle_error(
                 e, message="Calc command failed", event=event
             )
@@ -733,6 +758,7 @@ class UtilsPiped(ModuleBase):
             await asyncio.sleep(seconds)
             await self.edit(event, "ok", parse_mode="html")
         except Exception as e:
+            event.pipe_exit_code = 1
             await self.kernel.handle_error(
                 e, message="Sleep command failed", event=event
             )
@@ -783,6 +809,7 @@ class UtilsPiped(ModuleBase):
 
             await self.edit(event, result, parse_mode="html")
         except Exception as e:
+            event.pipe_exit_code = 1
             await self.kernel.handle_error(
                 e, message="Sort command failed", event=event
             )
@@ -833,6 +860,7 @@ class UtilsPiped(ModuleBase):
 
             await self.edit(event, result, parse_mode="html")
         except Exception as e:
+            event.pipe_exit_code = 1
             await self.kernel.handle_error(e, message="uniq", event=event)
 
     @command(
@@ -868,6 +896,7 @@ class UtilsPiped(ModuleBase):
 
             await self.edit(event, result, parse_mode="html")
         except Exception as e:
+            event.pipe_exit_code = 1
             await self.kernel.handle_error(e, message="strip", event=event)
 
     @command(
@@ -913,6 +942,7 @@ class UtilsPiped(ModuleBase):
 
             await self.edit(event, result, parse_mode="html")
         except Exception as e:
+            event.pipe_exit_code = 1
             await self.kernel.handle_error(
                 e, message="Base64 command failed", event=event
             )
@@ -969,6 +999,7 @@ class UtilsPiped(ModuleBase):
                 event.pipe_exit_code = 1
                 await self.edit(event, self.strings("if_no_match"), parse_mode="html")
         except Exception as e:
+            event.pipe_exit_code = 1
             await self.kernel.handle_error(e, message="if", event=event)
 
     @command(
@@ -1026,6 +1057,7 @@ class UtilsPiped(ModuleBase):
 
             await self.edit(event, result, parse_mode="html")
         except Exception as e:
+            event.pipe_exit_code = 1
             await self.kernel.handle_error(
                 e, message="Repeat command failed", event=event
             )
@@ -1112,6 +1144,7 @@ class UtilsPiped(ModuleBase):
                 parse_mode="html",
             )
         except Exception as e:
+            event.pipe_exit_code = 1
             await self.kernel.handle_error(
                 e, message="Forward command failed", event=event
             )
@@ -1167,6 +1200,7 @@ class UtilsPiped(ModuleBase):
                 return
             await self.edit(event, result, parse_mode="html")
         except Exception as e:
+            event.pipe_exit_code = 1
             await self.kernel.handle_error(e, message="random", event=event)
 
     @command(
@@ -1295,6 +1329,7 @@ class UtilsPiped(ModuleBase):
                 return
             await self.edit(event, result, parse_mode="html")
         except Exception as e:
+            event.pipe_exit_code = 1
             await self.kernel.handle_error(e, message="json", event=event)
 
     @command(
@@ -1348,6 +1383,7 @@ class UtilsPiped(ModuleBase):
 
             await self.edit(event, result, parse_mode="html")
         except Exception as e:
+            event.pipe_exit_code = 1
             await self.kernel.handle_error(e, message="reply", event=event)
 
     # @command(

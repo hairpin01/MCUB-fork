@@ -349,8 +349,17 @@ class PipelineSegment:
     '||'  = conditional: run only if previous command returned an error
     """
 
+    exit_code: int | None = None
+    """Expected exit code for ``||[N]`` syntax.
+    ``None`` means any non-zero exit code triggers the segment.
+    """
+
     def __repr__(self) -> str:
-        return f"PipelineSegment(op={self.operator!r}, cmd={self.command!r})"
+        return (
+            f"PipelineSegment(op={self.operator!r}, cmd={self.command!r}"
+            + (f", exit_code={self.exit_code}" if self.exit_code is not None else "")
+            + ")"
+        )
 
 
 class PipelineParser:
@@ -390,18 +399,22 @@ class PipelineParser:
 
     # Checked in order; longest operators must come before their prefixes.
     _OPERATORS: list[tuple[str, str]] = [
+        ("|> ", "|>"),
+        (" || ", "||"),  # длиннее " | " — ДО него
         (" | ", "|"),
-        ("& ", "&"),
         (" && ", "&&"),
-        (" || ", "||"),
+        ("& ", "&"),
     ]
 
     # Operator cores sorted longest-first for escape resolution.
     # Must match _OPERATORS (with spaces) + variants with/without spaces.
     _ESCAPE_CORES: tuple[str, ...] = (
+        " |> ",
+        "|> ",
         " && ",
         " || ",
         " | ",
+        "|>",
         " &&",
         " ||",
         " |",
@@ -433,6 +446,7 @@ class PipelineParser:
 
     def __init__(self, text: str) -> None:
         self.text = text
+        self._pending_exit_code: int | None = None
         self.segments: list[PipelineSegment] = self._parse()
 
     def _parse(self) -> list[PipelineSegment]:
@@ -495,10 +509,34 @@ class PipelineParser:
 
             if matched_str and matched_key:
                 seg = "".join(buf).strip()
+                exit_code: int | None = None
+
+                # ||[code] syntax
+                if matched_key == "||":
+                    after = i + len(matched_str)
+                    if after < length and self.text[after : after + 1] == "[":
+                        end_b = self.text.find("]", after + 1)
+                        if end_b != -1:
+                            try:
+                                exit_code = int(self.text[after + 1 : end_b])
+                            except ValueError:
+                                pass
+                            i = end_b + 1
+                            matched_str = ""  # i уже на нужной позиции
+
                 if seg:
-                    segments.append(PipelineSegment(command=seg, operator=pending_op))
+                    segments.append(
+                        PipelineSegment(
+                            command=seg,
+                            operator=pending_op,
+                            exit_code=self._pending_exit_code,
+                        )
+                    )
+                    self._pending_exit_code = None
                 pending_op = matched_key
                 buf = []
+                if exit_code is not None:
+                    self._pending_exit_code = exit_code
                 i += len(matched_str)
                 continue
 
@@ -508,7 +546,13 @@ class PipelineParser:
         # trailing segment
         seg = "".join(buf).strip()
         if seg:
-            segments.append(PipelineSegment(command=seg, operator=pending_op))
+            segments.append(
+                PipelineSegment(
+                    command=seg,
+                    operator=pending_op,
+                    exit_code=self._pending_exit_code,
+                )
+            )
 
         return segments
 

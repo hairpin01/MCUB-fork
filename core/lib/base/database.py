@@ -207,7 +207,6 @@ class DatabaseManager:
             self.logger.debug(f"[DB] init_db connecting to {db_file}")
             self.conn = await aiosqlite.connect(db_file)
 
-            # ── Performance pragmas ────────────────────────────────────────
             # WAL: readers never block writers and vice-versa; dramatically
             # reduces contention during startup when many modules write configs
             # simultaneously.
@@ -221,7 +220,6 @@ class DatabaseManager:
             await self.conn.execute("PRAGMA temp_store = MEMORY")
             # Memory-map the first 64 MB of the DB file for O(1) reads.
             await self.conn.execute("PRAGMA mmap_size = 67108864")
-            # ──────────────────────────────────────────────────────────────
 
             await self._create_tables()
             # Lock the DB file right after creation/open
@@ -235,14 +233,16 @@ class DatabaseManager:
 
     async def _create_tables(self):
         """Create required tables."""
-        await self.conn.execute("""
+        await self.conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS module_data (
                 module TEXT,
                 key TEXT,
                 value TEXT,
                 PRIMARY KEY (module, key)
             )
-        """)
+        """
+        )
         await self.conn.commit()
 
     def _validate_identifier(self, value: str) -> bool:
@@ -308,7 +308,9 @@ class DatabaseManager:
 
         validated = []
         for module, key, value in rows:
-            if not self._validate_identifier(module) or not self._validate_identifier(key):
+            if not self._validate_identifier(module) or not self._validate_identifier(
+                key
+            ):
                 self.logger.warning(
                     f"[DB] db_set_many skipping invalid identifier: module={module!r} key={key!r}"
                 )

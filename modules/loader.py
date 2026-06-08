@@ -710,6 +710,7 @@ class Loader(ModuleBase):
         is_url = module_or_url.startswith(
             ("http://", "https://", "raw.githubusercontent.com")
         )
+        is_archive = False
         if is_url:
             if module_or_url.endswith(".py"):
                 module_name = os.path.basename(module_or_url)[:-3]

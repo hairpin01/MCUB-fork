@@ -398,6 +398,17 @@ class Backup(ModuleBase):
             data = cfg.to_dict() if hasattr(cfg, "to_dict") else cfg
             await self.kernel.save_module_config(self.name, data)
 
+    async def _log_warning(self, message: str) -> None:
+        log_warning = getattr(self.kernel, "log_warning", None)
+        if callable(log_warning):
+            result = log_warning(message)
+            if hasattr(result, "__await__"):
+                await result
+            return
+
+        logger = getattr(self.kernel, "logger", None) or self.log
+        logger.warning(message)
+
     async def _schedule_backups(self) -> None:
         if self._backup_task:
             self._backup_task.cancel()
@@ -529,7 +540,7 @@ class Backup(ModuleBase):
 
         ok, estimated, free = await self.check_disk_space(all_files)
         if not ok:
-            await self.kernel.log_warning(
+            await self._log_warning(
                 f"[Backup] Low disk space: estimated {estimated // 1024}KB needed, "
                 f"{free // 1024}KB free. Backup may fail."
             )
@@ -832,7 +843,7 @@ class Backup(ModuleBase):
             if cfg:
                 cfg["backup_chat_id"] = None
                 await self.save_config()
-            await self.kernel.log_warning(
+            await self._log_warning(
                 f"Backup target peer is invalid, backup_chat_id was reset: {e}"
             )
             return False
@@ -919,7 +930,7 @@ class Backup(ModuleBase):
             await self.set_group_photo(chat_id, "https://x0.at/4Bjx.jpg")
             return chat
         except ChannelsTooMuchError:
-            await self.kernel.log_warning(
+            await self._log_warning(
                 "ChannelsTooMuchError: cannot create backup group. "
                 "Leave some channels or set an existing group via config."
             )

@@ -6,6 +6,8 @@ import os
 import shutil
 import stat
 import sys
+import tarfile
+import zipfile
 from collections.abc import Iterable
 
 __all__ = [
@@ -21,6 +23,9 @@ __all__ = [
     "lock_file",
     "lock_sensitive_files",
     "migrate_sessions_and_db",
+    "safe_extract_archive",
+    "safe_extract_tar",
+    "safe_extract_zip",
     "save_checksum",
     "secure_delete",
     "session_exists",
@@ -94,6 +99,77 @@ def verify_checksum(path: str) -> bool:
         return current_hash == saved_hash
     except OSError:
         return False  # Error = treat as verification failure
+
+
+def _safe_archive_member_path(target_dir: str, member_name: str) -> str:
+    """Resolve an archive member path and ensure it stays inside target_dir."""
+    if (
+        not member_name
+        or os.path.isabs(member_name)
+        or member_name.startswith(("\\", "/"))
+    ):
+        raise ValueError(f"Unsafe archive path: {member_name}")
+
+    target_root = os.path.realpath(target_dir)
+    member_path = os.path.realpath(os.path.join(target_root, member_name))
+    if member_path != target_root and not member_path.startswith(target_root + os.sep):
+        raise ValueError(f"Archive path escapes target directory: {member_name}")
+    return member_path
+
+
+def safe_extract_zip(
+    archive_path: str | os.PathLike, target_dir: str | os.PathLike
+) -> None:
+    """Extract a zip archive without allowing path traversal or symlinks."""
+    target = os.fspath(target_dir)
+    os.makedirs(target, exist_ok=True)
+    with zipfile.ZipFile(archive_path, "r") as zf:
+        for info in zf.infolist():
+            mode = (info.external_attr >> 16) & 0o170000
+            if mode == stat.S_IFLNK:
+                raise ValueError(f"Refusing zip symlink entry: {info.filename}")
+            dest = _safe_archive_member_path(target, info.filename)
+            if info.is_dir():
+                os.makedirs(dest, exist_ok=True)
+                continue
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            with zf.open(info, "r") as src, open(dest, "wb") as dst:
+                shutil.copyfileobj(src, dst)
+
+
+def safe_extract_tar(
+    archive_path: str | os.PathLike, target_dir: str | os.PathLike
+) -> None:
+    """Extract a tar archive without allowing traversal or special files."""
+    target = os.fspath(target_dir)
+    os.makedirs(target, exist_ok=True)
+    with tarfile.open(archive_path, "r:*") as tf:
+        for member in tf.getmembers():
+            if not member.isfile() and not member.isdir():
+                raise ValueError(f"Refusing unsafe tar entry: {member.name}")
+            dest = _safe_archive_member_path(target, member.name)
+            if member.isdir():
+                os.makedirs(dest, exist_ok=True)
+                continue
+            src = tf.extractfile(member)
+            if src is None:
+                raise ValueError(f"Unable to read tar member: {member.name}")
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            with src, open(dest, "wb") as dst:
+                shutil.copyfileobj(src, dst)
+
+
+def safe_extract_archive(
+    archive_path: str | os.PathLike, target_dir: str | os.PathLike
+) -> None:
+    """Extract a zip or tar archive using traversal-safe extraction."""
+    if zipfile.is_zipfile(archive_path):
+        safe_extract_zip(archive_path, target_dir)
+        return
+    if tarfile.is_tarfile(archive_path):
+        safe_extract_tar(archive_path, target_dir)
+        return
+    raise ValueError("Unknown archive format")
 
 
 def get_mcub_dir(api_id: int, api_hash: str) -> str:

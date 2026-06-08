@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import io
+import tarfile
+import zipfile
 from unittest.mock import MagicMock
 
+import pytest
+
 from core.lib.loader.archive import ArchiveManager, ModuleInfo, PyProjectMeta
+from utils.security import safe_extract_archive
 
 
 def _make_manager() -> ArchiveManager:
@@ -48,3 +54,45 @@ def test_find_main_module_supports_modulebase_alias(tmp_path):
 
     assert main is not None
     assert main.name == "main"
+
+
+def test_safe_extract_archive_blocks_zip_traversal(tmp_path):
+    archive_path = tmp_path / "bad.zip"
+    target = tmp_path / "target"
+
+    with zipfile.ZipFile(archive_path, "w") as zf:
+        zf.writestr("../escape.py", "x = 1\n")
+
+    with pytest.raises(ValueError, match="escapes target"):
+        safe_extract_archive(archive_path, target)
+
+    assert not (tmp_path / "escape.py").exists()
+
+
+def test_safe_extract_archive_blocks_tar_symlink(tmp_path):
+    archive_path = tmp_path / "bad.tar"
+    target = tmp_path / "target"
+
+    with tarfile.open(archive_path, "w") as tf:
+        info = tarfile.TarInfo("link.py")
+        info.type = tarfile.SYMTYPE
+        info.linkname = "../escape.py"
+        tf.addfile(info)
+
+    with pytest.raises(ValueError, match="unsafe tar entry"):
+        safe_extract_archive(archive_path, target)
+
+
+def test_safe_extract_archive_extracts_regular_files(tmp_path):
+    archive_path = tmp_path / "ok.tar"
+    target = tmp_path / "target"
+    data = b"x = 1\n"
+
+    with tarfile.open(archive_path, "w") as tf:
+        info = tarfile.TarInfo("pkg/mod.py")
+        info.size = len(data)
+        tf.addfile(info, io.BytesIO(data))
+
+    safe_extract_archive(archive_path, target)
+
+    assert (target / "pkg" / "mod.py").read_bytes() == data

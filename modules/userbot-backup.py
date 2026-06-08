@@ -38,6 +38,7 @@ from core.lib.loader.module_config import (
     Secret,
     String,
 )
+from utils.security import safe_extract_archive, safe_extract_zip
 from utils.strings import Strings
 
 
@@ -441,11 +442,14 @@ class Backup(ModuleBase):
             tmp = Path(tempfile.mkdtemp(prefix="mcub_autorestore_"))
             zip_path = tmp / "backup.zip"
             await latest.download_media(zip_path)
+            extracted_dir = tmp / "extracted"
+            safe_extract_zip(zip_path, extracted_dir)
             with zipfile.ZipFile(zip_path, "r") as zf:
                 for name in zf.namelist():
                     if name.endswith("config.json"):
-                        zf.extract(name, tmp)
-                        shutil.copy2(tmp / name, Path.cwd() / "config.json")
+                        config_path = extracted_dir / name
+                        if config_path.is_file():
+                            shutil.copy2(config_path, Path.cwd() / "config.json")
                         self.log.info("Auto-restored config.json from latest backup")
                         break
             shutil.rmtree(tmp, ignore_errors=True)
@@ -1011,13 +1015,7 @@ class Backup(ModuleBase):
                         return False
 
             extract_dir = temp_dir / "extracted"
-
-            if archive_path.name.endswith(".tar.gz"):
-                with tarfile.open(archive_path, "r:gz") as tf:
-                    tf.extractall(extract_dir)
-            else:
-                with zipfile.ZipFile(archive_path, "r") as zf:
-                    zf.extractall(extract_dir)
+            safe_extract_archive(archive_path, extract_dir)
 
             backup_dir = extract_dir / "MCUB_backup"
             if not backup_dir.exists():

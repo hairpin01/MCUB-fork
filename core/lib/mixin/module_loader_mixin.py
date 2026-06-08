@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
+from utils.security import safe_extract_archive
+
 from ..loader.repository import validate_remote_url
 
 try:
@@ -1128,19 +1130,12 @@ class ModuleLoaderMixin:
             extract_dir = os.path.join(temp_dir, "extracted")
             os.makedirs(extract_dir, exist_ok=True)
 
-            import tarfile
-            import zipfile
-
             if archive_path.endswith((".zip", ".tar.gz", ".tgz", ".tar")):
-                if zipfile.is_zipfile(archive_path):
-                    with zipfile.ZipFile(archive_path, "r") as zf:
-                        zf.extractall(extract_dir)
-                elif tarfile.is_tarfile(archive_path):
-                    with tarfile.open(archive_path, "r:*") as tf:
-                        tf.extractall(extract_dir)
-                else:
+                try:
+                    safe_extract_archive(archive_path, extract_dir)
+                except ValueError as e:
                     shutil.rmtree(temp_dir, ignore_errors=True)
-                    return False, "Unknown archive format"
+                    return False, str(e)
             else:
                 shutil.rmtree(temp_dir, ignore_errors=True)
                 return False, "Not an archive URL"

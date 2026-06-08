@@ -233,6 +233,47 @@ class ModuleLoaderMixin:
                 message=f"Error renaming sys.modules entry {old_name!r} -> {new_name!r}",
             )
 
+    @staticmethod
+    def _parse_module_name_from_code(code: str) -> str | None:
+        """Extract ``# name:`` or ``# meta name:`` from header comments.
+
+        Returns the clean name string or *None* if no name header is found.
+        """
+        m = re.search(
+            r"^\s*#\s*(?:name|meta\s+name)\s*:\s*(.+)$",
+            code,
+            re.MULTILINE | re.IGNORECASE,
+        )
+        if m:
+            name = m.group(1).strip()
+            if name:
+                return name
+        return None
+
+    def _resolve_name_from_code(
+        self, code: str, module_name: str, file_path: str, k: Any
+    ) -> str:
+        """Parse ``# name:`` and optionally rename the file.
+
+        Returns the resolved module name (from header or unchanged).
+        """
+        meta_name = self._parse_module_name_from_code(code)
+        if meta_name and meta_name != module_name:
+            new_path = os.path.join(os.path.dirname(file_path), f"{meta_name}.py")
+            if not os.path.exists(new_path):
+                try:
+                    os.rename(file_path, new_path)
+                    k.logger.info(
+                        "Renamed module file: %s -> %s",
+                        module_name,
+                        meta_name,
+                    )
+                    file_path = new_path
+                except Exception as e:
+                    k.logger.warning(f"Failed to rename module file: {e}")
+            module_name = meta_name
+        return module_name
+
     def _parse_source_ast(self, code: str) -> ast.Module | None:
         """Parse python source code into AST."""
         try:
@@ -521,6 +562,7 @@ class ModuleLoaderMixin:
             "banner_url": None,
             "is_class_style": False,
             "class_name": None,
+            "name": None,
         }
         if not isinstance(code, str) or not code.strip():
             return metadata
@@ -560,6 +602,14 @@ class ModuleLoaderMixin:
         if m:
             metadata["banner_url"] = m.group(1).strip()
 
+        m = re.search(
+            r"^\s*#\s*(?:name|meta\s+name)\s*:\s*(.+)$",
+            code,
+            re.MULTILINE | re.IGNORECASE,
+        )
+        if m:
+            metadata["name"] = m.group(1).strip()
+
         tree = self._parse_source_ast(code)
         if not tree:
             return metadata
@@ -581,6 +631,7 @@ class ModuleLoaderMixin:
             )
             if class_name:
                 metadata["class_name"] = class_name
+                metadata["name"] = class_name
 
             class_version = self._literal_str(
                 next(
@@ -681,23 +732,17 @@ class ModuleLoaderMixin:
         """
         k = self.k
         try:
-            # Reject forbidden module names before any registration
-            self._raise_forbidden_module_name(
-                module_name, file_path, is_system=is_system
-            )
-
             self._purge_stale_loaded_module_entries()
 
             with open(file_path, encoding="utf-8") as f:
                 code = f.read()
-            k.logger.debug(
-                "[loader.load] start module=%r path=%r system=%s size=%d",
-                module_name,
-                file_path,
-                is_system,
-                len(code),
-            )
 
+            # Resolve canonical module name from # name: header comment
+            # (must happen BEFORE Hikka/Geek detection so the name applies
+            #  even for Hikka-identified modules)
+            module_name = self._resolve_name_from_code(code, module_name, file_path, k)
+
+            # --- Hikka / Geek module detection (early exit) ---
             try:
                 from core.lib.loader.hikka_compat import (
                     _detect_module_type,
@@ -762,6 +807,16 @@ class ModuleLoaderMixin:
                                 False,
                                 "Incompatible module (Heroku/hikka style not supported)",
                             )
+
+            # Resolve canonical module name from # name: header comment
+            # (must happen BEFORE Hikka/Geek detection so the name applies
+            #  even for Hikka-identified modules like *-MCUB-repo.py files)
+            module_name = self._resolve_name_from_code(code, module_name, file_path, k)
+
+            # Reject forbidden module names (now with resolved name)
+            self._raise_forbidden_module_name(
+                module_name, file_path, is_system=is_system
+            )
 
             sys.modules.pop(module_name, None)
 

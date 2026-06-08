@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлькa | @hairpin01
-
+# name: config
 from __future__ import annotations
 
 import asyncio

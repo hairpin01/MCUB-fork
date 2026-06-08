@@ -19,6 +19,7 @@
 
 ```python
 # modules/hello.py
+# name: HelloWorld
 # author: Your Name
 # description: Hello module
 

@@ -87,22 +87,26 @@ class SystemLoaderMixin:
         original_module_name = module_name
         file_path = os.path.join(k.MODULES_DIR, file_name)
 
-        if hasattr(self, "_raise_forbidden_module_name"):
-            try:
-                self._raise_forbidden_module_name(
-                    module_name, file_path, is_system=True
-                )
-            except ValueError:
-                k.error_load_modules += 1
-                k.error_load_modules_name.append(module_name)
-                return
-
         try:
             if cached_code is not None:
                 code = cached_code
             else:
                 with open(file_path, encoding="utf-8") as f:
                     code = f.read()
+
+            # Resolve canonical module name from # name: header comment
+            module_name = self._resolve_name_from_code(code, module_name, file_path, k)
+
+            # Reject forbidden module names (now with resolved name)
+            if hasattr(self, "_raise_forbidden_module_name"):
+                try:
+                    self._raise_forbidden_module_name(
+                        module_name, file_path, is_system=True
+                    )
+                except ValueError:
+                    k.error_load_modules += 1
+                    k.error_load_modules_name.append(module_name)
+                    return
 
             # Deps pre-installed in phase 1; fast no-op for already-installed packages.
             await self.pre_install_requirements(code, module_name)
@@ -178,6 +182,17 @@ class SystemLoaderMixin:
                     await self.run_post_load(module, module_name, is_install=False)
                     return
                 k.logger.error(f"No register() in system module: {module_name}")
+                k.error_load_modules += 1
+                k.error_load_modules_name.append(module_name)
+                return
+
+            # Function-style (register-based) modules must have # name: metadata
+            has_name_header = self._parse_module_name_from_code(code) is not None
+            if not has_name_header:
+                k.logger.error(
+                    f"System module {module_name} has no # name: metadata - skipping"
+                )
+                sys.modules.pop(module_name, None)
                 k.error_load_modules += 1
                 k.error_load_modules_name.append(module_name)
                 return

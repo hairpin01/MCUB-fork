@@ -22,12 +22,47 @@ Each module file can contain special comment directives:
 
 | Directive | Description |
 |-----------|-------------|
+| `# name:` | **Canonical module name** (overrides filename; required for function-style modules) |
 | `# requires:` | Comma-separated list of pip packages |
 | `# author:` | Author name or username |
 | `# version:` | Module version (e.g. `1.0.0`) |
 | `# description:` | Short module description |
 | `# banner_url:` | URL to image for banner display on load/man |
 | `# scop:` | Kernel compatibility constraints |
+
+### `# name:` — Canonical Module Name
+
+The `# name:` directive sets the **canonical registered name** of the module.
+The loader uses this name instead of the filename for:
+
+- Registering the module in `sys.modules`
+- Storing in `kernel.loaded_modules` / `kernel.system_modules`
+- Resolving command ownership and conflicts
+
+```python
+# name: OnlineStatusLogger
+# version: 1.0.1
+# description: Logs online/offline status of selected users
+```
+
+**Important:** if two files share the same `# name:`, the second one **will** conflict — this is intentional, as it prevents duplicate commands.
+
+### Class-style Modules
+
+If your module uses **class-style** syntax (inherits from `ModuleBase`), the `# name:` header is **not required**. The loader reads the `name` attribute from your class directly:
+
+```python
+from core.lib.loader.base import ModuleBase
+
+class MyModule(ModuleBase):
+    name = "MyCoolModule"          # ← source of truth
+    version = "2.0.0"
+    # No # name: comment needed
+```
+
+When both a `# name:` comment **and** a class `name` attribute are present, the **class attribute takes precedence**.
+
+For **function-style** modules (`def register(kernel):`), the `# name:` comment **is required** — without it the loader will skip the module with an error.
 
 ## Banner (`# banner_url:`)
 

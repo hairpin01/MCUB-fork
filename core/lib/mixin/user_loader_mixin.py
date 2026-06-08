@@ -202,21 +202,16 @@ class UserLoaderMixin:
         module_name = file_name[:-3]
         file_path = os.path.join(k.MODULES_LOADED_DIR, file_name)
 
-        # Reject forbidden module names before any registration happens
-        if hasattr(self, "_raise_forbidden_module_name"):
-            try:
-                self._raise_forbidden_module_name(module_name, file_path)
-            except ValueError:
-                k.error_load_modules += 1
-                k.error_load_modules_name.append(module_name)
-                return
-
         try:
             if cached_code is not None:
                 code = cached_code
             else:
                 with open(file_path, encoding="utf-8") as f:
                     code = f.read()
+
+            # Resolve canonical module name from # name: header comment
+            # (must happen BEFORE Hikka check so the name applies everywhere)
+            module_name = self._resolve_name_from_code(code, module_name, file_path, k)
 
             if _hikka_compat:
                 from core.lib.loader.hikka_compat import (
@@ -233,6 +228,15 @@ class UserLoaderMixin:
                         k.logger.error(f"Error loading module {file_name}: {err}")
                         k.error_load_modules += 1
                         k.error_load_modules_name.append(module_name)
+                    return
+
+            # Reject forbidden module names (now with resolved name)
+            if hasattr(self, "_raise_forbidden_module_name"):
+                try:
+                    self._raise_forbidden_module_name(module_name, file_path)
+                except ValueError:
+                    k.error_load_modules += 1
+                    k.error_load_modules_name.append(module_name)
                     return
 
             # Deps were pre-installed in phase 1; this is now a fast no-op for
@@ -325,6 +329,17 @@ class UserLoaderMixin:
                     return
                 return
 
+            # Function-style (register-based) modules must have # name: metadata
+            has_name_header = self._parse_module_name_from_code(code) is not None
+            if not has_name_header:
+                k.logger.error(
+                    f"Module {module_name} has no # name: metadata - skipping"
+                )
+                sys.modules.pop(module_name, None)
+                k.error_load_modules += 1
+                k.error_load_modules_name.append(module_name)
+                return
+
             if inspect.iscoroutinefunction(module.register):
                 await module.register(proxied_kernel)
             else:
@@ -352,6 +367,16 @@ class UserLoaderMixin:
         self, module_name: str, init_file: str, k: Any
     ) -> None:
         """Load a module that was installed as a package (from archive with local imports)."""
+
+        # Read __init__.py for # name: header
+        try:
+            with open(init_file, encoding="utf-8") as f:
+                init_code = f.read()
+        except OSError:
+            init_code = ""
+
+        # Resolve canonical module name from # name: header comment
+        module_name = self._resolve_name_from_code(init_code, module_name, init_file, k)
 
         if hasattr(self, "_raise_forbidden_module_name"):
             try:
@@ -398,6 +423,13 @@ class UserLoaderMixin:
         k.set_loading_module(module_name, "user")
 
         try:
+            # Package modules always use register(), so # name: is required
+            has_name_header = self._parse_module_name_from_code(init_code) is not None
+            if not has_name_header:
+                raise Exception(
+                    f"Package module {module_name} has no # name: metadata"
+                ) from None
+
             spec.loader.exec_module(module)
 
             if not hasattr(module, "register"):

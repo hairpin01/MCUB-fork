@@ -427,8 +427,15 @@ class LogBot(ModuleBase):
             self.log.debug(f"Chat created. ID: {self.kernel.log_chat_id}")
 
             try:
+                # Use the project's own GitHub-hosted avatar instead of a
+                # third-party paste/shortlink service (x0.at) that could be
+                # taken down, redirected, or serve malicious content.
+                _LOG_GROUP_AVATAR_URL = (
+                    "https://raw.githubusercontent.com/hairpin01/MCUB-fork"
+                    "/refs/heads/main/img/start_userbot.png"
+                )
                 async with aiohttp.ClientSession() as session:
-                    async with session.get("https://x0.at/QHok.jpg") as resp:
+                    async with session.get(_LOG_GROUP_AVATAR_URL) as resp:
                         if resp.status == 200:
                             photo_data = await resp.read()
 

@@ -6,7 +6,6 @@ from __future__ import annotations
 import asyncio
 import os
 import secrets
-import subprocess
 from typing import Any
 
 from telethon import events
@@ -94,12 +93,33 @@ class UpdatesMod(loader.ModuleBase):
             )
 
         try:
-            result = subprocess.run(
-                ["git", "pull", "origin", branch],
-                capture_output=True,
-                text=True,
-                cwd=os.path.dirname(os.path.abspath(__file__)),
+            # Use asyncio.create_subprocess_exec instead of the synchronous
+            # subprocess.run() to avoid blocking the entire event loop while
+            # git pull is running (can take several seconds on slow networks).
+            repo_path = os.path.dirname(os.path.abspath(__file__))
+            proc = await asyncio.create_subprocess_exec(
+                "git", "pull", "origin", branch,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=repo_path,
             )
+            try:
+                stdout_b, stderr_b = await asyncio.wait_for(proc.communicate(), timeout=60)
+            except asyncio.TimeoutError:
+                proc.kill()
+                await proc.communicate()
+                await msg.edit(self._s("error").format(error="git pull timed out (60s)"), parse_mode="html")
+                return
+            result_stdout = stdout_b.decode(errors="replace")
+            result_stderr = stderr_b.decode(errors="replace")
+            result_returncode = proc.returncode
+
+            # Provide a duck-typed result object so the code below stays unchanged.
+            class _Result:
+                returncode = result_returncode
+                stdout = result_stdout
+                stderr = result_stderr
+            result = _Result()
             self.log.debug("run -> 'git pull origin main'")
 
             if result.returncode == 0:

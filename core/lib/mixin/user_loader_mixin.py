@@ -174,7 +174,12 @@ class UserLoaderMixin:
                 continue
             file_tasks.append(_load_one(file_name))
 
-            k._lock_loader_user = True
+        # Set the lock AFTER building the task lists, not inside the loop.
+        # Setting it inside the loop meant the flag was raised after the first
+        # iteration, making any subsequent call to load_user_modules() (e.g.
+        # a hot-reload) raise RuntimeError even though the first load had not
+        # finished yet.
+        k._lock_loader_user = True
 
         try:
             await asyncio.gather(*pkg_tasks, *file_tasks)
@@ -288,6 +293,14 @@ class UserLoaderMixin:
                         and class_display_name != "Unnamed"
                         and class_display_name != module_name
                     ):
+                        # Sanitize: strip path separators so a module whose
+                        # `name` attribute is e.g. "../config" cannot escape
+                        # the modules directory and overwrite arbitrary files.
+                        class_display_name = os.path.basename(class_display_name).replace(
+                            "..", ""
+                        ).strip()
+                        if not class_display_name:
+                            class_display_name = module_name
                         old_path = file_path
                         new_path = os.path.join(
                             k.MODULES_LOADED_DIR, f"{class_display_name}.py"

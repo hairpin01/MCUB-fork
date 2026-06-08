@@ -211,7 +211,9 @@ class UserLoaderMixin:
 
             # Resolve canonical module name from # name: header comment
             # (must happen BEFORE Hikka check so the name applies everywhere)
-            module_name = self._resolve_name_from_code(code, module_name, file_path, k)
+            module_name, file_path = self._resolve_name_from_code(
+                code, module_name, file_path, k
+            )
 
             if _hikka_compat:
                 from core.lib.loader.hikka_compat import (
@@ -376,7 +378,10 @@ class UserLoaderMixin:
             init_code = ""
 
         # Resolve canonical module name from # name: header comment
-        module_name = self._resolve_name_from_code(init_code, module_name, init_file, k)
+        # (skip rename for packages - __init__.py must stay in its directory)
+        module_name, init_file = self._resolve_name_from_code(
+            init_code, module_name, init_file, k, skip_rename=True
+        )
 
         if hasattr(self, "_raise_forbidden_module_name"):
             try:

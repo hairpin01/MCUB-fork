@@ -1467,3 +1467,196 @@ class TestMod(ModuleBase):
 
         loader._pip_install.assert_any_await("numpy", "test_module")
         loader._pip_install.assert_any_await("requests", "test_module")
+
+
+class TestModuleNameMetadata:
+    """Test # name: header comment resolution in module loading."""
+
+    @pytest.mark.asyncio
+    async def test_parse_module_name_from_code_basic(self):
+        """Extract # name: from header comments."""
+        from core.lib.mixin.module_loader_mixin import ModuleLoaderMixin
+
+        code = """# name: MyModule
+# version: 1.0.0
+# description: Test
+"""
+        result = ModuleLoaderMixin._parse_module_name_from_code(code)
+        assert result == "MyModule"
+
+    @pytest.mark.asyncio
+    async def test_parse_module_name_from_code_case_insensitive(self):
+        """# NAME: and # Name: both work."""
+        from core.lib.mixin.module_loader_mixin import ModuleLoaderMixin
+
+        for header in ("# NAME: Foo", "# Name: Bar", "# name: Baz"):
+            result = ModuleLoaderMixin._parse_module_name_from_code(header + "\n")
+            assert result == header.split(": ")[1]
+
+    @pytest.mark.asyncio
+    async def test_parse_module_name_from_code_meta_name(self):
+        """# meta name: is also recognised."""
+        from core.lib.mixin.module_loader_mixin import ModuleLoaderMixin
+
+        code = "# meta name: MetaModule\n"
+        result = ModuleLoaderMixin._parse_module_name_from_code(code)
+        assert result == "MetaModule"
+
+    @pytest.mark.asyncio
+    async def test_parse_module_name_from_code_no_match(self):
+        """Returns None when no # name: header is present."""
+        from core.lib.mixin.module_loader_mixin import ModuleLoaderMixin
+
+        code = "# version: 1.0.0\n# description: test\n"
+        assert ModuleLoaderMixin._parse_module_name_from_code(code) is None
+
+    @pytest.mark.asyncio
+    async def test_parse_module_name_from_code_empty(self):
+        """Returns None when # name: value is empty."""
+        from core.lib.mixin.module_loader_mixin import ModuleLoaderMixin
+
+        code = "# name:  \n"
+        assert ModuleLoaderMixin._parse_module_name_from_code(code) is None
+
+    @pytest.mark.asyncio
+    async def test_get_module_metadata_has_name_from_header(self):
+        """get_module_metadata includes name from # name: header."""
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel = MagicMock()
+        loader = ModuleLoader(kernel)
+
+        code = """# name: OnlineStatusLogger
+# version: 1.0.0
+def register(kernel):
+    pass
+"""
+        metadata = await loader.get_module_metadata(code)
+        assert metadata["name"] == "OnlineStatusLogger"
+
+    @pytest.mark.asyncio
+    async def test_get_module_metadata_name_from_class(self):
+        """get_module_metadata uses class name attribute over # name:."""
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel = MagicMock()
+        loader = ModuleLoader(kernel)
+
+        code = """# name: Overridden
+from core.lib.loader.module_base import ModuleBase, command
+
+class TestMod(ModuleBase):
+    name = "RealName"
+
+    @command("test")
+    async def test(self, event):
+        pass
+"""
+        metadata = await loader.get_module_metadata(code)
+        # Class attribute should take precedence
+        assert metadata["name"] == "RealName"
+        assert metadata["class_name"] == "RealName"
+        assert metadata["is_class_style"] is True
+
+    @pytest.mark.asyncio
+    async def test_get_module_metadata_class_style_no_name_header(self):
+        """Class-style module without # name: still gets name from class attr."""
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel = MagicMock()
+        loader = ModuleLoader(kernel)
+
+        code = """from core.lib.loader.module_base import ModuleBase, command
+
+class TestMod(ModuleBase):
+    name = "MyModule"
+
+    @command("test")
+    async def test(self, event):
+        pass
+"""
+        metadata = await loader.get_module_metadata(code)
+        assert metadata["name"] == "MyModule"
+        assert metadata["is_class_style"] is True
+
+    @pytest.mark.asyncio
+    async def test_resolve_name_from_code_identity(self):
+        """When # name: equals filename, no rename occurs."""
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel = MagicMock()
+        loader = ModuleLoader(kernel)
+
+        code = "# name: my_module\n# version: 1.0.0\n"
+        new_name, new_path = loader._resolve_name_from_code(
+            code, "my_module", "/tmp/my_module.py", kernel
+        )
+        assert new_name == "my_module"
+        assert new_path == "/tmp/my_module.py"
+
+    @pytest.mark.asyncio
+    async def test_resolve_name_from_code_preserves_file_path(self):
+        """When filename and # name: match, file_path is preserved."""
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel = MagicMock()
+        kernel.logger = MagicMock()
+        loader = ModuleLoader(kernel)
+
+        code = "# name: some_module\n"
+        _, new_path = loader._resolve_name_from_code(
+            code, "some_module", "/path/to/some_module.py", kernel
+        )
+        assert new_path == "/path/to/some_module.py"
+
+    @pytest.mark.asyncio
+    async def test_functional_module_load_needs_name_header(self, tmp_path):
+        """Function-style .py file must have # name: to load."""
+        from core.lib.loader.loader import ModuleLoader
+
+        module_dir = tmp_path / "modules_loaded"
+        module_dir.mkdir()
+        pyfile = module_dir / "test_mod.py"
+        pyfile.write_text(
+            "# name: test_mod\n"
+            "# version: 1.0.0\n"
+            "def register(kernel):\n"
+            "    pass\n",
+            encoding="utf-8",
+        )
+
+        kernel = MagicMock()
+        kernel.MODULES_LOADED_DIR = str(module_dir)
+        kernel.logger = MagicMock()
+        kernel.loaded_modules = {}
+        kernel.system_modules = {}
+        kernel.client = MagicMock()
+        kernel.custom_prefix = "."
+
+        loader = ModuleLoader(kernel)
+
+        # Verify the name is resolved from code without renaming
+        with open(pyfile) as f:
+            code = f.read()
+        new_name, new_path = loader._resolve_name_from_code(
+            code, "test_mod", str(pyfile), kernel
+        )
+        assert new_name == "test_mod"
+        assert new_path == str(pyfile)
+
+    @pytest.mark.asyncio
+    async def test_functional_module_without_name_header_detected(self):
+        """_parse_module_name_from_code returns None for register-only code."""
+        from core.lib.mixin.module_loader_mixin import ModuleLoaderMixin
+
+        code = "def register(kernel):\n    pass\n"
+        assert ModuleLoaderMixin._parse_module_name_from_code(code) is None
+
+    @pytest.mark.asyncio
+    async def test_class_style_module_without_name_header_detected(self):
+        """_parse_module_name_from_code works with class-style and header."""
+        from core.lib.mixin.module_loader_mixin import ModuleLoaderMixin
+
+        code = "# name: my_module\nfrom core.lib.loader.base import ModuleBase\n"
+        result = ModuleLoaderMixin._parse_module_name_from_code(code)
+        assert result == "my_module"

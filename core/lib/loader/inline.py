@@ -834,7 +834,7 @@ class InlineManager:
             media_type: One of "photo", "document", "gif" (default "photo").
             reply_to: Topic/thread message ID for supergroups with topics.
                       Can be an int, or a MessageReplyHeader object from
-                      event.message.reply_to — will be normalized to int.
+                      event.message.reply_to - will be normalized to int.
             parse_mode: Parse mode for the form message (default "html").
 
         Returns:

@@ -251,28 +251,45 @@ class ModuleLoaderMixin:
         return None
 
     def _resolve_name_from_code(
-        self, code: str, module_name: str, file_path: str, k: Any
-    ) -> str:
+        self,
+        code: str,
+        module_name: str,
+        file_path: str,
+        k: Any,
+        skip_rename: bool = False,
+    ) -> tuple[str, str]:
         """Parse ``# name:`` and optionally rename the file.
 
-        Returns the resolved module name (from header or unchanged).
+        Args:
+            code: Module source code.
+            module_name: Current module name (from filename).
+            file_path: Current file path.
+            k: Kernel instance.
+            skip_rename: If True, update module_name but do not rename the
+                file on disk (used for package modules where the ``__init__.py``
+                file should stay in place).
+
+        Returns:
+            ``(resolved_module_name, file_path)`` - the file path is updated
+            if the file was renamed.
         """
         meta_name = self._parse_module_name_from_code(code)
         if meta_name and meta_name != module_name:
-            new_path = os.path.join(os.path.dirname(file_path), f"{meta_name}.py")
-            if not os.path.exists(new_path):
-                try:
-                    os.rename(file_path, new_path)
-                    k.logger.info(
-                        "Renamed module file: %s -> %s",
-                        module_name,
-                        meta_name,
-                    )
-                    file_path = new_path
-                except Exception as e:
-                    k.logger.warning(f"Failed to rename module file: {e}")
+            if not skip_rename:
+                new_path = os.path.join(os.path.dirname(file_path), f"{meta_name}.py")
+                if not os.path.exists(new_path):
+                    try:
+                        os.rename(file_path, new_path)
+                        k.logger.info(
+                            "Renamed module file: %s -> %s",
+                            module_name,
+                            meta_name,
+                        )
+                        file_path = new_path
+                    except Exception as e:
+                        k.logger.warning(f"Failed to rename module file: {e}")
             module_name = meta_name
-        return module_name
+        return module_name, file_path
 
     def _parse_source_ast(self, code: str) -> ast.Module | None:
         """Parse python source code into AST."""
@@ -740,7 +757,9 @@ class ModuleLoaderMixin:
             # Resolve canonical module name from # name: header comment
             # (must happen BEFORE Hikka/Geek detection so the name applies
             #  even for Hikka-identified modules)
-            module_name = self._resolve_name_from_code(code, module_name, file_path, k)
+            module_name, file_path = self._resolve_name_from_code(
+                code, module_name, file_path, k
+            )
 
             # --- Hikka / Geek module detection (early exit) ---
             try:
@@ -807,11 +826,6 @@ class ModuleLoaderMixin:
                                 False,
                                 "Incompatible module (Heroku/hikka style not supported)",
                             )
-
-            # Resolve canonical module name from # name: header comment
-            # (must happen BEFORE Hikka/Geek detection so the name applies
-            #  even for Hikka-identified modules like *-MCUB-repo.py files)
-            module_name = self._resolve_name_from_code(code, module_name, file_path, k)
 
             # Reject forbidden module names (now with resolved name)
             self._raise_forbidden_module_name(

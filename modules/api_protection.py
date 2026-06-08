@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлькa | @hairpin01
-
+# name: api_protection
 from __future__ import annotations
 
 # author: @Hairpin00

@@ -10,7 +10,7 @@
 
 <details>
   <summary><b>Code style</b></summary>
-  
+
   **Kernel-style**
 
   <div align="levt">
@@ -67,6 +67,9 @@
 | [Kernel API](doc/api/kernel.md) | Core kernel variables and methods |
 | [Module API](doc/api/module-api.md) | Module loading and repository management |
 | [Scheduler API](doc/api/scheduler.md) | Extended task scheduler methods |
+| [Dependencies](doc/api/dependencies.md) | Module dependency management and auto-install |
+| [Archives](doc/api/archives.md) | Archive module installation (ZIP, tar.gz) |
+| [Exceptions](doc/api/exceptions.md) | Custom exception reference |
 
 ### Data & Config
 
@@ -92,6 +95,7 @@
 |----------|-------------|
 | [Core Utils](doc/utils/core-utils.md) | Utility functions and helpers |
 | [Custom Placeholders API](doc/utils/core-utils.md#custom-placeholders-api) | Placeholder decorators, rendering helpers, and config integration |
+| [Colors API](doc/utils/colors.md) | Terminal color codes and gradient effects |
 | [Examples](doc/utils/examples.md) | Complete module examples |
 
 ---
@@ -106,6 +110,7 @@
 | [InfiniteLoop](doc/registration/loops.md) | Background loops |
 | [Lifecycle Callbacks](doc/registration/lifecycle.md) | on_load, on_install, uninstall |
 | [New Methods v1.0.3](doc/registration/new-methods.md) | Query and unregister handlers |
+| [Class-Style Modules](doc/registration/class-style.md) | Class-style registration, instance helpers, ButtonFactory, lifecycle |
 
 ---
 
@@ -114,6 +119,8 @@
 | Document | Description |
 |----------|-------------|
 | [Inline Form](doc/inline/inline-form.md) | Inline forms, gallery, list, pagination |
+| [InlineManager API](doc/inline/inline-manager.md) | Gallery, list, paginated text, query-and-click |
+| [Inline Result Builders](doc/inline/inline-results.md) | Build inline query results (text, photo, video, document) |
 | [Callbacks](doc/inline/callbacks.md) | Callback permission management |
 
 ---

@@ -95,7 +95,9 @@ class SystemLoaderMixin:
                     code = f.read()
 
             # Resolve canonical module name from # name: header comment
-            module_name = self._resolve_name_from_code(code, module_name, file_path, k)
+            module_name, file_path = self._resolve_name_from_code(
+                code, module_name, file_path, k
+            )
 
             # Reject forbidden module names (now with resolved name)
             if hasattr(self, "_raise_forbidden_module_name"):

@@ -2,6 +2,7 @@
 # Copyright (c) 2026 Шмэлькa | @hairpin01
 
 from types import SimpleNamespace
+from unittest import TestCase
 
 import pytest
 
@@ -12,6 +13,12 @@ from core.lib.loader.dispatcher import CommandDispatcher
 class DummyDispatcher:
     async def process_command(self, event):
         await event.edit("captured output")
+        return True
+
+
+class NoneOutputDispatcher:
+    async def process_command(self, event):
+        await event.edit(None)
         return True
 
 
@@ -58,6 +65,21 @@ async def test_async_pipe_interpolate_returns_captured_command_output():
     )
 
     assert result == ".echo captured output"
+
+
+@pytest.mark.asyncio
+async def test_async_pipe_interpolate_handles_none_command_output():
+    kernel = DummyKernel()
+    kernel.dispatcher = NoneOutputDispatcher()
+    event = SimpleNamespace(chat_id=1, sender_id=2)
+
+    result = await kernel.async_pipe_interpolate(
+        ".echo @(.empty)",
+        event=event,
+        active_prefix=".",
+    )
+
+    TestCase().assertEqual(result, ".echo ")
 
 
 @pytest.mark.asyncio

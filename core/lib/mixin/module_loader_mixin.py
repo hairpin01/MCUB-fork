@@ -118,8 +118,10 @@ class ModuleLoaderMixin:
         return _parse_requires(code)
 
     @staticmethod
-    def _check_forbidden_module_name(module_name: str) -> str | None:
+    def _check_forbidden_module_name(module_name: str | None) -> str | None:
         """Return a human-readable conflict reason if *module_name* is forbidden, else ``None``."""
+        if not module_name:
+            return "Module name is empty - cannot load module without a valid name."
         if module_name in FORBIDDEN_MODULE_NAMES:
             return (
                 f"Module name '{module_name}' is reserved - it shadows a Python "
@@ -134,7 +136,7 @@ class ModuleLoaderMixin:
         return None
 
     def _raise_forbidden_module_name(
-        self, module_name: str, file_path: str, *, is_system: bool = False
+        self, module_name: str | None, file_path: str, *, is_system: bool = False
     ) -> None:
         """Raise :exc:`ValueError` if *module_name* is forbidden.
 
@@ -732,7 +734,7 @@ class ModuleLoaderMixin:
     async def load_module_from_file(
         self,
         file_path: str,
-        module_name: str,
+        module_name: str | None,
         is_system: bool = False,
         is_reload: bool = False,
     ) -> tuple[bool, str]:
@@ -749,6 +751,9 @@ class ModuleLoaderMixin:
         Raises:
             CommandConflictError: When the module registers a conflicting command.
         """
+        if not module_name:
+            module_name = os.path.splitext(os.path.basename(file_path))[0]
+
         k = self.k
         try:
             self._purge_stale_loaded_module_entries()

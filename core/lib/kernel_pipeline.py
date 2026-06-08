@@ -276,8 +276,8 @@ class KernelPipelineMixin:
                     self_._captured = captured
                     self_._prefix = active_prefix
 
-                async def edit(self_, new_text: str, *a: Any, **kw: Any) -> None:
-                    self_._captured.append(new_text)
+                async def edit(self_, new_text: Any = "", *a: Any, **kw: Any) -> None:
+                    self_._captured.append("" if new_text is None else str(new_text))
 
                 async def respond(self_, *a: Any, **kw: Any) -> None:
                     pass
@@ -318,7 +318,8 @@ class KernelPipelineMixin:
         last = 0
         for m in matches:
             parts.append(text[last : m.start()])
-            parts.append(await _replace_cmd(m))
+            replacement = await _replace_cmd(m)
+            parts.append("" if replacement is None else str(replacement))
             last = m.end()
         parts.append(text[last:])
 

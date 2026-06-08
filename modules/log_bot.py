@@ -246,6 +246,11 @@ class LogBot(ModuleBase):
                         "notify_new_commits: message was deleted before button could be clicked"
                     )
                 except Exception as e:
+                    if e.__class__.__name__ == "MessageIdInvalidError":
+                        self.kernel.logger.warning(
+                            "notify_new_commits: callback target is no longer valid"
+                        )
+                        return
                     await self.kernel.handle_error(
                         e, message='Failed call "click"', event=_message_edit
                     )

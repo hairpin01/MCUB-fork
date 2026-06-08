@@ -47,9 +47,11 @@ class EvalModule(ModuleBase):
 
         start_time = time.time()
 
-        old_stdout = sys.stdout
-        old_stderr = sys.stderr
-        sys.stdout = sys.stderr = output = io.StringIO()
+        # Use a per-invocation buffer.  Do NOT replace sys.stdout globally —
+        # that is not concurrency-safe: two concurrent .py commands would share
+        # or swap each other's buffers, and an unhandled exception before the
+        # restore line would permanently silence all logging.
+        output = io.StringIO()
 
         me = await self.client.get_me()
         m = event
@@ -81,12 +83,15 @@ class EvalModule(ModuleBase):
         }
 
         _tb_raw: str | None = None
+        import contextlib
+
         try:
-            exec(
-                "async def __exec():\n    " + "\n    ".join(code.split("\n")),
-                local_vars,
-            )
-            result = await local_vars["__exec"]()
+            with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
+                exec(
+                    "async def __exec():\n    " + "\n    ".join(code.split("\n")),
+                    local_vars,
+                )
+                result = await local_vars["__exec"]()
             complete = output.getvalue()
             if result is not None:
                 complete += str(result)
@@ -102,9 +107,6 @@ class EvalModule(ModuleBase):
                 error_part = _tb_lines[0] if _tb_lines else "Unknown error"
                 complete = ""
             complete += f'{CUSTOM_EMOJI["❌"]} <code>{html.escape(error_part)}</code>'
-
-        sys.stdout = old_stdout
-        sys.stderr = old_stderr
 
         end_time = time.time()
         elapsed = round((end_time - start_time) * 1000, 2)

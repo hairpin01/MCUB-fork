@@ -7,8 +7,8 @@
 from __future__ import annotations
 
 import ast
+import concurrent.futures
 import re
-import signal
 import traceback
 
 
@@ -59,24 +59,22 @@ class KernelPipelineMixin:
 
         try:
             test_pattern = re.compile(pattern)
-            test_string = "x" * 1000
-
-            def timeout_handler(signum, frame):
-                raise TimeoutError()
-
-            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(1)
-
-            try:
-                test_pattern.match(test_string)
-            finally:
-                signal.alarm(0)
-                signal.signal(signal.SIGALRM, old_handler)
-
-        except TimeoutError:
-            return False, "Pattern too complex (timeout)"
         except re.error as e:
             return False, f"Invalid regex: {e}"
+
+        # Run the potentially catastrophic match() in a thread so a timeout can
+        # be applied safely.  Using signal.SIGALRM inside an async coroutine is
+        # dangerous: the alarm can interrupt asyncio's own epoll/select syscalls,
+        # causing spurious InterruptedError in unrelated coroutines.
+        test_string = "x" * 1000
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(test_pattern.match, test_string)
+                future.result(timeout=KernelPipelineMixin.PATTERN_TIMEOUT)
+        except concurrent.futures.TimeoutError:
+            return False, "Pattern too complex (timeout)"
+        except Exception:
+            pass
 
         return True, "OK"
 

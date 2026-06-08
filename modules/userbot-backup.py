@@ -1244,6 +1244,12 @@ class Backup(ModuleBase):
             return
 
         reply = await event.get_reply_message()
+        # Delete the command message immediately so the password is not left
+        # visible in chat history (other sessions / Telegram cloud storage).
+        try:
+            await event.delete()
+        except Exception:
+            pass
         await self._restore_from_backup_message(reply, event, password=password)
 
     @callback()

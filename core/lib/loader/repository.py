@@ -65,7 +65,33 @@ def validate_remote_url(
             ):
                 return False, "Private/reserved IP addresses not allowed"
         except ValueError:
-            pass
+            # Host is a hostname, not a literal IP.
+            # Resolve and validate all resulting addresses to prevent DNS-rebinding
+            # and wildcard-DNS SSRF (e.g. "10.0.0.1.nip.io").
+            import socket
+
+            try:
+                infos = socket.getaddrinfo(host, None)
+            except socket.gaierror:
+                return False, f"Cannot resolve hostname: {host}"
+            for info in infos:
+                addr = info[4][0]
+                try:
+                    resolved = ipaddress.ip_address(addr)
+                    if (
+                        resolved.is_private
+                        or resolved.is_loopback
+                        or resolved.is_reserved
+                        or resolved.is_link_local
+                        or resolved.is_multicast
+                        or resolved.is_unspecified
+                    ):
+                        return (
+                            False,
+                            f"Hostname resolves to private/reserved IP: {addr}",
+                        )
+                except ValueError:
+                    pass
 
         return True, "OK"
     except Exception as e:

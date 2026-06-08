@@ -6,6 +6,7 @@ import logging
 import pkgutil
 from pathlib import Path
 
+import aiohttp_jinja2
 import jinja2
 from aiohttp import web
 
@@ -86,16 +87,16 @@ class PluginManager:
                 plugin_templates_dir,
             )
             # Get current loader (likely FileSystemLoader)
-            current_loader = self.app["aiohttp_jinja2_environment"].loader
+            current_loader = self.app[aiohttp_jinja2.APP_KEY].loader
             if isinstance(current_loader, jinja2.FileSystemLoader):
                 # Combine search paths: plugin templates first, then main
                 new_loader = jinja2.FileSystemLoader(
                     [str(plugin_templates_dir), *current_loader.searchpath]
                 )
-                self.app["aiohttp_jinja2_environment"].loader = new_loader
+                self.app[aiohttp_jinja2.APP_KEY].loader = new_loader
             else:
                 # Fallback: just use plugin templates
-                self.app["aiohttp_jinja2_environment"].loader = jinja2.FileSystemLoader(
+                self.app[aiohttp_jinja2.APP_KEY].loader = jinja2.FileSystemLoader(
                     str(plugin_templates_dir)
                 )
         else:

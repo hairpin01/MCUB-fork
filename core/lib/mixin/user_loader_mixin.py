@@ -301,9 +301,11 @@ class UserLoaderMixin:
                         # Sanitize: strip path separators so a module whose
                         # `name` attribute is e.g. "../config" cannot escape
                         # the modules directory and overwrite arbitrary files.
-                        class_display_name = os.path.basename(class_display_name).replace(
-                            "..", ""
-                        ).strip()
+                        class_display_name = (
+                            os.path.basename(class_display_name)
+                            .replace("..", "")
+                            .strip()
+                        )
                         if not class_display_name:
                             class_display_name = module_name
                         old_path = file_path

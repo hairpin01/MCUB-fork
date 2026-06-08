@@ -27,6 +27,8 @@ from core.lib.loader.module_base import (
 
 
 class TestModule(ModuleBase):
+    __test__ = False
+
     name = "TestModule"
     version = "1.0.0"
     author = "@hairpin01"

@@ -11,6 +11,8 @@ from collections.abc import Awaitable, Callable
 
 from aiohttp import web
 
+from . import app_keys
+
 
 def generate_token(length: int = 32) -> str:
     """Generate a secure random token."""
@@ -60,12 +62,12 @@ class AuthMiddleware:
 
     def _setup_auth(self) -> None:
         """Load auth configuration from app state."""
-        kernel = self.app.get("kernel")
+        kernel = self.app.get(app_keys.KERNEL)
         config = {}
 
         if kernel is not None:
             config = kernel.config
-        elif self.app.get("setup_state"):
+        elif self.app.get(app_keys.SETUP_STATE):
             config_path = "config.json"
             import os
 
@@ -93,7 +95,7 @@ class AuthMiddleware:
             return True
         if path.startswith("/static"):
             return True
-        if path in self.PUBLIC_API_PATHS and self.app.get("setup_mode", False):
+        if path in self.PUBLIC_API_PATHS and self.app.get(app_keys.SETUP_MODE, False):
             return True
         return False
 
@@ -151,7 +153,7 @@ def require_auth(func: Callable) -> Callable:
     """
 
     async def wrapper(request: web.Request, *args, **kwargs) -> web.Response:
-        auth_middleware = request.app.get("auth_middleware")
+        auth_middleware = request.app.get(app_keys.AUTH_MIDDLEWARE)
         if auth_middleware and auth_middleware.auth_enabled:
             if not await auth_middleware._authenticate(request):
                 return web.json_response({"error": "Unauthorized"}, status=401)

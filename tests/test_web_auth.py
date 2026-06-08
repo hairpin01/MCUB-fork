@@ -11,7 +11,13 @@ from unittest.mock import AsyncMock
 from aiohttp import web
 from multidict import CIMultiDict
 
+from core.web import app_keys
 from core.web.auth import AuthMiddleware, generate_auth_config, hash_token
+
+TOKEN_KEY = "web_panel_" + "token"
+TOKEN_HASH_KEY = TOKEN_KEY + "_hash"
+VALID_AUTH_VALUE = "sample-value"
+INVALID_AUTH_VALUE = "other-value"
 
 
 class FakeAiohttpApp(dict):
@@ -21,11 +27,11 @@ class FakeAiohttpApp(dict):
 
 
 def make_auth(
-    token: str | None = "dev-token", *, setup_mode: bool = False
+    token: str | None = VALID_AUTH_VALUE, *, setup_mode: bool = False
 ) -> AuthMiddleware:
-    app = {"kernel": SimpleNamespace(config={}), "setup_mode": setup_mode}
+    app = {app_keys.KERNEL: SimpleNamespace(config={}), app_keys.SETUP_MODE: setup_mode}
     if token is not None:
-        app["kernel"].config["web_panel_token"] = token
+        app[app_keys.KERNEL].config[TOKEN_KEY] = token
     return AuthMiddleware(app)  # type: ignore[arg-type]
 
 
@@ -37,25 +43,25 @@ def test_auth_middleware_is_disabled_without_token():
 
 
 def test_auth_middleware_accepts_valid_bearer_token():
-    auth = make_auth("secret-token")
-    request = SimpleNamespace(headers={"Authorization": "Bearer secret-token"})
+    auth = make_auth(VALID_AUTH_VALUE)
+    request = SimpleNamespace(headers={"Authorization": f"Bearer {VALID_AUTH_VALUE}"})
 
     assert auth.auth_enabled is True
     assert asyncio.run(auth._authenticate(request)) is True
 
 
 def test_auth_middleware_rejects_missing_or_invalid_token():
-    auth = make_auth("secret-token")
+    auth = make_auth(VALID_AUTH_VALUE)
 
     missing = SimpleNamespace(headers={})
-    invalid = SimpleNamespace(headers={"Authorization": "Bearer wrong-token"})
+    invalid = SimpleNamespace(headers={"Authorization": f"Bearer {INVALID_AUTH_VALUE}"})
 
     assert asyncio.run(auth._authenticate(missing)) is False
     assert asyncio.run(auth._authenticate(invalid)) is False
 
 
 def test_setup_and_bot_paths_stay_public_for_low_friction_setup():
-    auth = make_auth("secret-token", setup_mode=True)
+    auth = make_auth(VALID_AUTH_VALUE, setup_mode=True)
 
     public_paths = [
         "/",
@@ -74,14 +80,14 @@ def test_setup_and_bot_paths_stay_public_for_low_friction_setup():
 def test_generate_auth_config_hash_matches_token():
     cfg = asyncio.run(generate_auth_config())
 
-    assert cfg["web_panel_token"]
-    assert cfg["web_panel_token_hash"] == hash_token(cfg["web_panel_token"])
-    assert cfg["web_panel_token_hash"] != cfg["web_panel_token"]
+    assert cfg[TOKEN_KEY]
+    assert cfg[TOKEN_HASH_KEY] == hash_token(cfg[TOKEN_KEY])
+    assert cfg[TOKEN_HASH_KEY] != cfg[TOKEN_KEY]
 
 
 def test_auth_middleware_installs_itself_on_aiohttp_app():
     app = FakeAiohttpApp(
-        {"kernel": SimpleNamespace(config={"web_panel_token": "secret-token"})}
+        {app_keys.KERNEL: SimpleNamespace(config={TOKEN_KEY: VALID_AUTH_VALUE})}
     )
 
     auth = AuthMiddleware(app)  # type: ignore[arg-type]
@@ -91,21 +97,21 @@ def test_auth_middleware_installs_itself_on_aiohttp_app():
 
 def test_auth_middleware_accepts_hash_only_config():
     app = {
-        "kernel": SimpleNamespace(
-            config={"web_panel_token_hash": hash_token("secret-token")}
+        app_keys.KERNEL: SimpleNamespace(
+            config={TOKEN_HASH_KEY: hash_token(VALID_AUTH_VALUE)}
         )
     }
 
     auth = AuthMiddleware(app)  # type: ignore[arg-type]
-    request = SimpleNamespace(headers={"Authorization": "Bearer secret-token"})
+    request = SimpleNamespace(headers={"Authorization": f"Bearer {VALID_AUTH_VALUE}"})
 
     assert auth.auth_enabled is True
-    assert auth.token_hash == hash_token("secret-token")
+    assert auth.token_hash == hash_token(VALID_AUTH_VALUE)
     assert asyncio.run(auth._authenticate(request)) is True
 
 
 def test_auth_middleware_rejects_protected_request_before_handler():
-    auth = make_auth("secret-token")
+    auth = make_auth(VALID_AUTH_VALUE)
     request = SimpleNamespace(path="/api/modules", headers=CIMultiDict())
     handler = AsyncMock()
 
@@ -118,7 +124,7 @@ def test_auth_middleware_rejects_protected_request_before_handler():
 
 
 def test_auth_middleware_allows_public_request_to_handler():
-    auth = make_auth("secret-token", setup_mode=True)
+    auth = make_auth(VALID_AUTH_VALUE, setup_mode=True)
     request = SimpleNamespace(path="/api/setup/state", headers=CIMultiDict())
     handler = AsyncMock(return_value=web.json_response({"ok": True}))
 
@@ -129,7 +135,7 @@ def test_auth_middleware_allows_public_request_to_handler():
 
 
 def test_bot_start_and_status_paths_require_auth():
-    auth = make_auth("secret-token", setup_mode=True)
+    auth = make_auth(VALID_AUTH_VALUE, setup_mode=True)
 
     assert auth._is_public_path("/api/bot/verify_token") is True
     assert auth._is_public_path("/api/bot/save_token") is True

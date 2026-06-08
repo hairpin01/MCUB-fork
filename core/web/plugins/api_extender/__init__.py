@@ -9,6 +9,7 @@ from typing import Any
 
 from aiohttp import web
 
+from core.web import app_keys
 from core.web.auth import require_auth
 
 logger = logging.getLogger(__name__)
@@ -68,7 +69,7 @@ def _json_error(
 
 
 def _kernel_ready(app: web.Application) -> tuple[Any, web.Response | None]:
-    kernel = app.get("kernel")
+    kernel = app.get(app_keys.KERNEL)
     if kernel is None:
         return None, _json_error(
             "Kernel is not available",
@@ -126,7 +127,7 @@ async def api_health(request: web.Request) -> web.Response:
             "service": "mcub-web-api-extender",
             "time": int(time.time()),
             "prefix": getattr(kernel, "custom_prefix", "."),
-            "api_prefix": request.app.get("api_extender_prefix"),
+            "api_prefix": request.app.get(app_keys.API_EXTENDER_PREFIX),
         }
     )
 
@@ -432,7 +433,7 @@ def setup(app: web.Application, kernel: Any) -> None:
     env_prefix = os.environ.get("MCUB_WEB_API_PREFIX")
     prefix = _normalize_prefix(env_prefix or config_prefix or "/api/ext")
 
-    app["api_extender_prefix"] = prefix
+    app[app_keys.API_EXTENDER_PREFIX] = prefix
 
     _register_routes(app, prefix)
 

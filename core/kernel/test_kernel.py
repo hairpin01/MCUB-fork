@@ -169,6 +169,8 @@ class MockTelegramClient:
 
 
 class TestKernel:
+    __test__ = False
+
     """
     Тecтoвoe ядpo для oтлaдки мoдyлeй MCUB
 

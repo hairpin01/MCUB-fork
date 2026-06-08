@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from aiohttp import web
 
+from core.web import app_keys
 from core.web.plugins.api_extender import (
     FORBIDDEN_CONFIG_KEYS,
     ErrorCode,
@@ -218,8 +219,8 @@ class TestApiHealth:
         kernel.VERSION = "1.0.0"
 
         app = web.Application()
-        app["kernel"] = kernel
-        app["api_extender_prefix"] = "/api/ext"
+        app[app_keys.KERNEL] = kernel
+        app[app_keys.API_EXTENDER_PREFIX] = "/api/ext"
 
         request = MagicMock()
         request.app = app
@@ -244,7 +245,7 @@ class TestApiMeta:
         kernel.aliases = {"a": "cmd1", "b": "cmd2"}
 
         app = web.Application()
-        app["kernel"] = kernel
+        app[app_keys.KERNEL] = kernel
 
         request = MagicMock()
         request.app = app
@@ -266,7 +267,7 @@ class TestApiCommands:
         kernel.command_handlers = {"cmd1": MagicMock(), "cmd2": MagicMock()}
 
         app = web.Application()
-        app["kernel"] = kernel
+        app[app_keys.KERNEL] = kernel
 
         request = MagicMock()
         request.app = app
@@ -283,7 +284,7 @@ class TestApiCommands:
         kernel.command_handlers = {f"cmd{i}": MagicMock() for i in range(25)}
 
         app = web.Application()
-        app["kernel"] = kernel
+        app[app_keys.KERNEL] = kernel
 
         request = MagicMock()
         request.app = app
@@ -303,7 +304,7 @@ class TestApiModules:
         kernel.loaded_modules = {"mod1": MagicMock(), "mod2": MagicMock()}
 
         app = web.Application()
-        app["kernel"] = kernel
+        app[app_keys.KERNEL] = kernel
 
         request = MagicMock()
         request.app = app
@@ -323,7 +324,7 @@ class TestApiAliasesList:
         kernel.aliases = {"a": "cmd1", "b": "cmd2"}
 
         app = web.Application()
-        app["kernel"] = kernel
+        app[app_keys.KERNEL] = kernel
 
         request = MagicMock()
         request.app = app
@@ -345,7 +346,7 @@ class TestApiAliasesSet:
         kernel.config = {"aliases": {}}
 
         app = web.Application()
-        app["kernel"] = kernel
+        app[app_keys.KERNEL] = kernel
 
         request = MagicMock()
         request.app = app
@@ -360,7 +361,7 @@ class TestApiAliasesSet:
         """Test missing required fields"""
         kernel = MagicMock()
         app = web.Application()
-        app["kernel"] = kernel
+        app[app_keys.KERNEL] = kernel
 
         request = MagicMock()
         request.app = app
@@ -377,7 +378,7 @@ class TestApiAliasesSet:
         kernel.aliases = {}
 
         app = web.Application()
-        app["kernel"] = kernel
+        app[app_keys.KERNEL] = kernel
 
         request = MagicMock()
         request.app = app
@@ -391,7 +392,7 @@ class TestApiAliasesSet:
         """Test invalid JSON body"""
         kernel = MagicMock()
         app = web.Application()
-        app["kernel"] = kernel
+        app[app_keys.KERNEL] = kernel
 
         request = MagicMock()
         request.app = app
@@ -412,7 +413,7 @@ class TestApiAliasesDelete:
         kernel.config = {"aliases": {"a": "cmd1"}}
 
         app = web.Application()
-        app["kernel"] = kernel
+        app[app_keys.KERNEL] = kernel
 
         request = MagicMock()
         request.app = app
@@ -429,7 +430,7 @@ class TestApiAliasesDelete:
         kernel.aliases = {}
 
         app = web.Application()
-        app["kernel"] = kernel
+        app[app_keys.KERNEL] = kernel
 
         request = MagicMock()
         request.app = app
@@ -443,7 +444,7 @@ class TestApiAliasesDelete:
         """Test missing alias parameter"""
         kernel = MagicMock()
         app = web.Application()
-        app["kernel"] = kernel
+        app[app_keys.KERNEL] = kernel
 
         request = MagicMock()
         request.app = app
@@ -463,7 +464,7 @@ class TestApiPrefixGet:
         kernel.custom_prefix = "!"
 
         app = web.Application()
-        app["kernel"] = kernel
+        app[app_keys.KERNEL] = kernel
 
         request = MagicMock()
         request.app = app
@@ -483,7 +484,7 @@ class TestApiPrefixSet:
         kernel.config = {"command_prefix": "."}
 
         app = web.Application()
-        app["kernel"] = kernel
+        app[app_keys.KERNEL] = kernel
 
         request = MagicMock()
         request.app = app
@@ -498,7 +499,7 @@ class TestApiPrefixSet:
         """Test missing prefix field"""
         kernel = MagicMock()
         app = web.Application()
-        app["kernel"] = kernel
+        app[app_keys.KERNEL] = kernel
 
         request = MagicMock()
         request.app = app
@@ -518,7 +519,7 @@ class TestApiConfigGet:
         kernel.config = {"command_prefix": "!"}
 
         app = web.Application()
-        app["kernel"] = kernel
+        app[app_keys.KERNEL] = kernel
 
         request = MagicMock()
         request.app = app
@@ -534,7 +535,7 @@ class TestApiConfigGet:
         kernel.config = {}
 
         app = web.Application()
-        app["kernel"] = kernel
+        app[app_keys.KERNEL] = kernel
 
         request = MagicMock()
         request.app = app
@@ -548,7 +549,7 @@ class TestApiConfigGet:
         """Test missing key query param"""
         kernel = MagicMock()
         app = web.Application()
-        app["kernel"] = kernel
+        app[app_keys.KERNEL] = kernel
 
         request = MagicMock()
         request.app = app
@@ -568,7 +569,7 @@ class TestApiConfigSet:
         kernel.config = {"command_prefix": "."}
 
         app = web.Application()
-        app["kernel"] = kernel
+        app[app_keys.KERNEL] = kernel
 
         request = MagicMock()
         request.app = app
@@ -585,7 +586,7 @@ class TestApiConfigSet:
         kernel.config = {}
 
         app = web.Application()
-        app["kernel"] = kernel
+        app[app_keys.KERNEL] = kernel
 
         request = MagicMock()
         request.app = app
@@ -601,7 +602,7 @@ class TestApiConfigSet:
         kernel.config = None
 
         app = web.Application()
-        app["kernel"] = kernel
+        app[app_keys.KERNEL] = kernel
 
         request = MagicMock()
         request.app = app
@@ -638,7 +639,7 @@ class TestSetup:
         kernel.config = {}
 
         setup(app, kernel)
-        assert "api_extender_prefix" in app
+        assert app_keys.API_EXTENDER_PREFIX in app
 
     def test_with_config_prefix(self):
         """Test setup with config prefix"""
@@ -647,7 +648,7 @@ class TestSetup:
         kernel.config = {"web_api_extender": {"prefix": "/custom"}}
 
         setup(app, kernel)
-        assert app["api_extender_prefix"] == "/custom"
+        assert app[app_keys.API_EXTENDER_PREFIX] == "/custom"
 
     def test_with_env_prefix(self):
         """Test setup with environment prefix"""
@@ -658,7 +659,7 @@ class TestSetup:
         with patch.dict("os.environ", {"MCUB_WEB_API_PREFIX": "/env"}):
             setup(app, kernel)
 
-        assert app["api_extender_prefix"] == "/env"
+        assert app[app_keys.API_EXTENDER_PREFIX] == "/env"
 
     def test_env_overrides_config(self):
         """Test environment prefix overrides config"""
@@ -669,7 +670,7 @@ class TestSetup:
         with patch.dict("os.environ", {"MCUB_WEB_API_PREFIX": "/env"}):
             setup(app, kernel)
 
-        assert app["api_extender_prefix"] == "/env"
+        assert app[app_keys.API_EXTENDER_PREFIX] == "/env"
 
     def test_v1_compatibility(self):
         """Test v1 compatibility routes are added"""

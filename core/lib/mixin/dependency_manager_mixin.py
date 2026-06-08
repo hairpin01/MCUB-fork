@@ -312,7 +312,7 @@ class DependencyManagerMixin:
         k.logger.info(
             f"[batch-deps] batch-installing {len(missing)} packages: {missing}"
         )
-        
+
         try:
             await self._pip_install_batch(missing)
             # Bust the spec cache for everything we just installed.
@@ -353,7 +353,14 @@ class DependencyManagerMixin:
         # -q suppresses progress bars and verbose output — significantly
         # reduces subprocess I/O overhead, especially for packages already
         # satisfied by pip's local cache.
-        cmd = [sys.executable, "-m", "pip", "install", "-q", "--disable-pip-version-check"]
+        cmd = [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "-q",
+            "--disable-pip-version-check",
+        ]
         if break_system:
             cmd.append("--break-system-packages")
         cmd.extend(packages)
@@ -367,7 +374,7 @@ class DependencyManagerMixin:
         k = self.k
         in_venv = self.is_in_virtualenv()
 
-        for break_sys in ([False, True] if not in_venv else [False]):
+        for break_sys in [False, True] if not in_venv else [False]:
             cmd = self._build_pip_cmd(pip_specs, break_system=break_sys)
             k.logger.debug(f"[batch-deps] running: {' '.join(cmd[:6])} ...")
             proc = await asyncio.create_subprocess_exec(
@@ -413,7 +420,9 @@ class DependencyManagerMixin:
                     )
                     return
                 msg = (
-                    stderr.decode("utf-8", errors="replace") if stderr else "Unknown error"
+                    stderr.decode("utf-8", errors="replace")
+                    if stderr
+                    else "Unknown error"
                 )
                 k.logger.debug(f"[{module_name}] Strategy {i+1} failed: {msg}")
             except Exception as e:

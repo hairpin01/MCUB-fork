@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp_jinja2
 import jinja2
 import pytest
 from aiohttp import web
@@ -71,7 +72,7 @@ async def test_config_manager_set_and_delete_key_logs_debug():
 
 def test_plugin_manager_load_plugins_logs_debug(caplog):
     app = web.Application()
-    app["aiohttp_jinja2_environment"] = MagicMock(
+    app[aiohttp_jinja2.APP_KEY] = MagicMock(
         loader=jinja2.FileSystemLoader(["core/web/templates"])
     )
     manager = PluginManager(app, MagicMock())

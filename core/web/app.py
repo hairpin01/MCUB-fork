@@ -10,6 +10,7 @@ import aiohttp_jinja2
 import jinja2
 from aiohttp import web
 
+from . import app_keys
 from .auth import AuthMiddleware
 from .plugin_manager import PluginManager
 from .routes import setup_routes
@@ -27,9 +28,9 @@ def create_app(kernel=None, setup_event=None) -> web.Application:
     """
     logger.debug("[Web] create_app start")
     app = web.Application()
-    app["kernel"] = kernel
-    app["setup_event"] = setup_event
-    app["setup_mode"] = kernel is None
+    app[app_keys.KERNEL] = kernel
+    app[app_keys.SETUP_EVENT] = setup_event
+    app[app_keys.SETUP_MODE] = kernel is None
     logger.debug(
         "Creating web app kernel_present=%s setup_event_present=%s",
         kernel is not None,
@@ -49,11 +50,11 @@ def create_app(kernel=None, setup_event=None) -> web.Application:
     if kernel is not None:
         logger.debug("Loading web plugins for configured kernel")
         plugin_manager.load_plugins()
-    app["plugin_manager"] = plugin_manager
+    app[app_keys.PLUGIN_MANAGER] = plugin_manager
 
     logger.debug("[Web] Setting up auth middleware")
     auth_middleware = AuthMiddleware(app)
-    app["auth_middleware"] = auth_middleware
+    app[app_keys.AUTH_MIDDLEWARE] = auth_middleware
     logger.debug(
         "Web app ready plugins=%s auth_enabled=%s",
         plugin_manager.plugins,

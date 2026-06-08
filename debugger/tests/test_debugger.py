@@ -332,10 +332,12 @@ class TestModuleDebugger:
     def test_debug_valid_file(self):
         """Should handle valid Python file."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write("""
+            f.write(
+                """
 async def main():
     print("Hello")
-""")
+"""
+            )
             f.flush()
 
             debugger = ModuleDebugger()
@@ -347,11 +349,13 @@ async def main():
     def test_debug_file_with_issues(self):
         """Should detect issues in file."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-            f.write("""
+            f.write(
+                """
 @kernel.register.event("callbackquery")
 async def handler(event):
     await event.answer("test", show_alert=True)
-""")
+"""
+            )
             f.flush()
 
             debugger = ModuleDebugger()
@@ -362,15 +366,19 @@ async def handler(event):
     def test_debug_directory(self):
         """Should debug all Python files in directory."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            Path(tmpdir, "module1.py").write_text("""
+            Path(tmpdir, "module1.py").write_text(
+                """
 async def handler():
     pass
-""")
-            Path(tmpdir, "module2.py").write_text("""
+"""
+            )
+            Path(tmpdir, "module2.py").write_text(
+                """
 @kernel.regiser.event("message")
 async def handler():
     pass
-""")
+"""
+            )
 
             debugger = ModuleDebugger()
             results = debugger.debug_directory(tmpdir)

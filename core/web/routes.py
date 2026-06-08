@@ -16,13 +16,15 @@ import traceback
 import aiohttp_jinja2
 from aiohttp import web
 
+from . import app_keys
+
 log = logging.getLogger("mcub.web.setup")
 
 _SETUP_SESSION = "_mcub_setup_tmp"
 
 
 def _has_valid_auth(request: web.Request) -> bool:
-    auth_middleware = request.app.get("auth_middleware")
+    auth_middleware = request.app.get(app_keys.AUTH_MIDDLEWARE)
     if auth_middleware is None or not auth_middleware.auth_enabled:
         return False
 
@@ -40,7 +42,7 @@ def _has_valid_auth(request: web.Request) -> bool:
 
 
 def _ensure_setup_or_auth(request: web.Request) -> web.Response | None:
-    if request.app.get("setup_mode", False):
+    if request.app.get(app_keys.SETUP_MODE, False):
         return None
     if _has_valid_auth(request):
         return None
@@ -62,7 +64,7 @@ def _build_setup_status(app: web.Application) -> dict:
     import json
     import os
 
-    state = app.get("setup_state") or {}
+    state = app.get(app_keys.SETUP_STATE) or {}
 
     config_path = "config.json"
 
@@ -216,7 +218,7 @@ async def api_send_code(request: web.Request) -> web.Response:
 
     api_id = int(api_id_raw)
 
-    state: dict = request.app.setdefault("setup_state", {})
+    state: dict = request.app.setdefault(app_keys.SETUP_STATE, {})
     await _cleanup_state_client(state)
     _remove_session_files(_SETUP_SESSION, api_id, api_hash)
 
@@ -300,7 +302,7 @@ async def api_qr_login(request: web.Request) -> web.Response:
 
     api_id = int(api_id_raw)
 
-    state: dict = request.app.setdefault("setup_state", {})
+    state: dict = request.app.setdefault(app_keys.SETUP_STATE, {})
     await _cleanup_state_client(state)
     _remove_session_files(_SETUP_SESSION, api_id, api_hash)
 
@@ -383,7 +385,7 @@ async def api_qr_poll(request: web.Request) -> web.Response:
 
     log.debug("[setup] /api/setup/qr_poll called")
 
-    state: dict = request.app.get("setup_state") or {}
+    state: dict = request.app.get(app_keys.SETUP_STATE) or {}
     client = state.get("client")
     qr_token = state.get("qr_token")
 
@@ -502,7 +504,7 @@ async def api_verify_code(request: web.Request) -> web.Response:
 
     log.info("[setup] /api/setup/verify_code called")
 
-    state: dict = request.app.get("setup_state") or {}
+    state: dict = request.app.get(app_keys.SETUP_STATE) or {}
     client = state.get("client")
     if client is None:
         return _err("No active session - please go back to step 1")
@@ -635,7 +637,7 @@ async def _finish_setup(
 
     # Only start kernel if explicitly requested
     if start_kernel:
-        ev: asyncio.Event | None = request.app.get("setup_event")
+        ev: asyncio.Event | None = request.app.get(app_keys.SETUP_EVENT)
         if ev is not None:
             ev.set()
             log.debug("[setup] setup_event fired")
@@ -704,9 +706,9 @@ async def setup_reset(request: web.Request) -> web.Response:
             except Exception as e:
                 errors.append(f"Failed to remove {sf}: {e}")
 
-    state: dict = request.app.get("setup_state") or {}
+    state: dict = request.app.get(app_keys.SETUP_STATE) or {}
     await _cleanup_state_client(state)
-    request.app["setup_state"] = {}
+    request.app[app_keys.SETUP_STATE] = {}
 
     log.info("[setup] Reset complete. Removed: %s", removed)
     if errors:
@@ -799,14 +801,14 @@ def _rename_session(src: str, dst: str) -> None:
 
 
 async def bot_page(request: web.Request) -> web.Response:
-    kernel = request.app.get("kernel")
+    kernel = request.app.get(app_keys.KERNEL)
     if kernel is None:
         return aiohttp_jinja2.render_template("setup.html", request, {})
     return aiohttp_jinja2.render_template("setup.html", request, {"bot_page": True})
 
 
 async def api_bot_status(request: web.Request) -> web.Response:
-    kernel = request.app.get("kernel")
+    kernel = request.app.get(app_keys.KERNEL)
     if kernel is None:
         return web.json_response({"error": "Kernel not ready"}, status=503)
 
@@ -888,7 +890,7 @@ async def api_bot_save_token(request: web.Request) -> web.Response:
     if not token:
         return web.json_response({"error": "Token is required"}, status=400)
 
-    kernel = request.app.get("kernel")
+    kernel = request.app.get(app_keys.KERNEL)
 
     # If kernel is not started yet, save to config.json directly
     if kernel is None:
@@ -910,9 +912,9 @@ async def api_bot_auto_create(request: web.Request) -> web.Response:
     if guard is not None:
         return guard
 
-    state: dict = request.app.get("setup_state") or {}
+    state: dict = request.app.get(app_keys.SETUP_STATE) or {}
     client = state.get("client")
-    kernel = request.app.get("kernel")
+    kernel = request.app.get(app_keys.KERNEL)
 
     if client is None:
         if kernel is None:
@@ -962,11 +964,11 @@ async def api_setup_complete(request: web.Request) -> web.Response:
     if guard is not None:
         return guard
 
-    state: dict = request.app.get("setup_state") or {}
+    state: dict = request.app.get(app_keys.SETUP_STATE) or {}
     await _disconnect(state.get("client"))
     _rename_session(_SETUP_SESSION, "user_session")
 
-    ev: asyncio.Event | None = request.app.get("setup_event")
+    ev: asyncio.Event | None = request.app.get(app_keys.SETUP_EVENT)
     if ev is not None:
         ev.set()
         log.debug("setup_event fired (from bot step)")
@@ -975,7 +977,7 @@ async def api_setup_complete(request: web.Request) -> web.Response:
 
 
 async def api_bot_start(request: web.Request) -> web.Response:
-    kernel = request.app.get("kernel")
+    kernel = request.app.get(app_keys.KERNEL)
     if kernel is None:
         return web.json_response({"error": "Kernel not ready"}, status=503)
 
@@ -1033,7 +1035,7 @@ def _fmt_uptime(start_ts) -> str:
 
 async def api_auth_status(request: web.Request) -> web.Response:
     """Check if authentication is enabled."""
-    auth_middleware = request.app.get("auth_middleware")
+    auth_middleware = request.app.get(app_keys.AUTH_MIDDLEWARE)
     if auth_middleware is None:
         return web.json_response({"enabled": False, "message": "Auth not configured"})
     return web.json_response({"enabled": auth_middleware.auth_enabled})
@@ -1041,9 +1043,9 @@ async def api_auth_status(request: web.Request) -> web.Response:
 
 async def api_auth_generate_token(request: web.Request) -> web.Response:
     """Generate a new auth token (requires existing auth or setup mode)."""
-    auth_middleware = request.app.get("auth_middleware")
+    auth_middleware = request.app.get(app_keys.AUTH_MIDDLEWARE)
 
-    is_setup = not _is_configured(request.app.get("kernel"))
+    is_setup = not _is_configured(request.app.get(app_keys.KERNEL))
     has_valid_auth = False
 
     if auth_middleware:

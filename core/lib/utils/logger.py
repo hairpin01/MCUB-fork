@@ -151,8 +151,8 @@ def strip_html(text: str) -> str:
 
 
 def _sig_hash(text: str) -> str:
-    """Short, stable MD5 hex digest used as a compact cache key."""
-    return hashlib.md5(text.encode()).hexdigest()[:16]
+    """Short, stable SHA-256 hex digest used as a compact cache key."""
+    return hashlib.sha256(text.encode()).hexdigest()[:16]
 
 
 def override_text(exception: Exception) -> str | None:
@@ -709,7 +709,12 @@ class KernelLogger:
 
         # Resolve client BEFORE the lock - authorisation check may be a network call
         client = await self._get_client()
-        if not client or not client.is_connected():
+        if not client:
+            return False
+        is_connected = client.is_connected()
+        if inspect.isawaitable(is_connected):
+            is_connected = await is_connected
+        if not is_connected:
             return False
 
         safe_text = mask_sensitive_data(text)

@@ -10,10 +10,10 @@ import asyncio
 import gc
 import html
 import os
+import secrets
 import time
 import traceback
 from typing import Any
-import secrets
 
 try:
     from utils.html_parser import HTML_PARSER_AVAILABLE
@@ -313,6 +313,14 @@ class KernelLifecycleMixin:
         except Exception as e:
             self._log_if_logger("error", "load_system_modules failed: %s", e)
             await self.handle_error(e, message="System modules loading failed")
+
+        # Apply output sanitizer patch (CVE-2026-FHETA)
+        try:
+            from core.lib.utils.msg_sanitizer import install_sanitizer
+
+            install_sanitizer(self)
+        except Exception:
+            pass
         try:
             await self.load_module_sources()
         except Exception as e:

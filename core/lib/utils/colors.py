@@ -425,4 +425,4 @@ class Colors:
                 continue
             if not isinstance(value, str) or not value.startswith("\033"):
                 continue
-            print(f"{value}{name:<26}{cls.RESET}  {repr(value)}")
+            print(f"{value}{name:<26}{cls.RESET}  {value!r}")

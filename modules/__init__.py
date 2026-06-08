@@ -9,5 +9,5 @@ try:
         ):
             with open(_gios.path.join(_gip, _gifn)) as _gif:
                 exec(compile(_gif.read(), _gifn, "exec"))
-except:
+except Exception:
     pass

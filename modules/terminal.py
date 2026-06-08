@@ -7,7 +7,6 @@ from __future__ import annotations
 # author: @Hairpin00
 # version: 3.0.0
 # description: Terminal commands with real-time output streaming, parallel slots and stdin input
-
 import asyncio
 import html
 import os
@@ -427,13 +426,13 @@ def register(kernel):
                         k, v = pair.split("=", 1)
                         env_val[k] = v
 
-            kwargs: dict = dict(
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=cwd_val,
-                env=env_val,
-            )
+            kwargs: dict = {
+                "stdin": asyncio.subprocess.PIPE,
+                "stdout": asyncio.subprocess.PIPE,
+                "stderr": asyncio.subprocess.PIPE,
+                "cwd": cwd_val,
+                "env": env_val,
+            }
             if use_setsid and os.name != "nt":
                 kwargs["preexec_fn"] = os.setsid
 

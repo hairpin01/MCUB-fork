@@ -11,7 +11,6 @@ import importlib.util
 import os
 import sys
 import time
-import traceback
 from typing import Any
 
 # McubTelethonError (graceful fallback)───────

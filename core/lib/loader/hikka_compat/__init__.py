@@ -1,9 +1,8 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлькa | @hairpin01
 
-from . import geek, inline_types, inline_utils, loader, security, utils
+from . import geek, inline_types, inline_utils, loader, proxies, security, utils
 from . import translat as translations
-from . import proxies
 from .config import ConfigValue, LibraryConfig, ModuleConfig
 from .decorators import (
     InfiniteLoop,
@@ -43,35 +42,6 @@ from .inline_utils import (
     process_buttons,
     sanitise_text,
 )
-from .runtime import (
-    DbProxy,
-    InlineProxy,
-    Library,
-    Module,
-    _AllModulesStub,
-    _CallableStringsDict,
-)
-from .types import (
-    CacheRecordEntity,
-    CacheRecordFullChannel,
-    CacheRecordFullUser,
-    CacheRecordPerms,
-    Command,
-    CoreOverwriteError,
-    CoreUnloadError,
-    HerokuReplyMarkup,
-    JSONSerializable,
-    ListLike,
-    LoadError,
-    SelfSuspend,
-    SelfUnload,
-    StopLoop,
-    StringLoader,
-    get_callback_handlers,
-    get_commands,
-    get_inline_handlers,
-    get_watchers,
-)
 from .proxies import (
     PointerDict,
     PointerList,
@@ -79,6 +49,14 @@ from .proxies import (
     SafeClientProxy,
     SafeDatabaseProxy,
     SafeInlineProxy,
+)
+from .runtime import (
+    DbProxy,
+    InlineProxy,
+    Library,
+    Module,
+    _AllModulesStub,
+    _CallableStringsDict,
 )
 from .types import (
     CacheRecordEntity,
@@ -133,6 +111,12 @@ __all__ = [
     "Module",
     "ModuleConfig",
     "Placeholder",
+    "PointerDict",
+    "PointerList",
+    "SafeAllModulesProxy",
+    "SafeClientProxy",
+    "SafeDatabaseProxy",
+    "SafeInlineProxy",
     "SelfSuspend",
     "SelfUnload",
     "StopLoop",
@@ -156,14 +140,8 @@ __all__ = [
     "loader",
     "loop",
     "on",
-    "PointerDict",
-    "PointerList",
     "proxies",
     "raw_handler",
-    "SafeAllModulesProxy",
-    "SafeClientProxy",
-    "SafeDatabaseProxy",
-    "SafeInlineProxy",
     "security",
     "tag",
     "tds",

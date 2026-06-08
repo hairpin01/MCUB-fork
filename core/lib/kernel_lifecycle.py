@@ -10,10 +10,10 @@ import asyncio
 import gc
 import html
 import os
+import secrets
 import time
 import traceback
 from typing import Any
-import secrets
 
 try:
     from utils.html_parser import HTML_PARSER_AVAILABLE

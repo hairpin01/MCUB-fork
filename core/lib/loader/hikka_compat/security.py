@@ -242,7 +242,7 @@ class SecurityChecker:
         try:
             import asyncio
 
-            future = asyncio.ensure_future(self._resolve_admin_flags(chat_id, user_id))
+            asyncio.ensure_future(self._resolve_admin_flags(chat_id, user_id))
             return 0
         except Exception:
             return None
@@ -255,11 +255,6 @@ class SecurityChecker:
             return flags
 
         try:
-            from telethon.tl.types import (
-                ChatAdminRights,
-                ChannelParticipantAdmin,
-                ChannelParticipantCreator,
-            )
 
             entity = await self._client.get_entity(chat_id)
             participant = await self._client.get_permissions(entity, user_id)

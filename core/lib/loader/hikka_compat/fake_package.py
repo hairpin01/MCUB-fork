@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import ast
 import asyncio
+import builtins
 import contextlib
 import hashlib
 import importlib
@@ -14,7 +15,6 @@ import re
 import sys
 import traceback
 import types
-import builtins
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -38,6 +38,14 @@ from .decorators import (
     tag,
     tds,
     watcher,
+)
+from .proxies import (
+    PointerDict,
+    PointerList,
+    SafeAllModulesProxy,
+    SafeClientProxy,
+    SafeDatabaseProxy,
+    SafeInlineProxy,
 )
 from .runtime import (
     DbProxy,
@@ -66,14 +74,6 @@ from .types import (
     get_commands,
     get_inline_handlers,
     get_watchers,
-)
-from .proxies import (
-    PointerDict,
-    PointerList,
-    SafeAllModulesProxy,
-    SafeClientProxy,
-    SafeDatabaseProxy,
-    SafeInlineProxy,
 )
 from .utils import _Utils
 from .validators import validators

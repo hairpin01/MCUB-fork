@@ -13,9 +13,8 @@ from telethon.tl.types import InputMediaWebPage
 
 from core.lib.loader.module_base import ModuleBase, callback, command
 from core.lib.loader.module_config import Boolean, ConfigValue, ModuleConfig
-from utils.strings import get_available_locales
-from utils.strings import Strings
 from utils import answer
+from utils.strings import Strings, get_available_locales
 
 
 class SettingsModule(ModuleBase):

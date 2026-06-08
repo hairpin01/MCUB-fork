@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import typing
 
@@ -19,7 +18,7 @@ class PointerList(list):
         db,
         module: str,
         key: str,
-        default: typing.Optional[typing.Any] = None,
+        default: typing.Any | None = None,
     ):
         self._db = db
         self._module = module
@@ -100,7 +99,7 @@ class PointerDict(dict):
         db,
         module: str,
         key: str,
-        default: typing.Optional[typing.Any] = None,
+        default: typing.Any | None = None,
     ):
         self._db = db
         self._module = module

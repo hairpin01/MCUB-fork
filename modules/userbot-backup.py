@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 import aiohttp
-from telethon.errors import ChannelsTooMuchError
+from telethon.errors import ChannelsTooMuchError, PeerIdInvalidError
 from telethon.tl.functions.channels import (
     CreateChannelRequest,
     EditPhotoRequest,
@@ -828,6 +828,14 @@ class Backup(ModuleBase):
 
             return True
 
+        except PeerIdInvalidError as e:
+            if cfg:
+                cfg["backup_chat_id"] = None
+                await self.save_config()
+            await self.kernel.log_warning(
+                f"Backup target peer is invalid, backup_chat_id was reset: {e}"
+            )
+            return False
         except Exception as e:
             await self.kernel.handle_error(e, message="Backup send failed", event=None)
             return False

@@ -1049,6 +1049,8 @@ def _ensure_fake_package() -> str:
                 )
             parent_mod.validators = _validators_mod
             sys.modules.setdefault(f"{_FAKE_PKG_NAME}.validators", _validators_mod)
+        elif f"{_FAKE_PKG_NAME}.validators" not in sys.modules:
+            sys.modules[f"{_FAKE_PKG_NAME}.validators"] = parent_mod.validators
 
         return _FAKE_PKG_NAME
 
@@ -1497,6 +1499,7 @@ def _ensure_fake_package() -> str:
     sys.modules[f"{_FAKE_PKG_NAME}.inline.utils"] = inline_utils_mod
     sys.modules[f"{_FAKE_PKG_NAME}.validators"] = validators_mod
     sys.modules[f"{_FAKE_PKG_NAME}.strings"] = strings_mod
+    sys.modules["heroku"].validators = validators_mod
     _install_extended_submodules(_FAKE_PKG_NAME, parent)
 
     return _FAKE_PKG_NAME

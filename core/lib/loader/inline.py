@@ -18,8 +18,9 @@ except ImportError:
     Button = events = None
 
 try:
-    from telethon.errors import ChatSendInlineForbiddenError
+    from telethon.errors import BadRequestError, ChatSendInlineForbiddenError
 except ImportError:
+    BadRequestError = Exception
     ChatSendInlineForbiddenError = Exception
 
 try:
@@ -749,7 +750,17 @@ class InlineManager:
             if reply_to:
                 click_kwargs["reply_to"] = reply_to
             click_kwargs.update(kwargs)
-            message = await results[result_index].click(chat_id, **click_kwargs)
+            try:
+                message = await results[result_index].click(chat_id, **click_kwargs)
+            except BadRequestError as e:
+                if reply_to and "TOPIC_CLOSED" in str(e).upper():
+                    click_kwargs.pop("reply_to", None)
+                    k.logger.warning(
+                        "[inline] target topic is closed, retrying inline result without reply_to"
+                    )
+                    message = await results[result_index].click(chat_id, **click_kwargs)
+                else:
+                    raise
             if form_sms:
                 await form_sms.delete()
 
@@ -792,6 +803,20 @@ class InlineManager:
                     f'<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> {self.s("warning_not_allowed_inline")}',
                     parse_mode="html",
                 )
+            return False, None
+
+        except BadRequestError as e:
+            if "TOPIC_CLOSED" in str(e).upper():
+                k.logger.warning(
+                    "[inline] inline result could not be sent: topic closed"
+                )
+                if form_sms:
+                    await form_sms.edit(
+                        self.s("warning_not_allowed_inline"),
+                        parse_mode="html",
+                    )
+                return False, None
+            await k.handle_error(e, message="Inline query/click error")
             return False, None
 
         except Exception as e:

@@ -379,9 +379,14 @@ class Loader(ModuleBase):
         if source:
             url = source.get("url")
             repo = source.get("repo")
+            # Use original_name (filename from repo/URL) as the display name
+            # Falls back to module_name if not set
             orig_name = source.get("original_name", module_name)
             if url:
-                return f'<blockquote><tg-emoji emoji-id="5411527152212411235">🔗</tg-emoji> Source link {url}</blockquote>'
+                url = url.rstrip("/")
+                # Extract directory part from the URL
+                base_url = url.rsplit("/", 1)[0] if "/" in url else url
+                return f'<blockquote><tg-emoji emoji-id="5411527152212411235">🔗</tg-emoji> Source link {base_url}/{orig_name}.py</blockquote>'
             elif repo:
                 repo = repo.rstrip("/")
                 return f'<blockquote><tg-emoji emoji-id="5411527152212411235">🔗</tg-emoji> Source link {repo}/{orig_name}.py</blockquote>'
@@ -1287,6 +1292,11 @@ class Loader(ModuleBase):
                     "repo": repo_url if not is_url and repo_url else None,
                     "original_name": module_name,
                 }
+
+                # Clean up stale entry that may have been saved with wrong key
+                if module_name != actual_module_name:
+                    self.kernel._module_sources.pop(module_name, None)
+                await self.kernel.save_module_sources()
 
                 class_instance = getattr(
                     self.kernel.loaded_modules.get(actual_module_name),

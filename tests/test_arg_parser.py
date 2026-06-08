@@ -9,6 +9,7 @@ import pytest
 
 from utils.arg_parser import (
     ArgumentValidator,
+    PipelineParser,
     extract_command,
     parse_arguments,
     parse_kwargs,
@@ -57,6 +58,23 @@ class TestArgumentParserBasic:
         assert parser1.command == "cmd"
         assert parser2.command == "cmd"
         assert parser3.command == "cmd"
+
+
+class TestPipelineParser:
+    def test_pipe_forward_operator(self):
+        parser = PipelineParser(".ping 1.1.1.1 |> 8.8.8.8")
+
+        assert parser.segments[0].operator is None
+        assert parser.segments[0].command == ".ping 1.1.1.1"
+        assert parser.segments[1].operator == "|>"
+        assert parser.segments[1].command == "8.8.8.8"
+
+    def test_pipe_forward_operator_without_spaces(self):
+        parser = PipelineParser(".ping 1.1.1.1|>8.8.8.8")
+
+        assert parser.segments[0].command == ".ping 1.1.1.1"
+        assert parser.segments[1].operator == "|>"
+        assert parser.segments[1].command == "8.8.8.8"
 
 
 class TestArgumentParserFlags:

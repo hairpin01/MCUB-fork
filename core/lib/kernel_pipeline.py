@@ -204,6 +204,10 @@ class KernelPipelineMixin:
                 return None
         return value
 
+    def _import_exists(self, key: str) -> bool:
+        """Return True when ``key`` can be resolved from ``_pipe_vars``."""
+        return self._resolve_import(key) is not None
+
     def pipe_interpolate(self, text: str, pipe_input: str = "") -> str:
         """Substitute ``@{...}`` placeholders.
 
@@ -304,13 +308,21 @@ class KernelPipelineMixin:
             if not captured:
                 self.logger.debug("[pipe] @(cmd) %r — no output captured", cmd)
                 return ""
+            return captured[-1]
 
         matches = list(self._AT_CMD_PATTERN.finditer(text))
-        for m in reversed(matches):
-            replacement = await _replace_cmd(m)
-            text = text[: m.start()] + replacement + text[m.end() :]
+        if not matches:
+            return text
 
-        return text
+        parts = []
+        last = 0
+        for m in matches:
+            parts.append(text[last : m.start()])
+            parts.append(await _replace_cmd(m))
+            last = m.end()
+        parts.append(text[last:])
+
+        return "".join(parts)
 
     async def _execute_pipeline(self, event: Any, pipeline: Any, depth: int) -> bool:
         """Execute a multi-segment pipeline expression."""
@@ -343,9 +355,10 @@ class KernelPipelineMixin:
             next_seg = segments[i + 1] if i + 1 < len(segments) else None
 
             if seg.operator == "||":
-                if seg.exit_code is not None:
+                expected_exit_code = getattr(seg, "exit_code", None)
+                if expected_exit_code is not None:
                     # ||[N] — run only if exit_code == N
-                    if exit_code != seg.exit_code:
+                    if exit_code != expected_exit_code:
                         continue
                 elif exit_code == 0:
                     continue

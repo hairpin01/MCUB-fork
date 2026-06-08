@@ -7,14 +7,22 @@ import logging
 import uuid
 from abc import ABC
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 try:
     from core.lib.loader.kernel_proxy import wrap_event_for_module
 except ImportError:
 
-    def wrap_event_for_module(e, *a, **kw):
+    def wrap_event_for_module(
+        e: Any, *a: Any, **kw: Any  # noqa: ANN401
+    ) -> Any:  # noqa: ANN401
         return e
+
+
+if TYPE_CHECKING:
+    from core.lib.types import Event, Kernel
+    from core.lib.types.client import Client
+    from core.lib.types.message import Message
 
 
 try:
@@ -173,7 +181,7 @@ class ModuleBase(ABC):
         if user_module and not hasattr(user_module, "register"):
             user_module.register = type("RegisterObject", (), {})()
 
-        async def bound_wrapper(event: Any) -> None:
+        async def bound_wrapper(event: Event) -> None:
             if permission_tags and not self._passes_permission_tags(
                 event, permission_tags
             ):
@@ -223,7 +231,7 @@ class ModuleBase(ABC):
         if user_module and not hasattr(user_module, "register"):
             user_module.register = type("RegisterObject", (), {})()
 
-        async def bound_wrapper(event: Any, args: str, data: Any = None) -> None:
+        async def bound_wrapper(event: Event, args: str, data: Any = None) -> None:
             _pe = wrap_event_for_module(event, self.name, self.kernel)
             return await func(self, _pe, args, data)
 
@@ -272,7 +280,7 @@ class ModuleBase(ABC):
 
         return sys.modules.get(type(self).__module__)
 
-    def _passes_permission_tags(self, event: Any, tags: dict[str, Any]) -> bool:
+    def _passes_permission_tags(self, event: Event, tags: dict[str, Any]) -> bool:
         from .register import _watcher_passes_filters
 
         try:
@@ -285,7 +293,7 @@ class ModuleBase(ABC):
         self,
         func: Callable,
         instance: Any,
-        event: Any,
+        event: Event,
         handler_config: dict[str, Any],
     ) -> None:
         """Run a function with error handling based on decorator config."""
@@ -322,28 +330,30 @@ class ModuleBase(ABC):
             return getter("language", "ru") or "ru"
         return "ru"
 
-    def args(self, event: Any) -> Any:
+    def args(self, event: Event) -> Any:  # noqa: ANN401
         import utils
 
         text = getattr(event, "text", None) or getattr(event, "raw_text", "") or ""
         return utils.parse_arguments(text, prefix=self.get_prefix())
 
-    def args_raw(self, event: Any) -> str:
+    def args_raw(self, event: Event) -> str:
         import utils
 
         return utils.get_args_raw(event)
 
-    def args_html(self, event: Any) -> str:
+    def args_html(self, event: Event) -> str:
         import utils
 
         return utils.get_args_html(event)
 
-    async def answer(self, event: Any, text: str, **kwargs: Any) -> Any:
+    async def answer(
+        self, event: Event, text: str, **kwargs: Any
+    ) -> Any:  # noqa: ANN401
         import utils
 
         return await utils.answer(event, text, **kwargs)
 
-    async def edit(self, event: Any, text: str, **kwargs: Any) -> Any:
+    async def edit(self, event: Event, text: str, **kwargs: Any) -> Any:  # noqa: ANN401
         reply_markup = kwargs.pop("reply_markup", None)
         as_html = kwargs.pop("as_html", False)
         if reply_markup is not None:
@@ -356,7 +366,9 @@ class ModuleBase(ABC):
             event, text, reply_markup=reply_markup, as_html=as_html, **kwargs
         )
 
-    async def reply(self, event: Any, text: str, **kwargs: Any) -> Any:
+    async def reply(
+        self, event: Event, text: str, **kwargs: Any
+    ) -> Any:  # noqa: ANN401
         reply_markup = kwargs.pop("reply_markup", None)
         as_html = kwargs.pop("as_html", False)
         if reply_markup is not None:
@@ -426,7 +438,7 @@ class ModuleBase(ABC):
     ) -> str:
         """Register a temporary inline command handler."""
 
-        async def bound_wrapper(event: Any, *a: Any, **kw: Any) -> None:
+        async def bound_wrapper(event: Event, *a: Any, **kw: Any) -> None:
             return await func(self, event, *a, **kw)
 
         bound_wrapper.__original__ = func
@@ -536,7 +548,9 @@ class ModuleBase(ABC):
         raw_func = getattr(func, "__original__", func)
         instance = self
 
-        async def wrapper(event: Any, *args: Any, **kwargs: Any) -> None:
+        async def wrapper(
+            event: Event, *args: Any, **kwargs: Any
+        ) -> None:  # noqa: ANN401
             bound_to = getattr(raw_func, "__self__", None)
             if bound_to is not None:
                 return await raw_func(event, *args, **kwargs)
@@ -578,7 +592,9 @@ class ModuleBase(ABC):
         self._callback_tokens = getattr(self, "_callback_tokens", [])
         self._callback_tokens.append(tok)
 
-    def __init__(self, kernel: Any, client: Any, register: Any) -> None:
+    def __init__(
+        self, kernel: Kernel, client: Client, register: Any
+    ) -> None:  # noqa: ANN401
         self.kernel = kernel
         self.client = client
         self._register = register
@@ -675,7 +691,7 @@ class ModuleBase(ABC):
             method_name = func.__name__
 
             async def wrapper(
-                event: Any,
+                event: Event,
                 f=func,
                 instance=self,
                 permission_tags=permission_map.get(method_name),
@@ -697,7 +713,7 @@ class ModuleBase(ABC):
                 only_admin = owner_map[method_name].get("only_admin", False)
 
                 async def owner_wrapper(
-                    event: Any, f=wrapper, only_admin=only_admin
+                    event: Event, f=wrapper, only_admin=only_admin
                 ) -> None:
                     admin_id = getattr(self.kernel, "ADMIN_ID", None)
                     sender_id = getattr(event, "sender_id", None)
@@ -724,7 +740,7 @@ class ModuleBase(ABC):
 
         for pattern, func in type(self)._inline_registry:
 
-            async def inline_wrapper(event: Any, f=func) -> None:
+            async def inline_wrapper(event: Event, f=func) -> None:
                 return await f(self, event)
 
             inline_wrapper.__original__ = func
@@ -794,7 +810,7 @@ class ModuleBase(ABC):
             kwargs_cmd = {k: v for k, v in kwargs_cmd.items() if v is not None}
 
             async def wrapper(
-                event: Any,
+                event: Event,
                 f=func,
                 permission_tags=permission_map.get(func.__name__),
             ) -> None:
@@ -842,7 +858,7 @@ class ModuleBase(ABC):
         raw_func = getattr(callback_func, "__original__", callback_func)
         instance = self
 
-        async def wrapper(event: Any, *a: Any, **kw: Any) -> None:
+        async def wrapper(event: Event, *a: Any, **kw: Any) -> None:  # noqa: ANN401
             bound_to = getattr(raw_func, "__self__", None)
             if bound_to is not None:
                 return await raw_func(event, *a, **kw)

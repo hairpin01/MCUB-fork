@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from telethon import events
-
 from core.lib.loader.module_base import ModuleBase, callback, command, inline
+from core.lib.types import Event
 
 
 class SearchModule(ModuleBase):
@@ -30,7 +29,7 @@ class SearchModule(ModuleBase):
     }
 
     @inline("search")
-    async def inline_search(self, event: events.InlineQuery.Event) -> None:
+    async def inline_search(self, event: Event) -> None:
         query: str = event.args.strip()
 
         if not query:
@@ -72,9 +71,7 @@ class SearchModule(ModuleBase):
         await event.answer(articles)
 
     @callback()
-    async def show_item(
-        self, event: events.CallbackQuery.Event, data: dict[str, Any] | None = None
-    ) -> None:
+    async def show_item(self, event: Event, data: dict[str, Any] | None = None) -> None:
         item_id: str | None = data.get("id") if data else None
         item: dict[str, Any] | None = await self._get_item(item_id)
 
@@ -88,7 +85,7 @@ class SearchModule(ModuleBase):
         )
 
     @command("search", doc_ru="<зaпpoc> Пoиcк", doc_en="<query> Search")
-    async def cmd_search(self, event: events.NewMessage.Event) -> None:
+    async def cmd_search(self, event: Event) -> None:
         args: list[str] = event.text.split(maxsplit=1)
 
         if len(args) < 2:

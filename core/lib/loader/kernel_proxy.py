@@ -5,7 +5,11 @@ from __future__ import annotations
 
 import functools
 from types import MappingProxyType
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from core.lib.types import Client, Event, Kernel
+    from core.lib.types.message import Message
 
 try:
     from ..utils.exceptions import CallInsecure
@@ -69,26 +73,52 @@ PROTECTED_REGISTER_NAMES = frozenset({"kernel", "_kernel"})
 
 _CLIENT_DANGEROUS_METHODS = frozenset(
     {
+        # ── connection lifecycle ─────────────────────────────────
         "disconnect",
         "disconnect_coro",
         "reconnect",
-        "logout",
+        "connect",
+        "run_until_disconnected",
+        # ── auth ─────────────────────────────────────────────────
+        "log_out",
+        "qr_login",
         "sign_out",
+        "sign_in",
+        "sign_up",
+        "start",
+        "send_code_request",
+        # ── session / config ─────────────────────────────────────
         "session",
         "session_name",
         "session_path",
+        "phone",
+        "phone_code_hash",
+        "authorization_key",
+        "flood_sleep_threshold",
+        "parse_mode",
+        "set_parse_mode",
+        "unread_count",
+        "catch_up",
+        # ── protection bypass ────────────────────────────────────
+        "protection_mode",
+        "set_protection_mode",
+        "set_protection_policy",
+        # ── event / middleware management ────────────────────────
         "on",
         "add_event_handler",
         "remove_event_handler",
         "list_event_handlers",
-        "flood_sleep_threshold",
-        "parse_mode",
-        "set_parse_mode",
-        "phone_code_hash",
-        "phone",
-        "authorization_key",
-        "unread_count",
-        "catch_up",
+        "add_event_middleware",
+        "remove_event_middleware",
+        "add_request_middleware",
+        "remove_request_middleware",
+        "remove_module_handlers",
+        # ── proxy / updates ──────────────────────────────────────
+        "set_proxy",
+        "set_receive_updates",
+        # ── data export ──────────────────────────────────────────
+        "takeout",
+        "end_takeout",
     }
 )
 
@@ -223,7 +253,7 @@ class ModuleKernelProxy:
         }
     )
 
-    def __init__(self, kernel: Any, module_name: str) -> None:
+    def __init__(self, kernel: Kernel, module_name: str) -> None:
         object.__setattr__(self, "_kernel", kernel)
         object.__setattr__(self, "_module_name", module_name)
         object.__setattr__(self, "_register_proxy", None)
@@ -260,7 +290,9 @@ class ModuleKernelProxy:
     def _deny(self, name: str) -> None:
         _raise_insecure(name, self.module_name)
 
-    def lookup_module(self, module_name: str, *, all_loaded: bool = False) -> Any:
+    def lookup_module(
+        self, module_name: str, *, all_loaded: bool = False
+    ) -> Any:  # noqa: ANN401
         """Lookup a module without exposing mutable kernel registries.
 
         Args:
@@ -496,7 +528,7 @@ class ClientProxy:
         }
     )
 
-    def __init__(self, client: Any, module_name: str) -> None:
+    def __init__(self, client: Client, module_name: str) -> None:
         object.__setattr__(self, "_client", client)
         object.__setattr__(self, "_module_name", module_name)
 
@@ -809,7 +841,9 @@ class DatabaseProxy:
         return f"<DatabaseProxy module={self.module_name!r}>"
 
 
-def get_module_kernel(kernel: Any, module_name: str, is_system: bool) -> Any:
+def get_module_kernel(
+    kernel: Kernel, module_name: str, is_system: bool
+) -> Any:  # noqa: ANN401
     """Return a proxied kernel for user modules, raw kernel for system."""
     if is_system:
         return kernel
@@ -836,7 +870,7 @@ class EventProxy:
         "_proxy_module_name",
     )
 
-    def __init__(self, event: Any, module_name: str, kernel: Any) -> None:
+    def __init__(self, event: Event, module_name: str, kernel: Kernel) -> None:
         object.__setattr__(self, "_proxied_event", event)
         object.__setattr__(self, "_proxy_module_name", module_name)
         object.__setattr__(self, "_proxy_kernel", kernel)
@@ -901,7 +935,7 @@ class EventProxy:
         return dir(object.__getattribute__(self, "_proxied_event"))
 
 
-def wrap_event_for_module(event: Any, module_name: str, kernel: Any) -> Any:
+def wrap_event_for_module(event: Event, module_name: str, kernel: Kernel) -> Event:
     """Wrap a Telethon event in an EventProxy if it looks like an event.
 
     Returns an EventProxy when the object has a client attribute
@@ -915,28 +949,34 @@ def wrap_event_for_module(event: Any, module_name: str, kernel: Any) -> Any:
     return event
 
 
-def get_module_register(kernel: Any, module_name: str, is_system: bool) -> Any:
+def get_module_register(
+    kernel: Kernel, module_name: str, is_system: bool
+) -> Any:  # noqa: ANN401
     """Return a proxied register for user modules, raw for system."""
     if is_system:
         return kernel.register
     return ModuleRegisterProxy(kernel.register, module_name)
 
 
-def get_module_client(kernel: Any, module_name: str, is_system: bool) -> Any:
+def get_module_client(kernel: Kernel, module_name: str, is_system: bool) -> Client:
     """Return a proxied client for user modules, raw for system."""
     if is_system:
         return kernel.client
     return ClientProxy(kernel.client, module_name)
 
 
-def get_module_config(kernel: Any, module_name: str, is_system: bool) -> Any:
+def get_module_config(
+    kernel: Kernel, module_name: str, is_system: bool
+) -> Any:  # noqa: ANN401
     """Return a read-only config proxy for user modules, raw for system."""
     if is_system:
         return kernel.config
     return ConfigProxy(kernel.config, module_name)
 
 
-def get_module_db(kernel: Any, module_name: str, is_system: bool) -> Any:
+def get_module_db(
+    kernel: Kernel, module_name: str, is_system: bool
+) -> Any:  # noqa: ANN401
     """Return a scoped database proxy for user modules, raw for system."""
     if is_system:
         return kernel.db_manager

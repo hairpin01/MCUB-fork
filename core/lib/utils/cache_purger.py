@@ -25,6 +25,9 @@ import sys
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from core.lib.types import Kernel
+
+if TYPE_CHECKING:
     pass
 
 
@@ -41,7 +44,7 @@ def _set_clear(obj: Any, attr: str) -> None:
         s.clear()
 
 
-def purge_caches(kernel: Any, level: int = 1) -> dict[str, Any]:
+def purge_caches(kernel: Kernel, level: int = 1) -> dict[str, Any]:  # noqa: ANN401
     """Purge kernel caches at *level* (1-3).
 
     Returns a dict with keys ``{"level", "cleared", "freed_estimate"}``

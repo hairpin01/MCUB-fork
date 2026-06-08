@@ -11,7 +11,7 @@ import re
 import time
 import uuid
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 try:
     from telethon import events
@@ -23,8 +23,14 @@ try:
     from core.lib.loader.kernel_proxy import wrap_event_for_module
 except ImportError:
 
-    def wrap_event_for_module(e, *a, **kw):
+    def wrap_event_for_module(
+        e: Any, *a: Any, **kw: Any  # noqa: ANN401
+    ) -> Any:  # noqa: ANN401
         return e
+
+
+if TYPE_CHECKING:
+    from core.lib.types import Event, Kernel, Message
 
 
 try:
@@ -58,7 +64,7 @@ class InfiniteLoop:
         self.autostart = autostart
         self._wait_before = wait_before
         self._task: asyncio.Task | None = None
-        self._kernel: Any = None
+        self._kernel: Kernel | None = None
         self.status: bool = False
         self.last_run: float | None = None
         self.last_error: Exception | None = None
@@ -127,7 +133,7 @@ class InfiniteLoop:
         )
 
 
-def _watcher_passes_filters(event: Any, tags: dict[str, Any]) -> bool:
+def _watcher_passes_filters(event: Event, tags: dict[str, Any]) -> bool:
     """Return True if *event* satisfies all tag filters."""
     msg = getattr(event, "message", event)
 
@@ -242,7 +248,7 @@ class Register:
     # Soft cap - modules with more loops get a warning; loop still works.
     MAX_LOOPS_PER_MODULE = 5
 
-    def __init__(self, kernel: Any) -> None:
+    def __init__(self, kernel: Kernel) -> None:
         self.kernel = kernel
         self._methods: dict[str, Callable] = {}
         self._method_modules: dict[str, Any] = {}
@@ -737,7 +743,7 @@ class Register:
             bound_instance = getattr(f, "__bound_instance__", None)
             raw_func = getattr(f, "__original__", f)
 
-            async def _wrapper(event: Any) -> None:
+            async def _wrapper(event: Event) -> None:
                 event_text = getattr(getattr(event, "message", event), "text", None)
                 self.kernel.logger.debug(
                     "[watcher] enter module=%r watcher=%r chat_id=%r sender_id=%r text=%r",
@@ -1497,7 +1503,7 @@ class Register:
         reply_to: int | None = None,
         *,
         prefix: str | None = None,
-        original_event: Any = None,
+        original_event: Event | None = None,
     ) -> Any:
         """Execute a registered command in a specified chat.
 
@@ -1549,8 +1555,8 @@ class Register:
 
     def message_proxy(
         self,
-        msg: Any,
-        original_event: Any = None,
+        msg: Message,
+        original_event: Event | None = None,
     ) -> "_MessageEventProxy":
         """Wrap a raw Telegram ``Message`` as an event-like proxy.
 

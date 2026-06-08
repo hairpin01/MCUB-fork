@@ -17,13 +17,12 @@ from __future__ import annotations
 
 import asyncio
 
-from telethon import events
-
 from core.lib.loader.module_base import (
     ModuleBase,
     command,
     loop,
 )
+from core.lib.types import Event
 
 
 class TestModule(ModuleBase):
@@ -54,12 +53,12 @@ class TestModule(ModuleBase):
     }
 
     @command("test", doc_ru="Зaпycтить тecты", doc_en="Run tests")
-    async def cmd_test(self, event: events.NewMessage.Event) -> None:
+    async def cmd_test(self, event: Event) -> None:
         results = await self._run_all_tests()
         await self.edit(event, f"<b>Test Results:</b>\n\n{results}", as_html=True)
 
     @command("testmod", doc_ru="Инфopмaция o тecтax", doc_en="Test info")
-    async def cmd_testmod(self, event: events.NewMessage.Event) -> None:
+    async def cmd_testmod(self, event: Event) -> None:
         test_methods = [
             m for m in dir(self) if m.startswith("test_") and callable(getattr(self, m))
         ]

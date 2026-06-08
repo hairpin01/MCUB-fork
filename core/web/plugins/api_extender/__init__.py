@@ -5,7 +5,10 @@ from __future__ import annotations
 import logging
 import os
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from core.lib.types import Kernel
 
 from aiohttp import web
 
@@ -79,7 +82,7 @@ def _kernel_ready(app: web.Application) -> tuple[Any, web.Response | None]:
     return kernel, None
 
 
-def _save_kernel_config(kernel: Any) -> None:
+def _save_kernel_config(kernel: Kernel) -> None:
     if hasattr(kernel, "save_config") and callable(kernel.save_config):
         try:
             kernel.save_config()
@@ -423,7 +426,7 @@ def _register_routes(app: web.Application, prefix: str) -> None:
     app.router.add_post(f"{prefix}/config", api_config_set)
 
 
-def setup(app: web.Application, kernel: Any) -> None:
+def setup(app: web.Application, kernel: Kernel) -> None:
     config_prefix = None
     if kernel is not None and hasattr(kernel, "config"):
         ext_cfg = kernel.config.get("web_api_extender")

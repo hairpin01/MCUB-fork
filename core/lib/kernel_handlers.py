@@ -8,7 +8,10 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from core.lib.types import Event, Kernel
 
 try:
     from telethon import events
@@ -469,7 +472,9 @@ class KernelHandlersMixin:
         """Decorator alias for request middleware registration."""
         return self.add_request_middleware(middleware_func)
 
-    async def process_with_middleware(self, event: Any, handler: Callable) -> Any:
+    async def process_with_middleware(
+        self, event: Event, handler: Callable
+    ) -> Any:  # noqa: ANN401
         """Run event through all middleware, then call handler."""
         if self.client and hasattr(self.client, "_middleware"):
             return await self.client._middleware.process(

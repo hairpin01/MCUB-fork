@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from telethon import events
-
 from core.lib.loader.module_base import ModuleBase, command, loop, owner, watcher
+from core.lib.types import Event
 from core.lib.loader.module_config import Boolean, ConfigValue, ModuleConfig
 
 
@@ -43,7 +42,7 @@ class WelcomeModule(ModuleBase):
     }
 
     @watcher(chataction=True)
-    async def on_chat_action(self, event: events.ChatAction.Event) -> None:
+    async def on_chat_action(self, event: Event) -> None:
         if not self.config["enabled"]:
             return
 
@@ -67,7 +66,7 @@ class WelcomeModule(ModuleBase):
         doc_en="Toggle welcome messages",
     )
     @owner(only_admin=True)
-    async def cmd_welcome(self, event: events.NewMessage.Event) -> None:
+    async def cmd_welcome(self, event: Event) -> None:
         chat = await event.get_chat()
         if chat.megagroup or chat.broadcast:
             self.config["enabled"] = not self.config["enabled"]

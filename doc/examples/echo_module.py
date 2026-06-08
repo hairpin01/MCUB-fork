@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from telethon import events
-
 from core.lib.loader.module_base import ModuleBase, command
+from core.lib.types import Event
 from core.lib.loader.module_config import (
     Boolean,
     ConfigValue,
@@ -62,7 +61,7 @@ class EchoModule(ModuleBase):
     }
 
     @command("echo", doc_ru="<тeкcт> Пoвтopить тeкcт", doc_en="<text> Echo text")
-    async def cmd_echo(self, event: events.NewMessage.Event) -> None:
+    async def cmd_echo(self, event: Event) -> None:
         args: list[str] = event.text.split(maxsplit=1)
 
         if len(args) < 2:

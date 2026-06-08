@@ -10,7 +10,7 @@ from __future__ import annotations
 import html
 import logging
 import traceback
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 try:
     from telethon import events
@@ -23,8 +23,14 @@ try:
     from core.lib.loader.kernel_proxy import wrap_event_for_module
 except ImportError:
 
-    def wrap_event_for_module(e: Any, *a: Any, **kw: Any) -> Any:
+    def wrap_event_for_module(
+        e: Any, *a: Any, **kw: Any  # noqa: ANN401
+    ) -> Any:  # noqa: ANN401
         return e
+
+
+if TYPE_CHECKING:
+    from core.lib.types import Event, Kernel
 
 
 try:
@@ -48,7 +54,7 @@ class CommandDispatcher:
         self.dispatcher.register()
     """
 
-    def __init__(self, kernel: Any) -> None:
+    def __init__(self, kernel: Kernel) -> None:
         self.kernel = kernel
         self.logger = logging.getLogger(getattr(kernel, "logger_name", __name__))
 
@@ -79,7 +85,7 @@ class CommandDispatcher:
             "NewMessage + MessageEdited"
         )
 
-    async def watcher_message_handler(self, event: Any) -> None:
+    async def watcher_message_handler(self, event: Event) -> None:
         """
         Core message handler.
 
@@ -140,7 +146,7 @@ class CommandDispatcher:
             except Exception:
                 pass
 
-    async def process_command(self, event: Any, depth: int = 0) -> bool:
+    async def process_command(self, event: Event, depth: int = 0) -> bool:
         """
         Match and dispatch an outgoing message event to a command handler.
 
@@ -331,7 +337,7 @@ class CommandDispatcher:
         self.logger.warning("[dispatcher] kernel has no _execute_pipeline — skipping")
         return False
 
-    async def _handle_rpc_error(self, event: Any, error: RPCError) -> None:
+    async def _handle_rpc_error(self, event: Event, error: RPCError) -> None:
         """Display a user-friendly RPC error in the chat."""
         cmd_text = html.escape(getattr(event, "text", "") or "")
         rpc_msg = html.escape(str(error))

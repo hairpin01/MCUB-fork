@@ -13,7 +13,11 @@ import os
 import secrets
 import time
 import traceback
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from core.lib.types import Event, Kernel
+    from core.lib.types.message import Message
 
 try:
     from utils.html_parser import HTML_PARSER_AVAILABLE
@@ -663,7 +667,7 @@ class KernelLifecycleMixin:
 
     # Command processing
 
-    async def process_command(self, event: Any, depth: int = 0) -> bool:
+    async def process_command(self, event: Event, depth: int = 0) -> bool:
         """Proxy to ``dispatcher.process_command``."""
         if self.dispatcher is not None:
             return await self.dispatcher.process_command(event, depth)
@@ -682,7 +686,7 @@ class KernelLifecycleMixin:
             return owner_prefixes[admin_key]
         return getattr(self, "custom_prefix", ".") or "."
 
-    async def process_bot_command(self, event: Any) -> bool:
+    async def process_bot_command(self, event: Event) -> bool:
         """Dispatch a bot command event to its registered handler."""
         text = event.text
         if not text or not text.startswith("/"):
@@ -699,7 +703,7 @@ class KernelLifecycleMixin:
 
         return False
 
-    def _make_simple_event(self, msg: Any, text: str, chat_id: int) -> Any:
+    def _make_simple_event(self, msg: Message, text: str, chat_id: int) -> Event:
         """Build a lightweight event object wrapping a freshly sent message."""
         kernel = self
 
@@ -815,7 +819,7 @@ class KernelLifecycleMixin:
         except Exception:
             return f"ID: {user_id}"
 
-    async def get_thread_id(self, event: Any) -> int | None:
+    async def get_thread_id(self, event: Event) -> int | None:
         """Extract the thread/topic ID from an event if present."""
         if not event:
             return None

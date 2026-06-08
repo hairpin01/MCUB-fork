@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from telethon import events
-
 from core.lib.loader.module_base import ModuleBase, bot_command, command
+from core.lib.types import Event
 
 
 class BotModule(ModuleBase):
@@ -31,15 +30,15 @@ class BotModule(ModuleBase):
     }
 
     @bot_command("start", doc_ru="Cтapт", doc_en="Start")
-    async def bot_start(self, event: events.NewMessage.Event) -> None:
+    async def bot_start(self, event: Event) -> None:
         await event.reply(self.strings["start_text"])
 
     @bot_command("help", doc_ru="Пoмoщь", doc_en="Help")
-    async def bot_help(self, event: events.NewMessage.Event) -> None:
+    async def bot_help(self, event: Event) -> None:
         await event.reply(self.strings["help_text"])
 
     @bot_command("stats", doc_ru="Cтaтиcтикa", doc_en="Statistics")
-    async def bot_stats(self, event: events.NewMessage.Event) -> None:
+    async def bot_stats(self, event: Event) -> None:
         user_count_raw: str | None = await self.db.db_get(self.name, "user_count")
         user_count: int = int(user_count_raw) if user_count_raw else 0
 
@@ -50,7 +49,7 @@ class BotModule(ModuleBase):
         )
 
     @command("menu", doc_ru="Meню", doc_en="Menu")
-    async def cmd_menu(self, event: events.NewMessage.Event) -> None:
+    async def cmd_menu(self, event: Event) -> None:
         text: str = self.strings["start_text"]
 
         btn_help = self.Button.inline("📖 Help", self.bot_help)

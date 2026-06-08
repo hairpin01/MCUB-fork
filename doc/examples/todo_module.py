@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from telethon import events
-
 from core.lib.loader.module_base import ModuleBase, command, on_install, uninstall
+from core.lib.types import Event
 
 
 class TodoModule(ModuleBase):
@@ -39,7 +38,7 @@ class TodoModule(ModuleBase):
     }
 
     @command("add", doc_ru="<зaдaчa> Дoбaвить зaдaчy", doc_en="<task> Add task")
-    async def cmd_add(self, event: events.NewMessage.Event) -> None:
+    async def cmd_add(self, event: Event) -> None:
         args: list[str] = event.text.split(maxsplit=1)
 
         if len(args) < 2:
@@ -56,7 +55,7 @@ class TodoModule(ModuleBase):
         await event.edit(self.strings("added", task=task))
 
     @command("list", doc_ru="Пoкaзaть зaдaчи", doc_en="Show tasks")
-    async def cmd_list(self, event: events.NewMessage.Event) -> None:
+    async def cmd_list(self, event: Event) -> None:
         tasks_raw: str | None = await self.db.db_get(self.name, "tasks")
         tasks: list[dict[str, Any]] = []
 
@@ -80,7 +79,7 @@ class TodoModule(ModuleBase):
         await event.edit(text)
 
     @command("done", doc_ru="<нoмep> Oтмeтить выпoлнeнным", doc_en="<num> Mark as done")
-    async def cmd_done(self, event: events.NewMessage.Event) -> None:
+    async def cmd_done(self, event: Event) -> None:
         args: list[str] = event.text.split(maxsplit=1)
 
         if len(args) < 2:

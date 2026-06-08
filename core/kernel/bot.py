@@ -14,7 +14,10 @@ import hashlib
 import os
 import time
 import traceback
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from core.lib.types import Event
 
 from utils.restart import read_restart_context
 
@@ -254,7 +257,7 @@ class Kernel(_StandardKernel):
             self.logger.error(f"[BotKernel] init_client error: {e}")
             return False
 
-    def should_process_command_event(self, event: Any) -> bool:
+    def should_process_command_event(self, event: Event) -> bool:
         """Process only messages sent BY the bot itself (out=True).
 
         Nobody else's messages trigger commands - only the bot's own outgoing

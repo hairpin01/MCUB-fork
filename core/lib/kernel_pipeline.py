@@ -291,8 +291,11 @@ class KernelPipelineMixin:
                 async def delete(self_) -> None:
                     pass
 
+                async def _(self_, *a: Any, **kw: Any) -> None:
+                    pass
+
                 def __getattr__(self_, name: str) -> Any:
-                    return lambda *a, **kw: None
+                    return _.__get__(self_, type(self_))
 
             parent_pipe_input = (
                 getattr(event, "pipe_input", None) or "" if event else ""

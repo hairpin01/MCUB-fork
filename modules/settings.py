@@ -14,7 +14,6 @@ from telethon.tl.types import InputMediaWebPage
 from core.lib.loader.module_base import ModuleBase, callback, command
 from core.lib.loader.module_config import Boolean, ConfigValue, ModuleConfig
 from utils import answer
-from utils.strings import Strings, get_available_locales
 
 
 class SettingsModule(ModuleBase):
@@ -22,8 +21,8 @@ class SettingsModule(ModuleBase):
     version = "1.0.5"
     author = "@hairpin00"
     description = {
-        "ru": "Moдyль нacтpoeк (пpeфикc, aлиacы, язык)",
-        "en": "Settings module (prefix, aliases, language)",
+        "ru": "Moдyль нacтpoeк (пpeфикc, aлиacы)",
+        "en": "Settings module (prefix, aliases)",
     }
 
     strings: dict | Strings = {"name": "settings"}
@@ -437,79 +436,6 @@ class SettingsModule(ModuleBase):
                 os.unlink(tmp_path)
             except OSError:
                 pass
-
-    @command(
-        "lang",
-        doc_ru="[ru/en] - cмeнить язык юзepбoтa",
-        doc_en="[ru/en] - switch userbot language",
-    )
-    async def cmd_lang(self, event: events.NewMessage.Event) -> None:
-        args = self.args_raw(event).split()
-        piped = getattr(event, "piped", False)
-
-        available_locales = get_available_locales()
-
-        if piped:
-            if len(args) < 2:
-                await self.edit(event, self.kernel.config.get("language", "en"))
-                return
-            new_lang = args[1].lower()
-            if new_lang not in available_locales:
-                await self.edit(event, ", ".join(available_locales))
-                return
-            self.kernel.config["language"] = new_lang
-            self.kernel.save_config()
-            await self.edit(event, new_lang)
-            return
-
-        if len(args) < 1:
-            # Build buttons in rows of 2 using class-style Button
-            button_rows = []
-            row = []
-            for locale in available_locales:
-                label = self.strings.get(f"btn_{locale}", f"🏴☠️ {locale}")
-                row.append(self.Button.inline(label, self.cb_lang, data=locale))
-                if len(row) == 2:
-                    button_rows.append(row)
-                    row = []
-            if row:
-                button_rows.append(row)
-            success = await self.inline(
-                event.chat_id,
-                self._s("select_language"),
-                buttons=button_rows,
-                reply_to=getattr(event.message, "reply_to", None),
-            )
-            if success:
-                await event.delete()
-            return
-
-        new_lang = args[0].lower()
-        if new_lang not in available_locales:
-            await self.edit(event, ", ".join(available_locales))
-            return
-
-        self.kernel.config["language"] = new_lang
-        self.kernel.save_config()
-        await self.edit(
-            event,
-            self._s("lang_changed", lang=new_lang),
-            parse_mode="html",
-        )
-
-    @callback()
-    async def cb_lang(
-        self, call: events.CallbackQuery.Event, data: str | None = None
-    ) -> None:
-        if data:
-            self.kernel.config["language"] = data
-            self.kernel.save_config()
-            await self.edit(
-                call,
-                self._s("lang_changed", lang=data),
-                parse_mode="html",
-            )
-        await call.answer()
 
     async def _show_danger_confirm(self, event, action: str, text: str) -> None:
         success, _form_message = await self.inline(

@@ -575,13 +575,25 @@ class Loader(ModuleBase):
                 if add_log:
                     add_log(self.strings("log_checking_repo", index=i + 1, repo=repo))
                 modules = await self.kernel.get_repo_modules_list(repo)
-                if modules and any(name.lower() == normalized for name in modules):
-                    repo_name = await self.kernel.get_repo_name(repo)
-                    matches.append({"repo_index": i, "repo_name": repo_name})
-                    if add_log:
-                        add_log(self.strings["log_found_in_repo"])
-                elif add_log:
-                    add_log(self.strings["log_not_found_in_repo"])
+                if modules:
+                    matched_name = None
+                    for name in modules:
+                        if name.lower() == normalized:
+                            matched_name = name
+                            break
+                    if matched_name:
+                        repo_name = await self.kernel.get_repo_name(repo)
+                        matches.append(
+                            {
+                                "repo_index": i,
+                                "repo_name": repo_name,
+                                "module_name": matched_name,
+                            }
+                        )
+                        if add_log:
+                            add_log(self.strings["log_found_in_repo"])
+                    elif add_log:
+                        add_log(self.strings["log_not_found_in_repo"])
             except Exception as e:
                 if add_log:
                     add_log(
@@ -611,7 +623,11 @@ class Loader(ModuleBase):
                 "send_mode": send_mode,
                 "user_id": event.sender_id,
                 "matches": [
-                    {"repo_index": item["repo_index"], "repo_name": item["repo_name"]}
+                    {
+                        "repo_index": item["repo_index"],
+                        "repo_name": item["repo_name"],
+                        "module_name": item.get("module_name", module_name),
+                    }
                     for item in matches
                 ],
             },
@@ -696,9 +712,17 @@ class Loader(ModuleBase):
             return
 
         repo_index = int(action)
+
+        # Find the correct-case module name from the selected match
+        correct_name = select_data["module_name"]
+        for m in select_data.get("matches", []):
+            if m.get("repo_index") == repo_index:
+                correct_name = m.get("module_name", select_data["module_name"])
+                break
+
         await self._run_dlm_install(
             event,
-            select_data["module_name"],
+            correct_name,
             send_mode=select_data.get("send_mode", False),
             repo_index=repo_index,
         )
@@ -2561,6 +2585,7 @@ class Loader(ModuleBase):
                     return
 
             if len(matches) == 1:
+                module_or_url = matches[0]["module_name"]
                 repo_index = matches[0]["repo_index"]
 
         await self._run_dlm_install(
@@ -2569,8 +2594,8 @@ class Loader(ModuleBase):
 
     @command(
         "um",
-        doc_en="<n> unload module by name",
-        doc_ru="<имя> выгpyзить мoдyль пo имeни",
+        doc_en="<n> unload module by name, -f to wipe module data",
+        doc_ru="<имя> выгpyзить мoдyль пo имeни, -f для yдaлeния дaнныx мoдyля",
     )
     async def cmd_um(self, event) -> None:
         args = self.args_raw(event)
@@ -2585,9 +2610,19 @@ class Loader(ModuleBase):
             )
             return
 
-        module_names = [n.strip() for n in args.split(",") if n.strip()]
+        force_wipe = False
+        parts = args.split()
+        filtered_parts = []
+        for part in parts:
+            if part in ("-f", "--force"):
+                force_wipe = True
+            else:
+                filtered_parts.append(part)
+        filtered_args = " ".join(filtered_parts)
+        module_names = [n.strip() for n in filtered_args.split(",") if n.strip()]
 
         success: list[str] = []
+        wiped: list[str] = []
         failed: list[str] = []
         cfg = self.get_config()
         force_unload = not (cfg and cfg.get("loader_protect_system", True))
@@ -2651,6 +2686,11 @@ class Loader(ModuleBase):
             self.kernel._module_sources.pop(module_name, None)
             success.append(module_name)
 
+            if force_wipe:
+                await self.kernel.delete_module_config(module_name)
+                self.kernel._live_module_configs.pop(module_name, None)
+                wiped.append(module_name)
+
         await self.kernel.save_module_sources()
 
         msg_parts: list[str] = []
@@ -2665,6 +2705,12 @@ class Loader(ModuleBase):
                 + "\n"
                 + f"<blockquote>{names}</blockquote>"
             )
+            if force_wipe and wiped:
+                msg_parts.append(
+                    f"\n{CUSTOM_EMOJI['process']} <b>"
+                    + self.strings("um_data_wiped")
+                    + "</b>"
+                )
         if failed:
             msg_parts.append(
                 self.strings(

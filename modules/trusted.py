@@ -848,11 +848,18 @@ def register(kernel):
     @kernel.register.command(
         "trust",
         alias=["addowner"],
-        doc_en="add user to trusted list",
-        doc_ru="дoбaвить пoльзoвaтeля в дoвepeнныe",
+        doc_en="add user to trusted list, -f/--force skip confirm, -n/--nonick also add to nonick",
+        doc_ru="дoбaвить пoльзoвaтeля в дoвepeнныe, -f/--force бeз пoдтвepждeния, -n/--nonick тaкжe в nonick",
     )
     async def trust_handler(event):
         """Add a user to the trusted list with confirmation and time options"""
+
+        from utils.arg_parser import parse_arguments
+
+        full_text = getattr(event, "text", getattr(event, "raw_text", "")) or ""
+        parsed = parse_arguments(full_text, prefix=kernel.custom_prefix)
+        force_flg = parsed.get_flag("f") or parsed.get_flag("force")
+        nonick_flg = parsed.get_flag("n") or parsed.get_flag("nonick")
 
         user_id = await get_user_id(event)
         if not user_id:
@@ -866,11 +873,60 @@ def register(kernel):
 
         await get_user_display(user_id)
 
-        async def on_time_select(event, uid, seconds):
+        async def _finish_add(uid, add_nonick, timed=False, seconds=0):
+            trusted = await get_trusted_list()
+            if uid not in trusted:
+                trusted.append(uid)
+                await save_trusted_list(trusted)
+                default_access = {
+                    cat: (cat in ("modules", "inline", "callback"))
+                    for cat in ACCESS_CATEGORIES
+                }
+                await save_access(uid, default_access)
+                if default_access.get("inline", False):
+                    await inline_manager.allow_user(uid)
+
+            nonick_list = await get_nonick_list()
+            if add_nonick and uid not in nonick_list:
+                nonick_list.append(uid)
+                await save_nonick_list(nonick_list)
+            elif not add_nonick and uid in nonick_list:
+                nonick_list.remove(uid)
+                await save_nonick_list(nonick_list)
+
+            await get_user_display(uid)
+            if timed:
+                time_str = _format_duration(seconds)
+                await event.edit(
+                    s["trust_added_timed"].format(time=time_str),
+                    parse_mode="html",
+                )
+            else:
+                await event.edit(
+                    s["trust_added"],
+                    parse_mode="html",
+                )
+
+        if force_flg and nonick_flg:
+            await _finish_add(user_id, True)
+            return
+
+        async def on_time_select(event, uid, seconds, auto_nonick=False):
             if event.sender_id != kernel.ADMIN_ID:
                 await event.answer()
                 return
-            if seconds == 0:
+            if auto_nonick:
+                if seconds == 0:
+                    await _finish_add(uid, True)
+                else:
+                    import time
+
+                    expiry = int(time.time()) + seconds
+                    expired = await get_expired_trusted()
+                    expired[str(uid)] = expiry
+                    await save_expired_trusted(expired)
+                    await _finish_add(uid, True, timed=True, seconds=seconds)
+            elif seconds == 0:
                 await _show_nonick_step(event, uid)
             else:
                 import time
@@ -942,38 +998,7 @@ def register(kernel):
             if event.sender_id != kernel.ADMIN_ID:
                 await event.answer()
                 return
-            trusted = await get_trusted_list()
-            if uid not in trusted:
-                trusted.append(uid)
-                await save_trusted_list(trusted)
-                default_access = {
-                    cat: (cat in ("modules", "inline", "callback"))
-                    for cat in ACCESS_CATEGORIES
-                }
-                await save_access(uid, default_access)
-                if default_access.get("inline", False):
-                    await inline_manager.allow_user(uid)
-
-            nonick_list = await get_nonick_list()
-            if nonick and uid not in nonick_list:
-                nonick_list.append(uid)
-                await save_nonick_list(nonick_list)
-            elif not nonick and uid in nonick_list:
-                nonick_list.remove(uid)
-                await save_nonick_list(nonick_list)
-
-            await get_user_display(uid)
-            if timed:
-                time_str = _format_duration(seconds)
-                await event.edit(
-                    s["trust_added_timed"].format(time=time_str),
-                    parse_mode="html",
-                )
-            else:
-                await event.edit(
-                    s["trust_added"],
-                    parse_mode="html",
-                )
+            await _finish_add(uid, nonick, timed=timed, seconds=seconds)
 
         def _format_duration(seconds: int) -> str:
             if seconds >= 86400:
@@ -997,6 +1022,10 @@ def register(kernel):
 
         TTL = 600
 
+        if force_flg:
+            await _show_nonick_step(event, user_id)
+            return
+
         text = (
             s["trust_time_title"]
             + "\n"
@@ -1011,7 +1040,7 @@ def register(kernel):
                     kernel,
                     s["btn_1h"],
                     on_time_select,
-                    args=[user_id, 3600],
+                    args=[user_id, 3600, nonick_flg] if nonick_flg else [user_id, 3600],
                     ttl=TTL,
                     style="primary",
                 ),
@@ -1019,7 +1048,9 @@ def register(kernel):
                     kernel,
                     s["btn_24h"],
                     on_time_select,
-                    args=[user_id, 86400],
+                    args=(
+                        [user_id, 86400, nonick_flg] if nonick_flg else [user_id, 86400]
+                    ),
                     ttl=TTL,
                     style="primary",
                 ),
@@ -1027,7 +1058,11 @@ def register(kernel):
                     kernel,
                     s["btn_7d"],
                     on_time_select,
-                    args=[user_id, 604800],
+                    args=(
+                        [user_id, 604800, nonick_flg]
+                        if nonick_flg
+                        else [user_id, 604800]
+                    ),
                     ttl=TTL,
                     style="primary",
                 ),
@@ -1037,7 +1072,7 @@ def register(kernel):
                     kernel,
                     s["btn_permanent"],
                     on_time_select,
-                    args=[user_id, 0],
+                    args=[user_id, 0, nonick_flg] if nonick_flg else [user_id, 0],
                     ttl=TTL,
                     style="success",
                 ),

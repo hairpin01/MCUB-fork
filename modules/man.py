@@ -22,16 +22,16 @@ from core.lib.loader.module_config import Boolean, ConfigValue, ModuleConfig, St
 from utils.strings import Strings
 
 CUSTOM_EMOJI = {
-    "crystal": '<tg-emoji emoji-id="5361837567463399422">🔮</tg-emoji>',
-    "dna": '<tg-emoji emoji-id="5404451992456156919">🧬</tg-emoji>',
-    "alembic": '<tg-emoji emoji-id="5379679518740978720">⚗️</tg-emoji>',
+    "crystal": '<tg-emoji emoji-id="5332762073388578651">🎮</tg-emoji>',
+    "dna": '<tg-emoji emoji-id="5332762073388578651">❔</tg-emoji>',
+    "alembic": '<tg-emoji emoji-id="5411243692960810848">🤔</tg-emoji>',
     "snowflake": '<tg-emoji emoji-id="5431895003821513760">❄️</tg-emoji>',
-    "blocked": '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji>',
-    "pancake": '<tg-emoji emoji-id="5373004843210251169">🥞</tg-emoji>',
-    "confused": '<tg-emoji emoji-id="5249119354825487565">🫨</tg-emoji>',
-    "map": '<tg-emoji emoji-id="5472064286752775254">🗺️</tg-emoji>',
-    "tot": '<tg-emoji emoji-id="5085121109574025951">🫧</tg-emoji>',
-    "eye_off": '<tg-emoji emoji-id="5228686859663585439">👁🗨</tg-emoji>',
+    "blocked": '<tg-emoji emoji-id="5332439413970469607">🚫</tg-emoji>',
+    "pancake": '<tg-emoji emoji-id="5303396278179210513">👾</tg-emoji>',
+    "confused": '<tg-emoji emoji-id="5408830797513784663">❓</tg-emoji>',
+    "map": '<tg-emoji emoji-id="5332373172689860602">🚫</tg-emoji>',
+    "tot": '<tg-emoji emoji-id="5404696015318054899">▪️</tg-emoji>',
+    "eye_off": '<tg-emoji emoji-id="5228686859663585439">👁‍🗨</tg-emoji>',
 }
 
 ZERO_WIDTH_CHAR = "\u2060"
@@ -346,11 +346,8 @@ class ManModule(ModuleBase):
         fallback = metadata.get("description", s["no_description"])
         description = self.kernel._loader.pick_localized_text(i18n, lang, fallback)
 
-        msg = (
-            f"{CUSTOM_EMOJI['dna']} <b>{s['module']}</b> <code>{display_name}</code>:\n"
-        )
-        msg += f"{CUSTOM_EMOJI['alembic']} <b>{s['description']}:</b> <i>{description}</i>\n"
-        msg += f"{CUSTOM_EMOJI['snowflake']} <b>{s['version']}:</b> <code>{metadata.get('version', '1.0.0')}</code>\n"
+        msg = f"<blockquote>{CUSTOM_EMOJI['dna']} <b>{display_name}</b> <i>(v{metadata.get('version', '1.0.0')})</i></blockquote>\n"
+        msg += f"<blockquote expandable>{CUSTOM_EMOJI['alembic']} <i>{description}</i></blockquote>\n\n"
         msg += "<blockquote expandable>"
         if commands:
             # Use list + join for O(n) instead of O(n²) string concatenation
@@ -397,7 +394,7 @@ class ManModule(ModuleBase):
                 "<blockquote expandable>" + "\n".join(inline_lines) + "\n</blockquote>"
             )
 
-        msg += f"\n<blockquote>{CUSTOM_EMOJI['pancake']} <b>{s['author']}:</b> <i>{metadata.get('author', s['unknown'])}</i></blockquote>"
+        msg += f"<blockquote>{CUSTOM_EMOJI['pancake']} <b>{s['author']}:</b> <i>{metadata.get('author', s['unknown'])}</i></blockquote>"
         placeholder_docs = utils.config_placeholders(name)
         if placeholder_docs:
             msg += (

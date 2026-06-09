@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 from core.lib.types.event import Event
 
 if TYPE_CHECKING:
-    from core.lib.types import Kernel
+    pass
 
 try:
     from telethon import events
@@ -476,7 +476,7 @@ class KernelHandlersMixin:
 
     async def process_with_middleware(
         self, event: Event, handler: Callable
-    ) -> Any:  # noqa: ANN401
+    ) -> Any:
         """Run event through all middleware, then call handler."""
         if self.client and hasattr(self.client, "_middleware"):
             return await self.client._middleware.process(

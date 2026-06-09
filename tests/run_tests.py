@@ -2,6 +2,7 @@
 # Copyright (c) 2026 Шмэлькa | @hairpin01
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -43,8 +44,6 @@ def run_tests(test_pattern=None, verbose=False, coverage=False):
 
 
 if __name__ == "__main__":
-    import os
-
     parser = argparse.ArgumentParser(description="Run MCUB tests")
     parser.add_argument(
         "pattern", nargs="?", help="Test pattern (e.g., test_kernel.py)"

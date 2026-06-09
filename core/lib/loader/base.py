@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлькa | @hairpin00
 
+from __future__ import annotations
+
 import asyncio
 import copy
 import logging
@@ -16,15 +18,14 @@ try:
 except ImportError:
 
     def wrap_event_for_module(
-        e: Any, *a: Any, **kw: Any  # noqa: ANN401
-    ) -> Any:  # noqa: ANN401
+        e: Any, *a: Any, **kw: Any
+    ) -> Any:
         return e
 
 
 if TYPE_CHECKING:
     from core.lib.types import Kernel
     from core.lib.types.client import Client
-    from core.lib.types.message import Message
 
 
 try:
@@ -332,7 +333,7 @@ class ModuleBase(ABC):
             return getter("language", "ru") or "ru"
         return "ru"
 
-    def args(self, event: Event) -> Any:  # noqa: ANN401
+    def args(self, event: Event) -> Any:
         import utils
 
         text = getattr(event, "text", None) or getattr(event, "raw_text", "") or ""
@@ -350,12 +351,12 @@ class ModuleBase(ABC):
 
     async def answer(
         self, event: Event, text: str, **kwargs: Any
-    ) -> Any:  # noqa: ANN401
+    ) -> Any:
         import utils
 
         return await utils.answer(event, text, **kwargs)
 
-    async def edit(self, event: Event, text: str, **kwargs: Any) -> Any:  # noqa: ANN401
+    async def edit(self, event: Event, text: str, **kwargs: Any) -> Any:
         reply_markup = kwargs.pop("reply_markup", None)
         as_html = kwargs.pop("as_html", False)
         if reply_markup is not None:
@@ -370,7 +371,7 @@ class ModuleBase(ABC):
 
     async def reply(
         self, event: Event, text: str, **kwargs: Any
-    ) -> Any:  # noqa: ANN401
+    ) -> Any:
         reply_markup = kwargs.pop("reply_markup", None)
         as_html = kwargs.pop("as_html", False)
         if reply_markup is not None:
@@ -552,7 +553,7 @@ class ModuleBase(ABC):
 
         async def wrapper(
             event: Event, *args: Any, **kwargs: Any
-        ) -> None:  # noqa: ANN401
+        ) -> None:
             bound_to = getattr(raw_func, "__self__", None)
             if bound_to is not None:
                 return await raw_func(event, *args, **kwargs)
@@ -596,7 +597,7 @@ class ModuleBase(ABC):
 
     def __init__(
         self, kernel: Kernel, client: Client, register: Any
-    ) -> None:  # noqa: ANN401
+    ) -> None:
         self.kernel = kernel
         self.client = client
         self._register = register
@@ -860,7 +861,7 @@ class ModuleBase(ABC):
         raw_func = getattr(callback_func, "__original__", callback_func)
         instance = self
 
-        async def wrapper(event: Event, *a: Any, **kw: Any) -> None:  # noqa: ANN401
+        async def wrapper(event: Event, *a: Any, **kw: Any) -> None:
             bound_to = getattr(raw_func, "__self__", None)
             if bound_to is not None:
                 return await raw_func(event, *a, **kw)
@@ -935,7 +936,7 @@ class ModuleBase(ABC):
         )
 
     @property
-    def Button(self) -> "ModuleBase.ButtonFactory":
+    def Button(self) -> ModuleBase.ButtonFactory:
         """Access button factory for creating various button types."""
         if not hasattr(self, "_button_factory"):
             button_class = getattr(type(self), "ButtonFactory", None)

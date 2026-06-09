@@ -5,6 +5,8 @@
 # version: 1.0.1
 # description: Task scheduler for periodic and time-based tasks
 
+from __future__ import annotations
+
 import asyncio
 import traceback
 from collections.abc import Callable

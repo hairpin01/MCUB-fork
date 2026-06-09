@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from core.lib.types import Client, Event, Kernel
-    from core.lib.types.message import Message
 
 try:
     from ..utils.exceptions import CallInsecure
@@ -80,6 +79,7 @@ _CLIENT_DANGEROUS_METHODS = frozenset(
         "connect",
         "run_until_disconnected",
         # ── auth ─────────────────────────────────────────────────
+        "logout",
         "log_out",
         "qr_login",
         "sign_out",
@@ -99,15 +99,15 @@ _CLIENT_DANGEROUS_METHODS = frozenset(
         "set_parse_mode",
         "unread_count",
         "catch_up",
+        "on",
+        "add_event_handler",
+        "remove_event_handler",
+        "list_event_handlers",
         # ── protection bypass ────────────────────────────────────
         "protection_mode",
         "set_protection_mode",
         "set_protection_policy",
         # ── event / middleware management ────────────────────────
-        "on",
-        "add_event_handler",
-        "remove_event_handler",
-        "list_event_handlers",
         "add_event_middleware",
         "remove_event_middleware",
         "add_request_middleware",
@@ -292,7 +292,7 @@ class ModuleKernelProxy:
 
     def lookup_module(
         self, module_name: str, *, all_loaded: bool = False
-    ) -> Any:  # noqa: ANN401
+    ) -> Any:
         """Lookup a module without exposing mutable kernel registries.
 
         Args:
@@ -843,7 +843,7 @@ class DatabaseProxy:
 
 def get_module_kernel(
     kernel: Kernel, module_name: str, is_system: bool
-) -> Any:  # noqa: ANN401
+) -> Any:
     """Return a proxied kernel for user modules, raw kernel for system."""
     if is_system:
         return kernel
@@ -951,7 +951,7 @@ def wrap_event_for_module(event: Event, module_name: str, kernel: Kernel) -> Eve
 
 def get_module_register(
     kernel: Kernel, module_name: str, is_system: bool
-) -> Any:  # noqa: ANN401
+) -> Any:
     """Return a proxied register for user modules, raw for system."""
     if is_system:
         return kernel.register
@@ -967,7 +967,7 @@ def get_module_client(kernel: Kernel, module_name: str, is_system: bool) -> Clie
 
 def get_module_config(
     kernel: Kernel, module_name: str, is_system: bool
-) -> Any:  # noqa: ANN401
+) -> Any:
     """Return a read-only config proxy for user modules, raw for system."""
     if is_system:
         return kernel.config
@@ -976,7 +976,7 @@ def get_module_config(
 
 def get_module_db(
     kernel: Kernel, module_name: str, is_system: bool
-) -> Any:  # noqa: ANN401
+) -> Any:
     """Return a scoped database proxy for user modules, raw for system."""
     if is_system:
         return kernel.db_manager

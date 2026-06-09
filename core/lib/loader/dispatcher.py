@@ -26,8 +26,8 @@ try:
 except ImportError:
 
     def wrap_event_for_module(
-        e: Any, *a: Any, **kw: Any  # noqa: ANN401
-    ) -> Any:  # noqa: ANN401
+        e: Any, *a: Any, **kw: Any
+    ) -> Any:
         return e
 
 

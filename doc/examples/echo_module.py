@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from core.lib.loader.module_base import ModuleBase, command
-from core.lib.types import Event
 from core.lib.loader.module_config import (
     Boolean,
     ConfigValue,
@@ -11,6 +10,7 @@ from core.lib.loader.module_config import (
     ModuleConfig,
     String,
 )
+from core.lib.types import Event
 
 
 class EchoModule(ModuleBase):

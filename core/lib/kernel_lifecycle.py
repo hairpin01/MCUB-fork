@@ -18,7 +18,6 @@ from typing import TYPE_CHECKING, Any
 from core.lib.types.event import Event
 
 if TYPE_CHECKING:
-    from core.lib.types import Kernel
     from core.lib.types.message import Message
 
 try:

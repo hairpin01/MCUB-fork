@@ -295,14 +295,19 @@ class KernelPipelineMixin:
                     pass
 
                 def __getattr__(self_, name: str) -> Any:
-                    return _.__get__(self_, type(self_))
+                    return object.__getattribute__(self_, "_")
 
             parent_pipe_input = (
                 getattr(event, "pipe_input", None) or "" if event else ""
             )
             proxy = _CaptureEvent()
             try:
-                ok = await dispatcher.process_command(proxy, depth=1)
+                try:
+                    ok = await dispatcher.process_command(proxy, depth=1)
+                except TypeError as exc:
+                    if "unexpected keyword argument 'depth'" not in str(exc):
+                        raise
+                    ok = await dispatcher.process_command(proxy)
                 exit_code = getattr(proxy, "pipe_exit_code", 0) or 0
                 # Propagate exit_code back to parent event
                 if event is not None:
@@ -315,7 +320,9 @@ class KernelPipelineMixin:
                     exit_code,
                 )
             except Exception as exc:
-                self.logger.warning("[pipe] @(cmd) %r raised: %s", cmd, exc)
+                log_warning = getattr(self.logger, "warning", None)
+                if log_warning is not None:
+                    log_warning("[pipe] @(cmd) %r raised: %s", cmd, exc)
                 return f"<@{type(exc).__name__}>"
             if not captured:
                 self.logger.debug("[pipe] @(cmd) %r — no edit captured", cmd)
@@ -341,7 +348,7 @@ class KernelPipelineMixin:
 
     async def _execute_pipeline(
         self, event: Event, pipeline: Any, depth: int
-    ) -> bool:  # noqa: ANN401
+    ) -> bool:
         """Execute a multi-segment pipeline expression."""
         segments = pipeline.segments
         if not segments:
@@ -453,7 +460,7 @@ class KernelPipelineMixin:
 
     def _make_simple_event(
         self, msg: Any, text: str, chat_id: int
-    ) -> Event:  # noqa: ANN401
+    ) -> Event:
         """Build a lightweight event object wrapping a freshly sent message."""
         kernel = self
 

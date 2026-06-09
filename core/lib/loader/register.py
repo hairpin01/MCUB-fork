@@ -5,6 +5,8 @@
 # version: 1.0.3
 # description: Registration system for Telegram bot handlers
 
+from __future__ import annotations
+
 import asyncio
 import inspect
 import re
@@ -26,8 +28,8 @@ try:
 except ImportError:
 
     def wrap_event_for_module(
-        e: Any, *a: Any, **kw: Any  # noqa: ANN401
-    ) -> Any:  # noqa: ANN401
+        e: Any, *a: Any, **kw: Any
+    ) -> Any:
         return e
 
 
@@ -925,7 +927,7 @@ class Register:
             >>>     checker.stop()
         """
 
-        def decorator(f: Callable) -> "InfiniteLoop":
+        def decorator(f: Callable) -> InfiniteLoop:
             nonlocal module
             bound_instance = getattr(f, "__bound_instance__", None)
             raw_func = getattr(f, "__original__", f)
@@ -1559,7 +1561,7 @@ class Register:
         self,
         msg: Message,
         original_event: Event | None = None,
-    ) -> "_MessageEventProxy":
+    ) -> _MessageEventProxy:
         """Wrap a raw Telegram ``Message`` as an event-like proxy.
 
         The returned object quacks like a userbot event and can be fed to

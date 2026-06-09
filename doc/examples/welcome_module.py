@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from core.lib.loader.module_base import ModuleBase, command, loop, owner, watcher
-from core.lib.types import Event
 from core.lib.loader.module_config import Boolean, ConfigValue, ModuleConfig
+from core.lib.types import Event
 
 
 class WelcomeModule(ModuleBase):

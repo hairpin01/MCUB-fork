@@ -44,7 +44,7 @@ def _set_clear(obj: Any, attr: str) -> None:
         s.clear()
 
 
-def purge_caches(kernel: Kernel, level: int = 1) -> dict[str, Any]:  # noqa: ANN401
+def purge_caches(kernel: Kernel, level: int = 1) -> dict[str, Any]:
     """Purge kernel caches at *level* (1-3).
 
     Returns a dict with keys ``{"level", "cleared", "freed_estimate"}``

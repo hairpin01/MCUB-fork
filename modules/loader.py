@@ -2688,7 +2688,6 @@ class Loader(ModuleBase):
 
             if force_wipe:
                 await self.kernel.delete_module_config(module_name)
-                self.kernel._live_module_configs.pop(module_name, None)
                 wiped.append(module_name)
 
         await self.kernel.save_module_sources()

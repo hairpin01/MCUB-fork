@@ -160,6 +160,21 @@ eval:
   result_in_message: "stdout → msg"
   executed_in: real
   ms: ms
+  usage_js: .js <src> — run JavaScript (node)
+  usage_rb: .rb <src> — run Ruby
+  usage_go: .go <src> — run Go
+  usage_rs: .rs <src> — run Rust
+  lang_js: node
+  lang_rb: ruby
+  lang_go: golang
+  lang_rs: rustc
+  not_installed: '{lang}: not found in $PATH'
+  result_header_error: '[FAIL]'
+  result_header_stdout: '[STDOUT]'
+  result_header_return: '[EXIT]'
+  result_header_executed: '[DONE]'
+  result_header_output: '[STDOUT]'
+  result_header_empty: '[EMPTY]'
 
 zen:
   success: "[  OK  ] Reboot <b>successful</b>"

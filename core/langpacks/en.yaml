@@ -169,6 +169,21 @@ eval:
   result_in_message: Result in message
   executed_in: Executed in
   ms: ms
+  usage_js: .js <code> — execute JavaScript (Node.js) code
+  usage_rb: .rb <code> — execute Ruby code
+  usage_go: .go <code> — execute Go code
+  usage_rs: .rs <code> — execute Rust code
+  lang_js: JavaScript
+  lang_rb: Ruby
+  lang_go: Go
+  lang_rs: Rust
+  not_installed: '{lang} is not installed'
+  result_header_error: 'Error:'
+  result_header_stdout: 'Print output:'
+  result_header_return: 'Returned:'
+  result_header_executed: 'Executed:'
+  result_header_output: 'Result:'
+  result_header_empty: 'Empty result'
 zen:
   success: Reboot <b>successful!</b>
   loading: but modules are still loading...

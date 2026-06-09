@@ -290,9 +290,7 @@ class ModuleKernelProxy:
     def _deny(self, name: str) -> None:
         _raise_insecure(name, self.module_name)
 
-    def lookup_module(
-        self, module_name: str, *, all_loaded: bool = False
-    ) -> Any:
+    def lookup_module(self, module_name: str, *, all_loaded: bool = False) -> Any:
         """Lookup a module without exposing mutable kernel registries.
 
         Args:
@@ -606,7 +604,13 @@ class ClientProxy:
         return await object.__getattribute__(self, "_client")(*args, **kwargs)
 
     def __setattr__(self, name: str, value: Any) -> None:
-        self._deny(name)
+        if name in object.__getattribute__(self, "_LOCAL_NAMES"):
+            object.__setattr__(self, name, value)
+            return
+        if not ClientProxy.is_safe_method(name):
+            self._deny(name)
+        client = object.__getattribute__(self, "_client")
+        setattr(client, name, value)
 
     def __delattr__(self, name: str) -> None:
         self._deny(name)
@@ -841,9 +845,7 @@ class DatabaseProxy:
         return f"<DatabaseProxy module={self.module_name!r}>"
 
 
-def get_module_kernel(
-    kernel: Kernel, module_name: str, is_system: bool
-) -> Any:
+def get_module_kernel(kernel: Kernel, module_name: str, is_system: bool) -> Any:
     """Return a proxied kernel for user modules, raw kernel for system."""
     if is_system:
         return kernel
@@ -949,9 +951,7 @@ def wrap_event_for_module(event: Event, module_name: str, kernel: Kernel) -> Eve
     return event
 
 
-def get_module_register(
-    kernel: Kernel, module_name: str, is_system: bool
-) -> Any:
+def get_module_register(kernel: Kernel, module_name: str, is_system: bool) -> Any:
     """Return a proxied register for user modules, raw for system."""
     if is_system:
         return kernel.register
@@ -965,18 +965,14 @@ def get_module_client(kernel: Kernel, module_name: str, is_system: bool) -> Clie
     return ClientProxy(kernel.client, module_name)
 
 
-def get_module_config(
-    kernel: Kernel, module_name: str, is_system: bool
-) -> Any:
+def get_module_config(kernel: Kernel, module_name: str, is_system: bool) -> Any:
     """Return a read-only config proxy for user modules, raw for system."""
     if is_system:
         return kernel.config
     return ConfigProxy(kernel.config, module_name)
 
 
-def get_module_db(
-    kernel: Kernel, module_name: str, is_system: bool
-) -> Any:
+def get_module_db(kernel: Kernel, module_name: str, is_system: bool) -> Any:
     """Return a scoped database proxy for user modules, raw for system."""
     if is_system:
         return kernel.db_manager

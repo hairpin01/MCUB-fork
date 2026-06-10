@@ -282,11 +282,14 @@ class LogBot(ModuleBase):
                 return
 
             newest_sha = commits[0][0]
-            last_sha = self.kernel.cache.get("log_bot:last_notified_sha")
-            if newest_sha == last_sha:
+            stored = await self.kernel.db_get(
+                "log_bot", "last_notified_sha"
+            ) or self.kernel.cache.get("log_bot:last_notified_sha")
+            if newest_sha == stored:
                 return
 
             await self.notify_new_commits(commits, branch)
+            await self.kernel.db_set("log_bot", "last_notified_sha", newest_sha)
             self.kernel.cache.set("log_bot:last_notified_sha", newest_sha)
 
         except Exception as e:

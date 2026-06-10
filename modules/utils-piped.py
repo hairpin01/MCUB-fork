@@ -42,8 +42,8 @@ class UtilsPiped(ModuleBase):
 
     @command(
         "echo",
-        doc_ru="""[text] вывecти тeкcт c пoдcтaнoвкaми (пoддepживaeт {pipe_input[:X]} - пpимep .man | 1wc -l | .echo <b>мoдyлeй: {pipe_input[:50]}, {import [var]} - тoжe caмoe чтo .man | .export man && .import man | .echo modules: {pipe_input}, пpимep .man | .export man | .delete && .echo modules {{import man}})""",
-        doc_en="[text] display text with substitutions (supports {pipe_input[:X]} - example .man | 1wc -l | .echo <b>modules: {pipe_input[:50]}, {import [var]} - the same as .man | .export man && .import man | .echo modules: {pipe_input}, example .man | .export man | .delete && .echo modules {import man})",
+        doc_ru="""[text] вывecти тeкcт""",
+        doc_en="[text] display text ",
     )
     async def cmd_echo(self, event: events.NewMessage.Event) -> None:
         try:
@@ -948,61 +948,6 @@ class UtilsPiped(ModuleBase):
             )
 
     @command(
-        "if",
-        doc_ru="<pattern> [text] skip if pattern found",
-        doc_en="<pattern> [text] pass through if pattern found",
-    )
-    async def cmd_if(self, event: events.NewMessage.Event) -> None:
-        try:
-            args = self.args_raw(event).strip()
-            pipe_input = getattr(event, "pipe_input", None) or ""
-
-            if not args:
-                event.pipe_exit_code = 1
-                await self.edit(event, self.strings("if_usage"), parse_mode="html")
-                return
-
-            pattern = ""
-            inline_text = ""
-
-            if args[0] in ("'", '"'):
-                quote = args[0]
-                end = args.find(quote, 1)
-                if end != -1:
-                    pattern = args[1:end]
-                    inline_text = args[end + 1 :].strip()
-                else:
-                    pattern = args[1:].strip()
-            else:
-                parts = args.split(None, 1)
-                pattern = parts[0]
-                inline_text = parts[1] if len(parts) > 1 else ""
-
-            text = inline_text or pipe_input
-
-            if not text:
-                event.pipe_exit_code = 1
-                await self.edit(event, self.strings("if_usage"), parse_mode="html")
-                return
-
-            try:
-                matched = bool(re.search(pattern, text))
-            except re.error:
-                matched = pattern in text
-
-            if matched:
-                if getattr(event, "piped", False):
-                    await self.edit(event, text)
-                else:
-                    await self.edit(event, text, parse_mode="html")
-            else:
-                event.pipe_exit_code = 1
-                await self.edit(event, self.strings("if_no_match"), parse_mode="html")
-        except Exception as e:
-            event.pipe_exit_code = 1
-            await self.kernel.handle_error(e, message="if", event=event)
-
-    @command(
         "repeat",
         doc_ru="<N> [sep] [text] пoвтopить тeкcт N paз",
         doc_en="<N> [sep] [text] repeat text N times",
@@ -1213,7 +1158,7 @@ class UtilsPiped(ModuleBase):
         doc_en=(
             "[-s[ave]] <key1> [key2 ...] extract fields from JSON.\n"
             "Without -s: print values separated by space.\n"
-            "With -s: save each field as a variable (for .import / {import key})."
+            "With -s: save each field as a variable (for .import / @{import key})."
         ),
     )
     async def cmd_json(self, event: events.NewMessage.Event) -> None:
@@ -1385,108 +1330,3 @@ class UtilsPiped(ModuleBase):
         except Exception as e:
             event.pipe_exit_code = 1
             await self.kernel.handle_error(e, message="reply", event=event)
-
-    # @command(
-    #     "script",
-    #     doc_ru=(
-    #         "run/save/load/list/del <script>/<name> <script>"
-    #     ),
-    #     doc_en=(
-    #         "run/save/load/list/del <script>/<name> <script>"
-    #     ),
-    # )
-    # async def cmd_script(self, event: events.NewMessage.Event) -> None:
-    #     try:
-    #         args = self.args_raw(event).strip()
-    #
-    #         if not args:
-    #             await self.edit(
-    #                 event,
-    #                 self.strings("script_usage"),
-    #                 parse_mode="html",
-    #             )
-    #             return
-    #
-    #         if args == "list":
-    #             names = self.kernel.list_scripts()
-    #             if not names:
-    #                 await self.edit(
-    #                     event,
-    #                     self.strings("script_list_empty"),
-    #                     parse_mode="html",
-    #                 )
-    #                 return
-    #             text = "<b>Saved scripts:</b>\n" + "\n".join(f"  • <code>{n}</code>" for n in names)
-    #             await self.edit(event, text, parse_mode="html")
-    #             return
-    #
-    #         m = re.match(r"^del\s+([a-zA-Z_][a-zA-Z0-9_.-]*)\s*$", args)
-    #         if m:
-    #             name = m.group(1)
-    #             if name in self.kernel._pipe_macros:
-    #                 del self.kernel._pipe_macros[name]
-    #                 await self.edit(
-    #                     event,
-    #                     self.strings("script_deleted", name=name),
-    #                     parse_mode="html",
-    #                 )
-    #             else:
-    #                 await self.edit(
-    #                     event,
-    #                     self.strings("script_not_found", name=name),
-    #                     parse_mode="html",
-    #                 )
-    #             return
-    #
-    #         m = re.match(r"^save\s+([a-zA-Z_][a-zA-Z0-9_.-]*)\s+(.+)$", args, re.DOTALL)
-    #         if m:
-    #             name = m.group(1)
-    #             raw_source = m.group(2).strip()
-    #             _, source = self.kernel.script_engine.parse_source(raw_source)
-    #             self.kernel.save_script(name, source)
-    #             await self.edit(
-    #                 event,
-    #                 self.strings("script_saved", name=name),
-    #                 parse_mode="html",
-    #             )
-    #             return
-    #
-    #         m = re.match(r"^load\s+([a-zA-Z_][a-zA-Z0-9_.-]*)\s*$", args)
-    #         if m:
-    #             name = m.group(1)
-    #             source = self.kernel.load_script(name)
-    #             if source is None:
-    #                 await self.edit(
-    #                     event,
-    #                     self.strings("script_not_found", name=name),
-    #                     parse_mode="html",
-    #                 )
-    #                 return
-    #             await self.edit(event, self.strings("script_running", name=name), parse_mode="html")
-    #             await self.kernel.run_script(source, event, name=name)
-    #             return
-    #
-    #         if args.startswith("run ") or args.startswith("run\n"):
-    #             raw_source = args[4:].strip()
-    #         else:
-    #             raw_source = args  # bare source without "run" keyword
-    #
-    #         script_name, source = self.kernel.script_engine.parse_source(raw_source)
-    #
-    #         if not source:
-    #             await self.edit(
-    #                 event,
-    #                 self.strings("script_empty"),
-    #                 parse_mode="html",
-    #             )
-    #             return
-    #
-    #         await self.edit(
-    #             event,
-    #             self.strings("script_running", name=script_name),
-    #             parse_mode="html",
-    #         )
-    #         await self.kernel.run_script(source, event, name=script_name)
-    #
-    #     except Exception as e:
-    #         await self.kernel.handle_error(e, message="script", event=event)

@@ -867,6 +867,181 @@ class TesterMod(ModuleBase):
             parse_mode="html",
         )
 
+    def _get_handler_location(self, handler) -> str:
+        try:
+            import inspect
+
+            f = inspect.unwrap(handler)
+            loc = inspect.getfile(f)
+            _, line = inspect.getsourcelines(f)
+            return f"{loc}:{line}"
+        except Exception:
+            return "?"
+
+    def _format_uptime(self, seconds: float) -> str:
+        days, rem = divmod(int(seconds), 86400)
+        hours, rem = divmod(rem, 3600)
+        mins, secs = divmod(rem, 60)
+        parts = []
+        if days:
+            parts.append(f"{days}d")
+        parts.append(f"{hours}h")
+        parts.append(f"{mins}m")
+        parts.append(f"{secs}s")
+        return " ".join(parts)
+
+    async def _collect_system_info(self) -> list[str]:
+        k = self.kernel
+        lines: list[str] = []
+        lines.append("[system]")
+        lines.append(f"- version    : {k.VERSION}")
+        lines.append(f"- kernel     : {type(k).__name__}")
+        lines.append(
+            f"- uptime     : {self._format_uptime(time.time() - k.start_time)}"
+        )
+        loaded = len(k.loaded_modules)
+        system = len(k.system_modules)
+        lines.append(f"- modules    : {loaded} user + {system} system")
+        try:
+            branch = await k.version_manager.detect_branch()
+            commit = await k.version_manager.get_commit_sha(short=True)
+            lines.append(f"- branch     : {branch}")
+            lines.append(f"- commit     : {commit}")
+        except Exception:
+            pass
+        try:
+            py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+            lines.append(f"- python     : {py_ver}")
+        except Exception:
+            pass
+        if _psutil is not None:
+            try:
+                mem = _psutil.virtual_memory()
+                lines.append(
+                    f"- memory     : {mem.used // 1024 // 1024}MB / {mem.total // 1024 // 1024}MB"
+                )
+            except Exception:
+                pass
+        return lines
+
+    async def _collect_command_info(
+        self, cmd_name: str, handler, full_cmd: str
+    ) -> list[str]:
+        k = self.kernel
+        lines: list[str] = []
+        lines.append("[command]")
+        lines.append(f"- name       : {full_cmd}")
+        module_name = k.command_owners.get(cmd_name, "?")
+        lines.append(f"- module     : {module_name}")
+        is_system = module_name in k.system_modules
+        lines.append(f"- type       : {'system' if is_system else 'user'}")
+        loc = self._get_handler_location(handler)
+        lines.append(f"- handler    : {loc}")
+        alias_target = None
+        for alias, target in k.aliases.items():
+            if target == cmd_name:
+                alias_target = alias
+                break
+        if alias_target:
+            lines.append(f"- alias      : {alias_target}")
+        return lines
+
+    async def _collect_event_context(self, event) -> list[str]:
+        lines: list[str] = []
+        lines.append("[event]")
+        try:
+            ev_type = type(event).__name__
+            lines.append(f"- type       : {ev_type}")
+        except Exception:
+            pass
+        try:
+            uid = getattr(event, "sender_id", None)
+            if uid is not None:
+                lines.append(f"- user_id    : {uid}")
+                is_owner = uid == getattr(self.kernel, "owner", None)
+                is_admin = self.kernel.is_admin(uid)
+                tags = []
+                if is_owner:
+                    tags.append("owner")
+                if is_admin:
+                    tags.append("admin")
+                if tags:
+                    lines.append(f"- access     : {', '.join(tags)}")
+        except Exception:
+            pass
+        try:
+            chat_id = getattr(event, "chat_id", None)
+            if chat_id is not None:
+                lines.append(f"- chat_id    : {chat_id}")
+        except Exception:
+            pass
+        try:
+            mid = getattr(event, "id", None)
+            if mid is not None:
+                lines.append(f"- msg_id     : {mid}")
+        except Exception:
+            pass
+        try:
+            text = getattr(event, "text", "")
+            if text:
+                display = text.replace("\n", "\\n")
+                lines.append(f"- text       : {display[:200]}")
+        except Exception:
+            pass
+        try:
+            pipe = getattr(event, "pipe_input", None)
+            if pipe:
+                display = str(pipe)[:100]
+                lines.append(f"- pipe       : {display}")
+        except Exception:
+            pass
+        return lines
+
+    async def _collect_db_cache_info(self, module_name: str) -> list[str]:
+        lines: list[str] = []
+        lines.append("[db_cache]")
+        try:
+            db = getattr(self.kernel, "db_manager", None)
+            if db is not None:
+                cache = getattr(db, "_get_cache", {})
+                total = len(cache)
+                if total:
+                    lines.append(f"- entries    : {total}")
+                    mc_key = f"module_configs:{module_name}"
+                    if mc_key in cache:
+                        lines.append(
+                            f"- {module_name}_config : {'present' if cache[mc_key] is not None else 'cached empty'}"
+                        )
+                    else:
+                        lines.append(f"- {module_name}_config : not cached")
+                else:
+                    lines.append(f"- entries    : 0 (disabled)")
+        except Exception:
+            pass
+        return lines
+
+    async def _collect_permissions(self, event, module_name: str) -> list[str]:
+        lines: list[str] = []
+        lines.append("[permissions]")
+        try:
+            uid = getattr(event, "sender_id", None)
+            if uid is not None:
+                is_owner = uid == getattr(self.kernel, "owner", None)
+                is_admin = self.kernel.is_admin(uid)
+                lines.append(f"- is_owner   : {is_owner}")
+                lines.append(f"- is_admin   : {is_admin}")
+        except Exception:
+            pass
+        try:
+            if hasattr(self.kernel, "trusted"):
+                from core.lib.base.permissions import check_trust
+
+                trusted = await check_trust(self.kernel, event)
+                lines.append(f"- trusted    : {trusted}")
+        except Exception:
+            pass
+        return lines
+
     @command(
         "teaser",
         doc_ru="тecтиpoвaть кoмaндy c лoгиpoвaниeм",
@@ -886,9 +1061,6 @@ class TesterMod(ModuleBase):
         prefix = self.get_prefix()
         cmd_args_raw = event.text[len(prefix) + len("teaser ") :]
         full_cmd = cmd_args_raw
-
-        # Build fake text as if the command was called directly
-        # e.g. ".teaser reload terminal" -> fake ".reload terminal"
         fake_text = prefix + cmd_args_raw
 
         handler = self.kernel.command_handlers.get(cmd_name)
@@ -897,6 +1069,8 @@ class TesterMod(ModuleBase):
                 self.strings("teaser_cmd_not_found", cmd=cmd_name), parse_mode="html"
             )
             return
+
+        owner = self.kernel.command_owners.get(cmd_name, "")
 
         kernel_log_path = os.path.join(self.kernel.LOGS_DIR, "kernel.log")
         initial_size = 0
@@ -910,6 +1084,7 @@ class TesterMod(ModuleBase):
         fake = _FakeEventProxy(event, fake_text=fake_text)
         self.log.info(f"Teaser: executing {full_cmd} with FakeEvent")
 
+        t_start = time.perf_counter()
         try:
             if asyncio.iscoroutinefunction(handler):
                 await handler(fake)
@@ -917,17 +1092,35 @@ class TesterMod(ModuleBase):
                 handler(fake)
         except Exception as e:
             self.log.error(f"Teaser: command {full_cmd} error: {e}")
+        t_delta = time.perf_counter() - t_start
 
-        # Build report
-        report_parts = [self.strings("teaser_report_header", cmd=full_cmd)]
+        sections = await asyncio.gather(
+            self._collect_system_info(),
+            self._collect_command_info(cmd_name, handler, full_cmd),
+            self._collect_event_context(event),
+            self._collect_permissions(event, owner),
+            self._collect_db_cache_info(owner),
+        )
+
+        report_lines: list[str] = []
+
+        for sec_lines in sections:
+            if sec_lines:
+                report_lines.extend(sec_lines)
+                report_lines.append("")
+
+        report_lines.append("[timing]")
+        report_lines.append(f"- exec       : {t_delta * 1000:.1f}ms")
+        report_lines.append("")
 
         event_log = fake.get_log()
+        report_lines.append("[event_calls]")
         if event_log:
-            report_parts.append(
-                self.strings("teaser_event_log", log="\n".join(event_log))
-            )
+            for entry in event_log:
+                report_lines.append(f"- {entry}")
         else:
-            report_parts.append("<b>No event calls recorded</b>\n")
+            report_lines.append("- (none)")
+        report_lines.append("")
 
         new_log_entries = ""
         if os.path.exists(kernel_log_path):
@@ -935,20 +1128,23 @@ class TesterMod(ModuleBase):
                 f.seek(initial_size)
                 new_log_entries = f.read().strip()
 
+        report_lines.append("[kernel_log]")
         if new_log_entries:
-            report_parts.append(self.strings("teaser_kernel_log", log=new_log_entries))
+            for line in new_log_entries.split("\n"):
+                report_lines.append(f"- {line}")
         else:
-            report_parts.append(self.strings("teaser_empty_log"))
+            report_lines.append("- (no new entries)")
+        report_lines.append("")
 
-        report = "\n".join(report_parts)
+        report = "\n".join(report_lines)
 
         import tempfile
 
         tmp = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".html", delete=False, encoding="utf-8"
+            mode="w", suffix=".txt", delete=False, encoding="utf-8"
         )
         try:
-            tmp.write("<html><body><pre>" + report + "</pre></body></html>")
+            tmp.write(report)
             tmp.close()
             try:
                 await event.edit(

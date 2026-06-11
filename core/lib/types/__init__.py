@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from core.lib.types.client import Client
 from core.lib.types.event import Event
+from core.lib.types.inline_message import InlineMessage
 from core.lib.types.kernel import Kernel
 from core.lib.types.message import Message
 from core.lib.types.register import Register
@@ -22,6 +23,7 @@ from core.lib.types.register import Register
 __all__ = [
     "Client",
     "Event",
+    "InlineMessage",
     "Kernel",
     "Message",
     "Register",

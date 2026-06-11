@@ -25,9 +25,7 @@ try:
     from core.lib.loader.kernel_proxy import wrap_event_for_module
 except ImportError:
 
-    def wrap_event_for_module(
-        e: Any, *a: Any, **kw: Any
-    ) -> Any:
+    def wrap_event_for_module(e: Any, *a: Any, **kw: Any) -> Any:
         return e
 
 
@@ -59,6 +57,10 @@ class CommandDispatcher:
     def __init__(self, kernel: Kernel) -> None:
         self.kernel = kernel
         self.logger = logging.getLogger(getattr(kernel, "logger_name", __name__))
+        if Strings is None:
+            self.strings = None
+        else:
+            self.strings = Strings(kernel, {"name": "kernel"})
 
     def register(self) -> None:
         """
@@ -141,8 +143,15 @@ class CommandDispatcher:
                 tb = "…" + tb[-997:]
             try:
                 safe_cmd = html.escape(getattr(event, "text", "") or "")
+
                 await event.edit(
-                    f"<b>Error in <code>{safe_cmd}</code></b>\n" f"<pre>{tb}</pre>",
+                    (
+                        f"<b>Error in <code>{safe_cmd}</code></b>\n" f"<pre>{tb}</pre>"
+                        if self.strings is None
+                        else self.strings(
+                            "call_failed_traceback", cmd=safe_cmd, traceback=tb
+                        )
+                    ),
                     parse_mode="html",
                 )
             except Exception:

@@ -420,6 +420,26 @@ class ModuleDetectorMixin:
             except Exception as e:
                 k.logger.error(f"on_load error in {module_name}: {e}")
 
+            config = getattr(instance, "config", None)
+            if config is not None and hasattr(config, "to_dict"):
+                try:
+                    raw = await k.db_get("module_configs", module_name)
+                    if not raw:
+                        to_save = {
+                            k_: v_
+                            for k_, v_ in config.to_dict().items()
+                            if v_ is not None
+                        }
+                        await k.db_set(
+                            "module_configs",
+                            module_name,
+                            __import__("json").dumps(
+                                to_save, ensure_ascii=False, indent=2
+                            ),
+                        )
+                except Exception:
+                    pass
+
             if is_reload:
                 try:
                     if inspect.iscoroutinefunction(instance.on_reload):

@@ -18,9 +18,7 @@ try:
     from core.lib.loader.kernel_proxy import wrap_event_for_module
 except ImportError:
 
-    def wrap_event_for_module(
-        e: Any, *a: Any, **kw: Any
-    ) -> Any:
+    def wrap_event_for_module(e: Any, *a: Any, **kw: Any) -> Any:
         return e
 
 
@@ -350,9 +348,7 @@ class ModuleBase(ABC):
 
         return utils.get_args_html(event)
 
-    async def answer(
-        self, event: Event, text: str, **kwargs: Any
-    ) -> Any:
+    async def answer(self, event: Event, text: str, **kwargs: Any) -> Any:
         import utils
 
         return await utils.answer(event, text, **kwargs)
@@ -370,9 +366,7 @@ class ModuleBase(ABC):
             event, text, reply_markup=reply_markup, as_html=as_html, **kwargs
         )
 
-    async def reply(
-        self, event: Event, text: str, **kwargs: Any
-    ) -> Any:
+    async def reply(self, event: Event, text: str, **kwargs: Any) -> Any:
         reply_markup = kwargs.pop("reply_markup", None)
         as_html = kwargs.pop("as_html", False)
         if reply_markup is not None:
@@ -408,7 +402,7 @@ class ModuleBase(ABC):
         ttl: int = 200,
         reply_to: int | None = None,
         **kwargs,
-    ) -> Any:
+    ) -> tuple[bool, Any]:
         """Send an inline form message.
 
         Args:
@@ -419,8 +413,12 @@ class ModuleBase(ABC):
             auto_send: If True, send immediately and return (success, message).
             ttl: Cache TTL for the form (seconds).
             reply_to: Topic/thread message ID for supergroups with topics.
+
+        Returns:
+            ``(success, InlineMessage)`` when *auto_send* is ``True``,
+            else ``(form_id,)``.
         """
-        return await self.kernel.inline_form(
+        result = await self.kernel.inline_form(
             chat_id,
             title,
             fields=fields,
@@ -430,6 +428,27 @@ class ModuleBase(ABC):
             reply_to=reply_to,
             **kwargs,
         )
+        if auto_send and result and result[0]:
+            success, raw = result
+            from core.lib.types import InlineMessage
+
+            ws_form_id = getattr(raw, "form_id", None)
+            if ws_form_id:
+                from core_inline.handlers import InlineHandlers
+
+                handlers = InlineHandlers(
+                    self.kernel, getattr(self.kernel, "bot_client", None)
+                )
+                fd = handlers.get_inline_form(ws_form_id)
+                if fd:
+                    msg = InlineMessage(
+                        raw,
+                        unit_id=ws_form_id,
+                        kernel=self.kernel,
+                    )
+                    return (True, msg)
+            return (True, InlineMessage(raw, kernel=self.kernel))
+        return result
 
     def inline_temp(
         self,
@@ -556,9 +575,7 @@ class ModuleBase(ABC):
         raw_func = getattr(func, "__original__", func)
         instance = self
 
-        async def wrapper(
-            event: Event, *args: Any, **kwargs: Any
-        ) -> None:
+        async def wrapper(event: Event, *args: Any, **kwargs: Any) -> None:
             bound_to = getattr(raw_func, "__self__", None)
             if bound_to is not None:
                 return await raw_func(event, *args, **kwargs)
@@ -617,9 +634,7 @@ class ModuleBase(ABC):
         self._store_callback_data(tok, callback_data, is_kernel_proxy, store_callback)
         self._track_callback_token(tok)
 
-    def __init__(
-        self, kernel: Kernel, client: Client, register: Any
-    ) -> None:
+    def __init__(self, kernel: Kernel, client: Client, register: Any) -> None:
         self.kernel = kernel
         self.client = client
         self._register = register

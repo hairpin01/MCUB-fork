@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import sys
 import time
 import traceback
@@ -765,9 +766,12 @@ class InlineManager:
                 await form_sms.delete()
 
             if message:
-                inline_msg_id = getattr(message, "inline_message_id", None)
+                handlers = InlineHandlers(k, k.bot_client)
+                inline_msg_id = getattr(message, "inline_message_id", None) or getattr(
+                    message, "_inline_msg_id", None
+                )
                 if inline_msg_id:
-                    form_data = handlers.get_inline_form(form_id)
+                    form_data = handlers.get_inline_form(query)
                     if form_data:
                         if (
                             hasattr(inline_msg_id, "dc_id")
@@ -779,13 +783,15 @@ class InlineManager:
                             )
                         else:
                             form_data["inline_message_id"] = str(inline_msg_id)
-                        handlers.create_inline_form(
-                            text=form_data.get("text", ""),
-                            buttons=form_data.get("buttons"),
-                            ttl=ttl,
-                            media=form_data.get("media"),
-                            media_type=form_data.get("media_type", "photo"),
-                        )
+                        cache = getattr(k, "cache", None)
+                        if cache:
+                            cache.set(query, form_data, ttl=form_data.get("_ttl", 3600))
+                else:
+                    for _ in range(25):
+                        await asyncio.sleep(0.2)
+                        form_data = handlers.get_inline_form(query)
+                        if form_data and form_data.get("inline_message_id"):
+                            break
 
             k.logger.debug(
                 "[inline] clicked index=%d chat_id=%s silent=%s reply_to=%s",

@@ -95,43 +95,18 @@ TYPE_EMOJIS = {
 
 
 class InlineMessageManager:
+
     def __init__(self, kernel):
-        self.kernel = kernel
-        self.messages = {}  # {inline_msg_id: (chat_id, message_id, key_id, user_id)}
+        self._events: dict[str, Any] = {}
 
-    def save_message(self, inline_msg_id, chat_id, message_id, key_id, user_id):
-        self.messages[inline_msg_id] = {
-            "chat_id": chat_id,
-            "message_id": message_id,
-            "key_id": key_id,
-            "user_id": user_id,
-            "timestamp": time.time(),
-        }
-        asyncio.create_task(self.save_to_db())
+    def save_event(self, key_id: str, event) -> None:
+        self._events[key_id] = event
 
-    async def save_to_db(self):
-        try:
-            await self.kernel.db_set(
-                "cfg_messages", "inline_messages", json.dumps(self.messages)
-            )
-        except Exception as e:
-            self.kernel.logger.debug(f"Error saving inline messages: {e}")
+    def get_event(self, key_id: str):
+        return self._events.pop(key_id, None)
 
-    async def load_from_db(self):
-        try:
-            data = await self.kernel.db_get("cfg_messages", "inline_messages")
-            if data:
-                self.messages = json.loads(data)
-        except Exception as e:
-            self.kernel.logger.debug(f"Error loading inline messages: {e}")
-
-    def get_message_info(self, inline_msg_id):
-        return self.messages.get(inline_msg_id)
-
-    def remove_message(self, inline_msg_id):
-        if inline_msg_id in self.messages:
-            del self.messages[inline_msg_id]
-            asyncio.create_task(self.save_to_db())
+    def remove_event(self, key_id: str) -> None:
+        self._events.pop(key_id, None)
 
 
 async def init_module_config(kernel):
@@ -357,7 +332,6 @@ def register(kernel):
     SENSITIVE_KEYS = ["inline_bot_token", "api_id", "api_hash", "phone"]
 
     msg_manager = InlineMessageManager(kernel)
-    asyncio.create_task(msg_manager.load_from_db())
 
     class CustomJSONEncoder(json.JSONEncoder):
         def encode(self, o):
@@ -2065,6 +2039,7 @@ def register(kernel):
 
             if action == "set":
                 value = confirm_data["value"]
+                old_val = get_value(key) if has_key(key) else target_config.get(key, "")
                 set_value(key, value)
                 success = True
                 message = t(
@@ -2195,38 +2170,53 @@ def register(kernel):
 
                 kernel.cache.set(cache_key, None, ttl=1)
 
-                try:
-                    if hasattr(event, "query") and hasattr(
-                        event.query, "inline_message_id"
-                    ):
-                        inline_msg_id = event.query.inline_message_id
-
-                        if is_module_scope:
-                            if has_key(key):
-                                new_text = format_key_value(
-                                    key, get_value(key), reveal=True
-                                )
-                            else:
-                                new_text = message
+                hidden = key in SENSITIVE_KEYS or key in kernel.config.get(
+                    "hidden_keys", []
+                )
+                if not hidden and is_module_scope and is_module_config:
+                    try:
+                        cv = target_config._values.get(key)
+                        if cv and (cv.hidden or getattr(cv.validator, "secret", False)):
+                            hidden = True
+                    except Exception:
+                        pass
+                saved = msg_manager.get_event(key_id) if key_id else None
+                if saved is not None:
+                    try:
+                        scope_label = module_name if is_module_scope else "kernel"
+                        if hidden:
+                            safe = "—" * 6
+                            display_old = safe
+                            display_new = safe
                         else:
-                            if is_key_hidden(key):
-                                new_text = t("value_inserted")
-                            else:
-                                new_text = format_key_value(
-                                    key, kernel.config[key], reveal=True
-                                )
+                            display_old = str(old_val)[:40]
+                            display_new = str(value)
+                        await saved.edit(
+                            t(
+                                "fcfg_module_update",
+                                key=key,
+                                module=scope_label,
+                                old=display_old,
+                                new=display_new,
+                            ),
+                            buttons=[
+                                [
+                                    Button.inline(
+                                        "🔙",
+                                        data=(
+                                            f"module_cfg_view_{key_id}".encode()
+                                            if is_module_scope
+                                            else f"cfg_view_{key_id}".encode()
+                                        ),
+                                    )
+                                ]
+                            ],
+                            parse_mode="html",
+                        )
+                    except Exception as e:
+                        kernel.logger.debug(f"Failed to edit with saved event: {e}")
 
-                        if kernel.is_bot_available():
-                            await kernel.bot_client.edit_message(
-                                inline_message_id=inline_msg_id,
-                                text=new_text,
-                                parse_mode="html",
-                            )
-
-                except Exception as e:
-                    kernel.logger.debug(f"Failed to edit inline message: {e}")
-
-                if kernel.is_bot_available():
+                if not saved and kernel.is_bot_available():
                     try:
                         await kernel.bot_client.send_message(
                             user_id, message, parse_mode="html"
@@ -2699,6 +2689,7 @@ def register(kernel):
                     return
 
                 module_name, key, page = cached
+                msg_manager.save_event(key_id, event)
                 await show_module_key_view(event, module_name, key, page)
             except Exception as e:
                 await event.answer(str(e)[:50], alert=True)
@@ -2787,17 +2778,7 @@ def register(kernel):
                     return
                 text, key, page, config_type, key_id = result
 
-                if (
-                    hasattr(event.query, "inline_message_id")
-                    and event.query.inline_message_id
-                ):
-                    msg_manager.save_message(
-                        inline_msg_id=event.query.inline_message_id,
-                        chat_id=event.chat_id,
-                        message_id=event.id,
-                        key_id=key_id,
-                        user_id=event.sender.id,
-                    )
+                msg_manager.save_event(key_id, event)
 
                 buttons = []
 

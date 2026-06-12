@@ -252,3 +252,39 @@ async def test_dispatcher_defers_command_interpolation_inside_pipeline_segments(
         ("import", ".import var"),
         ("echo", ".echo text"),
     ]
+
+
+@pytest.mark.asyncio
+async def test_pipeline_merge_when_segment_lacks_prefix():
+    """When a pipeline segment after the first lacks a command prefix,
+    the whole text is dispatched as a single command instead of a pipeline."""
+    from utils.arg_parser import PipelineParser
+
+    kernel = DispatcherPipelineKernel()
+
+    # Add a 't' (terminal) command for testing
+    async def cmd_t(self, event):
+        self.calls.append(("t", event.text))
+        await event.edit("ok")
+
+    setattr(kernel, "cmd_t", cmd_t.__get__(kernel, DispatcherPipelineKernel))
+    kernel.command_handlers["t"] = kernel.cmd_t
+    kernel.command_owners["t"] = "terminal"
+
+    # .t ls | .wc -l — all segments have prefix → MCUB pipeline
+    kernel.calls.clear()
+    event1 = make_event(".t ls | .wc -l")
+    await kernel.process_command(event1)
+    assert (
+        "t",
+        ".t ls",
+    ) in kernel.calls, f"expected .t call with '.t ls' in {kernel.calls}"
+
+    # .t ls | grep home — second segment lacks prefix → single command
+    kernel.calls.clear()
+    event2 = make_event(".t ls | grep home")
+    await kernel.process_command(event2)
+    assert (
+        "t",
+        ".t ls | grep home",
+    ) in kernel.calls, f"expected .t to receive full text in {kernel.calls}"

@@ -1241,6 +1241,24 @@ class InlineProxy:
                     prepared_row.append(btn)
                     continue
                 if ("switch" in btn or "input" in btn) and "callback" not in btn:
+                    # Hikka "input" buttons use the "handler" key (not "callback").
+                    # Register via inline_temp so ::inline_send_handler dispatches
+                    # the user's typed text back to handler(call, text, *args).
+                    if "input" in btn and "handler" in btn:
+                        try:
+                            from .inline_utils import _register_input_button
+
+                            _ttl = getattr(self, "_current_form_ttl", 3600)
+                            switch_query = _register_input_button(
+                                btn,
+                                inline_proxy=self,
+                                unit_id=unit_id,
+                                ttl=_ttl,
+                            )
+                            btn["_switch_query"] = switch_query
+                            btn["switch_inline_query_current_chat"] = f"{switch_query} "
+                        except Exception:
+                            pass  # fallback: button visually works, no dispatch
                     prepared_row.append(btn)
                     continue
                 if "phone" in btn and "callback" not in btn:
@@ -1368,8 +1386,21 @@ class InlineProxy:
                     btn["callback_data"] = str(btn["data"])
 
                 if "input" in btn and "switch_inline_query_current_chat" not in btn:
-                    query_id = str(btn.get("_switch_query") or _rand_token(10))
-                    btn["switch_inline_query_current_chat"] = f"{query_id} "
+                    _input_q = btn.get("_switch_query")
+                    if not _input_q and "handler" in btn:
+                        try:
+                            from .inline_utils import _register_input_button
+
+                            _input_q = _register_input_button(
+                                btn,
+                                inline_proxy=self,
+                                unit_id=unit_id,
+                                ttl=ttl,
+                            )
+                        except Exception:
+                            _input_q = None
+                    btn["_switch_query"] = _input_q or _rand_token(10)
+                    btn["switch_inline_query_current_chat"] = f"{btn['_switch_query']} "
 
                 if "copy" in btn and "copy_text" not in btn:
                     btn["copy_text"] = {"text": str(btn.get("copy", ""))}
@@ -1481,6 +1512,30 @@ class InlineProxy:
                                 url=str(web_url),
                             )
                         )
+                elif "input" in button:
+                    # Hikka "input" button: register handler, build switch_inline.
+                    _switch_q = button.get("_switch_query")
+                    if not _switch_q and "handler" in button:
+                        try:
+                            from .inline_utils import _register_input_button
+
+                            _ttl = getattr(self, "_current_form_ttl", 3600)
+                            _switch_q = _register_input_button(
+                                button,
+                                inline_proxy=self,
+                                ttl=_ttl,
+                            )
+                            if _switch_q:
+                                button["_switch_query"] = _switch_q
+                        except Exception:
+                            _switch_q = None
+                    query = str(
+                        button.get(
+                            "switch_inline_query_current_chat",
+                            f"{_switch_q or ''} ",
+                        )
+                    ).strip()
+                    out_row.append(Button.switch_inline(text, query, same_peer=True))
                 elif "switch_inline_query_current_chat" in button:
                     query = str(
                         button.get("switch_inline_query_current_chat", "")

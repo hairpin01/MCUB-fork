@@ -126,14 +126,12 @@ class TestEvalModule:
     """Tests for modules/eval.py"""
 
     def test_import_eval_module(self):
-        """Test that eval module can be imported"""
-        import modules.eval as eval_module
+        from modules.evaluator import EvalModule as eval_module
 
         assert eval_module is not None
 
     def test_eval_has_custom_emoji(self):
-        """Test eval module has CUSTOM_EMOJI"""
-        import modules.eval as eval_module
+        import modules.evaluator as eval_module
 
         assert hasattr(eval_module, "CUSTOM_EMOJI")
         assert isinstance(eval_module.CUSTOM_EMOJI, dict)

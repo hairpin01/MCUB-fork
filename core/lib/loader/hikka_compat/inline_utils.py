@@ -109,7 +109,12 @@ def process_buttons(
                 btn_copy["_callback_data"] = _generate_id(30)
 
             if "input" in btn_copy and "_switch_query" not in btn_copy:
-                btn_copy["_switch_query"] = _generate_id(10)
+                btn_copy["_switch_query"] = _register_input_button(
+                    btn_copy,
+                    inline_proxy=inline_proxy,
+                    unit_id=unit_id,
+                    ttl=ttl,
+                )
 
             if (
                 custom_map is not None
@@ -204,6 +209,79 @@ def process_buttons(
 
 def _generate_id(length: int) -> str:
     return "".join(random.choices(string.ascii_letters + string.digits, k=length))
+
+
+def _register_input_button(
+    button: dict,
+    inline_proxy=None,
+    unit_id: str | None = None,
+    ttl: int = 3600,
+) -> str:
+    """Register a hikka-style "input" button handler.
+
+    Hikka modules build buttons like::
+
+        {"text": "...", "input": "placeholder", "handler": cb, "args": (...)}
+
+    Tapping the button opens the bot's inline mode in the current chat
+    (switch_inline_query_current_chat). Whatever the user types and sends is
+    delivered back to ``handler(call, typed_text, *args, **kwargs)``, where
+    ``call`` is an :class:`InlineCall` bound to the newly sent inline
+    message (so ``call.edit(...)`` works as expected).
+
+    Returns the switch-query token (used as the inline_temp uuid). Falls
+    back to a plain random id (non-functional, but visually identical) if
+    the handler can't be wired up (e.g. no kernel/register available).
+    """
+    handler = button.get("handler")
+    kernel = getattr(inline_proxy, "_kernel", None)
+    if handler is None or kernel is None or not hasattr(kernel, "register"):
+        return _generate_id(10)
+
+    from .inline_types import InlineCall
+
+    try:
+        from telethon.tl.types import InputBotInlineMessageID
+    except ImportError:  # pragma: no cover - telethon always available
+        InputBotInlineMessageID = None
+
+    args = button.get("args", ())
+    kwargs = button.get("kwargs", {})
+    placeholder = str(button.get("input", "")).strip() or "..."
+
+    async def _hikka_input_wrapper(event, query_args, _data=None):
+        msg_id = getattr(event, "msg_id", None)
+        inline_message_id = None
+        if InputBotInlineMessageID is not None and isinstance(
+            msg_id, InputBotInlineMessageID
+        ):
+            inline_message_id = f"{msg_id.dc_id}:{msg_id.id}:{msg_id.access_hash}"
+        elif msg_id is not None:
+            inline_message_id = str(msg_id)
+
+        call_obj = InlineCall(
+            query_args,
+            unit_id=unit_id or "",
+            inline_proxy=inline_proxy,
+            original_call=event,
+            inline_message_id=inline_message_id,
+            from_user_id=getattr(event, "user_id", None),
+        )
+        return await handler(call_obj, query_args, *args, **kwargs)
+
+    def _article(event):
+        return event.builder.article(
+            title=placeholder,
+            text=placeholder,
+        )
+
+    return kernel.register.inline_temp(
+        _hikka_input_wrapper,
+        ttl=ttl,
+        article=_article,
+        allow_user=button.get("allow_user"),
+        allow_ttl=int(button.get("allow_ttl", 100)),
+    )
 
 
 def _normalize_markup(markup, inline_proxy=None) -> list[list[dict]]:

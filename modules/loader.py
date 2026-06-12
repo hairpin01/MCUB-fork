@@ -792,6 +792,19 @@ class Loader(ModuleBase):
             install_log.append(log_entry)
             self.kernel.logger.debug(log_entry)
 
+        # Initialize before try so except handler can safely reference them
+        # even if an exception is raised early in the try block.
+        old_file_backup: str | None = None
+        old_file_backup_path: str | None = None
+        file_path = os.path.join(
+            (
+                self.kernel.MODULES_DIR
+                if module_name in self.kernel.system_modules
+                else self.kernel.MODULES_LOADED_DIR
+            ),
+            f"{module_name}.py",
+        )
+
         try:
             code = preloaded_code
             repo_url = preloaded_repo_url
@@ -1032,17 +1045,8 @@ class Loader(ModuleBase):
                 parse_mode="html",
             )
 
-            file_path = os.path.join(
-                (
-                    self.kernel.MODULES_DIR
-                    if module_name in self.kernel.system_modules
-                    else self.kernel.MODULES_LOADED_DIR
-                ),
-                f"{module_name}.py",
-            )
-
-            old_file_backup = None
-            old_file_backup_path = None
+            # file_path, old_file_backup, old_file_backup_path are already
+            # initialized before the try block — only override when needed.
 
             new_class_name = metadata.get("class_name")
             for loaded_name, loaded_mod in list(self.kernel.loaded_modules.items()):

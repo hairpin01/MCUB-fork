@@ -493,11 +493,33 @@ class InlineHandlers:
             )
             return
 
+        # InlineHandlers is instantiated many times throughout the codebase
+        # (once per inline_form/inline_query_and_click/... call). Each call
+        # to .on() registers a brand new closure, and Telethon does not
+        # deduplicate handlers - so without this guard, UpdateBotInlineSend
+        # would trigger inline_temp handlers once per InlineHandlers instance
+        # ever created, causing handlers to fire multiple times.
+        if getattr(self.bot_client, "_mcub_inline_send_handler_registered", False):
+            return
+        self.bot_client._mcub_inline_send_handler_registered = True
+
         @self.bot_client.on(events.Raw)
         async def inline_send_handler(event):
             from telethon.tl.types import UpdateBotInlineSend
 
+            self.kernel.logger.debug(
+                "[InlineHandlers] RAW event: %s",
+                type(event).__name__,
+            )
+
             if isinstance(event, UpdateBotInlineSend):
+                self.kernel.logger.debug(
+                    "[InlineHandlers] UpdateBotInlineSend received: "
+                    "id=%r user_id=%s query=%r",
+                    getattr(event, "id", "?"),
+                    getattr(event, "user_id", "?"),
+                    getattr(event, "query", "?"),
+                )
                 msg_id = event.msg_id
                 if isinstance(msg_id, InputBotInlineMessageID):
                     inline_msg_id_str = (
@@ -521,19 +543,29 @@ class InlineHandlers:
                     else None
                 )
 
+                self.kernel.logger.debug(
+                    "[InlineHandlers] inline_temp cache lookup: "
+                    "temp_uuid=%s cache_key=%s has_cache=%s found=%s",
+                    temp_uuid,
+                    cache_key,
+                    hasattr(self.kernel, "cache"),
+                    temp_data is not None,
+                )
+
                 if temp_data:
                     allow_user = temp_data.get("allow_user")
                     user_id = getattr(event, "user_id", None)
 
                     if allow_user:
                         if allow_user != "all":
+                            # allow_user is a user ID (or list) from inline_temp.
+                            # callback_permissions is for callback tokens only;
+                            # inline_temp stores allow_user directly in temp_data.
                             is_allowed = False
-                            if hasattr(self.kernel, "callback_permissions"):
-                                is_allowed = (
-                                    self.kernel.callback_permissions.is_allowed(
-                                        user_id, temp_uuid
-                                    )
-                                )
+                            if isinstance(allow_user, int):
+                                is_allowed = user_id == allow_user
+                            elif isinstance(allow_user, (list, tuple)):
+                                is_allowed = user_id in allow_user
                             if not is_allowed:
                                 if hasattr(event, "answer"):
                                     await event.answer("Not allowed", alert=True)
@@ -542,6 +574,15 @@ class InlineHandlers:
                     handler = temp_data.get("handler")
                     data = temp_data.get("data")
                     query_args = temp_data.get("query_args", "")
+
+                    self.kernel.logger.debug(
+                        "[InlineHandlers] temp_data: handler=%s "
+                        "has_handler=%s query_args=%r data=%r",
+                        handler,
+                        handler is not None,
+                        query_args,
+                        data,
+                    )
 
                     if handler:
                         try:
@@ -964,6 +1005,7 @@ class InlineHandlers:
                             btn.get("query", ""),
                             btn.get("hint", ""),
                             btn.get("emoji"),
+                            same_peer=bool(btn.get("same_peer", False)),
                         )
                     )
                 elif b_type == "phone":
@@ -1084,7 +1126,10 @@ class InlineHandlers:
         if b_type == "switch":
             query = btn_dict.get("query", "")
             hint = btn_dict.get("hint", "")
-            return Button.switch_inline(text, query, hint, icon=icon, style=style)
+            same_peer = bool(btn_dict.get("same_peer", False)) or bool(hint)
+            return Button.switch_inline(
+                text, hint or query, same_peer=same_peer, icon=icon, style=style
+            )
         if b_type == "phone":
             return Button.request_phone(text, icon=icon, style=style)
         if b_type == "location":
@@ -1109,8 +1154,11 @@ class InlineHandlers:
                         text, btn_dict.get("url", btn_dict.get("data", ""))
                     )
                 if b_type == "switch":
+                    query = btn_dict.get("query", "")
+                    hint = btn_dict.get("hint", "")
+                    same_peer = bool(btn_dict.get("same_peer", False)) or bool(hint)
                     return Button.switch_inline(
-                        text, btn_dict.get("query", ""), btn_dict.get("hint", "")
+                        text, hint or query, same_peer=same_peer
                     )
                 return None
 
@@ -1381,6 +1429,17 @@ class InlineHandlers:
                             title="Do not delete ID!",
                             text="I send a request to the module...",
                         )
+
+                    self.kernel.logger.debug(
+                        "[InlineHandlers] inline_temp found: "
+                        "query_cmd=%s query_args=%r "
+                        "handler=%s data=%r allow_user=%r",
+                        query_cmd,
+                        query_args,
+                        entry.get("handler"),
+                        entry.get("data"),
+                        entry.get("allow_user"),
+                    )
 
                     entry["user_id"] = event.sender_id
                     await self._save_inline_temp_data(query_cmd, query_args, entry)

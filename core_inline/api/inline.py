@@ -73,10 +73,17 @@ def build_inline_button(btn: Any) -> dict[str, Any] | None:
         return btn_dict
 
     elif isinstance(btn, KeyboardButtonSwitchInline):
-        btn_dict = {
-            "text": btn.text,
-            "switch_inline_query": btn.query,
-        }
+        query = btn.query or ""
+        if getattr(btn, "same_peer", False):
+            btn_dict = {
+                "text": btn.text,
+                "switch_inline_query_current_chat": query,
+            }
+        else:
+            btn_dict = {
+                "text": btn.text,
+                "switch_inline_query": query,
+            }
         if emoji:
             btn_dict["emoji"] = emoji
         return btn_dict
@@ -212,11 +219,17 @@ def make_cb_button(
 
 
 def build_button_switch(
-    text: str, query: str, hint: str = "", emoji: str | None = None
+    text: str,
+    query: str,
+    hint: str = "",
+    emoji: str | None = None,
+    same_peer: bool = False,
 ) -> dict[str, Any]:
-    btn = {"text": text, "switch_inline_query": query}
-    if hint:
-        btn["switch_inline_query_current_chat"] = hint
+    btn = {"text": text}
+    if same_peer or hint:
+        btn["switch_inline_query_current_chat"] = hint or query
+    else:
+        btn["switch_inline_query"] = query
     if emoji:
         btn["emoji"] = emoji
     return btn

@@ -27,9 +27,7 @@ try:
     from core.lib.loader.kernel_proxy import wrap_event_for_module
 except ImportError:
 
-    def wrap_event_for_module(
-        e: Any, *a: Any, **kw: Any
-    ) -> Any:
+    def wrap_event_for_module(e: Any, *a: Any, **kw: Any) -> Any:
         return e
 
 
@@ -1424,7 +1422,7 @@ class Register:
             "data": data,
             "expires_at": now + ttl if ttl else None,
             "module_name": module_name,
-            "allow_user": None,
+            "allow_user": allow_user,
             "allow_ttl": allow_ttl,
         }
         self.kernel._inline_temp_uuids.append(temp_uuid)

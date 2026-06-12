@@ -129,13 +129,23 @@ await self.invoke("echo", args="hello world", chat_id=-100123456789)
 
 `self.inline(chat_id, title, fields=None, buttons=None, auto_send=True, ttl=200, reply_to=None, **kwargs)` - Send an inline form (wraps `kernel.inline_form()`).
 
+Returns `(success: bool, message: InlineMessage)`. The `InlineMessage` object has its own API:
+
+| Method | Description |
+|--------|-------------|
+| `await msg.edit(text, buttons=None, *, parse_mode="html")` | Edit the message text/buttons |
+| `await msg.answer(text="", alert=False)` | Answer callback (toast/alert popup) |
+| `await msg.delete()` | Delete the message |
+| `msg.data` | Callback data (`bytes`) |
+| `msg.inline_message_id` | Inline message ID (str) |
+| `msg.chat_id` | Chat ID |
+| `msg.sender_id` | Who pressed the button |
+| `msg.unit_id` | Internal form unit ID |
+
 ```python
-success, msg = await self.inline(
-    event.chat_id,
-    "User Info",
-    fields=[{"key": "Name", "value": "John"}],
-    buttons=[{"text": "Edit", "type": "callback", "data": "edit"}],
-)
+ok, msg = await self.inline(event.chat_id, "User Info")
+if ok:
+    await msg.edit("Updated!", buttons=...)
 ```
 
 `self.inline_temp(func, ttl=300, article=None, data=None) -> str` - Register a temporary inline command handler. Returns an 8-character `form_id`.
@@ -164,6 +174,8 @@ await self.edit(event, xlib.format_size(1024))
 
 Access via `self.Button`. Creates Telegram `Button` objects with the MCUB callback token system.
 
+Callback handlers receive an **`InlineMessage`** object (with `edit()`, `answer()`, `delete()`, `data`, `inline_message_id`, `chat_id`, `sender_id`), not a raw Telethon event.
+
 | Method | Description |
 |--------|-------------|
 | `self.Button.inline(text, callback_func, *, ttl=900, ...)` | Inline/callback button with auto-generated token |
@@ -176,6 +188,7 @@ Access via `self.Button`. Creates Telegram `Button` objects with the MCUB callba
 | `self.Button.request_poll(text="Poll", *, quiz=False, ...)` | Poll button |
 | `self.Button.game(text)` | Game button |
 | `self.Button.unknown(text, data, *, icon=None, style=None)` | Raw callback data button |
+| `self.Button.input(text, handler, *, placeholder="", ttl=900, allow_user=None, data=None, icon=None)` | Input button — opens inline mode, delivers typed text to handler |
 
 ```python
 async def on_color(self, event, color):
@@ -971,6 +984,7 @@ All buttons support `icon` (int) and `style` parameters:
 | `Button.text(text, *, resize=True, selective=False, icon=None)` | Text button |
 | `Button.switch(text, query="", *, same_peer=True, icon=None)` | Inline query switch |
 | `Button.copy(text="Copy", *, payload=None, icon=None)` | Copy to clipboard |
+| `Button.input(text, handler, *, placeholder="", ttl=900, allow_user=None, data=None, icon=None)` | Input button — opens inline mode, delivers typed text to handler |
 | `Button.request_phone(text="Share Phone", *, request_title=None, icon=None)` | Request phone |
 | `Button.request_location(text="Share Location", *, request_title=None, live_period=None, icon=None)` | Request location |
 | `Button.request_poll(text="Create Poll", *, request_title=None, quiz=False, icon=None)` | Request poll |
@@ -987,14 +1001,17 @@ All buttons support `icon` (int) and `style` parameters:
 
 ### Callback Buttons with Data
 
+The callback handler receives an **`InlineMessage`** object (not a raw Telethon event).
+It provides `edit()`, `answer()`, `delete()`, and access to `data`, `inline_message_id`, `chat_id`, `sender_id`.
+
 ```python
 from typing import Any
-from telethon import events
 from core.lib.loader.module_base import ModuleBase, command, callback
+from core.lib.types.inline_message import InlineMessage
 
 class MyModule(ModuleBase):
     @command("menu")
-    async def cmd_menu(self, event: events.NewMessage.Event) -> None:
+    async def cmd_menu(self, event) -> None:
         btn: Any = self.Button.inline(
             "Click Me",
             self.handle_click,
@@ -1007,18 +1024,22 @@ class MyModule(ModuleBase):
         await event.edit("Press the button!", buttons=[[btn]])
 
     @callback(ttl=300)
-    async def handle_click(self, event: events.CallbackQuery.Event, *args: Any, **kwargs: Any) -> None:
+    async def handle_click(self, call: InlineMessage, *args: Any, **kwargs: Any) -> None:
+        # call is InlineMessage — NOT a raw Telethon event
         # args = (1, 2, 3)
         # kwargs = {"key": "value"}
-        await event.answer(f"Got: {args}, {kwargs}", alert=True)
+        await call.answer(f"Got: {args}, {kwargs}", alert=True)
+        await call.edit("Updated!", buttons=...)
 ```
 
 Optional `data` handler variant:
 ```python
+from core.lib.types.inline_message import InlineMessage
+
 @callback
-async def handle_click(self, event: events.CallbackQuery.Event, data: dict[str, Any] | None = None) -> None:
-    # data is dict or None
-    await event.answer(f"Data: {data}", alert=True)
+async def handle_click(self, call: InlineMessage, data: dict[str, Any] | None = None) -> None:
+    # call.data is bytes, data is the dict from Button.inline(data=...)
+    await call.answer(f"Data: {data}", alert=True)
 ```
 
 ### Icons
@@ -1051,6 +1072,39 @@ async def cmd_buttons(self, event):
         ]
     )
 ```
+
+### Input Button (`Button.input`)
+
+Creates a button that opens the bot's inline mode and prompts the user to type text. When the user sends the inline result, the typed text is delivered to `handler`.
+
+**Handler signature:** `async def handler(self, event, text, data)`
+
+- `event` — wrapped `UpdateBotInlineSend` (via `EventProxy`); has `.user_id`, `.id`, `.query`.
+- `text` — the text the user typed.
+- `data` — passthrough value from the `data=` parameter.
+
+```python
+@command("ask")
+async def cmd_ask(self, m):
+    btn = self.Button.input(
+        "✍️ Ввести значение",
+        self.on_input,
+        placeholder="введи сюда...",
+        allow_user=m.sender_id,
+        data=m.chat_id,
+    )
+    await self.inline(m.chat_id, "Нажми кнопку:", buttons=[[btn]])
+
+async def on_input(self, event, text, data):
+    self.log.info(f"Получено: {text}, chat_id={data}")
+```
+
+How it works:
+1. Creates a `KeyboardButtonSwitchInline` with a unique temp UUID as query prefix.
+2. Registers `handler` via `kernel.register.inline_temp()`.
+3. User taps button → inline mode opens → user types text → sends inline result.
+4. Bot receives `UpdateBotInlineSend` → cache lookup → calls `handler(event, text, data)`.
+5. `allow_user` restricts which user can submit (compared directly, not via `CallbackPermissionManager`).
 
 ## Full Example
 

@@ -4,6 +4,14 @@
 
 The `InlineManager` is accessible via `kernel.inline_manager` and via `core/lib/loader/inline.py` (`InlineManager` class). It provides advanced inline form operations beyond the basic `inline_form`.
 
+All methods that return a `message` return an **`InlineMessage`** object with methods:
+- `await msg.edit(text, buttons=None, *, parse_mode="html")` — edit the message
+- `await msg.answer(text="", alert=False)` — toast/alert popup
+- `await msg.delete()` — delete the message
+- `msg.data` — callback data (`bytes`)
+- `msg.inline_message_id` — inline message ID
+- `msg.chat_id`, `msg.sender_id`
+
 ---
 
 ## `await kernel.inline_manager.inline_form(chat_id, title, fields=None, buttons=None, auto_send=True, ttl=200, reply_to=None, **kwargs)`
@@ -25,7 +33,17 @@ Perform an inline bot query and automatically click (send) the specified result.
 - `silent` (`bool`) - Send silently
 - `reply_to` (`int`, optional) - Reply-to message ID (supports topics)
 
-**Returns:** `(success: bool, message | None)`
+**Returns:** `(success: bool, message: InlineMessage | None)`
+
+The returned `InlineMessage` has: `edit(text, buttons)`, `answer(text, alert)`, `delete()`, `data`, `inline_message_id`, `chat_id`, `sender_id`.
+
+```python
+success, msg = await kernel.inline_manager.inline_query_and_click(
+    event.chat_id,
+    "search hello",
+    result_index=0,
+)
+```
 
 ```python
 success, msg = await kernel.inline_manager.inline_query_and_click(
@@ -51,7 +69,9 @@ Send an inline gallery with [\<] [\>] navigation buttons.
 - `ttl` (`int`, default `200`) - Cache TTL for navigation data
 - `escape_html` (`bool`) - Escape HTML in titles
 
-**Returns:** `(success, message)` tuple.
+**Returns:** `(success, message: InlineMessage)` tuple.
+
+The returned `InlineMessage` has: `edit(text, buttons)`, `answer(text, alert)`, `delete()`, `data`, `inline_message_id`, `chat_id`, `sender_id`.
 
 ```python
 rows = [
@@ -80,7 +100,7 @@ Send an inline list with pagination [\<] [\>] buttons.
 - `ttl` (`int`, default `200`) - Cache TTL
 - `escape_html` (`bool`) - Escape HTML in items
 
-**Returns:** `(success, message)` tuple.
+**Returns:** `(success, message: InlineMessage)` tuple.
 
 ```python
 items = ["First page content", "Second page content", "Third page content"]
@@ -104,7 +124,7 @@ Send a paginated inline text message. Splits long text into pages with [\<] [\>]
 - `ttl` (`int`, default `200`) - Cache TTL
 - `buttons` (`list`, optional) - Custom buttons to append after navigation
 
-**Returns:** `(success, message)` tuple.
+**Returns:** `(success, message: InlineMessage)` tuple.
 
 ```python
 long_text = "Very long text..." * 100

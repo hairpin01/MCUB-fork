@@ -589,9 +589,21 @@ class Kernel:
         removed = []
         dedupe_types = {"NewMessage", "MessageEdited"}
 
+        _core = getattr(self, "_core_message_handler", None)
+        _fallback = getattr(self, "_core_fallback_message_handler", None)
+
         for event_obj, callback in reversed(builders):
             event_type = type(event_obj).__name__
             if event_type not in dedupe_types:
+                continue
+            # Never dedupe core command handlers.
+            # Use == not is because bound-method objects produce a new
+            # object on each access while sharing the same func+instance.
+            if _core is not None and callback == _core:
+                seen.add(self._event_builder_signature(event_obj, callback))
+                continue
+            if _fallback is not None and callback == _fallback:
+                seen.add(self._event_builder_signature(event_obj, callback))
                 continue
             signature = self._event_builder_signature(event_obj, callback)
             if signature in seen:
@@ -633,22 +645,31 @@ class Kernel:
             )
             return
 
+        _handler = self._core_message_handler
+        _fallback = getattr(self, "_core_fallback_message_handler", None)
+
         builders = getattr(self.client, "_event_builders", []) or []
         has_new = any(
-            cb == self._core_message_handler and type(ev).__name__ == "NewMessage"
-            for ev, cb in builders
+            cb == _handler and type(ev).__name__ == "NewMessage" for ev, cb in builders
         )
         has_fallback = any(
-            cb == getattr(self, "_core_fallback_message_handler", None)
+            _fallback is not None
+            and cb == _fallback
             and type(ev).__name__ == "NewMessage"
+            for ev, cb in builders
+        )
+        has_edit = any(
+            cb == _handler and type(ev).__name__ == "MessageEdited"
             for ev, cb in builders
         )
 
         self.logger.debug(
-            "[core_handlers] ensure reason=%r has_new=%s has_fallback=%s builders=%r",
+            "[core_handlers] ensure reason=%r has_new=%s has_fallback=%s "
+            "has_edit=%s builders=%r",
             reason,
             has_new,
             has_fallback,
+            has_edit,
             self._debug_event_builders_snapshot(),
         )
 
@@ -656,28 +677,40 @@ class Kernel:
         if force_rebind:
             before_rebind = self._debug_event_builders_snapshot()
             self.logger.debug(
-                "[core_handlers] force-rebind-start reason=%r has_new=%s has_fallback=%s builders=%r",
+                "[core_handlers] force-rebind-start reason=%r "
+                "has_new=%s has_fallback=%s has_edit=%s builders=%r",
                 reason,
                 has_new,
                 has_fallback,
+                has_edit,
                 before_rebind,
             )
-            self.client.remove_event_handler(
-                self._core_message_handler, events.NewMessage()
-            )
-            if hasattr(self, "_core_fallback_message_handler"):
-                self.client.remove_event_handler(
-                    self._core_fallback_message_handler, events.NewMessage()
-                )
-            self.client.add_event_handler(
-                self._core_message_handler, events.NewMessage()
-            )
-            if hasattr(self, "_core_fallback_message_handler"):
-                self.client.add_event_handler(
-                    self._core_fallback_message_handler, events.NewMessage()
-                )
+
+            # Purge ALL existing core handler bindings from builders directly
+            # to avoid bound-method identity issues with remove_event_handler.
+            _handler = self._core_message_handler
+            _fallback = getattr(self, "_core_fallback_message_handler", None)
+            _handlers_to_purge = {_handler}
+            if _fallback is not None:
+                _handlers_to_purge.add(_fallback)
+            if hasattr(self.client, "_event_builders"):
+                self.client._event_builders = [
+                    (ev, cb)
+                    for ev, cb in self.client._event_builders
+                    if not any(cb == h for h in _handlers_to_purge)
+                ]
+
+            self.client.add_event_handler(_handler, events.NewMessage())
+            # _fallback is always the same bound method as _handler in all
+            # current kernels — only add it when they genuinely differ.
+            if _fallback is not None and _fallback is not _handler:
+                self.client.add_event_handler(_fallback, events.NewMessage())
+            self.client.add_event_handler(_handler, events.MessageEdited())
+            self.client.add_event_handler(_handler, events.MessageEdited())
+
             self.logger.debug(
-                "[core_handlers] force-rebind-done reason=%r builders_before=%r builders_after=%r",
+                "[core_handlers] force-rebind-done reason=%r "
+                "builders_before=%r builders_after=%r",
                 reason,
                 before_rebind,
                 self._debug_event_builders_snapshot(),
@@ -685,20 +718,23 @@ class Kernel:
             return
 
         if not has_new:
-            self.client.add_event_handler(
-                self._core_message_handler, events.NewMessage()
-            )
+            self.client.add_event_handler(_handler, events.NewMessage())
             self.logger.warning(
                 "[core_handlers] restored outgoing NewMessage handler reason=%r",
                 reason,
             )
 
-        if hasattr(self, "_core_fallback_message_handler") and not has_fallback:
-            self.client.add_event_handler(
-                self._core_fallback_message_handler, events.NewMessage()
-            )
+        if _fallback is not None and not has_fallback:
+            self.client.add_event_handler(_fallback, events.NewMessage())
             self.logger.warning(
                 "[core_handlers] restored fallback NewMessage handler reason=%r",
+                reason,
+            )
+
+        if not has_edit:
+            self.client.add_event_handler(_handler, events.MessageEdited())
+            self.logger.warning(
+                "[core_handlers] restored MessageEdited handler reason=%r",
                 reason,
             )
 

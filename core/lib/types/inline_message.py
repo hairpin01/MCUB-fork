@@ -92,7 +92,7 @@ class InlineMessage:
                     pass
 
         # 2. Try form_data by unit_id (populated by inline_query_and_click)
-        if self.unit_id and k is not None and self.chat_id and self.message_id:
+        if self.unit_id and k is not None and self.message_id:
             from core_inline.handlers import InlineHandlers
 
             handlers = InlineHandlers(k, getattr(k, "bot_client", None))

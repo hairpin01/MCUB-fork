@@ -69,6 +69,8 @@ class CommandDispatcher:
         Registers ``watcher_message_handler`` for both ``NewMessage``
         and ``MessageEdited`` events so that edited messages are also
         re-dispatched.
+
+        Idempotent — skips registration if the handler is already bound.
         """
         if events is None:
             self.logger.error(
@@ -81,12 +83,37 @@ class CommandDispatcher:
             self.logger.error("[dispatcher] cannot register — kernel.client is None")
             return
 
-        client.add_event_handler(self.watcher_message_handler, events.NewMessage())
-        client.add_event_handler(self.watcher_message_handler, events.MessageEdited())
+        builders = getattr(client, "_event_builders", []) or []
+
+        has_new = any(
+            cb == self.watcher_message_handler and type(ev).__name__ == "NewMessage"
+            for ev, cb in builders
+        )
+        has_edit = any(
+            cb == self.watcher_message_handler and type(ev).__name__ == "MessageEdited"
+            for ev, cb in builders
+        )
+
+        if has_new and has_edit:
+            self.logger.debug(
+                "[dispatcher] already registered — skipping (has_new=%s has_edit=%s)",
+                has_new,
+                has_edit,
+            )
+            return
+
+        if not has_new:
+            client.add_event_handler(self.watcher_message_handler, events.NewMessage())
+        if not has_edit:
+            client.add_event_handler(
+                self.watcher_message_handler, events.MessageEdited()
+            )
 
         self.logger.debug(
             "[dispatcher] registered watcher_message handler for "
-            "NewMessage + MessageEdited"
+            "NewMessage + MessageEdited (added_new=%s added_edit=%s)",
+            not has_new,
+            not has_edit,
         )
 
     async def watcher_message_handler(self, event: Event) -> None:
@@ -210,7 +237,26 @@ class CommandDispatcher:
 
         piped_enabled = self.kernel.config.get("piped", True)
         if pipeline is not None and not pipeline.is_simple() and piped_enabled:
-            return await self._execute_pipeline(event, pipeline, depth)
+            # If any segment after the first doesn't start with the command
+            # prefix, treat the whole text as a single command instead of
+            # an MCUB pipeline.  This lets shell pipelines like::
+            #
+            #   .t ls | grep home
+            #
+            # pass the entire ``ls | grep home`` as arguments to ``.t``,
+            # while ``.t ls | .wc -l`` still works as a proper MCUB
+            # pipeline.
+            if any(
+                not seg.command.startswith(active_prefix)
+                for seg in pipeline.segments[1:]
+            ):
+                self.logger.debug(
+                    "[process_command] pipeline segments lack prefix, "
+                    "treating as single command: text=%r",
+                    text,
+                )
+            else:
+                return await self._execute_pipeline(event, pipeline, depth)
 
         if "@{" in text:
             pipe_in = getattr(event, "pipe_input", None) or ""

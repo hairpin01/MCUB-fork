@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import traceback
 from html import escape
 from typing import Any
 
@@ -19,6 +20,7 @@ from telethon.tl.types import (
 import utils
 from core.lib.loader.module_base import ModuleBase, command, inline
 from core.lib.loader.module_config import Boolean, ConfigValue, ModuleConfig, String
+from core.lib.types import InlineMessage
 from utils.strings import Strings
 
 CUSTOM_EMOJI = {
@@ -405,13 +407,32 @@ class ManModule(ModuleBase):
             msg += f"\n<blockquote>{s['system_module_note']}</blockquote>"
         return msg, metadata.get("banner_url")
 
-    async def _man_close_cb(self, event: events.CallbackQuery.Event) -> None:
+    async def _man_close_cb(self, cb_event: InlineMessage) -> None:
         try:
-            await self.kernel.client.delete_messages(event.chat_id, [event.message_id])
-        except Exception:
-            await event.answer(self.strings["closed"], alert=False)
+            peer = cb_event.input_chat
+            if peer:
+                result = await self.kernel.client.delete_messages(
+                    peer, cb_event.message_id
+                )
+                affected = sum(r.pts_count for r in result)
+                if affected == 0:
+                    self.kernel.logger.error(
+                        'delete man message "%s", "%s" failed!',
+                        cb_event.chat_id,
+                        cb_event.message_id,
+                    )
+                self.kernel.logger.debug("Delete (pts_count=%s)", affected)
+            else:
+                await cb_event.edit(self.strings["closed"])
+        except Exception as e:
+            self.kernel.logger.error(
+                "Error in _man_close_cb:\n%s", traceback.format_exc()
+            )
+            self.kernel.handle_error(
+                e, message="Failed delete man message!", event=cb_event
+            )
 
-    async def _man_page_cb(self, event: events.CallbackQuery.Event, page: int) -> None:
+    async def _man_page_cb(self, cb_event: InlineMessage, page: int) -> None:
         try:
             hidden = await self._get_hidden_modules()
             msg, buttons = self._get_paginated_data(
@@ -424,20 +445,20 @@ class ManModule(ModuleBase):
                 self.config.get("man_invert_media", False) if self.config else False
             )
             try:
-                await event.edit(
+                await cb_event.edit(
                     self._add_inline_banner_preview(msg),
                     buttons=buttons,
                     parse_mode="html",
                     invert_media=invert_media,
                 )
             except TypeError:
-                await event.edit(
+                await cb_event.edit(
                     self._add_inline_banner_preview(msg),
                     buttons=buttons,
                     parse_mode="html",
                 )
         except Exception as e:
-            await event.answer(
+            await cb_event.answer(
                 f"{self.strings['page_error']}: {str(e)[:50]}", alert=True
             )
 

@@ -378,11 +378,24 @@ class ConfigManager:
         """Run the interactive first-time setup wizard.
 
         Writes config.json and calls setup() on success.
+        If config.json already exists (e.g. written by the web wizard),
+        load it silently and skip the interactive prompts.
 
         Returns:
             True when config is saved successfully.
         """
         k = self.k
+
+        # Config already written (e.g. by web setup wizard) — just load it.
+        if os.path.exists(k.CONFIG_FILE):
+            try:
+                with open(k.CONFIG_FILE, encoding="utf-8") as _f:
+                    k.config = json.load(_f)
+                k._config_loaded = True
+                return self.setup()
+            except Exception as _e:
+                print(f"Warning: could not load existing config: {_e}")
+                # fall through to interactive setup
 
         _banner = (
             "\n"

@@ -166,11 +166,18 @@ class InlineBot:
         self.logger.info("[InlineBot] starting bot setup")
         await self.kernel.db_set("kernel", "HELLO_BOT", "False")
 
-        choice = input(
-            f"{self.kernel.Colors.YELLOW}1. Auto create via BotFather\n"
-            f"2. Enter token manually\n"
-            f"Select (1/2): {self.kernel.Colors.RESET}"
-        ).strip()
+        try:
+            choice = input(
+                f"{self.kernel.Colors.YELLOW}1. Auto create via BotFather\n"
+                f"2. Enter token manually\n"
+                f"Select (1/2): {self.kernel.Colors.RESET}"
+            ).strip()
+        except EOFError:
+            self.logger.warning(
+                "[InlineBot] setup skipped: no interactive terminal. "
+                "Set inline_bot_token in config.json or use the web UI."
+            )
+            return
 
         if choice == "1":
             await self._auto_create_bot()

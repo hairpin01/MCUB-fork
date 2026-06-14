@@ -694,14 +694,11 @@ function rand(a, b) { return Math.random() * (b - a) + a; }
 
 document.querySelectorAll('.wish').forEach(el => {
   function shoot() {
-    el.style.top    = rand(10, 80) + 'px';
-    el.style.left   = rand(10, 100) + '%';
-    el.style.width  = rand(40, 200) + 'px';
-    el.style.opacity = 0;
-    el.style.animation = 'none';
-    el.offsetWidth;
-    el.style.animation = `shoot ${rand(1, 3)}s ease-in-out forwards`;
-    el.addEventListener('animationend', () => setTimeout(shoot, rand(500, 5000)), { once: true });
+    el.style.cssText = `top:${rand(10,80)|0}px;left:${rand(10,100)|0}%;width:${rand(40,200)|0}px;opacity:0;animation-name:none`;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      el.style.animation = `shoot ${rand(1, 3).toFixed(2)}s ease-in-out forwards`;
+      el.addEventListener('animationend', () => setTimeout(shoot, rand(500, 5000)|0), { once: true });
+    }));
   }
-  setTimeout(shoot, rand(0, 5000));
+  setTimeout(shoot, rand(0, 5000)|0);
 });

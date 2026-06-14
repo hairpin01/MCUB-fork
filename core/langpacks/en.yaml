@@ -39,6 +39,10 @@ core_inline:
   mcub_bot_title: MCUB Bot
   version: Version
   modules: Modules
+  bot_limit_warn1: "Delete one of your bots — you have too many, I can't create a new one."
+  bot_limit_warn2: "You didn't delete a bot. If this happens again, I'll stop trying."
+  bot_limit_give_up: "I give up. Delete a bot manually and try again."
+  bot_limit_prompt: "Deleted? [Y/n]: "
   info_description: Info userbot
   command: Command
   execute: Execute

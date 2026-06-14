@@ -44,30 +44,45 @@ html,body{
   background:radial-gradient(ellipse 60% 50% at 50% 60%, var(--glow-col) 0%, transparent 70%);
   opacity:.55;
   transition:background .5s;
+  will-change:transform;
+  transform:translateZ(0);
 }
 
 .lights{
   position:fixed;inset:0;z-index:1;pointer-events:none;overflow:hidden;
   animation:fi .8s ease forwards .5s;opacity:0;
+  will-change:opacity;
+  contain:layout style;
 }
 .light{
   position:absolute;width:3px;background:#fff;
-  top:100vh;left:0;right:0;bottom:0;margin:auto;
+  top:50%;left:0;right:0;
+  margin:auto;
   filter:blur(4px);
+  will-change:transform,opacity;
+  transform:translateY(50vh);
 }
 .x1{filter:blur(3px);animation:floatUp 4s infinite linear;}
-.x2{filter:blur(3px);animation:floatUp 7s infinite linear;transform:scale(1.6);left:15%;}
-.x3{filter:blur(3px);animation:floatUp 2.5s infinite linear;transform:scale(.5);left:-15%;}
-.x4{filter:blur(5px);animation:floatUp 4.5s infinite linear;transform:scale(1.2);left:-34%;}
-.x5{filter:blur(6px);animation:floatUp 8s infinite linear;transform:scale(2.2);left:-57%;}
-.x6{filter:blur(4px);animation:floatUp 3s infinite linear;transform:scale(.8);left:-81%;}
-.x7{filter:blur(3px);animation:floatUp 5.3s infinite linear;transform:scale(3.2);left:37%;}
-.x8{filter:blur(6px);animation:floatUp 4.7s infinite linear;transform:scale(1.7);left:62%;}
-.x9{filter:blur(3px);animation:floatUp 4.1s infinite linear;transform:scale(.9);left:85%;}
+.x2{filter:blur(3px);animation:floatUpX2 7s infinite linear;left:15%;transform:translateY(50vh) scale(1.6);}
+.x3{filter:blur(3px);animation:floatUpX3 2.5s infinite linear;left:-15%;transform:translateY(50vh) scale(.5);}
+.x4{filter:blur(5px);animation:floatUpX4 4.5s infinite linear;left:-34%;transform:translateY(50vh) scale(1.2);}
+.x5{filter:blur(6px);animation:floatUpX5 8s infinite linear;left:-57%;transform:translateY(50vh) scale(2.2);}
+.x6{filter:blur(4px);animation:floatUpX6 3s infinite linear;left:-81%;transform:translateY(50vh) scale(.8);}
+.x7{filter:blur(3px);animation:floatUpX7 5.3s infinite linear;left:37%;transform:translateY(50vh) scale(3.2);}
+.x8{filter:blur(6px);animation:floatUpX8 4.7s infinite linear;left:62%;transform:translateY(50vh) scale(1.7);}
+.x9{filter:blur(3px);animation:floatUpX9 4.1s infinite linear;left:85%;transform:translateY(50vh) scale(.9);}
 
 @keyframes floatUp{
-  0%{top:100vh;opacity:0;}25%{opacity:1;}50%{top:0;opacity:.8;}75%{opacity:1;}100%{top:-100vh;opacity:0;}
+  0%{transform:translateY(50vh);opacity:0;}25%{opacity:1;}50%{transform:translateY(-50vh);opacity:.8;}75%{opacity:1;}100%{transform:translateY(-150vh);opacity:0;}
 }
+@keyframes floatUpX2{0%{transform:translateY(50vh) scale(1.6);opacity:0;}25%{opacity:1;}50%{transform:translateY(-50vh) scale(1.6);opacity:.8;}75%{opacity:1;}100%{transform:translateY(-150vh) scale(1.6);opacity:0;}}
+@keyframes floatUpX3{0%{transform:translateY(50vh) scale(.5);opacity:0;}25%{opacity:1;}50%{transform:translateY(-50vh) scale(.5);opacity:.8;}75%{opacity:1;}100%{transform:translateY(-150vh) scale(.5);opacity:0;}}
+@keyframes floatUpX4{0%{transform:translateY(50vh) scale(1.2);opacity:0;}25%{opacity:1;}50%{transform:translateY(-50vh) scale(1.2);opacity:.8;}75%{opacity:1;}100%{transform:translateY(-150vh) scale(1.2);opacity:0;}}
+@keyframes floatUpX5{0%{transform:translateY(50vh) scale(2.2);opacity:0;}25%{opacity:1;}50%{transform:translateY(-50vh) scale(2.2);opacity:.8;}75%{opacity:1;}100%{transform:translateY(-150vh) scale(2.2);opacity:0;}}
+@keyframes floatUpX6{0%{transform:translateY(50vh) scale(.8);opacity:0;}25%{opacity:1;}50%{transform:translateY(-50vh) scale(.8);opacity:.8;}75%{opacity:1;}100%{transform:translateY(-150vh) scale(.8);opacity:0;}}
+@keyframes floatUpX7{0%{transform:translateY(50vh) scale(3.2);opacity:0;}25%{opacity:1;}50%{transform:translateY(-50vh) scale(3.2);opacity:.8;}75%{opacity:1;}100%{transform:translateY(-150vh) scale(3.2);opacity:0;}}
+@keyframes floatUpX8{0%{transform:translateY(50vh) scale(1.7);opacity:0;}25%{opacity:1;}50%{transform:translateY(-50vh) scale(1.7);opacity:.8;}75%{opacity:1;}100%{transform:translateY(-150vh) scale(1.7);opacity:0;}}
+@keyframes floatUpX9{0%{transform:translateY(50vh) scale(.9);opacity:0;}25%{opacity:1;}50%{transform:translateY(-50vh) scale(.9);opacity:.8;}75%{opacity:1;}100%{transform:translateY(-150vh) scale(.9);opacity:0;}}
 @keyframes fi{to{opacity:1;}}
 
 @keyframes slideOut {
@@ -76,7 +91,10 @@ html,body{
     transform: translateX(-18px);
   }
 }
-#sky{position:fixed;inset:0;overflow:hidden;z-index:1;pointer-events:none;}
+#sky{position:fixed;inset:0;overflow:hidden;z-index:1;pointer-events:none;
+  contain:layout style;
+  will-change:transform;
+}
 #shootingstars{
   position:fixed;overflow:hidden;
   width:150vh;height:100vw;
@@ -87,6 +105,7 @@ html,body{
   position:absolute;opacity:0;
   background:linear-gradient(-45deg,#fff,rgba(0,0,255,0));
   filter:drop-shadow(0 0 6px #fff);
+  will-change:transform,opacity;
 }
 .theme-toggle{
   position:fixed;top:18px;right:18px;z-index:999;
@@ -189,11 +208,12 @@ html,body{
   width:100%;max-width:460px;
   background:var(--card);
   border:1px solid var(--border);
-  border-radius:10px;
+  border-radius:12px;
   padding:28px 30px;
-  backdrop-filter:blur(12px);
+  backdrop-filter:blur(8px);    /* reduced from 12px */
   box-shadow:0 8px 48px -12px rgba(124,58,237,.25);
   transition:background .3s,border-color .3s;
+  contain:layout style;
 }
 .wstep h2{font-size:1.25rem;color:var(--text);margin-bottom:5px;}
 .hint{font-size:.83rem;color:var(--text-dim);line-height:1.55;margin-bottom:18px;}
@@ -210,7 +230,7 @@ input[type=text],input[type=tel],input[type=password]{
   width:100%;padding:9px 12px;
   background:var(--input-bg);
   border:1px solid var(--border);
-  border-radius:5px;
+  border-radius:12px;
   color:var(--text);
   font-family:'JetBrains Mono',monospace;font-size:.9rem;
   outline:none;
@@ -227,7 +247,7 @@ input::placeholder{color:var(--text-dim);opacity:.55;}
   background:transparent;
   color:var(--accent);
   border:1px solid var(--accent);
-  border-radius:6px;
+  border-radius:20px;           /* MD3 rounded */
   font-family:'JetBrains Mono',monospace;font-size:.88rem;
   cursor:pointer;
   transition:background .2s,color .2s,box-shadow .2s,transform .1s;
@@ -244,7 +264,7 @@ input::placeholder{color:var(--text-dim);opacity:.55;}
 .btn-ghost{
   width:100%;padding:10px 16px;
   background:transparent;color:var(--text-dim);
-  border:1px solid var(--border);border-radius:6px;
+  border:1px solid var(--border);border-radius:20px; /* MD3 rounded */
   font-family:'JetBrains Mono',monospace;font-size:.88rem;
   cursor:pointer;transition:border-color .2s,color .2s,transform .1s;
   white-space:nowrap;

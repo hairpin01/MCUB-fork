@@ -38,6 +38,10 @@ core_inline:
   mcub_bot_title: MCUB Bot
   version: Version
   modules: Modules
+  bot_limit_warn1: "Удали лишнего бота — у тебя их слишком много, я не могу создать нового."
+  bot_limit_warn2: "Ты не удалил бота. Если это повторится ещё раз, я прекращу попытки."
+  bot_limit_give_up: "Всё, я прекращаю. Удали бота вручную и попробуй снова."
+  bot_limit_prompt: "Удалил? [Y/n]: "
   info_description: Info userbot
   command: Кoмaндa
   execute: Выпoлнить

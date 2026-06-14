@@ -33,6 +33,10 @@ core_inline:
   mcub_bot_title: mcubd
   version: uname -r
   modules: packages
+  bot_limit_warn1: "Error: too many bots. rm one bot && retry"
+  bot_limit_warn2: "Warning: bot still exists. Next failure will terminate process."
+  bot_limit_give_up: "Killed. Clean up your bots manually and re-run."
+  bot_limit_prompt: "Done? [Y/n]: "
   info_description: uname -a
   command: cmd
   execute: exec()

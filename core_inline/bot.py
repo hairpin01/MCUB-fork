@@ -340,14 +340,48 @@ class InlineBot:
             self.logger.error("[InlineBot] auto setup requires kernel")
             return
 
-        result = await self.provision_bot(
-            mode="auto",
-            client=self.kernel.client,
-            configure=True,
-            persist=True,
-            interactive_username=True,
-        )
-        if not result.success:
+        from core.langpacks import get_module_strings
+
+        locale = self.kernel.config.get("language", "ru")
+        s = get_module_strings("core_inline", locale)
+
+        Y = self.kernel.Colors.YELLOW
+        R = self.kernel.Colors.RED
+        RST = self.kernel.Colors.RESET
+
+        limit_hit_count = 0
+        while True:
+            result = await self.provision_bot(
+                mode="auto",
+                client=self.kernel.client,
+                configure=True,
+                persist=True,
+                interactive_username=True,
+            )
+
+            if result.success:
+                break
+
+            if result.error == "BOT_LIMIT":
+                limit_hit_count += 1
+
+                if limit_hit_count >= 3:
+                    print(f"\n{R}{s.get('bot_limit_give_up', '')}{RST}\n")
+                    return
+
+                msg_key = "bot_limit_warn1" if limit_hit_count == 1 else "bot_limit_warn2"
+                print(f"\n{Y}{s.get(msg_key, '')}{RST}")
+
+                choice = (
+                    input(f"{Y}{s.get('bot_limit_prompt', '[Y/n]: ')}{RST}")
+                    .strip()
+                    .lower()
+                )
+                if choice != "y":
+                    self.logger.info("[InlineBot] user aborted bot limit prompt")
+                    return
+                continue
+
             self.logger.error("[InlineBot] auto setup failed: %s", result.error)
             return
 
@@ -473,7 +507,7 @@ class InlineBot:
             # not accidentally picked up.
             since_id = max(username_msg.id, newbot_msg.id)
 
-            token, actual_username = await self._wait_for_bot_token(
+            token, actual_username, err_kind = await self._wait_for_bot_token(
                 botfather=botfather,
                 expected_username=requested_username,
                 client=client,
@@ -482,8 +516,8 @@ class InlineBot:
             if not token or not actual_username:
                 return BotProvisionResult(
                     success=False,
-                    error="Could not fetch bot token from BotFather",
-                    manual_required=True,
+                    error=err_kind or "Could not fetch bot token from BotFather",
+                    manual_required=err_kind != "BOT_LIMIT",
                 )
 
             return BotProvisionResult(
@@ -525,7 +559,7 @@ class InlineBot:
         client: Any,
         timeout: int = 45,
         since_msg_id: int = 0,
-    ) -> tuple[str | None, str | None]:
+    ) -> tuple[str | None, str | None, str | None]:
         """Wait for token and username in recent BotFather replies.
 
         Args:
@@ -533,6 +567,11 @@ class InlineBot:
                 than this value.  Pass the message ID of the username sent
                 to BotFather to avoid picking up tokens from *previous* bot
                 creations in the same conversation.
+
+        Returns:
+            Tuple of (token, username, error_kind).
+            error_kind is ``"BOT_LIMIT"`` when BotFather returned a
+            too-many-bots error, ``None`` for other failures/timeouts.
         """
 
         start = time.monotonic()
@@ -561,12 +600,23 @@ class InlineBot:
                         actual_username = uname_match_at.group(1)
 
                 lowered = text.lower()
+
+                # Detect bot creation limit BEFORE generic "sorry" check so we
+                # can give the user a specific, actionable error.
+                if "can't add more than" in lowered or (
+                    "sorry" in lowered and "delete one of your bots" in lowered
+                ):
+                    self.logger.error(
+                        "[InlineBot] BotFather bot limit reached: %s", text[:240]
+                    )
+                    return None, None, "BOT_LIMIT"
+
                 if "sorry" in lowered or "invalid" in lowered or "error" in lowered:
                     self.logger.error("[InlineBot] BotFather response: %s", text[:240])
-                    return None, None
+                    return None, None, None
 
                 if token and actual_username:
-                    return token, actual_username
+                    return token, actual_username, None
 
             await asyncio.sleep(2)
 
@@ -574,7 +624,7 @@ class InlineBot:
             "[InlineBot] BotFather timeout waiting token expected_username=%s",
             expected_username,
         )
-        return None, None
+        return None, None, None
 
     async def _get_bot_identity(self, token: str) -> BotProvisionResult:
         """Validate token and extract bot username via aiogram or Bot API.

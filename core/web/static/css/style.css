@@ -414,7 +414,7 @@ label {
 }
 input[type="text"], input[type="tel"], input[type="password"] {
     width: 100%; padding: 9px 13px;
-    border: 1px solid #2a2e37; border-radius: var(--radius, 6px);
+    border: 1px solid #2a2e37; border-radius: 12px;
     font-size: .95em;
     color: #fff; background: rgba(10,10,15,0.6);
     outline: none;

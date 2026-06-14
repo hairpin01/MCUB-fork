@@ -54,33 +54,68 @@ html,body{
   background:radial-gradient(ellipse 60% 50% at 50% 60%, var(--glow-col) 0%, transparent 70%);
   opacity:.55;
   transition:background .5s;
+  will-change:transform;        /* promote to own compositor layer */
+  transform:translateZ(0);
 }
 
 .lights{
   position:fixed;inset:0;z-index:1;pointer-events:none;overflow:hidden;
   animation:fi .8s ease forwards .5s;opacity:0;
+  /* Isolate animation layer from backdrop-filter compositing */
+  will-change:opacity;
+  contain:layout style;
 }
 .light{
   position:absolute;width:3px;background:#fff;
-  top:100vh;left:0;right:0;bottom:0;margin:auto;
+  /* Use top:50% + transform so GPU can handle the movement (no layout recalc) */
+  top:50%;left:0;right:0;
+  margin:auto;
   filter:blur(4px);
+  /* Transform: start off-screen below; GPU-accelerated movement */
+  will-change:transform,opacity;
+  transform:translateY(50vh);
 }
 .x1{filter:blur(3px);animation:floatUp 4s infinite linear;}
-.x2{filter:blur(3px);animation:floatUp 7s infinite linear;transform:scale(1.6);left:15%;}
-.x3{filter:blur(3px);animation:floatUp 2.5s infinite linear;transform:scale(.5);left:-15%;}
-.x4{filter:blur(5px);animation:floatUp 4.5s infinite linear;transform:scale(1.2);left:-34%;}
-.x5{filter:blur(6px);animation:floatUp 8s infinite linear;transform:scale(2.2);left:-57%;}
-.x6{filter:blur(4px);animation:floatUp 3s infinite linear;transform:scale(.8);left:-81%;}
-.x7{filter:blur(3px);animation:floatUp 5.3s infinite linear;transform:scale(3.2);left:37%;}
-.x8{filter:blur(6px);animation:floatUp 4.7s infinite linear;transform:scale(1.7);left:62%;}
-.x9{filter:blur(3px);animation:floatUp 4.1s infinite linear;transform:scale(.9);left:85%;}
+.x2{filter:blur(3px);animation:floatUp 7s infinite linear;left:15%;transform:translateY(50vh) scale(1.6);}
+.x3{filter:blur(3px);animation:floatUp 2.5s infinite linear;left:-15%;transform:translateY(50vh) scale(.5);}
+.x4{filter:blur(5px);animation:floatUp 4.5s infinite linear;left:-34%;transform:translateY(50vh) scale(1.2);}
+.x5{filter:blur(6px);animation:floatUp 8s infinite linear;left:-57%;transform:translateY(50vh) scale(2.2);}
+.x6{filter:blur(4px);animation:floatUp 3s infinite linear;left:-81%;transform:translateY(50vh) scale(.8);}
+.x7{filter:blur(3px);animation:floatUp 5.3s infinite linear;left:37%;transform:translateY(50vh) scale(3.2);}
+.x8{filter:blur(6px);animation:floatUp 4.7s infinite linear;left:62%;transform:translateY(50vh) scale(1.7);}
+.x9{filter:blur(3px);animation:floatUp 4.1s infinite linear;left:85%;transform:translateY(50vh) scale(.9);}
 
+/* GPU-accelerated: transform instead of top (no layout recalculation per frame) */
 @keyframes floatUp{
-  0%{top:100vh;opacity:0;}25%{opacity:1;}50%{top:0;opacity:.8;}75%{opacity:1;}100%{top:-100vh;opacity:0;}
+  0%  {transform:translateY(50vh);opacity:0;}
+  25% {opacity:1;}
+  50% {transform:translateY(-50vh);opacity:.8;}
+  75% {opacity:1;}
+  100%{transform:translateY(-150vh);opacity:0;}
 }
+/* Variants with scale - keyframe must include scale to avoid override */
+.x2{animation:floatUpX2 7s infinite linear;}
+.x3{animation:floatUpX3 2.5s infinite linear;}
+.x4{animation:floatUpX4 4.5s infinite linear;}
+.x5{animation:floatUpX5 8s infinite linear;}
+.x6{animation:floatUpX6 3s infinite linear;}
+.x7{animation:floatUpX7 5.3s infinite linear;}
+.x8{animation:floatUpX8 4.7s infinite linear;}
+.x9{animation:floatUpX9 4.1s infinite linear;}
+@keyframes floatUpX2{0%{transform:translateY(50vh) scale(1.6);opacity:0;}25%{opacity:1;}50%{transform:translateY(-50vh) scale(1.6);opacity:.8;}75%{opacity:1;}100%{transform:translateY(-150vh) scale(1.6);opacity:0;}}
+@keyframes floatUpX3{0%{transform:translateY(50vh) scale(.5);opacity:0;}25%{opacity:1;}50%{transform:translateY(-50vh) scale(.5);opacity:.8;}75%{opacity:1;}100%{transform:translateY(-150vh) scale(.5);opacity:0;}}
+@keyframes floatUpX4{0%{transform:translateY(50vh) scale(1.2);opacity:0;}25%{opacity:1;}50%{transform:translateY(-50vh) scale(1.2);opacity:.8;}75%{opacity:1;}100%{transform:translateY(-150vh) scale(1.2);opacity:0;}}
+@keyframes floatUpX5{0%{transform:translateY(50vh) scale(2.2);opacity:0;}25%{opacity:1;}50%{transform:translateY(-50vh) scale(2.2);opacity:.8;}75%{opacity:1;}100%{transform:translateY(-150vh) scale(2.2);opacity:0;}}
+@keyframes floatUpX6{0%{transform:translateY(50vh) scale(.8);opacity:0;}25%{opacity:1;}50%{transform:translateY(-50vh) scale(.8);opacity:.8;}75%{opacity:1;}100%{transform:translateY(-150vh) scale(.8);opacity:0;}}
+@keyframes floatUpX7{0%{transform:translateY(50vh) scale(3.2);opacity:0;}25%{opacity:1;}50%{transform:translateY(-50vh) scale(3.2);opacity:.8;}75%{opacity:1;}100%{transform:translateY(-150vh) scale(3.2);opacity:0;}}
+@keyframes floatUpX8{0%{transform:translateY(50vh) scale(1.7);opacity:0;}25%{opacity:1;}50%{transform:translateY(-50vh) scale(1.7);opacity:.8;}75%{opacity:1;}100%{transform:translateY(-150vh) scale(1.7);opacity:0;}}
+@keyframes floatUpX9{0%{transform:translateY(50vh) scale(.9);opacity:0;}25%{opacity:1;}50%{transform:translateY(-50vh) scale(.9);opacity:.8;}75%{opacity:1;}100%{transform:translateY(-150vh) scale(.9);opacity:0;}}
 @keyframes fi{to{opacity:1;}}
 
-#sky{position:fixed;inset:0;overflow:hidden;z-index:1;pointer-events:none;}
+#sky{position:fixed;inset:0;overflow:hidden;z-index:1;pointer-events:none;
+  contain:layout style;          /* limit reflow scope */
+  will-change:transform;
+}
 #shootingstars{
   position:fixed;overflow:hidden;
   width:150vh;height:100vw;
@@ -91,6 +126,7 @@ html,body{
   position:absolute;opacity:0;
   background:linear-gradient(-45deg,#fff,rgba(0,0,255,0));
   filter:drop-shadow(0 0 6px #fff);
+  will-change:transform,opacity;
 }
 
 /* ── Top-right controls ── */
@@ -201,11 +237,12 @@ html,body{
   width:100%;max-width:460px;
   background:var(--card);
   border:1px solid var(--border);
-  border-radius:10px;
+  border-radius:12px;
   padding:28px 30px;
-  backdrop-filter:blur(12px);
+  backdrop-filter:blur(8px);    /* reduced from 12px — halves GPU compositing cost */
   box-shadow:0 8px 48px -12px rgba(124,58,237,.25);
   transition:background .3s,border-color .3s;
+  contain:layout style;
 }
 .wstep h2{font-size:1.25rem;color:var(--text);margin-bottom:5px;}
 .hint{font-size:.83rem;color:var(--text-dim);line-height:1.55;margin-bottom:18px;}
@@ -222,7 +259,7 @@ input[type=text],input[type=tel],input[type=password]{
   width:100%;padding:9px 12px;
   background:var(--input-bg);
   border:1px solid var(--border);
-  border-radius:5px;
+  border-radius:12px;
   color:var(--text);
   font-family:'JetBrains Mono',monospace;font-size:.9rem;
   outline:none;
@@ -318,13 +355,30 @@ input::placeholder{color:var(--text-dim);opacity:.55;}
 }
 
 .logo-img {
+  /* Replaced filter animation with opacity — GPU-composited, zero layout cost */
+  will-change: opacity;
   animation: logoPulse 3s ease-in-out infinite;
-  filter: drop-shadow(0 0 0px var(--accent));
 }
 @keyframes logoPulse {
-  0%,100% { filter: drop-shadow(0 0 4px var(--accent)) drop-shadow(0 0 0px var(--accent-glow)); }
-  50%      { filter: drop-shadow(0 0 14px var(--accent)) drop-shadow(0 0 8px var(--accent-glow)); }
+  0%,100% { opacity: .82; }
+  50%      { opacity: 1;   }
 }
+/* Glow halo via pseudo-element so filter stays static */
+.logo-row {
+  position: relative;
+}
+.logo-row::after {
+  content: '';
+  position: absolute;
+  inset: -24px;
+  background: radial-gradient(ellipse at center, var(--accent) 0%, transparent 70%);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 0;
+  will-change: opacity;
+  animation: logoPulse 3s ease-in-out infinite;
+}
+.logo-img { position: relative; z-index: 1; }
 
 .step.active .snum { animation: dotBounce .35s cubic-bezier(.34,1.56,.64,1); }
 @keyframes dotBounce {
@@ -342,9 +396,10 @@ input::placeholder{color:var(--text-dim);opacity:.55;}
 .sconn.filled::after { transform:scaleX(1); }
 
 .blob { animation: blobDrift 8s ease-in-out infinite alternate; }
+/* Remove background-position animation (expensive repaint) — pure transform only */
 @keyframes blobDrift {
-  from { background-position: 40% 55%; transform: scale(1); }
-  to   { background-position: 60% 65%; transform: scale(1.06); }
+  from { transform: translateZ(0) scale(1); }
+  to   { transform: translateZ(0) scale(1.08) translate(3%,2%); }
 }
 
 @keyframes inputShake {
@@ -397,6 +452,19 @@ input.shake { animation: inputShake .4s ease; border-color: rgba(239,68,68,.8) !
   .wizard-card{padding:20px 16px;}
   .slabel{display:none;}
   .sconn{min-width:16px;}
+}
+
+/* ── MD3 rounded buttons ── */
+.btn-primary { border-radius: 20px !important; }
+.btn-ghost   { border-radius: 20px !important; }
+.icon-btn    { border-radius: 50%; }  /* keep pill for icon buttons */
+
+/* ── Reduced motion: disable all heavy animations ── */
+@media (prefers-reduced-motion: reduce) {
+  .light, .blob, .wish, .logo-img,
+  .step.active .snum, .sconn::after,
+  .wizard-card, .wstep, .page { animation: none !important; transition: none !important; }
+  .wizard-card { backdrop-filter: none; }
 }
 </style>
 </head>
@@ -1444,16 +1512,15 @@ function rand(a, b) { return Math.random() * (b - a) + a; }
 
 document.querySelectorAll('.wish').forEach(el => {
   function shoot() {
-    el.style.top    = rand(10, 80) + 'px';
-    el.style.left   = rand(10, 100) + '%';
-    el.style.width  = rand(40, 200) + 'px';
-    el.style.opacity = 0;
-    el.style.animation = 'none';
-    el.offsetWidth;
-    el.style.animation = `shoot ${rand(1, 3)}s ease-in-out forwards`;
-    el.addEventListener('animationend', () => setTimeout(shoot, rand(500, 5000)), { once: true });
+    // Batch all style writes in one cssText assignment — one style recalc instead of 5
+    el.style.cssText = `top:${rand(10,80)|0}px;left:${rand(10,100)|0}%;width:${rand(40,200)|0}px;opacity:0;animation-name:none`;
+    // Double rAF: avoids el.offsetWidth forced reflow while still flushing the animation reset
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      el.style.animation = `shoot ${rand(1, 3).toFixed(2)}s ease-in-out forwards`;
+      el.addEventListener('animationend', () => setTimeout(shoot, rand(500, 5000)|0), { once: true });
+    }));
   }
-  setTimeout(shoot, rand(0, 5000));
+  setTimeout(shoot, rand(0, 5000)|0);
 });
 
 </script>

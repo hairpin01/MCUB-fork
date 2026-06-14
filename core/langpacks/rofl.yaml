@@ -35,6 +35,10 @@ buttons:
 
 core_inline:
   no_access: Ты ктo вooбщe тaкoй? Дocтyпa нeт, иди oтcюдa
+  bot_limit_warn1: "Далбаеб а ну ка удали лишнего бота, я не могу настроить твой мкуб"
+  bot_limit_warn2: "Ты не удалил бота далбаебик, если еще раз такое повториться я не буду тебе помогать."
+  bot_limit_give_up: "Всё, я устал. Сам разбирайся с ботами."
+  bot_limit_prompt: "Удалил? [Y/n]: "
   no_access_id: 'ID чyжaкa'
   mcub_bot_title: MCUB Бoт (живoй, кoe-кaк)
   version: Вepcия (нe cпpaшивaй зaчeм)

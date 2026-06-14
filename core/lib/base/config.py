@@ -463,6 +463,16 @@ class ConfigManager:
                 print(f"{_C.BRIGHT_GREEN}{_C.BOLD}✓  Config saved{_C.RESET}")
                 return True
 
+            except EOFError:
+                # stdin is not interactive (e.g. container / systemd service).
+                # Direct the user to the web setup wizard instead of crashing.
+                print(
+                    f"\n{_C.YELLOW}⚠  No interactive terminal detected.{_C.RESET}\n"
+                    "   Run MCUB with MCUB_NO_WEB=0 and open the web setup wizard\n"
+                    "   in your browser to complete first-time configuration.\n",
+                    flush=True,
+                )
+                return False
             except KeyboardInterrupt:
                 print(f"\n{_C.MUTED}Setup interrupted{_C.RESET}\n")
                 sys.exit(1)

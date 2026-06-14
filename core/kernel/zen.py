@@ -190,6 +190,7 @@ class Kernel:
         self.config: dict = {}
         self.client = None
         self.inline_bot = None
+        self.bot_client = None  # set by InlineBot.start_bot(); None until inline bot starts
         self.catalog_cache: dict = {}
         self.pending_confirmations: dict = {}
         self.shutdown_flag = False

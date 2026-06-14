@@ -653,8 +653,21 @@ class KernelLifecycleMixin:
                 finally:
                     await runner.cleanup()
                 print("\nStarting kernel…\n", flush=True)
+            except OSError as e:
+                import errno as _errno
+                if e.errno == _errno.EADDRINUSE:
+                    msg = (
+                        f"Port {port} is already in use. "
+                        "Stop the process occupying it and restart MCUB."
+                    )
+                    print(f"\n❌  {msg}\n", flush=True)
+                    self.logger.error("Setup wizard failed: %s", msg)
+                else:
+                    self.logger.error("Setup wizard failed: %s", e)
+                    await self.handle_error(e, message="Setup wizard failed")
+                return
             except Exception as e:
-                self.logger.error(f"Setup wizard failed: {e}")
+                self.logger.error("Setup wizard failed: %s", e)
                 await self.handle_error(e, message="Setup wizard failed")
                 return
 

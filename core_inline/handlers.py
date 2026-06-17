@@ -1856,6 +1856,25 @@ class InlineHandlers:
             self.kernel.logger.debug("[InlineHandlers] cmd not in inline_handlers")
             return False
 
+        if not await self._inline_manager.is_allowed(event.sender_id, command=cmd):
+            no_access_text = (
+                f"{self.EMOJI_BLOCK} <b>{self.lang['no_access']}</b>\n"
+                f"<blockquote>{self.EMOJI_SHIELD} "
+                f"{self.lang('inline_command_no_access', cmd=html.escape(cmd))}</blockquote>"
+            )
+            await self._answer_inline_query(
+                event,
+                [
+                    self._build_article_result(
+                        event,
+                        self.lang["no_access"],
+                        no_access_text,
+                    )
+                ],
+                cache_time=0,
+            )
+            return True
+
         handler = self.kernel.inline_handlers[cmd]
         self.kernel.logger.debug(
             f"[InlineHandlers] handler found: {handler}, cmd={cmd}"

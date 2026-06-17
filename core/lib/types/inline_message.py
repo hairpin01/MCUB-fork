@@ -60,6 +60,66 @@ def _serialize_inline_message_id(value: Any) -> Any:
     return f"{dc_id}:{msg_id}:{access_hash}"
 
 
+def _inline_buttons(buttons: Any) -> Any:
+    """Normalize MCUB inline button rows for Telethon edit requests."""
+    if buttons is None:
+        return None
+    from telethon import Button as TelethonButton
+
+    rows = [list(row) if isinstance(row, tuple) else row for row in buttons]
+    if hasattr(TelethonButton, "from_array"):
+        return TelethonButton.from_array(rows)
+    return rows
+
+
+def _rich_message_unsupported(error: BaseException) -> bool:
+    """Return True for Telegram peers that reject rich_message edits."""
+    return "RICH_MESSAGE_UNSUPPORTED" in str(error)
+
+
+def _build_input_rich_message(
+    *,
+    html: str | None = None,
+    markdown: str | None = None,
+    rich_message: Any = None,
+    rtl: bool | None = None,
+    noautolink: bool | None = None,
+    files: Any = None,
+) -> Any:
+    """Build a Telethon InputRichMessage object from friendly arguments."""
+    if rich_message is not None:
+        return rich_message
+
+    from telethon.tl import types
+
+    if html is not None:
+        return types.InputRichMessageHTML(
+            html=html,
+            rtl=rtl,
+            noautolink=noautolink,
+            files=files,
+        )
+    if markdown is not None:
+        return types.InputRichMessageMarkdown(
+            markdown=markdown,
+            rtl=rtl,
+            noautolink=noautolink,
+            files=files,
+        )
+    raise ValueError("Either html, markdown or rich_message must be provided")
+
+
+def _rich_fallback(
+    html: str | None, markdown: str | None, text: str
+) -> tuple[str, Any]:
+    """Return fallback text and parse mode for regular edit()."""
+    if html is not None:
+        return html, "html"
+    if markdown is not None:
+        return markdown, ()
+    return text, None
+
+
 class InlineMessage:
     """Native MCUB inline message with edit/delete/answer API.
 
@@ -229,6 +289,168 @@ class InlineMessage:
             kwargs["buttons"] = buttons
         await self._event.edit(**kwargs)
         return self
+
+    async def edit_rich(
+        self,
+        html: str | None = None,
+        buttons: Any = None,
+        *,
+        rich_message: Any = None,
+        markdown: str | None = None,
+        text: str = "",
+        fallback: bool = True,
+        fallback_text: str | None = None,
+        fallback_parse_mode: Any = None,
+        link_preview: bool = False,
+        rtl: bool | None = None,
+        noautolink: bool | None = None,
+        files: Any = None,
+        **kwargs: Any,
+    ) -> InlineMessage:
+        """Edit this inline message using Telegram rich_message formatting.
+
+        Falls back to regular ``edit()`` when Telegram rejects rich messages for
+        the current peer with ``RICH_MESSAGE_UNSUPPORTED``.
+        """
+        input_rich_message = _build_input_rich_message(
+            html=html,
+            markdown=markdown,
+            rich_message=rich_message,
+            rtl=rtl,
+            noautolink=noautolink,
+            files=files,
+        )
+
+        async def fallback_edit(inline_message_id: Any = None) -> InlineMessage:
+            nonlocal fallback_text, fallback_parse_mode
+            if fallback_text is None:
+                fallback_text, default_parse_mode = _rich_fallback(html, markdown, text)
+                if fallback_parse_mode is None:
+                    fallback_parse_mode = default_parse_mode
+
+            k = self._kernel
+            client = getattr(k, "client", None) if k is not None else None
+            if inline_message_id is not None and hasattr(client, "edit_message"):
+                await client.edit_message(
+                    _normalize_inline_message_id(inline_message_id),
+                    fallback_text,
+                    parse_mode=fallback_parse_mode,
+                    link_preview=link_preview,
+                    buttons=buttons,
+                    **kwargs,
+                )
+                return self
+
+            await self.edit(
+                fallback_text,
+                buttons=buttons,
+                parse_mode=fallback_parse_mode,
+                **kwargs,
+            )
+            return self
+
+        async def edit_inline_id(inline_message_id: Any) -> bool:
+            k = self._kernel
+            client = getattr(k, "client", None) if k is not None else None
+            if client is None:
+                return False
+
+            inline_message_id = _normalize_inline_message_id(inline_message_id)
+            if hasattr(client, "edit_rich_message"):
+                await client.edit_rich_message(
+                    inline_message_id,
+                    html,
+                    rich_message=input_rich_message,
+                    markdown=markdown,
+                    text=text,
+                    fallback=fallback,
+                    fallback_text=fallback_text,
+                    fallback_parse_mode=fallback_parse_mode,
+                    link_preview=link_preview,
+                    buttons=buttons,
+                )
+                return True
+
+            from telethon.tl.functions.messages import EditInlineBotMessageRequest
+
+            await client(
+                EditInlineBotMessageRequest(
+                    id=inline_message_id,
+                    message=text,
+                    no_webpage=not link_preview,
+                    reply_markup=_inline_buttons(buttons),
+                    rich_message=input_rich_message,
+                )
+            )
+            return True
+
+        k = self._kernel
+        if k is not None and self.chat_id and self.message_id:
+            bot_client = getattr(k, "bot_client", None)
+            if bot_client is not None and hasattr(bot_client, "edit_rich_message"):
+                try:
+                    await bot_client.edit_rich_message(
+                        self.chat_id,
+                        self.message_id,
+                        html,
+                        rich_message=input_rich_message,
+                        markdown=markdown,
+                        text=text,
+                        fallback=fallback,
+                        fallback_text=fallback_text,
+                        fallback_parse_mode=fallback_parse_mode,
+                        link_preview=link_preview,
+                        buttons=buttons,
+                    )
+                    return self
+                except Exception as error:
+                    if fallback and _rich_message_unsupported(error):
+                        return await fallback_edit()
+
+        if self.unit_id and k is not None and self.message_id:
+            from core_inline.handlers import InlineHandlers
+
+            handlers = InlineHandlers(k, getattr(k, "bot_client", None))
+            form_data = handlers.get_inline_form(self.unit_id)
+            if not form_data:
+                form_data = handlers.get_inline_form(f"msg_{self.unit_id}")
+            if form_data:
+                inline_message_id = form_data.get("inline_message_id")
+                if inline_message_id:
+                    try:
+                        if await edit_inline_id(inline_message_id):
+                            return self
+                    except Exception as error:
+                        if fallback and _rich_message_unsupported(error):
+                            return await fallback_edit(inline_message_id)
+                        raise
+
+        if self.inline_message_id is not None and k is not None:
+            try:
+                if await edit_inline_id(self.inline_message_id):
+                    return self
+            except Exception as error:
+                if fallback and _rich_message_unsupported(error):
+                    return await fallback_edit(self.inline_message_id)
+                raise
+
+        event_edit_rich = getattr(self._event, "edit_rich", None)
+        if event_edit_rich is not None:
+            await event_edit_rich(
+                html,
+                rich_message=input_rich_message,
+                markdown=markdown,
+                text=text,
+                fallback=fallback,
+                fallback_text=fallback_text,
+                fallback_parse_mode=fallback_parse_mode,
+                link_preview=link_preview,
+                buttons=buttons,
+                **kwargs,
+            )
+            return self
+
+        return await fallback_edit()
 
     async def delete(self) -> None:
         """Delete the inline message."""

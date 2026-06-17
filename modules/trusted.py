@@ -90,6 +90,7 @@ ACCESS_CATEGORIES = {
             "untrust",
             "trustlist",
             "trustcmd",
+            "inlinesec",
             "sgroup",
             "watcher",
             "timedtrusted",
@@ -320,6 +321,14 @@ def register(kernel: Kernel_type) -> None:
         return (
             list(kernel.command_handlers.keys())
             if hasattr(kernel, "command_handlers")
+            else []
+        )
+
+    def get_all_inline_commands() -> list:
+        """Get list of all registered inline command names from kernel."""
+        return (
+            list(kernel.inline_handlers.keys())
+            if hasattr(kernel, "inline_handlers")
             else []
         )
 
@@ -616,12 +625,31 @@ def register(kernel: Kernel_type) -> None:
             )
             await cb_event.edit(text, buttons=rows, parse_mode="html")
 
+        async def on_inline_cmds(cb_event, uid):
+            sender = cb_event.sender_id
+            is_admin = sender == kernel.ADMIN_ID
+            is_sgroup = await is_sgroup_member(sender) if not is_admin else True
+            if not is_admin and not is_sgroup:
+                await cb_event.answer()
+                return
+            name = await get_user_display(uid)
+            text, rows = await _build_inline_cmd_menu(uid, name, input_chat=input_chat)
+            await cb_event.edit(text, buttons=rows, parse_mode="html")
+
         rows.append(
             [
                 make_cb_button(
                     kernel,
                     s["btn_cmds"],
                     on_cmds,
+                    args=[user_id],
+                    ttl=TTL,
+                    style="primary",
+                ),
+                make_cb_button(
+                    kernel,
+                    s["btn_inline_cmds"],
+                    on_inline_cmds,
                     args=[user_id],
                     ttl=TTL,
                     style="primary",
@@ -829,6 +857,158 @@ def register(kernel: Kernel_type) -> None:
                     args=[user_id, page],
                     ttl=TTL,
                     style="primary",
+                )
+            )
+        if nav_row:
+            rows.append(nav_row)
+
+        rows.append(
+            [
+                make_cb_button(
+                    kernel,
+                    s["percmd_back"],
+                    on_back,
+                    args=[user_id],
+                    ttl=TTL,
+                    style="primary",
+                )
+            ]
+        )
+
+        return text, rows
+
+    async def _build_inline_cmd_menu(
+        user_id: int,
+        name: str,
+        page: int = 0,
+        input_chat=None,
+    ) -> tuple:
+        """Build per-inline-command menu with pagination."""
+        ITEMS_PER_PAGE = 10
+
+        async def on_toggle_inline_cmd(
+            cb_event, uid, cmd, current_allowed, current_page
+        ):
+            sender = cb_event.sender_id
+            is_admin = sender == kernel.ADMIN_ID
+            is_sgroup = await is_sgroup_member(sender) if not is_admin else True
+            if not is_admin and not is_sgroup:
+                await cb_event.answer()
+                return
+            if current_allowed:
+                await inline_manager.deny_user(uid, command=cmd)
+            else:
+                await inline_manager.allow_user(uid, command=cmd)
+            name = await get_user_display(uid)
+            text, rows = await _build_inline_cmd_menu(
+                uid, name, current_page, input_chat=input_chat
+            )
+            await cb_event.edit(text, buttons=rows, parse_mode="html")
+
+        async def on_back(cb_event, uid):
+            sender = cb_event.sender_id
+            is_admin = sender == kernel.ADMIN_ID
+            is_sgroup = await is_sgroup_member(sender) if not is_admin else True
+            if not is_admin and not is_sgroup:
+                await cb_event.answer()
+                return
+            access = await get_access(uid)
+            name = await get_user_display(uid)
+            groups = await get_sgroups()
+            g_access = {
+                gname: gdata
+                for gname, gdata in groups.items()
+                if uid in gdata.get("users", [])
+            }
+            text = _build_access_text(name, access, g_access)
+            buttons = _build_access_buttons(
+                kernel, uid, access, None, g_access, input_chat=input_chat
+            )
+            await cb_event.edit(text, buttons=buttons, parse_mode="html")
+
+        async def on_prev(cb_event, uid, current_page):
+            sender = cb_event.sender_id
+            is_admin = sender == kernel.ADMIN_ID
+            is_sgroup = await is_sgroup_member(sender) if not is_admin else True
+            if not is_admin and not is_sgroup:
+                await cb_event.answer()
+                return
+            if current_page > 0:
+                name = await get_user_display(uid)
+                text, rows = await _build_inline_cmd_menu(
+                    uid, name, current_page - 1, input_chat=input_chat
+                )
+                await cb_event.edit(text, buttons=rows, parse_mode="html")
+
+        async def on_next(cb_event, uid, current_page):
+            sender = cb_event.sender_id
+            is_admin = sender == kernel.ADMIN_ID
+            is_sgroup = await is_sgroup_member(sender) if not is_admin else True
+            if not is_admin and not is_sgroup:
+                await cb_event.answer()
+                return
+            all_cmds = get_all_inline_commands()
+            total_pages = (len(all_cmds) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
+            if current_page < total_pages - 1:
+                name = await get_user_display(uid)
+                text, rows = await _build_inline_cmd_menu(
+                    uid, name, current_page + 1, input_chat=input_chat
+                )
+                await cb_event.edit(text, buttons=rows, parse_mode="html")
+
+        TTL = 600
+        all_cmds = get_all_inline_commands()
+        total_pages = (len(all_cmds) + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE
+
+        start_idx = page * ITEMS_PER_PAGE
+        end_idx = min(start_idx + ITEMS_PER_PAGE, len(all_cmds))
+        page_cmds = all_cmds[start_idx:end_idx]
+
+        lines = [s["inlinecmd_title"].format(user=name), "<blockquote>"]
+        if not page_cmds:
+            lines.append(f"<em>{s["inlinecmd_empty"]}</em>")
+        for cmd in page_cmds:
+            allowed = await inline_manager.is_allowed(user_id, command=cmd)
+            icon = "✅" if allowed else "🚫"
+            state = s["access_allowed"] if allowed else s["access_denied"]
+            lines.append(f"{icon} <code>{cmd}</code> - <em>{state}</em>")
+        if total_pages > 1:
+            lines.append(f"<em>{page + 1}/{total_pages}</em>")
+        lines.append("</blockquote>")
+
+        text = "\n".join(lines)
+
+        rows = []
+        for cmd in page_cmds:
+            allowed_users = await inline_manager.get_allowed_users(command=cmd)
+            allowed = user_id in allowed_users or await inline_manager.is_allowed(
+                user_id, command=cmd
+            )
+            icon = "✅" if allowed else "🚫"
+            rows.append(
+                [
+                    make_cb_button(
+                        kernel,
+                        f"{icon} {cmd}",
+                        on_toggle_inline_cmd,
+                        args=[user_id, cmd, allowed, page],
+                        ttl=TTL,
+                        style="success" if allowed else "danger",
+                    )
+                ]
+            )
+
+        nav_row = []
+        if page > 0:
+            nav_row.append(
+                make_cb_button(
+                    kernel, "<", on_prev, args=[user_id, page], ttl=TTL, style="primary"
+                )
+            )
+        if page < total_pages - 1:
+            nav_row.append(
+                make_cb_button(
+                    kernel, ">", on_next, args=[user_id, page], ttl=TTL, style="primary"
                 )
             )
         if nav_row:
@@ -1348,6 +1528,60 @@ def register(kernel: Kernel_type) -> None:
         await event.edit(
             s["trustcmd_not_found"].format(cmd=cmd_name), parse_mode="html"
         )
+
+    @kernel.register.command(
+        "inlinesec",
+        doc_en="manage per-inline-command access for trusted user",
+        doc_ru="управление доступом к инлайн-командам для доверенного пользователя",
+    )
+    async def inlinesec_handler(event):
+        """Manage per-inline-command access for trusted users."""
+        user_id = await get_user_id(event)
+        if not user_id:
+            await event.edit(s["inlinesec_usage"], parse_mode="html")
+            return
+
+        trusted = await get_trusted_list()
+        if user_id not in trusted:
+            await event.edit(s["trust_not_in_list"], parse_mode="html")
+            return
+
+        args = event.text.split(maxsplit=2)
+        inline_cmds = get_all_inline_commands()
+
+        if len(args) < 3:
+            name = await get_user_display(user_id)
+            lines = [s["inlinecmd_title"].format(user=name), "<blockquote>"]
+            if not inline_cmds:
+                lines.append(f"<em>{s["inlinecmd_empty"]}</em>")
+            for cmd in inline_cmds:
+                allowed = await inline_manager.is_allowed(user_id, command=cmd)
+                icon = "✅" if allowed else "🚫"
+                lines.append(f"{icon} <code>{cmd}</code>")
+            lines.append("</blockquote>")
+            await event.edit("\n".join(lines), parse_mode="html")
+            return
+
+        cmd = args[2].strip().lower()
+        if cmd not in inline_cmds:
+            await event.edit(
+                s["inlinesec_not_found"].format(cmd=cmd),
+                parse_mode="html",
+            )
+            return
+
+        name = await get_user_display(user_id)
+        currently = await inline_manager.is_allowed(user_id, command=cmd)
+        if currently:
+            await inline_manager.deny_user(user_id, command=cmd)
+            await event.edit(
+                s["inlinesec_denied"].format(cmd=cmd, user=name), parse_mode="html"
+            )
+        else:
+            await inline_manager.allow_user(user_id, command=cmd)
+            await event.edit(
+                s["inlinesec_allowed"].format(cmd=cmd, user=name), parse_mode="html"
+            )
 
     @kernel.register.command(
         "nonickuser",

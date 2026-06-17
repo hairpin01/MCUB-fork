@@ -21,7 +21,11 @@ from pathlib import Path
 from typing import Any
 
 import aiohttp
-from telethon.errors import ChannelsTooMuchError, PeerIdInvalidError
+from telethon.errors import (
+    ChatAdminRequiredError,
+    ChannelsTooMuchError,
+    PeerIdInvalidError,
+)
 from telethon.tl.functions.channels import (
     CreateChannelRequest,
     EditPhotoRequest,
@@ -676,6 +680,7 @@ class Backup(ModuleBase):
                         )
                     ]
                 ]
+                sent_to_backup_chat = True
                 if self.kernel.is_bot_available():
                     try:
                         await self.kernel.bot_client.send_file(
@@ -685,14 +690,44 @@ class Backup(ModuleBase):
                             buttons=buttons,
                             parse_mode="html",
                         )
-                    except Exception:
+                    except Exception as bot_exc:
+                        await self._log_warning(
+                            f"Failed to send backup via bot: {bot_exc}; trying via main client"
+                        )
+                        try:
+                            await self.client.send_file(
+                                chat.id,
+                                archive_path,
+                                caption=caption,
+                                parse_mode="html",
+                            )
+                        except (ChatAdminRequiredError, PeerIdInvalidError) as send_exc:
+                            if cfg:
+                                cfg["backup_chat_id"] = None
+                                await self.save_config()
+                            await self._log_warning(
+                                f"Backup chat is not writable ({send_exc}); sending backup to Saved Messages"
+                            )
+                            await self.client.send_file(
+                                "me", archive_path, caption=caption, parse_mode="html"
+                            )
+                            sent_to_backup_chat = False
+                else:
+                    try:
                         await self.client.send_file(
                             chat.id, archive_path, caption=caption, parse_mode="html"
                         )
-                else:
-                    await self.client.send_file(
-                        chat.id, archive_path, caption=caption, parse_mode="html"
-                    )
+                    except (ChatAdminRequiredError, PeerIdInvalidError) as send_exc:
+                        if cfg:
+                            cfg["backup_chat_id"] = None
+                            await self.save_config()
+                        await self._log_warning(
+                            f"Backup chat is not writable ({send_exc}); sending backup to Saved Messages"
+                        )
+                        await self.client.send_file(
+                            "me", archive_path, caption=caption, parse_mode="html"
+                        )
+                        sent_to_backup_chat = False
 
             archive_path.unlink(missing_ok=True)
             try:
@@ -705,7 +740,7 @@ class Backup(ModuleBase):
                 cfg["backup_count"] = cfg.get("backup_count", 0) + 1
                 await self.save_config()
 
-            if max_backups > 0 and cloud_send_tg:
+            if max_backups > 0 and cloud_send_tg and sent_to_backup_chat:
                 await self.rotate_old_backups(chat.id, max_backups)
 
             return True

@@ -6,9 +6,42 @@ Tests for inline features
 """
 
 import json
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
+
+class _RichInlineClient:
+    def __init__(self, *, fail_rich: bool = False) -> None:
+        self.fail_rich = fail_rich
+        self.requests = []
+        self.edit_message_calls = []
+
+    async def __call__(self, request):
+        self.requests.append(request)
+        if self.fail_rich and getattr(request, "rich_message", None) is not None:
+            from telethon.errors import BadRequestError
+
+            raise BadRequestError(request, "RICH_MESSAGE_UNSUPPORTED", 400)
+        return object()
+
+    async def edit_message(self, *args, **kwargs):
+        self.edit_message_calls.append((args, kwargs))
+        return object()
+
+
+def _inline_event(inline_message_id: str = "1:2:3"):
+    return SimpleNamespace(
+        data=b"",
+        inline_message_id=inline_message_id,
+        chat_id=None,
+        message_id=None,
+        sender_id=None,
+        unit_id="",
+        edit=AsyncMock(),
+        answer=AsyncMock(),
+    )
 
 
 class TestInlineManager:
@@ -186,6 +219,50 @@ class TestInlineManagerEdgeCases:
 
         is_still_allowed = await inline_manager.is_allowed(1)
         assert is_still_allowed is True
+
+    @pytest.mark.asyncio
+    async def test_command_deny_overrides_global_allow(
+        self, inline_manager, mock_kernel
+    ):
+        """Test per-command deny overrides global inline access."""
+        storage = {"global": [123]}
+
+        async def db_get(_module, _key):
+            return json.dumps(storage)
+
+        async def db_set(_module, _key, value):
+            storage.clear()
+            storage.update(json.loads(value))
+            return True
+
+        mock_kernel.db_get = AsyncMock(side_effect=db_get)
+        mock_kernel.db_set = AsyncMock(side_effect=db_set)
+
+        assert await inline_manager.is_allowed(123, command="catalog") is True
+        assert await inline_manager.deny_user(123, command="catalog") is True
+        assert await inline_manager.is_allowed(123, command="catalog") is False
+        assert await inline_manager.is_allowed(123, command="cfg") is True
+
+    @pytest.mark.asyncio
+    async def test_allow_command_clears_command_deny(self, inline_manager, mock_kernel):
+        """Test allowing command removes a previous per-command deny."""
+        storage = {"global": [123], "denied": {"catalog": [123]}}
+
+        async def db_get(_module, _key):
+            return json.dumps(storage)
+
+        async def db_set(_module, _key, value):
+            storage.clear()
+            storage.update(json.loads(value))
+            return True
+
+        mock_kernel.db_get = AsyncMock(side_effect=db_get)
+        mock_kernel.db_set = AsyncMock(side_effect=db_set)
+
+        assert await inline_manager.is_allowed(123, command="catalog") is False
+        assert await inline_manager.allow_user(123, command="catalog") is True
+        assert await inline_manager.is_allowed(123, command="catalog") is True
+        assert storage.get("denied", {}).get("catalog") is None
 
     @pytest.mark.asyncio
     async def test_empty_global_list(self, inline_manager, mock_kernel):
@@ -443,3 +520,42 @@ class TestInlinePermissionsData:
         parsed = json.loads(json_str)
 
         assert len(parsed["global"]) == 1000
+
+
+class TestCoreInlineMessageRichEdit:
+    @pytest.mark.asyncio
+    async def test_edit_rich_uses_inline_rich_message_request(self):
+        from core.lib.types import InlineMessage
+        from telethon.tl.functions.messages import EditInlineBotMessageRequest
+        from telethon.tl.types import InputRichMessageHTML
+
+        client = _RichInlineClient()
+        kernel = SimpleNamespace(client=client, bot_client=None)
+        message = InlineMessage(_inline_event(), kernel=kernel)
+
+        result = await message.edit_rich("<b>hello</b>", text="plain")
+
+        assert result is message
+        assert len(client.requests) == 1
+        request = client.requests[0]
+        assert isinstance(request, EditInlineBotMessageRequest)
+        assert request.message == "plain"
+        assert isinstance(request.rich_message, InputRichMessageHTML)
+        assert request.rich_message.html == "<b>hello</b>"
+
+    @pytest.mark.asyncio
+    async def test_edit_rich_falls_back_to_edit_message_for_unsupported_peer(self):
+        from core.lib.types import InlineMessage
+
+        client = _RichInlineClient(fail_rich=True)
+        kernel = SimpleNamespace(client=client, bot_client=None)
+        message = InlineMessage(_inline_event(), kernel=kernel)
+
+        result = await message.edit_rich("<b>hello</b>")
+
+        assert result is message
+        assert len(client.requests) == 1
+        assert len(client.edit_message_calls) == 1
+        args, kwargs = client.edit_message_calls[0]
+        assert args[1] == "<b>hello</b>"
+        assert kwargs["parse_mode"] == "html"

@@ -896,6 +896,24 @@ loader:
   no_modules_catalog: 📭 No modules
   catalog_page: <tg-emoji emoji-id="5453892731094973831">❄️</tg-emoji> Page {page}/{total_pages}
   catalog_error: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Catalog loading error: {error}'
+  catalog_main_menu: '<blockquote><b>📦 MCUB Module Catalog</b>
+
+  Choose an action:</blockquote>'
+  catalog_install_btn: 🧩 Install by name/URL
+  catalog_open_btn: 🫥 Open catalog
+  catalog_install_menu: '<blockquote><b>Install from repo/URL</b></blockquote>
+<blockquote>Enter a module name from connected repositories or a direct link to a .py/.zip archive.</blockquote>'
+  catalog_install_input_btn: 🧩 Enter name or URL
+  catalog_install_placeholder: module_name or https://.../module.py
+  catalog_search_repo_btn: 🔎 Search this repo
+  catalog_search_all_btn: 🌐 Search all
+  catalog_search_placeholder: Module name...
+  catalog_search_expired: '<blockquote><b>Search expired</b></blockquote>'
+  catalog_search_empty: 📭 Nothing found
+  catalog_search_result: '<blockquote><b>Search:</b> <code>{query}</code></blockquote>
+<blockquote>{body}</blockquote>
+<blockquote>{page}</blockquote>'
+  catalog_back_btn: 🔙 Back
   dlm_repo_choice_title: '{cloud} <b>Module</b> <code>{module_name}</code> <b>found
     in multiple repositories</b>
 
@@ -903,7 +921,7 @@ loader:
   dlm_repo_choice_action_install: install it
   dlm_repo_choice_action_send: download it
   dlm_repo_choice_repo: '{index}. {repo_name}'
-  dlm_repo_choice_expired: <tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Repository selection expired
+  dlm_repo_choice_expired: 🗿 Repository selection expired
   dlm_repo_choice_cancel: Cancel
   dlm_repo_choice_cancelled: Selection cancelled
   btn_back: Back

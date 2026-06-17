@@ -820,6 +820,24 @@ loader:
   no_modules_catalog: "📭 apt-cache: no packages"
   catalog_page: <tg-emoji emoji-id="5453892731094973831">❄️</tg-emoji> pg {page}/{total_pages}
   catalog_error: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> "EFAULT: apt-cache failed: {error}"'
+  catalog_main_menu: '<blockquote><b>📦 MCUB package catalog</b>
+
+  select action:</blockquote>'
+  catalog_install_btn: 🧩 apt install name/URL
+  catalog_open_btn: 🫥 apt-cache browse
+  catalog_install_menu: '<blockquote><b>Install from repo/URL</b></blockquote>
+  <blockquote>Enter package name from configured repos or direct .py/.zip URL.</blockquote>'
+  catalog_install_input_btn: 🧩 stdin name or URL
+  catalog_install_placeholder: module_name or https://.../module.py
+  catalog_search_repo_btn: 🔎 grep this repo
+  catalog_search_all_btn: 🌐 grep all repos
+  catalog_search_placeholder: package name...
+  catalog_search_expired: '<blockquote><b>search expired</b></blockquote>'
+  catalog_search_empty: 📭 no matches
+  catalog_search_result: '<blockquote><b>Search:</b> <code>{query}</code></blockquote>
+<blockquote>{body}</blockquote>
+<blockquote>{page}</blockquote>'
+  catalog_back_btn: 🔙 cd ..
   dlm_repo_choice_title: '{cloud} <b>EEXIST: Package</b> <code>{module_name}</code> <b>found in multiple repos</b>
 
     <blockquote>Choose where to {action}</blockquote>'

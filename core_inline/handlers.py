@@ -1341,9 +1341,9 @@ class InlineHandlers:
                 )
 
                 thumb = InputWebDocument(
-                    url="https://kappa.lol/KSKoOu",
+                    url="https://x0.at/Bz-z.png",
                     size=0,
-                    mime_type="image/jpeg",
+                    mime_type="image/png",
                     attributes=[],
                 )
 
@@ -1366,9 +1366,9 @@ class InlineHandlers:
                         f" <code>{html.escape(pattern)}</code>\n\n"
                     )
                     thumb_cmd = InputWebDocument(
-                        url="https://kappa.lol/EKhGKM",
+                        url="https://x0.at/PVWT.png",
                         size=0,
-                        mime_type="image/jpeg",
+                        mime_type="image/png",
                         attributes=[],
                     )
                     results.append(
@@ -1395,11 +1395,18 @@ class InlineHandlers:
                         f"{self.EMOJI_CRYSTAL} <b>{self.lang['mcub_bot_title']}</b>\n\n"
                         f"{self.EMOJI_BLOCK} <i>{self.lang['no_commands']}</i>\n\n"
                     )
+                    thumb_not_found = InputWebDocument(
+                        url="https://x0.at/Eusf.png",
+                        size=0,
+                        mime_type="image/png",
+                        attributes=[],
+                    )
                     results.append(
                         event.builder.article(
                             self.lang["no_commands"],
                             text=no_cmds_text,
                             parse_mode="html",
+                            thumb=thumb_not_found,
                         )
                     )
 

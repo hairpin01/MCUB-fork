@@ -293,6 +293,51 @@ class InlineHandlers:
         self._cleanup_interval = 300.0
         self._form_counter = 0
 
+    def _dedup_runtime_event(self, kind: str, key: str, ttl: float = 2.0) -> bool:
+        """Return True when the same inline event was processed recently."""
+        if not key:
+            return False
+        cache_key = f"inline:{kind}:dedup:{key}"
+        cache = getattr(self.kernel, "cache", None)
+        if cache is not None:
+            if cache.get(cache_key):
+                return True
+            cache.set(cache_key, True, ttl=int(max(1, ttl)))
+            return False
+
+        now = time.time()
+        seen = getattr(self.kernel, "_inline_runtime_dedup", None)
+        if not isinstance(seen, dict):
+            seen = {}
+            self.kernel._inline_runtime_dedup = seen
+        expired = [item for item, expires_at in seen.items() if expires_at <= now]
+        for item in expired[:100]:
+            seen.pop(item, None)
+        if cache_key in seen:
+            return True
+        seen[cache_key] = now + ttl
+        return False
+
+    def _inline_query_dedup_key(self, event: Any, query: str) -> str:
+        query_obj = getattr(event, "query", None)
+        query_id = getattr(query_obj, "query_id", None) or getattr(
+            query_obj, "id", None
+        )
+        if query_id:
+            return str(query_id)
+        return f"{getattr(event, 'sender_id', 0)}:{query}"
+
+    def _callback_dedup_key(self, event: Any, data_str: str) -> str:
+        query_id = getattr(event, "query_id", None) or getattr(
+            getattr(event, "_q", None), "id", None
+        )
+        if query_id:
+            return str(query_id)
+        msg_id = getattr(event, "msg_id", None) or getattr(
+            getattr(event, "message", None), "message_id", None
+        )
+        return f"{getattr(event, 'sender_id', 0)}:{getattr(event, 'chat_instance', 0)}:{msg_id}:{data_str}"
+
     def _is_aiogram_event(self, event: Any) -> bool:
         """Detect whether event is from aiogram or Telethon.
 
@@ -1287,6 +1332,13 @@ class InlineHandlers:
         Registers Telethon event handlers that delegate to adapter methods.
         These methods can also be called directly from aiogram handlers.
         """
+        if getattr(self.bot_client, "_mcub_inline_handlers_registered", False):
+            self.kernel.logger.debug(
+                "[InlineHandlers] handlers already registered, skipping"
+            )
+            return
+        self.bot_client._mcub_inline_handlers_registered = True
+
         await self._start_cleanup_task()
 
         @self.bot_client.on(events.InlineQuery)
@@ -1312,6 +1364,13 @@ class InlineHandlers:
 
         try:
             query = event.text or ""
+            if self._dedup_runtime_event(
+                "query", self._inline_query_dedup_key(event, query)
+            ):
+                self.kernel.logger.debug(
+                    "[InlineHandlers] duplicate inline query ignored"
+                )
+                return
 
             if not await self.check_admin(event):
                 await event.answer(
@@ -1586,6 +1645,11 @@ class InlineHandlers:
                 if isinstance(event.data, bytes)
                 else str(event.data)
             )
+            if self._dedup_runtime_event(
+                "callback", self._callback_dedup_key(event, data_str)
+            ):
+                self.kernel.logger.debug("[InlineHandlers] duplicate callback ignored")
+                return
 
             # Check auto-generated callback tokens first for allow_all
             self._cleanup_inline_callback_map()
@@ -1745,18 +1809,32 @@ class InlineHandlers:
     async def _handle_mute_error(self, event, data_str: str) -> None:
         """Mute a specific error type+source for one hour."""
         try:
-            # Format: "mute_err:{error_type}:{source}"
+            # New format: "mute_err:{token}". The full source is stored in cache.
+            # Old format "mute_err:{error_type}:{source}" is kept as a fallback.
             parts = data_str.split(":", 2)
-            if len(parts) < 3:
+            if len(parts) < 2 or not parts[1]:
                 return await event.answer(
                     f"⚠️ {self.lang['invalid_format']}", alert=True
                 )
 
-            error_type, source = parts[1], parts[2]
-
             klogger = getattr(self.kernel, "klogger", None) or getattr(
                 self.kernel, "kernel_logger", None
             )
+            error_type = ""
+            source = ""
+            if len(parts) == 2 and klogger is not None:
+                target = klogger.get_mute_target(parts[1])
+                if target:
+                    error_type = target["error_type"]
+                    source = target["source"]
+            elif len(parts) >= 3:
+                error_type, source = parts[1], parts[2]
+
+            if not error_type or not source:
+                return await event.answer(
+                    f"⚠️ {self.lang['invalid_request']}", alert=True
+                )
+
             if klogger is not None:
                 klogger.mute_error(error_type, source)
             else:

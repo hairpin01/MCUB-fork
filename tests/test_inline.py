@@ -525,9 +525,10 @@ class TestInlinePermissionsData:
 class TestCoreInlineMessageRichEdit:
     @pytest.mark.asyncio
     async def test_edit_rich_uses_inline_rich_message_request(self):
-        from core.lib.types import InlineMessage
         from telethon.tl.functions.messages import EditInlineBotMessageRequest
         from telethon.tl.types import InputRichMessageHTML
+
+        from core.lib.types import InlineMessage
 
         client = _RichInlineClient()
         kernel = SimpleNamespace(client=client, bot_client=None)

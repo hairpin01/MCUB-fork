@@ -116,6 +116,16 @@ class TestModuleKernelProxy:
         with pytest.raises(CallInsecure):
             proxy.send_message = lambda x: None
 
+        with pytest.raises(CallInsecure):
+            proxy.session = object()
+
+        with pytest.raises(CallInsecure):
+            proxy._client = object()
+
+        proxy._my_attribute = "my_var"
+        assert proxy._my_attribute == "my_var"
+        assert "_my_attribute" not in vars(client)
+
         # Deleting attributes should be blocked
         with pytest.raises(CallInsecure):
             del proxy.send_message

@@ -386,7 +386,7 @@ class ConfigManager:
         """
         k = self.k
 
-        # Config already written (e.g. by web setup wizard) — just load it.
+        # Config already written (e.g. by web setup wizard) - just load it.
         if os.path.exists(k.CONFIG_FILE):
             try:
                 with open(k.CONFIG_FILE, encoding="utf-8") as _f:

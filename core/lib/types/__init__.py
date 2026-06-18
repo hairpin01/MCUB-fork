@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Шмэлькa | @hairpin01
 
 """
-MCUB type protocols — structural types for Kernel, Event, Client, Message.
+MCUB type protocols - structural types for Kernel, Event, Client, Message.
 
 Use these instead of ``Any`` in public and internal APIs::
 

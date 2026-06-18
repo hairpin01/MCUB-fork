@@ -13,11 +13,11 @@ from .decorators import (
     inline_handler,
     loop,
     on,
+    placeholder,
     raw_handler,
     tag,
     tds,
     watcher,
-    placeholder,
 )
 from .fake_package import (
     _detect_module_type,

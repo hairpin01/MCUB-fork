@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Шмэлькa | @hairpin01
 
 """
-Kernel protocol — structural type for the MCUB kernel.
+Kernel protocol - structural type for the MCUB kernel.
 
 The production ``Kernel`` class (``core.kernel.standard``) composes four
 mixins (core, handlers, pipeline, lifecycle).  User modules receive a
@@ -10,7 +10,7 @@ mixins (core, handlers, pipeline, lifecycle).  User modules receive a
 real kernel while blocking dangerous attributes.
 
 This protocol describes only what modules can **actually** access through
-the proxy — the public, non-protected surface of the real kernel.
+the proxy - the public, non-protected surface of the real kernel.
 
 Usage::
 
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
 
 class Kernel(Protocol):
-    """MCUB kernel — only the API actually visible to user modules.
+    """MCUB kernel - only the API actually visible to user modules.
 
     Blocked by ModuleKernelProxy (registries, dangerous methods) or absent
     from the real kernel are NOT included here.

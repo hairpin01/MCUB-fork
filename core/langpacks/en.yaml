@@ -39,7 +39,7 @@ core_inline:
   mcub_bot_title: MCUB Bot
   version: Version
   modules: Modules
-  bot_limit_warn1: "Delete one of your bots — you have too many, I can't create a new one."
+  bot_limit_warn1: "Delete one of your bots - you have too many, I can't create a new one."
   bot_limit_warn2: "You didn't delete a bot. If this happens again, I'll stop trying."
   bot_limit_give_up: "I give up. Delete a bot manually and try again."
   bot_limit_prompt: "Deleted? [Y/n]: "
@@ -174,10 +174,10 @@ eval:
   result_in_message: Result in message
   executed_in: Executed in
   ms: ms
-  usage_js: .js <code> — execute JavaScript (Node.js) code
-  usage_rb: .rb <code> — execute Ruby code
-  usage_go: .go <code> — execute Go code
-  usage_rs: .rs <code> — execute Rust code
+  usage_js: .js <code> - execute JavaScript (Node.js) code
+  usage_rb: .rb <code> - execute Ruby code
+  usage_go: .go <code> - execute Go code
+  usage_rs: .rs <code> - execute Rust code
   lang_js: JavaScript
   lang_rb: Ruby
   lang_go: Go

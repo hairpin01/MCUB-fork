@@ -592,6 +592,8 @@ class ClientProxy:
         # Allow __dunder__ methods through (__class__, __call__, etc.)
         if name.startswith("__") and name.endswith("__"):
             return object.__getattribute__(self, name)
+        if name.startswith("_") and name in object.__getattribute__(self, "__dict__"):
+            return object.__getattribute__(self, name)
         if not ClientProxy.is_safe_method(name):
             _raise_insecure(name, object.__getattribute__(self, "_module_name"))
         real_attr = getattr(object.__getattribute__(self, "_client"), name)
@@ -607,10 +609,16 @@ class ClientProxy:
         if name in object.__getattribute__(self, "_LOCAL_NAMES"):
             object.__setattr__(self, name, value)
             return
-        if not ClientProxy.is_safe_method(name):
-            self._deny(name)
         client = object.__getattribute__(self, "_client")
-        setattr(client, name, value)
+        if (
+            name.startswith("_")
+            and name not in object.__getattribute__(self, "_LOCAL_NAMES")
+            and name not in object.__getattribute__(self, "__dict__")
+            and name not in dir(client)
+        ):
+            object.__setattr__(self, name, value)
+            return
+        self._deny(name)
 
     def __delattr__(self, name: str) -> None:
         self._deny(name)

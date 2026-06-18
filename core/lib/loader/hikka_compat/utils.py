@@ -398,7 +398,7 @@ class _Utils:
         }
         # Determine the correct native scope.  If the callback is bound
         # to a module instance that has _module_name (set by _mcub_bind),
-        # use that — it matches the kernel key that .man looks up.
+        # use that - it matches the kernel key that .man looks up.
         module_instance = getattr(callback, "__self__", None)
         native_scope = getattr(module_instance, "_module_name", None) or cls_name
         try:

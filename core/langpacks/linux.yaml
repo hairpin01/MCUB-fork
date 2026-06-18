@@ -165,10 +165,10 @@ eval:
   result_in_message: "stdout → msg"
   executed_in: real
   ms: ms
-  usage_js: .js <src> — run JavaScript (node)
-  usage_rb: .rb <src> — run Ruby
-  usage_go: .go <src> — run Go
-  usage_rs: .rs <src> — run Rust
+  usage_js: .js <src> - run JavaScript (node)
+  usage_rb: .rb <src> - run Ruby
+  usage_go: .go <src> - run Go
+  usage_rs: .rs <src> - run Rust
   lang_js: node
   lang_rb: ruby
   lang_go: golang

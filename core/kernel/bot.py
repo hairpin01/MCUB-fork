@@ -283,7 +283,7 @@ class Kernel(_StandardKernel):
             self.logger.debug("[BotKernel] dispatcher registered")
         else:
             self.logger.error(
-                "[BotKernel] dispatcher unavailable — no core handlers registered"
+                "[BotKernel] dispatcher unavailable - no core handlers registered"
             )
 
     async def _send_early_restart_notification(self) -> None:

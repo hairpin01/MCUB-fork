@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -125,7 +124,7 @@ class InlineMessage:
 
     Wraps a Telethon CallbackQuery event (for callback handlers) or an inline
     form record (for programmatic use) so that modules always receive a uniform
-    ``InlineMessage`` — never a raw Telethon object.
+    ``InlineMessage`` - never a raw Telethon object.
 
     Usage in a callback handler::
 
@@ -522,10 +521,7 @@ def _make_form_edit(
         parse_mode: str = "html",
         **kwargs,
     ):
-        from core_inline.handlers import InlineHandlers
-
         kwargs.setdefault("parse_mode", parse_mode)
-        handlers = InlineHandlers(kernel, getattr(kernel, "bot_client", None))
         update = dict(form_data)
         if text is not None:
             update["text"] = text

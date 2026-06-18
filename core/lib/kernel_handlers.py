@@ -171,7 +171,7 @@ class KernelHandlersMixin:
 
             self.client.add_event_handler(_handler, events.NewMessage())
             # _fallback is always the same bound method as _handler in all
-            # current kernels — only add it when they genuinely differ.
+            # current kernels - only add it when they genuinely differ.
             if _fallback is not None and _fallback != _handler:
                 self.client.add_event_handler(_fallback, events.NewMessage())
             self.client.add_event_handler(_handler, events.MessageEdited())

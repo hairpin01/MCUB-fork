@@ -211,7 +211,7 @@ class DatabaseManager:
             # reduces contention during startup when many modules write configs
             # simultaneously.
             await self.conn.execute("PRAGMA journal_mode = WAL")
-            # NORMAL syncs only at checkpoints, not every commit — safe for
+            # NORMAL syncs only at checkpoints, not every commit - safe for
             # a userbot where occasional data loss on power-failure is acceptable.
             await self.conn.execute("PRAGMA synchronous = NORMAL")
             # 8 MB page cache (negative value = kibibytes).

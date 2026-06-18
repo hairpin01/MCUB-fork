@@ -185,7 +185,7 @@ class KernelLifecycleMixin:
             self.dispatcher.register()
         else:
             self.logger.error(
-                "[core_handlers] dispatcher unavailable — no core handlers registered"
+                "[core_handlers] dispatcher unavailable - no core handlers registered"
             )
         self.logger.debug(
             "[core_handlers] registered outgoing handlers builders=%r",
@@ -655,6 +655,7 @@ class KernelLifecycleMixin:
                 print("\nStarting kernel…\n", flush=True)
             except OSError as e:
                 import errno as _errno
+
                 if e.errno == _errno.EADDRINUSE:
                     msg = (
                         f"Port {port} is already in use. "
@@ -687,7 +688,7 @@ class KernelLifecycleMixin:
         """Proxy to ``dispatcher.process_command``."""
         if self.dispatcher is not None:
             return await self.dispatcher.process_command(event, depth)
-        self.logger.error("dispatcher unavailable — cannot process command")
+        self.logger.error("dispatcher unavailable - cannot process command")
         return False
 
     def get_prefix_for_sender(self, sender_id: Any) -> str:

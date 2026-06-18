@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Шмэлькa | @hairpin01
 
 """
-Register protocol — structural type for ``kernel.register``.
+Register protocol - structural type for ``kernel.register``.
 
 Covers every public method documented in ``doc/registration/``.
 """
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 
 class Register(Protocol):
-    """Registration API — all public methods documented for module developers."""
+    """Registration API - all public methods documented for module developers."""
 
     def method(self, func: Callable | None = None) -> Callable: ...
     def event(

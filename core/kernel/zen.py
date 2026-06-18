@@ -190,7 +190,9 @@ class Kernel:
         self.config: dict = {}
         self.client = None
         self.inline_bot = None
-        self.bot_client = None  # set by InlineBot.start_bot(); None until inline bot starts
+        self.bot_client = (
+            None  # set by InlineBot.start_bot(); None until inline bot starts
+        )
         self.catalog_cache: dict = {}
         self.pending_confirmations: dict = {}
         self.shutdown_flag = False
@@ -703,7 +705,7 @@ class Kernel:
 
             self.client.add_event_handler(_handler, events.NewMessage())
             # _fallback is always the same bound method as _handler in all
-            # current kernels — only add it when they genuinely differ.
+            # current kernels - only add it when they genuinely differ.
             if _fallback is not None and _fallback is not _handler:
                 self.client.add_event_handler(_fallback, events.NewMessage())
             self.client.add_event_handler(_handler, events.MessageEdited())
@@ -1114,7 +1116,7 @@ class Kernel:
         """Proxy to ``dispatcher.process_command``."""
         if self.dispatcher is not None:
             return await self.dispatcher.process_command(event, depth)
-        self.logger.error("dispatcher unavailable — cannot process command")
+        self.logger.error("dispatcher unavailable - cannot process command")
         return False
 
     def get_prefix_for_sender(self, sender_id):
@@ -1339,7 +1341,7 @@ class Kernel:
             )
         else:
             self.logger.error(
-                "[core_handlers] dispatcher unavailable — no core handlers registered"
+                "[core_handlers] dispatcher unavailable - no core handlers registered"
             )
 
         await self._notify_early_restart()

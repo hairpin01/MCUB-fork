@@ -1416,11 +1416,11 @@ class InlineProxy:
 
         Two transforms are applied to each callback button:
 
-        1. Remove the callable ``callback`` key — MCUB's inline_form re-generates
+        1. Remove the callable ``callback`` key - MCUB's inline_form re-generates
            its own random token for any button that carries a callable, overwriting
            hikka_compat tokens already registered in ``inline_callback_map``.
 
-        2. Rename ``callback_data`` → ``data`` — MCUB's button-building helpers
+        2. Rename ``callback_data`` → ``data`` - MCUB's button-building helpers
            (e.g. InlineManager._format_telethon_buttons) read spec.get("data"),
            not ``callback_data``.  Without this rename the token is silently
            dropped and Telethon-MCUB falls back to using the button text as
@@ -2276,7 +2276,7 @@ class InlineProxy:
         # Snapshot new callback tokens so we can roll back if edit fails.
         # _prepare_markup already registered new tokens in inline_callback_map;
         # if the actual Telegram edit fails the old buttons are still shown, so
-        # those new tokens would never be triggered — leaving the map poisoned.
+        # those new tokens would never be triggered - leaving the map poisoned.
         cb_map = getattr(self._kernel, "inline_callback_map", None) or {}
         if reply_markup is not None:
             # Keys registered during this _prepare_markup call all share the
@@ -2314,7 +2314,7 @@ class InlineProxy:
         if not edited:
             client = getattr(self._kernel, "client", None)
             if client is None or not hasattr(client, "edit_message"):
-                # Both clients unavailable — roll back new token registrations
+                # Both clients unavailable - roll back new token registrations
                 # so the existing buttons still work.
                 for k in new_cb_keys:
                     cb_map.pop(k, None)
@@ -2331,7 +2331,7 @@ class InlineProxy:
                 edited = True
             except Exception as e:
                 self._kernel.logger.debug(f"[hikka_compat] _edit_unit failed: {e}")
-                # Roll back new token registrations — edit failed, old buttons
+                # Roll back new token registrations - edit failed, old buttons
                 # are still shown in Telegram with the previous callback_data.
                 for k in new_cb_keys:
                     cb_map.pop(k, None)
@@ -2849,14 +2849,13 @@ class Module:
             kernel.client.dispatcher.security = _CompatSecurityManager(self.client)
 
         # Store the kernel module key so that register_placeholder can
-        # use it as the native scope — matching what .man looks up.
+        # use it as the native scope - matching what .man looks up.
         self._module_name = module_name or type(self).__name__
 
         # Auto-register methods decorated with @loader.placeholder.
         try:
             from utils.custom_placeholders import (
                 register_decorated_placeholders as _rdp,
-                register_placeholder as _nreg,
             )
 
             _rdp(self._module_name, self)

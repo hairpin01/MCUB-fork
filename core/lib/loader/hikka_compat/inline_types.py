@@ -83,7 +83,7 @@ class CompatCallbackQuery:
             kwargs["parse_mode"] = "html"
 
         _normalize_edit_reply_markup(kwargs, self._inline_proxy)
-        # Use the raw Telethon event.edit() — it carries the already-resolved
+        # Use the raw Telethon event.edit() - it carries the already-resolved
         # InputPeer from the callback update, bypassing entity-resolution
         # failures that affect bot_client.edit_message(chat_id, msg_id).
         return await self._event.edit(*args, **kwargs)
@@ -328,7 +328,7 @@ class InlineMessage:
                 logger.error("InlineMessage event.edit failed: %s", e)
                 return self
 
-        # Fallback path — used when no stored event is available
+        # Fallback path - used when no stored event is available
         # (e.g. InlineMessage created outside a callback handler).
         manager = self.inline_manager
         edit_unit = getattr(manager, "_edit_unit", None) if manager else None
@@ -525,8 +525,8 @@ class InlineCall:
         if self.original_call is not None and hasattr(self.original_call, "answer"):
             try:
                 await self.original_call.answer(
-                    message=text,
-                    alert=show_alert,
+                    text=text,
+                    show_alert=show_alert,
                     url=url,
                 )
                 self._answered = True

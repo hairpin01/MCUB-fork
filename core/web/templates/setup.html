@@ -239,7 +239,7 @@ html,body{
   border:1px solid var(--border);
   border-radius:12px;
   padding:28px 30px;
-  backdrop-filter:blur(8px);    /* reduced from 12px — halves GPU compositing cost */
+  backdrop-filter:blur(8px);    /* reduced from 12px - halves GPU compositing cost */
   box-shadow:0 8px 48px -12px rgba(124,58,237,.25);
   transition:background .3s,border-color .3s;
   contain:layout style;
@@ -355,7 +355,7 @@ input::placeholder{color:var(--text-dim);opacity:.55;}
 }
 
 .logo-img {
-  /* Replaced filter animation with opacity — GPU-composited, zero layout cost */
+  /* Replaced filter animation with opacity - GPU-composited, zero layout cost */
   will-change: opacity;
   animation: logoPulse 3s ease-in-out infinite;
 }
@@ -396,7 +396,7 @@ input::placeholder{color:var(--text-dim);opacity:.55;}
 .sconn.filled::after { transform:scaleX(1); }
 
 .blob { animation: blobDrift 8s ease-in-out infinite alternate; }
-/* Remove background-position animation (expensive repaint) — pure transform only */
+/* Remove background-position animation (expensive repaint) - pure transform only */
 @keyframes blobDrift {
   from { transform: translateZ(0) scale(1); }
   to   { transform: translateZ(0) scale(1.08) translate(3%,2%); }
@@ -1512,7 +1512,7 @@ function rand(a, b) { return Math.random() * (b - a) + a; }
 
 document.querySelectorAll('.wish').forEach(el => {
   function shoot() {
-    // Batch all style writes in one cssText assignment — one style recalc instead of 5
+    // Batch all style writes in one cssText assignment - one style recalc instead of 5
     el.style.cssText = `top:${rand(10,80)|0}px;left:${rand(10,100)|0}%;width:${rand(40,200)|0}px;opacity:0;animation-name:none`;
     // Double rAF: avoids el.offsetWidth forced reflow while still flushing the animation reset
     requestAnimationFrame(() => requestAnimationFrame(() => {

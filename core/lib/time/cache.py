@@ -22,7 +22,7 @@ class TTLCache:
     Expired items are automatically removed upon access.
 
     Performance notes (v1.1.0):
-    - ``_cleanup_expired`` was O(n) — now uses a min-heap of (expire_time, key)
+    - ``_cleanup_expired`` was O(n) - now uses a min-heap of (expire_time, key)
       so expiry sweeps are O(k log n) where k = number of expired keys.
     - ``get`` is O(1) average; ``set`` is O(log n) amortised due to heap push.
 
@@ -43,7 +43,7 @@ class TTLCache:
         self.cache: CacheType = OrderedDict()
         self.max_size = max_size
         self.ttl = ttl
-        # Min-heap of (expire_time, key) — lets _cleanup_expired stop early
+        # Min-heap of (expire_time, key) - lets _cleanup_expired stop early
         # once it hits a non-expired entry instead of scanning the whole dict.
         # Entries may be stale (key already evicted/updated); we skip them.
         self._expiry_heap: list[tuple[float, Any]] = []
@@ -95,7 +95,7 @@ class TTLCache:
             self.cache.move_to_end(key)
             return value
 
-        # Expired — evict lazily.
+        # Expired - evict lazily.
         del self.cache[key]
         return None
 
@@ -112,7 +112,7 @@ class TTLCache:
         """Remove expired items using the min-heap for early termination.
 
         Complexity: O(k log n) where k = expired entries found, vs O(n) before.
-        Stops as soon as the heap top is in the future — no need to scan the
+        Stops as soon as the heap top is in the future - no need to scan the
         entire cache.
         """
         now = time.time()

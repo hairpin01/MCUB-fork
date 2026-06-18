@@ -2,7 +2,7 @@
 
 ← [Index](../../API_DOC.md)
 
-MCUB provides structural type protocols (`typing.Protocol`) for the core objects that modules interact with — `Kernel`, `Event`, `Message`, `Client`, and `Register`.
+MCUB provides structural type protocols (`typing.Protocol`) for the core objects that modules interact with - `Kernel`, `Event`, `Message`, `Client`, and `Register`.
 
 Using these types instead of `Any` gives you **IDE autocompletion**, **static type checking** (mypy / pyright), and **self-documenting code**.
 
@@ -198,7 +198,7 @@ async def send(c: Client) -> None:
 
 ### `Register`
 
-Registration API — used to declare commands, watchers, loops, events, lifecycle hooks, and inline handlers.
+Registration API - used to declare commands, watchers, loops, events, lifecycle hooks, and inline handlers.
 
 ```python
 from core.lib.types import Register
@@ -246,7 +246,7 @@ mypy --strict my_module.py
 pyright my_module.py
 ```
 
-Protocols use structural subtyping — your code doesn't need to import or inherit from the protocol classes at runtime. The annotations are only used by type checkers and IDEs.
+Protocols use structural subtyping - your code doesn't need to import or inherit from the protocol classes at runtime. The annotations are only used by type checkers and IDEs.
 
 ```python
 # Runtime: no overhead

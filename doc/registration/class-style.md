@@ -188,7 +188,7 @@ Callback handlers receive an **`InlineMessage`** object (with `edit()`, `answer(
 | `self.Button.request_poll(text="Poll", *, quiz=False, ...)` | Poll button |
 | `self.Button.game(text)` | Game button |
 | `self.Button.unknown(text, data, *, icon=None, style=None)` | Raw callback data button |
-| `self.Button.input(text, handler, *, placeholder="", ttl=900, allow_user=None, data=None, icon=None)` | Input button — opens inline mode, delivers typed text to handler |
+| `self.Button.input(text, handler, *, placeholder="", ttl=900, allow_user=None, data=None, icon=None)` | Input button - opens inline mode, delivers typed text to handler |
 
 ```python
 async def on_color(self, event, color):
@@ -984,7 +984,7 @@ All buttons support `icon` (int) and `style` parameters:
 | `Button.text(text, *, resize=True, selective=False, icon=None)` | Text button |
 | `Button.switch(text, query="", *, same_peer=True, icon=None)` | Inline query switch |
 | `Button.copy(text="Copy", *, payload=None, icon=None)` | Copy to clipboard |
-| `Button.input(text, handler, *, placeholder="", ttl=900, allow_user=None, data=None, icon=None)` | Input button — opens inline mode, delivers typed text to handler |
+| `Button.input(text, handler, *, placeholder="", ttl=900, allow_user=None, data=None, icon=None)` | Input button - opens inline mode, delivers typed text to handler |
 | `Button.request_phone(text="Share Phone", *, request_title=None, icon=None)` | Request phone |
 | `Button.request_location(text="Share Location", *, request_title=None, live_period=None, icon=None)` | Request location |
 | `Button.request_poll(text="Create Poll", *, request_title=None, quiz=False, icon=None)` | Request poll |
@@ -1025,7 +1025,7 @@ class MyModule(ModuleBase):
 
     @callback(ttl=300)
     async def handle_click(self, call: InlineMessage, *args: Any, **kwargs: Any) -> None:
-        # call is InlineMessage — NOT a raw Telethon event
+        # call is InlineMessage - NOT a raw Telethon event
         # args = (1, 2, 3)
         # kwargs = {"key": "value"}
         await call.answer(f"Got: {args}, {kwargs}", alert=True)
@@ -1079,24 +1079,24 @@ Creates a button that opens the bot's inline mode and prompts the user to type t
 
 **Handler signature:** `async def handler(self, event, text, data)`
 
-- `event` — wrapped `UpdateBotInlineSend` (via `EventProxy`); has `.user_id`, `.id`, `.query`.
-- `text` — the text the user typed.
-- `data` — passthrough value from the `data=` parameter.
+- `event` - wrapped `UpdateBotInlineSend` (via `EventProxy`); has `.user_id`, `.id`, `.query`.
+- `text` - the text the user typed.
+- `data` - passthrough value from the `data=` parameter.
 
 ```python
 @command("ask")
 async def cmd_ask(self, m):
     btn = self.Button.input(
-        "✍️ Ввести значение",
+        "✍️ Ввecти знaчeниe",
         self.on_input,
-        placeholder="введи сюда...",
+        placeholder="ввeди cюдa...",
         allow_user=m.sender_id,
         data=m.chat_id,
     )
-    await self.inline(m.chat_id, "Нажми кнопку:", buttons=[[btn]])
+    await self.inline(m.chat_id, "Haжми кнoпкy:", buttons=[[btn]])
 
 async def on_input(self, event, text, data):
-    self.log.info(f"Получено: {text}, chat_id={data}")
+    self.log.info(f"Пoлyчeнo: {text}, chat_id={data}")
 ```
 
 How it works:

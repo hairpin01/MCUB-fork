@@ -1015,7 +1015,7 @@ class TesterMod(ModuleBase):
                     else:
                         lines.append(f"- {module_name}_config : not cached")
                 else:
-                    lines.append(f"- entries    : 0 (disabled)")
+                    lines.append("- entries    : 0 (disabled)")
         except Exception:
             pass
         return lines

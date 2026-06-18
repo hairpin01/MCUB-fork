@@ -7,7 +7,6 @@ import asyncio
 import html
 import io
 import os
-import shutil
 import tempfile
 import time
 import traceback
@@ -61,7 +60,7 @@ class EvalModule(ModuleBase):
 
         start_time = time.time()
 
-        # Use a per-invocation buffer.  Do NOT replace sys.stdout globally —
+        # Use a per-invocation buffer.  Do NOT replace sys.stdout globally -
         # that is not concurrency-safe: two concurrent .py commands would share
         # or swap each other's buffers, and an unhandled exception before the
         # restore line would permanently silence all logging.
@@ -225,7 +224,7 @@ class EvalModule(ModuleBase):
                     _, cerr = await asyncio.wait_for(
                         compile_proc.communicate(), timeout=timeout
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     compile_proc.kill()
                     await compile_proc.wait()
                     elapsed = round((time.time() - start) * 1000, 2)
@@ -262,7 +261,7 @@ class EvalModule(ModuleBase):
                 stdout, stderr = await asyncio.wait_for(
                     proc.communicate(), timeout=timeout
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 proc.kill()
                 await proc.wait()
                 elapsed = round((time.time() - start) * 1000, 2)

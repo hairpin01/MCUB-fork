@@ -6,7 +6,6 @@ from __future__ import annotations
 # author: @hairpin00
 # version: 1.0.0
 # description: Language translations module for MCUB
-
 from telethon import events
 
 from core.lib.loader.module_base import ModuleBase, callback, command
@@ -106,7 +105,7 @@ class TranslationsModule(ModuleBase):
 
     @command(
         "reloadlang",
-        doc_ru="пepeзaгpyзить языковыe пaкeты c диcкa",
+        doc_ru="пepeзaгpyзить языкoвыe пaкeты c диcкa",
         doc_en="reload language packs from disk",
     )
     async def cmd_reloadlang(self, event: events.NewMessage.Event) -> None:

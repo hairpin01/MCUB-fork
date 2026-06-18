@@ -10,10 +10,10 @@ import json
 import traceback
 
 from core.langpacks import get_all_module_strings
+from core.lib.types import Kernel as Kernel_type
 from core_inline.api.inline import make_cb_button
 from core_inline.lib.manager import InlineManager
 from utils.strings import Strings
-from core.lib.types import Kernel as Kernel_type
 
 ACCESS_CATEGORIES = {
     "modules": {
@@ -481,7 +481,7 @@ def register(kernel: Kernel_type) -> None:
             new_text = _build_access_text(name, new_access, g_access)
             new_buttons = _build_access_buttons(kernel, uid, new_access, None, g_access)
             try:
-                await event.edit(new_text, buttons=new_buttons, parse_mode="html")
+                await сb_event.edit(new_text, buttons=new_buttons, parse_mode="html")
             except Exception:
                 pass
 
@@ -966,7 +966,7 @@ def register(kernel: Kernel_type) -> None:
 
         lines = [s["inlinecmd_title"].format(user=name), "<blockquote>"]
         if not page_cmds:
-            lines.append(f"<em>{s["inlinecmd_empty"]}</em>")
+            lines.append(s["inlinecmd_empty"])
         for cmd in page_cmds:
             allowed = await inline_manager.is_allowed(user_id, command=cmd)
             icon = "✅" if allowed else "🚫"
@@ -1532,7 +1532,7 @@ def register(kernel: Kernel_type) -> None:
     @kernel.register.command(
         "inlinesec",
         doc_en="manage per-inline-command access for trusted user",
-        doc_ru="управление доступом к инлайн-командам для доверенного пользователя",
+        doc_ru="yпpaвлeниe дocтyпoм к инлaйн-кoмaндaм для дoвepeннoгo пoльзoвaтeля",
     )
     async def inlinesec_handler(event):
         """Manage per-inline-command access for trusted users."""
@@ -1553,7 +1553,7 @@ def register(kernel: Kernel_type) -> None:
             name = await get_user_display(user_id)
             lines = [s["inlinecmd_title"].format(user=name), "<blockquote>"]
             if not inline_cmds:
-                lines.append(f"<em>{s["inlinecmd_empty"]}</em>")
+                lines.append(f"<em>{s['inlinecmd_empty']}</em>")
             for cmd in inline_cmds:
                 allowed = await inline_manager.is_allowed(user_id, command=cmd)
                 icon = "✅" if allowed else "🚫"

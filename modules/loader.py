@@ -1240,7 +1240,7 @@ class Loader(ModuleBase):
             )
 
             # file_path, old_file_backup, old_file_backup_path are already
-            # initialized before the try block — only override when needed.
+            # initialized before the try block - only override when needed.
 
             new_class_name = metadata.get("class_name")
             for loaded_name, loaded_mod in list(self.kernel.loaded_modules.items()):
@@ -1338,7 +1338,7 @@ class Loader(ModuleBase):
                     module_name, force=force_unload
                 )
 
-            # Resolve # name: from code — the URL / repo filename may differ
+            # Resolve # name: from code - the URL / repo filename may differ
             # from the module's canonical name in its header.
             post_meta_name = None
             try:

@@ -3,10 +3,8 @@
 # name: config
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import html
-import traceback
 
 # author: @Hairpin00
 # version: 1.3.0
@@ -14,6 +12,7 @@ import traceback
 import json
 import re
 import time
+import traceback
 import uuid
 
 from telethon import Button, events, types
@@ -2219,10 +2218,10 @@ def register(kernel):
                             display_new = safe
                         else:
                             display_old = (
-                                html.escape(str(old_val)[:40]) if old_val != "" else "—"
+                                html.escape(str(old_val)[:40]) if old_val != "" else "-"
                             )
                             display_new = (
-                                html.escape(str(new_val)[:40]) if new_val != "" else "—"
+                                html.escape(str(new_val)[:40]) if new_val != "" else "-"
                             )
                         await saved.edit(
                             t(
@@ -2814,8 +2813,6 @@ def register(kernel):
                 await cb_event.answer(t("changed_to", value=new_value), alert=False)
                 await show_module_key_view(cb_event, module_name, key, page)
             except Exception as e:
-                import traceback
-
                 kernel.logger.debug(f"Choice error: {e}\n{traceback.format_exc()}")
                 await cb_event.answer(str(e)[:50], alert=True)
 

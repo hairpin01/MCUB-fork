@@ -22,8 +22,8 @@ from typing import Any
 
 import aiohttp
 from telethon.errors import (
-    ChatAdminRequiredError,
     ChannelsTooMuchError,
+    ChatAdminRequiredError,
     PeerIdInvalidError,
 )
 from telethon.tl.functions.channels import (
@@ -1169,8 +1169,8 @@ class Backup(ModuleBase):
         reply = await event.get_reply_message()
         # Delete the command message immediately so the password is not left
         # visible in chat history (other sessions / Telegram cloud storage).
-        # не удобно пиздец
-        # убрано нахуй
+        # нe yдoбнo пиздeц
+        # yбpaнo нaxyй
 
         await self._restore_from_backup_message(reply, event, password=password)
 

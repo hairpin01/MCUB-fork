@@ -33,7 +33,7 @@ CUSTOM_EMOJI = {
     "confused": '<tg-emoji emoji-id="5408830797513784663">❓</tg-emoji>',
     "map": '<tg-emoji emoji-id="5332373172689860602">🚫</tg-emoji>',
     "tot": '<tg-emoji emoji-id="5404696015318054899">▪️</tg-emoji>',
-    "eye_off": '<tg-emoji emoji-id="5228686859663585439">👁‍🗨</tg-emoji>',
+    "eye_off": '<tg-emoji emoji-id="5228686859663585439">👁🗨</tg-emoji>',
 }
 
 ZERO_WIDTH_CHAR = "\u2060"

@@ -1417,6 +1417,10 @@ class InlineHandlers:
                 )
 
                 for pattern, handler in self.kernel.inline_handlers.items():
+                    if callable(self._inline_manager):
+                        self._inline_manager.is_allowed(event.sender_id, pattern)
+                        continue
+
                     if len(results) >= 50:
                         break
                     docstring = getattr(handler, "__doc__", None) or "кoмaндa"
@@ -1490,10 +1494,20 @@ class InlineHandlers:
                         if hasattr(builder, "id"):
                             builder.id = query_cmd
                     else:
+                        thumb_paper = InputWebDocument(
+                            url="https://x0.at/GNEy.png",
+                            size=0,
+                            mime_type="image/png",
+                            attributes=[],
+                        )
                         builder = event.builder.article(
                             id=query_cmd,
-                            title="Do not delete ID!",
-                            text="I send a request to the module...",
+                            title="💣 Do not delete ID!",
+                            description="✏️ Write the meaning...",
+                            text="🎲 <strong>I send a request to the module...</strong>\n"
+                            "🗿 <em>The message will not be deleted on its own....</em>",
+                            parse_mode="html",
+                            thumb=thumb_paper,
                         )
 
                     self.kernel.logger.debug(

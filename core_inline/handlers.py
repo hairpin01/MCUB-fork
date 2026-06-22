@@ -527,11 +527,22 @@ class InlineHandlers:
                     e,
                 )
 
+    def _get_bot_client_on(self):
+        try:
+            on = getattr(self.bot_client, "on")
+        except Exception as e:
+            self.kernel.logger.debug(
+                "[InlineHandlers] bot_client.on unavailable: %s", e
+            )
+            return None
+        return on if callable(on) else None
+
     def _setup_inline_send_handler(self) -> None:
         # Only register with Telethon clients (which have .on() method).
         # Aiogram Bot objects do not have .on() - they use Dispatcher routers,
         # and there is no aiogram equivalent for UpdateBotInlineSend.
-        if not hasattr(self.bot_client, "on"):
+        on = self._get_bot_client_on()
+        if on is None:
             self.kernel.logger.debug(
                 "[InlineHandlers] bot_client is not a Telethon client, "
                 "skipping inline send handler"
@@ -548,7 +559,7 @@ class InlineHandlers:
             return
         self.bot_client._mcub_inline_send_handler_registered = True
 
-        @self.bot_client.on(events.Raw)
+        @on(events.Raw)
         async def inline_send_handler(event):
             from telethon.tl.types import UpdateBotInlineSend
 
@@ -1895,10 +1906,16 @@ class InlineHandlers:
         )
 
         try:
-            # Check if this is a hikka-compat handler by checking attributes
-            is_hikka_handler = getattr(
-                handler, "__hikka_inline_handler__", False
-            ) or getattr(handler, "is_inline_handler", False)
+            # Check if this is a hikka-compat handler by explicit markers only.
+            # Hikka/Heroku convention-based handlers are marked by the compat
+            # registration layer; never infer this from arbitrary function names.
+            handler_func = getattr(handler, "__func__", handler)
+            is_hikka_handler = (
+                getattr(handler, "__hikka_inline_handler__", False)
+                or getattr(handler, "is_inline_handler", False)
+                or getattr(handler_func, "__hikka_inline_handler__", False)
+                or getattr(handler_func, "is_inline_handler", False)
+            )
 
             sig = None
             if not is_hikka_handler:

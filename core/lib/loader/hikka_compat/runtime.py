@@ -32,6 +32,161 @@ from .types import get_callback_handlers, get_inline_handlers, get_watchers
 logger = logging.getLogger(__name__)
 
 
+def _make_compat_kernel_proxy():
+    """Create a safe kernel facade for Hikka/Heroku compatibility modules."""
+
+    import weakref
+
+    kernel_map = weakref.WeakKeyDictionary()
+    module_map = weakref.WeakKeyDictionary()
+
+    blocked = frozenset(
+        {
+            "__dict__",
+            "__getattribute__",
+            "__setattr__",
+            "__reduce__",
+            "__reduce_ex__",
+            "__getstate__",
+            "__setstate__",
+            "__weakref__",
+            "_kernel",
+            "kernel",
+        }
+    )
+
+    class CompatKernelProxy:
+        __slots__ = ("__weakref__",)
+
+        def __init__(self, kernel, module_name: str = "hikka_compat"):
+            kernel_map[self] = kernel
+            module_map[self] = module_name
+
+        @property
+        def module_name(self) -> str:
+            return module_map.get(self, "<unknown>")
+
+        @property
+        def client(self):
+            from ..kernel_proxy import ClientProxy
+
+            return ClientProxy(kernel_map[self].client, self.module_name)
+
+        @property
+        def bot_client(self):
+            from ..kernel_proxy import ClientProxy
+
+            bot_client = getattr(kernel_map[self], "bot_client", None)
+            if bot_client is None:
+                return None
+            return ClientProxy(bot_client, self.module_name)
+
+        @property
+        def inline_bot(self):
+            return self.bot_client
+
+        @property
+        def config(self):
+            cfg = dict(getattr(kernel_map[self], "config", {}) or {})
+            for key in ("api_id", "api_hash", "phone", "session"):
+                cfg.pop(key, None)
+            return cfg
+
+        def __getattribute__(self, name: str):
+            if name in blocked:
+                from core.lib.utils.exceptions import CallInsecure
+
+                raise CallInsecure(name, module_map.get(self, "<unknown>"))
+            if name in {
+                "module_name",
+                "client",
+                "bot_client",
+                "inline_bot",
+                "config",
+                "__class__",
+                "__repr__",
+                "__dir__",
+            }:
+                return object.__getattribute__(self, name)
+            if name.startswith("__") and name.endswith("__"):
+                raise AttributeError(name)
+            if name.startswith("_"):
+                from core.lib.utils.exceptions import CallInsecure
+
+                raise CallInsecure(name, module_map.get(self, "<unknown>"))
+            return getattr(kernel_map[self], name)
+
+        def __setattr__(self, name: str, value) -> None:
+            from core.lib.utils.exceptions import CallInsecure
+
+            raise CallInsecure(name, module_map.get(self, "<unknown>"))
+
+        def __delattr__(self, name: str) -> None:
+            from core.lib.utils.exceptions import CallInsecure
+
+            raise CallInsecure(name, module_map.get(self, "<unknown>"))
+
+        def __dir__(self):
+            names = {
+                name
+                for name in dir(kernel_map[self])
+                if not name.startswith("_") and name not in {"client", "bot_client"}
+            }
+            names.update({"client", "bot_client", "inline_bot", "config"})
+            return sorted(names)
+
+        def __repr__(self) -> str:
+            return f"<CompatKernelProxy module={self.module_name!r}>"
+
+    return CompatKernelProxy
+
+
+CompatKernelProxy = _make_compat_kernel_proxy()
+
+
+class _CompatUI:
+    """Small fallback UI facade for Heroku modules expecting ``self.ui``."""
+
+    def __init__(self, module):
+        self.main = module
+
+    def emoji(self, key: str) -> str:
+        themes = getattr(self.main, "THEMES", None)
+        config = getattr(self.main, "config", {}) or {}
+        theme = None
+        if hasattr(config, "get"):
+            theme = config.get("theme")
+        if isinstance(themes, dict):
+            theme_map = themes.get(theme) or themes.get("default") or {}
+            if isinstance(theme_map, dict) and key in theme_map:
+                return str(theme_map[key])
+
+        strings = getattr(self.main, "strings", {})
+        with contextlib.suppress(Exception):
+            value = strings[key]
+            if isinstance(value, str) and "emoji" in value:
+                return value
+        return ""
+
+
+def _build_module_ui(module):
+    """Build a module-local UI helper before client_ready can run.
+
+    Modules like FHeta define a sibling ``<ModuleName>UI`` class and then assign
+    ``self.ui`` inside ``client_ready``.  If ``client_ready`` fails early, command
+    handlers may still expect ``self.ui`` to exist.  Prefer the module-provided
+    UI class to preserve full helpers (format/buttons/pagination), and fall back
+    to a minimal emoji facade.
+    """
+
+    module_obj = sys.modules.get(type(module).__module__)
+    ui_cls = getattr(module_obj, f"{type(module).__name__}UI", None)
+    if callable(ui_cls):
+        with contextlib.suppress(Exception):
+            return ui_cls(module)
+    return _CompatUI(module)
+
+
 class _TranslatorStub:
     def __init__(self, lang: str = "en"):
         self._lang = lang
@@ -2514,7 +2669,7 @@ class _AllModulesStub:
     def __init__(self, kernel):
         from ..kernel_proxy import ClientProxy
 
-        self._kernel = kernel
+        self._kernel = CompatKernelProxy(kernel, module_name="allmodules")
         self._client_proxy = ClientProxy(kernel.client, module_name="allmodules")
         self.db = getattr(kernel, "_hikka_compat_db_facade", None)
         if self.db is None:
@@ -2723,9 +2878,11 @@ class _AllModulesStub:
         return removed
 
     def register_inline_stuff(self, instance) -> int:
+        from .fake_package import mark_hikka_inline_handler
+
         count = 0
         for name, method in get_inline_handlers(instance).items():
-            self._kernel.inline_handlers[name] = method
+            self._kernel.inline_handlers[name] = mark_hikka_inline_handler(method)
             self._kernel.inline_handlers_owners[name] = instance.__class__.__name__
             count += 1
         return count
@@ -2829,10 +2986,11 @@ class Module:
     ) -> None:
         from ..kernel_proxy import ClientProxy
 
-        self._kernel = kernel
+        module_key = module_name or type(self).__name__
+        self._kernel = CompatKernelProxy(kernel, module_name=module_key)
         self._module_type = module_type
 
-        if not hasattr(kernel, "_hikka_compat_inline_proxy"):
+        if getattr(kernel, "_hikka_compat_inline_proxy", None) is None:
             inline_proxy = InlineProxy(kernel)
             kernel._hikka_compat_inline_proxy = inline_proxy
         else:
@@ -2850,7 +3008,7 @@ class Module:
 
         # Store the kernel module key so that register_placeholder can
         # use it as the native scope - matching what .man looks up.
-        self._module_name = module_name or type(self).__name__
+        self._module_name = module_key
 
         # Auto-register methods decorated with @loader.placeholder.
         try:
@@ -2873,6 +3031,8 @@ class Module:
         self.allmodules.inline = self.inline
         self.strings = _StringsShim(self, _translator_stub)
         self.translator = _translator_stub
+        if not hasattr(self, "ui"):
+            self.ui = _build_module_ui(self)
 
     def get(self, key: str, default=None):
         return self._db.get(self._db_owner, key, default)

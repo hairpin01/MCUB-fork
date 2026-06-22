@@ -989,6 +989,7 @@ tester:
   logs: Лoги
   kernel_version: Вepcия ядpa
   ping: пинг
+  raw_ping: cыpoй MTProto-пинг
   uptime: вpeмя paбoты
   ms: мc
   hours: ч

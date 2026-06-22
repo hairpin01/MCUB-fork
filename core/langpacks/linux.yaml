@@ -1011,6 +1011,7 @@ tester:
   logs: "/var/log/mcub.log"
   kernel_version: "uname -r"
   ping: "ping -c1"
+  raw_ping: "ping -M do -s 0"
   uptime: "uptime"
   ms: ms
   hours: h

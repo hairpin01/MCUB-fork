@@ -452,28 +452,9 @@ class Loader(ModuleBase):
                 modules, repo_name = cached
             else:
                 try:
-                    async with aiohttp.ClientSession() as session:
-                        async with session.get(f"{repo_url}/modules.ini") as resp:
-                            modules = (
-                                [
-                                    l.strip()
-                                    for l in (await resp.text()).split("\n")
-                                    if l.strip()
-                                ]
-                                if resp.status == 200
-                                else []
-                            )
-                        async with session.get(f"{repo_url}/name.ini") as resp:
-                            repo_name = (
-                                (await resp.text()).strip()
-                                if resp.status == 200
-                                else (
-                                    repo_url.split("/")[-2]
-                                    if "/" in repo_url
-                                    else repo_url
-                                )
-                            )
-                        self.kernel.cache.set(cache_key, (modules, repo_name), ttl=300)
+                    modules = await self.kernel.get_repo_modules_list(repo_url)
+                    repo_name = await self.kernel.get_repo_name(repo_url)
+                    self.kernel.cache.set(cache_key, (modules, repo_name), ttl=300)
                 except Exception:
                     modules = []
                     repo_name = repo_url.split("/")[-2] if "/" in repo_url else repo_url
@@ -2880,7 +2861,6 @@ class Loader(ModuleBase):
             if module_name in self.kernel.system_modules:
                 del self.kernel.system_modules[module_name]
 
-            await self._log_to_bot(f"Moдyль {module_name} yдaлён")
             self.kernel._module_sources.pop(module_name, None)
             success.append(module_name)
 

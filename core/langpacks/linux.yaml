@@ -477,7 +477,7 @@ man:
   module_not_hidden: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>ENOENT: This package is not hidden.</b>'
   manhide_usage: '😕 Usage: <code>.manhide [package]</code>'
   manunhide_usage: '😕 Usage: <code>.manunhide [package]</code>'
-  system_module_note: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>EPERM: This is a system package - cannot be removed by package manager</b>'
+  system_module_note: "{blocked} <b>EPERM: This is a system package - cannot be removed by package manager</b>"
   kernel_not_full_loaded: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>[ .... ] Kernel has not yet mounted all packages</b> (<code>{status}</code>)'
   placeholders_title: Custom placeholders
 

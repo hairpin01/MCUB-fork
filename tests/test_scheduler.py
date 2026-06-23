@@ -154,6 +154,10 @@ class TestSchedulerEdgeCases:
         await scheduler.add_task(immediate_task, delay_seconds=0)
 
         await asyncio.sleep(0.01)
+
+        assert scheduler.get_task_count() == 0
+        assert scheduler._task_registry == {}
+
         await scheduler.stop()
 
         assert len(executed) == 1

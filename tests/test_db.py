@@ -51,6 +51,30 @@ class TestDatabaseOperations:
         db_manager.conn.commit.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_db_set_rejects_oversized_values(self, db_manager):
+        """A module must not be able to persist huge blobs into SQLite."""
+        db_manager._MAX_VALUE_BYTES = 8
+
+        with pytest.raises(ValueError, match="DB value too large"):
+            await db_manager.db_set("module", "key", "x" * 9)
+
+        db_manager.conn.execute.assert_not_called()
+        db_manager.conn.commit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_db_set_truncates_large_wal(self, db_manager, tmp_path):
+        """Large WAL files are checkpointed to avoid runaway DB directory size."""
+        db_file = tmp_path / "userbot.db"
+        wal_file = tmp_path / "userbot.db-wal"
+        wal_file.write_bytes(b"x" * 32)
+        db_manager._WAL_TRUNCATE_BYTES = 8
+        db_manager._resolve_db_file = lambda: str(db_file)
+
+        await db_manager.db_set("module", "key", "value")
+
+        db_manager.conn.execute.assert_any_await("PRAGMA wal_checkpoint(TRUNCATE)")
+
+    @pytest.mark.asyncio
     @pytest.mark.parametrize(
         "stored_value,expected",
         [
@@ -67,13 +91,34 @@ class TestDatabaseOperations:
         from core.lib.base.database import DatabaseManager
 
         db = DatabaseManager(mock_kernel)
-        cursor = AsyncMock()
-        cursor.fetchone = AsyncMock(return_value=stored_value)
+        size_cursor = AsyncMock()
+        value_cursor = AsyncMock()
+        size_cursor.fetchone = AsyncMock(
+            return_value=(len(stored_value[0]) if stored_value[0] is not None else 0,)
+        )
+        value_cursor.fetchone = AsyncMock(return_value=stored_value)
         db.conn = AsyncMock()
-        db.conn.execute = AsyncMock(return_value=cursor)
+        db.conn.execute = AsyncMock(side_effect=[size_cursor, value_cursor])
 
         result = await db.db_get("module", "key")
         assert result == expected
+
+    @pytest.mark.asyncio
+    async def test_db_get_skips_oversized_value(self, mock_kernel):
+        """db_get must not fetch a huge value into memory."""
+        from core.lib.base.database import DatabaseManager
+
+        db = DatabaseManager(mock_kernel)
+        db._MAX_VALUE_BYTES = 8
+        size_cursor = AsyncMock()
+        size_cursor.fetchone = AsyncMock(return_value=(9,))
+        db.conn = AsyncMock()
+        db.conn.execute = AsyncMock(return_value=size_cursor)
+
+        result = await db.db_get("module", "key")
+
+        assert result is None
+        assert db.conn.execute.await_count == 1
 
     @pytest.mark.asyncio
     async def test_db_get_returns_none_for_missing_key(self, db_manager):

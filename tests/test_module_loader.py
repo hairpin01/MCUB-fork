@@ -7,6 +7,7 @@ Tests for module loader
 
 import inspect
 import os
+import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -95,6 +96,54 @@ class TestHikkaInlineDelete:
         assert result is True
         client.delete_messages.assert_awaited_once_with(123, [42])
         assert "u" not in inline._units
+
+    def test_register_unit_prunes_expired_heavy_callbacks(self):
+        from core.lib.loader.hikka_compat.runtime import InlineProxy
+
+        kernel = SimpleNamespace(
+            client=None,
+            bot_client=None,
+            logger=MagicMock(),
+            config={},
+            inline_callback_map={},
+        )
+        inline = InlineProxy(kernel)
+        inline._units["old"] = {"expires_at": time.time() - 1}
+        inline._custom_map["old-cb"] = {
+            "unit_id": "old",
+            "args": (bytearray(1024), object()),
+        }
+        kernel.inline_callback_map["old-cb"] = {
+            "unit_id": "old",
+            "expires_at": time.time() - 1,
+        }
+
+        inline._register_unit("new", {"expires_at": time.time() + 60})
+
+        assert "old" not in inline._units
+        assert "old-cb" not in inline._custom_map
+        assert "old-cb" not in kernel.inline_callback_map
+        assert "new" in inline._units
+
+    def test_unload_unit_removes_kernel_callback_map_entries(self):
+        from core.lib.loader.hikka_compat.runtime import InlineProxy
+
+        kernel = SimpleNamespace(
+            client=None,
+            bot_client=None,
+            logger=MagicMock(),
+            config={},
+            inline_callback_map={"cb": {"unit_id": "u"}},
+        )
+        inline = InlineProxy(kernel)
+        inline._units["u"] = {"expires_at": time.time() + 60}
+        inline._custom_map["cb"] = {"unit_id": "u"}
+
+        assert inline._unload_unit_sync("u") is True
+
+        assert "u" not in inline._units
+        assert "cb" not in inline._custom_map
+        assert "cb" not in kernel.inline_callback_map
 
 
 class TestDetectModuleType:

@@ -755,6 +755,22 @@ class DbProxy:
         try:
             conn = sqlite3.connect(db_manager._resolve_db_file())
             try:
+                size_row = conn.execute(
+                    "SELECT LENGTH(value) FROM module_data WHERE module = ? AND key = ?",
+                    (module, key),
+                ).fetchone()
+                if not size_row:
+                    return default
+                value_size = size_row[0] or 0
+                if value_size > DatabaseManager._MAX_VALUE_BYTES:
+                    self._kernel.logger.warning(
+                        "[hikka_compat] DbProxy oversized value skipped on read: "
+                        "%s.%s size=%d",
+                        module,
+                        DatabaseManager.mask_key(key),
+                        value_size,
+                    )
+                    return default
                 row = conn.execute(
                     "SELECT value FROM module_data WHERE module = ? AND key = ?",
                     (module, key),
@@ -806,6 +822,18 @@ class DbProxy:
 
     def set(self, *args) -> None:
         module, key, value = self._resolve_set_args(args)
+        try:
+            value_size = len(str(value).encode("utf-8", errors="replace"))
+        except Exception:
+            value_size = 0
+        if value_size > DatabaseManager._MAX_VALUE_BYTES:
+            self._kernel.logger.warning(
+                "[hikka_compat] DbProxy oversized value skipped: %s.%s size=%d",
+                module,
+                DatabaseManager.mask_key(key),
+                value_size,
+            )
+            return
         self._mem[self._mem_key(module, key)] = value
         self._schedule_write(module, key, value)
 
@@ -1240,6 +1268,7 @@ class _BotProxy:
 
 class InlineProxy:
     MAX_UNITS = 2048  # Soft cap; oldest entry evicted once exceeded.
+    MAX_CUSTOM_MAP = 4096
 
     def __init__(self, kernel):
         self._kernel = kernel
@@ -1533,6 +1562,7 @@ class InlineProxy:
                         "args": (),
                         "kwargs": {},
                         "expires_at": _time.time() + ttl,
+                        "unit_id": unit_id,
                     }
                 elif isinstance(cb, str):
                     btn["callback_data"] = cb
@@ -1728,11 +1758,57 @@ class InlineProxy:
         return result or None
 
     def _register_unit(self, unit_id: str, payload: dict) -> None:
+        self._cleanup_expired_units()
+        self._cleanup_custom_map()
         payload["module_name"] = self._module_name
         if len(self._units) >= self.MAX_UNITS:
             oldest = next(iter(self._units))
             self._unload_unit_sync(oldest)
         self._units[unit_id] = payload
+
+    def _cleanup_expired_units(self) -> int:
+        now = time.time()
+        removed = 0
+        for uid, unit in list(self._units.items()):
+            expires_at = unit.get("expires_at")
+            if expires_at and expires_at <= now:
+                if self._unload_unit_sync(uid):
+                    removed += 1
+        if removed:
+            self._kernel.logger.debug(
+                "[hikka_compat] inline expired units removed=%d", removed
+            )
+        return removed
+
+    def _cleanup_custom_map(self) -> int:
+        removed = 0
+        live_units = set(self._units)
+
+        cb_map = getattr(self._kernel, "inline_callback_map", None)
+        if isinstance(cb_map, dict):
+            now = time.time()
+            for key, payload in list(cb_map.items()):
+                if not isinstance(payload, dict):
+                    continue
+                unit_id = payload.get("unit_id")
+                expires_at = payload.get("expires_at")
+                if (unit_id and unit_id not in live_units) or (
+                    expires_at and expires_at <= now
+                ):
+                    cb_map.pop(key, None)
+
+        for key, payload in list(self._custom_map.items()):
+            unit_id = payload.get("unit_id") if isinstance(payload, dict) else None
+            if unit_id and unit_id not in live_units:
+                self._custom_map.pop(key, None)
+                removed += 1
+
+        while len(self._custom_map) > self.MAX_CUSTOM_MAP:
+            oldest = next(iter(self._custom_map))
+            self._custom_map.pop(oldest, None)
+            removed += 1
+
+        return removed
 
     def _unload_unit_sync(self, unit_id: str) -> bool:
         """Synchronous version of _unload_unit - no await, no callback."""
@@ -1743,6 +1819,12 @@ class InlineProxy:
             payload = self._custom_map.get(key) or {}
             if payload.get("unit_id") == unit_id:
                 self._custom_map.pop(key, None)
+        cb_map = getattr(self._kernel, "inline_callback_map", None)
+        if isinstance(cb_map, dict):
+            for key in list(cb_map):
+                payload = cb_map.get(key) or {}
+                if isinstance(payload, dict) and payload.get("unit_id") == unit_id:
+                    cb_map.pop(key, None)
         return True
 
     def _find_unit(
@@ -1897,6 +1979,8 @@ class InlineProxy:
             return False
 
         self._current_form_ttl = ttl or 3600
+        created_at = time.time()
+        expires_at = created_at + self._current_form_ttl
 
         unit_type = str(kwargs.pop("_unit_type", "form"))
         unit_id = str(kwargs.pop("unit_id", self._unit_id(unit_type)))
@@ -1928,6 +2012,8 @@ class InlineProxy:
                 "message_id": None,
                 "inline_message_id": None,
                 "ttl": ttl,
+                "created_at": created_at,
+                "expires_at": expires_at,
                 "force_me": force_me,
                 "always_allow": always_allow,
                 "disable_security": disable_security,
@@ -2558,6 +2644,13 @@ class InlineProxy:
             payload = self._custom_map.get(key) or {}
             if payload.get("unit_id") == unit_id:
                 self._custom_map.pop(key, None)
+
+        cb_map = getattr(self._kernel, "inline_callback_map", None)
+        if isinstance(cb_map, dict):
+            for key in list(cb_map):
+                payload = cb_map.get(key) or {}
+                if isinstance(payload, dict) and payload.get("unit_id") == unit_id:
+                    cb_map.pop(key, None)
 
         on_unload = unit.get("on_unload")
         if callable(on_unload):

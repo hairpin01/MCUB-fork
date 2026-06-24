@@ -20,6 +20,7 @@ from telethon.errors.rpcerrorlist import MessageNotModifiedError
 from telethon.tl.types import DocumentAttributeImageSize, InputWebDocument
 
 import utils
+from utils.arg_parser import parse_arguments
 from core.lib.loader.module_config import ModuleConfig, ValidationError
 from utils.strings import Strings
 
@@ -3459,7 +3460,15 @@ def register(kernel):
     async def fcfg_handler(event):
         await ensure_config_initialized()
         try:
-            args = event.text.split()
+            parsed_args = None
+            try:
+                parsed_args = parse_arguments(
+                    event.text, getattr(kernel, "custom_prefix", ".")
+                )
+                args = [parsed_args.command, *map(str, parsed_args.args)]
+            except Exception:
+                args = event.text.split()
+
             if len(args) < 2:
                 await event.edit(
                     t("fcfg_usage", gear=emoji_provider["⚙️"]),
@@ -3471,6 +3480,12 @@ def register(kernel):
 
             module_mode = False
             module_name = None
+
+            module_flag = None
+            if parsed_args is not None:
+                module_flag = parsed_args.get_kwarg("m") or parsed_args.get_kwarg(
+                    "module"
+                )
 
             # Support for "fcfg module <module_name> <action>" format
             if action == "module":
@@ -3485,6 +3500,13 @@ def register(kernel):
                 # Shift args: module <module_name> set key val -> set key val
                 args = [args[0], *args[3:]]
                 action = args[1].lower() if len(args) > 1 else ""
+
+            # Support for "-m module_name" parsed by utils.arg_parser.
+            # The parser removes the flag from positional args, so this must
+            # happen before the legacy token-removal fallback below.
+            if module_flag is not None and not module_mode:
+                module_mode = True
+                module_name = str(module_flag)
 
             # Support for "-m module_name" flag (old format)
             if "-m" in args:

@@ -830,9 +830,9 @@ rsa==4.9.1 \
 socks==0 \
     --hash=sha256:727e9b4620730601c0360a00c7f4ae26295146c0a91af173bd155cc991edf765
     # via -r requirements.in
-telethon-mcub==1.44.0 \
-    --hash=sha256:0cc22f30e00133426c8a2843b5015346ee2f144fb58ae96e5648272b4161ad02 \
-    --hash=sha256:e0f2a2dd60e502c7c21344fe835a40b748f3926726146a3d7d3e94866a1d3412
+telethon-mcub==1.44.1 \
+    --hash=sha256:7991096ada6d608bd4827e5389e06b90ee5f77262ef73f9ef0ae54c649bf2a41 \
+    --hash=sha256:ffbeb025479fbd0dcaee00f856bb0842eceb372364f31932ce4ca82c06bc4f79
     # via -r requirements.in
 yarl==1.24.2 \
     --hash=sha256:0063adad533e57171b79db3943b229d40dfafeeee579767f96541f106bac5f1b \

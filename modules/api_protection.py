@@ -418,7 +418,6 @@ class RequestAnalyzer:
 
 def register(kernel):
     client = kernel.client
-    kernel.config.get("language", "en")
 
     strings_data = {"name": "api_protection"}
     strings = Strings(kernel, strings_data)

@@ -22,15 +22,14 @@ class WarningRule:
     rule_id: str = ""
     severity: str = "warning"
     message: str = ""
+    module_level: bool = False
 
     def should_check(self, analyzer: "SourceAnalyzer") -> bool:
         """Determine if this rule should run for current context."""
         return True
 
     @abstractmethod
-    def check(
-        self, analyzer: "SourceAnalyzer", node: ast.FunctionDef | ast.AsyncFunctionDef
-    ) -> list[Warning]:
+    def check(self, analyzer: "SourceAnalyzer", node: ast.AST) -> list[Warning]:
         """Check for violations and return warnings."""
         pass
 
@@ -49,6 +48,140 @@ class RuleRegistry:
 
     def get_by_severity(self, severity: str) -> list[WarningRule]:
         return [r for r in self._rules if r.severity == severity]
+
+
+def _has_header(analyzer: "SourceAnalyzer", field: str) -> bool:
+    """Return True when a module header comment like '# field:' exists."""
+    return _header_line(analyzer, field) is not None
+
+
+def _header_line(analyzer: "SourceAnalyzer", field: str) -> int | None:
+    """Return the line number for a module header comment like '# field:' if present."""
+    info = _header_info(analyzer, field)
+    return info[0] if info is not None else None
+
+
+def _header_info(analyzer: "SourceAnalyzer", field: str) -> tuple[int, str] | None:
+    """Return line number and value for a module header comment if present."""
+    pattern = re.compile(rf"^\s*#\s*{re.escape(field)}\s*:", re.IGNORECASE)
+    for line_number, line in enumerate(analyzer.source_lines, start=1):
+        if pattern.match(line):
+            return line_number, line.split(":", 1)[1].strip()
+    return None
+
+
+def _top_level_register_functions(node: ast.Module) -> list[ast.FunctionDef]:
+    """Return top-level regular register() functions."""
+    return [
+        item
+        for item in node.body
+        if isinstance(item, ast.FunctionDef) and item.name == "register"
+    ]
+
+
+def _valid_register_functions(node: ast.Module) -> list[ast.FunctionDef]:
+    """Return top-level register(kernel/client) functions."""
+    functions = []
+    for item in _top_level_register_functions(node):
+        args = [*item.args.posonlyargs, *item.args.args]
+        if args and args[0].arg in {"kernel", "client"}:
+            functions.append(item)
+    return functions
+
+
+def _module_base_names(node: ast.Module) -> set[str]:
+    """Return direct names that can refer to ModuleBase in this module."""
+    names = {"ModuleBase"}
+
+    for item in node.body:
+        if not isinstance(item, ast.ImportFrom):
+            continue
+
+        for alias in item.names:
+            if alias.name == "ModuleBase":
+                names.add(alias.asname or alias.name)
+
+    return names
+
+
+def _is_module_base(base: ast.expr, module_base_names: set[str]) -> bool:
+    """Return True when a class base expression points at ModuleBase."""
+    if isinstance(base, ast.Name):
+        return base.id in module_base_names
+    if isinstance(base, ast.Attribute):
+        return base.attr == "ModuleBase"
+    if isinstance(base, ast.Subscript):
+        return _is_module_base(base.value, module_base_names)
+    return False
+
+
+def _module_base_classes(node: ast.Module) -> list[ast.ClassDef]:
+    """Return top-level classes inheriting from ModuleBase."""
+    module_base_names = _module_base_names(node)
+    return [
+        item
+        for item in node.body
+        if isinstance(item, ast.ClassDef)
+        and any(_is_module_base(base, module_base_names) for base in item.bases)
+    ]
+
+
+def _class_has_attribute(node: ast.ClassDef, attr_name: str) -> bool:
+    """Return True when a class defines a simple class attribute."""
+    return _class_attribute_line(node, attr_name) is not None
+
+
+def _class_attribute_line(node: ast.ClassDef, attr_name: str) -> int | None:
+    """Return the line number for a simple class attribute if present."""
+    info = _class_attribute_info(node, attr_name)
+    return info[0] if info is not None else None
+
+
+def _class_attribute_info(
+    node: ast.ClassDef, attr_name: str
+) -> tuple[int, ast.expr] | None:
+    """Return line number and value node for a simple class attribute if present."""
+    for item in node.body:
+        if isinstance(item, ast.Assign):
+            if any(
+                isinstance(target, ast.Name) and target.id == attr_name
+                for target in item.targets
+            ):
+                return item.lineno, item.value
+        elif isinstance(item, ast.AnnAssign):
+            target = item.target
+            if isinstance(target, ast.Name) and target.id == attr_name:
+                return item.lineno, item.value
+    return None
+
+
+def _static_text(value: ast.expr | None) -> str | None:
+    """Extract static string-ish text from an AST value without executing code."""
+    if value is None:
+        return None
+    if isinstance(value, ast.Constant):
+        return str(value.value) if value.value is not None else ""
+    if isinstance(value, (ast.List, ast.Tuple, ast.Set)):
+        parts = [_static_text(item) for item in value.elts]
+        return " ".join(part for part in parts if part is not None)
+    if isinstance(value, ast.BinOp) and isinstance(value.op, ast.Add):
+        left = _static_text(value.left)
+        right = _static_text(value.right)
+        if left is not None and right is not None:
+            return left + right
+    return None
+
+
+def _module_base_import_aliases(node: ast.Module) -> dict[str, ast.AST]:
+    """Return imported ModuleBase aliases and their import nodes."""
+    aliases: dict[str, ast.AST] = {}
+    for item in node.body:
+        if not isinstance(item, ast.ImportFrom):
+            continue
+        for alias in item.names:
+            if alias.name == "ModuleBase":
+                aliases[alias.asname or alias.name] = item
+    return aliases
 
 
 class EventEditWithButtonsRule(WarningRule):
@@ -595,6 +728,563 @@ class RegisterTypoRule(WarningRule):
                     )
 
         return warnings
+
+
+class MissingModuleEntrypointRule(WarningRule):
+    """Check that a module exposes a supported MCUB loader entrypoint."""
+
+    rule_id = "MCUB031"
+    severity = "error"
+    module_level = True
+    message = (
+        "Module must define 'def register(kernel)' or 'def register(client)', "
+        "or a class inheriting from 'ModuleBase'."
+    )
+
+    def check(self, analyzer: "SourceAnalyzer", node: ast.AST) -> list[Warning]:
+        if not isinstance(node, ast.Module):
+            return []
+
+        if self._has_register_entrypoint(node) or self._has_module_base_class(node):
+            return []
+
+        line = self._first_code_line(analyzer, node)
+        line_text = analyzer.get_line(line)
+        return [
+            Warning(
+                rule_id=self.rule_id,
+                severity=self.severity,
+                message=self.message,
+                file_path=analyzer.file_path,
+                line=line,
+                column=1,
+                end_column=max(1, len(line_text)),
+                code_snippet=analyzer.get_code_snippet(line),
+                fix_suggestion=(
+                    "Add 'def register(kernel): ...' (or client), "
+                    "or define 'class MyModule(ModuleBase): ...'"
+                ),
+                function_name="module",
+            )
+        ]
+
+    def _has_register_entrypoint(self, node: ast.Module) -> bool:
+        for item in node.body:
+            if not isinstance(item, ast.FunctionDef) or item.name != "register":
+                continue
+
+            args = [*item.args.posonlyargs, *item.args.args]
+            if args and args[0].arg in {"kernel", "client"}:
+                return True
+
+        return False
+
+    def _has_module_base_class(self, node: ast.Module) -> bool:
+        module_base_names = self._module_base_names(node)
+
+        return any(
+            isinstance(item, ast.ClassDef)
+            and any(
+                self._is_module_base(base, module_base_names) for base in item.bases
+            )
+            for item in node.body
+        )
+
+    def _module_base_names(self, node: ast.Module) -> set[str]:
+        names = {"ModuleBase"}
+
+        for item in node.body:
+            if not isinstance(item, ast.ImportFrom):
+                continue
+
+            for alias in item.names:
+                if alias.name == "ModuleBase":
+                    names.add(alias.asname or alias.name)
+
+        return names
+
+    def _is_module_base(self, base: ast.expr, module_base_names: set[str]) -> bool:
+        if isinstance(base, ast.Name):
+            return base.id in module_base_names
+        if isinstance(base, ast.Attribute):
+            return base.attr == "ModuleBase"
+        if isinstance(base, ast.Subscript):
+            return self._is_module_base(base.value, module_base_names)
+        return False
+
+    def _first_code_line(self, analyzer: "SourceAnalyzer", node: ast.Module) -> int:
+        if node.body:
+            return getattr(node.body[0], "lineno", 1)
+
+        for index, line in enumerate(analyzer.source_lines, start=1):
+            if line.strip():
+                return index
+
+        return 1
+
+
+class ParentRelativeImportRule(WarningRule):
+    """Check for FTG-style parent-relative imports unsupported by MCUB modules."""
+
+    rule_id = "MCUB032"
+    severity = "error"
+    module_level = True
+    message = (
+        "Parent-relative imports from '..' are FTG/Hikka/Heroku-style and "
+        "are not supported in MCUB modules."
+    )
+
+    def check(self, analyzer: "SourceAnalyzer", node: ast.AST) -> list[Warning]:
+        if not isinstance(node, ast.Module):
+            return []
+
+        warnings = []
+        for child in ast.walk(node):
+            if not isinstance(child, ast.ImportFrom) or child.level < 2:
+                continue
+
+            line = child.lineno
+            warnings.append(
+                Warning(
+                    rule_id=self.rule_id,
+                    severity=self.severity,
+                    message=self.message,
+                    file_path=analyzer.file_path,
+                    line=line,
+                    column=child.col_offset + 1,
+                    end_column=(
+                        child.end_col_offset
+                        if hasattr(child, "end_col_offset") and child.end_col_offset
+                        else len(analyzer.get_line(line))
+                    ),
+                    code_snippet=analyzer.get_code_snippet(line),
+                    fix_suggestion=(
+                        "Replace FTG-style relative import with an absolute MCUB import, "
+                        "for example from 'core...' or 'utils...'."
+                    ),
+                    function_name="module",
+                )
+            )
+
+        return warnings
+
+
+class FtgOnlyImportRule(WarningRule):
+    """Check for imports from FTG/Hikka/Heroku-only module APIs."""
+
+    rule_id = "MCUB033"
+    severity = "error"
+    module_level = True
+    message = (
+        "Import '{module}' is FTG/Hikka/Heroku-specific and is not a MCUB module API."
+    )
+
+    _blocked_roots = {
+        "friendly_telegram",
+        "ftg",
+        "heroku",
+        "herokutl",
+        "hikka",
+        "hikkatl",
+    }
+
+    def check(self, analyzer: "SourceAnalyzer", node: ast.AST) -> list[Warning]:
+        if not isinstance(node, ast.Module):
+            return []
+
+        warnings = []
+        for child in ast.walk(node):
+            module_name = self._blocked_import_name(child)
+            if module_name is None:
+                continue
+
+            line = child.lineno
+            warnings.append(
+                Warning(
+                    rule_id=self.rule_id,
+                    severity=self.severity,
+                    message=self.message.format(module=module_name),
+                    file_path=analyzer.file_path,
+                    line=line,
+                    column=child.col_offset + 1,
+                    end_column=(
+                        child.end_col_offset
+                        if hasattr(child, "end_col_offset") and child.end_col_offset
+                        else len(analyzer.get_line(line))
+                    ),
+                    code_snippet=analyzer.get_code_snippet(line),
+                    fix_suggestion="Use MCUB imports from 'core...', 'core.lib...', or 'utils...' instead.",
+                    function_name="module",
+                )
+            )
+
+        return warnings
+
+    def _blocked_import_name(self, node: ast.AST) -> str | None:
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name.split(".", 1)[0] in self._blocked_roots:
+                    return alias.name
+        elif isinstance(node, ast.ImportFrom) and node.level == 0:
+            module = node.module or ""
+            if module.split(".", 1)[0] in self._blocked_roots:
+                return module
+        return None
+
+
+class FunctionStyleNameHeaderRule(WarningRule):
+    """Check that function-style modules define the required # name header."""
+
+    rule_id = "MCUB034"
+    severity = "error"
+    module_level = True
+    message = "Function-style module must define required '# name:' header."
+
+    def check(self, analyzer: "SourceAnalyzer", node: ast.AST) -> list[Warning]:
+        if not isinstance(node, ast.Module):
+            return []
+        if not _valid_register_functions(node) or _module_base_classes(node):
+            return []
+        if _has_header(analyzer, "name"):
+            return []
+
+        register_func = _valid_register_functions(node)[0]
+        return [
+            Warning(
+                rule_id=self.rule_id,
+                severity=self.severity,
+                message=self.message,
+                file_path=analyzer.file_path,
+                line=register_func.lineno,
+                column=register_func.col_offset + 1,
+                end_column=(
+                    register_func.end_col_offset
+                    if hasattr(register_func, "end_col_offset")
+                    and register_func.end_col_offset
+                    else len(analyzer.get_line(register_func.lineno))
+                ),
+                code_snippet=analyzer.get_code_snippet(register_func.lineno),
+                fix_suggestion="Add '# name: YourModuleName' to the module header.",
+                function_name="module",
+            )
+        ]
+
+
+class MixedModuleStyleRule(WarningRule):
+    """Check that a module does not mix function-style and class-style entrypoints."""
+
+    rule_id = "MCUB035"
+    severity = "error"
+    module_level = True
+    message = (
+        "Module mixes function-style register() and class-style ModuleBase entrypoints; "
+        "the loader may reject it or choose the wrong module style."
+    )
+
+    def check(self, analyzer: "SourceAnalyzer", node: ast.AST) -> list[Warning]:
+        if not isinstance(node, ast.Module):
+            return []
+
+        registers = _top_level_register_functions(node)
+        module_classes = _module_base_classes(node)
+        if not registers or not module_classes:
+            return []
+
+        line = module_classes[0].lineno
+        return [
+            Warning(
+                rule_id=self.rule_id,
+                severity=self.severity,
+                message=self.message,
+                file_path=analyzer.file_path,
+                line=line,
+                column=module_classes[0].col_offset + 1,
+                end_column=(
+                    module_classes[0].end_col_offset
+                    if hasattr(module_classes[0], "end_col_offset")
+                    and module_classes[0].end_col_offset
+                    else len(analyzer.get_line(line))
+                ),
+                code_snippet=analyzer.get_code_snippet(line),
+                fix_suggestion="Use either def register(kernel/client) or class MyModule(ModuleBase), not both.",
+                function_name="module",
+            )
+        ]
+
+
+class MissingModuleVersionRule(WarningRule):
+    """Check that modules declare version metadata for their style."""
+
+    rule_id = "MCUB036"
+    severity = "warning"
+    module_level = True
+    message = "Module should define version metadata."
+
+    def check(self, analyzer: "SourceAnalyzer", node: ast.AST) -> list[Warning]:
+        return _check_module_metadata(
+            analyzer,
+            node,
+            rule_id=self.rule_id,
+            severity=self.severity,
+            field="version",
+            function_message="Function-style module should define '# version:' header.",
+            class_message="Class-style module should define 'version' class attribute.",
+            function_fix="Add '# version: 1.0.0' to the module header.",
+            class_fix="Add version = '1.0.0' to the ModuleBase class.",
+        )
+
+
+class MissingModuleDescriptionRule(WarningRule):
+    """Check that modules declare description metadata for their style."""
+
+    rule_id = "MCUB037"
+    severity = "warning"
+    module_level = True
+    message = "Module should define description metadata."
+
+    def check(self, analyzer: "SourceAnalyzer", node: ast.AST) -> list[Warning]:
+        return _check_module_metadata(
+            analyzer,
+            node,
+            rule_id=self.rule_id,
+            severity=self.severity,
+            field="description",
+            function_message="Function-style module should define '# description:' header.",
+            class_message="Class-style module should define 'description' class attribute.",
+            function_fix="Add '# description: Short module description' to the module header.",
+            class_fix="Add description = 'Short module description' to the ModuleBase class.",
+        )
+
+
+class FunctionStyleAuthorHeaderRule(WarningRule):
+    """Check that function-style modules declare author metadata."""
+
+    rule_id = "MCUB038"
+    severity = "warning"
+    module_level = True
+    message = "Function-style module should define '# author:' header."
+
+    def check(self, analyzer: "SourceAnalyzer", node: ast.AST) -> list[Warning]:
+        if not isinstance(node, ast.Module):
+            return []
+        if not _valid_register_functions(node) or _module_base_classes(node):
+            return []
+        if _has_header(analyzer, "author"):
+            return []
+
+        register_func = _valid_register_functions(node)[0]
+        return [
+            Warning(
+                rule_id=self.rule_id,
+                severity=self.severity,
+                message=self.message,
+                file_path=analyzer.file_path,
+                line=register_func.lineno,
+                column=register_func.col_offset + 1,
+                code_snippet=analyzer.get_code_snippet(register_func.lineno),
+                fix_suggestion="Add '# author: @username' to the module header.",
+                function_name="module",
+            )
+        ]
+
+
+class UnusedModuleBaseImportRule(WarningRule):
+    """Check for imported ModuleBase aliases that are not used for class-style modules."""
+
+    rule_id = "MCUB039"
+    severity = "info"
+    module_level = True
+    message = "Imported ModuleBase is not used by any class-style module."
+
+    def check(self, analyzer: "SourceAnalyzer", node: ast.AST) -> list[Warning]:
+        if not isinstance(node, ast.Module):
+            return []
+
+        aliases = _module_base_import_aliases(node)
+        if not aliases:
+            return []
+
+        used_aliases = {
+            base.id
+            for class_node in node.body
+            if isinstance(class_node, ast.ClassDef)
+            for base in class_node.bases
+            if isinstance(base, ast.Name) and base.id in aliases
+        }
+
+        warnings = []
+        for alias, import_node in aliases.items():
+            if alias in used_aliases:
+                continue
+            line = getattr(import_node, "lineno", 1)
+            warnings.append(
+                Warning(
+                    rule_id=self.rule_id,
+                    severity=self.severity,
+                    message=self.message,
+                    file_path=analyzer.file_path,
+                    line=line,
+                    column=getattr(import_node, "col_offset", 0) + 1,
+                    code_snippet=analyzer.get_code_snippet(line),
+                    fix_suggestion=(
+                        "Remove the ModuleBase import or add class MyModule(ModuleBase)."
+                    ),
+                    function_name="module",
+                )
+            )
+
+        return warnings
+
+
+class MixedMetadataStyleRule(WarningRule):
+    """Check for mixing comment metadata with class-style metadata attributes."""
+
+    rule_id = "MCUB040"
+    severity = "warning"
+    module_level = True
+    message = (
+        "Class-style module mixes '# {field}:' header with '{field}' class attribute; "
+        "use class attributes as the single metadata source."
+    )
+    _fields = ("name", "version", "description", "author")
+
+    def check(self, analyzer: "SourceAnalyzer", node: ast.AST) -> list[Warning]:
+        if not isinstance(node, ast.Module):
+            return []
+
+        warnings = []
+        for class_node in _module_base_classes(node):
+            for field in self._fields:
+                header_line = _header_line(analyzer, field)
+                attr_line = _class_attribute_line(class_node, field)
+                if header_line is None or attr_line is None:
+                    continue
+
+                warnings.append(
+                    Warning(
+                        rule_id=self.rule_id,
+                        severity=self.severity,
+                        message=self.message.format(field=field),
+                        file_path=analyzer.file_path,
+                        line=header_line,
+                        column=1,
+                        code_snippet=analyzer.get_code_snippet(header_line),
+                        fix_suggestion=(
+                            f"Remove '# {field}:' from the header; "
+                            f"keep {field} = ... inside class {class_node.name}."
+                        ),
+                        function_name=class_node.name,
+                    )
+                )
+
+        return warnings
+
+
+class AuthorUsernameStyleRule(WarningRule):
+    """Check that author metadata contains a Telegram-style @username."""
+
+    rule_id = "MCUB041"
+    severity = "warning"
+    module_level = True
+    message = "Author metadata should include a Telegram username like '@username'."
+    _username_pattern = re.compile(r"@[A-Za-z0-9_]+")
+
+    def check(self, analyzer: "SourceAnalyzer", node: ast.AST) -> list[Warning]:
+        if not isinstance(node, ast.Module):
+            return []
+
+        warnings = []
+        header_info = _header_info(analyzer, "author")
+        if header_info is not None:
+            line, value = header_info
+            if not self._has_username(value):
+                warnings.append(self._warning(analyzer, line, "# author: @username"))
+
+        for class_node in _module_base_classes(node):
+            attr_info = _class_attribute_info(class_node, "author")
+            if attr_info is None:
+                continue
+
+            line, value_node = attr_info
+            value = _static_text(value_node)
+            if value is not None and not self._has_username(value):
+                warnings.append(self._warning(analyzer, line, "author = '@username'"))
+
+        return warnings
+
+    def _has_username(self, value: str) -> bool:
+        return bool(self._username_pattern.search(value))
+
+    def _warning(
+        self, analyzer: "SourceAnalyzer", line: int, fix_suggestion: str
+    ) -> Warning:
+        return Warning(
+            rule_id=self.rule_id,
+            severity=self.severity,
+            message=self.message,
+            file_path=analyzer.file_path,
+            line=line,
+            column=1,
+            code_snippet=analyzer.get_code_snippet(line),
+            fix_suggestion=fix_suggestion,
+            function_name="module",
+        )
+
+
+def _check_module_metadata(
+    analyzer: "SourceAnalyzer",
+    node: ast.AST,
+    *,
+    rule_id: str,
+    severity: str,
+    field: str,
+    function_message: str,
+    class_message: str,
+    function_fix: str,
+    class_fix: str,
+) -> list[Warning]:
+    if not isinstance(node, ast.Module):
+        return []
+
+    warnings = []
+    module_classes = _module_base_classes(node)
+    if module_classes:
+        for class_node in module_classes:
+            if _class_has_attribute(class_node, field):
+                continue
+            warnings.append(
+                Warning(
+                    rule_id=rule_id,
+                    severity=severity,
+                    message=class_message,
+                    file_path=analyzer.file_path,
+                    line=class_node.lineno,
+                    column=class_node.col_offset + 1,
+                    code_snippet=analyzer.get_code_snippet(class_node.lineno),
+                    fix_suggestion=class_fix,
+                    function_name=class_node.name,
+                )
+            )
+        return warnings
+
+    registers = _valid_register_functions(node)
+    if not registers or _has_header(analyzer, field):
+        return []
+
+    register_func = registers[0]
+    return [
+        Warning(
+            rule_id=rule_id,
+            severity=severity,
+            message=function_message,
+            file_path=analyzer.file_path,
+            line=register_func.lineno,
+            column=register_func.col_offset + 1,
+            code_snippet=analyzer.get_code_snippet(register_func.lineno),
+            fix_suggestion=function_fix,
+            function_name="module",
+        )
+    ]
 
 
 class ButtonInlineFormatRule(WarningRule):
@@ -2302,6 +2992,17 @@ def get_default_rules() -> RuleRegistry:
         BareOrUnsafeExceptRule(),
         LoggerWithoutAwaitRule(),
         MissingParseModeForHtmlRule(),
+        MissingModuleEntrypointRule(),
+        ParentRelativeImportRule(),
+        FtgOnlyImportRule(),
+        FunctionStyleNameHeaderRule(),
+        MixedModuleStyleRule(),
+        MissingModuleVersionRule(),
+        MissingModuleDescriptionRule(),
+        FunctionStyleAuthorHeaderRule(),
+        UnusedModuleBaseImportRule(),
+        MixedMetadataStyleRule(),
+        AuthorUsernameStyleRule(),
         ClassStyleModuleBaseRule(),
         ClassStyleStringsRule(),
         ClassStyleOwnerWithoutAdminCheckRule(),

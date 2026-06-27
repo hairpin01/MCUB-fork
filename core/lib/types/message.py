@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Шмэлькa | @hairpin01
 
 """
-Message protocol — structural type for Telegram messages.
+Message protocol - structural type for Telegram messages.
 
 Covers the intersection of:
 * ``telethon.types.Message``

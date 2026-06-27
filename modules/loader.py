@@ -7,6 +7,7 @@ from __future__ import annotations
 # version: 1.1.5
 # description: Module loader
 import asyncio
+import contextlib
 import html
 import inspect
 import logging
@@ -417,6 +418,17 @@ class Loader(ModuleBase):
 
     async def _handle_catalog(self, event, query_or_data: str) -> tuple[str, list]:
         try:
+            if query_or_data in {"catalog", "catalog_main"}:
+                return self._catalog_main_menu(event)
+            if query_or_data == "catalog_install":
+                return self._catalog_install_menu(event)
+            if query_or_data.startswith("catalog_search_"):
+                parts = query_or_data.split("_")
+                if len(parts) >= 4:
+                    return await self._handle_catalog_search(
+                        event, parts[2], int(parts[3])
+                    )
+
             parts = query_or_data.split("_")
 
             repo_index = 0
@@ -440,28 +452,9 @@ class Loader(ModuleBase):
                 modules, repo_name = cached
             else:
                 try:
-                    async with aiohttp.ClientSession() as session:
-                        async with session.get(f"{repo_url}/modules.ini") as resp:
-                            modules = (
-                                [
-                                    l.strip()
-                                    for l in (await resp.text()).split("\n")
-                                    if l.strip()
-                                ]
-                                if resp.status == 200
-                                else []
-                            )
-                        async with session.get(f"{repo_url}/name.ini") as resp:
-                            repo_name = (
-                                (await resp.text()).strip()
-                                if resp.status == 200
-                                else (
-                                    repo_url.split("/")[-2]
-                                    if "/" in repo_url
-                                    else repo_url
-                                )
-                            )
-                        self.kernel.cache.set(cache_key, (modules, repo_name), ttl=300)
+                    modules = await self.kernel.get_repo_modules_list(repo_url)
+                    repo_name = await self.kernel.get_repo_name(repo_url)
+                    self.kernel.cache.set(cache_key, (modules, repo_name), ttl=300)
                 except Exception:
                     modules = []
                     repo_name = repo_url.split("/")[-2] if "/" in repo_url else repo_url
@@ -472,19 +465,20 @@ class Loader(ModuleBase):
             start_idx = (page - 1) * per_page
             page_modules = modules[start_idx : start_idx + per_page] if modules else []
 
-            msg = (
+            header = (
                 self.strings("catalog_title", repo_url=repo_url)
                 if repo_index == 0
                 else self.strings(
                     "catalog_custom", repo_name=repo_name, repo_url=repo_url
                 )
-            )
-            msg += (
+            ).strip()
+            body = (
                 " | ".join([f"<code>{m}</code>" for m in page_modules])
                 if page_modules
                 else self.strings["no_modules_catalog"]
             )
-            msg += f"\n\n{self.strings('catalog_page', page=page, total_pages=total_pages)}"
+            page_text = self.strings("catalog_page", page=page, total_pages=total_pages)
+            msg = f"{header}\n<blockquote>{body}</blockquote>\n<blockquote>{page_text}</blockquote>"
 
             buttons = []
             nav_buttons = []
@@ -518,6 +512,38 @@ class Loader(ModuleBase):
                     ]
                 )
 
+            buttons.append(
+                [
+                    self.Button.input(
+                        self.strings["catalog_search_repo_btn"],
+                        self._catalog_search_input,
+                        allow_user=getattr(event, "sender_id", None),
+                        style="primary",
+                        data={
+                            "event": event,
+                            "scope": "repo",
+                            "repo_index": repo_index,
+                        },
+                    ),
+                    self.Button.input(
+                        self.strings["catalog_search_all_btn"],
+                        self._catalog_search_input,
+                        allow_user=getattr(event, "sender_id", None),
+                        style="success",
+                        data={"event": event, "scope": "all", "repo_index": repo_index},
+                    ),
+                ]
+            )
+            buttons.append(
+                [
+                    Button.inline(
+                        self.strings["catalog_back_btn"],
+                        b"catalog_main",
+                        style="primary",
+                    )
+                ]
+            )
+
             return msg, buttons
 
         except Exception as e:
@@ -527,11 +553,160 @@ class Loader(ModuleBase):
             traceback.print_exc()
             return self.strings("catalog_error", error=str(e)[:100]), []
 
+    def _catalog_main_menu(self, event) -> tuple[str, list]:
+        text = self.strings["catalog_main_menu"]
+        buttons = [
+            [
+                Button.inline(
+                    self.strings["catalog_install_btn"],
+                    b"catalog_install",
+                    style="success",
+                )
+            ],
+            [
+                Button.inline(
+                    self.strings["catalog_open_btn"], b"catalog_0_1", style="primary"
+                )
+            ],
+        ]
+        return text, buttons
+
+    def _catalog_install_menu(self, event) -> tuple[str, list]:
+        text = self.strings["catalog_install_menu"]
+        buttons = [
+            [
+                self.Button.input(
+                    self.strings["catalog_install_input_btn"],
+                    self._catalog_install_input,
+                    allow_user=getattr(event, "sender_id", None),
+                    style="success",
+                    data={"event": event},
+                )
+            ],
+            [
+                Button.inline(
+                    self.strings["catalog_back_btn"], b"catalog_main", style="primary"
+                )
+            ],
+        ]
+        return text, buttons
+
+    async def _catalog_install_input(
+        self, event, text: str, data: dict | None = None
+    ) -> None:
+        target = (data or {}).get("event") or event
+        query = (text or "").strip()
+        if not query:
+            return
+        await self._run_dlm_install(target, query)
+
+    async def _catalog_search_input(
+        self, event, text: str, data: dict | None = None
+    ) -> None:
+        data = data or {}
+        target = data.get("event") or event
+        query = (text or "").strip()
+        if not query:
+            return
+        with contextlib.suppress(Exception):
+            await target.edit(CUSTOM_EMOJI["loading"], parse_mode="html")
+        session_id = uuid.uuid4().hex[:8]
+        self.kernel._inline._session_put(
+            f"catalog_search:{session_id}",
+            {
+                "query": query,
+                "scope": data.get("scope") or "repo",
+                "repo_index": int(data.get("repo_index") or 0),
+            },
+            ttl=300,
+        )
+        msg, buttons = await self._handle_catalog_search(target, session_id, 1)
+        await target.edit(msg, buttons=buttons if buttons else None, parse_mode="html")
+
+    async def _handle_catalog_search(
+        self, event, session_id: str, page: int
+    ) -> tuple[str, list]:
+        payload = self.kernel._inline._session_get(f"catalog_search:{session_id}")
+        if not payload:
+            return self.strings["catalog_search_expired"], [
+                [
+                    Button.inline(
+                        self.strings["catalog_back_btn"],
+                        b"catalog_main",
+                        style="primary",
+                    )
+                ]
+            ]
+        query = str(payload.get("query") or "").strip()
+        scope = str(payload.get("scope") or "repo")
+        repo_index = int(payload.get("repo_index") or 0)
+        repos = [self.kernel.default_repo, *self.kernel.repositories]
+        selected_repos = (
+            list(enumerate(repos))
+            if scope == "all"
+            else [(repo_index, repos[max(0, min(repo_index, len(repos) - 1))])]
+        )
+        found: list[str] = []
+        needle = query.lower()
+        for _idx, repo_url in selected_repos:
+            try:
+                modules = await self.kernel.get_repo_modules_list(repo_url)
+                found.extend(name for name in modules if needle in name.lower())
+            except Exception as exc:
+                self.kernel.logger.debug(
+                    "catalog search repo failed %s: %s", repo_url, exc
+                )
+        found = sorted(dict.fromkeys(found), key=str.lower)
+        per_page = 8
+        total_pages = (len(found) + per_page - 1) // per_page if found else 1
+        page = max(1, min(page, total_pages))
+        page_modules = found[(page - 1) * per_page : page * per_page]
+        body = (
+            " | ".join(f"<code>{html.escape(name)}</code>" for name in page_modules)
+            or self.strings["catalog_search_empty"]
+        )
+        msg = self.strings(
+            "catalog_search_result",
+            query=html.escape(query),
+            body=body,
+            page=self.strings("catalog_page", page=page, total_pages=total_pages),
+        )
+        buttons: list[list] = []
+        nav = []
+        if page > 1:
+            nav.append(
+                Button.inline(
+                    self.strings["btn_back"],
+                    f"catalog_search_{session_id}_{page - 1}".encode(),
+                    style="primary",
+                )
+            )
+        if page < total_pages:
+            nav.append(
+                Button.inline(
+                    self.strings["btn_next"],
+                    f"catalog_search_{session_id}_{page + 1}".encode(),
+                    style="primary",
+                )
+            )
+        if nav:
+            buttons.append(nav)
+        buttons.append(
+            [
+                Button.inline(
+                    self.strings["catalog_back_btn"],
+                    f"catalog_{repo_index}_1".encode(),
+                    style="primary",
+                )
+            ]
+        )
+        return msg, buttons
+
     async def _catalog_inline_handler(self, event) -> None:
         try:
             query = event.text or ""
             if not query or query == "catalog":
-                query = "catalog_0_1"
+                query = "catalog_main"
 
             msg, buttons = await self._handle_catalog(event, query)
 
@@ -1046,7 +1221,7 @@ class Loader(ModuleBase):
             )
 
             # file_path, old_file_backup, old_file_backup_path are already
-            # initialized before the try block — only override when needed.
+            # initialized before the try block - only override when needed.
 
             new_class_name = metadata.get("class_name")
             for loaded_name, loaded_mod in list(self.kernel.loaded_modules.items()):
@@ -1144,7 +1319,7 @@ class Loader(ModuleBase):
                     module_name, force=force_unload
                 )
 
-            # Resolve # name: from code — the URL / repo filename may differ
+            # Resolve # name: from code - the URL / repo filename may differ
             # from the module's canonical name in its header.
             post_meta_name = None
             try:
@@ -2686,7 +2861,6 @@ class Loader(ModuleBase):
             if module_name in self.kernel.system_modules:
                 del self.kernel.system_modules[module_name]
 
-            await self._log_to_bot(f"Moдyль {module_name} yдaлён")
             self.kernel._module_sources.pop(module_name, None)
             success.append(module_name)
 

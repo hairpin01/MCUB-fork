@@ -185,7 +185,7 @@ class KernelLifecycleMixin:
             self.dispatcher.register()
         else:
             self.logger.error(
-                "[core_handlers] dispatcher unavailable — no core handlers registered"
+                "[core_handlers] dispatcher unavailable - no core handlers registered"
             )
         self.logger.debug(
             "[core_handlers] registered outgoing handlers builders=%r",
@@ -500,6 +500,15 @@ class KernelLifecycleMixin:
             except Exception:
                 pass
 
+        web_runner = getattr(self, "_web_runner", None)
+        if web_runner is not None:
+            try:
+                await web_runner.cleanup()
+            except Exception:
+                pass
+            finally:
+                self._web_runner = None
+
         if hasattr(self, "bot_client") and self.bot_client:
             try:
                 await self.bot_client.disconnect()
@@ -653,8 +662,22 @@ class KernelLifecycleMixin:
                 finally:
                     await runner.cleanup()
                 print("\nStarting kernel…\n", flush=True)
+            except OSError as e:
+                import errno as _errno
+
+                if e.errno == _errno.EADDRINUSE:
+                    msg = (
+                        f"Port {port} is already in use. "
+                        "Stop the process occupying it and restart MCUB."
+                    )
+                    print(f"\n❌  {msg}\n", flush=True)
+                    self.logger.error("Setup wizard failed: %s", msg)
+                else:
+                    self.logger.error("Setup wizard failed: %s", e)
+                    await self.handle_error(e, message="Setup wizard failed")
+                return
             except Exception as e:
-                self.logger.error(f"Setup wizard failed: {e}")
+                self.logger.error("Setup wizard failed: %s", e)
                 await self.handle_error(e, message="Setup wizard failed")
                 return
 
@@ -662,7 +685,7 @@ class KernelLifecycleMixin:
         try:
             from core.web.app import start_web_panel
 
-            _task = asyncio.create_task(start_web_panel(self, host, port))
+            self._web_runner = await start_web_panel(self, host, port)
         except Exception as e:
             self.logger.error(f"Failed to start web panel: {e}")
             await self.handle_error(e, message="Web panel start failed")
@@ -674,7 +697,7 @@ class KernelLifecycleMixin:
         """Proxy to ``dispatcher.process_command``."""
         if self.dispatcher is not None:
             return await self.dispatcher.process_command(event, depth)
-        self.logger.error("dispatcher unavailable — cannot process command")
+        self.logger.error("dispatcher unavailable - cannot process command")
         return False
 
     def get_prefix_for_sender(self, sender_id: Any) -> str:

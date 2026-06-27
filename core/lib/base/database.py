@@ -86,6 +86,8 @@ class DatabaseManager:
     # (oldest key) is dropped.  Prevents unbounded growth when many modules
     # each store dozens of keys (e.g. config module, trusted module, etc.).
     _GET_CACHE_MAXSIZE = 2048
+    _MAX_VALUE_BYTES = 16 * 1024 * 1024
+    _WAL_TRUNCATE_BYTES = 64 * 1024 * 1024
 
     def __init__(self, kernel):
         self.kernel = kernel
@@ -211,7 +213,9 @@ class DatabaseManager:
             # reduces contention during startup when many modules write configs
             # simultaneously.
             await self.conn.execute("PRAGMA journal_mode = WAL")
-            # NORMAL syncs only at checkpoints, not every commit — safe for
+            await self.conn.execute("PRAGMA wal_autocheckpoint = 256")
+            await self.conn.execute("PRAGMA journal_size_limit = 16777216")
+            # NORMAL syncs only at checkpoints, not every commit - safe for
             # a userbot where occasional data loss on power-failure is acceptable.
             await self.conn.execute("PRAGMA synchronous = NORMAL")
             # 8 MB page cache (negative value = kibibytes).
@@ -273,6 +277,30 @@ class DatabaseManager:
                 pass
         self._get_cache[cache_key] = value
 
+    def _stringify_value(self, module: str, key: str, value: Any) -> str:
+        text = str(value)
+        size = len(text.encode("utf-8", errors="replace"))
+        if size > self._MAX_VALUE_BYTES:
+            raise ValueError(
+                f"DB value too large for {module}.{self.mask_key(key)}: "
+                f"{size} bytes > {self._MAX_VALUE_BYTES} bytes"
+            )
+        return text
+
+    async def _checkpoint_wal_if_needed(self) -> None:
+        if not self.conn:
+            return
+        try:
+            wal_path = f"{self._resolve_db_file()}-wal"
+            if (
+                os.path.exists(wal_path)
+                and os.path.getsize(wal_path) > self._WAL_TRUNCATE_BYTES
+            ):
+                await self.conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                self.logger.debug("[DB] WAL checkpoint truncate done")
+        except Exception as e:
+            self.logger.debug("[DB] WAL checkpoint skipped: %s", e)
+
     async def db_set(self, module: str, key: str, value: Any):
         """Save value for a module key (write-through cache invalidate)."""
         self.logger.debug(f"[DB] db_set module={module} key={self.mask_key(key)}")
@@ -284,11 +312,13 @@ class DatabaseManager:
                 "Invalid module or key name. Use only alphanumeric and underscore."
             )
 
+        stored_value = self._stringify_value(module, key, value)
         await self.conn.execute(
             "INSERT OR REPLACE INTO module_data VALUES (?, ?, ?)",
-            (module, key, str(value)),
+            (module, key, stored_value),
         )
         await self.conn.commit()
+        await self._checkpoint_wal_if_needed()
         self._get_cache.pop(f"{module}:{key}", None)
         self.logger.debug("[DB] db_set done")
 
@@ -315,7 +345,12 @@ class DatabaseManager:
                     f"[DB] db_set_many skipping invalid identifier: module={module!r} key={key!r}"
                 )
                 continue
-            validated.append((module, key, str(value)))
+            try:
+                stored_value = self._stringify_value(module, key, value)
+            except ValueError as e:
+                self.logger.warning("[DB] db_set_many skipping oversized value: %s", e)
+                continue
+            validated.append((module, key, stored_value))
 
         if not validated:
             return
@@ -324,6 +359,7 @@ class DatabaseManager:
             "INSERT OR REPLACE INTO module_data VALUES (?, ?, ?)", validated
         )
         await self.conn.commit()
+        await self._checkpoint_wal_if_needed()
 
         # Invalidate cache for all written keys.
         for module, key, _ in validated:
@@ -347,6 +383,29 @@ class DatabaseManager:
         if cached is not ...:
             self.logger.debug(f"[DB] db_get cache-hit key={self.mask_key(cache_key)}")
             return cached
+
+        cursor = await self.conn.execute(
+            "SELECT LENGTH(value) FROM module_data WHERE module = ? AND key = ?",
+            (module, key),
+        )
+        size_row = await cursor.fetchone()
+        await cursor.close()
+        if not size_row:
+            self._cache_put(cache_key, None)
+            self.logger.debug("[DB] db_get result=none")
+            return None
+
+        value_size = size_row[0] or 0
+        if value_size > self._MAX_VALUE_BYTES:
+            self.logger.warning(
+                "[DB] oversized value skipped on read: %s.%s size=%d limit=%d",
+                module,
+                self.mask_key(key),
+                value_size,
+                self._MAX_VALUE_BYTES,
+            )
+            self._cache_put(cache_key, None)
+            return None
 
         cursor = await self.conn.execute(
             "SELECT value FROM module_data WHERE module = ? AND key = ?", (module, key)

@@ -13,12 +13,12 @@ Always annotate your handler signatures with the provided protocol types instead
 ```python
 from core.lib.types import Kernel, Event, Client, Message, Register
 
-# ✅ Good — typed
+# ✅ Good - typed
 @kernel.register.command("hello")
 async def hello_handler(event: Event) -> None:
     await event.edit("Hello!")
 
-# ❌ Bad — untyped
+# ❌ Bad - untyped
 @kernel.register.command("hello")
 async def hello_handler(event):  # noqa: ANN001
     await event.edit("Hello!")
@@ -32,9 +32,9 @@ async def hello_handler(event):  # noqa: ANN001
 | Telegram message | `Message` | `from core.lib.types import Message` |
 | Registration API | `Register` | `from core.lib.types import Register` |
 
-> **Note:** Protocols are structural — no runtime overhead. They only affect type checkers and IDE hints. See [Type Protocols](../api/types.md) for the full reference.
+> **Note:** Protocols are structural - no runtime overhead. They only affect type checkers and IDE hints. See [Type Protocols](../api/types.md) for the full reference.
 
-> **Note:** Protocols are structural — no runtime overhead. They only affect type checkers and IDE hints. See [Type Protocols](../api/types.md) for the full reference.
+> **Note:** Protocols are structural - no runtime overhead. They only affect type checkers and IDE hints. See [Type Protocols](../api/types.md) for the full reference.
 
 ---
 

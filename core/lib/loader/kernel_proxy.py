@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import functools
+import weakref
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
@@ -91,6 +92,8 @@ _CLIENT_DANGEROUS_METHODS = frozenset(
         "session",
         "session_name",
         "session_path",
+        "api_id",
+        "api_hash",
         "phone",
         "phone_code_hash",
         "authorization_key",
@@ -136,6 +139,20 @@ _DB_DANGEROUS_METHODS = frozenset(
         "_conn",
         "_cursor",
         "_close",
+    }
+)
+
+
+_CLIENT_BLOCKED_MAGIC_NAMES = frozenset(
+    {
+        "__dict__",
+        "__getattribute__",
+        "__setattr__",
+        "__reduce__",
+        "__reduce_ex__",
+        "__getstate__",
+        "__setstate__",
+        "__weakref__",
     }
 )
 
@@ -236,6 +253,8 @@ class ModuleKernelProxy:
             "loaded_modules_view",
             "system_modules_view",
             "client",
+            "bot_client",
+            "inline_bot",
             "_live_module_configs",
             "remove_inline_callback_tokens",
             "store_inline_callback",
@@ -258,6 +277,7 @@ class ModuleKernelProxy:
         object.__setattr__(self, "_module_name", module_name)
         object.__setattr__(self, "_register_proxy", None)
         object.__setattr__(self, "_client_proxy", None)
+        object.__setattr__(self, "_bot_client_proxy", None)
         object.__setattr__(self, "_config_proxy", None)
         object.__setattr__(self, "_module_state", {})
 
@@ -283,6 +303,26 @@ class ModuleKernelProxy:
             cached = ClientProxy(kernel.client, self.module_name)
             object.__setattr__(self, "_client_proxy", cached)
         return cached
+
+    @property
+    def bot_client(self) -> ClientProxy | None:
+        """Safe inline bot client proxy, preserving ``None`` when disabled."""
+        kernel = object.__getattribute__(self, "_kernel")
+        bot_client = getattr(kernel, "bot_client", None)
+        if bot_client is None:
+            object.__setattr__(self, "_bot_client_proxy", None)
+            return None
+
+        cached = object.__getattribute__(self, "_bot_client_proxy")
+        if cached is None:
+            cached = ClientProxy(bot_client, self.module_name)
+            object.__setattr__(self, "_bot_client_proxy", cached)
+        return cached
+
+    @property
+    def inline_bot(self) -> ClientProxy | None:
+        """Compatibility alias for ``bot_client`` with the same protection."""
+        return self.bot_client
 
     def is_protected(self, name: str) -> bool:
         return name in PROTECTED_KERNEL_NAMES or name.startswith("_")
@@ -480,6 +520,8 @@ class ModuleKernelProxy:
                 "module_name",
                 "register",
                 "client",
+                "bot_client",
+                "inline_bot",
                 "is_protected",
                 "lookup_module",
                 "get_loaded_module",
@@ -503,124 +545,137 @@ class ModuleKernelProxy:
         return f"<ModuleKernelProxy module={self.module_name!r}>"
 
 
-class ClientProxy:
-    """Safe TelegramClient facade for user modules.
+def _make_client_proxy():
+    """Create ClientProxy with raw clients hidden in closure-local weak maps."""
 
-    Allows benign Telegram API calls (``send_message``, ``get_entity``,
-    ``get_messages``, ``upload_file``, etc.) but blocks destructive operations
-    like ``disconnect``, ``logout``, ``session`` access, or direct event
-    subscription that should be managed by the kernel.
+    client_map = weakref.WeakKeyDictionary()
+    module_map = weakref.WeakKeyDictionary()
 
-    The real client is accessible only from kernel/system code; user modules
-    receive this proxy as ``module.client``.
-    """
+    class ClientProxy:
+        """Safe TelegramClient facade for user modules.
 
-    _LOCAL_NAMES = frozenset(
-        {
-            "module_name",
-            "is_safe_method",
-            "_deny",
-            "__class__",
-            "__repr__",
-            "__dir__",
-        }
-    )
+        Allows benign Telegram API calls (``send_message``, ``get_entity``,
+        ``get_messages``, ``upload_file``, etc.) but blocks destructive operations
+        like ``disconnect``, ``logout``, ``session`` access, direct event
+        subscription, and sensitive credentials.
 
-    def __init__(self, client: Client, module_name: str) -> None:
-        object.__setattr__(self, "_client", client)
-        object.__setattr__(self, "_module_name", module_name)
+        The real client is kept in a closure-local weak map so user modules cannot
+        retrieve it via ``self._client._client`` or by importing module globals.
+        """
 
-    @property
-    def module_name(self) -> str:
-        return object.__getattribute__(self, "_module_name")
+        __slots__ = ("__weakref__",)
 
-    @staticmethod
-    def is_safe_method(name: str) -> bool:
-        """Return True if *name* is a safe client attribute/method for modules."""
-        if name.startswith("__") and name.endswith("__"):
-            return True
-        if name.startswith("_"):
-            return False
-        if name in ("is_safe_method", "module_name"):
-            return True
-        return name not in _CLIENT_DANGEROUS_METHODS
+        _LOCAL_NAMES = frozenset(
+            {
+                "module_name",
+                "is_safe_method",
+                "_deny",
+                "__class__",
+                "__repr__",
+                "__dir__",
+            }
+        )
 
-    def _deny(self, name: str) -> None:
-        _raise_insecure(name, self.module_name)
+        def __init__(self, client: Client, module_name: str) -> None:
+            client_map[self] = client
+            module_map[self] = module_name
 
-    # Hikka/Heroku modules expect HTML parse mode by default, but Telethon
-    # methods like send_file/send_message read self._parse_mode on the real
-    # TelegramClient internally (bypassing the proxy). Wrap those methods to
-    # inject parse_mode='html' when not explicitly provided.
-    _PARSE_MODE_METHODS = frozenset(
-        {
-            "send_file",
-            "send_message",
-            "edit_message",
-            "send_photo",
-            "send_video",
-            "send_audio",
-            "send_document",
-            "send_voice",
-            "send_sticker",
-            "send_animation",
-            "forward_messages",
-            "respond",
-        }
-    )
+        @property
+        def module_name(self) -> str:
+            return module_map.get(self, "<unknown>")
 
-    @staticmethod
-    def _with_hikka_parse(method):
-        """Wrap a Telethon method so parse_mode defaults to 'html'."""
+        @staticmethod
+        def is_safe_method(name: str) -> bool:
+            """Return True if *name* is a safe client attribute/method for modules."""
+            if name in _CLIENT_BLOCKED_MAGIC_NAMES:
+                return False
+            if name.startswith("__") and name.endswith("__"):
+                return False
+            if name.startswith("_"):
+                return False
+            if name in ("is_safe_method", "module_name"):
+                return True
+            return name not in _CLIENT_DANGEROUS_METHODS
 
-        @functools.wraps(method)
-        async def wrapper(*args, **kwargs):
-            if "parse_mode" not in kwargs:
-                kwargs["parse_mode"] = "html"
-            return await method(*args, **kwargs)
+        def _deny(self, name: str) -> None:
+            _raise_insecure(name, self.module_name)
 
-        return wrapper
+        # Hikka/Heroku modules expect HTML parse mode by default, but Telethon
+        # methods like send_file/send_message read self._parse_mode on the real
+        # TelegramClient internally (bypassing the proxy). Wrap those methods to
+        # inject parse_mode='html' when not explicitly provided.
+        _PARSE_MODE_METHODS = frozenset(
+            {
+                "send_file",
+                "send_message",
+                "edit_message",
+                "send_photo",
+                "send_video",
+                "send_audio",
+                "send_document",
+                "send_voice",
+                "send_sticker",
+                "send_animation",
+                "forward_messages",
+                "respond",
+            }
+        )
 
-    def __getattribute__(self, name: str) -> Any:
-        if name == "__dict__":
-            _raise_insecure(name, object.__getattribute__(self, "_module_name"))
-        if name in object.__getattribute__(self, "_LOCAL_NAMES"):
-            return object.__getattribute__(self, name)
-        # Hikka/Heroku modules expect HTML parse mode by default
-        if name == "parse_mode":
-            return "html"
-        # Allow __dunder__ methods through (__class__, __call__, etc.)
-        if name.startswith("__") and name.endswith("__"):
-            return object.__getattribute__(self, name)
-        if not ClientProxy.is_safe_method(name):
-            _raise_insecure(name, object.__getattribute__(self, "_module_name"))
-        real_attr = getattr(object.__getattribute__(self, "_client"), name)
-        if name in ClientProxy._PARSE_MODE_METHODS and callable(real_attr):
-            return ClientProxy._with_hikka_parse(real_attr)
-        return real_attr
+        @staticmethod
+        def _with_hikka_parse(method):
+            """Wrap a Telethon method so parse_mode defaults to 'html'."""
 
-    async def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        """Allow direct Telethon API calls: ``await client(SomeRequest(...))``."""
-        return await object.__getattribute__(self, "_client")(*args, **kwargs)
+            @functools.wraps(method)
+            async def wrapper(*args, **kwargs):
+                if "parse_mode" not in kwargs:
+                    kwargs["parse_mode"] = "html"
+                return await method(*args, **kwargs)
 
-    def __setattr__(self, name: str, value: Any) -> None:
-        if name in object.__getattribute__(self, "_LOCAL_NAMES"):
-            object.__setattr__(self, name, value)
-            return
-        if not ClientProxy.is_safe_method(name):
+            return wrapper
+
+        def __getattribute__(self, name: str) -> Any:
+            if name in _CLIENT_BLOCKED_MAGIC_NAMES or name == "_client":
+                _raise_insecure(name, module_map.get(self, "<unknown>"))
+            if name in object.__getattribute__(self, "_LOCAL_NAMES"):
+                return object.__getattribute__(self, name)
+            # Hikka/Heroku modules expect HTML parse mode by default.
+            if name == "parse_mode":
+                return "html"
+            # Introspection helpers often probe dunders with getattr(..., default).
+            # Raise AttributeError for harmless dunders so such probes keep working,
+            # while explicitly blocked magic names above still report insecure access.
+            if name.startswith("__") and name.endswith("__"):
+                raise AttributeError(name)
+            if not ClientProxy.is_safe_method(name):
+                _raise_insecure(name, module_map.get(self, "<unknown>"))
+            real_attr = getattr(client_map[self], name)
+            if name in ClientProxy._PARSE_MODE_METHODS and callable(real_attr):
+                return ClientProxy._with_hikka_parse(real_attr)
+            return real_attr
+
+        async def __call__(self, *args: Any, **kwargs: Any) -> Any:
+            """Allow direct Telethon API calls: ``await client(SomeRequest(...))``."""
+            return await client_map[self](*args, **kwargs)
+
+        def __setattr__(self, name: str, value: Any) -> None:
             self._deny(name)
-        client = object.__getattribute__(self, "_client")
-        setattr(client, name, value)
 
-    def __delattr__(self, name: str) -> None:
-        self._deny(name)
+        def __delattr__(self, name: str) -> None:
+            self._deny(name)
 
-    def __dir__(self) -> list[str]:
-        client = object.__getattribute__(self, "_client")
-        return sorted(name for name in dir(client) if ClientProxy.is_safe_method(name))
+        def __dir__(self) -> list[str]:
+            client = client_map[self]
+            return sorted(
+                name for name in dir(client) if ClientProxy.is_safe_method(name)
+            )
 
-    def __repr__(self) -> str:
-        return f"<ClientProxy module={self.module_name!r}>"
+        def __repr__(self) -> str:
+            return f"<ClientProxy module={self.module_name!r}>"
+
+    return ClientProxy
+
+
+ClientProxy = _make_client_proxy()
 
 
 class ConfigProxy:

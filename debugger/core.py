@@ -36,6 +36,11 @@ class SourceAnalyzer(ast.NodeVisitor):
         self.current_scope = self.symbol_stack[-1]
         self._noqa_lines: set[int] = self._parse_noqa_comments()
 
+    def visit_Module(self, node: ast.Module) -> None:
+        """Run whole-file rules before visiting functions/classes."""
+        self._check_rules(node, module_only=True)
+        self.generic_visit(node)
+
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
         """Run module/class rules and then analyze methods inside the class."""
         self._check_rules(node)
@@ -150,16 +155,18 @@ class SourceAnalyzer(ast.NodeVisitor):
             return self._get_decorator_name(decorator.func)
         return "unknown"
 
-    def _check_rules(
-        self, node: ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef
-    ) -> None:
+    def _check_rules(self, node: ast.AST, module_only: bool = False) -> None:
         for rule in self.rules.get_rules():
+            if module_only and not getattr(rule, "module_level", False):
+                continue
+            if not module_only and getattr(rule, "module_level", False):
+                continue
             if rule.should_check(self):
                 warnings = rule.check(self, node)
                 if warnings:
                     for w in warnings:
                         if not self.is_line_noqa(w.line, w.rule_id):
-                            if w.function_name is None:
+                            if w.function_name is None and hasattr(node, "name"):
                                 w.function_name = node.name
                             if not self._is_duplicate_warning(w):
                                 self.warnings.append(w)
@@ -383,7 +390,7 @@ class ModuleDebugger:
         analyzer.warnings = []
 
         try:
-            ast.NodeVisitor.generic_visit(analyzer, tree)
+            analyzer.visit(tree)
         except Exception as e:
             result.errors.append(f"AST analysis error: {e}")
 

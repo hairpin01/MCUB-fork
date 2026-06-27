@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Шмэлькa | @hairpin01
 
 """
-Event protocol — structural type for Telegram events.
+Event protocol - structural type for Telegram events.
 
 Covers the intersection of:
 * Real ``telethon.events`` event instances

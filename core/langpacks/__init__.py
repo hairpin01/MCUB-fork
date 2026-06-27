@@ -41,7 +41,11 @@ def _is_global_marker(value: Any) -> bool:
 
 def get_available_locales() -> list[str]:
     """Returns list of available locales from langpacks files."""
-    return [f.stem for f in _LANGPACKS_DIR.glob("*.yaml")]
+    return sorted(
+        f.stem
+        for f in _LANGPACKS_DIR.iterdir()
+        if f.is_file() and f.suffix in (".yaml", ".yml")
+    )
 
 
 def _load_yaml(file_path: Path) -> dict[str, Any]:
@@ -60,7 +64,9 @@ def get_langpacks(locale: str | None = None) -> dict[str, dict[str, Any]]:
             return {locale: LANGPACKS[locale]}
         return LANGPACKS
 
-    for yaml_file in _LANGPACKS_DIR.glob("*.yaml"):
+    for yaml_file in sorted(_LANGPACKS_DIR.glob("*.yaml")) + sorted(
+        _LANGPACKS_DIR.glob("*.yml")
+    ):
         locale_name = yaml_file.stem
         data = _load_yaml(yaml_file)
 

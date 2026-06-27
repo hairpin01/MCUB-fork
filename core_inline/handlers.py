@@ -293,6 +293,51 @@ class InlineHandlers:
         self._cleanup_interval = 300.0
         self._form_counter = 0
 
+    def _dedup_runtime_event(self, kind: str, key: str, ttl: float = 2.0) -> bool:
+        """Return True when the same inline event was processed recently."""
+        if not key:
+            return False
+        cache_key = f"inline:{kind}:dedup:{key}"
+        cache = getattr(self.kernel, "cache", None)
+        if cache is not None:
+            if cache.get(cache_key):
+                return True
+            cache.set(cache_key, True, ttl=int(max(1, ttl)))
+            return False
+
+        now = time.time()
+        seen = getattr(self.kernel, "_inline_runtime_dedup", None)
+        if not isinstance(seen, dict):
+            seen = {}
+            self.kernel._inline_runtime_dedup = seen
+        expired = [item for item, expires_at in seen.items() if expires_at <= now]
+        for item in expired[:100]:
+            seen.pop(item, None)
+        if cache_key in seen:
+            return True
+        seen[cache_key] = now + ttl
+        return False
+
+    def _inline_query_dedup_key(self, event: Any, query: str) -> str:
+        query_obj = getattr(event, "query", None)
+        query_id = getattr(query_obj, "query_id", None) or getattr(
+            query_obj, "id", None
+        )
+        if query_id:
+            return str(query_id)
+        return f"{getattr(event, 'sender_id', 0)}:{query}"
+
+    def _callback_dedup_key(self, event: Any, data_str: str) -> str:
+        query_id = getattr(event, "query_id", None) or getattr(
+            getattr(event, "_q", None), "id", None
+        )
+        if query_id:
+            return str(query_id)
+        msg_id = getattr(event, "msg_id", None) or getattr(
+            getattr(event, "message", None), "message_id", None
+        )
+        return f"{getattr(event, 'sender_id', 0)}:{getattr(event, 'chat_instance', 0)}:{msg_id}:{data_str}"
+
     def _is_aiogram_event(self, event: Any) -> bool:
         """Detect whether event is from aiogram or Telethon.
 
@@ -482,11 +527,22 @@ class InlineHandlers:
                     e,
                 )
 
+    def _get_bot_client_on(self):
+        try:
+            on = self.bot_client.on
+        except Exception as e:
+            self.kernel.logger.debug(
+                "[InlineHandlers] bot_client.on unavailable: %s", e
+            )
+            return None
+        return on if callable(on) else None
+
     def _setup_inline_send_handler(self) -> None:
         # Only register with Telethon clients (which have .on() method).
         # Aiogram Bot objects do not have .on() - they use Dispatcher routers,
         # and there is no aiogram equivalent for UpdateBotInlineSend.
-        if not hasattr(self.bot_client, "on"):
+        on = self._get_bot_client_on()
+        if on is None:
             self.kernel.logger.debug(
                 "[InlineHandlers] bot_client is not a Telethon client, "
                 "skipping inline send handler"
@@ -503,7 +559,7 @@ class InlineHandlers:
             return
         self.bot_client._mcub_inline_send_handler_registered = True
 
-        @self.bot_client.on(events.Raw)
+        @on(events.Raw)
         async def inline_send_handler(event):
             from telethon.tl.types import UpdateBotInlineSend
 
@@ -1287,6 +1343,13 @@ class InlineHandlers:
         Registers Telethon event handlers that delegate to adapter methods.
         These methods can also be called directly from aiogram handlers.
         """
+        if getattr(self.bot_client, "_mcub_inline_handlers_registered", False):
+            self.kernel.logger.debug(
+                "[InlineHandlers] handlers already registered, skipping"
+            )
+            return
+        self.bot_client._mcub_inline_handlers_registered = True
+
         await self._start_cleanup_task()
 
         @self.bot_client.on(events.InlineQuery)
@@ -1312,6 +1375,13 @@ class InlineHandlers:
 
         try:
             query = event.text or ""
+            if self._dedup_runtime_event(
+                "query", self._inline_query_dedup_key(event, query)
+            ):
+                self.kernel.logger.debug(
+                    "[InlineHandlers] duplicate inline query ignored"
+                )
+                return
 
             if not await self.check_admin(event):
                 await event.answer(
@@ -1341,9 +1411,9 @@ class InlineHandlers:
                 )
 
                 thumb = InputWebDocument(
-                    url="https://kappa.lol/KSKoOu",
+                    url="https://x0.at/Bz-z.png",
                     size=0,
-                    mime_type="image/jpeg",
+                    mime_type="image/png",
                     attributes=[],
                 )
 
@@ -1358,6 +1428,10 @@ class InlineHandlers:
                 )
 
                 for pattern, handler in self.kernel.inline_handlers.items():
+                    if callable(self._inline_manager):
+                        self._inline_manager.is_allowed(event.sender_id, pattern)
+                        continue
+
                     if len(results) >= 50:
                         break
                     docstring = getattr(handler, "__doc__", None) or "кoмaндa"
@@ -1366,9 +1440,9 @@ class InlineHandlers:
                         f" <code>{html.escape(pattern)}</code>\n\n"
                     )
                     thumb_cmd = InputWebDocument(
-                        url="https://kappa.lol/EKhGKM",
+                        url="https://x0.at/PVWT.png",
                         size=0,
-                        mime_type="image/jpeg",
+                        mime_type="image/png",
                         attributes=[],
                     )
                     results.append(
@@ -1395,11 +1469,18 @@ class InlineHandlers:
                         f"{self.EMOJI_CRYSTAL} <b>{self.lang['mcub_bot_title']}</b>\n\n"
                         f"{self.EMOJI_BLOCK} <i>{self.lang['no_commands']}</i>\n\n"
                     )
+                    thumb_not_found = InputWebDocument(
+                        url="https://x0.at/Eusf.png",
+                        size=0,
+                        mime_type="image/png",
+                        attributes=[],
+                    )
                     results.append(
                         event.builder.article(
                             self.lang["no_commands"],
                             text=no_cmds_text,
                             parse_mode="html",
+                            thumb=thumb_not_found,
                         )
                     )
 
@@ -1424,10 +1505,20 @@ class InlineHandlers:
                         if hasattr(builder, "id"):
                             builder.id = query_cmd
                     else:
+                        thumb_paper = InputWebDocument(
+                            url="https://x0.at/GNEy.png",
+                            size=0,
+                            mime_type="image/png",
+                            attributes=[],
+                        )
                         builder = event.builder.article(
                             id=query_cmd,
-                            title="Do not delete ID!",
-                            text="I send a request to the module...",
+                            title="💣 Do not delete ID!",
+                            description="✏️ Write the meaning...",
+                            text="🎲 <strong>I send a request to the module...</strong>\n"
+                            "🗿 <em>The message will not be deleted on its own....</em>",
+                            parse_mode="html",
+                            thumb=thumb_paper,
                         )
 
                     self.kernel.logger.debug(
@@ -1579,6 +1670,11 @@ class InlineHandlers:
                 if isinstance(event.data, bytes)
                 else str(event.data)
             )
+            if self._dedup_runtime_event(
+                "callback", self._callback_dedup_key(event, data_str)
+            ):
+                self.kernel.logger.debug("[InlineHandlers] duplicate callback ignored")
+                return
 
             # Check auto-generated callback tokens first for allow_all
             self._cleanup_inline_callback_map()
@@ -1738,18 +1834,32 @@ class InlineHandlers:
     async def _handle_mute_error(self, event, data_str: str) -> None:
         """Mute a specific error type+source for one hour."""
         try:
-            # Format: "mute_err:{error_type}:{source}"
+            # New format: "mute_err:{token}". The full source is stored in cache.
+            # Old format "mute_err:{error_type}:{source}" is kept as a fallback.
             parts = data_str.split(":", 2)
-            if len(parts) < 3:
+            if len(parts) < 2 or not parts[1]:
                 return await event.answer(
                     f"⚠️ {self.lang['invalid_format']}", alert=True
                 )
 
-            error_type, source = parts[1], parts[2]
-
             klogger = getattr(self.kernel, "klogger", None) or getattr(
                 self.kernel, "kernel_logger", None
             )
+            error_type = ""
+            source = ""
+            if len(parts) == 2 and klogger is not None:
+                target = klogger.get_mute_target(parts[1])
+                if target:
+                    error_type = target["error_type"]
+                    source = target["source"]
+            elif len(parts) >= 3:
+                error_type, source = parts[1], parts[2]
+
+            if not error_type or not source:
+                return await event.answer(
+                    f"⚠️ {self.lang['invalid_request']}", alert=True
+                )
+
             if klogger is not None:
                 klogger.mute_error(error_type, source)
             else:
@@ -1771,16 +1881,41 @@ class InlineHandlers:
             self.kernel.logger.debug("[InlineHandlers] cmd not in inline_handlers")
             return False
 
+        if not await self._inline_manager.is_allowed(event.sender_id, command=cmd):
+            no_access_text = (
+                f"{self.EMOJI_BLOCK} <b>{self.lang['no_access']}</b>\n"
+                f"<blockquote>{self.EMOJI_SHIELD} "
+                f"{self.lang('inline_command_no_access', cmd=html.escape(cmd))}</blockquote>"
+            )
+            await self._answer_inline_query(
+                event,
+                [
+                    self._build_article_result(
+                        event,
+                        self.lang["no_access"],
+                        no_access_text,
+                    )
+                ],
+                cache_time=0,
+            )
+            return True
+
         handler = self.kernel.inline_handlers[cmd]
         self.kernel.logger.debug(
             f"[InlineHandlers] handler found: {handler}, cmd={cmd}"
         )
 
         try:
-            # Check if this is a hikka-compat handler by checking attributes
-            is_hikka_handler = getattr(
-                handler, "__hikka_inline_handler__", False
-            ) or getattr(handler, "is_inline_handler", False)
+            # Check if this is a hikka-compat handler by explicit markers only.
+            # Hikka/Heroku convention-based handlers are marked by the compat
+            # registration layer; never infer this from arbitrary function names.
+            handler_func = getattr(handler, "__func__", handler)
+            is_hikka_handler = (
+                getattr(handler, "__hikka_inline_handler__", False)
+                or getattr(handler, "is_inline_handler", False)
+                or getattr(handler_func, "__hikka_inline_handler__", False)
+                or getattr(handler_func, "is_inline_handler", False)
+            )
 
             sig = None
             if not is_hikka_handler:

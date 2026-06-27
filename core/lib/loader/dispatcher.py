@@ -3,7 +3,7 @@
 
 # author: @Hairpin00
 # version: 1.0.0
-# description: Central command dispatcher — message handler + command processing
+# description: Central command dispatcher - message handler + command processing
 
 from __future__ import annotations
 
@@ -70,17 +70,17 @@ class CommandDispatcher:
         and ``MessageEdited`` events so that edited messages are also
         re-dispatched.
 
-        Idempotent — skips registration if the handler is already bound.
+        Idempotent - skips registration if the handler is already bound.
         """
         if events is None:
             self.logger.error(
-                "[dispatcher] cannot register — telethon.events unavailable"
+                "[dispatcher] cannot register - telethon.events unavailable"
             )
             return
 
         client = getattr(self.kernel, "client", None)
         if client is None:
-            self.logger.error("[dispatcher] cannot register — kernel.client is None")
+            self.logger.error("[dispatcher] cannot register - kernel.client is None")
             return
 
         builders = getattr(client, "_event_builders", []) or []
@@ -96,7 +96,7 @@ class CommandDispatcher:
 
         if has_new and has_edit:
             self.logger.debug(
-                "[dispatcher] already registered — skipping (has_new=%s has_edit=%s)",
+                "[dispatcher] already registered - skipping (has_new=%s has_edit=%s)",
                 has_new,
                 has_edit,
             )
@@ -386,12 +386,12 @@ class CommandDispatcher:
 
         Delegates to the kernel's pipeline implementation.
         """
-        # Delegate to the kernel — the kernel owns pipeline state
+        # Delegate to the kernel - the kernel owns pipeline state
         # (client, send_message, etc.) and _make_simple_event / _run_and_capture.
         if hasattr(self.kernel, "_execute_pipeline"):
             return await self.kernel._execute_pipeline(event, pipeline, depth)
 
-        self.logger.warning("[dispatcher] kernel has no _execute_pipeline — skipping")
+        self.logger.warning("[dispatcher] kernel has no _execute_pipeline - skipping")
         return False
 
     async def _handle_rpc_error(self, event: Event, error: RPCError) -> None:
@@ -403,7 +403,7 @@ class CommandDispatcher:
             msg = (
                 f"{_tele} {Strings('call_failed', cmd=cmd_text, rpc_msg=rpc_msg)}"
                 if Strings
-                else f"\U0001f52d Call failed: <code>{cmd_text}</code> — {rpc_msg}"
+                else f"\U0001f52d Call failed: <code>{cmd_text}</code> - {rpc_msg}"
             )
             await event.edit(msg, parse_mode="html")
         except Exception as edit_err:

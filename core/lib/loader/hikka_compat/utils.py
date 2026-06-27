@@ -6,6 +6,7 @@ import contextlib
 import functools
 import html
 import inspect
+import logging
 import os
 import platform
 import random
@@ -22,6 +23,7 @@ from urllib.parse import urlparse
 
 _PLACEHOLDERS: dict[str, dict] = {}
 _INIT_TS = time.perf_counter()
+logger = logging.getLogger(__name__)
 
 
 def _looks_like_html(text: str) -> bool:
@@ -267,6 +269,37 @@ class _Utils:
         return ""
 
     @staticmethod
+    async def dnd(client, peer, archive: bool = True) -> bool:
+        """Mute and optionally archive a peer, Heroku/Hikka-compatible."""
+        try:
+            entity = peer
+            if hasattr(client, "get_entity"):
+                with contextlib.suppress(Exception):
+                    entity = await client.get_entity(peer)
+
+            from telethon.tl.functions.account import UpdateNotifySettingsRequest
+            from telethon.tl.types import InputPeerNotifySettings
+
+            await client(
+                UpdateNotifySettingsRequest(
+                    peer=entity,
+                    settings=InputPeerNotifySettings(
+                        show_previews=False,
+                        silent=True,
+                        mute_until=2**31 - 1,
+                    ),
+                )
+            )
+
+            if archive and hasattr(client, "edit_folder"):
+                await client.edit_folder(entity, 1)
+        except Exception:
+            logger.exception("utils.dnd error")
+            return False
+
+        return True
+
+    @staticmethod
     def get_lang_flag(countrycode: str) -> str:
         if not countrycode:
             return ""
@@ -398,7 +431,7 @@ class _Utils:
         }
         # Determine the correct native scope.  If the callback is bound
         # to a module instance that has _module_name (set by _mcub_bind),
-        # use that — it matches the kernel key that .man looks up.
+        # use that - it matches the kernel key that .man looks up.
         module_instance = getattr(callback, "__self__", None)
         native_scope = getattr(module_instance, "_module_name", None) or cls_name
         try:
@@ -856,6 +889,7 @@ wait_for_content_channel = _Utils.wait_for_content_channel
 get_topic_id = _Utils.get_topic_id
 invite_inline_bot = _Utils.invite_inline_bot
 get_entity_url = _Utils.get_entity_url
+dnd = _Utils.dnd
 get_lang_flag = _Utils.get_lang_flag
 is_up_to_date = _Utils.is_up_to_date
 asset_channel = _Utils.asset_channel
@@ -907,6 +941,7 @@ class _UtilsModule:
     get_topic_id = staticmethod(_Utils.get_topic_id)
     invite_inline_bot = staticmethod(_Utils.invite_inline_bot)
     get_entity_url = staticmethod(_Utils.get_entity_url)
+    dnd = staticmethod(_Utils.dnd)
     get_lang_flag = staticmethod(_Utils.get_lang_flag)
     asset_channel = staticmethod(_Utils.asset_channel)
     asset_forum_topic = staticmethod(_Utils.asset_forum_topic)

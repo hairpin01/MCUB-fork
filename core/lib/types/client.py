@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Шмэлькa | @hairpin01
 
 """
-Client protocol — structural type for the Telegram client.
+Client protocol - structural type for the Telegram client.
 
 Covers the intersection of:
 * ``telethon.TelegramClient``

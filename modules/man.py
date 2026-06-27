@@ -19,7 +19,13 @@ from telethon.tl.types import (
 
 import utils
 from core.lib.loader.module_base import ModuleBase, command, inline
-from core.lib.loader.module_config import Boolean, ConfigValue, ModuleConfig, String
+from core.lib.loader.module_config import (
+    Boolean,
+    ConfigValue,
+    Integer,
+    ModuleConfig,
+    String,
+)
 from core.lib.types import InlineMessage
 from utils.strings import Strings
 
@@ -33,7 +39,8 @@ CUSTOM_EMOJI = {
     "confused": '<tg-emoji emoji-id="5408830797513784663">❓</tg-emoji>',
     "map": '<tg-emoji emoji-id="5332373172689860602">🚫</tg-emoji>',
     "tot": '<tg-emoji emoji-id="5404696015318054899">▪️</tg-emoji>',
-    "eye_off": '<tg-emoji emoji-id="5228686859663585439">👁‍🗨</tg-emoji>',
+    "eye_off": '<tg-emoji emoji-id="5228686859663585439">👁</tg-emoji>',
+    "bot": '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>',
 }
 
 ZERO_WIDTH_CHAR = "\u2060"
@@ -106,6 +113,30 @@ class ManModule(ModuleBase):
             description="emoji for No command module",
             validator=String(default="❔"),
         ),
+        ConfigValue(
+            "man_modules_per_page",
+            10,
+            description="module count per inline man page",
+            validator=Integer(default=10, min=1, max=50),
+        ),
+        ConfigValue(
+            "man_emoji_author",
+            CUSTOM_EMOJI["alembic"],
+            description="emoji for about module",
+            validator=String(default=CUSTOM_EMOJI["alembic"]),
+        ),
+        ConfigValue(
+            "man_emoji_bot",
+            CUSTOM_EMOJI["bot"],
+            description="emoji for inline commands",
+            validator=String(default=str(CUSTOM_EMOJI["bot"])),
+        ),
+        ConfigValue(
+            "man_emoji_error",
+            CUSTOM_EMOJI["blocked"],
+            description="emoji for errors and not found messages",
+            validator=String(default=str(CUSTOM_EMOJI["blocked"])),
+        ),
     )
 
     async def on_load(self) -> None:
@@ -119,6 +150,10 @@ class ManModule(ModuleBase):
                 "man_emoji_system_list": "▫️",
                 "man_emoji": CUSTOM_EMOJI["crystal"],
                 "man_emoji_no_command": "❔",
+                "man_modules_per_page": 10,
+                "man_emoji_author": CUSTOM_EMOJI["alembic"],
+                "man_emoji_bot": CUSTOM_EMOJI["bot"],
+                "man_emoji_error": CUSTOM_EMOJI["blocked"],
             },
         )
         self.config.from_dict(config_dict)
@@ -128,6 +163,24 @@ class ManModule(ModuleBase):
         if config_dict_clean:
             await self.kernel.save_module_config(self.name, config_dict_clean)
         self.kernel.store_module_config_schema(self.name, self.config)
+
+    @staticmethod
+    def _make_thumb(url: str) -> InputWebDocument:
+        return InputWebDocument(
+            url=url,
+            size=0,
+            mime_type="image/jpeg",
+            attributes=[DocumentAttributeImageSize(w=0, h=0)],
+        )
+
+    def _format_inline_cmds(self, inline_commands: list) -> str:
+        emoji = self.config.get("man_emoji_bot") or CUSTOM_EMOJI["bot"]
+        text = ", ".join(
+            f"{emoji} <code>{cmd}</code>" for cmd, _ in inline_commands[:3]
+        )
+        if len(inline_commands) > 3:
+            text += f" (+{len(inline_commands) - 3})"
+        return text
 
     def _add_inline_banner_preview(self, message_html: str) -> str:
         cfg = self.config
@@ -309,8 +362,10 @@ class ManModule(ModuleBase):
         if len(similar_modules) == 1:
             return await self._build_module_detail(similar_modules[0])
 
+        main_emoji = self.config.get("man_emoji") or CUSTOM_EMOJI["crystal"]
+        error_emoji = self.config.get("man_emoji_error") or CUSTOM_EMOJI["blocked"]
         if similar_modules:
-            msg = f"{CUSTOM_EMOJI['crystal']} <b>{s['found_modules']}:</b>\n<blockquote expandable>"
+            msg = f"{main_emoji} <b>{s['found_modules']}:</b>\n<blockquote expandable>"
             for name, typ, module in similar_modules[:5]:
                 commands, _, _ = self._get_module_commands(name)
                 hidden_mark = f" {CUSTOM_EMOJI['eye_off']}" if name in hidden else ""
@@ -325,7 +380,7 @@ class ManModule(ModuleBase):
                 msg += f"... {s['and_more'].format(count=len(similar_modules) - 5)} {CUSTOM_EMOJI['tot']}\n"
             msg += f"\n<blockquote><i>{s['no_exact_match']}</i> {CUSTOM_EMOJI['map']}</blockquote>"
         else:
-            msg = f"<blockquote expandable>{CUSTOM_EMOJI['blocked']} {s['module_not_found']}</blockquote>"
+            msg = f"<blockquote expandable>{error_emoji} {s['module_not_found']}</blockquote>"
         return msg, None
 
     async def _build_module_detail(
@@ -333,6 +388,8 @@ class ManModule(ModuleBase):
     ) -> tuple[str, str | None]:
         name, typ, _module = match_tuple
         s = self.strings
+
+        is_system = typ == "system"
 
         class_instance = getattr(_module, "_class_instance", None)
         if class_instance is not None:
@@ -343,13 +400,15 @@ class ManModule(ModuleBase):
         commands, aliases_info, descriptions = self._get_module_commands(name)
         metadata = await self._load_module_metadata(name, typ)
 
-        lang = self.kernel.config.get("language", "ru")
+        lang = self.get_lang()
         i18n = metadata.get("description_i18n")
         fallback = metadata.get("description", s["no_description"])
         description = self.kernel._loader.pick_localized_text(i18n, lang, fallback)
 
-        msg = f"<blockquote>{CUSTOM_EMOJI['dna']} <b>{display_name}</b> <i>(v{metadata.get('version', '1.0.0')})</i></blockquote>\n"
-        msg += f"<blockquote expandable>{CUSTOM_EMOJI['alembic']} <i>{description}</i></blockquote>\n\n"
+        module_emoji = self.config.get("man_emoji") or CUSTOM_EMOJI["dna"]
+        author_emoji = self.config.get("man_emoji_author") or CUSTOM_EMOJI["alembic"]
+        msg = f"<blockquote>{module_emoji} <b>{display_name}</b> <i>(v{metadata.get('version', '1.0.0')})</i></blockquote>\n"
+        msg += f"<blockquote expandable>{author_emoji} <i>{description}</i></blockquote>\n\n"
         msg += "<blockquote expandable>"
         if commands:
             # Use list + join for O(n) instead of O(n²) string concatenation
@@ -360,7 +419,7 @@ class ManModule(ModuleBase):
                     or metadata.get("commands", {}).get(cmd)
                     or f"{CUSTOM_EMOJI['confused']} {s['no_description']}"
                 )
-                line = f"{CUSTOM_EMOJI['tot']} <code>{self.kernel.custom_prefix}{cmd}</code> - <b>{cmd_desc}</b>"
+                line = f"{self.config.get('man_emoji_system_list', CUSTOM_EMOJI['tot']) if is_system else self.config.get('man_emoji_user_list', CUSTOM_EMOJI['tot'])} <code>{self.kernel.custom_prefix}{cmd}</code> - <b>{cmd_desc}</b>"
 
                 if cmd in aliases_info:
                     aliases = aliases_info[cmd]
@@ -375,12 +434,15 @@ class ManModule(ModuleBase):
                 cmd_lines.append(line)
             msg += "\n".join(cmd_lines) + "\n"
         else:
-            msg += f"{CUSTOM_EMOJI['blocked']} {s['no_commands']}\n"
+            no_command_emoji = (
+                self.config.get("man_emoji_no_command") or CUSTOM_EMOJI["snowflake"]
+            )
+            msg += f"{no_command_emoji} {s['no_commands']}\n"
         msg += "</blockquote>"
 
         inline_commands = self.kernel.get_module_inline_commands(name)
         if inline_commands:
-            inline_emoji = '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
+            inline_emoji = self.config.get("man_emoji_bot") or CUSTOM_EMOJI["bot"]
             # Use list + join for O(n) instead of O(n²) string concatenation
             inline_lines = []
             for cmd, desc in inline_commands:
@@ -396,15 +458,24 @@ class ManModule(ModuleBase):
                 "<blockquote expandable>" + "\n".join(inline_lines) + "\n</blockquote>"
             )
 
-        msg += f"<blockquote>{CUSTOM_EMOJI['pancake']} <b>{s['author']}:</b> <i>{metadata.get('author', s['unknown'])}</i></blockquote>"
+        author_emoji = self.config.get("man_emoji_author") or CUSTOM_EMOJI["alembic"]
+        msg += f"<blockquote>{author_emoji} <b>{s['author']}:</b> <i>{metadata.get('author', s['unknown'])}</i></blockquote>"
         placeholder_docs = utils.config_placeholders(name)
         if placeholder_docs:
             msg += (
                 f"\n<blockquote expandable>{CUSTOM_EMOJI['map']} <b>{s['placeholders_title']}:</b>"
                 f"\n<i>{escape(placeholder_docs)}</i></blockquote>"
             )
-        if typ == "system":
-            msg += f"\n<blockquote>{s['system_module_note']}</blockquote>"
+        if is_system:
+            msg += (
+                "\n<blockquote>"
+                + self.strings(
+                    "system_module_note",
+                    blocked=self.config.get("man_emoji_error")
+                    or CUSTOM_EMOJI["blocked"],
+                )
+                + "</blockquote>"
+            )
         return msg, metadata.get("banner_url")
 
     async def _man_close_cb(self, cb_event: InlineMessage) -> None:
@@ -472,7 +543,6 @@ class ManModule(ModuleBase):
         close_cb=None,
         ttl: int = 900,
     ) -> tuple[str, list]:
-        MAX_MSG_LENGTH = 3000
         if hidden_list is None:
             hidden_list = []
         s = self.strings
@@ -529,63 +599,33 @@ class ManModule(ModuleBase):
                     cmd_text += f" (+{len(commands) - 3})"
 
                 if inline_commands:
-                    inline_emoji = (
-                        '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
-                    )
-                    inline_cmds = ", ".join(
-                        f"{inline_emoji} <code>{cmd}</code>"
-                        for cmd, _ in inline_commands[:3]
-                    )
-                    if len(inline_commands) > 3:
-                        inline_cmds += f" (+{len(inline_commands) - 3})"
-                    cmd_text += f" {inline_cmds}"
+                    cmd_text += f" {self._format_inline_cmds(inline_commands)}"
 
                 return f"{emoji} <b>{display_name}</b>{hidden_mark}: {cmd_text}\n"
             elif inline_commands:
-                inline_emoji = '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
-                inline_cmds = ", ".join(
-                    f"{inline_emoji} <code>{cmd}</code>"
-                    for cmd, _ in inline_commands[:3]
-                )
-                if len(inline_commands) > 3:
-                    inline_cmds += f" (+{len(inline_commands) - 3})"
+                inline_cmds = self._format_inline_cmds(inline_commands)
                 return f"<b>{display_name}</b>{hidden_mark}: {inline_cmds}\n"
             else:
-                no_cmd_emoji = '<tg-emoji emoji-id="5431895003821513760">❄️</tg-emoji>'
-                return f"{cfg.get('man_emoji_no_command') or '❔'} <b>{display_name}</b>{hidden_mark}: {no_cmd_emoji} <i>{s.get('no_commands', 'no commands')}</i>\n"
+                no_cmd_emoji = (
+                    cfg.get("man_emoji_no_command") or CUSTOM_EMOJI["snowflake"]
+                )
+                return f"{no_cmd_emoji} <b>{display_name}</b>{hidden_mark}: <i>{s.get('no_commands', 'no commands')}</i>\n"
 
-        def chunk_by_size(items: list, start_msg: str = "") -> list[list]:
-            chunks = []
-            current_chunk = []
-            current_len = len(start_msg)
+        def get_modules_per_page() -> int:
+            try:
+                return max(1, min(50, int(cfg.get("man_modules_per_page", 10))))
+            except (TypeError, ValueError):
+                return 10
 
-            for item in items:
-                line = render_module_line(item)
-                line_len = len(line)
-
-                if current_chunk and current_len + line_len > MAX_MSG_LENGTH:
-                    chunks.append(current_chunk)
-                    current_chunk = [item]
-                    current_len = line_len
-                else:
-                    current_chunk.append(item)
-                    current_len += line_len
-
-            if current_chunk:
-                chunks.append(current_chunk)
-            return chunks
+        def chunk_by_modules(items: list) -> list[list]:
+            per_page = get_modules_per_page()
+            return [items[i : i + per_page] for i in range(0, len(items), per_page)]
 
         emoji_man = cfg.get("man_emoji", CUSTOM_EMOJI["crystal"])
-        if page == 0:
-            header_len = len(
-                f"{emoji_man} <b>{s['system_modules']}:</b> <code>{len(sys_modules)}</code><blockquote expandable>\n</blockquote>"
-            )
-            sys_chunks = chunk_by_size(sys_modules, " " * header_len)
-        else:
-            sys_chunks = [[]]
-
-        usr_chunks = chunk_by_size(usr_modules)
-        total_pages = len(sys_chunks) + len(usr_chunks)
+        sys_chunks = chunk_by_modules(sys_modules)
+        usr_chunks = chunk_by_modules(usr_modules)
+        total_pages = max(1, len(sys_chunks) + len(usr_chunks))
+        page = max(0, min(page, total_pages - 1))
 
         if page < len(sys_chunks):
             msg = f"{emoji_man} <b>{s['system_modules']}:</b> <code>{len(sys_modules)}</code>"
@@ -821,7 +861,7 @@ class ManModule(ModuleBase):
                 else:
                     await self.edit(
                         event,
-                        f"{CUSTOM_EMOJI['blocked']} {s['module_not_found']}",
+                        f"{self.config.get('man_emoji_error') or CUSTOM_EMOJI['blocked']} {s['module_not_found']}",
                         parse_mode="html",
                     )
                     return
@@ -894,12 +934,7 @@ class ManModule(ModuleBase):
         s = self.strings
 
         if query == "man":
-            thumb1 = InputWebDocument(
-                url="https://kappa.lol/6plQLz",
-                size=0,
-                mime_type="image/jpeg",
-                attributes=[DocumentAttributeImageSize(w=0, h=0)],
-            )
+            thumb1 = self._make_thumb("https://kappa.lol/6plQLz")
             hidden = await self._get_hidden_modules()
             msg1, buttons = self._get_paginated_data(
                 0,
@@ -916,12 +951,7 @@ class ManModule(ModuleBase):
                 thumb=thumb1,
             )
 
-            thumb2 = InputWebDocument(
-                url="https://kappa.lol/wujauv",
-                size=0,
-                mime_type="image/jpeg",
-                attributes=[DocumentAttributeImageSize(w=0, h=0)],
-            )
+            thumb2 = self._make_thumb("https://kappa.lol/wujauv")
             article2 = event.builder.article(
                 title="Search Modules",
                 description="Type 'man [name]' to search",
@@ -944,12 +974,7 @@ class ManModule(ModuleBase):
                     articles = []
 
                     if exact_matches or similar_modules:
-                        thumb_search = InputWebDocument(
-                            url="https://kappa.lol/LOuqBO",
-                            size=0,
-                            mime_type="image/jpeg",
-                            attributes=[DocumentAttributeImageSize(w=0, h=0)],
-                        )
+                        thumb_search = self._make_thumb("https://kappa.lol/LOuqBO")
 
                         result_count = len(exact_matches) + len(similar_modules)
                         search_header = event.builder.article(
@@ -965,12 +990,7 @@ class ManModule(ModuleBase):
                         for module_info in exact_matches[:10]:
                             name, typ, _ = module_info
                             msg = await self._generate_module_article(module_info)
-                            thumb_module = InputWebDocument(
-                                url="https://kappa.lol/POFDmQ",
-                                size=0,
-                                mime_type="image/jpeg",
-                                attributes=[DocumentAttributeImageSize(w=0, h=0)],
-                            )
+                            thumb_module = self._make_thumb("https://kappa.lol/POFDmQ")
                             article = event.builder.article(
                                 title=f"📦 {name}",
                                 description="Exact match",
@@ -983,12 +1003,7 @@ class ManModule(ModuleBase):
                         for module_info in similar_modules[:10]:
                             name, _typ, _ = module_info
                             msg = await self._generate_module_article(module_info)
-                            thumb_module = InputWebDocument(
-                                url="https://kappa.lol/POFDmQ",
-                                size=0,
-                                mime_type="image/jpeg",
-                                attributes=[DocumentAttributeImageSize(w=0, h=0)],
-                            )
+                            thumb_module = self._make_thumb("https://kappa.lol/POFDmQ")
                             article = event.builder.article(
                                 title=f"🔍 {name}",
                                 description="Similar match",
@@ -999,16 +1014,15 @@ class ManModule(ModuleBase):
                             articles.append(article)
 
                     else:
-                        thumb_not_found = InputWebDocument(
-                            url="https://kappa.lol/N5jMQR",
-                            size=0,
-                            mime_type="image/jpeg",
-                            attributes=[DocumentAttributeImageSize(w=0, h=0)],
+                        thumb_not_found = self._make_thumb("https://kappa.lol/N5jMQR")
+                        error_emoji = (
+                            self.config.get("man_emoji_error")
+                            or CUSTOM_EMOJI["blocked"]
                         )
                         not_found_article = event.builder.article(
                             title="Module not found",
                             description=f"No results for '{search_term}'",
-                            text=f"<b>{CUSTOM_EMOJI['blocked']} {s['module_not_found']}</b>\n\n"
+                            text=f"<b>{error_emoji} {s['module_not_found']}</b>\n\n"
                             f'<i>Пo зaпpocy "{search_term}" ничeгo нe нaйдeнo.</i>\n'
                             f"{s['not_found_hint']}",
                             parse_mode="html",
@@ -1020,16 +1034,14 @@ class ManModule(ModuleBase):
                     return
 
                 except Exception as e:
-                    thumb_error = InputWebDocument(
-                        url="https://kappa.lol/N5jMQR",
-                        size=0,
-                        mime_type="image/jpeg",
-                        attributes=[DocumentAttributeImageSize(w=0, h=0)],
+                    thumb_error = self._make_thumb("https://kappa.lol/N5jMQR")
+                    error_emoji = (
+                        self.config.get("man_emoji_error") or CUSTOM_EMOJI["blocked"]
                     )
                     error_article = event.builder.article(
                         title=s["search_error"],
                         description=s["search_error_desc"],
-                        text=f"<b>{CUSTOM_EMOJI['blocked']} {s['error']}</b>\n\n"
+                        text=f"<b>{error_emoji} {s['error']}</b>\n\n"
                         f"<code>{str(e)[:200]}</code>",
                         parse_mode="html",
                         thumb=thumb_error,
@@ -1040,7 +1052,7 @@ class ManModule(ModuleBase):
         builder = event.builder.article(
             title="Module Manager",
             description="Type 'man' or 'man [module]'",
-            text=f"{CUSTOM_EMOJI['crystal']} <b>{s['module_manager']}</b>",
+            text=f"{self.config.get('man_emoji') or CUSTOM_EMOJI['crystal']} <b>{s['module_manager']}</b>",
             parse_mode="html",
         )
         await event.answer([builder])
@@ -1145,8 +1157,14 @@ class ManModule(ModuleBase):
         commands, _aliases_info, descriptions = self._get_module_commands(name)
         metadata = await self._load_module_metadata(name, typ)
 
-        msg = f"<blockquote>{CUSTOM_EMOJI['dna']} <b>{s['module']}</b> <code>{name}</code></blockquote>\n"
-        msg += f"<blockquote expandable>{CUSTOM_EMOJI['alembic']} <b>{s['description']}:</b> <i>{metadata.get('description', s['no_description'])}</i>\n</blockquote>"
+        module_emoji = self.config.get("man_emoji") or CUSTOM_EMOJI["dna"]
+        author_emoji = self.config.get("man_emoji_author") or CUSTOM_EMOJI["alembic"]
+        no_command_emoji = (
+            self.config.get("man_emoji_no_command") or CUSTOM_EMOJI["snowflake"]
+        )
+
+        msg = f"<blockquote>{module_emoji} <b>{s['module']}</b> <code>{name}</code></blockquote>\n"
+        msg += f"<blockquote expandable>{author_emoji} <b>{s['description']}:</b> <i>{metadata.get('description', s['no_description'])}</i>\n</blockquote>"
 
         if commands:
             msg += f"\n<b>{s['command']}:</b>\n"
@@ -1161,13 +1179,21 @@ class ManModule(ModuleBase):
             if len(commands) > 5:
                 msg += f"... {s['and_more_commands'].format(count=len(commands) - 5)}\n"
         else:
-            msg += f"\n{CUSTOM_EMOJI['blocked']} {s['no_commands']}\n"
+            msg += f"\n{no_command_emoji} {s['no_commands']}\n"
         msg += "</blockquote>"
 
         msg += f"\n<blockquote>{CUSTOM_EMOJI['snowflake']} <b>{s['version']}:</b> <code>{metadata.get('version', '1.0.0')}</code>"
-        msg += f"\n{CUSTOM_EMOJI['pancake']} <b>{s['author']}:</b> <i>{metadata.get('author', s['unknown'])}</i></blockquote>"
+        msg += f"\n{author_emoji} <b>{s['author']}:</b> <i>{metadata.get('author', s['unknown'])}</i></blockquote>"
 
         if typ == "system":
-            msg += f"\n<blockquote>{s['system_module_note']}</blockquote>"
+            msg += (
+                "\n<blockquote>"
+                + self.strings(
+                    "system_module_note",
+                    blocked=self.config.get("man_emoji_error")
+                    or CUSTOM_EMOJI["blocked"],
+                )
+                + "</blockquote>"
+            )
 
         return msg

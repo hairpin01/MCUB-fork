@@ -6,6 +6,7 @@ Tests for Kernel - additional functionality
 """
 
 import time
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -327,6 +328,108 @@ class TestKernelCommands:
 
         assert len(removed) == 1
         assert len(kernel.client._event_builders) == 1
+
+    @patch("core.lib.kernel_core.setup_logging")
+    @patch("core.lib.kernel_core.ConfigManager")
+    @patch("core.lib.kernel_core.DatabaseManager")
+    async def test_dedupe_event_builders_dedupes_core_handler(
+        self, mock_db, mock_cfg, mock_log
+    ):
+        """Duplicate core command bindings should be collapsed too."""
+        from core.kernel import Kernel
+
+        kernel = Kernel()
+
+        class DummyClient:
+            def __init__(self):
+                self._event_builders = []
+
+            def remove_event_handler(self, callback, event_obj=None):
+                self._event_builders = [
+                    (ev, cb)
+                    for ev, cb in self._event_builders
+                    if not (cb == callback and (event_obj is None or ev == event_obj))
+                ]
+
+        DummyEvent = type(
+            "NewMessage",
+            (),
+            {
+                "pattern": None,
+                "incoming": None,
+                "outgoing": True,
+                "from_users": None,
+                "forwards": None,
+            },
+        )
+
+        async def core_handler(_event):
+            return None
+
+        kernel.client = DummyClient()
+        kernel._core_message_handler = core_handler
+        kernel._core_fallback_message_handler = core_handler
+        kernel.client._event_builders = [
+            (DummyEvent(), core_handler),
+            (DummyEvent(), core_handler),
+        ]
+
+        removed = kernel.dedupe_event_builders("test_core")
+
+        assert len(removed) == 1
+        assert len(kernel.client._event_builders) == 1
+
+    @patch("core.lib.kernel_core.setup_logging")
+    @patch("core.lib.kernel_core.ConfigManager")
+    @patch("core.lib.kernel_core.DatabaseManager")
+    async def test_ensure_core_message_handlers_does_not_double_bind_same_fallback(
+        self, mock_db, mock_cfg, mock_log, monkeypatch
+    ):
+        """Missing core NewMessage binding restores one handler, not fallback clone."""
+        import core.lib.kernel_handlers as kernel_handlers
+        from core.kernel import Kernel
+
+        kernel = Kernel()
+
+        class NewMessage:
+            pass
+
+        class MessageEdited:
+            pass
+
+        class DummyClient:
+            def __init__(self):
+                self._event_builders = []
+
+            def add_event_handler(self, callback, event_obj):
+                self._event_builders.append((event_obj, callback))
+
+        async def core_handler(_event):
+            return None
+
+        monkeypatch.setattr(
+            kernel_handlers,
+            "events",
+            SimpleNamespace(NewMessage=NewMessage, MessageEdited=MessageEdited),
+        )
+        kernel.client = DummyClient()
+        kernel._core_message_handler = core_handler
+        kernel._core_fallback_message_handler = core_handler
+        kernel._core_handlers_last_call = 0.0
+
+        kernel.ensure_core_message_handlers("test_missing_core")
+
+        new_bindings = [
+            cb for ev, cb in kernel.client._event_builders if isinstance(ev, NewMessage)
+        ]
+        edited_bindings = [
+            cb
+            for ev, cb in kernel.client._event_builders
+            if isinstance(ev, MessageEdited)
+        ]
+
+        assert new_bindings == [core_handler]
+        assert edited_bindings == [core_handler]
 
 
 class TestKernelInline:

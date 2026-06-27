@@ -104,6 +104,8 @@ class TestModuleKernelProxy:
             "disconnect",
             "logout",
             "session",
+            "api_id",
+            "api_hash",
             "on",
             "add_event_handler",
             "phone_code_hash",
@@ -115,6 +117,21 @@ class TestModuleKernelProxy:
         # Setting attributes should be blocked
         with pytest.raises(CallInsecure):
             proxy.send_message = lambda x: None
+
+        with pytest.raises(CallInsecure):
+            proxy.session = object()
+
+        with pytest.raises(CallInsecure):
+            proxy._client = object()
+
+        with pytest.raises(CallInsecure):
+            _ = proxy._client
+
+        with pytest.raises(AttributeError):
+            object.__getattribute__(proxy, "_client")
+
+        with pytest.raises(CallInsecure):
+            proxy._my_attribute = "my_var"
 
         # Deleting attributes should be blocked
         with pytest.raises(CallInsecure):
@@ -215,6 +232,8 @@ class TestClientProxy:
             "logout",
             "sign_out",
             "session",
+            "api_id",
+            "api_hash",
             "on",
             "add_event_handler",
             "remove_event_handler",
@@ -231,6 +250,9 @@ class TestClientProxy:
 
         # Use a real class with Telegram-client-like methods
         class FakeClient:
+            api_id = 12345
+            api_hash = "secret"
+
             def send_message(self):
                 pass
 
@@ -255,6 +277,66 @@ class TestClientProxy:
         assert "disconnect" not in names
         assert "logout" not in names
         assert "session" not in names
+        assert "api_id" not in names
+        assert "api_hash" not in names
+        assert "__dict__" not in names
+        assert "__getattribute__" not in names
+
+    def test_hikka_module_client_alias_is_sandboxed(self):
+        from core.lib.loader.hikka_compat.runtime import Module
+        from core.lib.loader.kernel_proxy import ClientProxy
+        from core.lib.utils.exceptions import CallInsecure
+
+        kernel = make_kernel()
+        kernel.ADMIN_ID = 12345
+        kernel.client.api_id = 12345
+        kernel.client.api_hash = "secret"
+
+        module = Module()
+        module._mcub_bind(kernel, module_name="ClientSandboxAudit")
+
+        assert isinstance(module._client, ClientProxy)
+        with pytest.raises(CallInsecure):
+            module._client.session.save()
+        with pytest.raises(CallInsecure):
+            _ = module._client.api_hash
+        with pytest.raises(AttributeError):
+            object.__getattribute__(module._client, "_client")
+
+    def test_hikka_module_kernel_aliases_are_sandboxed(self):
+        from core.lib.loader.hikka_compat.runtime import Module
+        from core.lib.loader.kernel_proxy import ClientProxy
+        from core.lib.utils.exceptions import CallInsecure
+
+        kernel = make_kernel()
+        kernel.ADMIN_ID = 12345
+        kernel.config = {
+            "api_id": 12345,
+            "api_hash": "secret",
+            "language": "en",
+        }
+        kernel.client.api_id = 12345
+        kernel.client.api_hash = "secret"
+
+        module = Module()
+        module._mcub_bind(kernel, module_name="KernelSandboxAudit")
+
+        kernel_proxy = object.__getattribute__(module, "_kernel")
+        assert isinstance(kernel_proxy.client, ClientProxy)
+        assert kernel_proxy.config == {"language": "en"}
+
+        with pytest.raises(CallInsecure):
+            _ = module._kernel.client.session
+        with pytest.raises(CallInsecure):
+            _ = module._kernel.client.api_hash
+        with pytest.raises(CallInsecure):
+            _ = module._kernel._kernel
+        with pytest.raises(CallInsecure):
+            _ = module.allmodules._kernel.client.session
+        with pytest.raises(CallInsecure):
+            _ = module.allmodules._kernel.client.api_hash
+        with pytest.raises(CallInsecure):
+            _ = module.allmodules._kernel._kernel
 
     def test_repr(self):
         from core.lib.loader.kernel_proxy import ClientProxy

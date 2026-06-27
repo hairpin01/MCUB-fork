@@ -21,7 +21,11 @@ from pathlib import Path
 from typing import Any
 
 import aiohttp
-from telethon.errors import ChannelsTooMuchError, PeerIdInvalidError
+from telethon.errors import (
+    ChannelsTooMuchError,
+    ChatAdminRequiredError,
+    PeerIdInvalidError,
+)
 from telethon.tl.functions.channels import (
     CreateChannelRequest,
     EditPhotoRequest,
@@ -122,6 +126,8 @@ _E: dict[str, str] = {
     "trash": '<tg-emoji emoji-id="5380186498827373381">🗑️</tg-emoji>',
     "list": '<tg-emoji emoji-id="5411192149058289173">☁️</tg-emoji>',
 }
+
+_DB_ARCHIVE_FILES = {"userbot.db", "userbot.db-wal", "userbot.db-shm"}
 
 
 class Backup(ModuleBase):
@@ -360,6 +366,14 @@ class Backup(ModuleBase):
                 sources["config.json"] = p
 
         if want_db:
+            db_manager = getattr(self.kernel, "db_manager", None)
+            conn = getattr(db_manager, "conn", None)
+            if conn is not None:
+                try:
+                    await conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                except Exception as e:
+                    self.log.warning(f"Backup DB checkpoint failed: {e}")
+
             api_id = getattr(self.kernel, "API_ID", None)
             api_hash = getattr(self.kernel, "API_HASH", None)
             if api_id and api_hash:
@@ -370,6 +384,10 @@ class Backup(ModuleBase):
                 p = current_dir / "userbot.db"
             if p.exists():
                 sources["userbot.db"] = p
+            for suffix in ("-wal", "-shm"):
+                sidecar = Path(f"{p}{suffix}")
+                if sidecar.exists():
+                    sources[f"userbot.db{suffix}"] = sidecar
 
         if want_modules:
             p = current_dir / "modules_loaded"
@@ -676,6 +694,7 @@ class Backup(ModuleBase):
                         )
                     ]
                 ]
+                sent_to_backup_chat = True
                 if self.kernel.is_bot_available():
                     try:
                         await self.kernel.bot_client.send_file(
@@ -685,14 +704,44 @@ class Backup(ModuleBase):
                             buttons=buttons,
                             parse_mode="html",
                         )
-                    except Exception:
+                    except Exception as bot_exc:
+                        await self._log_warning(
+                            f"Failed to send backup via bot: {bot_exc}; trying via main client"
+                        )
+                        try:
+                            await self.client.send_file(
+                                chat.id,
+                                archive_path,
+                                caption=caption,
+                                parse_mode="html",
+                            )
+                        except (ChatAdminRequiredError, PeerIdInvalidError) as send_exc:
+                            if cfg:
+                                cfg["backup_chat_id"] = None
+                                await self.save_config()
+                            await self._log_warning(
+                                f"Backup chat is not writable ({send_exc}); sending backup to Saved Messages"
+                            )
+                            await self.client.send_file(
+                                "me", archive_path, caption=caption, parse_mode="html"
+                            )
+                            sent_to_backup_chat = False
+                else:
+                    try:
                         await self.client.send_file(
                             chat.id, archive_path, caption=caption, parse_mode="html"
                         )
-                else:
-                    await self.client.send_file(
-                        chat.id, archive_path, caption=caption, parse_mode="html"
-                    )
+                    except (ChatAdminRequiredError, PeerIdInvalidError) as send_exc:
+                        if cfg:
+                            cfg["backup_chat_id"] = None
+                            await self.save_config()
+                        await self._log_warning(
+                            f"Backup chat is not writable ({send_exc}); sending backup to Saved Messages"
+                        )
+                        await self.client.send_file(
+                            "me", archive_path, caption=caption, parse_mode="html"
+                        )
+                        sent_to_backup_chat = False
 
             archive_path.unlink(missing_ok=True)
             try:
@@ -705,7 +754,7 @@ class Backup(ModuleBase):
                 cfg["backup_count"] = cfg.get("backup_count", 0) + 1
                 await self.save_config()
 
-            if max_backups > 0 and cloud_send_tg:
+            if max_backups > 0 and cloud_send_tg and sent_to_backup_chat:
                 await self.rotate_old_backups(chat.id, max_backups)
 
             return True
@@ -913,24 +962,52 @@ class Backup(ModuleBase):
 
             current_dir = Path.cwd()
             restored: list[str] = []
+            moved_targets: set[Path] = set()
             api_id = getattr(self.kernel, "API_ID", None)
             api_hash = getattr(self.kernel, "API_HASH", None)
 
-            for item in backup_dir.iterdir():
-                if item.name == "userbot.db" and api_id and api_hash:
+            def resolve_restore_target(item_name: str) -> Path:
+                if item_name in _DB_ARCHIVE_FILES and api_id and api_hash:
                     from utils.security import get_db_path
 
-                    target = Path(get_db_path(api_id, api_hash))
-                else:
-                    target = current_dir / item.name
+                    db_path = Path(get_db_path(api_id, api_hash))
+                    if item_name == "userbot.db":
+                        return db_path
+                    suffix = item_name.removeprefix("userbot.db")
+                    return Path(f"{db_path}{suffix}")
+                return current_dir / item_name
 
-                if target.exists():
-                    backup_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    backup_name = f"{target.name}_backup_{backup_time}"
-                    shutil.move(str(target), current_dir / backup_name)
+            def move_existing_target(target: Path) -> str | None:
+                target_key = Path(os.path.abspath(target))
+                if target_key in moved_targets:
+                    return None
+                moved_targets.add(target_key)
+                if not target.exists():
+                    return None
+                backup_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+                backup_name = f"{target.name}_backup_{backup_time}"
+                shutil.move(str(target), current_dir / backup_name)
+                return backup_name
+
+            for item in sorted(
+                backup_dir.iterdir(), key=lambda p: (p.name != "userbot.db", p.name)
+            ):
+                target = resolve_restore_target(item.name)
+
+                if item.name == "userbot.db":
+                    for stale_sidecar in (Path(f"{target}-wal"), Path(f"{target}-shm")):
+                        backup_name = move_existing_target(stale_sidecar)
+                        if backup_name:
+                            restored.append(
+                                f"{_E['box']} {stale_sidecar.name} → {backup_name}"
+                            )
+
+                backup_name = move_existing_target(target)
+                if backup_name:
                     restored.append(f"{_E['box']} {item.name} → {backup_name}")
 
                 if item.is_file():
+                    target.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(item, target)
                 elif item.is_dir():
                     shutil.copytree(item, target, dirs_exist_ok=True)
@@ -1134,8 +1211,8 @@ class Backup(ModuleBase):
         reply = await event.get_reply_message()
         # Delete the command message immediately so the password is not left
         # visible in chat history (other sessions / Telegram cloud storage).
-        # не удобно пиздец
-        # убрано нахуй
+        # нe yдoбнo пиздeц
+        # yбpaнo нaxyй
 
         await self._restore_from_backup_message(reply, event, password=password)
 

@@ -3,11 +3,120 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     pass
+
+
+def _normalize_inline_message_id(value: Any) -> Any:
+    """Return a Telethon InputBotInlineMessageID-like object when possible.
+
+    Telethon ``UpdateBotInlineSend.msg_id`` is already an
+    ``InputBotInlineMessageID``/``InputBotInlineMessageID64`` object. Older MCUB
+    code may store it as ``"dc_id:id:access_hash"``; convert that string back
+    before passing it to ``messages.EditInlineBotMessageRequest(id=...)``.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        return value
+    parts = value.split(":")
+    if len(parts) < 3:
+        return value
+    try:
+        dc_id, msg_id, access_hash = (int(parts[0]), int(parts[1]), int(parts[2]))
+    except (TypeError, ValueError):
+        return value
+    try:
+        from telethon.tl.types import InputBotInlineMessageID64
+
+        return InputBotInlineMessageID64(
+            dc_id=dc_id,
+            owner_id=0,
+            id=msg_id,
+            access_hash=access_hash,
+        )
+    except (ImportError, TypeError):
+        from telethon.tl.types import InputBotInlineMessageID
+
+        return InputBotInlineMessageID(
+            dc_id=dc_id,
+            id=msg_id,
+            access_hash=access_hash,
+        )
+
+
+def _serialize_inline_message_id(value: Any) -> Any:
+    """Serialize Telethon inline message id for cache/storage."""
+    if value is None or isinstance(value, str):
+        return value
+    dc_id = getattr(value, "dc_id", None)
+    msg_id = getattr(value, "id", None)
+    access_hash = getattr(value, "access_hash", None)
+    if dc_id is None or msg_id is None or access_hash is None:
+        return value
+    return f"{dc_id}:{msg_id}:{access_hash}"
+
+
+def _inline_buttons(buttons: Any) -> Any:
+    """Normalize MCUB inline button rows for Telethon edit requests."""
+    if buttons is None:
+        return None
+    from telethon import Button as TelethonButton
+
+    rows = [list(row) if isinstance(row, tuple) else row for row in buttons]
+    if hasattr(TelethonButton, "from_array"):
+        return TelethonButton.from_array(rows)
+    return rows
+
+
+def _rich_message_unsupported(error: BaseException) -> bool:
+    """Return True for Telegram peers that reject rich_message edits."""
+    return "RICH_MESSAGE_UNSUPPORTED" in str(error)
+
+
+def _build_input_rich_message(
+    *,
+    html: str | None = None,
+    markdown: str | None = None,
+    rich_message: Any = None,
+    rtl: bool | None = None,
+    noautolink: bool | None = None,
+    files: Any = None,
+) -> Any:
+    """Build a Telethon InputRichMessage object from friendly arguments."""
+    if rich_message is not None:
+        return rich_message
+
+    from telethon.tl import types
+
+    if html is not None:
+        return types.InputRichMessageHTML(
+            html=html,
+            rtl=rtl,
+            noautolink=noautolink,
+            files=files,
+        )
+    if markdown is not None:
+        return types.InputRichMessageMarkdown(
+            markdown=markdown,
+            rtl=rtl,
+            noautolink=noautolink,
+            files=files,
+        )
+    raise ValueError("Either html, markdown or rich_message must be provided")
+
+
+def _rich_fallback(
+    html: str | None, markdown: str | None, text: str
+) -> tuple[str, Any]:
+    """Return fallback text and parse mode for regular edit()."""
+    if html is not None:
+        return html, "html"
+    if markdown is not None:
+        return markdown, ()
+    return text, None
 
 
 class InlineMessage:
@@ -15,7 +124,7 @@ class InlineMessage:
 
     Wraps a Telethon CallbackQuery event (for callback handlers) or an inline
     form record (for programmatic use) so that modules always receive a uniform
-    ``InlineMessage`` — never a raw Telethon object.
+    ``InlineMessage`` - never a raw Telethon object.
 
     Usage in a callback handler::
 
@@ -35,10 +144,20 @@ class InlineMessage:
         self._event = event
         self._kernel = kernel
         self.data: bytes = getattr(event, "data", b"")
-        self.inline_message_id = getattr(event, "inline_message_id", None) or getattr(
-            event, "_inline_msg_id", None
+        self.inline_message_id = _serialize_inline_message_id(
+            getattr(event, "inline_message_id", None)
+            or getattr(event, "_inline_msg_id", None)
+            or getattr(event, "msg_id", None)
         )
         self.unit_id = unit_id or getattr(event, "unit_id", "")
+        if self.inline_message_id is None and self.unit_id and kernel is not None:
+            cache = getattr(kernel, "cache", None)
+            if cache is not None:
+                form_data = cache.get(self.unit_id) or cache.get(f"msg_{self.unit_id}")
+                if form_data:
+                    self.inline_message_id = _serialize_inline_message_id(
+                        form_data.get("inline_message_id")
+                    )
         self.chat_id = getattr(event, "chat_id", None)
         self.message_id = (
             getattr(event, "message_id", None)
@@ -76,9 +195,14 @@ class InlineMessage:
                 if buttons is not None:
                     from telethon import Button as TelethonButton
 
-                    edit_kw["buttons"] = TelethonButton.from_array(
-                        [list(r) if isinstance(r, tuple) else r for r in buttons]
-                    )
+                    if hasattr(TelethonButton, "from_array"):
+                        edit_kw["buttons"] = TelethonButton.from_array(
+                            [list(r) if isinstance(r, tuple) else r for r in buttons]
+                        )
+                    else:
+                        edit_kw["buttons"] = [
+                            list(r) if isinstance(r, tuple) else r for r in buttons
+                        ]
                 edit_kw.update(kwargs)
                 try:
                     await bot_client.edit_message(
@@ -105,15 +229,8 @@ class InlineMessage:
                     from telethon.tl.functions.messages import (
                         EditInlineBotMessageRequest,
                     )
-                    from telethon.tl.types import InputBotInlineMessageID
 
-                    if isinstance(imid, str) and ":" in imid:
-                        parts = imid.split(":")
-                        imid = InputBotInlineMessageID(
-                            dc_id=int(parts[0]) if len(parts) > 0 else 0,
-                            id=int(parts[1]) if len(parts) > 1 else 0,
-                            access_hash=int(parts[2]) if len(parts) > 2 else 0,
-                        )
+                    imid = _normalize_inline_message_id(imid)
                     send = {}
                     if text is not None:
                         send["message"] = text
@@ -121,27 +238,28 @@ class InlineMessage:
                     if buttons is not None:
                         from telethon import Button as TelethonButton
 
-                        send["buttons"] = TelethonButton.from_array(
-                            [list(r) if isinstance(r, tuple) else r for r in buttons]
-                        )
+                        if hasattr(TelethonButton, "from_array"):
+                            send["buttons"] = TelethonButton.from_array(
+                                [
+                                    list(r) if isinstance(r, tuple) else r
+                                    for r in buttons
+                                ]
+                            )
+                        else:
+                            send["buttons"] = [
+                                list(r) if isinstance(r, tuple) else r for r in buttons
+                            ]
                     if send:
                         client = getattr(k, "client", None)
                         if client is not None:
-                            await client(EditInlineBotMessageRequest(peer=imid, **send))
+                            await client(EditInlineBotMessageRequest(id=imid, **send))
                     return self
 
         imid = self.inline_message_id
         if imid is not None and k is not None:
             from telethon.tl.functions.messages import EditInlineBotMessageRequest
-            from telethon.tl.types import InputBotInlineMessageID
 
-            if isinstance(imid, str) and ":" in imid:
-                parts = imid.split(":")
-                imid = InputBotInlineMessageID(
-                    dc_id=int(parts[0]) if len(parts) > 0 else 0,
-                    id=int(parts[1]) if len(parts) > 1 else 0,
-                    access_hash=int(parts[2]) if len(parts) > 2 else 0,
-                )
+            imid = _normalize_inline_message_id(imid)
             send = {}
             if text is not None:
                 send["message"] = text
@@ -149,13 +267,18 @@ class InlineMessage:
             if buttons is not None:
                 from telethon import Button as TelethonButton
 
-                send["buttons"] = TelethonButton.from_array(
-                    [list(r) if isinstance(r, tuple) else r for r in buttons]
-                )
+                if hasattr(TelethonButton, "from_array"):
+                    send["buttons"] = TelethonButton.from_array(
+                        [list(r) if isinstance(r, tuple) else r for r in buttons]
+                    )
+                else:
+                    send["buttons"] = [
+                        list(r) if isinstance(r, tuple) else r for r in buttons
+                    ]
             if send:
                 client = getattr(k, "client", None)
                 if client is not None:
-                    await client(EditInlineBotMessageRequest(peer=imid, **send))
+                    await client(EditInlineBotMessageRequest(id=imid, **send))
             return self
 
         kwargs.setdefault("parse_mode", parse_mode)
@@ -166,41 +289,167 @@ class InlineMessage:
         await self._event.edit(**kwargs)
         return self
 
-        imid = self.inline_message_id
-        if imid is not None and self._kernel is not None:
+    async def edit_rich(
+        self,
+        html: str | None = None,
+        buttons: Any = None,
+        *,
+        rich_message: Any = None,
+        markdown: str | None = None,
+        text: str = "",
+        fallback: bool = True,
+        fallback_text: str | None = None,
+        fallback_parse_mode: Any = None,
+        link_preview: bool = False,
+        rtl: bool | None = None,
+        noautolink: bool | None = None,
+        files: Any = None,
+        **kwargs: Any,
+    ) -> InlineMessage:
+        """Edit this inline message using Telegram rich_message formatting.
+
+        Falls back to regular ``edit()`` when Telegram rejects rich messages for
+        the current peer with ``RICH_MESSAGE_UNSUPPORTED``.
+        """
+        input_rich_message = _build_input_rich_message(
+            html=html,
+            markdown=markdown,
+            rich_message=rich_message,
+            rtl=rtl,
+            noautolink=noautolink,
+            files=files,
+        )
+
+        async def fallback_edit(inline_message_id: Any = None) -> InlineMessage:
+            nonlocal fallback_text, fallback_parse_mode
+            if fallback_text is None:
+                fallback_text, default_parse_mode = _rich_fallback(html, markdown, text)
+                if fallback_parse_mode is None:
+                    fallback_parse_mode = default_parse_mode
+
+            k = self._kernel
+            client = getattr(k, "client", None) if k is not None else None
+            if inline_message_id is not None and hasattr(client, "edit_message"):
+                await client.edit_message(
+                    _normalize_inline_message_id(inline_message_id),
+                    fallback_text,
+                    parse_mode=fallback_parse_mode,
+                    link_preview=link_preview,
+                    buttons=buttons,
+                    **kwargs,
+                )
+                return self
+
+            await self.edit(
+                fallback_text,
+                buttons=buttons,
+                parse_mode=fallback_parse_mode,
+                **kwargs,
+            )
+            return self
+
+        async def edit_inline_id(inline_message_id: Any) -> bool:
+            k = self._kernel
+            client = getattr(k, "client", None) if k is not None else None
+            if client is None:
+                return False
+
+            inline_message_id = _normalize_inline_message_id(inline_message_id)
+            if hasattr(client, "edit_rich_message"):
+                await client.edit_rich_message(
+                    inline_message_id,
+                    html,
+                    rich_message=input_rich_message,
+                    markdown=markdown,
+                    text=text,
+                    fallback=fallback,
+                    fallback_text=fallback_text,
+                    fallback_parse_mode=fallback_parse_mode,
+                    link_preview=link_preview,
+                    buttons=buttons,
+                )
+                return True
+
             from telethon.tl.functions.messages import EditInlineBotMessageRequest
-            from telethon.tl.types import InputBotInlineMessageID
 
-            if isinstance(imid, str) and ":" in imid:
-                parts = imid.split(":")
-                imid = InputBotInlineMessageID(
-                    dc_id=int(parts[0]) if len(parts) > 0 else 0,
-                    id=int(parts[1]) if len(parts) > 1 else 0,
-                    access_hash=int(parts[2]) if len(parts) > 2 else 0,
+            await client(
+                EditInlineBotMessageRequest(
+                    id=inline_message_id,
+                    message=text,
+                    no_webpage=not link_preview,
+                    reply_markup=_inline_buttons(buttons),
+                    rich_message=input_rich_message,
                 )
-            send = {}
-            if text is not None:
-                send["message"] = text
-                send["parse_mode"] = parse_mode
-            if buttons is not None:
-                from telethon import Button as TelethonButton
+            )
+            return True
 
-                send["buttons"] = TelethonButton.from_array(
-                    [list(r) if isinstance(r, tuple) else r for r in buttons]
-                )
-            if send:
-                client = getattr(self._kernel, "client", None)
-                if client is not None:
-                    await client(EditInlineBotMessageRequest(peer=imid, **send))
+        k = self._kernel
+        if k is not None and self.chat_id and self.message_id:
+            bot_client = getattr(k, "bot_client", None)
+            if bot_client is not None and hasattr(bot_client, "edit_rich_message"):
+                try:
+                    await bot_client.edit_rich_message(
+                        self.chat_id,
+                        self.message_id,
+                        html,
+                        rich_message=input_rich_message,
+                        markdown=markdown,
+                        text=text,
+                        fallback=fallback,
+                        fallback_text=fallback_text,
+                        fallback_parse_mode=fallback_parse_mode,
+                        link_preview=link_preview,
+                        buttons=buttons,
+                    )
+                    return self
+                except Exception as error:
+                    if fallback and _rich_message_unsupported(error):
+                        return await fallback_edit()
+
+        if self.unit_id and k is not None and self.message_id:
+            from core_inline.handlers import InlineHandlers
+
+            handlers = InlineHandlers(k, getattr(k, "bot_client", None))
+            form_data = handlers.get_inline_form(self.unit_id)
+            if not form_data:
+                form_data = handlers.get_inline_form(f"msg_{self.unit_id}")
+            if form_data:
+                inline_message_id = form_data.get("inline_message_id")
+                if inline_message_id:
+                    try:
+                        if await edit_inline_id(inline_message_id):
+                            return self
+                    except Exception as error:
+                        if fallback and _rich_message_unsupported(error):
+                            return await fallback_edit(inline_message_id)
+                        raise
+
+        if self.inline_message_id is not None and k is not None:
+            try:
+                if await edit_inline_id(self.inline_message_id):
+                    return self
+            except Exception as error:
+                if fallback and _rich_message_unsupported(error):
+                    return await fallback_edit(self.inline_message_id)
+                raise
+
+        event_edit_rich = getattr(self._event, "edit_rich", None)
+        if event_edit_rich is not None:
+            await event_edit_rich(
+                html,
+                rich_message=input_rich_message,
+                markdown=markdown,
+                text=text,
+                fallback=fallback,
+                fallback_text=fallback_text,
+                fallback_parse_mode=fallback_parse_mode,
+                link_preview=link_preview,
+                buttons=buttons,
+                **kwargs,
+            )
             return self
 
-        kwargs.setdefault("parse_mode", parse_mode)
-        if text is not None:
-            kwargs["text"] = text
-        if buttons is not None:
-            kwargs["buttons"] = buttons
-        await self._event.edit(**kwargs)
-        return self
+        return await fallback_edit()
 
     async def delete(self) -> None:
         """Delete the inline message."""
@@ -215,7 +464,7 @@ class InlineMessage:
 
                     await self._kernel.client(
                         EditInlineBotMessageRequest(
-                            peer=self.inline_message_id,
+                            id=_normalize_inline_message_id(self.inline_message_id),
                             message="",
                         )
                     )
@@ -272,10 +521,7 @@ def _make_form_edit(
         parse_mode: str = "html",
         **kwargs,
     ):
-        from core_inline.handlers import InlineHandlers
-
         kwargs.setdefault("parse_mode", parse_mode)
-        handlers = InlineHandlers(kernel, getattr(kernel, "bot_client", None))
         update = dict(form_data)
         if text is not None:
             update["text"] = text
@@ -294,12 +540,21 @@ def _make_form_edit(
             if buttons is not None:
                 from telethon import Button as TelethonButton
 
-                send["buttons"] = TelethonButton.from_array(
-                    [list(b) if isinstance(b, tuple) else b for b in buttons]
-                )
+                if hasattr(TelethonButton, "from_array"):
+                    send["buttons"] = TelethonButton.from_array(
+                        [list(b) if isinstance(b, tuple) else b for b in buttons]
+                    )
+                else:
+                    send["buttons"] = [
+                        list(b) if isinstance(b, tuple) else b for b in buttons
+                    ]
             if send:
                 try:
-                    await kernel.client(EditInlineBotMessageRequest(**send))
+                    await kernel.client(
+                        EditInlineBotMessageRequest(
+                            id=_normalize_inline_message_id(inline_msg_id), **send
+                        )
+                    )
                 except Exception:
                     pass
 
@@ -322,7 +577,7 @@ def _make_form_delete(
         try:
             await kernel.client(
                 EditInlineBotMessageRequest(
-                    peer=inline_msg_id,
+                    id=_normalize_inline_message_id(inline_msg_id),
                     message="",
                 )
             )

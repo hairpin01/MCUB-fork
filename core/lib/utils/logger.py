@@ -14,6 +14,7 @@ import re
 import sys
 import traceback
 import uuid
+import weakref
 from collections import deque
 from collections.abc import Awaitable, Callable
 from datetime import datetime
@@ -67,6 +68,7 @@ _TELEGRAM_LOG_BATCH_SIZE = 5
 _TELEGRAM_LOG_BATCH_INTERVAL = 2.0
 _TELEGRAM_LOG_RATE_LIMIT = 10
 _TELEGRAM_LOG_RATE_WINDOW = 60
+_TELEGRAM_LOG_HANDLERS: weakref.WeakSet = weakref.WeakSet()
 
 _NETWORK_ERRORS = (
     TimedOutError,
@@ -420,12 +422,11 @@ def setup_logging() -> logging.Logger:
     os.makedirs(_LOG_DIR, exist_ok=True)
 
     root_logger = logging.getLogger()
-    kernel_logger = logging.getLogger("kernel")
-    mcub_logger = logging.getLogger("mcub")
-
     root_logger.setLevel(logging.DEBUG)
+    kernel_logger = logging.getLogger("kernel")
+    logging.getLogger("mcub").setLevel(logging.DEBUG)
+
     kernel_logger.setLevel(logging.DEBUG)
-    mcub_logger.setLevel(logging.DEBUG)
 
     log_path = os.path.abspath(_LOG_FILE)
     handler = None
@@ -471,8 +472,9 @@ def setup_logging() -> logging.Logger:
     telethon_logger.setLevel(logging.WARNING)
     telethon_logger.addFilter(_NoiseFilter())
 
-    aiosqlite_logger = logging.getLogger("aiosqlite")
-    aiosqlite_logger.setLevel(logging.WARNING)
+    logging.getLogger("aiosqlite").setLevel(logging.WARNING)
+
+    logging.getLogger("aiogram").setLevel(logging.INFO)
 
     return kernel_logger
 
@@ -514,6 +516,7 @@ def setup_telegram_logging(
         logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
     )
     logger.addHandler(bridge)
+    _TELEGRAM_LOG_HANDLERS.add(handler)
     return handler
 
 
@@ -584,6 +587,33 @@ class KernelLogger:
         cache = self.cache
         if cache:
             cache.set(f"mute:{error_type}:{source}", True, ttl=ttl)
+
+    def _store_mute_target(self, error_type: str, source: str) -> str | None:
+        """Store full mute target and return a callback-safe token."""
+        cache = self.cache
+        if not cache:
+            return None
+        token = uuid.uuid4().hex[:12]
+        cache.set(
+            f"mute_target:{token}",
+            {"error_type": error_type, "source": source},
+            ttl=_TRACE_CACHE_TTL,
+        )
+        return token
+
+    def get_mute_target(self, token: str) -> dict[str, str] | None:
+        """Return a cached mute target created for an inline button."""
+        cache = self.cache
+        if not cache:
+            return None
+        payload = cache.get(f"mute_target:{token}")
+        if not isinstance(payload, dict):
+            return None
+        error_type = str(payload.get("error_type") or "")
+        source = str(payload.get("source") or "")
+        if not error_type or not source:
+            return None
+        return {"error_type": error_type, "source": source}
 
     def _get_lifetime_info(self, sig_key: str) -> str:
         """Return an HTML blockquote showing first-seen time and occurrence count.
@@ -771,14 +801,15 @@ class KernelLogger:
                 )
 
         if error_type and source:
-            short_source = source[:50] if len(source) > 50 else source
-            buttons.append(
-                Button.inline(
-                    "Mute 1h",
-                    data=f"mute_err:{error_type}:{short_source}",
-                    icon=5451959871257713464,
+            mute_token = self._store_mute_target(error_type, source)
+            if mute_token:
+                buttons.append(
+                    Button.inline(
+                        "Mute 1h",
+                        data=f"mute_err:{mute_token}",
+                        icon=5451959871257713464,
+                    )
                 )
-            )
 
         safe_body = mask_sensitive_data(body)
 
@@ -1170,3 +1201,31 @@ class TelegramLogHandler:
                 text += f"\n<blockquote><code>... and {overflow} more errors</code></blockquote>"
 
         await self._kernel_logger.send_log_message(text)
+
+
+def _flush_log_queue() -> int:
+    """Drain queued Telegram log messages without awaiting network I/O.
+
+    Used by the memory monitor's high-pressure purge path.  The helper is
+    intentionally synchronous because purge_caches() may run outside the
+    TelegramLogHandler worker task and must not block the event loop on sends.
+
+    Returns:
+        Number of queued log messages dropped.
+    """
+    dropped = 0
+    for handler in list(_TELEGRAM_LOG_HANDLERS):
+        queue = getattr(handler, "_queue", None)
+        if queue is None:
+            continue
+
+        while True:
+            try:
+                queue.get_nowait()
+                dropped += 1
+            except asyncio.QueueEmpty:
+                break
+            except Exception:
+                break
+
+    return dropped

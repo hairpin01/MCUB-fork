@@ -52,18 +52,6 @@ class KernelHandlersMixin:
             event_type = type(event_obj).__name__
             if event_type not in dedupe_types:
                 continue
-            # Never dedupe the central command handler.
-            # Use == not is because bound-method objects from .watcher_message_handler
-            # produce a new object on each access, even though they refer to the
-            # same underlying function + instance.
-            _core_handler = getattr(self, "_core_message_handler", None)
-            _core_fallback = getattr(self, "_core_fallback_message_handler", None)
-            if _core_handler is not None and callback == _core_handler:
-                seen.add(self._event_builder_signature(event_obj, callback))
-                continue
-            if _core_fallback is not None and callback == _core_fallback:
-                seen.add(self._event_builder_signature(event_obj, callback))
-                continue
             signature = self._event_builder_signature(event_obj, callback)
             if signature in seen:
                 self.client.remove_event_handler(callback, event_obj)
@@ -171,7 +159,7 @@ class KernelHandlersMixin:
 
             self.client.add_event_handler(_handler, events.NewMessage())
             # _fallback is always the same bound method as _handler in all
-            # current kernels — only add it when they genuinely differ.
+            # current kernels - only add it when they genuinely differ.
             if _fallback is not None and _fallback != _handler:
                 self.client.add_event_handler(_fallback, events.NewMessage())
             self.client.add_event_handler(_handler, events.MessageEdited())
@@ -185,19 +173,21 @@ class KernelHandlersMixin:
             )
             return
 
+        _handler = self._core_message_handler
+        _fallback = getattr(self, "_core_fallback_message_handler", None)
+
         if not has_new:
-            self.client.add_event_handler(
-                self._core_message_handler, events.NewMessage()
-            )
+            self.client.add_event_handler(_handler, events.NewMessage())
             self.logger.warning(
                 "[core_handlers] restored outgoing NewMessage handler reason=%r",
                 reason,
             )
 
-        if hasattr(self, "_core_fallback_message_handler") and not has_fallback:
-            self.client.add_event_handler(
-                self._core_fallback_message_handler, events.NewMessage()
-            )
+        # The fallback is usually the same bound method as the primary core
+        # watcher.  When the NewMessage binding is missing, do not restore both
+        # names to Telethon or the command dispatcher may be invoked twice.
+        if _fallback is not None and _fallback != _handler and not has_fallback:
+            self.client.add_event_handler(_fallback, events.NewMessage())
             self.logger.warning(
                 "[core_handlers] restored fallback NewMessage handler reason=%r",
                 reason,

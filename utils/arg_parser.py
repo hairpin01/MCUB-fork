@@ -400,7 +400,7 @@ class PipelineParser:
     # Checked in order; longest operators must come before their prefixes.
     _OPERATORS: list[tuple[str, str]] = [
         ("|> ", "|>"),
-        (" || ", "||"),  # длиннее " | " — ДО него
+        (" || ", "||"),  # длиннee " | " - ДO нeгo
         (" | ", "|"),
         (" && ", "&&"),
         ("& ", "&"),
@@ -418,9 +418,7 @@ class PipelineParser:
         "|>",
         " &&",
         " ||",
-        " |>",
         " |",
-        "|>",
         "&&",
         "||",
         "|",
@@ -525,7 +523,7 @@ class PipelineParser:
                             except ValueError:
                                 pass
                             i = end_b + 1
-                            matched_str = ""  # i уже на нужной позиции
+                            matched_str = ""  # i yжe нa нyжнoй пoзиции
 
                 if seg:
                     segments.append(

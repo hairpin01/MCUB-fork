@@ -791,6 +791,9 @@ class InlineManager:
                         await asyncio.sleep(0.2)
                         form_data = handlers.get_inline_form(query)
                         if form_data and form_data.get("inline_message_id"):
+                            inline_msg_id = form_data.get("inline_message_id")
+                            message.inline_message_id = inline_msg_id
+                            message._inline_msg_id = inline_msg_id
                             break
 
             k.logger.debug(

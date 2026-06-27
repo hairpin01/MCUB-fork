@@ -740,12 +740,13 @@ pyasn1==0.6.3 \
     --hash=sha256:697a8ecd6d98891189184ca1fa05d1bb00e2f84b5977c481452050549c8a72cf \
     --hash=sha256:a80184d120f0864a52a073acc6fc642847d0be408e7c7252f31390c0f4eadcde
     # via rsa
-python-socks[asyncio]==2.8.1 \
-    --hash=sha256:28232739c4988064e725cdbcd15be194743dd23f1c910f784163365b9d7be035
 pysocks==1.7.1 \
     --hash=sha256:08e69f092cc6dbe92a0fdd16eeb9b9ffbc13cadfe5ca4c7bd92ffb078b293299 \
     --hash=sha256:2725bd0a9925919b9b51739eea5f9e2bae91e83288108a9ad338b2e3a4435ee5 \
     --hash=sha256:3f8804571ebe159c380ac6de37643bb4685970655d3bba243530d6558b799aa0
+    # via -r requirements.in
+python-socks[asyncio]==2.8.1 \
+    --hash=sha256:28232739c4988064e725cdbcd15be194743dd23f1c910f784163365b9d7be035
     # via -r requirements.in
 pyyaml==6.0.3 \
     --hash=sha256:00c4bdeba853cc34e7dd471f16b4114f4162dc03e6b7afcc2128711f0eca823c \
@@ -829,9 +830,9 @@ rsa==4.9.1 \
 socks==0 \
     --hash=sha256:727e9b4620730601c0360a00c7f4ae26295146c0a91af173bd155cc991edf765
     # via -r requirements.in
-telethon-mcub==1.43.15 \
-    --hash=sha256:4775a85256bb6666a4c10683d3532be3ab352846ea84de8baec094e7bfe0469a \
-    --hash=sha256:900fdef6e18e682736ce857e6d851702bd46a71e72c35d9d696d77986292339b
+telethon-mcub==1.44.1 \
+    --hash=sha256:7991096ada6d608bd4827e5389e06b90ee5f77262ef73f9ef0ae54c649bf2a41 \
+    --hash=sha256:ffbeb025479fbd0dcaee00f856bb0842eceb372364f31932ce4ca82c06bc4f79
     # via -r requirements.in
 yarl==1.24.2 \
     --hash=sha256:0063adad533e57171b79db3943b229d40dfafeeee579767f96541f106bac5f1b \

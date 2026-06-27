@@ -188,7 +188,7 @@ Callback handlers receive an **`InlineMessage`** object (with `edit()`, `answer(
 | `self.Button.request_poll(text="Poll", *, quiz=False, ...)` | Poll button |
 | `self.Button.game(text)` | Game button |
 | `self.Button.unknown(text, data, *, icon=None, style=None)` | Raw callback data button |
-| `self.Button.input(text, handler, *, placeholder="", ttl=900, allow_user=None, data=None, icon=None)` | Input button — opens inline mode, delivers typed text to handler |
+| `self.Button.input(text, handler, *, placeholder="", ttl=900, allow_user=None, data=None, icon=None)` | Input button - opens inline mode, delivers typed text to handler |
 
 ```python
 async def on_color(self, event, color):
@@ -969,6 +969,7 @@ class MyModule(ModuleBase):
             [self.Button.inline("Option B", self.handle_b, icon=5325942077639384816)],
             [self.Button.url("Website", "https://example.com", icon=5325942077639384817)],
             [self.Button.text("Text Only", icon=5325942077639384818)],
+            [self.Button.close(event)],
         ]
         await self.kernel.inline_form(event.chat_id, "Choose:", buttons=buttons)
 ```
@@ -980,11 +981,12 @@ All buttons support `icon` (int) and `style` parameters:
 | Method | Description |
 |--------|-------------|
 | `Button.inline(text, callback, *, ttl=900, args=(), kwargs=None, data=None, pass_event=True, auto_answer=None, icon=None)` | Callback button |
+| `Button.close(event, text=None, handler=None, *, icon=None, style=None, allow_user=None, allow_ttl=100)` | Close/delete the inline form message |
 | `Button.url(text, url, *, new_tab=False, icon=None)` | URL link button |
 | `Button.text(text, *, resize=True, selective=False, icon=None)` | Text button |
 | `Button.switch(text, query="", *, same_peer=True, icon=None)` | Inline query switch |
 | `Button.copy(text="Copy", *, payload=None, icon=None)` | Copy to clipboard |
-| `Button.input(text, handler, *, placeholder="", ttl=900, allow_user=None, data=None, icon=None)` | Input button — opens inline mode, delivers typed text to handler |
+| `Button.input(text, handler, *, placeholder="", ttl=900, allow_user=None, data=None, icon=None)` | Input button - opens inline mode, delivers typed text to handler |
 | `Button.request_phone(text="Share Phone", *, request_title=None, icon=None)` | Request phone |
 | `Button.request_location(text="Share Location", *, request_title=None, live_period=None, icon=None)` | Request location |
 | `Button.request_poll(text="Create Poll", *, request_title=None, quiz=False, icon=None)` | Request poll |
@@ -1025,7 +1027,7 @@ class MyModule(ModuleBase):
 
     @callback(ttl=300)
     async def handle_click(self, call: InlineMessage, *args: Any, **kwargs: Any) -> None:
-        # call is InlineMessage — NOT a raw Telethon event
+        # call is InlineMessage - NOT a raw Telethon event
         # args = (1, 2, 3)
         # kwargs = {"key": "value"}
         await call.answer(f"Got: {args}, {kwargs}", alert=True)
@@ -1062,6 +1064,7 @@ async def cmd_buttons(self, event):
         "Button Demo",
         buttons=[
             [self.Button.inline("Callback", self.handle_cb, icon=5325942077639384815)],
+            [self.Button.close(event, icon=5325942077639384823)],
             [self.Button.url("URL", "https://example.com", icon=5325942077639384816)],
             [self.Button.text("Text", icon=5325942077639384817)],
             [self.Button.switch("Search", "test query", icon=5325942077639384818)],
@@ -1083,9 +1086,9 @@ Creates a button that opens the bot's inline mode and prompts the user to type t
 
 **Handler signature:** `async def handler(self, event, text, data)`
 
-- `event` — wrapped `UpdateBotInlineSend` (via `EventProxy`); has `.user_id`, `.id`, `.query`.
-- `text` — the text the user typed.
-- `data` — passthrough value from the `data=` parameter.
+- `event` - wrapped `UpdateBotInlineSend` (via `EventProxy`); has `.user_id`, `.id`, `.query`.
+- `text` - the text the user typed.
+- `data` - passthrough value from the `data=` parameter.
 
 ```python
 import core.lib.loader.module_base as loader
@@ -1156,8 +1159,9 @@ from typing import Any
 from telethon import events
 
 from core.lib.loader.module_base import (
-    ModuleBase, command, bot_command, owner_only, callback, watcher, loop, event, method, on_uninstall
+    ModuleBase, command, bot_command, owner_only, callback, watcher, loop, event, method, on_install, on_uninstall
 )
+from core.lib.types.inline_message import InlineMessage
 
 class CounterModule(ModuleBase):
     name = "Counter"
@@ -1187,16 +1191,24 @@ class CounterModule(ModuleBase):
     async def cmd_menu(self, event: events.NewMessage.Event) -> None:
         inc_btn: Any = self.Button.inline("+1", self.handle_inc, icon=5325942077639384820)
         dec_btn: Any = self.Button.inline("-1", self.handle_dec, icon=5325942077639384821)
+        close_btn: Any = self.Button.close(event, icon=5325942077639384822)
         await self.kernel.inline_form(
             event.chat_id,
             f"Count: {self._counter}",
-            buttons=[[inc_btn, dec_btn]]
+            buttons=[[inc_btn, dec_btn], [close_btn]],
         )
 
     @callback(ttl=300)
-    async def handle_inc(self, event: events.CallbackQuery.Event) -> None:
+    async def handle_inc(self, call: InlineMessage) -> None:
         self._counter += 1
-        await event.answer(f"+1! Now: {self._counter}")
+        await call.answer(f"+1! Now: {self._counter}")
+        await call.edit(f"Count: {self._counter}")
+
+    @callback(ttl=300)
+    async def handle_dec(self, call: InlineMessage) -> None:
+        self._counter -= 1
+        await call.answer(f"-1! Now: {self._counter}")
+        await call.edit(f"Count: {self._counter}")
 
     @watcher(only_pm=True, incoming=True)
     async def track_pm(self, event: events.NewMessage.Event) -> None:

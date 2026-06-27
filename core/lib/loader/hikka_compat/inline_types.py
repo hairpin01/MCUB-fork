@@ -83,7 +83,7 @@ class CompatCallbackQuery:
             kwargs["parse_mode"] = "html"
 
         _normalize_edit_reply_markup(kwargs, self._inline_proxy)
-        # Use the raw Telethon event.edit() — it carries the already-resolved
+        # Use the raw Telethon event.edit() - it carries the already-resolved
         # InputPeer from the callback update, bypassing entity-resolution
         # failures that affect bot_client.edit_message(chat_id, msg_id).
         return await self._event.edit(*args, **kwargs)
@@ -328,7 +328,7 @@ class InlineMessage:
                 logger.error("InlineMessage event.edit failed: %s", e)
                 return self
 
-        # Fallback path — used when no stored event is available
+        # Fallback path - used when no stored event is available
         # (e.g. InlineMessage created outside a callback handler).
         manager = self.inline_manager
         edit_unit = getattr(manager, "_edit_unit", None) if manager else None
@@ -525,8 +525,8 @@ class InlineCall:
         if self.original_call is not None and hasattr(self.original_call, "answer"):
             try:
                 await self.original_call.answer(
-                    message=text,
-                    alert=show_alert,
+                    text=text,
+                    show_alert=show_alert,
                     url=url,
                 )
                 self._answered = True
@@ -723,6 +723,92 @@ class InlineQuery:
             except Exception:
                 pass
 
+    @staticmethod
+    def _get_error_result(
+        title: str,
+        description: str,
+        thumbnail_url: str,
+    ) -> list[dict]:
+        """Build a Hikka/Heroku-style inline error article."""
+
+        return [
+            {
+                "title": title,
+                "description": description,
+                "message": "😶‍🌫️ <i>There is nothing here...</i>",
+                "thumbnail_url": thumbnail_url,
+            }
+        ]
+
+    async def e400(self) -> None:
+        await self.answer(
+            self._get_error_result(
+                title="🚫 400",
+                description=(
+                    "Bad request. You need to pass right arguments, follow module's "
+                    "documentation"
+                ),
+                thumbnail_url=(
+                    "https://img.icons8.com/color/344/swearing-male--v1.png"
+                ),
+            ),
+            cache_time=0,
+        )
+
+    async def e403(self) -> None:
+        await self.answer(
+            self._get_error_result(
+                title="🚫 403",
+                description="You have no permissions to access this result",
+                thumbnail_url=(
+                    "https://img.icons8.com/external-wanicon-flat-wanicon/344/"
+                    "external-forbidden-new-normal-wanicon-flat-wanicon.png"
+                ),
+            ),
+            cache_time=0,
+        )
+
+    async def e404(self) -> None:
+        await self.answer(
+            self._get_error_result(
+                title="🚫 404",
+                description="No results found",
+                thumbnail_url=(
+                    "https://img.icons8.com/external-justicon-flat-justicon/344/"
+                    "external-404-error-responsive-web-design-justicon-flat-justicon.png"
+                ),
+            ),
+            cache_time=0,
+        )
+
+    async def e426(self) -> None:
+        await self.answer(
+            self._get_error_result(
+                title="🚫 426",
+                description="You need to update Heroku before sending this request",
+                thumbnail_url=(
+                    "https://img.icons8.com/fluency/344/approve-and-update.png"
+                ),
+            ),
+            cache_time=0,
+        )
+
+    async def e500(self) -> None:
+        await self.answer(
+            self._get_error_result(
+                title="🚫 500",
+                description=(
+                    "Internal userbot error while processing request. More info in logs"
+                ),
+                thumbnail_url=(
+                    "https://img.icons8.com/external-vitaliy-gorbachev-flat-vitaly-"
+                    "gorbachev/344/external-error-internet-security-vitaliy-"
+                    "gorbachev-flat-vitaly-gorbachev.png"
+                ),
+            ),
+            cache_time=0,
+        )
+
 
 class _InlineQueryBuilder:
     def __init__(self, inline_query: InlineQuery):
@@ -747,65 +833,23 @@ class _InlineQueryBuilder:
         result.update(kwargs)
         return result
 
+    async def answer(self, *args, **kwargs) -> None:
+        return await self._inline_query.answer(*args, **kwargs)
+
     async def e400(self) -> None:
-        await self.answer(
-            [
-                {
-                    "title": "Bad request",
-                    "description": "Invalid arguments",
-                    "message": "Invalid request",
-                }
-            ],
-            cache_time=0,
-        )
+        await self._inline_query.e400()
 
     async def e403(self) -> None:
-        await self.answer(
-            [
-                {
-                    "title": "Forbidden",
-                    "description": "No permissions",
-                    "message": "You have no permissions",
-                }
-            ],
-            cache_time=0,
-        )
+        await self._inline_query.e403()
 
     async def e404(self) -> None:
-        await self.answer(
-            [
-                {
-                    "title": "Not found",
-                    "description": "No results",
-                    "message": "No results found",
-                }
-            ],
-            cache_time=0,
-        )
+        await self._inline_query.e404()
 
     async def e426(self) -> None:
-        await self.answer(
-            [
-                {
-                    "title": "Update required",
-                    "description": "Update your userbot",
-                    "message": "Update required",
-                }
-            ],
-            cache_time=0,
-        )
+        await self._inline_query.e426()
 
     async def e500(self) -> None:
-        await self.answer(
-            [
-                {
-                    "title": "Error",
-                    "description": "Internal error",
-                    "message": "Internal error occurred",
-                }
-            ],
-            cache_time=0,
-        )
+        await self._inline_query.e500()
 
 
 class InlineResults:

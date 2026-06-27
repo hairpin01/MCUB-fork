@@ -5,6 +5,7 @@
 Tests for TTL cache implementation
 """
 
+import logging
 import time
 
 import pytest
@@ -186,3 +187,49 @@ class TestTTLCache:
         cache.get("key_9")
 
         assert cache.size() <= 5
+
+    def test_expiry_heap_is_compacted_after_overwrites(self):
+        """Repeated updates must not leave unbounded stale heap entries."""
+        cache = TTLCache(max_size=10, ttl=3600)
+
+        for i in range(200):
+            cache.set("same", i)
+
+        assert cache.get("same") == 199
+        assert len(cache._expiry_heap) <= max(cache.max_size * 2, cache.size() * 2, 64)
+
+    def test_equal_expiry_with_incomparable_keys(self, monkeypatch):
+        """Heap ordering must not compare arbitrary cache keys directly."""
+        import core.lib.time.cache as cache_mod
+
+        monkeypatch.setattr(cache_mod.time, "time", lambda: 1000.0)
+        cache = TTLCache(max_size=10, ttl=60)
+
+        object_key = object()
+
+        cache.set("string-key", "a")
+        cache.set(object_key, "b")
+
+        assert cache.get("string-key") == "a"
+        assert cache.get(object_key) == "b"
+
+    def test_delete_removes_key(self):
+        """Documented cache.delete API removes a single key."""
+        cache = TTLCache()
+        cache.set("key", "value")
+
+        cache.delete("key")
+
+        assert cache.get("key") is None
+
+    def test_debug_logging(self, caplog):
+        """TTLCache emits debug logs for cache operations."""
+        caplog.set_level(logging.DEBUG, logger="core.lib.time.cache")
+        cache = TTLCache(max_size=1, ttl=60)
+
+        cache.set("a", 1)
+        cache.set("b", 2)
+        cache.get("missing")
+        cache.clear()
+
+        assert any("[TTLCache]" in record.message for record in caplog.records)

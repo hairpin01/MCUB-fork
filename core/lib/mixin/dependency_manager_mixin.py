@@ -350,7 +350,7 @@ class DependencyManagerMixin:
     @staticmethod
     def _build_pip_cmd(packages: list[str], *, break_system: bool) -> list[str]:
         """Return a pip install argv for one or more packages."""
-        # -q suppresses progress bars and verbose output — significantly
+        # -q suppresses progress bars and verbose output - significantly
         # reduces subprocess I/O overhead, especially for packages already
         # satisfied by pip's local cache.
         cmd = [

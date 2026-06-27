@@ -329,7 +329,7 @@ class KernelPipelineMixin:
                 pipe_out = getattr(proxy, "pipe_output", None)
                 if pipe_out:
                     return str(pipe_out)
-                self.logger.debug("[pipe] @(cmd) %r — no edit captured", cmd)
+                self.logger.debug("[pipe] @(cmd) %r - no edit captured", cmd)
                 if exit_code == 5:
                     return f"<@cmd_not_found: {cmd}>"
                 return ""
@@ -383,7 +383,7 @@ class KernelPipelineMixin:
             if seg.operator == "||":
                 expected_exit_code = getattr(seg, "exit_code", None)
                 if expected_exit_code is not None:
-                    # ||[N] — run only if exit_code == N
+                    # ||[N] - run only if exit_code == N
                     if exit_code != expected_exit_code:
                         continue
                 elif exit_code == 0:

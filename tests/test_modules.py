@@ -284,6 +284,15 @@ class TestApiProtectionModule:
 class TestTesterModule:
     """Tests for modules/tester.py"""
 
+    def _make_tester(self):
+        import copy
+
+        import modules.tester as tester_module
+
+        tester = tester_module.TesterMod.__new__(tester_module.TesterMod)
+        tester._config = copy.deepcopy(tester_module.TesterMod.config)
+        return tester, tester_module
+
     def test_import_tester_module(self):
         """Test that tester module can be imported"""
         import modules.tester as tester_module
@@ -296,6 +305,48 @@ class TestTesterModule:
 
         assert hasattr(tester_module, "CUSTOM_EMOJI")
         assert isinstance(tester_module.CUSTOM_EMOJI, dict)
+
+    def test_tester_dynamic_start_emoji_is_used_for_initial_ping_edit(self):
+        """Dynamic start emoji affects the first .ping edit before latency is known."""
+        tester, tester_module = self._make_tester()
+        tester.config.from_dict(
+            {
+                "start_emoji": "✏️",
+                "start_emoji_dynamically_enabled": True,
+                "start_emoji_dynamically": {
+                    "low_emoji": "🛰",
+                    "high_emoji": "🐢",
+                },
+            }
+        )
+
+        assert (
+            tester._resolve_initial_ping_start_emoji()
+            == tester_module.CUSTOM_EMOJI["🛰"]
+        )
+
+    def test_tester_dynamic_start_emoji_chooses_against_previous_average(self):
+        """Dynamic start emoji picks low/high against previous average ping."""
+        tester, tester_module = self._make_tester()
+        tester.config.from_dict(
+            {
+                "start_emoji": "✏️",
+                "start_emoji_dynamically_enabled": True,
+                "start_emoji_dynamically": {
+                    "low_emoji": "🛰",
+                    "high_emoji": "🐢",
+                },
+            }
+        )
+
+        assert (
+            tester._resolve_dynamic_start_emoji(40.0, 50.0)
+            == tester_module.CUSTOM_EMOJI["🛰"]
+        )
+        assert (
+            tester._resolve_dynamic_start_emoji(60.0, 50.0)
+            == tester_module.CUSTOM_EMOJI["🐢"]
+        )
 
 
 class TestAllModulesHaveRegister:

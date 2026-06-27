@@ -634,7 +634,7 @@ class ModuleBase(ABC):
         self._store_callback_data(tok, callback_data, is_kernel_proxy, store_callback)
         self._track_callback_token(tok)
 
-    def __init__(self, kernel: Kernel, client: Client, register: Any) -> None:
+    def __init__(self, kernel: Kernel, client: Client, register: Register) -> None:
         self.kernel = kernel
         self.client = client
         self._register = register
@@ -950,6 +950,7 @@ class ModuleBase(ABC):
         def __init__(self, outer: Any) -> None:
             self._outer = outer
             self._telethon_button = __import__("telethon", fromlist=["Button"]).Button
+            self._strings_base = Strings(self._outer.kernel, {"name": "null"})
 
         def inline(
             self,
@@ -1092,13 +1093,61 @@ class ModuleBase(ABC):
                 text, query=query, same_peer=True, style=style, icon=icon
             )
 
+        def close(
+            self,
+            event: Event,
+            text: str | None = None,
+            handler: Callable | None = None,
+            *,
+            icon: int | None = None,
+            style: str | None = None,
+            allow_user: int | list[int] | str | None = None,
+            allow_ttl: int = 100,
+        ) -> Any:
+
+            if not text:
+                text = self._strings_base("buttons").get("close")
+
+            async def on_close(self, cb_event) -> None:
+                if hasattr(cb_event, "_kernel"):
+                    kernel = cb_event._kernel
+                    try:
+                        peer = cb_event.input_chat
+                        result = await kernel.client.delete_messages(
+                            peer, cb_event.message_id
+                        )
+                        affected = sum(r.pts_count for r in result)
+                        if affected == 0:
+                            kernel.logger.error(
+                                'delete message "%s", "%s" failed!',
+                                cb_event.chat_id,
+                                cb_event.message_id,
+                            )
+                        kernel.logger.debug("Delete (pts_count=%s)", affected)
+                    except Exception as e:
+                        kernel.handle_error(
+                            e, message="Failed delete message!", cb_event=event
+                        )
+                        await event.edit(self._strings_base("buttons").get("close"))
+
+                    await cb_event.answer()
+
+            return self.inline(
+                text,
+                on_close if not handler else handler,
+                icon=icon,
+                style=style,
+                allow_ttl=allow_ttl,
+                allow_user=allow_user,
+            )
+
         def copy(
             self,
             text: str = "Copy",
             *,
             payload: bytes | None = None,
             icon: int | None = None,
-            style: Any = None,
+            style: str | None = None,
         ) -> Any:
             """Create a copy button."""
             return self._telethon_button.copy(
@@ -1111,7 +1160,7 @@ class ModuleBase(ABC):
             *,
             request_title: str | None = None,
             icon: int | None = None,
-            style: Any = None,
+            style: str | None = None,
         ) -> Any:
             """Create a request phone button."""
             return self._telethon_button.request_phone(
@@ -1125,7 +1174,7 @@ class ModuleBase(ABC):
             request_title: str | None = None,
             live_period: int | None = None,
             icon: int | None = None,
-            style: Any = None,
+            style: str | None = None,
         ) -> Any:
             """Create a request location button."""
             return self._telethon_button.request_location(

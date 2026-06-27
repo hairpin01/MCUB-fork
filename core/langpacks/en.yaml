@@ -39,10 +39,15 @@ core_inline:
   mcub_bot_title: MCUB Bot
   version: Version
   modules: Modules
+  bot_limit_warn1: "Delete one of your bots - you have too many, I can't create a new one."
+  bot_limit_warn2: "You didn't delete a bot. If this happens again, I'll stop trying."
+  bot_limit_give_up: "I give up. Delete a bot manually and try again."
+  bot_limit_prompt: "Deleted? [Y/n]: "
   info_description: Info userbot
   command: Command
   execute: Execute
   no_commands: No registered inline commands
+  inline_command_no_access: Command <code>{cmd}</code> is unavailable
   form_not_found: Form not found or expired
   form_id: ID
   error: Inline query error
@@ -169,10 +174,10 @@ eval:
   result_in_message: Result in message
   executed_in: Executed in
   ms: ms
-  usage_js: .js <code> — execute JavaScript (Node.js) code
-  usage_rb: .rb <code> — execute Ruby code
-  usage_go: .go <code> — execute Go code
-  usage_rs: .rs <code> — execute Rust code
+  usage_js: .js <code> - execute JavaScript (Node.js) code
+  usage_rb: .rb <code> - execute Ruby code
+  usage_go: .go <code> - execute Go code
+  usage_rs: .rs <code> - execute Rust code
   lang_js: JavaScript
   lang_rb: Ruby
   lang_go: Go
@@ -522,8 +527,7 @@ man:
   module_not_hidden: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>This module is not hidden.</b>
   manhide_usage: '😕 Usage: <code>.manhide [module]</code>'
   manunhide_usage: '😕 Usage: <code>.manunhide [module]</code>'
-  system_module_note: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>This is a system module, and it cannot simply be unloaded
-    with a loader</b>
+  system_module_note: "{blocked} <b>This is a system module, and it cannot simply be unloaded with a loader</b>"
   kernel_not_full_loaded: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>The kernel has not yet fully loaded all modules</b>
     (<code>{status}</code>)
   placeholders_title: Custom placeholders
@@ -892,6 +896,24 @@ loader:
   no_modules_catalog: 📭 No modules
   catalog_page: <tg-emoji emoji-id="5453892731094973831">❄️</tg-emoji> Page {page}/{total_pages}
   catalog_error: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Catalog loading error: {error}'
+  catalog_main_menu: '<blockquote><b>📦 MCUB Module Catalog</b>
+
+  Choose an action:</blockquote>'
+  catalog_install_btn: 🧩 Install by name/URL
+  catalog_open_btn: 🫥 Open catalog
+  catalog_install_menu: '<blockquote><b>Install from repo/URL</b></blockquote>
+<blockquote>Enter a module name from connected repositories or a direct link to a .py/.zip archive.</blockquote>'
+  catalog_install_input_btn: 🧩 Enter name or URL
+  catalog_install_placeholder: module_name or https://.../module.py
+  catalog_search_repo_btn: 🔎 Search this repo
+  catalog_search_all_btn: 🌐 Search all
+  catalog_search_placeholder: Module name...
+  catalog_search_expired: '<blockquote><b>Search expired</b></blockquote>'
+  catalog_search_empty: 📭 Nothing found
+  catalog_search_result: '<blockquote><b>Search:</b> <code>{query}</code></blockquote>
+<blockquote>{body}</blockquote>
+<blockquote>{page}</blockquote>'
+  catalog_back_btn: 🔙 Back
   dlm_repo_choice_title: '{cloud} <b>Module</b> <code>{module_name}</code> <b>found
     in multiple repositories</b>
 
@@ -899,7 +921,7 @@ loader:
   dlm_repo_choice_action_install: install it
   dlm_repo_choice_action_send: download it
   dlm_repo_choice_repo: '{index}. {repo_name}'
-  dlm_repo_choice_expired: <tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Repository selection expired
+  dlm_repo_choice_expired: 🗿 Repository selection expired
   dlm_repo_choice_cancel: Cancel
   dlm_repo_choice_cancelled: Selection cancelled
   btn_back: Back
@@ -1085,6 +1107,7 @@ tester:
   logs: Logs
   kernel_version: Kernel Version
   ping: ping
+  raw_ping: raw ping
   uptime: uptime
   ms: ms
   hours: h
@@ -1187,6 +1210,13 @@ trusted:
   percmd_title: "🔐 <b>Commands for {user}</b>"
   percmd_back: "← Back"
   btn_cmds: "📋 Commands"
+  btn_inline_cmds: "📋 Inline cmds"
+  inlinecmd_title: "📋 <b>Inline commands for {user}</b>"
+  inlinecmd_empty: "No inline commands"
+  inlinesec_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.inlinesec</code> (reply, @username or ID) [inline_command]'
+  inlinesec_not_found: 'Inline command <code>{cmd}</code> not found.'
+  inlinesec_allowed: '✅ <code>{cmd}</code> allowed for {user}'
+  inlinesec_denied: '🚫 <code>{cmd}</code> denied for {user}'
   trust_time_title: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Add user for a limited time?</b>'
   trust_time_desc: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> User will be removed from trusted after {time}.'
   btn_1h: 1 hour

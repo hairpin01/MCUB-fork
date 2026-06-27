@@ -52,8 +52,8 @@ def _make_telethon_stubs():
 
     class _Button:
         @staticmethod
-        def inline(text, data=None):
-            return {"text": text, "data": data}
+        def inline(text, data=None, **kwargs):
+            return {"text": text, "data": data, **kwargs}
 
     telethon_mod.Button = _Button
     telethon_mod.errors = errors_mod
@@ -81,6 +81,7 @@ from core.lib.utils.logger import (
     KernelLogger,
     RichException,
     TelegramLogHandler,
+    _flush_log_queue,
     _SyncToAsyncBridge,
     mask_sensitive_data,
     override_text,
@@ -556,6 +557,20 @@ class TestTelegramLogHandler(unittest.TestCase):
         handler._rate_timestamps = deque([now - 100, now - 50, now - 10])
         handler._clean_rate_timestamps(now)
         self.assertEqual(len(handler._rate_timestamps), 1)
+
+    def test_flush_log_queue_drains_registered_handlers(self):
+        k = _make_kernel()
+        kl = KernelLogger(k)
+        logger = logging.getLogger("test_flush_log_queue")
+        logger.handlers = []
+        handler = setup_telegram_logging(logger, kl, batch_size=5, batch_interval=0.1)
+
+        handler.emit("queued-1")
+        handler.emit("queued-2")
+
+        self.assertEqual(handler.queue_size(), 2)
+        self.assertGreaterEqual(_flush_log_queue(), 2)
+        self.assertEqual(handler.queue_size(), 0)
 
 
 class TestSetupTelegramLogging(unittest.TestCase):

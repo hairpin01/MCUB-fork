@@ -70,7 +70,7 @@ class Kernel(_StandardKernel):
             self.dispatcher.register()
         else:
             self.logger.error(
-                "[core_handlers] dispatcher unavailable — no core handlers registered"
+                "[core_handlers] dispatcher unavailable - no core handlers registered"
             )
 
         modules_start = time.time()

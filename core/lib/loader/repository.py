@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 
 
 ALLOWED_REMOTE_PROTOCOLS = {"https"}
+REPO_MODULE_LIST_FILES = ("modules.ini", "full.txt")
 BLOCKED_REMOTE_HOSTS = {
     "localhost",
     "localhost.localdomain",
@@ -27,6 +28,46 @@ BLOCKED_REMOTE_HOSTS = {
     "127.0.0.1",
     "::1",
 }
+
+
+def parse_repo_modules_list(text: str) -> list[str]:
+    """Parse a repository module list file.
+
+    ``modules.ini`` remains the legacy source, while ``full.txt`` can provide
+    the same line-based format.  Entries may be plain module names or
+    ``name.py`` filenames; comments and empty lines are ignored.
+    """
+
+    modules: list[str] = []
+    seen: set[str] = set()
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith(("#", ";")):
+            continue
+        for marker in (" #", " ;"):
+            if marker in line:
+                line = line.split(marker, maxsplit=1)[0].strip()
+        if line.endswith(".py"):
+            line = line[:-3]
+        if not line or line in seen:
+            continue
+        seen.add(line)
+        modules.append(line)
+    return modules
+
+
+def merge_repo_modules_lists(*lists: list[str]) -> list[str]:
+    """Merge repository module lists with order-preserving de-duplication."""
+
+    merged: list[str] = []
+    seen: set[str] = set()
+    for modules in lists:
+        for module in modules:
+            if module in seen:
+                continue
+            seen.add(module)
+            merged.append(module)
+    return merged
 
 
 def validate_remote_url(
@@ -195,24 +236,58 @@ class RepositoryManager:
         return url.rstrip("/").split("/")[-1]
 
     async def get_modules_list(self, repo_url: str) -> list[str]:
-        """Fetch the list of module names from ``modules.ini``.
+        """Fetch module names from repository list files.
+
+        ``modules.ini`` is kept for backward compatibility.  ``full.txt`` is
+        supported as an additional list source and merged with ``modules.ini``.
 
         Returns:
             List of module name strings, or empty list on failure.
         """
+        repo_url = repo_url.rstrip("/")
         try:
+            lists: list[list[str]] = []
+            errors: list[Exception] = []
             async with aiohttp.ClientSession() as session:
-                async with session.get(f"{repo_url}/modules.ini") as resp:
-                    if resp.status == 200:
-                        return [
-                            line.strip()
-                            for line in (await resp.text()).split("\n")
-                            if line.strip()
-                        ]
+                for list_file in REPO_MODULE_LIST_FILES:
+                    try:
+                        async with session.get(f"{repo_url}/{list_file}") as resp:
+                            if resp.status != 200:
+                                continue
+                            lists.append(parse_repo_modules_list(await resp.text()))
+                    except Exception as e:
+                        errors.append(e)
+            modules = merge_repo_modules_lists(*lists)
+            if modules:
+                return modules
+            if errors and hasattr(self.k, "handle_error"):
+                await self.k.handle_error(
+                    errors[0], message="Repository modules list fetch failed"
+                )
+            return modules
         except Exception as e:
             if hasattr(self.k, "handle_error"):
                 await self.k.handle_error(
                     e, message="Repository modules list fetch failed"
+                )
+        return []
+
+    async def get_legacy_modules_list(self, repo_url: str) -> list[str]:
+        """Fetch only the legacy ``modules.ini`` list.
+
+        Kept as a narrow compatibility helper for callers that explicitly need
+        the old source.  Normal code should use ``get_modules_list``.
+        """
+        repo_url = repo_url.rstrip("/")
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"{repo_url}/modules.ini") as resp:
+                    if resp.status == 200:
+                        return parse_repo_modules_list(await resp.text())
+        except Exception as e:
+            if hasattr(self.k, "handle_error"):
+                await self.k.handle_error(
+                    e, message="Legacy repository modules list fetch failed"
                 )
         return []
 

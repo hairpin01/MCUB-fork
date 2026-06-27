@@ -5,11 +5,11 @@
 The `InlineManager` is accessible via `kernel.inline_manager` and via `core/lib/loader/inline.py` (`InlineManager` class). It provides advanced inline form operations beyond the basic `inline_form`.
 
 All methods that return a `message` return an **`InlineMessage`** object with methods:
-- `await msg.edit(text, buttons=None, *, parse_mode="html")` — edit the message
-- `await msg.answer(text="", alert=False)` — toast/alert popup
-- `await msg.delete()` — delete the message
-- `msg.data` — callback data (`bytes`)
-- `msg.inline_message_id` — inline message ID
+- `await msg.edit(text, buttons=None, *, parse_mode="html")` - edit the message
+- `await msg.answer(text="", alert=False)` - toast/alert popup
+- `await msg.delete()` - delete the message
+- `msg.data` - callback data (`bytes`)
+- `msg.inline_message_id` - inline message ID
 - `msg.chat_id`, `msg.sender_id`
 
 ---

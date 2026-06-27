@@ -175,6 +175,405 @@ async def handler(event):
         assert "regiser" in mcub009[0].message
 
 
+class TestMissingModuleEntrypointRule:
+    """Tests for MCUB031 - missing MCUB module entrypoint."""
+
+    def _warnings_for(self, code: str):
+        rules = get_default_rules()
+        analyzer = SourceAnalyzer(code, "test.py", rules)
+        tree = ast.parse(code)
+        analyzer.warnings = []
+        analyzer.visit(tree)
+        return [w for w in analyzer.warnings if w.rule_id == "MCUB031"]
+
+    def test_detects_missing_register_or_module_base_class(self):
+        """Should require either register(kernel/client) or ModuleBase class."""
+        code = """
+from telethon import events
+
+async def handler(event):
+    await event.reply("hello")
+"""
+
+        mcub031 = self._warnings_for(code)
+
+        assert len(mcub031) == 1
+        assert mcub031[0].severity == "error"
+        assert "def register(kernel)" in mcub031[0].message
+        assert "ModuleBase" in mcub031[0].message
+
+    def test_allows_register_kernel(self):
+        """Should allow function-style modules with register(kernel)."""
+        code = """
+def register(kernel):
+    pass
+"""
+
+        assert self._warnings_for(code) == []
+
+    def test_allows_register_client(self):
+        """Should allow function-style modules with register(client)."""
+        code = """
+def register(client):
+    pass
+"""
+
+        assert self._warnings_for(code) == []
+
+    def test_rejects_register_with_wrong_argument(self):
+        """Should reject register() when first argument is not kernel/client."""
+        code = """
+def register(bot):
+    pass
+"""
+
+        assert len(self._warnings_for(code)) == 1
+
+    def test_allows_module_base_class(self):
+        """Should allow class-style modules inheriting ModuleBase."""
+        code = """
+from core.lib.loader.module_base import ModuleBase
+
+class MyModule(ModuleBase):
+    name = "MyModule"
+"""
+
+        assert self._warnings_for(code) == []
+
+    def test_allows_qualified_module_base_class(self):
+        """Should allow class-style modules inheriting loader.ModuleBase."""
+        code = """
+from core.lib import loader
+
+class MyModule(loader.ModuleBase):
+    name = "MyModule"
+"""
+
+        assert self._warnings_for(code) == []
+
+    def test_allows_aliased_module_base_class(self):
+        """Should allow class-style modules inheriting aliased ModuleBase."""
+        code = """
+from core.lib.loader.module_base import ModuleBase as BaseModule
+
+class MyModule(BaseModule):
+    name = "MyModule"
+"""
+
+        assert self._warnings_for(code) == []
+
+
+class TestParentRelativeImportRule:
+    """Tests for MCUB032 - FTG-style parent-relative imports."""
+
+    def _warnings_for(self, code: str):
+        rules = get_default_rules()
+        analyzer = SourceAnalyzer(code, "test.py", rules)
+        tree = ast.parse(code)
+        analyzer.warnings = []
+        analyzer.visit(tree)
+        return [w for w in analyzer.warnings if w.rule_id == "MCUB032"]
+
+    def test_detects_parent_relative_wildcard_import(self):
+        """Should reject 'from .. import *' FTG-style imports."""
+        code = """
+from .. import *
+
+def register(kernel):
+    pass
+"""
+
+        mcub032 = self._warnings_for(code)
+
+        assert len(mcub032) == 1
+        assert mcub032[0].severity == "error"
+        assert "FTG" in mcub032[0].message
+
+    def test_detects_parent_relative_named_import(self):
+        """Should reject 'from .. import loader, utils' FTG-style imports."""
+        code = """
+from .. import loader, utils
+
+def register(kernel):
+    pass
+"""
+
+        assert len(self._warnings_for(code)) == 1
+
+    def test_detects_parent_relative_module_import(self):
+        """Should reject imports from parent-relative submodules."""
+        code = """
+from ..utils import answer
+
+def register(kernel):
+    pass
+"""
+
+        assert len(self._warnings_for(code)) == 1
+
+    def test_allows_absolute_mcub_import(self):
+        """Should allow absolute MCUB imports."""
+        code = """
+from core.lib.loader.module_base import ModuleBase
+
+def register(kernel):
+    pass
+"""
+
+        assert self._warnings_for(code) == []
+
+    def test_allows_single_dot_relative_import(self):
+        """Should only reject parent-relative '..' imports."""
+        code = """
+from .local import helper
+
+def register(kernel):
+    pass
+"""
+
+        assert self._warnings_for(code) == []
+
+
+class TestModuleStructureRules:
+    """Tests for module-level MCUB module structure rules."""
+
+    def _warnings_for(self, code: str, rule_id: str):
+        rules = get_default_rules()
+        analyzer = SourceAnalyzer(code, "test.py", rules)
+        tree = ast.parse(code)
+        analyzer.warnings = []
+        analyzer.visit(tree)
+        return [w for w in analyzer.warnings if w.rule_id == rule_id]
+
+    def test_detects_ftg_only_imports(self):
+        """Should reject imports from Hikka/Heroku-only APIs."""
+        code = """
+# name: Demo
+# version: 1.0.0
+# description: Demo module
+# author: @demo
+from hikka import loader
+
+def register(kernel):
+    pass
+"""
+
+        mcub033 = self._warnings_for(code, "MCUB033")
+
+        assert len(mcub033) == 1
+        assert mcub033[0].severity == "error"
+        assert "Hikka" in mcub033[0].message
+
+    def test_detects_function_style_missing_name_header(self):
+        """Should reject function-style modules without required # name."""
+        code = """
+# version: 1.0.0
+# description: Demo module
+# author: @demo
+def register(kernel):
+    pass
+"""
+
+        mcub034 = self._warnings_for(code, "MCUB034")
+
+        assert len(mcub034) == 1
+        assert mcub034[0].severity == "error"
+
+    def test_detects_mixed_function_and_class_styles(self):
+        """Should reject modules that mix register() and ModuleBase class."""
+        code = """
+from core.lib.loader.module_base import ModuleBase
+
+class Demo(ModuleBase):
+    name = "Demo"
+    version = "1.0.0"
+    description = "Demo module"
+    author = "@demo"
+
+def register(kernel):
+    pass
+"""
+
+        mcub035 = self._warnings_for(code, "MCUB035")
+
+        assert len(mcub035) == 1
+        assert mcub035[0].severity == "error"
+
+    def test_detects_function_style_missing_metadata_headers(self):
+        """Should warn about missing function-style metadata headers."""
+        code = """
+# name: Demo
+def register(kernel):
+    pass
+"""
+
+        assert len(self._warnings_for(code, "MCUB036")) == 1
+        assert len(self._warnings_for(code, "MCUB037")) == 1
+        assert len(self._warnings_for(code, "MCUB038")) == 1
+
+    def test_detects_class_style_missing_metadata_attributes(self):
+        """Should warn about missing class-style metadata attributes."""
+        code = """
+from core.lib.loader.module_base import ModuleBase
+
+class Demo(ModuleBase):
+    name = "Demo"
+    author = "@demo"
+"""
+
+        assert len(self._warnings_for(code, "MCUB036")) == 1
+        assert len(self._warnings_for(code, "MCUB037")) == 1
+
+    def test_allows_present_metadata_for_both_styles(self):
+        """Should not warn when function/class metadata is present."""
+        function_code = """
+# name: Demo
+# version: 1.0.0
+# description: Demo module
+# author: @demo
+def register(client):
+    pass
+"""
+        class_code = """
+from core.lib.loader.module_base import ModuleBase
+
+class Demo(ModuleBase):
+    name = "Demo"
+    version = "1.0.0"
+    description = "Demo module"
+    author = "@demo"
+"""
+
+        for rule_id in ("MCUB036", "MCUB037", "MCUB038"):
+            assert self._warnings_for(function_code, rule_id) == []
+        for rule_id in ("MCUB036", "MCUB037"):
+            assert self._warnings_for(class_code, rule_id) == []
+
+    def test_detects_unused_module_base_import(self):
+        """Should report unused ModuleBase import as info."""
+        code = """
+# name: Demo
+# version: 1.0.0
+# description: Demo module
+# author: @demo
+from core.lib.loader.module_base import ModuleBase
+
+def register(kernel):
+    pass
+"""
+
+        mcub039 = self._warnings_for(code, "MCUB039")
+
+        assert len(mcub039) == 1
+        assert mcub039[0].severity == "info"
+
+    def test_detects_mixed_comment_and_class_metadata(self):
+        """Should warn when class-style module duplicates metadata in headers."""
+        code = """
+# name: HeaderDemo
+# version: 1.0.0
+# description: Header description
+# author: @header
+from core.lib.loader.module_base import ModuleBase
+
+class Demo(ModuleBase):
+    name = "Demo"
+    version = "1.0.1"
+    description = "Class description"
+    author = "@class"
+"""
+
+        mcub040 = self._warnings_for(code, "MCUB040")
+
+        assert len(mcub040) == 4
+        assert all(w.severity == "warning" for w in mcub040)
+        assert all("Class-style module mixes" in w.message for w in mcub040)
+
+    def test_allows_function_style_comment_metadata(self):
+        """Should allow comment metadata for function-style modules."""
+        code = """
+# name: Demo
+# version: 1.0.0
+# description: Demo module
+# author: @demo
+def register(kernel):
+    pass
+"""
+
+        assert self._warnings_for(code, "MCUB040") == []
+
+    def test_allows_class_style_single_metadata_source(self):
+        """Should allow class-style modules that only use class attributes."""
+        code = """
+from core.lib.loader.module_base import ModuleBase
+
+class Demo(ModuleBase):
+    name = "Demo"
+    version = "1.0.0"
+    description = "Demo module"
+    author = "@demo"
+"""
+
+        assert self._warnings_for(code, "MCUB040") == []
+
+    def test_detects_function_author_without_username(self):
+        """Should warn when # author metadata has no @username."""
+        code = """
+# name: Demo
+# version: 1.0.0
+# description: Demo module
+# author: OpenAgent
+def register(kernel):
+    pass
+"""
+
+        mcub041 = self._warnings_for(code, "MCUB041")
+
+        assert len(mcub041) == 1
+        assert mcub041[0].severity == "warning"
+        assert "@username" in mcub041[0].message
+
+    def test_detects_class_author_without_username(self):
+        """Should warn when class author attribute has no @username."""
+        code = """
+from core.lib.loader.module_base import ModuleBase
+
+class Demo(ModuleBase):
+    name = "Demo"
+    version = "1.0.0"
+    description = "Demo module"
+    author = "OpenAgent"
+"""
+
+        mcub041 = self._warnings_for(code, "MCUB041")
+
+        assert len(mcub041) == 1
+        assert mcub041[0].severity == "warning"
+
+    def test_allows_author_with_username(self):
+        """Should allow author metadata that includes an @username."""
+        function_code = """
+# name: Demo
+# version: 1.0.0
+# description: Demo module
+# author: @OpenAgent / port by OpenAgent
+def register(kernel):
+    pass
+"""
+        class_code = """
+from core.lib.loader.module_base import ModuleBase
+
+class Demo(ModuleBase):
+    name = "Demo"
+    version = "1.0.0"
+    description = "Demo module"
+    author = "@OpenAgent / port by OpenAgent"
+"""
+
+        assert self._warnings_for(function_code, "MCUB041") == []
+        assert self._warnings_for(class_code, "MCUB041") == []
+
+
 class TestBareOrUnsafeExceptRule:
     """Tests for MCUB027 - broad and bare except handling."""
 
@@ -330,12 +729,16 @@ class TestModuleDebugger:
     """Tests for ModuleDebugger class."""
 
     def test_debug_valid_file(self):
-        """Should handle valid Python file."""
+        """Should handle a valid MCUB module file."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write(
                 """
-async def main():
-    print("Hello")
+# name: TestModule
+# version: 1.0.0
+# description: Test module
+# author: @test
+def register(kernel):
+    pass
 """
             )
             f.flush()
@@ -411,6 +814,40 @@ class TestWarning:
         assert "MCUB001" in formatted
         assert "Test message" in formatted
         assert "Fix:" in formatted
+
+    def test_format_error(self):
+        """Should format error severity correctly."""
+        warning = Warning(
+            rule_id="MCUB031",
+            severity="error",
+            message="Missing module entrypoint",
+            file_path="test.py",
+            line=1,
+            column=1,
+        )
+
+        formatted = warning.format()
+
+        assert "ERROR" in formatted
+        assert "MCUB031" in formatted
+        assert "Missing module entrypoint" in formatted
+
+    def test_format_info(self):
+        """Should format info severity correctly."""
+        warning = Warning(
+            rule_id="MCUB039",
+            severity="info",
+            message="Unused ModuleBase import",
+            file_path="test.py",
+            line=1,
+            column=1,
+        )
+
+        formatted = warning.format()
+
+        assert "INFO" in formatted
+        assert "MCUB039" in formatted
+        assert "Unused ModuleBase import" in formatted
 
 
 class TestDebugResult:

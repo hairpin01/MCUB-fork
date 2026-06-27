@@ -935,14 +935,13 @@ class KernelCoreMixin:
         try:
             if source is None:
                 return ""
-            if not hasattr(self, "html_converter") or self.html_converter is None:
-                from utils.raw_html import RawHTMLConverter
 
-                self.html_converter = RawHTMLConverter()
+            from telethon.extensions import html as telethon_html
+
             if isinstance(source, str):
-                return html.escape(source, quote=False) if source else ""
-            result = self.html_converter.convert_message(source)
-            return result if result is not None else ""
+                return telethon_html.unparse(source, [])
+
+            return telethon_html.message_to_html(source) or ""
         except Exception as e:
             self.logger.error(f"raw_text error: {e}")
             return ""

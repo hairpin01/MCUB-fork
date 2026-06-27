@@ -3,10 +3,8 @@
 # name: config
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import html
-import traceback
 
 # author: @Hairpin00
 # version: 1.3.0
@@ -14,13 +12,16 @@ import traceback
 import json
 import re
 import time
+import traceback
 import uuid
 
 from telethon import Button, events, types
+from telethon.errors.rpcerrorlist import MessageNotModifiedError
 from telethon.tl.types import DocumentAttributeImageSize, InputWebDocument
 
 import utils
 from core.lib.loader.module_config import ModuleConfig, ValidationError
+from utils.arg_parser import parse_arguments
 from utils.strings import Strings
 
 
@@ -297,9 +298,12 @@ def register(kernel):
     lang = strings_obj._active
 
     def t(string_key, **kwargs):
-        if string_key not in lang:
+        if string_key not in lang and not strings_obj.has(string_key):
             return string_key
-        return lang[string_key].format(**kwargs)
+        value = strings_obj._lookup(string_key)
+        if isinstance(value, str):
+            return value.format(**kwargs) if kwargs else value
+        return string_key
 
     def get_live_module_config(module_name):
         """Return live ModuleConfig-like schema for a loaded module, if available."""
@@ -1272,236 +1276,223 @@ def register(kernel):
                     text += f"\n{emoji_provider['📝']} <b>{t('cfg_len_min', min=min_len)}</b>"
                 elif max_len is not None:
                     text += f"\n{emoji_provider['📝']} <b>{t('cfg_len_max', max=max_len)}</b>"
-            if value_type == "bool":
-                text += f"\n{emoji_provider['☑️']} <b>{t('cfg_type_bool')}</b>"
+        if value_type == "bool":
+            text += f"\n{emoji_provider['☑️']} <b>{t('cfg_type_bool')}</b>"
 
-            buttons = []
+        buttons = []
 
-            # Bool toggle button
-            if value_type == "bool":
-                toggle_text = t("toggle_false") if value else t("toggle_true")
-                toggle_style = "danger" if value else "success"
-                bool_id = generate_key_id(f"{module_name}__{key}", page, "bool")
+        # Bool toggle button
+        if value_type == "bool":
+            toggle_text = t("toggle_false") if value else t("toggle_true")
+            toggle_style = "danger" if value else "success"
+            bool_id = generate_key_id(f"{module_name}__{key}", page, "bool")
+            kernel.cache.set(
+                f"module_bool_{bool_id}", (module_name, key, page), ttl=86400
+            )
+            buttons.append(
+                [
+                    Button.inline(
+                        toggle_text,
+                        data=f"cfg_modules_bool_{bool_id}".encode(),
+                        style=toggle_style,
+                    )
+                ]
+            )
+        else:
+            # Edit button for non-bool, non-dict values (if not hidden/secret and no choices)
+            if not is_hidden and not is_secret and not choices and value_type != "dict":
+                # Create key_id for inline editing
+                key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
                 kernel.cache.set(
-                    f"module_bool_{bool_id}", (module_name, key, page), ttl=86400
+                    f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400
                 )
+
                 buttons.append(
                     [
-                        Button.inline(
-                            toggle_text,
-                            data=f"cfg_modules_bool_{bool_id}".encode(),
-                            style=toggle_style,
+                        Button.switch_inline(
+                            text=t("btn_edit"),
+                            query=f"fcfg module {module_name} set {key_id} ",
+                            same_peer=True,
+                            style="primary",
                         )
                     ]
                 )
-            else:
-                # Edit button for non-bool, non-dict values (if not hidden/secret and no choices)
-                if (
-                    not is_hidden
-                    and not is_secret
-                    and not choices
-                    and value_type != "dict"
-                ):
-                    # Create key_id for inline editing
-                    key_id = generate_key_id(
-                        f"{module_name}__{key}", page, "module_cfg"
-                    )
-                    kernel.cache.set(
-                        f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400
-                    )
 
-                    buttons.append(
-                        [
-                            Button.switch_inline(
-                                text=t("btn_edit"),
-                                query=f"fcfg module {module_name} set {key_id} ",
-                                same_peer=True,
-                                style="primary",
-                            )
-                        ]
+        # Choice buttons - replace edit button with inline choice buttons
+        if choices and not is_hidden and not is_secret:
+            choice_id = generate_key_id(f"{module_name}__{key}", page, "choice")
+            cache_key = f"module_choice_{choice_id}"
+            kernel.cache.set(
+                cache_key,
+                (module_name, key, page, list(choices)),
+                ttl=86400,
+            )
+            choice_buttons = []
+            row = []
+            for i, choice in enumerate(choices):
+                is_selected = choice == value
+                btn_text = f"{'☑️' if is_selected else '🔘'} {choice}"
+                row.append(
+                    Button.inline(
+                        btn_text,
+                        data=f"cfg_module_choice_{choice_id}-{i}".encode(),
                     )
-
-            # Choice buttons - replace edit button with inline choice buttons
-            if choices and not is_hidden and not is_secret:
-                choice_id = generate_key_id(f"{module_name}__{key}", page, "choice")
-                cache_key = f"module_choice_{choice_id}"
-                kernel.cache.set(
-                    cache_key,
-                    (module_name, key, page, list(choices)),
-                    ttl=86400,
                 )
-                choice_buttons = []
-                row = []
-                for i, choice in enumerate(choices):
-                    is_selected = choice == value
-                    btn_text = f"{'☑️' if is_selected else '🔘'} {choice}"
-                    row.append(
-                        Button.inline(
-                            btn_text,
-                            data=f"cfg_module_choice_{choice_id}-{i}".encode(),
-                        )
-                    )
-                    if len(row) == 3:
-                        choice_buttons.append(row)
-                        row = []
-                if row:
+                if len(row) == 3:
                     choice_buttons.append(row)
-                for row in choice_buttons:
-                    buttons.append(row)
+                    row = []
+            if row:
+                choice_buttons.append(row)
+            for row in choice_buttons:
+                buttons.append(row)
 
-            # List/Dict operation buttons
-            if value_type == "list" and not is_hidden and not is_secret:
-                key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
-                kernel.cache.set(
-                    f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400
-                )
-
-                buttons.append(
-                    [
-                        Button.switch_inline(
-                            text=t("btn_list_add"),
-                            query=f"fcfg module {module_name} list add {key_id} ",
-                            same_peer=True,
-                            style="success",
-                        )
-                    ]
-                )
-                buttons.append(
-                    [
-                        Button.switch_inline(
-                            text=t("btn_list_del"),
-                            query=f"fcfg module {module_name} list del {key_id}",
-                            same_peer=True,
-                            style="danger",
-                        )
-                    ]
-                )
-                buttons.append(
-                    [
-                        Button.switch_inline(
-                            text=t("btn_list_set"),
-                            query=f"fcfg module {module_name} list set {key_id} ",
-                            same_peer=True,
-                            style="primary",
-                        )
-                    ]
-                )
-            elif value_type == "dict" and not is_hidden and not is_secret:
-                key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
-                kernel.cache.set(
-                    f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400
-                )
-
-                buttons.append(
-                    [
-                        Button.switch_inline(
-                            text=t("btn_dict_add"),
-                            query=f"fcfg module {module_name} dict add {key_id} ",
-                            same_peer=True,
-                            style="success",
-                        )
-                    ]
-                )
-                buttons.append(
-                    [
-                        Button.switch_inline(
-                            text=t("btn_dict_del"),
-                            query=f"fcfg module {module_name} dict del {key_id}",
-                            same_peer=True,
-                            style="danger",
-                        )
-                    ]
-                )
-                buttons.append(
-                    [
-                        Button.switch_inline(
-                            text=t("btn_dict_set"),
-                            query=f"fcfg module {module_name} dict set {key_id} ",
-                            same_peer=True,
-                            style="primary",
-                        )
-                    ]
-                )
-
-            # Reveal button for hidden/secret values
-            if is_hidden or is_secret:
-                key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
-                kernel.cache.set(
-                    f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400
-                )
-                buttons.append(
-                    [
-                        Button.inline(
-                            t("btn_reveal"),
-                            data=f"cfg_module_reveal_{key_id}".encode(),
-                            style="primary",
-                        )
-                    ]
-                )
-                # Edit button for secret values (even when hidden)
-                if is_secret and not is_hidden:
-                    key_id = generate_key_id(
-                        f"{module_name}__{key}", page, "module_cfg"
-                    )
-                    buttons.append(
-                        [
-                            Button.switch_inline(
-                                text=t("btn_edit"),
-                                query=f"fcfg module {module_name} set {key_id} ",
-                                same_peer=True,
-                                style="primary",
-                            )
-                        ]
-                    )
-
-            # Create key_id for refresh button
+        # List/Dict operation buttons
+        if value_type == "list" and not is_hidden and not is_secret:
             key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
             kernel.cache.set(
                 f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400
             )
 
-            # Reset to default button - show if config_value exists and value differs from default
-            if config_value is not None and hasattr(config_value, "default"):
-                show_reset = (value is None and config_value.default is not None) or (
-                    value is not None and value != config_value.default
-                )
-                if show_reset:
-                    reset_id = generate_key_id(f"{module_name}__{key}", page, "reset")
-                    kernel.cache.set(
-                        f"module_cfg_reset_{reset_id}",
-                        (module_name, key, page),
-                        ttl=86400,
+            buttons.append(
+                [
+                    Button.switch_inline(
+                        text=t("btn_list_add"),
+                        query=f"fcfg module {module_name} list add {key_id} ",
+                        same_peer=True,
+                        style="success",
                     )
-                    buttons.append(
-                        [
-                            Button.inline(
-                                t("btn_reset_default"),
-                                data=f"cfg_module_reset_{reset_id}".encode(),
-                                style="danger",
-                            )
-                        ]
-                    )
-
-            # Navigation buttons
-            back_nav_id = generate_key_id(module_name, page, "module_nav")
-            kernel.cache.set(
-                f"module_nav_{back_nav_id}", (module_name, page), ttl=86400
+                ]
             )
-            nav_buttons = [
-                Button.inline(
-                    t("btn_back_simple"),
-                    data=f"module_cfg_page_nav_{back_nav_id}".encode(),
-                ),
-                Button.inline(
-                    "🔄",
-                    data=f"module_cfg_view_{key_id}".encode(),
-                ),
-            ]
-            buttons.append(nav_buttons)
+            buttons.append(
+                [
+                    Button.switch_inline(
+                        text=t("btn_list_del"),
+                        query=f"fcfg module {module_name} list del {key_id}",
+                        same_peer=True,
+                        style="danger",
+                    )
+                ]
+            )
+            buttons.append(
+                [
+                    Button.switch_inline(
+                        text=t("btn_list_set"),
+                        query=f"fcfg module {module_name} list set {key_id} ",
+                        same_peer=True,
+                        style="primary",
+                    )
+                ]
+            )
+        elif value_type == "dict" and not is_hidden and not is_secret:
+            key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
+            kernel.cache.set(
+                f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400
+            )
 
             buttons.append(
-                [Button.inline("❌ Close", data=b"cfg_close", style="danger")]
+                [
+                    Button.switch_inline(
+                        text=t("btn_dict_add"),
+                        query=f"fcfg module {module_name} dict add {key_id} ",
+                        same_peer=True,
+                        style="success",
+                    )
+                ]
             )
+            buttons.append(
+                [
+                    Button.switch_inline(
+                        text=t("btn_dict_del"),
+                        query=f"fcfg module {module_name} dict del {key_id}",
+                        same_peer=True,
+                        style="danger",
+                    )
+                ]
+            )
+            buttons.append(
+                [
+                    Button.switch_inline(
+                        text=t("btn_dict_set"),
+                        query=f"fcfg module {module_name} dict set {key_id} ",
+                        same_peer=True,
+                        style="primary",
+                    )
+                ]
+            )
+
+        # Reveal button for hidden/secret values
+        if is_hidden or is_secret:
+            key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
+            kernel.cache.set(
+                f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400
+            )
+            buttons.append(
+                [
+                    Button.inline(
+                        t("btn_reveal"),
+                        data=f"cfg_module_reveal_{key_id}".encode(),
+                        style="primary",
+                    )
+                ]
+            )
+            # Edit button for secret values (even when hidden)
+            if is_secret and not is_hidden:
+                key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
+                buttons.append(
+                    [
+                        Button.switch_inline(
+                            text=t("btn_edit"),
+                            query=f"fcfg module {module_name} set {key_id} ",
+                            same_peer=True,
+                            style="primary",
+                        )
+                    ]
+                )
+
+        # Create key_id for refresh button
+        key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
+        kernel.cache.set(
+            f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400
+        )
+
+        # Reset to default button - show if config_value exists and value differs from default
+        if config_value is not None and hasattr(config_value, "default"):
+            show_reset = (value is None and config_value.default is not None) or (
+                value is not None and value != config_value.default
+            )
+            if show_reset:
+                reset_id = generate_key_id(f"{module_name}__{key}", page, "reset")
+                kernel.cache.set(
+                    f"module_cfg_reset_{reset_id}",
+                    (module_name, key, page),
+                    ttl=86400,
+                )
+                buttons.append(
+                    [
+                        Button.inline(
+                            t("btn_reset_default"),
+                            data=f"cfg_module_reset_{reset_id}".encode(),
+                            style="danger",
+                        )
+                    ]
+                )
+
+        # Navigation buttons
+        back_nav_id = generate_key_id(module_name, page, "module_nav")
+        kernel.cache.set(f"module_nav_{back_nav_id}", (module_name, page), ttl=86400)
+        nav_buttons = [
+            Button.inline(
+                t("btn_back_simple"),
+                data=f"module_cfg_page_nav_{back_nav_id}".encode(),
+            ),
+            Button.inline(
+                "🔄",
+                data=f"module_cfg_view_{key_id}".encode(),
+            ),
+        ]
+        buttons.append(nav_buttons)
+
+        buttons.append([Button.inline("❌ Close", data=b"cfg_close", style="danger")])
 
         return text, buttons
 
@@ -1513,7 +1504,16 @@ def register(kernel):
                 return
             text, buttons = payload
             await event.edit(text, buttons=buttons, parse_mode="html")
+        except MessageNotModifiedError:
+            return
         except Exception as e:
+            if "Content of the message was not modified" in str(e):
+                return
+            await kernel.handle_error(
+                e,
+                message="Config module key view error",
+                event=event,
+            )
             await event.answer(t("error", error=str(e)[:50]), alert=True)
 
     async def toggle_module_bool_key(event, module_name, key, page):
@@ -2219,10 +2219,10 @@ def register(kernel):
                             display_new = safe
                         else:
                             display_old = (
-                                html.escape(str(old_val)[:40]) if old_val != "" else "—"
+                                html.escape(str(old_val)[:40]) if old_val != "" else "-"
                             )
                             display_new = (
-                                html.escape(str(new_val)[:40]) if new_val != "" else "—"
+                                html.escape(str(new_val)[:40]) if new_val != "" else "-"
                             )
                         await saved.edit(
                             t(
@@ -2814,8 +2814,6 @@ def register(kernel):
                 await cb_event.answer(t("changed_to", value=new_value), alert=False)
                 await show_module_key_view(cb_event, module_name, key, page)
             except Exception as e:
-                import traceback
-
                 kernel.logger.debug(f"Choice error: {e}\n{traceback.format_exc()}")
                 await cb_event.answer(str(e)[:50], alert=True)
 
@@ -3462,7 +3460,15 @@ def register(kernel):
     async def fcfg_handler(event):
         await ensure_config_initialized()
         try:
-            args = event.text.split()
+            parsed_args = None
+            try:
+                parsed_args = parse_arguments(
+                    event.text, getattr(kernel, "custom_prefix", ".")
+                )
+                args = [parsed_args.command, *map(str, parsed_args.args)]
+            except Exception:
+                args = event.text.split()
+
             if len(args) < 2:
                 await event.edit(
                     t("fcfg_usage", gear=emoji_provider["⚙️"]),
@@ -3474,6 +3480,12 @@ def register(kernel):
 
             module_mode = False
             module_name = None
+
+            module_flag = None
+            if parsed_args is not None:
+                module_flag = parsed_args.get_kwarg("m") or parsed_args.get_kwarg(
+                    "module"
+                )
 
             # Support for "fcfg module <module_name> <action>" format
             if action == "module":
@@ -3488,6 +3500,13 @@ def register(kernel):
                 # Shift args: module <module_name> set key val -> set key val
                 args = [args[0], *args[3:]]
                 action = args[1].lower() if len(args) > 1 else ""
+
+            # Support for "-m module_name" parsed by utils.arg_parser.
+            # The parser removes the flag from positional args, so this must
+            # happen before the legacy token-removal fallback below.
+            if module_flag is not None and not module_mode:
+                module_mode = True
+                module_name = str(module_flag)
 
             # Support for "-m module_name" flag (old format)
             if "-m" in args:

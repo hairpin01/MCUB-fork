@@ -5,10 +5,13 @@ from __future__ import annotations
 
 import asyncio
 import getpass
+import json
 import os
+import random
 import re
 import socket
 import subprocess
+import sys
 import tempfile
 import time
 from datetime import datetime
@@ -19,13 +22,17 @@ try:
 except ImportError:
     _psutil = None
 
-from telethon.tl.types import InputMediaWebPage
+from copy import copy
+
+from telethon.tl.functions import PingRequest
+from telethon.tl.types import InputMediaWebPage, MessageEntityTextUrl
 
 import utils
 from core.lib.loader.module_base import ModuleBase, callback, command
 from core.lib.loader.module_config import (
     Boolean,
     ConfigValue,
+    DictType,
     ModuleConfig,
     Placeholders,
     String,
@@ -67,6 +74,31 @@ CUSTOM_EMOJI = {
     "📰": '<tg-emoji emoji-id="5433982607035474385">📰</tg-emoji>',
     "🛰": '<tg-emoji emoji-id="5321304062715517873">🛰</tg-emoji>',
 }
+
+
+def _default_dynamic_start_emojis() -> dict[str, str]:
+    return {"low_emoji": CUSTOM_EMOJI["🛰"], "high_emoji": CUSTOM_EMOJI["🐢"]}
+
+
+def _normalize_dynamic_start_emojis(value: Any) -> dict[str, str]:
+    default = _default_dynamic_start_emojis()
+
+    if isinstance(value, dict):
+        low_emoji = value.get("low_emoji") or default["low_emoji"]
+        high_emoji = value.get("high_emoji") or default["high_emoji"]
+        return {"low_emoji": str(low_emoji), "high_emoji": str(high_emoji)}
+
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return default
+        try:
+            parsed = json.loads(raw)
+        except Exception:
+            return {"low_emoji": raw, "high_emoji": raw}
+        return _normalize_dynamic_start_emojis(parsed)
+
+    return default
 
 
 class _FakeEventProxy:
@@ -140,14 +172,23 @@ class TesterMod(ModuleBase):
                 "quote_media": False,
                 "invert_media": False,
                 "custom_text": "",
-                "placeholders": "",
                 "start_emoji": "✏️",
                 "banner_url": f"https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/{branch}/img/ping.png",
                 "start_banner_url": "",
             },
         )
         utils.register_decorated_placeholders(self.name, self)
-        config_dict["placeholders"] = utils.format_placeholders(self.name)
+
+        if isinstance(config_dict, dict):
+            stored_dynamic_emojis = config_dict.get("start_emoji_dynamically")
+            if stored_dynamic_emojis is not None:
+                normalized_dynamic_emojis = _normalize_dynamic_start_emojis(
+                    stored_dynamic_emojis
+                )
+                if normalized_dynamic_emojis != stored_dynamic_emojis:
+                    config_dict = dict(config_dict)
+                    config_dict["start_emoji_dynamically"] = normalized_dynamic_emojis
+
         self.config.from_dict(config_dict)
         config_dict_clean = {
             k: v for k, v in self.config.to_dict().items() if v is not None
@@ -194,7 +235,9 @@ class TesterMod(ModuleBase):
             "",
             description=(
                 "Custom text for .ping. Available placeholders:\n"
-                "{ping_time}, {uptime}, {system_user}, {hostname},\n"
+                "{ping_time}, {raw_ping}, {prev_ping}, {ping_diff}, {timings},\n"
+                "{avg_ping}, {min_ping}, {max_ping}, {ping_count},\n"
+                "{dynamic_emoji}, {start_emoji}, {uptime}, {system_user}, {hostname},\n"
                 "{cpu_usage}, {ram_usage}, {branch}, {commit_sha},\n"
                 "{now_date}, {now_time}, {now_day}, {now_month},\n"
                 "{now_month_name}, {now_year}, {now_weekday},\n"
@@ -203,16 +246,32 @@ class TesterMod(ModuleBase):
             validator=Placeholders(default="", placeholder_scope="any"),
         ),
         ConfigValue(
-            "placeholders",
-            "",
-            description="Available placeholders (auto-generated, read-only)",
-            validator=String(default=""),
+            "start_emoji",
+            CUSTOM_EMOJI["✏️"],
+            description="Start emoji for .ping",
+            validator=String(default=CUSTOM_EMOJI["✏️"]),
         ),
         ConfigValue(
-            "start_emoji",
-            "✏️",
-            description="Start emoji for .ping",
-            validator=String(default="✏️"),
+            "start_emoji_dynamically_enabled",
+            False,
+            description=(
+                "Enable dynamic start_emoji in .ping result: picks low_emoji/high_emoji "
+                "from start_emoji_dynamically depending on whether this ping is faster "
+                "or slower than your previous average ping. Uses low_emoji until "
+                "there's at least one prior measurement."
+            ),
+            validator=Boolean(default=False),
+        ),
+        ConfigValue(
+            "start_emoji_dynamically",
+            _default_dynamic_start_emojis,
+            description=(
+                "JSON dict with 'low_emoji' (ping faster than avg) and 'high_emoji' "
+                "(ping slower than avg) keys. Values accept the same emoji/custom-emoji "
+                "shortcuts as start_emoji. Only used when "
+                "start_emoji_dynamically_enabled is True."
+            ),
+            validator=DictType(default=_default_dynamic_start_emojis()),
         ),
     )
 
@@ -220,9 +279,6 @@ class TesterMod(ModuleBase):
 
     log_level_pattern = re.compile(r"^\d{4}-\d{2}-\d{2} .* \[([A-Z]+)\] ")
     log_level_labels = ["debug", "info", "warning", "error", "critical", "all"]
-
-    def _get_branch(self) -> str:
-        return _detect_branch_sync()
 
     def _normalize_log_level(self, value: str | None) -> str | None:
         if not value:
@@ -339,14 +395,70 @@ class TesterMod(ModuleBase):
             else "MCUB"
         )
 
-    def _resolve_ping_start_emoji(self) -> str:
-        raw = self.config.get("start_emoji") or "✏️"
+    def _resolve_emoji_value(self, raw: Any) -> str:
         if not isinstance(raw, str):
-            return "✏️"
+            return CUSTOM_EMOJI["✏️"]
         value = raw.strip()
         if not value:
-            return "✏️"
+            return CUSTOM_EMOJI["✏️"]
         return CUSTOM_EMOJI.get(value, value)
+
+    def _resolve_ping_start_emoji(self) -> str:
+        return self._resolve_emoji_value(self.config.get("start_emoji"))
+
+    def _resolve_initial_ping_start_emoji(self) -> str:
+        """Resolve the emoji for the first .ping edit before latency is known."""
+        if not (self.config.get("start_emoji_dynamically_enabled") or False):
+            return self._resolve_ping_start_emoji()
+
+        emojis = self._parse_dynamic_emojis()
+        if emojis is None:
+            return self._resolve_ping_start_emoji()
+        return self._resolve_emoji_value(emojis["low_emoji"])
+
+    def _parse_dynamic_emojis(self) -> dict[str, str] | None:
+        raw = self.config.get("start_emoji_dynamically")
+        if not raw:
+            return None
+        try:
+            data = json.loads(raw) if isinstance(raw, str) else raw
+        except Exception:
+            return None
+        if not isinstance(data, dict):
+            return None
+        low_emoji = data.get("low_emoji")
+        high_emoji = data.get("high_emoji")
+        if not low_emoji or not high_emoji:
+            return None
+        return {"low_emoji": low_emoji, "high_emoji": high_emoji}
+
+    def _resolve_dynamic_start_emoji(
+        self, ping_time: float, avg_ping: float | None
+    ) -> str:
+        """Pick low_emoji/high_emoji vs the running average, falling back to start_emoji."""
+        if not (self.config.get("start_emoji_dynamically_enabled") or False):
+            return self._resolve_ping_start_emoji()
+
+        emojis = self._parse_dynamic_emojis()
+        if emojis is None:
+            return self._resolve_ping_start_emoji()
+        if avg_ping is None:
+            return self._resolve_emoji_value(emojis["low_emoji"])
+
+        chosen = emojis["high_emoji"] if ping_time > avg_ping else emojis["low_emoji"]
+        return self._resolve_emoji_value(chosen)
+
+    async def _measure_raw_ping(self) -> float | None:
+        """Raw MTProto round-trip (PingRequest) - excludes Telegram's server-side edit/ACL
+        processing, unlike the edit()-based {ping_time}."""
+        try:
+            ping_id = random.getrandbits(63)
+            raw_start = time.perf_counter()
+            await self.kernel.client(PingRequest(ping_id=ping_id))
+            return round((time.perf_counter() - raw_start) * 1000, 2)
+        except Exception as e:
+            self.log.error(f"Raw ping error: {e}")
+            return None
 
     def _get_cpu_ram(self) -> tuple[str, str]:
         cpu_usage = "N/A"
@@ -360,6 +472,65 @@ class TesterMod(ModuleBase):
             pass
         return cpu_usage, ram_usage
 
+    @staticmethod
+    def _format_ping_diff(current: float, previous: float | None) -> str:
+        if previous is None:
+            return "=0"
+        diff = round(current - previous, 2)
+        if diff > 0:
+            return f"+{diff}"
+        if diff < 0:
+            return f"{diff}"
+        return "=0"
+
+    async def _update_ping_stats(self, ping_time: float) -> dict[str, Any]:
+        """Persist ping history (self.db) and return prev/diff/avg/min/max for placeholders."""
+        stats: dict[str, Any] = {}
+        try:
+            raw = await self.db.db_get(self.name, "ping_stats")
+            if raw:
+                stats = json.loads(raw)
+        except Exception as e:
+            self.log.error(f"Ping stats load error: {e}")
+            stats = {}
+
+        prev_ping = stats.get("last")
+        diff = self._format_ping_diff(ping_time, prev_ping)
+
+        previous_count = int(stats.get("count", 0))
+        previous_total = float(stats.get("sum", 0.0))
+        previous_avg = (
+            round(previous_total / previous_count, 2) if previous_count > 0 else None
+        )
+
+        count = previous_count + 1
+        total = previous_total + ping_time
+        avg_ping = round(total / count, 2)
+        min_ping = round(min(stats.get("min", ping_time), ping_time), 2)
+        max_ping = round(max(stats.get("max", ping_time), ping_time), 2)
+
+        new_stats = {
+            "last": ping_time,
+            "count": count,
+            "sum": total,
+            "min": min_ping,
+            "max": max_ping,
+        }
+        try:
+            await self.db.db_set(self.name, "ping_stats", json.dumps(new_stats))
+        except Exception as e:
+            self.log.error(f"Ping stats save error: {e}")
+
+        return {
+            "prev": prev_ping,
+            "diff": diff,
+            "previous_avg": previous_avg,
+            "avg": avg_ping,
+            "min": min_ping,
+            "max": max_ping,
+            "count": count,
+        }
+
     @command("ping", doc_ru="пpoвepить зaдepжкy бoтa", doc_en="check bot latency")
     async def cmd_ping(self, event: Any) -> None:
         try:
@@ -367,27 +538,36 @@ class TesterMod(ModuleBase):
             banner_url = self.config.get("banner_url")
             quote_media = self.config.get("quote_media") or False
             invert_media = self.config.get("invert_media") or False
-            start_time = time.time()
+            start_time = time.perf_counter()
+            start_emoji = self._resolve_initial_ping_start_emoji()
             if quote_media and start_banner_url:
                 msg = await event.edit(
-                    self._resolve_ping_start_emoji(),
+                    start_emoji,
                     parse_mode="html",
                     file=InputMediaWebPage(start_banner_url, optional=True),
                     invert_media=invert_media,
                 )
             elif start_banner_url:
                 msg = await event.edit(
-                    self._resolve_ping_start_emoji(),
+                    start_emoji,
                     parse_mode="html",
                     file=start_banner_url,
                     invert_media=invert_media,
                 )
             else:
                 msg = await event.edit(
-                    self._resolve_ping_start_emoji(),
+                    start_emoji,
                     parse_mode="html",
                 )
-            ping_time = round((time.time() - start_time) * 1000, 2)
+            ping_time = round((time.perf_counter() - start_time) * 1000, 2)
+
+            raw_ping, ping_stats = await asyncio.gather(
+                self._measure_raw_ping(),
+                self._update_ping_stats(ping_time),
+            )
+            final_emoji = self._resolve_dynamic_start_emoji(
+                ping_time, ping_stats["previous_avg"]
+            )
 
             uptime_seconds = int(time.time() - self.kernel.start_time)
             hours = uptime_seconds // 3600
@@ -407,10 +587,19 @@ class TesterMod(ModuleBase):
                     custom_text,
                     ping_time,
                     uptime,
+                    ping_stats,
+                    raw_ping,
+                    final_emoji,
                 )
             else:
-                start_emoji = self._resolve_ping_start_emoji()
-                response = f"""<blockquote>{start_emoji} <b>{self.strings("ping")}:</b> {ping_time} {self.strings("ms")}</blockquote>
+                start_emoji = final_emoji
+                raw_ping_display = (
+                    f"{raw_ping} {self.strings('ms')}"
+                    if raw_ping is not None
+                    else "N/A"
+                )
+                response = f"""<blockquote>{start_emoji} <b>{self.strings("ping")}:</b> {ping_time} {self.strings("ms")} ({ping_stats["diff"]})</blockquote>
+<blockquote>{start_emoji} <b>{self.strings("raw_ping")}:</b> {raw_ping_display}</blockquote>
 <blockquote>{start_emoji} <b>{self.strings("uptime")}:</b> {uptime}</blockquote>"""
 
             if (
@@ -468,6 +657,9 @@ class TesterMod(ModuleBase):
         custom_text: str,
         ping_time: float,
         uptime: str,
+        ping_stats: dict[str, Any],
+        raw_ping: float | None,
+        final_emoji: str,
     ) -> str:
         now = datetime.now()
 
@@ -544,21 +736,37 @@ class TesterMod(ModuleBase):
 
         cpu_usage, ram_usage = self._get_cpu_ram()
 
-        version_info = self.cache.get("tester:version_info")
-        if version_info:
-            branch, commit_sha = version_info[0], version_info[1]
-        else:
-            branch = await self.kernel.version_manager.detect_branch()
-            commit_sha = await self.kernel.version_manager.get_commit_sha()
-            self.cache.set("tester:version_info", (branch, commit_sha), ttl=600)
+        branch, commit_sha, _commit_url = await self._resolve_version_info()
 
         try:
+            ms = self.strings("ms")
+            prev_display = (
+                f"{ping_stats['prev']} {ms}" if ping_stats["prev"] is not None else "—"
+            )
+            raw_ping_display = f"{raw_ping} {ms}" if raw_ping is not None else "N/A"
+            timings = (
+                f"{ping_time} {ms} ({ping_stats['diff']}) | "
+                f"raw {raw_ping_display} | "
+                f"avg {ping_stats['avg']} {ms} | "
+                f"min {ping_stats['min']} {ms} | "
+                f"max {ping_stats['max']} {ms}"
+            )
             return await utils.resolve_placeholders(
                 self.name,
                 custom_text,
                 data={
                     "ping_time": ping_time,
+                    "raw_ping": raw_ping_display,
+                    "dynamic_emoji": final_emoji,
+                    "start_emoji": final_emoji,
                     "uptime": uptime,
+                    "prev_ping": prev_display,
+                    "ping_diff": ping_stats["diff"],
+                    "avg_ping": ping_stats["avg"],
+                    "min_ping": ping_stats["min"],
+                    "max_ping": ping_stats["max"],
+                    "ping_count": ping_stats["count"],
+                    "timings": timings,
                     "system_user": system_user,
                     "hostname": hostname,
                     "cpu_usage": cpu_usage,
@@ -582,8 +790,6 @@ class TesterMod(ModuleBase):
             return self.strings("custom_text_error", error=str(e))
 
     def _add_link_preview(self, text: str, entities: list, link: str) -> tuple:
-        from copy import copy
-
         if not text or not link:
             return text, entities
 
@@ -598,11 +804,49 @@ class TesterMod(ModuleBase):
                     new_entity.offset += 1
                 new_entities.append(new_entity)
 
-        from telethon.tl.types import MessageEntityTextUrl
-
         link_entity = MessageEntityTextUrl(offset=0, length=1, url=link)
         new_entities.append(link_entity)
         return new_text, new_entities
+
+    def _logs_level_prompt_text(self) -> str:
+        return (
+            f"{self.strings('logs_choose_level', paper=CUSTOM_EMOJI['📰'])}"
+            + "\n"
+            + f"{self.strings('logs_choose_desc')}"
+        )
+
+    def _logs_level_buttons(self) -> list:
+        return [
+            [
+                self.Button.inline(
+                    "DEBUG", self.cb_logs, data="level:debug", style="primary"
+                ),
+                self.Button.inline(
+                    "INFO", self.cb_logs, data="level:info", style="primary"
+                ),
+            ],
+            [
+                self.Button.inline(
+                    "WARNING", self.cb_logs, data="level:warning", style="primary"
+                ),
+                self.Button.inline(
+                    "ERROR", self.cb_logs, data="level:error", style="primary"
+                ),
+            ],
+            [
+                self.Button.inline(
+                    "CRITICAL", self.cb_logs, data="level:critical", style="primary"
+                ),
+                self.Button.inline(
+                    "ALL", self.cb_logs, data="level:all", style="primary"
+                ),
+            ],
+            [
+                self.Button.inline(
+                    "✖", self.cb_logs, data="tester_logs:cancel", style="danger"
+                )
+            ],
+        ]
 
     @command("logs", doc_ru="пoкaзaть/oчиcтить лoги", doc_en="show/clear kernel logs")
     async def cmd_logs(self, event: Any) -> None:
@@ -675,41 +919,9 @@ class TesterMod(ModuleBase):
 
         await self.inline(
             event.chat_id,
-            f"{self.strings('logs_choose_level', paper=CUSTOM_EMOJI['📰'])}"
-            + "\n"
-            + f"{self.strings('logs_choose_desc')}",
+            self._logs_level_prompt_text(),
             reply_to=getattr(event.message, "reply_to", None),
-            buttons=[
-                [
-                    self.Button.inline(
-                        "DEBUG", self.cb_logs, data="level:debug", style="primary"
-                    ),
-                    self.Button.inline(
-                        "INFO", self.cb_logs, data="level:info", style="primary"
-                    ),
-                ],
-                [
-                    self.Button.inline(
-                        "WARNING", self.cb_logs, data="level:warning", style="primary"
-                    ),
-                    self.Button.inline(
-                        "ERROR", self.cb_logs, data="level:error", style="primary"
-                    ),
-                ],
-                [
-                    self.Button.inline(
-                        "CRITICAL", self.cb_logs, data="level:critical", style="primary"
-                    ),
-                    self.Button.inline(
-                        "ALL", self.cb_logs, data="level:all", style="primary"
-                    ),
-                ],
-                [
-                    self.Button.inline(
-                        "✖", self.cb_logs, data="tester_logs:cancel", style="danger"
-                    )
-                ],
-            ],
+            buttons=self._logs_level_buttons(),
         )
 
     @callback()
@@ -733,47 +945,9 @@ class TesterMod(ModuleBase):
 
         if data_str.startswith("back:") or data_str == "tester_logs:back":
             await call.edit(
-                f"{self.strings('logs_choose_level', paper=CUSTOM_EMOJI['📰'])}"
-                + "\n"
-                + f"{self.strings('logs_choose_desc')}",
+                self._logs_level_prompt_text(),
                 parse_mode="html",
-                buttons=[
-                    [
-                        self.Button.inline(
-                            "DEBUG", self.cb_logs, data="level:debug", style="primary"
-                        ),
-                        self.Button.inline(
-                            "INFO", self.cb_logs, data="level:info", style="primary"
-                        ),
-                    ],
-                    [
-                        self.Button.inline(
-                            "WARNING",
-                            self.cb_logs,
-                            data="level:warning",
-                            style="primary",
-                        ),
-                        self.Button.inline(
-                            "ERROR", self.cb_logs, data="level:error", style="primary"
-                        ),
-                    ],
-                    [
-                        self.Button.inline(
-                            "CRITICAL",
-                            self.cb_logs,
-                            data="level:critical",
-                            style="primary",
-                        ),
-                        self.Button.inline(
-                            "ALL", self.cb_logs, data="level:all", style="primary"
-                        ),
-                    ],
-                    [
-                        self.Button.inline(
-                            "✖", self.cb_logs, data="cancel", style="danger"
-                        )
-                    ],
-                ],
+                buttons=self._logs_level_buttons(),
             )
             return
 
@@ -1015,7 +1189,7 @@ class TesterMod(ModuleBase):
                     else:
                         lines.append(f"- {module_name}_config : not cached")
                 else:
-                    lines.append(f"- entries    : 0 (disabled)")
+                    lines.append("- entries    : 0 (disabled)")
         except Exception:
             pass
         return lines
@@ -1137,8 +1311,6 @@ class TesterMod(ModuleBase):
         report_lines.append("")
 
         report = "\n".join(report_lines)
-
-        import tempfile
 
         tmp = tempfile.NamedTemporaryFile(
             mode="w", suffix=".txt", delete=False, encoding="utf-8"

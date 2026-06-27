@@ -892,8 +892,8 @@ async def api_bot_save_token(request: web.Request) -> web.Response:
 
     kernel = request.app.get(app_keys.KERNEL)
 
-    # If kernel is not started yet, save to config.json directly
     if kernel is None:
+        # Setup wizard mode - persist directly to config.json
         config_path = "config.json"
         if os.path.exists(config_path):
             with open(config_path, encoding="utf-8") as f:
@@ -903,6 +903,15 @@ async def api_bot_save_token(request: web.Request) -> web.Response:
         config["inline_bot_token"] = token
         with open(config_path, "w", encoding="utf-8") as f:
             json.dump(config, f, ensure_ascii=False, indent=2)
+    else:
+        # Kernel already running - update in-memory config and persist
+        kernel.config["inline_bot_token"] = token
+        if hasattr(kernel, "_cfg") and hasattr(kernel._cfg, "_write_config_atomic"):
+            kernel._cfg._write_config_atomic(kernel.CONFIG_FILE, kernel.config)
+        else:
+            with open(kernel.CONFIG_FILE, "w", encoding="utf-8") as f:
+                json.dump(kernel.config, f, ensure_ascii=False, indent=2)
+
     return web.json_response({"success": True, "message": "Token saved to config."})
 
 

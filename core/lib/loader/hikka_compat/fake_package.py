@@ -433,6 +433,26 @@ async def _maybe_await(value):
     return value
 
 
+def mark_hikka_inline_handler(handler):
+    """Return a callable explicitly marked as a Hikka/Heroku inline handler."""
+    if getattr(handler, "__hikka_inline_handler__", False) or getattr(
+        handler, "is_inline_handler", False
+    ):
+        return handler
+
+    async def _wrapped_inline_handler(*args, **kwargs):
+        return await _maybe_await(handler(*args, **kwargs))
+
+    _wrapped_inline_handler.__name__ = getattr(
+        handler, "__name__", "hikka_inline_handler"
+    )
+    _wrapped_inline_handler.__doc__ = getattr(handler, "__doc__", None)
+    _wrapped_inline_handler.__wrapped__ = handler
+    _wrapped_inline_handler.__hikka_inline_handler__ = True
+    _wrapped_inline_handler.is_inline_handler = True
+    return _wrapped_inline_handler
+
+
 def _create_main_stub(parent_pkg_name: str) -> types.ModuleType:
     main_mod = types.ModuleType(f"{parent_pkg_name}.main")
     main_mod.__file__ = "<hikka_compat main>"
@@ -2174,7 +2194,10 @@ async def load_hikka_module(
 
     try:
         for inline_pattern, inline_method in get_inline_handlers(instance).items():
-            kernel.register_inline_handler(inline_pattern, inline_method)
+            kernel.register_inline_handler(
+                inline_pattern,
+                mark_hikka_inline_handler(inline_method),
+            )
             inline_patterns.append(inline_pattern)
     except Exception as e:
         kernel.logger.warning(

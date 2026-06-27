@@ -32,6 +32,161 @@ from .types import get_callback_handlers, get_inline_handlers, get_watchers
 logger = logging.getLogger(__name__)
 
 
+def _make_compat_kernel_proxy():
+    """Create a safe kernel facade for Hikka/Heroku compatibility modules."""
+
+    import weakref
+
+    kernel_map = weakref.WeakKeyDictionary()
+    module_map = weakref.WeakKeyDictionary()
+
+    blocked = frozenset(
+        {
+            "__dict__",
+            "__getattribute__",
+            "__setattr__",
+            "__reduce__",
+            "__reduce_ex__",
+            "__getstate__",
+            "__setstate__",
+            "__weakref__",
+            "_kernel",
+            "kernel",
+        }
+    )
+
+    class CompatKernelProxy:
+        __slots__ = ("__weakref__",)
+
+        def __init__(self, kernel, module_name: str = "hikka_compat"):
+            kernel_map[self] = kernel
+            module_map[self] = module_name
+
+        @property
+        def module_name(self) -> str:
+            return module_map.get(self, "<unknown>")
+
+        @property
+        def client(self):
+            from ..kernel_proxy import ClientProxy
+
+            return ClientProxy(kernel_map[self].client, self.module_name)
+
+        @property
+        def bot_client(self):
+            from ..kernel_proxy import ClientProxy
+
+            bot_client = getattr(kernel_map[self], "bot_client", None)
+            if bot_client is None:
+                return None
+            return ClientProxy(bot_client, self.module_name)
+
+        @property
+        def inline_bot(self):
+            return self.bot_client
+
+        @property
+        def config(self):
+            cfg = dict(getattr(kernel_map[self], "config", {}) or {})
+            for key in ("api_id", "api_hash", "phone", "session"):
+                cfg.pop(key, None)
+            return cfg
+
+        def __getattribute__(self, name: str):
+            if name in blocked:
+                from core.lib.utils.exceptions import CallInsecure
+
+                raise CallInsecure(name, module_map.get(self, "<unknown>"))
+            if name in {
+                "module_name",
+                "client",
+                "bot_client",
+                "inline_bot",
+                "config",
+                "__class__",
+                "__repr__",
+                "__dir__",
+            }:
+                return object.__getattribute__(self, name)
+            if name.startswith("__") and name.endswith("__"):
+                raise AttributeError(name)
+            if name.startswith("_"):
+                from core.lib.utils.exceptions import CallInsecure
+
+                raise CallInsecure(name, module_map.get(self, "<unknown>"))
+            return getattr(kernel_map[self], name)
+
+        def __setattr__(self, name: str, value) -> None:
+            from core.lib.utils.exceptions import CallInsecure
+
+            raise CallInsecure(name, module_map.get(self, "<unknown>"))
+
+        def __delattr__(self, name: str) -> None:
+            from core.lib.utils.exceptions import CallInsecure
+
+            raise CallInsecure(name, module_map.get(self, "<unknown>"))
+
+        def __dir__(self):
+            names = {
+                name
+                for name in dir(kernel_map[self])
+                if not name.startswith("_") and name not in {"client", "bot_client"}
+            }
+            names.update({"client", "bot_client", "inline_bot", "config"})
+            return sorted(names)
+
+        def __repr__(self) -> str:
+            return f"<CompatKernelProxy module={self.module_name!r}>"
+
+    return CompatKernelProxy
+
+
+CompatKernelProxy = _make_compat_kernel_proxy()
+
+
+class _CompatUI:
+    """Small fallback UI facade for Heroku modules expecting ``self.ui``."""
+
+    def __init__(self, module):
+        self.main = module
+
+    def emoji(self, key: str) -> str:
+        themes = getattr(self.main, "THEMES", None)
+        config = getattr(self.main, "config", {}) or {}
+        theme = None
+        if hasattr(config, "get"):
+            theme = config.get("theme")
+        if isinstance(themes, dict):
+            theme_map = themes.get(theme) or themes.get("default") or {}
+            if isinstance(theme_map, dict) and key in theme_map:
+                return str(theme_map[key])
+
+        strings = getattr(self.main, "strings", {})
+        with contextlib.suppress(Exception):
+            value = strings[key]
+            if isinstance(value, str) and "emoji" in value:
+                return value
+        return ""
+
+
+def _build_module_ui(module):
+    """Build a module-local UI helper before client_ready can run.
+
+    Modules like FHeta define a sibling ``<ModuleName>UI`` class and then assign
+    ``self.ui`` inside ``client_ready``.  If ``client_ready`` fails early, command
+    handlers may still expect ``self.ui`` to exist.  Prefer the module-provided
+    UI class to preserve full helpers (format/buttons/pagination), and fall back
+    to a minimal emoji facade.
+    """
+
+    module_obj = sys.modules.get(type(module).__module__)
+    ui_cls = getattr(module_obj, f"{type(module).__name__}UI", None)
+    if callable(ui_cls):
+        with contextlib.suppress(Exception):
+            return ui_cls(module)
+    return _CompatUI(module)
+
+
 class _TranslatorStub:
     def __init__(self, lang: str = "en"):
         self._lang = lang
@@ -600,6 +755,22 @@ class DbProxy:
         try:
             conn = sqlite3.connect(db_manager._resolve_db_file())
             try:
+                size_row = conn.execute(
+                    "SELECT LENGTH(value) FROM module_data WHERE module = ? AND key = ?",
+                    (module, key),
+                ).fetchone()
+                if not size_row:
+                    return default
+                value_size = size_row[0] or 0
+                if value_size > DatabaseManager._MAX_VALUE_BYTES:
+                    self._kernel.logger.warning(
+                        "[hikka_compat] DbProxy oversized value skipped on read: "
+                        "%s.%s size=%d",
+                        module,
+                        DatabaseManager.mask_key(key),
+                        value_size,
+                    )
+                    return default
                 row = conn.execute(
                     "SELECT value FROM module_data WHERE module = ? AND key = ?",
                     (module, key),
@@ -651,6 +822,18 @@ class DbProxy:
 
     def set(self, *args) -> None:
         module, key, value = self._resolve_set_args(args)
+        try:
+            value_size = len(str(value).encode("utf-8", errors="replace"))
+        except Exception:
+            value_size = 0
+        if value_size > DatabaseManager._MAX_VALUE_BYTES:
+            self._kernel.logger.warning(
+                "[hikka_compat] DbProxy oversized value skipped: %s.%s size=%d",
+                module,
+                DatabaseManager.mask_key(key),
+                value_size,
+            )
+            return
         self._mem[self._mem_key(module, key)] = value
         self._schedule_write(module, key, value)
 
@@ -1085,6 +1268,7 @@ class _BotProxy:
 
 class InlineProxy:
     MAX_UNITS = 2048  # Soft cap; oldest entry evicted once exceeded.
+    MAX_CUSTOM_MAP = 4096
 
     def __init__(self, kernel):
         self._kernel = kernel
@@ -1378,6 +1562,7 @@ class InlineProxy:
                         "args": (),
                         "kwargs": {},
                         "expires_at": _time.time() + ttl,
+                        "unit_id": unit_id,
                     }
                 elif isinstance(cb, str):
                     btn["callback_data"] = cb
@@ -1416,11 +1601,11 @@ class InlineProxy:
 
         Two transforms are applied to each callback button:
 
-        1. Remove the callable ``callback`` key — MCUB's inline_form re-generates
+        1. Remove the callable ``callback`` key - MCUB's inline_form re-generates
            its own random token for any button that carries a callable, overwriting
            hikka_compat tokens already registered in ``inline_callback_map``.
 
-        2. Rename ``callback_data`` → ``data`` — MCUB's button-building helpers
+        2. Rename ``callback_data`` → ``data`` - MCUB's button-building helpers
            (e.g. InlineManager._format_telethon_buttons) read spec.get("data"),
            not ``callback_data``.  Without this rename the token is silently
            dropped and Telethon-MCUB falls back to using the button text as
@@ -1573,11 +1758,57 @@ class InlineProxy:
         return result or None
 
     def _register_unit(self, unit_id: str, payload: dict) -> None:
+        self._cleanup_expired_units()
+        self._cleanup_custom_map()
         payload["module_name"] = self._module_name
         if len(self._units) >= self.MAX_UNITS:
             oldest = next(iter(self._units))
             self._unload_unit_sync(oldest)
         self._units[unit_id] = payload
+
+    def _cleanup_expired_units(self) -> int:
+        now = time.time()
+        removed = 0
+        for uid, unit in list(self._units.items()):
+            expires_at = unit.get("expires_at")
+            if expires_at and expires_at <= now:
+                if self._unload_unit_sync(uid):
+                    removed += 1
+        if removed:
+            self._kernel.logger.debug(
+                "[hikka_compat] inline expired units removed=%d", removed
+            )
+        return removed
+
+    def _cleanup_custom_map(self) -> int:
+        removed = 0
+        live_units = set(self._units)
+
+        cb_map = getattr(self._kernel, "inline_callback_map", None)
+        if isinstance(cb_map, dict):
+            now = time.time()
+            for key, payload in list(cb_map.items()):
+                if not isinstance(payload, dict):
+                    continue
+                unit_id = payload.get("unit_id")
+                expires_at = payload.get("expires_at")
+                if (unit_id and unit_id not in live_units) or (
+                    expires_at and expires_at <= now
+                ):
+                    cb_map.pop(key, None)
+
+        for key, payload in list(self._custom_map.items()):
+            unit_id = payload.get("unit_id") if isinstance(payload, dict) else None
+            if unit_id and unit_id not in live_units:
+                self._custom_map.pop(key, None)
+                removed += 1
+
+        while len(self._custom_map) > self.MAX_CUSTOM_MAP:
+            oldest = next(iter(self._custom_map))
+            self._custom_map.pop(oldest, None)
+            removed += 1
+
+        return removed
 
     def _unload_unit_sync(self, unit_id: str) -> bool:
         """Synchronous version of _unload_unit - no await, no callback."""
@@ -1588,6 +1819,12 @@ class InlineProxy:
             payload = self._custom_map.get(key) or {}
             if payload.get("unit_id") == unit_id:
                 self._custom_map.pop(key, None)
+        cb_map = getattr(self._kernel, "inline_callback_map", None)
+        if isinstance(cb_map, dict):
+            for key in list(cb_map):
+                payload = cb_map.get(key) or {}
+                if isinstance(payload, dict) and payload.get("unit_id") == unit_id:
+                    cb_map.pop(key, None)
         return True
 
     def _find_unit(
@@ -1742,6 +1979,8 @@ class InlineProxy:
             return False
 
         self._current_form_ttl = ttl or 3600
+        created_at = time.time()
+        expires_at = created_at + self._current_form_ttl
 
         unit_type = str(kwargs.pop("_unit_type", "form"))
         unit_id = str(kwargs.pop("unit_id", self._unit_id(unit_type)))
@@ -1773,6 +2012,8 @@ class InlineProxy:
                 "message_id": None,
                 "inline_message_id": None,
                 "ttl": ttl,
+                "created_at": created_at,
+                "expires_at": expires_at,
                 "force_me": force_me,
                 "always_allow": always_allow,
                 "disable_security": disable_security,
@@ -2276,7 +2517,7 @@ class InlineProxy:
         # Snapshot new callback tokens so we can roll back if edit fails.
         # _prepare_markup already registered new tokens in inline_callback_map;
         # if the actual Telegram edit fails the old buttons are still shown, so
-        # those new tokens would never be triggered — leaving the map poisoned.
+        # those new tokens would never be triggered - leaving the map poisoned.
         cb_map = getattr(self._kernel, "inline_callback_map", None) or {}
         if reply_markup is not None:
             # Keys registered during this _prepare_markup call all share the
@@ -2314,7 +2555,7 @@ class InlineProxy:
         if not edited:
             client = getattr(self._kernel, "client", None)
             if client is None or not hasattr(client, "edit_message"):
-                # Both clients unavailable — roll back new token registrations
+                # Both clients unavailable - roll back new token registrations
                 # so the existing buttons still work.
                 for k in new_cb_keys:
                     cb_map.pop(k, None)
@@ -2331,7 +2572,7 @@ class InlineProxy:
                 edited = True
             except Exception as e:
                 self._kernel.logger.debug(f"[hikka_compat] _edit_unit failed: {e}")
-                # Roll back new token registrations — edit failed, old buttons
+                # Roll back new token registrations - edit failed, old buttons
                 # are still shown in Telegram with the previous callback_data.
                 for k in new_cb_keys:
                     cb_map.pop(k, None)
@@ -2403,6 +2644,13 @@ class InlineProxy:
             payload = self._custom_map.get(key) or {}
             if payload.get("unit_id") == unit_id:
                 self._custom_map.pop(key, None)
+
+        cb_map = getattr(self._kernel, "inline_callback_map", None)
+        if isinstance(cb_map, dict):
+            for key in list(cb_map):
+                payload = cb_map.get(key) or {}
+                if isinstance(payload, dict) and payload.get("unit_id") == unit_id:
+                    cb_map.pop(key, None)
 
         on_unload = unit.get("on_unload")
         if callable(on_unload):
@@ -2514,7 +2762,7 @@ class _AllModulesStub:
     def __init__(self, kernel):
         from ..kernel_proxy import ClientProxy
 
-        self._kernel = kernel
+        self._kernel = CompatKernelProxy(kernel, module_name="allmodules")
         self._client_proxy = ClientProxy(kernel.client, module_name="allmodules")
         self.db = getattr(kernel, "_hikka_compat_db_facade", None)
         if self.db is None:
@@ -2723,9 +2971,11 @@ class _AllModulesStub:
         return removed
 
     def register_inline_stuff(self, instance) -> int:
+        from .fake_package import mark_hikka_inline_handler
+
         count = 0
         for name, method in get_inline_handlers(instance).items():
-            self._kernel.inline_handlers[name] = method
+            self._kernel.inline_handlers[name] = mark_hikka_inline_handler(method)
             self._kernel.inline_handlers_owners[name] = instance.__class__.__name__
             count += 1
         return count
@@ -2829,10 +3079,11 @@ class Module:
     ) -> None:
         from ..kernel_proxy import ClientProxy
 
-        self._kernel = kernel
+        module_key = module_name or type(self).__name__
+        self._kernel = CompatKernelProxy(kernel, module_name=module_key)
         self._module_type = module_type
 
-        if not hasattr(kernel, "_hikka_compat_inline_proxy"):
+        if getattr(kernel, "_hikka_compat_inline_proxy", None) is None:
             inline_proxy = InlineProxy(kernel)
             kernel._hikka_compat_inline_proxy = inline_proxy
         else:
@@ -2849,14 +3100,13 @@ class Module:
             kernel.client.dispatcher.security = _CompatSecurityManager(self.client)
 
         # Store the kernel module key so that register_placeholder can
-        # use it as the native scope — matching what .man looks up.
-        self._module_name = module_name or type(self).__name__
+        # use it as the native scope - matching what .man looks up.
+        self._module_name = module_key
 
         # Auto-register methods decorated with @loader.placeholder.
         try:
             from utils.custom_placeholders import (
                 register_decorated_placeholders as _rdp,
-                register_placeholder as _nreg,
             )
 
             _rdp(self._module_name, self)
@@ -2874,6 +3124,8 @@ class Module:
         self.allmodules.inline = self.inline
         self.strings = _StringsShim(self, _translator_stub)
         self.translator = _translator_stub
+        if not hasattr(self, "ui"):
+            self.ui = _build_module_ui(self)
 
     def get(self, key: str, default=None):
         return self._db.get(self._db_owner, key, default)

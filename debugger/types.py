@@ -35,12 +35,18 @@ class Warning:
         )
 
         output = []
-        output.append(f"{colors['yellow']}{'─' * 70}{colors['reset']}")
+        severity = (self.severity or "warning").upper()
+        severity_color = {
+            "ERROR": colors["red"],
+            "INFO": colors["cyan"],
+        }.get(severity, colors["yellow"])
+
+        output.append(f"{severity_color}{'─' * 70}{colors['reset']}")
         func_name = (
             self.function_name if self.function_name else self._get_method_name()
         )
         output.append(
-            f"{colors['bold']}{colors['yellow']}[WARNING]{colors['reset']} {colors['cyan']}{self.rule_id}{colors['reset']} {colors['dim']}method{colors['reset']} {colors['white']}'{func_name}'{colors['reset']} {colors['dim']}lines {self.line}{colors['reset']}"
+            f"{colors['bold']}{severity_color}[{severity}]{colors['reset']} {colors['cyan']}{self.rule_id}{colors['reset']} {colors['dim']}method{colors['reset']} {colors['white']}'{func_name}'{colors['reset']} {colors['dim']}lines {self.line}{colors['reset']}"
         )
         output.append(f"{colors['bold']}Message:{colors['reset']} {self.message}")
         output.append(
@@ -60,7 +66,7 @@ class Warning:
                 f"{colors['green']}Fix:{colors['reset']} {self.fix_suggestion}"
             )
 
-        output.append(f"{colors['yellow']}{'─' * 70}{colors['reset']}")
+        output.append(f"{severity_color}{'─' * 70}{colors['reset']}")
 
         return "\n".join(output)
 

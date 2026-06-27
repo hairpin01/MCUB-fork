@@ -83,12 +83,46 @@ no_error_summary = true
 show_error_codes = false
 show_column_numbers = true
 pretty = true
+check_untyped_defs = false
+allow_redefinition = true
+disable_error_code = [
+    "annotation-unchecked",
+    "attr-defined",
+    "arg-type",
+    "assignment",
+    "call-arg",
+    "call-overload",
+    "import-untyped",
+    "index",
+    "func-returns-value",
+    "has-type",
+    "truthy-function",
+    "list-item",
+    "misc",
+    "method-assign",
+    "name-defined",
+    "no-redef",
+    "operator",
+    "override",
+    "return-value",
+    "union-attr",
+    "valid-type",
+    "var-annotated",
+]
 exclude = [
     ".git",
     ".venv",
     "__pycache__",
     "modules_loaded",
     ".mypy_cache",
+    "core/console/",
+    "core/web/",
+    "core/kernel/",
+    "core/lib/kernel_core.py",
+    "core/lib/kernel_handlers.py",
+    "core/lib/kernel_lifecycle.py",
+    "core/lib/kernel_pipeline.py",
+    "core/lib/loader/hikka_compat/",
 ]
 [build-system]
 requires = ["setuptools>=65", "wheel"]

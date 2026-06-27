@@ -3,6 +3,8 @@
 
 """Tests for Heroku/Hikka compatibility layer."""
 
+import sys
+import types
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -729,6 +731,45 @@ class TestInlineQuery:
         result = asyncio.run(iq.answer(None))
         assert result is None
 
+    def test_inline_query_e400_shortcut_answers_error_article(self):
+        from core.lib.loader.hikka_compat.inline_types import InlineQuery
+
+        mock_event = MagicMock()
+        mock_event.answer = AsyncMock()
+        iq = InlineQuery(query_id="qid", query="wiki", original_event=mock_event)
+        import asyncio
+
+        asyncio.run(iq.e400())
+
+        mock_event.answer.assert_awaited_once()
+        results = mock_event.answer.await_args.args[0]
+        assert mock_event.answer.await_args.kwargs["cache_time"] == 0
+        assert len(results) == 1
+        assert results[0]["title"] == "🚫 400"
+        assert "Bad request" in results[0]["description"]
+        assert results[0]["message"]
+        assert results[0]["thumbnail_url"]
+
+    def test_inline_query_e404_and_builder_shortcuts(self):
+        from core.lib.loader.hikka_compat.inline_types import InlineQuery
+
+        mock_event = MagicMock()
+        mock_event.answer = AsyncMock()
+        iq = InlineQuery(
+            query_id="qid", query="wiki missing", original_event=mock_event
+        )
+        import asyncio
+
+        asyncio.run(iq.e404())
+        asyncio.run(iq.builder.e400())
+
+        assert mock_event.answer.await_count == 2
+        first_results = mock_event.answer.await_args_list[0].args[0]
+        second_results = mock_event.answer.await_args_list[1].args[0]
+        assert first_results[0]["title"] == "🚫 404"
+        assert first_results[0]["description"] == "No results found"
+        assert second_results[0]["title"] == "🚫 400"
+
 
 class TestInlineResults:
     """Test InlineResults."""
@@ -799,6 +840,25 @@ class TestUtils:
         assert kwargs.get("b") == 2
         assert kwargs.get("c") == 5
 
+    def test_dnd_mutes_and_archives_peer(self):
+        from core.lib.loader.hikka_compat.utils import _Utils
+
+        class FakeClient:
+            def __init__(self):
+                self.calls = []
+                self.edit_folder = AsyncMock()
+
+            async def __call__(self, request):
+                self.calls.append(request)
+                return object()
+
+        client = FakeClient()
+        import asyncio
+
+        assert asyncio.run(_Utils.dnd(client, "@FHeta_robot", archive=True)) is True
+        assert len(client.calls) == 1
+        client.edit_folder.assert_awaited_once_with("@FHeta_robot", 1)
+
     def test_get_topic(self):
         from core.lib.loader.hikka_compat.utils import _Utils
 
@@ -816,6 +876,77 @@ class TestUtils:
         result = _Utils.get_git_hash()
         # Should either be a hash string or False (if no git)
         assert result is False or isinstance(result, str)
+
+
+class TestRuntimeModuleUI:
+    """Test pre-ready UI compatibility helpers for Heroku modules."""
+
+    @staticmethod
+    def make_kernel():
+        return types.SimpleNamespace(
+            logger=MagicMock(),
+            client=MagicMock(),
+            bot_client=None,
+            config={},
+            aliases={},
+            _loader=None,
+            loaded_modules={},
+            system_modules={},
+            command_handlers={},
+            command_owners={},
+            inline_handlers={},
+            inline_handlers_owners={},
+            callback_handlers={},
+            ADMIN_ID=12345,
+            db_manager=None,
+            _hikka_compat_allmodules_proxy=None,
+            _hikka_compat_inline_proxy=None,
+        )
+
+    def test_module_bind_installs_sibling_ui_class(self):
+        from core.lib.loader.hikka_compat.runtime import Module
+
+        module_name = "tests.fake_hikka_ui_module"
+        fake_module = types.ModuleType(module_name)
+
+        class FakeUI:
+            def __init__(self, main):
+                self.main = main
+
+            def emoji(self, key: str) -> str:
+                return self.main.THEMES[self.main.config["theme"]][key]
+
+        fake_module.FakeUI = FakeUI
+        sys.modules[module_name] = fake_module
+        try:
+
+            class Fake(Module):
+                __module__ = module_name
+                strings = {"name": "Fake"}
+                config = {"theme": "default"}
+                THEMES = {"default": {"search": "🔍"}}
+
+            instance = Fake()
+            instance._mcub_bind(self.make_kernel(), module_name="Fake")
+
+            assert isinstance(instance.ui, FakeUI)
+            assert instance.ui.emoji("search") == "🔍"
+        finally:
+            sys.modules.pop(module_name, None)
+
+    def test_module_bind_installs_fallback_ui_emoji(self):
+        from core.lib.loader.hikka_compat.runtime import Module
+
+        class ThemeOnly(Module):
+            strings = {"name": "ThemeOnly"}
+            config = {"theme": "winter"}
+            THEMES = {"winter": {"search": "❄️"}}
+
+        instance = ThemeOnly()
+        instance._mcub_bind(self.make_kernel(), module_name="ThemeOnly")
+
+        assert instance.ui.emoji("search") == "❄️"
+        assert instance.ui.emoji("missing") == ""
 
 
 class TestDbProxy:

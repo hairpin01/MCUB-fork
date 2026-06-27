@@ -39,9 +39,24 @@ class TaskScheduler:
         """
         self.kernel = kernel
         self.tasks: list[asyncio.Task] = []
+        self._task_registry: dict[str, asyncio.Task] = {}
         self.running = False
         if hasattr(kernel, "logger"):
             kernel.logger.debug("[Scheduler] __init__")
+
+    def _track_task(self, task: asyncio.Task) -> None:
+        """Keep a task while active and release the reference when it finishes."""
+        self.tasks.append(task)
+        task.add_done_callback(self._discard_task)
+
+    def _discard_task(self, task: asyncio.Task) -> None:
+        try:
+            self.tasks.remove(task)
+        except ValueError:
+            pass
+
+    def _prune_done_tasks(self) -> None:
+        self.tasks = [task for task in self.tasks if not task.done()]
 
     async def start(self) -> None:
         """Start the task scheduler and mark it as running."""
@@ -61,15 +76,17 @@ class TaskScheduler:
         self.running = False
 
         # Cancel all tasks
-        for task in self.tasks:
+        tasks = list(self.tasks)
+        for task in tasks:
             if not task.done():
                 task.cancel()
 
         # Wait for all tasks to be cancelled
-        if self.tasks:
-            await asyncio.gather(*self.tasks, return_exceptions=True)
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
         self.tasks.clear()
+        self._task_registry.clear()
         if hasattr(self.kernel, "logger"):
             self.kernel.logger.debug("[Scheduler] stop done")
 
@@ -106,7 +123,7 @@ class TaskScheduler:
                     self.kernel.log_error(error_msg)
 
         task = asyncio.create_task(wrapper(), name=f"interval_{func.__name__}")
-        self.tasks.append(task)
+        self._track_task(task)
 
     async def add_daily_task(
         self, func: Callable[[], Any], hour: int, minute: int
@@ -171,7 +188,7 @@ class TaskScheduler:
 
         task_name = f"daily_{func.__name__}_{hour:02d}:{minute:02d}"
         task = asyncio.create_task(wrapper(), name=task_name)
-        self.tasks.append(task)
+        self._track_task(task)
 
     def get_active_tasks(self) -> list[asyncio.Task]:
         """
@@ -180,10 +197,12 @@ class TaskScheduler:
         Returns:
             List of asyncio.Task objects representing scheduled tasks
         """
+        self._prune_done_tasks()
         return self.tasks.copy()
 
     def get_task_count(self) -> int:
         """Return the number of currently scheduled tasks."""
+        self._prune_done_tasks()
         return len(self.tasks)
 
     async def add_task(
@@ -221,9 +240,7 @@ class TaskScheduler:
                 self._task_registry.pop(task_id, None)
 
         task = asyncio.create_task(wrapper(), name=f"once_{func.__name__}")
-        self.tasks.append(task)
-        if not hasattr(self, "_task_registry"):
-            self._task_registry: dict = {}
+        self._track_task(task)
         self._task_registry[task_id] = task
         return task_id
 
@@ -237,8 +254,6 @@ class TaskScheduler:
         Returns:
             True if found and cancelled, False otherwise
         """
-        if not hasattr(self, "_task_registry"):
-            return False
         task = self._task_registry.pop(task_id, None)
         if task is None:
             return False
@@ -255,8 +270,7 @@ class TaskScheduler:
             if not task.done():
                 task.cancel()
         self.tasks.clear()
-        if hasattr(self, "_task_registry"):
-            self._task_registry.clear()
+        self._task_registry.clear()
 
     def get_tasks(self) -> list[dict]:
         """

@@ -286,6 +286,7 @@ class TestTesterModule:
 
     def _make_tester(self):
         import copy
+
         import modules.tester as tester_module
 
         tester = tester_module.TesterMod.__new__(tester_module.TesterMod)

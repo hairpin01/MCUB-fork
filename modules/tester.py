@@ -11,11 +11,11 @@ import random
 import re
 import socket
 import subprocess
+import sys
 import tempfile
 import time
 from datetime import datetime
 from typing import Any
-import sys
 
 try:
     import psutil as _psutil

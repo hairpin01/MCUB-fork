@@ -386,8 +386,8 @@ class TestKernelCommands:
         self, mock_db, mock_cfg, mock_log, monkeypatch
     ):
         """Missing core NewMessage binding restores one handler, not fallback clone."""
-        from core.kernel import Kernel
         import core.lib.kernel_handlers as kernel_handlers
+        from core.kernel import Kernel
 
         kernel = Kernel()
 

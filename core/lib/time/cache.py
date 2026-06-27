@@ -5,8 +5,8 @@
 # version: 1.1.0
 # description: TTL Cache implementation with LRU eviction
 
-import heapq
 import hashlib
+import heapq
 import logging
 import time
 from collections import OrderedDict

@@ -5,8 +5,8 @@
 Tests for TTL cache implementation
 """
 
-import time
 import logging
+import time
 
 import pytest
 

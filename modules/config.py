@@ -20,8 +20,8 @@ from telethon.errors.rpcerrorlist import MessageNotModifiedError
 from telethon.tl.types import DocumentAttributeImageSize, InputWebDocument
 
 import utils
-from utils.arg_parser import parse_arguments
 from core.lib.loader.module_config import ModuleConfig, ValidationError
+from utils.arg_parser import parse_arguments
 from utils.strings import Strings
 
 

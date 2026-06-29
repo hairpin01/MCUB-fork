@@ -1625,6 +1625,10 @@ class InlineHandlers:
             )
             self.kernel.logger.error(f"{self.lang['error']}: {e}")
             self.kernel.logger.error(f"Full traceback: {error_traceback}")
+            if getattr(self.kernel, "handler_error", False):
+                await self.kernel.handle_error(
+                    answer_error, message=self.lang["error"], event=event
+                )
             thumb = InputWebDocument(
                 url="https://kappa.lol/qNFKBT",
                 size=0,
@@ -1644,9 +1648,15 @@ class InlineHandlers:
                     ]
                 )
             except Exception as answer_error:
-                self.kernel.logger.debug(
+                self.kernel.logger.error(
                     f"Inline query error answer failed: {answer_error}"
                 )
+                if getattr(self.kernel, "handler_error", False):
+                    await self.kernel.handle_error(
+                        answer_error,
+                        message="Inline query error answer failed",
+                        event=event,
+                    )
 
     async def process_callback_query(self, event: Any) -> None:
         """Process a callback query event.
@@ -1753,6 +1763,10 @@ class InlineHandlers:
                 traceback.format_exception(type(e), e, e.__traceback__)
             )
             self.kernel.logger.error(f"Error callback_handlers: {error_traceback}")
+            if getattr(self.kernel, "handler_error", False):
+                await self.kernel.handle_error(
+                    e, message="Error callback_handlers", event=event
+                )
             await event.answer(f"error: {e}")
 
     async def _handle_show_traceback(self, event, data_str: str) -> None:

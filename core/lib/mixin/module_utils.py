@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import ast
+import io
 import os
 import re
+import tokenize
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -218,8 +220,14 @@ def parse_requires(code: str) -> list:
         List of requirement strings.
     """
     reqs = []
-    for line in code.splitlines():
-        match = re.match(r"^\s*#\s*requires\s*:\s*(.*)$", line, re.IGNORECASE)
+    try:
+        tokens = tokenize.generate_tokens(io.StringIO(code).readline)
+        comments = [token.string for token in tokens if token.type == tokenize.COMMENT]
+    except tokenize.TokenError:
+        comments = []
+
+    for comment in comments:
+        match = re.match(r"^#\s*requires\s*:\s*(.*)$", comment, re.IGNORECASE)
         if match is None:
             continue
 

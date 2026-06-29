@@ -1488,6 +1488,29 @@ class TestMod(ModuleBase):
 
         assert loader.parse_requires(code) == ["requests"]
 
+    def test_parse_requires_ignores_requires_inside_strings(self):
+        """Test fake # requires examples inside strings are ignored."""
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel = MagicMock()
+        loader = ModuleLoader(kernel)
+
+        code = (
+            "# requires: aiohttp, Pillow\n"
+            '"""\n'
+            "# requires: third_party_pip_package (omit line entirely if none needed)\n"
+            '"""\n'
+            'HELP_TEXT = "# requires: fake_single_double_quote"\n'
+            "OTHER_HELP = '# requires: fake_single_quote'\n"
+            "TEMPLATE = '''\n"
+            "# requires: fake_triple_single_quote\n"
+            "'''\n"
+            "class TestMod:\n"
+            '    dependencies = ["requests"]\n'
+        )
+
+        assert loader.parse_requires(code) == ["aiohttp", "Pillow", "requests"]
+
     @pytest.mark.asyncio
     async def test_pre_install_combines_requires_and_dependencies(self):
         """Test that both # requires: and class dependencies are parsed"""

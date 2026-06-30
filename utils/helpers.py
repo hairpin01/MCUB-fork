@@ -65,7 +65,7 @@ def get_args_raw(event: Message | events.NewMessage.Event) -> str:
     Returns:
         String of arguments. Empty string if none.
     """
-    text = getattr(event, "text", None) or getattr(event, "raw_text", "")
+    text = getattr(event, "raw_text", "")
     if not text:
         return ""
 

@@ -137,7 +137,7 @@ class CommandDispatcher:
             self.logger.debug(
                 "[dispatcher] skip-nonoutgoing handler=watcher_message "
                 "text=%r sender=%r chat=%r out=%r admin=%r",
-                getattr(msg, "text", None),
+                getattr(msg, "raw_text", None),
                 getattr(event, "sender_id", None),
                 getattr(event, "chat_id", None),
                 getattr(msg, "out", False),
@@ -149,7 +149,7 @@ class CommandDispatcher:
             self.logger.debug(
                 "[dispatcher] skip-duplicate handler=watcher_message "
                 "text=%r sender=%r chat=%r",
-                getattr(msg, "text", None),
+                getattr(msg, "raw_text", None),
                 getattr(event, "sender_id", None),
                 getattr(event, "chat_id", None),
             )
@@ -169,7 +169,7 @@ class CommandDispatcher:
             if len(tb) > 1000:
                 tb = "…" + tb[-997:]
             try:
-                safe_cmd = html.escape(getattr(event, "text", "") or "")
+                safe_cmd = html.escape(getattr(event, "raw_text", "") or "")
 
                 await event.edit(
                     (
@@ -203,7 +203,7 @@ class CommandDispatcher:
             )
             return False
 
-        text = getattr(event, "text", "") or ""
+        text = getattr(event, "raw_text", "") or ""
         active_prefix = self.kernel.get_prefix_for_sender(
             getattr(event, "sender_id", None)
         )
@@ -396,7 +396,7 @@ class CommandDispatcher:
 
     async def _handle_rpc_error(self, event: Event, error: RPCError) -> None:
         """Display a user-friendly RPC error in the chat."""
-        cmd_text = html.escape(getattr(event, "text", "") or "")
+        cmd_text = html.escape(getattr(event, "raw_text", "") or "")
         rpc_msg = html.escape(str(error))
         try:
             _tele = '<tg-emoji emoji-id="5429283852684124412">' "\U0001f52d</tg-emoji>"

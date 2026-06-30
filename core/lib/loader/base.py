@@ -335,7 +335,7 @@ class ModuleBase(ABC):
     def args(self, event: Event) -> Any:
         import utils
 
-        text = getattr(event, "text", None) or getattr(event, "raw_text", "") or ""
+        text = getattr(event, "raw_text", "") or ""
         return utils.parse_arguments(text, prefix=self.get_prefix())
 
     def args_raw(self, event: Event) -> str:

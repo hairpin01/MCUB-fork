@@ -3370,7 +3370,7 @@ def register(kernel):
     async def cfg_handler(event):
         await ensure_config_initialized()
         try:
-            args = event.text.split()
+            args = event.raw_text.split()
             if len(args) == 1:
                 if hasattr(kernel, "bot_client"):
                     try:
@@ -3474,7 +3474,7 @@ def register(kernel):
             parsed_args = None
             try:
                 parsed_args = parse_arguments(
-                    event.text, getattr(kernel, "custom_prefix", ".")
+                    event.raw_text, getattr(kernel, "custom_prefix", ".")
                 )
                 args = [parsed_args.command, *map(str, parsed_args.args)]
             except Exception:

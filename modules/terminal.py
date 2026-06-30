@@ -900,7 +900,7 @@ def register(kernel):
     )
     async def terminal_handler(event):
         """Execute a shell command. Prefix with @N to use a named parallel slot."""
-        args = event.text.split(maxsplit=1)
+        args = event.raw_text.split(maxsplit=1)
         pipe_input = getattr(event, "pipe_input", None)
         piped = getattr(event, "piped", False)
 
@@ -943,7 +943,7 @@ def register(kernel):
     )
     async def terminal_kill_handler(event):
         """Kill a slot (@N) or all slots (@all). Defaults to slot @1."""
-        args = event.text.split(maxsplit=1)
+        args = event.raw_text.split(maxsplit=1)
         rest = args[1].strip() if len(args) > 1 else ""
         slot, _ = _parse_slot(rest) if rest else ("1", "")
         await terminal.kill_command(event.chat_id, slot=slot, message_id=event.id)
@@ -955,7 +955,7 @@ def register(kernel):
     )
     async def terminal_input_handler(event):
         """Write text to the stdin of a running process (useful for interactive programs)."""
-        args = event.text.split(maxsplit=1)
+        args = event.raw_text.split(maxsplit=1)
         if len(args) < 2:
             await event.edit(
                 f"{CUSTOM_EMOJI['🗯']} <i>{lang['command_not_specified']}</i>",

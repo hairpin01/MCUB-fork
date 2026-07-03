@@ -79,6 +79,14 @@ CUSTOM_EMOJI = {
     "🧩": '<tg-emoji emoji-id="5359785904535774578">🧩</tg-emoji>',
     "🔧": '<tg-emoji emoji-id="5332654441508119011">🔧</tg-emoji>',
 }
+# API for module
+USER_EMOJI = {
+    6020965582: "5469888215802482605",
+    2037125547: "5467932472379480411",
+    779572293: "5470163024989952512",
+    8405520863: "5470170528297817805",
+    855890735: "5470063433288290290",
+}
 
 ITEMS_PER_PAGE = 16
 MODULES_PER_PAGE = 12
@@ -4027,7 +4035,18 @@ def register(kernel):
     kernel.register_callback_handler("cfg_close", config_callback_handler)
 
     if hasattr(kernel, "bot_client") and kernel.bot_client:
+        bot_client = kernel.bot_client
+        bot_client._mcub_config_chosen_result_handler = chosen_result_handler
 
-        @kernel.bot_client.on(events.Raw(types.UpdateBotInlineSend))
-        async def handle_chosen_result(event):
-            await chosen_result_handler(event)
+        if not getattr(bot_client, "_mcub_config_raw_handler_registered", False):
+            bot_client._mcub_config_raw_handler_registered = True
+
+            @bot_client.on(events.Raw(types.UpdateBotInlineSend))
+            async def handle_chosen_result(event):
+                handler = getattr(
+                    bot_client, "_mcub_config_chosen_result_handler", None
+                )
+                if handler is not None:
+                    await handler(event)
+
+            bot_client._mcub_config_raw_handler = handle_chosen_result

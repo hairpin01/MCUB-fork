@@ -102,6 +102,7 @@ class MCUBInfoMod(ModuleBase):
         if config_dict_clean:
             await self.kernel.save_module_config(self.name, config_dict_clean)
         self.kernel.store_module_config_schema(self.name, self.config)
+        self.user_emojis = None
 
     async def on_unload(self) -> None:
         utils.unregister_scope(self.name)
@@ -514,15 +515,10 @@ class MCUBInfoMod(ModuleBase):
         if me is None:
             me = await self.kernel.client.get_me()
             self.cache.set("info:me", me, ttl=3600)
+        if self.user_emojis is None:
+            self.user_emojis = self.require_module("config").USER_EMOJI
 
-        user_emojis = {
-            6020965582: "5469888215802482605",
-            2037125547: "5467932472379480411",
-            779572293: "5470163024989952512",
-            8405520863: "5470170528297817805",
-            855890735: "5470063433288290290",
-        }
-        user = f'<tg-emoji emoji-id="{user_emojis.get(me.id, "5470015630302287916")}">{"Ⓜ️" if me.id in user_emojis else "🕳"}</tg-emoji>'
+        user = f'<tg-emoji emoji-id="{self.user_emojis.get(me.id, "5470015630302287916")}">{"Ⓜ️" if me.id in self.user_emojis else "🕳"}</tg-emoji>'
         mcub_emoji = (
             f'{user}<tg-emoji emoji-id="5469945764069280010">🔮</tg-emoji><tg-emoji emoji-id="5469943045354984820">🔮</tg-emoji><tg-emoji emoji-id="5469879466954098867">🔮</tg-emoji>'
             if me.premium

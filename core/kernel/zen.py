@@ -480,14 +480,52 @@ class Kernel:
 
     async def load_module_sources(self) -> None:
         """Load module sources from database."""
+        import ast
         import json
 
         try:
             data = await self.db_get("mcub_internal", "module_sources")
-            if data:
-                self._module_sources = json.loads(data)
+            if not data:
+                self._module_sources = {}
+                return
+
+            migrated = False
+            if isinstance(data, dict):
+                sources = data
+            else:
+                raw_data = (
+                    data.decode() if isinstance(data, (bytes, bytearray)) else str(data)
+                )
+                try:
+                    sources = json.loads(raw_data)
+                except json.JSONDecodeError as json_error:
+                    try:
+                        sources = ast.literal_eval(raw_data)
+                    except (SyntaxError, ValueError) as legacy_error:
+                        self.logger.warning(
+                            "Invalid module sources cache; resetting stored data: %s",
+                            legacy_error or json_error,
+                        )
+                        self._module_sources = {}
+                        await self.save_module_sources()
+                        return
+                    migrated = True
+
+            if not isinstance(sources, dict):
+                self.logger.warning(
+                    "Resetting invalid module sources data: expected dict, got %s",
+                    type(sources).__name__,
+                )
+                self._module_sources = {}
+                await self.save_module_sources()
+                return
+
+            self._module_sources = sources
+            if migrated:
+                await self.save_module_sources()
         except Exception as e:
             self.logger.error(f"Error loading module sources: {e}")
+            self._module_sources = {}
 
     async def add_repository(self, url: str) -> tuple:
         return await self._repo.add(url)

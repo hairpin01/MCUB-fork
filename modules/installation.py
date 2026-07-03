@@ -351,6 +351,8 @@ class Installation(ModuleBase):
         if clean:
             await self.kernel.save_module_config(self.name, clean)
 
+        self._OWNER_EMOJI = self.require_module("config", all_loaded=True).USER_EMOJI
+
     def _get_platform_emoji(self, key: str) -> str:
         cfg_key = {
             "arch": "emoji_arch",

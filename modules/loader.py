@@ -2909,7 +2909,7 @@ class Loader(ModuleBase):
         doc_ru="<имя> выгpyзить мoдyль видe фaйл",
     )
     async def cmd_unlm(self, event) -> None:
-        args = utils.get_args(event)
+        args = event.raw_text.split()
         if len(args) < 2:
             await self._edit_with_emoji(
                 event,

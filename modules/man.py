@@ -64,7 +64,7 @@ def _get_metadata_lock() -> asyncio.Lock:
 
 class ManModule(ModuleBase):
     name = "man"
-    version = "1.1.0"
+    version = "1.1.1"
     author = "@hairpin00"
     description = {"ru": "Meнeджep мoдyлeй", "en": "Module manager"}
 
@@ -150,7 +150,7 @@ class ManModule(ModuleBase):
                 "man_emoji_system_list": "▫️",
                 "man_emoji": CUSTOM_EMOJI["crystal"],
                 "man_emoji_no_command": "❔",
-                "man_modules_per_page": 10,
+                "man_modules_per_page": 60,
                 "man_emoji_author": CUSTOM_EMOJI["alembic"],
                 "man_emoji_bot": CUSTOM_EMOJI["bot"],
                 "man_emoji_error": CUSTOM_EMOJI["blocked"],
@@ -601,19 +601,19 @@ class ManModule(ModuleBase):
                 if inline_commands:
                     cmd_text += f" {self._format_inline_cmds(inline_commands)}"
 
-                return f"{emoji} <b>{display_name}</b>{hidden_mark}: {cmd_text}\n"
+                return f"{emoji} <code>{display_name}</code>{hidden_mark}: {cmd_text}\n"
             elif inline_commands:
                 inline_cmds = self._format_inline_cmds(inline_commands)
-                return f"<b>{display_name}</b>{hidden_mark}: {inline_cmds}\n"
+                return f"<code>{display_name}</code>{hidden_mark}: {inline_cmds}\n"
             else:
                 no_cmd_emoji = (
                     cfg.get("man_emoji_no_command") or CUSTOM_EMOJI["snowflake"]
                 )
-                return f"{no_cmd_emoji} <b>{display_name}</b>{hidden_mark}: <i>{s.get('no_commands', 'no commands')}</i>\n"
+                return f"{no_cmd_emoji} <code>{display_name}</code>{hidden_mark}: <i>{s.get('no_commands', 'no commands')}</i>\n"
 
         def get_modules_per_page() -> int:
             try:
-                return max(1, min(50, int(cfg.get("man_modules_per_page", 10))))
+                return max(1, min(50, int(cfg.get("man_modules_per_page", 60))))
             except (TypeError, ValueError):
                 return 10
 
@@ -622,26 +622,30 @@ class ManModule(ModuleBase):
             return [items[i : i + per_page] for i in range(0, len(items), per_page)]
 
         emoji_man = cfg.get("man_emoji", CUSTOM_EMOJI["crystal"])
-        sys_chunks = chunk_by_modules(sys_modules)
         usr_chunks = chunk_by_modules(usr_modules)
-        total_pages = max(1, len(sys_chunks) + len(usr_chunks))
+        total_pages = max(1, len(usr_chunks))
         page = max(0, min(page, total_pages - 1))
 
-        if page < len(sys_chunks):
-            msg = f"{emoji_man} <b>{s['system_modules']}:</b> <code>{len(sys_modules)}</code>"
-            if len(sys_chunks) > 1:
-                msg += f" ({page + 1}/{len(sys_chunks)})"
-            msg += "<blockquote expandable>"
-            for name in sys_chunks[page]:
-                msg += render_module_line(name)
-            msg += "</blockquote>"
-        else:
-            usr_page = page - len(sys_chunks)
-            current_chunk = usr_chunks[usr_page] if usr_page < len(usr_chunks) else []
+        if page == 0:
+            msg = f"{emoji_man} <b>{s['system_modules']}:</b> <code>{len(sys_modules)}</code> | <code>{len(usr_modules)}</code>"
+            if sys_modules:
+                msg += "<blockquote expandable>"
+                for name in sys_modules:
+                    msg += render_module_line(name)
+                msg += "</blockquote>"
+            if usr_chunks:
+                msg += "<blockquote expandable>"
+                for name in usr_chunks[0]:
+                    msg += render_module_line(name)
 
-            msg = f"{emoji_man} <b>{s['user_modules_page'].format(page=usr_page + 1, count=len(usr_modules))}:</b>"
-            if len(usr_chunks) > 1:
-                msg += f" ({usr_page + 1}/{len(usr_chunks)})"
+                if len(usr_chunks) > 1:
+                    remaining = sum(len(c) for c in usr_chunks[1:])
+                    msg += f"<i>... +{remaining}</i>"
+                msg += "</blockquote>"
+
+        else:
+            current_chunk = usr_chunks[page] if page < len(usr_chunks) else []
+            msg = f"{emoji_man} <b>{s['user_modules_page'].format(page=page + 1, count=len(usr_modules))}:</b>"
             msg += "<blockquote expandable>"
             for name in current_chunk:
                 msg += render_module_line(name)
@@ -765,6 +769,66 @@ class ManModule(ModuleBase):
                 return
 
             if not clean_args:
+                hidden = await self._get_hidden_modules()
+                _usr = sorted(
+                    n
+                    for n in self.kernel.loaded_modules.keys()
+                    if show_hidden or n not in hidden
+                )
+                try:
+                    _per_page = max(
+                        1, min(50, int(self.config.get("man_modules_per_page", 10)))
+                    )
+                except (TypeError, ValueError):
+                    _per_page = 10
+                _chunks = (
+                    [_usr[i : i + _per_page] for i in range(0, len(_usr), _per_page)]
+                    if _usr
+                    else [[]]
+                )
+                _total_pages = max(1, len(_chunks))
+
+                if _total_pages == 1:
+                    page_msg, _ = self._get_paginated_data(
+                        0,
+                        hidden_list=hidden,
+                        show_hidden=show_hidden,
+                    )
+                    try:
+                        if self.config.get("man_quote_media", False):
+                            await self.edit(
+                                event,
+                                page_msg,
+                                file=InputMediaWebPage(
+                                    self.config.get(
+                                        "man_banner_url",
+                                        "https://google.com",
+                                    ),
+                                    optional=True,
+                                ),
+                                parse_mode="html",
+                                invert_media=self.config.get(
+                                    "man_invert_media",
+                                    False,
+                                ),
+                            )
+                        elif self.config.get("man_banner_url"):
+                            await self.edit(
+                                event,
+                                page_msg,
+                                file=self.config.get("man_banner_url"),
+                                parse_mode="html",
+                                invert_media=self.config.get(
+                                    "man_invert_media",
+                                    False,
+                                ),
+                            )
+                        else:
+                            await self.edit(event, page_msg, parse_mode="html")
+                    except TypeError:
+                        await self.edit(event, page_msg, parse_mode="html")
+                    return
+
                 try:
                     success, sent = await self.kernel.inline_query_and_click(
                         chat_id=event.chat_id,
@@ -785,7 +849,6 @@ class ManModule(ModuleBase):
 
                     if self.config.get("man_invert_media", False):
                         try:
-                            hidden = await self._get_hidden_modules()
                             page_msg, page_buttons = self._get_paginated_data(
                                 0,
                                 hidden_list=hidden,
@@ -922,11 +985,7 @@ class ManModule(ModuleBase):
 
     @command("help", doc_ru="пepeнaпpaвляeт нa man", doc_en="redirects to man")
     async def cmd_help(self, event: events.NewMessage.Event) -> None:
-        await self.edit(
-            event,
-            f"<b>{self.strings['help_not_command']}</b><code>{self.kernel.custom_prefix}man?</code>",
-            parse_mode="html",
-        )
+        await self.cmd_man(event)
 
     @inline("man")
     async def inline_man(self, event) -> None:

@@ -401,8 +401,8 @@ class CommandDispatcher:
         try:
             _tele = '<tg-emoji emoji-id="5429283852684124412">' "\U0001f52d</tg-emoji>"
             msg = (
-                f"{_tele} {Strings('call_failed', cmd=cmd_text, rpc_msg=rpc_msg)}"
-                if Strings
+                f"{_tele} {self.strings('call_failed', cmd=cmd_text, rpc_msg=rpc_msg)}"
+                if self.strings is not None
                 else f"\U0001f52d Call failed: <code>{cmd_text}</code> - {rpc_msg}"
             )
             await event.edit(msg, parse_mode="html")

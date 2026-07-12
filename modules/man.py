@@ -66,7 +66,10 @@ class ManModule(ModuleBase):
     name = "man"
     version = "1.1.1"
     author = "@hairpin00"
-    description = {"ru": "Meнeджep мoдyлeй", "en": "Module manager"}
+    description = {
+        "ru": "Список модулей, и их описание",
+        "en": "List of modules and their descriptions",
+    }
 
     strings: dict | Strings = {"name": "man"}
 

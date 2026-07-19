@@ -14,6 +14,16 @@ class Demo(loader.Module):
     assert _detect_module_type(code) == "hikka"
 
 
+def test_detect_hikka_library_type_from_loader_patterns():
+    code = """
+from .. import loader
+
+class SharedLib(loader.Library):
+    pass
+"""
+    assert _detect_module_type(code) == "hikka"
+
+
 def test_detect_native_type_from_register_kernel():
     code = """
 from core.lib.loader import something

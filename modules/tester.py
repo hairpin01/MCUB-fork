@@ -7,6 +7,7 @@ import asyncio
 import getpass
 import json
 import os
+import platform
 import random
 import re
 import socket
@@ -241,7 +242,8 @@ class TesterMod(ModuleBase):
                 "{cpu_usage}, {ram_usage}, {branch}, {commit_sha},\n"
                 "{now_date}, {now_time}, {now_day}, {now_month},\n"
                 "{now_month_name}, {now_year}, {now_weekday},\n"
-                "{now_hour}, {now_minute}, {now_second}"
+                "{now_hour}, {now_minute}, {now_second}\n"
+                "Heroku/hikka placeholders supported."
             ),
             validator=Placeholders(default="", placeholder_scope="any"),
         ),
@@ -737,6 +739,20 @@ class TesterMod(ModuleBase):
         cpu_usage, ram_usage = self._get_cpu_ram()
 
         branch, commit_sha, _commit_url = await self._resolve_version_info()
+        me = self.cache.get("tester:me")
+        if me is None:
+            try:
+                me = await self.kernel.client.get_me()
+                self.cache.set("tester:me", me, ttl=3600)
+            except Exception:
+                me = None
+        me_name = ""
+        if me is not None:
+            me_name = (
+                getattr(me, "first_name", None)
+                or getattr(me, "username", None)
+                or str(getattr(me, "id", ""))
+            )
 
         try:
             ms = self.strings("ms")
@@ -756,6 +772,7 @@ class TesterMod(ModuleBase):
                 custom_text,
                 data={
                     "ping_time": ping_time,
+                    "ping": ping_time,
                     "raw_ping": raw_ping_display,
                     "dynamic_emoji": final_emoji,
                     "start_emoji": final_emoji,
@@ -768,11 +785,20 @@ class TesterMod(ModuleBase):
                     "ping_count": ping_stats["count"],
                     "timings": timings,
                     "system_user": system_user,
+                    "user": system_user,
+                    "me": me_name,
                     "hostname": hostname,
                     "cpu_usage": cpu_usage,
+                    "cpu": cpu_usage,
                     "ram_usage": ram_usage,
                     "branch": branch,
                     "commit_sha": commit_sha,
+                    "build": commit_sha,
+                    "version": getattr(self.kernel, "VERSION", ""),
+                    "platform": platform.platform(),
+                    "os": platform.system() or sys.platform,
+                    "kernel": platform.release(),
+                    "upd": "",
                     "now_date": now_date,
                     "now_time": now_time,
                     "now_day": now_day,

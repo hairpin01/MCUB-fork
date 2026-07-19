@@ -3391,6 +3391,19 @@ def register(kernel):
             except Exception as e:
                 await cb_event.answer(str(e)[:50], alert=True)
 
+    def _set_event_command_text(event, command: str, rest: str = "") -> None:
+        prefix = getattr(kernel, "custom_prefix", ".") or "."
+        text = f"{prefix}{command}" + (f" {rest}" if rest else "")
+        setter = getattr(kernel, "_set_event_text", None)
+        if callable(setter):
+            setter(event, text)
+            return
+        for attr in ("raw_text", "text"):
+            try:
+                setattr(event, attr, text)
+            except Exception:
+                pass
+
     @kernel.register.command(
         "cfg",
         doc_en="<subcommand> <key> - manage module configs",
@@ -3491,6 +3504,25 @@ def register(kernel):
                 return
         except Exception as e:
             await kernel.handle_error(e, message="Config command error", event=event)
+
+    @kernel.register.command(
+        "config",
+        doc_en="[module] [key] - Heroku-compatible module config alias",
+        doc_ru="[мoдyль] [ключ] - Heroku-coвмecтимый aлиac кoнфигa мoдyлeй",
+    )
+    async def config_handler(event):
+        parts = event.raw_text.split(maxsplit=1)
+        rest = parts[1].strip() if len(parts) > 1 else ""
+        if not rest:
+            _set_event_command_text(event, "cfg")
+        else:
+            args = rest.split()
+            head = args[0].lower() if args else ""
+            if head in {"module", "key", "-m"}:
+                _set_event_command_text(event, "cfg", rest)
+            else:
+                _set_event_command_text(event, "cfg", f"module {rest}")
+        await cfg_handler(event)
 
     @kernel.register.command(
         "fcfg",
@@ -4011,6 +4043,32 @@ def register(kernel):
 
         except Exception as e:
             await kernel.handle_error(e, message="Config command error", event=event)
+
+    @kernel.register.command(
+        "fconfig",
+        doc_en="<module> <key> <value> - Heroku-compatible flat module config alias",
+        doc_ru="<мoдyль> <ключ> <знaчeниe> - Heroku-coвмecтимый aлиac fcfg",
+    )
+    async def fconfig_handler(event):
+        parts = event.raw_text.split(maxsplit=1)
+        rest = parts[1].strip() if len(parts) > 1 else ""
+        if not rest:
+            _set_event_command_text(event, "fcfg")
+        else:
+            args = rest.split(maxsplit=3)
+            head = args[0].lower() if args else ""
+            if head in {"module", "set", "add", "del", "dict", "list", "-m"}:
+                _set_event_command_text(event, "fcfg", rest)
+            elif len(args) >= 3:
+                module_name, key, value = args[0], args[1], args[2]
+                _set_event_command_text(
+                    event,
+                    "fcfg",
+                    f"module {module_name} set {key} {value}",
+                )
+            else:
+                _set_event_command_text(event, "fcfg", rest)
+        await fcfg_handler(event)
 
     kernel.register_inline_handler("cfg", config_menu_handler)
     kernel.register_inline_handler("config_kernel", config_kernel_handler)

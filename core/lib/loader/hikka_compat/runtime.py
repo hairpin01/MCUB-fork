@@ -19,6 +19,7 @@ import sys
 import time
 import types
 import uuid
+import weakref
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -30,6 +31,18 @@ from core.lib.base.database import DatabaseManager
 from .types import get_callback_handlers, get_inline_handlers, get_watchers
 
 logger = logging.getLogger(__name__)
+_RAW_KERNELS: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+
+
+def _remember_raw_kernel(owner: Any, kernel: Any) -> None:
+    with contextlib.suppress(Exception):
+        _RAW_KERNELS[owner] = kernel
+
+
+def _get_raw_kernel(owner: Any) -> Any | None:
+    with contextlib.suppress(Exception):
+        return _RAW_KERNELS.get(owner)
+    return None
 
 
 def _make_compat_kernel_proxy():
@@ -974,6 +987,160 @@ def _normalize_source_url(url: str) -> str:
         r"\1/\2/",
         url,
     )
+
+
+def _ensure_heroku_libraries_package() -> str:
+    """Return the fake Heroku libraries package name, creating it if needed."""
+
+    pkg_name = "heroku"
+    with contextlib.suppress(Exception):
+        from .fake_package import _ensure_fake_package
+
+        pkg_name = _ensure_fake_package()
+
+    libraries_pkg_name = f"{pkg_name}.libraries"
+    libraries_pkg = sys.modules.get(libraries_pkg_name)
+    if libraries_pkg is None:
+        libraries_pkg = types.ModuleType(libraries_pkg_name)
+        libraries_pkg.__path__ = []
+        libraries_pkg.__package__ = libraries_pkg_name
+        libraries_pkg.__spec__ = importlib.util.spec_from_loader(
+            libraries_pkg_name,
+            loader=None,
+        )
+        sys.modules[libraries_pkg_name] = libraries_pkg
+
+    parent = sys.modules.get(pkg_name)
+    if parent is not None:
+        parent.libraries = libraries_pkg
+
+    return libraries_pkg_name
+
+
+def _coerce_config_dict(raw: Any) -> dict:
+    if isinstance(raw, dict):
+        return raw
+    if not raw:
+        return {}
+    if isinstance(raw, str):
+        with contextlib.suppress(json.JSONDecodeError, TypeError, ValueError):
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                return parsed
+        with contextlib.suppress(SyntaxError, ValueError):
+            parsed = ast.literal_eval(raw)
+            if isinstance(parsed, dict):
+                return parsed
+    return {}
+
+
+def _library_version(lib_obj: Any) -> tuple | None:
+    version = getattr(lib_obj, "version", None)
+    return version if isinstance(version, tuple) else None
+
+
+def _replace_library_references(
+    kernel, old_lib: Any, new_lib: Any, libraries: list
+) -> None:
+    for index, item in enumerate(list(libraries)):
+        if item is old_lib:
+            libraries[index] = new_lib
+
+    holders = [inst for _, inst in _iter_kernel_module_items(kernel)]
+    holders.extend(lib for lib in libraries if lib is not new_lib)
+    for holder in holders:
+        with contextlib.suppress(Exception):
+            attrs = vars(holder)
+        if not isinstance(attrs, dict):
+            continue
+        for attr_name, value in list(attrs.items()):
+            if value is old_lib:
+                with contextlib.suppress(Exception):
+                    setattr(holder, attr_name, new_lib)
+
+
+async def _register_library_object(
+    kernel,
+    allmodules,
+    lib_obj: Any,
+    source_url: str,
+    *,
+    require_lib_suffix: bool = True,
+) -> Any:
+    """Register a Heroku/Hikka loader.Library instance in the compat registry."""
+
+    class_name = lib_obj.__class__.__name__
+    if require_lib_suffix and not class_name.endswith("Lib"):
+        raise ImportError(
+            f"Invalid library. Classname {class_name} does not end with 'Lib'"
+        )
+
+    libraries = getattr(kernel, "_hikka_compat_libraries", None)
+    if not isinstance(libraries, list):
+        libraries = []
+        kernel._hikka_compat_libraries = libraries
+    if hasattr(allmodules, "_libraries"):
+        allmodules._libraries = libraries
+
+    lib_obj.source_url = str(source_url).strip("/")
+    lib_obj.allmodules = allmodules
+    lib_obj.internal_init()
+
+    existing = next(
+        (lib for lib in libraries if getattr(lib, "name", None) == lib_obj.name),
+        None,
+    )
+    if existing is not None:
+        old_version = _library_version(existing)
+        new_version = _library_version(lib_obj)
+        if (old_version is None and new_version is None) or (
+            old_version is not None
+            and new_version is not None
+            and old_version >= new_version
+        ):
+            return existing
+
+    init_method = getattr(lib_obj, "init", None)
+    if hasattr(lib_obj, "init"):
+        if not callable(init_method):
+            raise ValueError("Library init() must be callable")
+        try:
+            await _maybe_await(init_method())
+        except Exception as e:
+            raise RuntimeError("Library init() failed") from e
+
+    if hasattr(lib_obj, "config"):
+        from .config import LibraryConfig
+
+        if not isinstance(lib_obj.config, LibraryConfig):
+            raise RuntimeError("Library config must be a `LibraryConfig` instance")
+
+        saved = _coerce_config_dict(
+            allmodules.db.get(lib_obj.__class__.__name__, "__config__", {})
+        )
+        for option in lib_obj.config:
+            value = (
+                saved[option]
+                if option in saved
+                else os.environ.get(f"{lib_obj.__class__.__name__}.{option}")
+                or lib_obj.config.getdef(option)
+            )
+            with contextlib.suppress(Exception):
+                lib_obj.config.set_no_raise(option, value, mark=False)
+
+    if hasattr(lib_obj, "strings"):
+        lib_obj.strings = _StringsShim(lib_obj, _translator_stub)
+    lib_obj.translator = _translator_stub
+
+    if existing is not None:
+        on_update = getattr(existing, "on_lib_update", None)
+        if callable(on_update):
+            await _maybe_await(on_update(lib_obj))
+        _replace_library_references(kernel, existing, lib_obj, libraries)
+        return lib_obj
+
+    libraries.append(lib_obj)
+    return lib_obj
 
 
 def _iter_kernel_module_items(kernel):
@@ -2762,6 +2929,7 @@ class _AllModulesStub:
     def __init__(self, kernel):
         from ..kernel_proxy import ClientProxy
 
+        _remember_raw_kernel(self, kernel)
         self._kernel = CompatKernelProxy(kernel, module_name="allmodules")
         self._client_proxy = ClientProxy(kernel.client, module_name="allmodules")
         self.db = getattr(kernel, "_hikka_compat_db_facade", None)
@@ -2773,7 +2941,11 @@ class _AllModulesStub:
         if self.translator is None:
             self.translator = _CompatTranslatorFacade()
             kernel._hikka_compat_translator = self.translator
-        self._libraries = getattr(kernel, "_hikka_compat_libraries", [])
+        libraries = getattr(kernel, "_hikka_compat_libraries", None)
+        if not isinstance(libraries, list):
+            libraries = []
+            kernel._hikka_compat_libraries = libraries
+        self._libraries = libraries
         self.aliases = getattr(kernel, "aliases", {})
         self.secure_boot = bool(getattr(kernel, "secure_boot", False))
         self._patched_register = None
@@ -2808,6 +2980,16 @@ class _AllModulesStub:
             return inst
         if str(name).lower() == "loader":
             return _CompatLoaderProxy(self._kernel)
+        lowered = str(name).lower()
+        for lib in self.libraries:
+            names = {
+                str(getattr(lib, "name", "") or "").lower(),
+                lib.__class__.__name__.lower(),
+            }
+            if lib.__class__.__name__.endswith("Lib"):
+                names.add(lib.__class__.__name__[:-3].lower())
+            if lowered in names:
+                return lib
         return None
 
     def get_prefix(self, *_args, **_kwargs) -> str:
@@ -2818,7 +3000,15 @@ class _AllModulesStub:
 
     @property
     def commands(self) -> dict:
-        return getattr(self._kernel, "command_handlers", {})
+        raw_kernel = _get_raw_kernel(self) or self._kernel
+        handlers = getattr(raw_kernel, "command_handlers", {}) or {}
+        result = dict(handlers)
+        aliases = getattr(raw_kernel, "aliases", self.aliases) or {}
+        for alias, target in aliases.items():
+            target_cmd = str(target).split(maxsplit=1)[0]
+            if target_cmd in handlers and alias not in result:
+                result[str(alias)] = handlers[target_cmd]
+        return result
 
     @property
     def inline_handlers(self) -> dict:
@@ -3080,6 +3270,7 @@ class Module:
         from ..kernel_proxy import ClientProxy
 
         module_key = module_name or type(self).__name__
+        _remember_raw_kernel(self, kernel)
         self._kernel = CompatKernelProxy(kernel, module_name=module_key)
         self._module_type = module_type
 
@@ -3288,13 +3479,13 @@ class Module:
         from .loader import USER_INSTALL, VALID_PIP_PACKAGES
         from .types import StringLoader
 
-        _suspended = False
-
         async def _raise(exc: Exception):
-            nonlocal _suspended
             if suspend_on_error:
-                _suspended = True
-                return
+                from .types import SelfSuspend
+
+                raise SelfSuspend(
+                    "Required library is not available or is corrupted."
+                ) from exc
             raise exc
 
         try:
@@ -3306,12 +3497,10 @@ class Module:
                     code = await response.text()
         except Exception as e:
             await _raise(e)
-        if _suspended:
-            return None
 
+        libraries_pkg_name = _ensure_heroku_libraries_package()
         module_name = (
-            f"__hikka_mcub_library__."
-            f"{uuid.uuid5(uuid.NAMESPACE_URL, normalized_url).hex}"
+            f"{libraries_pkg_name}.{uuid.uuid5(uuid.NAMESPACE_URL, normalized_url).hex}"
         )
         origin = f"<hikka_compat library {normalized_url}>"
         spec = importlib.machinery.ModuleSpec(
@@ -3328,8 +3517,6 @@ class Module:
             if _did_requirements:
                 sys.modules.pop(module_name, None)
                 await _raise(e)
-                if _suspended:
-                    return None
 
             requirements = []
             match = VALID_PIP_PACKAGES.search(code)
@@ -3345,8 +3532,6 @@ class Module:
             if not requirements:
                 sys.modules.pop(module_name, None)
                 await _raise(e)
-                if _suspended:
-                    return None
 
             proc = await asyncio.create_subprocess_exec(
                 sys.executable,
@@ -3367,8 +3552,6 @@ class Module:
             importlib.invalidate_caches()
             if rc != 0:
                 await _raise(e)
-                if _suspended:
-                    return None
             return await self.import_lib(
                 normalized_url,
                 suspend_on_error=suspend_on_error,
@@ -3377,8 +3560,6 @@ class Module:
         except Exception as e:
             sys.modules.pop(module_name, None)
             await _raise(e)
-            if _suspended:
-                return None
 
         lib_obj = next(
             (
@@ -3394,41 +3575,22 @@ class Module:
         if lib_obj is None:
             sys.modules.pop(module_name, None)
             await _raise(ImportError("Invalid library. No Library subclass found"))
-            if _suspended:
-                return None
 
-        libraries = getattr(self._kernel, "_hikka_compat_libraries", None)
-        if not isinstance(libraries, list):
-            libraries = []
-            self._kernel._hikka_compat_libraries = libraries
-
-        existing = next(
-            (
-                lib
-                for lib in libraries
-                if getattr(lib, "name", None) == lib_obj.__class__.__name__
-            ),
-            None,
-        )
-        if existing is not None:
-            return existing
-
-        lib_obj.source_url = normalized_url.strip("/")
-        lib_obj.allmodules = self.allmodules
-        lib_obj.internal_init()
-
-        init_method = getattr(lib_obj, "init", None)
-        if callable(init_method):
-            try:
-                await _maybe_await(init_method())
-            except Exception as e:
-                sys.modules.pop(module_name, None)
-                await _raise(e)
-                if _suspended:
-                    return None
-
-        libraries.append(lib_obj)
-        return lib_obj
+        try:
+            raw_kernel = _get_raw_kernel(self) or _get_raw_kernel(
+                getattr(self, "allmodules", None)
+            )
+            if raw_kernel is None:
+                raise RuntimeError("Raw kernel binding is not available")
+            return await _register_library_object(
+                raw_kernel,
+                self.allmodules,
+                lib_obj,
+                normalized_url,
+            )
+        except Exception as e:
+            sys.modules.pop(module_name, None)
+            await _raise(e)
 
 
 class _Utils:

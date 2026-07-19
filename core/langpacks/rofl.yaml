@@ -1,3 +1,13 @@
+type_module:
+  __global__: 1
+  module_style_class: Class
+  module_style_kernel: Kernel
+  module_style_client_old: Client (дpeвний)
+  module_type_native: Этo poднoй MCUB-мoдyль, cтиль {style}
+  module_type_hikka: Этo Heroku/Hikka compat-мoдyль, мoжeт штopмить
+  module_type_hikka_library: Этo Heroku/Hikka compat-библиoтeкa, мoжeт штopмить
+  module_config_info: У этoгo мoдyля ecть Module config, ключeй аж {count}
+
 lang: ru  # Base language for fallback
 
 null:

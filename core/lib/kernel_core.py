@@ -223,7 +223,7 @@ class KernelCoreMixin:
         # Script engine (beta) - lazy import on first use
         self.script_engine = None
 
-        # Module source tracking: {module_name: {"url": str, "repo": str or None}}
+        # Module source tracking: {module_name: {"url": full_file_url}}
         self._module_sources = {}
 
     def _init_runtime(self) -> None:
@@ -866,13 +866,13 @@ class KernelCoreMixin:
             file_path, module_name, is_system, is_reload=is_reload
         )
 
-        # Track source if provided
-        if result[0] and (source_url or source_repo):
-            self._module_sources[module_name] = {
-                "url": source_url,
-                "repo": source_repo,
-                "original_name": module_name,
-            }
+        full_source_url = source_url or (
+            f"{source_repo.rstrip('/')}/{module_name}.py" if source_repo else None
+        )
+
+        # Track source if provided: one canonical full file URL.
+        if result[0] and full_source_url:
+            self._module_sources[module_name] = {"url": full_source_url}
             await self.save_module_sources()
 
         return result

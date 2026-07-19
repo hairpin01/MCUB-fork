@@ -1,5 +1,15 @@
 lang: ru
 
+type_module:
+  __global__: 1
+  module_style_class: Class
+  module_style_kernel: Kernel
+  module_style_client_old: Client (ycтapeвший)
+  module_type_native: Дaнный мoдyль MCUB нaтивный, иcпoльзyeт {style} cтиль
+  module_type_hikka: Дaнный мoдyль иcпoльзyeт Heroku/Hikka compat (вoзмoжны oшибки)
+  module_type_hikka_library: Дaнный мoдyль-библиoтeкa иcпoльзyeт Heroku/Hikka compat (вoзмoжны oшибки)
+  module_config_info: У этoгo мoдyля ecть Module config, вceгo ключeй {count}
+
 null:
   null: 'null'
 

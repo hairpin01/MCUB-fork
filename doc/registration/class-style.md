@@ -133,8 +133,6 @@ Returns `(success: bool, message: InlineMessage)`. The `InlineMessage` object ha
 
 | Method | Description |
 |--------|-------------|
-| `await msg.edit(text, buttons=None, *, parse_mode="html")` | Edit the message text/buttons |
-| `await msg.answer(text="", alert=False)` | Answer callback (toast/alert popup) |
 | `await msg.delete()` | Delete the message |
 | `msg.data` | Callback data (`bytes`) |
 | `msg.inline_message_id` | Inline message ID (str) |
@@ -145,7 +143,7 @@ Returns `(success: bool, message: InlineMessage)`. The `InlineMessage` object ha
 ```python
 ok, msg = await self.inline(event.chat_id, "User Info")
 if ok:
-    await msg.edit("Updated!", buttons=...)
+    await event.edit("Updated!", buttons=...)
 ```
 
 `self.inline_temp(func, ttl=300, article=None, data=None) -> str` - Register a temporary inline command handler. Returns an 8-character `form_id`.

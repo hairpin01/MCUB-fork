@@ -1,3 +1,13 @@
+type_module:
+  __global__: 1
+  module_style_class: Class
+  module_style_kernel: Kernel
+  module_style_client_old: Client (legacy)
+  module_type_native: "native MCUB package: {style} style"
+  module_type_hikka: "Heroku/Hikka compat package: may fail"
+  module_type_hikka_library: "Heroku/Hikka compat library package: may fail"
+  module_config_info: "Module config present: {count} key(s)"
+
 lang: en
 
 null:

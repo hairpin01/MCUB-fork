@@ -1,6 +1,16 @@
 lang: en
 
 
+type_module:
+  __global__: 1
+  module_style_class: Class
+  module_style_kernel: Kernel
+  module_style_client_old: Client (legacy)
+  module_type_native: This is a native MCUB module using {style} style
+  module_type_hikka: This module uses Heroku/Hikka compat (errors are possible)
+  module_type_hikka_library: This library module uses Heroku/Hikka compat (errors are possible)
+  module_config_info: This module has Module config, total keys {count}
+
 null:
   null: 'null'
 

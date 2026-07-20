@@ -490,18 +490,23 @@ class ModuleLoaderMixin:
         if not cmd_name:
             return None
 
-        doc_ru: str | None = None
-        doc_en: str | None = None
         doc_map: dict[str, str] = {}
         for kw in decorator.keywords:
-            if kw.arg == "doc_ru":
-                doc_ru = self._literal_str(kw.value)
-            elif kw.arg == "doc_en":
-                doc_en = self._literal_str(kw.value)
-            elif kw.arg == "doc":
+            if kw.arg == "doc":
                 doc_map = self._literal_dict_str_str(kw.value)
+                continue
 
-        doc_value = doc_ru or doc_en or doc_map.get("ru") or doc_map.get("en")
+            if not isinstance(kw.arg, str) or not kw.arg.startswith("doc_"):
+                continue
+
+            locale = kw.arg[4:].strip().lower()
+            doc_value = self._literal_str(kw.value)
+            if locale and doc_value:
+                doc_map[locale] = doc_value
+
+        doc_value = doc_map.get("ru") or doc_map.get("en")
+        if not doc_value and doc_map:
+            doc_value = next(iter(doc_map.values()))
         if not doc_value:
             return None
 
@@ -554,6 +559,15 @@ class ModuleLoaderMixin:
                 or doc.get("ru")
                 or doc.get("en")
             )
+            if not picked:
+                picked = next(
+                    (
+                        value
+                        for value in doc.values()
+                        if isinstance(value, str) and value.strip()
+                    ),
+                    None,
+                )
             if isinstance(picked, str) and picked.strip():
                 descriptions[cmd] = picked.strip()
 

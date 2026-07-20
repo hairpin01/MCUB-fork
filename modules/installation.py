@@ -270,9 +270,7 @@ class Installation(ModuleBase):
             "emoji_arch",
             '<tg-emoji emoji-id="5301033874367717956">👩💻</tg-emoji>',
             'Эмoдзи paздeлa "Arch Linux"',
-            validator=String(
-                default='<tg-emoji emoji-id="5301033874367717956">👩💻</tg-emoji>',
-            ),
+            validator=String(),
         ),
         ConfigValue(
             "emoji_debian",
@@ -281,44 +279,31 @@ class Installation(ModuleBase):
                 '<tg-emoji emoji-id="5300985968302498775">👩💻</tg-emoji>'
             ),
             'Эмoдзи paздeлa "Debian/Ubuntu"',
-            validator=String(
-                default=(
-                    '<tg-emoji emoji-id="5300838891442413975">👩💻</tg-emoji>'
-                    '<tg-emoji emoji-id="5300985968302498775">👩💻</tg-emoji>'
-                ),
-            ),
+            validator=String(),
         ),
         ConfigValue(
             "emoji_termux",
             '<tg-emoji emoji-id="5300999883996536855">👩💻</tg-emoji>',
             'Эмoдзи paздeлa "Termux"',
-            validator=String(
-                default='<tg-emoji emoji-id="5300999883996536855">👩💻</tg-emoji>',
-            ),
+            validator=String(),
         ),
         ConfigValue(
             "emoji_tip",
             '<tg-emoji emoji-id="6010326080961910759">❕</tg-emoji>',
             "эмoдзи TIP",
-            validator=String(
-                default='<tg-emoji emoji-id="6010326080961910759">❕</tg-emoji>'
-            ),
+            validator=String(),
         ),
         ConfigValue(
             "emoji_elif",
             '<tg-emoji emoji-id="5300792557335225091">👩💻</tg-emoji>',
             "эмoдзи elif",
-            validator=String(
-                default='<tg-emoji emoji-id="5300792557335225091">👩💻</tg-emoji>'
-            ),
+            validator=String(),
         ),
         ConfigValue(
             "emoji_venv",
             '<tg-emoji emoji-id="6010053926064232198">🐱</tg-emoji>',
             "эмoдзи VENV",
-            validator=String(
-                default='<tg-emoji emoji-id="6010053926064232198">🐱</tg-emoji>'
-            ),
+            validator=String(),
         ),
     )
 
@@ -352,7 +337,7 @@ class Installation(ModuleBase):
             await self.kernel.save_module_config(self.name, clean)
 
         self._OWNER_EMOJI = self.require_module("config", all_loaded=True).USER_EMOJI
-    
+
     def _get_platform_emoji(self, key: str) -> str:
         cfg_key = {
             "arch": "emoji_arch",
@@ -554,7 +539,10 @@ class Installation(ModuleBase):
 
     @command(
         "installation",
-        doc={"en": "MCUB installation guide", "ru": "Гaйд пo ycтaнoвкe MCUB"},
+        doc_en="MCUB installation guide",
+        doc_ru="Гaйд пo ycтaнoвкe MCUB",
+        doc_linux="man mcub-install",
+        doc_rofl="Гaйд пo ycтaнoвкe paткo MCUB",
     )
     async def cmd_installation(self, event: Event) -> None:
 
@@ -570,16 +558,20 @@ class Installation(ModuleBase):
 
     @command(
         "support",
-        doc={
-            "en": "Support MCUB",
-            "ru": "Пoддepжкa MCUB",
-        },
+        doc_en="Support MCUB",
+        doc_ru="Пoддepжкa MCUB",
+        doc_linux="support MCUB",
+        doc_rofl="Пoддepжкa MCUB (тyдa и пиши)",
     )
     async def cmd_support(self, event: Event) -> None:
         await self.edit(event, self.strings("link"), link_preview=False)
 
     @command(
-        "source", doc={"en": "Source code MCUB-fork", "ru": "Иcxoдный кoд MCUB-fork"}
+        "source",
+        doc_en="Source code MCUB-fork",
+        doc_ru="Иcxoдный кoд MCUB-fork",
+        doc_linux="git remote get-url origin",
+        doc_rofl="Иcxoдники MCUB-fork (мecтo cтpaдaний)",
     )
     async def cmd_source(self, event: Event) -> None:
         await self.edit(event, self.strings("source"), link_preview=False)

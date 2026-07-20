@@ -36,6 +36,61 @@ def is_module_config_like(obj) -> bool:
     return False
 
 
+def is_config_ui_only_like(obj) -> bool:
+    """Check if object is a UI-only ModuleConfig item."""
+    return bool(getattr(obj, "ui_only", False))
+
+
+def get_config_ui_type(obj) -> str:
+    """Return the UI-only ModuleConfig item type."""
+    return str(getattr(obj, "ui_type", "") or "")
+
+
+def is_config_buttons_like(obj) -> bool:
+    """Check if object is a UI-only ModuleConfig buttons item."""
+    return is_config_ui_only_like(obj) and get_config_ui_type(obj) == "buttons"
+
+
+def is_config_row_like(obj) -> bool:
+    """Check if object is a UI-only ModuleConfig row break marker."""
+    return is_config_ui_only_like(obj) and get_config_ui_type(obj) == "row"
+
+
+def is_config_answer_like(obj) -> bool:
+    """Check if object is a UI-only ModuleConfig answer item."""
+    return is_config_ui_only_like(obj) and get_config_ui_type(obj) == "answer"
+
+
+def is_config_group_like(obj) -> bool:
+    """Check if object is a UI-only ModuleConfig group submenu."""
+    return is_config_ui_only_like(obj) and get_config_ui_type(obj) == "group"
+
+
+def is_config_divider_like(obj) -> bool:
+    """Check if object is a UI-only ModuleConfig divider."""
+    return is_config_ui_only_like(obj) and get_config_ui_type(obj) == "divider"
+
+
+def is_config_url_like(obj) -> bool:
+    """Check if object is a UI-only ModuleConfig URL button."""
+    return is_config_ui_only_like(obj) and get_config_ui_type(obj) == "url"
+
+
+def is_config_callback_like(obj) -> bool:
+    """Check if object is a UI-only ModuleConfig callback button."""
+    return is_config_ui_only_like(obj) and get_config_ui_type(obj) == "callback"
+
+
+def is_config_status_like(obj) -> bool:
+    """Check if object is a UI-only ModuleConfig status view."""
+    return is_config_ui_only_like(obj) and get_config_ui_type(obj) == "status"
+
+
+def is_config_notice_like(obj) -> bool:
+    """Check if object is a UI-only ModuleConfig notice popup."""
+    return is_config_ui_only_like(obj) and get_config_ui_type(obj) == "notice"
+
+
 def update_live_config_schema(kernel, module_name, key=None, value=None):
     """Update live ModuleConfig schema after config change."""
     try:
@@ -328,14 +383,48 @@ def register(kernel):
 
         return None
 
+    def get_live_module_owner(module_name):
+        """Return live module instance/object for dynamic UI config callbacks."""
+        live_mod = kernel.loaded_modules.get(module_name) or kernel.system_modules.get(
+            module_name
+        )
+        if live_mod is None:
+            return None
+        return getattr(live_mod, "_class_instance", None) or live_mod
+
+    def is_config_item_visible(module_name, key, value):
+        """Return whether a config/UI item should be rendered in the UI."""
+        item = value
+        if not is_config_ui_only_like(value):
+            live_cfg = get_live_module_config(module_name)
+            item = getattr(live_cfg, "_values", {}).get(key) if live_cfg else None
+        if item is None or not hasattr(item, "is_visible"):
+            return True
+        try:
+            return bool(item.is_visible(get_live_module_owner(module_name)))
+        except Exception as e:
+            kernel.logger.debug(f"Config UI visibility callback failed: {e}")
+            return False
+
+    def filter_visible_config_items(module_name, items):
+        return [
+            (key, value)
+            for key, value in items
+            if is_config_item_visible(module_name, key, value)
+        ]
+
     def get_module_config_items(module_name, stored_config):
         """Return config keys to display, preferring the live schema over stale DB data."""
         live_cfg = get_live_module_config(module_name)
         if is_module_config_like(live_cfg):
-            return list(live_cfg.items())
+            if hasattr(live_cfg, "ui_items"):
+                return filter_visible_config_items(
+                    module_name, list(live_cfg.ui_items())
+                )
+            return filter_visible_config_items(module_name, list(live_cfg.items()))
 
         if is_module_config_like(stored_config):
-            return list(stored_config.items())
+            return filter_visible_config_items(module_name, list(stored_config.items()))
         if isinstance(stored_config, dict) and stored_config.get("__mcub_config__"):
             return [(k, v) for k, v in stored_config.items() if k != "__mcub_config__"]
         if isinstance(stored_config, dict):
@@ -343,9 +432,80 @@ def register(kernel):
 
         return []
 
+    def count_module_config_items(items):
+        """Count visible config items, excluding layout-only row markers."""
+        return sum(1 for _key, value in items if not is_config_row_like(value))
+
+    def get_config_item_button_text(module_name, key, value):
+        """Return button text for config values and UI-only items."""
+        if is_config_ui_only_like(value):
+            owner = get_live_module_owner(module_name)
+            if hasattr(value, "get_button_text"):
+                try:
+                    return value.get_button_text(owner)
+                except Exception as e:
+                    kernel.logger.debug(f"Config UI button text callback failed: {e}")
+            if hasattr(value, "button_text"):
+                return value.button_text
+        return key
+
+    def get_config_item_url(module_name, value):
+        owner = get_live_module_owner(module_name)
+        if hasattr(value, "get_url"):
+            try:
+                return value.get_url(owner)
+            except Exception as e:
+                kernel.logger.debug(f"Config UI URL callback failed: {e}")
+                return ""
+        return getattr(value, "url", "") or ""
+
+    async def get_writable_module_config(module_name, key=None):
+        """Return live ModuleConfig for known schema keys, otherwise persisted config."""
+        live_cfg = get_live_module_config(module_name)
+        if is_module_config_like(live_cfg):
+            try:
+                if key is None or key in live_cfg.keys():
+                    return live_cfg
+            except Exception:
+                pass
+        return await kernel.get_module_config(module_name, {})
+
     SENSITIVE_KEYS = ["inline_bot_token", "api_id", "api_hash", "phone"]
 
     msg_manager = InlineMessageManager(kernel)
+    NO_EDIT = object()
+
+    def module_key_cache_value(module_name, key, page, parent_group_key=None):
+        """Pack module config key cache with optional parent group context."""
+        if parent_group_key:
+            return (module_name, key, page, parent_group_key)
+        return (module_name, key, page)
+
+    def unpack_module_key_cache(cached):
+        """Unpack module config key cache, keeping compatibility with 3-tuples."""
+        module_name, key, page = cached[:3]
+        parent_group_key = cached[3] if len(cached) > 3 else None
+        return module_name, key, page, parent_group_key
+
+    def cache_module_key_view(
+        key_id, module_name, key, page, parent_group_key=None, event=None
+    ):
+        kernel.cache.set(
+            f"module_cfg_view_{key_id}",
+            module_key_cache_value(module_name, key, page, parent_group_key),
+            ttl=86400,
+        )
+        if event is not None:
+            msg_manager.save_event(key_id, event)
+
+    def find_parent_group_key(module_name, child_key):
+        """Return direct parent group key for a grouped UI item, if any."""
+        live_cfg = get_live_module_config(module_name)
+        group_items = getattr(live_cfg, "_group_items", {}) if live_cfg else {}
+        for group_key, child_keys in group_items.items():
+            if child_key in child_keys:
+                return group_key
+        return None
 
     class CustomJSONEncoder(json.JSONEncoder):
         def encode(self, o):
@@ -631,12 +791,43 @@ def register(kernel):
     def create_module_config_buttons(module_name, page_keys, page, total_pages):
         buttons = []
         row = []
-        for _i, (key, _value) in enumerate(page_keys):
-            display_key = truncate_key(key)
-            key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
-            kernel.cache.set(
-                f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400
+        for _i, (key, value) in enumerate(page_keys):
+            if not is_config_item_visible(module_name, key, value):
+                continue
+            if is_config_row_like(value):
+                if row:
+                    buttons.append(row)
+                    row = []
+                continue
+
+            display_key = truncate_key(
+                get_config_item_button_text(module_name, key, value)
             )
+            if is_config_divider_like(value):
+                if row:
+                    buttons.append(row)
+                    row = []
+                key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
+                cache_module_key_view(key_id, module_name, key, page)
+                buttons.append(
+                    [
+                        Button.inline(
+                            display_key, data=f"module_cfg_view_{key_id}".encode()
+                        )
+                    ]
+                )
+                continue
+            if is_config_url_like(value):
+                url = get_config_item_url(module_name, value)
+                if not url:
+                    continue
+                row.append(Button.url(display_key, url))
+                if len(row) == 4:
+                    buttons.append(row)
+                    row = []
+                continue
+            key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
+            cache_module_key_view(key_id, module_name, key, page)
             row.append(
                 Button.inline(display_key, data=f"module_cfg_view_{key_id}".encode())
             )
@@ -673,6 +864,241 @@ def register(kernel):
         buttons.append([Button.inline("❌ Close", data=b"cfg_close", style="danger")])
 
         return buttons
+
+    def create_group_config_buttons(
+        module_name, group_key, group_items, page, parent_group_key=None
+    ):
+        buttons = []
+        row = []
+        for _i, (key, value) in enumerate(group_items):
+            if not is_config_item_visible(module_name, key, value):
+                continue
+            if is_config_row_like(value):
+                if row:
+                    buttons.append(row)
+                    row = []
+                continue
+
+            display_key = truncate_key(
+                get_config_item_button_text(module_name, key, value)
+            )
+            if is_config_divider_like(value):
+                if row:
+                    buttons.append(row)
+                    row = []
+                key_id = generate_key_id(
+                    f"{module_name}__{group_key}__{key}", page, "module_cfg"
+                )
+                cache_module_key_view(key_id, module_name, key, page, group_key)
+                buttons.append(
+                    [
+                        Button.inline(
+                            display_key, data=f"module_cfg_view_{key_id}".encode()
+                        )
+                    ]
+                )
+                continue
+            if is_config_url_like(value):
+                url = get_config_item_url(module_name, value)
+                if not url:
+                    continue
+                row.append(Button.url(display_key, url))
+                if len(row) == 4:
+                    buttons.append(row)
+                    row = []
+                continue
+            key_id = generate_key_id(
+                f"{module_name}__{group_key}__{key}", page, "module_cfg"
+            )
+            cache_module_key_view(key_id, module_name, key, page, group_key)
+            row.append(
+                Button.inline(display_key, data=f"module_cfg_view_{key_id}".encode())
+            )
+            if len(row) == 4:
+                buttons.append(row)
+                row = []
+        if row:
+            buttons.append(row)
+
+        if parent_group_key:
+            back_nav_id = generate_key_id(
+                f"{module_name}__{parent_group_key}", page, "module_cfg"
+            )
+            grandparent_group_key = find_parent_group_key(module_name, parent_group_key)
+            cache_module_key_view(
+                back_nav_id,
+                module_name,
+                parent_group_key,
+                page,
+                grandparent_group_key,
+            )
+            back_data = f"module_cfg_view_{back_nav_id}".encode()
+        else:
+            back_nav_id = generate_key_id(module_name, page, "module_nav")
+            kernel.cache.set(
+                f"module_nav_{back_nav_id}", (module_name, page), ttl=86400
+            )
+            back_data = f"module_cfg_page_nav_{back_nav_id}".encode()
+        buttons.append(
+            [
+                Button.inline(
+                    t("btn_back_simple"),
+                    data=back_data,
+                )
+            ]
+        )
+        buttons.append([Button.inline("❌ Close", data=b"cfg_close", style="danger")])
+        return buttons
+
+    def normalize_custom_buttons(raw_buttons):
+        if not isinstance(raw_buttons, list) or not raw_buttons:
+            return []
+        if all(isinstance(row, (list, tuple)) for row in raw_buttons):
+            return [list(row) for row in raw_buttons]
+        return [list(raw_buttons)]
+
+    async def build_config_buttons_payload(
+        module_name, item, page, event=None, parent_group_key=None
+    ):
+        owner = get_live_module_owner(module_name)
+        if event is not None and hasattr(item, "trigger_on_click"):
+            await item.trigger_on_click(owner, event)
+
+        title = item.title or item.button_text
+        text = f"{emoji_provider['🧩']} <b>{html.escape(str(title))}</b>"
+        description = item.description
+        if description:
+            text += (
+                "\n\n"
+                f"{emoji_provider['📖']} "
+                f"<blockquote expandable><i>{html.escape(str(description))}</i></blockquote>"
+            )
+
+        buttons = normalize_custom_buttons(item.get_buttons(owner))
+        if parent_group_key:
+            back_nav_id = generate_key_id(
+                f"{module_name}__{parent_group_key}", page, "module_cfg"
+            )
+            grandparent_group_key = find_parent_group_key(module_name, parent_group_key)
+            cache_module_key_view(
+                back_nav_id,
+                module_name,
+                parent_group_key,
+                page,
+                grandparent_group_key,
+            )
+            back_data = f"module_cfg_view_{back_nav_id}".encode()
+        else:
+            back_nav_id = generate_key_id(module_name, page, "module_nav")
+            kernel.cache.set(
+                f"module_nav_{back_nav_id}", (module_name, page), ttl=86400
+            )
+            back_data = f"module_cfg_page_nav_{back_nav_id}".encode()
+        buttons.append(
+            [
+                Button.inline(
+                    t("btn_back_simple"),
+                    data=back_data,
+                )
+            ]
+        )
+        buttons.append([Button.inline("❌ Close", data=b"cfg_close", style="danger")])
+        return text, buttons
+
+    def build_config_answer_payload(item):
+        text = (
+            f"{emoji_provider['📖']} <b>{html.escape(str(item.button_text))}</b>"
+            f"\n\n<blockquote>{html.escape(str(item.text))}</blockquote>"
+        )
+        return text, [[Button.inline("❌ Close", data=b"cfg_close", style="danger")]]
+
+    def create_module_back_buttons(module_name, page, parent_group_key=None):
+        if parent_group_key:
+            back_nav_id = generate_key_id(
+                f"{module_name}__{parent_group_key}", page, "module_cfg"
+            )
+            grandparent_group_key = find_parent_group_key(module_name, parent_group_key)
+            cache_module_key_view(
+                back_nav_id,
+                module_name,
+                parent_group_key,
+                page,
+                grandparent_group_key,
+            )
+            back_data = f"module_cfg_view_{back_nav_id}".encode()
+        else:
+            back_nav_id = generate_key_id(module_name, page, "module_nav")
+            kernel.cache.set(
+                f"module_nav_{back_nav_id}", (module_name, page), ttl=86400
+            )
+            back_data = f"module_cfg_page_nav_{back_nav_id}".encode()
+
+        return [
+            [Button.inline(t("btn_back_simple"), data=back_data)],
+            [Button.inline("❌ Close", data=b"cfg_close", style="danger")],
+        ]
+
+    def build_config_status_payload(module_name, item, page, parent_group_key=None):
+        owner = get_live_module_owner(module_name)
+        title = (
+            item.get_button_text(owner) if hasattr(item, "get_button_text") else item
+        )
+        value = item.get_value(owner) if hasattr(item, "get_value") else ""
+        if isinstance(value, (dict, list)):
+            value_text = json.dumps(value, ensure_ascii=False, indent=2)
+        else:
+            value_text = str(value if value is not None else "")
+        text = (
+            f"{emoji_provider['📝']} <b>{html.escape(str(title))}</b>"
+            f"\n\n<blockquote expandable>{html.escape(value_text)}</blockquote>"
+        )
+        return text, create_module_back_buttons(module_name, page, parent_group_key)
+
+    def build_config_notice_payload(module_name, item):
+        owner = get_live_module_owner(module_name)
+        notice_text = item.get_text(owner) if hasattr(item, "get_text") else item.text
+        text = (
+            f"{emoji_provider['📖']} <b>{html.escape(str(item.button_text))}</b>"
+            f"\n\n<blockquote>{html.escape(str(notice_text))}</blockquote>"
+        )
+        return text, [[Button.inline("❌ Close", data=b"cfg_close", style="danger")]]
+
+    async def build_config_group_payload(
+        module_name, group_key, item, page, parent_group_key=None, event=None
+    ):
+        owner = get_live_module_owner(module_name)
+        if event is not None and hasattr(item, "trigger_on_click"):
+            await item.trigger_on_click(owner, event)
+
+        title = item.get_title(owner) if hasattr(item, "get_title") else item.title
+        title = title or (
+            item.get_button_text(owner)
+            if hasattr(item, "get_button_text")
+            else item.button_text
+        )
+        text = f"{emoji_provider['🧩']} <b>{html.escape(str(title))}</b>"
+        description = (
+            item.get_description(owner)
+            if hasattr(item, "get_description")
+            else item.description
+        )
+        if description:
+            text += (
+                "\n\n"
+                f"{emoji_provider['📖']} "
+                f"<blockquote expandable><i>{html.escape(str(description))}</i></blockquote>"
+            )
+
+        live_cfg = get_live_module_config(module_name)
+        group_items = (
+            live_cfg.group_items(group_key)
+            if is_module_config_like(live_cfg) and hasattr(live_cfg, "group_items")
+            else []
+        )
+        buttons = create_group_config_buttons(
+            module_name, group_key, group_items, page, parent_group_key
+        )
+        return text, buttons
 
     async def config_menu_handler(event):
         await ensure_config_initialized()
@@ -866,24 +1292,14 @@ def register(kernel):
                 await event.answer([builder])
                 return
 
-            if is_module_config_like(module_config):
-                items = list(module_config.items())
-            elif isinstance(module_config, dict) and module_config.get(
-                "__mcub_config__"
-            ):
-                items = [
-                    (k, v) for k, v in module_config.items() if k != "__mcub_config__"
-                ]
-            elif isinstance(module_config, dict):
-                items = list(module_config.items())
-            else:
-                items = []
+            items = get_module_config_items(module_name, module_config)
 
-            total_items = len(items)
+            layout_items = len(items)
+            total_items = count_module_config_items(items)
             total_pages = (
-                (total_items + config_settings.items_per_page - 1)
+                (layout_items + config_settings.items_per_page - 1)
                 // config_settings.items_per_page
-                if total_items > 0
+                if layout_items > 0
                 else 1
             )
             page_keys = items[: config_settings.items_per_page]
@@ -1094,23 +1510,14 @@ def register(kernel):
                 await event.answer(t("no_config"), alert=True)
                 return
 
-            if is_module_config_like(module_config):
-                items = list(module_config.items())
-            elif isinstance(module_config, dict) and module_config.get(
-                "__mcub_config__"
-            ):
-                items = [
-                    (k, v) for k, v in module_config.items() if k != "__mcub_config__"
-                ]
-            else:
-                # Old format - plain dict
-                items = list(module_config.items())
+            items = get_module_config_items(module_name, module_config)
 
-            total_items = len(items)
+            layout_items = len(items)
+            total_items = count_module_config_items(items)
             total_pages = (
-                (total_items + config_settings.items_per_page - 1)
+                (layout_items + config_settings.items_per_page - 1)
                 // config_settings.items_per_page
-                if total_items > 0
+                if layout_items > 0
                 else 1
             )
 
@@ -1141,14 +1548,115 @@ def register(kernel):
         except Exception as e:
             await event.answer(t("error", error=str(e)[:50]), alert=True)
 
-    async def _build_module_key_view_payload(module_name, key, page):
+    async def _build_module_key_view_payload(
+        module_name, key, page, event=None, parent_group_key=None
+    ):
+        live_cfg = get_live_module_config(module_name)
+        if is_module_config_like(live_cfg) and hasattr(live_cfg, "get_ui_item"):
+            ui_item = live_cfg.get_ui_item(key)
+            if is_config_divider_like(ui_item):
+                if event is not None:
+                    await event.answer(ui_item.button_text, alert=False)
+                return NO_EDIT
+            if is_config_url_like(ui_item):
+                if event is not None:
+                    await event.answer("URL", alert=False)
+                return NO_EDIT
+            if is_config_callback_like(ui_item):
+                if event is not None:
+                    await ui_item.trigger_on_click(
+                        get_live_module_owner(module_name), event
+                    )
+                return NO_EDIT
+            if is_config_status_like(ui_item):
+                return build_config_status_payload(
+                    module_name, ui_item, page, parent_group_key
+                )
+            if is_config_notice_like(ui_item):
+                owner = get_live_module_owner(module_name)
+                if event is not None:
+                    await event.answer(ui_item.get_text(owner), alert=ui_item.alert)
+                    return NO_EDIT
+                return build_config_notice_payload(module_name, ui_item)
+            if is_config_answer_like(ui_item):
+                if event is not None:
+                    await event.answer(ui_item.text, alert=ui_item.alert)
+                    return NO_EDIT
+                return build_config_answer_payload(ui_item)
+            if is_config_group_like(ui_item):
+                return await build_config_group_payload(
+                    module_name, key, ui_item, page, parent_group_key, event=event
+                )
+            if is_config_buttons_like(ui_item):
+                return await build_config_buttons_payload(
+                    module_name,
+                    ui_item,
+                    page,
+                    event=event,
+                    parent_group_key=parent_group_key,
+                )
+
         module_config = await kernel.get_module_config(module_name, {})
+        if (
+            is_module_config_like(live_cfg)
+            and hasattr(live_cfg, "keys")
+            and key in live_cfg.keys()
+        ):
+            module_config = live_cfg
+
         is_module_config = is_module_config_like(module_config)
         is_dict_config = isinstance(module_config, dict) and module_config.get(
             "__mcub_config__"
         )
 
         if is_module_config:
+            ui_item = (
+                module_config.get_ui_item(key)
+                if hasattr(module_config, "get_ui_item")
+                else None
+            )
+            if is_config_divider_like(ui_item):
+                if event is not None:
+                    await event.answer(ui_item.button_text, alert=False)
+                return NO_EDIT
+            if is_config_url_like(ui_item):
+                if event is not None:
+                    await event.answer("URL", alert=False)
+                return NO_EDIT
+            if is_config_callback_like(ui_item):
+                if event is not None:
+                    await ui_item.trigger_on_click(
+                        get_live_module_owner(module_name), event
+                    )
+                return NO_EDIT
+            if is_config_status_like(ui_item):
+                return build_config_status_payload(
+                    module_name, ui_item, page, parent_group_key
+                )
+            if is_config_notice_like(ui_item):
+                owner = get_live_module_owner(module_name)
+                if event is not None:
+                    await event.answer(ui_item.get_text(owner), alert=ui_item.alert)
+                    return NO_EDIT
+                return build_config_notice_payload(module_name, ui_item)
+            if is_config_answer_like(ui_item):
+                if event is not None:
+                    await event.answer(ui_item.text, alert=ui_item.alert)
+                    return NO_EDIT
+                return build_config_answer_payload(ui_item)
+            if is_config_group_like(ui_item):
+                return await build_config_group_payload(
+                    module_name, key, ui_item, page, parent_group_key, event=event
+                )
+            if is_config_buttons_like(ui_item):
+                return await build_config_buttons_payload(
+                    module_name,
+                    ui_item,
+                    page,
+                    event=event,
+                    parent_group_key=parent_group_key,
+                )
+
             if key not in module_config.keys():
                 return None
             value = module_config[key]
@@ -1177,13 +1685,6 @@ def register(kernel):
         if config_value is None:
             is_module_config = is_module_config_like(module_config)
             try:
-                live_cfg = getattr(kernel, "_live_module_configs", {}).get(module_name)
-                if live_cfg is None:
-                    live_mod = kernel.loaded_modules.get(
-                        module_name
-                    ) or kernel.system_modules.get(module_name)
-                    if live_mod is not None:
-                        live_cfg = getattr(live_mod, "config", None)
                 if is_module_config_like(live_cfg):
                     config_value = live_cfg._values.get(key)
                     if config_value is not None:
@@ -1310,7 +1811,9 @@ def register(kernel):
             toggle_style = "danger" if value else "success"
             bool_id = generate_key_id(f"{module_name}__{key}", page, "bool")
             kernel.cache.set(
-                f"module_bool_{bool_id}", (module_name, key, page), ttl=86400
+                f"module_bool_{bool_id}",
+                module_key_cache_value(module_name, key, page, parent_group_key),
+                ttl=86400,
             )
             buttons.append(
                 [
@@ -1326,8 +1829,8 @@ def register(kernel):
             if not is_hidden and not is_secret and not choices and value_type != "dict":
                 # Create key_id for inline editing
                 key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
-                kernel.cache.set(
-                    f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400
+                cache_module_key_view(
+                    key_id, module_name, key, page, parent_group_key, event=event
                 )
 
                 buttons.append(
@@ -1347,7 +1850,7 @@ def register(kernel):
             cache_key = f"module_choice_{choice_id}"
             kernel.cache.set(
                 cache_key,
-                (module_name, key, page, list(choices)),
+                (module_name, key, page, list(choices), parent_group_key),
                 ttl=86400,
             )
             choice_buttons = []
@@ -1372,8 +1875,8 @@ def register(kernel):
         # List/Dict operation buttons
         if value_type == "list" and not is_hidden and not is_secret:
             key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
-            kernel.cache.set(
-                f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400
+            cache_module_key_view(
+                key_id, module_name, key, page, parent_group_key, event=event
             )
 
             buttons.append(
@@ -1408,8 +1911,8 @@ def register(kernel):
             )
         elif value_type == "dict" and not is_hidden and not is_secret:
             key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
-            kernel.cache.set(
-                f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400
+            cache_module_key_view(
+                key_id, module_name, key, page, parent_group_key, event=event
             )
 
             buttons.append(
@@ -1446,8 +1949,8 @@ def register(kernel):
         # Reveal button for hidden/secret values
         if is_hidden or is_secret:
             key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
-            kernel.cache.set(
-                f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400
+            cache_module_key_view(
+                key_id, module_name, key, page, parent_group_key, event=event
             )
             buttons.append(
                 [
@@ -1461,6 +1964,9 @@ def register(kernel):
             # Edit button for secret values (even when hidden)
             if is_secret and not is_hidden:
                 key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
+                cache_module_key_view(
+                    key_id, module_name, key, page, parent_group_key, event=event
+                )
                 buttons.append(
                     [
                         Button.switch_inline(
@@ -1474,8 +1980,8 @@ def register(kernel):
 
         # Create key_id for refresh button
         key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
-        kernel.cache.set(
-            f"module_cfg_view_{key_id}", (module_name, key, page), ttl=86400
+        cache_module_key_view(
+            key_id, module_name, key, page, parent_group_key, event=event
         )
 
         # Reset to default button - show if config_value exists and value differs from default
@@ -1487,7 +1993,7 @@ def register(kernel):
                 reset_id = generate_key_id(f"{module_name}__{key}", page, "reset")
                 kernel.cache.set(
                     f"module_cfg_reset_{reset_id}",
-                    (module_name, key, page),
+                    module_key_cache_value(module_name, key, page, parent_group_key),
                     ttl=86400,
                 )
                 buttons.append(
@@ -1501,12 +2007,29 @@ def register(kernel):
                 )
 
         # Navigation buttons
-        back_nav_id = generate_key_id(module_name, page, "module_nav")
-        kernel.cache.set(f"module_nav_{back_nav_id}", (module_name, page), ttl=86400)
+        if parent_group_key:
+            back_nav_id = generate_key_id(
+                f"{module_name}__{parent_group_key}", page, "module_cfg"
+            )
+            grandparent_group_key = find_parent_group_key(module_name, parent_group_key)
+            cache_module_key_view(
+                back_nav_id,
+                module_name,
+                parent_group_key,
+                page,
+                grandparent_group_key,
+            )
+            back_data = f"module_cfg_view_{back_nav_id}".encode()
+        else:
+            back_nav_id = generate_key_id(module_name, page, "module_nav")
+            kernel.cache.set(
+                f"module_nav_{back_nav_id}", (module_name, page), ttl=86400
+            )
+            back_data = f"module_cfg_page_nav_{back_nav_id}".encode()
         nav_buttons = [
             Button.inline(
                 t("btn_back_simple"),
-                data=f"module_cfg_page_nav_{back_nav_id}".encode(),
+                data=back_data,
             ),
             Button.inline(
                 "🔄",
@@ -1519,11 +2042,17 @@ def register(kernel):
 
         return text, buttons
 
-    async def show_module_key_view(event, module_name, key, page):
+    async def show_module_key_view(
+        event, module_name, key, page, parent_group_key=None
+    ):
         try:
-            payload = await _build_module_key_view_payload(module_name, key, page)
+            payload = await _build_module_key_view_payload(
+                module_name, key, page, event, parent_group_key
+            )
             if payload is None:
                 await event.answer(t("not_found"), alert=True)
+                return
+            if payload is NO_EDIT:
                 return
             text, buttons = payload
             await event.edit(text, buttons=buttons, parse_mode="html")
@@ -1539,9 +2068,11 @@ def register(kernel):
             )
             await event.answer(t("error", error=str(e)[:50]), alert=True)
 
-    async def toggle_module_bool_key(event, module_name, key, page):
+    async def toggle_module_bool_key(
+        event, module_name, key, page, parent_group_key=None
+    ):
         try:
-            module_config = await kernel.get_module_config(module_name, {})
+            module_config = await get_writable_module_config(module_name, key)
 
             is_module_config = is_module_config_like(module_config)
             is_dict_config = isinstance(module_config, dict) and module_config.get(
@@ -1589,8 +2120,8 @@ def register(kernel):
                 await kernel.save_module_config(module_name, module_config)
                 add_module_to_config_cache(module_name)
 
-            await show_module_key_view(event, module_name, key, page)
-            module_config = await kernel.get_module_config(module_name, {})
+            await show_module_key_view(event, module_name, key, page, parent_group_key)
+            module_config = await get_writable_module_config(module_name, key)
             new_value = module_config[key]
             await event.answer(t("changed_to", value=new_value), alert=False)
 
@@ -2012,6 +2543,41 @@ def register(kernel):
         expected_scope = scope
         expected_module_name = module_name
 
+        async def show_validation_error(error: ValidationError) -> None:
+            error_text = html.escape(str(error))
+            scope_label = module_name if scope == "module" and module_name else "kernel"
+            text = (
+                f"{emoji_provider['❌']} <b>Validation error</b>"
+                f"\n<blockquote><code>{html.escape(str(scope_label))}.{html.escape(str(key))}</code></blockquote>"
+                f"\n<code>{error_text}</code>"
+            )
+            back_data = (
+                f"module_cfg_view_{key_id}".encode()
+                if scope == "module"
+                else f"cfg_view_{key_id}".encode()
+            )
+            buttons = [[Button.inline("🔙", data=back_data)]] if key_id else None
+
+            saved = msg_manager.get_event(key_id) if key_id else None
+            if saved is not None:
+                try:
+                    await saved.edit(text, buttons=buttons, parse_mode="html")
+                    return
+                except Exception as edit_error:
+                    kernel.logger.debug(
+                        f"Failed to edit validation error form: {edit_error}"
+                    )
+
+            if kernel.is_bot_available():
+                try:
+                    await kernel.bot_client.send_message(
+                        user_id, text, buttons=buttons, parse_mode="html"
+                    )
+                except Exception as send_error:
+                    kernel.logger.debug(
+                        f"Failed to send validation error message: {send_error}"
+                    )
+
         try:
             success = False
             message = ""
@@ -2025,7 +2591,9 @@ def register(kernel):
                 kernel_cached = kernel.cache.get(f"cfg_view_{key_id}")
 
                 if module_cached:
-                    cached_module_name, cached_key, _ = module_cached
+                    cached_module_name, cached_key, _, _ = unpack_module_key_cache(
+                        module_cached
+                    )
                     if cached_key != key:
                         raise ValueError("Module key mapping mismatch")
                     scope = "module"
@@ -2060,7 +2628,7 @@ def register(kernel):
             if is_module_scope:
                 if not module_name:
                     raise ValueError("Module name is not specified")
-                target_config = await kernel.get_module_config(module_name, {})
+                target_config = await get_writable_module_config(module_name, key)
                 is_module_config = is_module_config_like(target_config)
                 is_dict_config = isinstance(target_config, dict) and target_config.get(
                     "__mcub_config__"
@@ -2299,6 +2867,9 @@ def register(kernel):
                     except Exception as e:
                         kernel.logger.debug(f"Failed to send error message: {e}")
 
+        except ValidationError as e:
+            kernel.logger.debug(f"FCFG validation error: {e}")
+            await show_validation_error(e)
         except Exception as e:
             kernel.logger.debug(f"FCFG confirm error: {e}")
             await kernel.handle_error(
@@ -2336,7 +2907,7 @@ def register(kernel):
                     )
                     return None, None, None
 
-                cached_module_name, key, page = cached
+                cached_module_name, key, page, _ = unpack_module_key_cache(cached)
                 if cached_module_name != module_name:
                     await event.answer(
                         [
@@ -2347,7 +2918,7 @@ def register(kernel):
                     )
                     return None, None, None
 
-                module_config = await kernel.get_module_config(module_name, {})
+                module_config = await get_writable_module_config(module_name, key)
                 is_new_format = is_module_config_like(module_config) or (
                     isinstance(module_config, dict)
                     and module_config.get("__mcub_config__")
@@ -2583,7 +3154,9 @@ def register(kernel):
                     await cb_event.answer(t("expired"), alert=True)
                     return
 
-                module_name, key, page = cached
+                module_name, key, page, parent_group_key = unpack_module_key_cache(
+                    cached
+                )
                 live_config = getattr(kernel, "_live_module_configs", {}).get(
                     module_name
                 )
@@ -2603,7 +3176,9 @@ def register(kernel):
                             module_name, live_config.to_dict()
                         )
                         kernel.store_module_config_schema(module_name, live_config)
-                        await show_module_key_view(cb_event, module_name, key, page)
+                        await show_module_key_view(
+                            cb_event, module_name, key, page, parent_group_key
+                        )
                         await cb_event.answer(t("reset_success"), alert=True)
                     else:
                         await cb_event.answer(t("no_default"), alert=True)
@@ -2771,19 +3346,26 @@ def register(kernel):
                     await cb_event.answer(t("expired"), alert=True)
                     return
 
-                module_name, key, page = cached
+                module_name, key, page, parent_group_key = unpack_module_key_cache(
+                    cached
+                )
                 msg_manager.save_event(key_id, cb_event)
-                await show_module_key_view(cb_event, module_name, key, page)
+                await show_module_key_view(
+                    cb_event, module_name, key, page, parent_group_key
+                )
             except Exception as e:
                 await cb_event.answer(str(e)[:50], alert=True)
 
         elif data.startswith("cfg_modules_bool_"):
             try:
                 rest = data[17:]  # after "cfg_modules_bool_"
+                parent_group_key = None
                 # New ID-based format: rest is an 8-char hex ID with no "__"
                 cached = kernel.cache.get(f"module_bool_{rest}")
                 if cached:
-                    module_name, key, page = cached
+                    module_name, key, page, parent_group_key = unpack_module_key_cache(
+                        cached
+                    )
                 elif "__" in rest:
                     # Legacy format: {module_name}__{key}__{page}
                     parts = rest.split("__")
@@ -2798,7 +3380,9 @@ def register(kernel):
                     await cb_event.answer(t("expired"), alert=True)
                     return
 
-                await toggle_module_bool_key(cb_event, module_name, key, page)
+                await toggle_module_bool_key(
+                    cb_event, module_name, key, page, parent_group_key
+                )
             except Exception as e:
                 await cb_event.answer(str(e)[:50], alert=True)
 
@@ -2824,7 +3408,8 @@ def register(kernel):
                 if not cached:
                     await cb_event.answer(t("expired"), alert=True)
                     return
-                module_name, key, page, choices = cached
+                parent_group_key = cached[4] if len(cached) > 4 else None
+                module_name, key, page, choices = cached[:4]
                 kernel.logger.debug(
                     f"Choice selected: {module_name}, {key}={choices[choice_idx]}, choices={choices}"
                 )
@@ -2832,7 +3417,7 @@ def register(kernel):
                     await cb_event.answer(t("invalid_format"), alert=True)
                     return
                 new_value = choices[choice_idx]
-                module_config = await kernel.get_module_config(module_name, {})
+                module_config = await get_writable_module_config(module_name, key)
                 if isinstance(module_config, dict):
                     module_config[key] = new_value
                 elif hasattr(module_config, "__setitem__"):
@@ -2846,7 +3431,9 @@ def register(kernel):
                     ),
                 )
                 await cb_event.answer(t("changed_to", value=new_value), alert=False)
-                await show_module_key_view(cb_event, module_name, key, page)
+                await show_module_key_view(
+                    cb_event, module_name, key, page, parent_group_key
+                )
             except Exception as e:
                 kernel.logger.debug(f"Choice error: {e}\n{traceback.format_exc()}")
                 await cb_event.answer(str(e)[:50], alert=True)
@@ -3222,8 +3809,11 @@ def register(kernel):
                     await cb_event.answer(t("expired"), alert=True)
                     return
 
-                module_name, key, page = cached
-                module_config = await kernel.get_module_config(module_name, {})
+                module_name, key, page, parent_group_key = unpack_module_key_cache(
+                    cached
+                )
+                msg_manager.save_event(key_id, cb_event)
+                module_config = await get_writable_module_config(module_name, key)
 
                 is_new_format = is_module_config_like(module_config) or (
                     isinstance(module_config, dict)
@@ -3281,12 +3871,19 @@ def register(kernel):
                 if value_type == "bool":
                     toggle_text = t("toggle_false") if value else t("toggle_true")
                     toggle_style = "danger" if value else "success"
-                    toggle_style = "danger" if value else "success"
+                    bool_id = generate_key_id(f"{module_name}__{key}", page, "bool")
+                    kernel.cache.set(
+                        f"module_bool_{bool_id}",
+                        module_key_cache_value(
+                            module_name, key, page, parent_group_key
+                        ),
+                        ttl=86400,
+                    )
                     buttons.append(
                         [
                             Button.inline(
                                 toggle_text,
-                                data=f"cfg_modules_bool_{module_name}__{key}__{page}".encode(),
+                                data=f"cfg_modules_bool_{bool_id}".encode(),
                                 style=toggle_style,
                             )
                         ]
@@ -3369,10 +3966,32 @@ def register(kernel):
                     )
 
                 # Navigation buttons
+                if parent_group_key:
+                    back_nav_id = generate_key_id(
+                        f"{module_name}__{parent_group_key}", page, "module_cfg"
+                    )
+                    grandparent_group_key = find_parent_group_key(
+                        module_name, parent_group_key
+                    )
+                    cache_module_key_view(
+                        back_nav_id,
+                        module_name,
+                        parent_group_key,
+                        page,
+                        grandparent_group_key,
+                    )
+                    back_data = f"module_cfg_view_{back_nav_id}".encode()
+                else:
+                    back_nav_id = generate_key_id(module_name, page, "module_nav")
+                    kernel.cache.set(
+                        f"module_nav_{back_nav_id}", (module_name, page), ttl=86400
+                    )
+                    back_data = f"module_cfg_page_nav_{back_nav_id}".encode()
+
                 nav_buttons = [
                     Button.inline(
                         t("btn_back_simple"),
-                        data=f"module_cfg_page_{module_name}__{page}".encode(),
+                        data=back_data,
                     ),
                     Button.inline(
                         "🔄",
@@ -3620,7 +4239,9 @@ def register(kernel):
 
                 if module_mode:
                     try:
-                        module_config = await kernel.get_module_config(module_name, {})
+                        module_config = await get_writable_module_config(
+                            module_name, key
+                        )
                         is_new_format = is_module_config_like(module_config) or (
                             isinstance(module_config, dict)
                             and module_config.get("__mcub_config__")
@@ -3836,7 +4457,9 @@ def register(kernel):
 
                 if module_mode:
                     try:
-                        module_config = await kernel.get_module_config(module_name, {})
+                        module_config = await get_writable_module_config(
+                            module_name, key
+                        )
 
                         is_new_format = is_module_config_like(module_config) or (
                             isinstance(module_config, dict)
@@ -3860,8 +4483,9 @@ def register(kernel):
                                     parse_mode="html",
                                 )
                                 return
-                            current_value[subkey] = parse_value(value_str)
-                            module_config[key] = current_value
+                            new_value = dict(current_value)
+                            new_value[subkey] = parse_value(value_str)
+                            module_config[key] = new_value
                             await kernel.save_module_config(
                                 module_name,
                                 (
@@ -3951,7 +4575,9 @@ def register(kernel):
 
                 if module_mode:
                     try:
-                        module_config = await kernel.get_module_config(module_name, {})
+                        module_config = await get_writable_module_config(
+                            module_name, key
+                        )
 
                         is_new_format = is_module_config_like(module_config) or (
                             isinstance(module_config, dict)
@@ -3975,8 +4601,9 @@ def register(kernel):
                                     parse_mode="html",
                                 )
                                 return
-                            current_value.append(parse_value(value_str))
-                            module_config[key] = current_value
+                            new_value = list(current_value)
+                            new_value.append(parse_value(value_str))
+                            module_config[key] = new_value
                             await kernel.save_module_config(
                                 module_name,
                                 (
@@ -4001,7 +4628,9 @@ def register(kernel):
                                     parse_mode="html",
                                 )
                                 return
-                            module_config[key].append(parse_value(value_str))
+                            new_value = list(module_config[key])
+                            new_value.append(parse_value(value_str))
+                            module_config[key] = new_value
                             await kernel.save_module_config(module_name, module_config)
                             add_module_to_config_cache(module_name)
 

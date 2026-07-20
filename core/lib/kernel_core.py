@@ -628,6 +628,15 @@ class KernelCoreMixin:
         """Save a module's config to the database."""
         from core.lib.utils.logger import mask_sensitive_data
 
+        live_cfg = self._live_module_configs.get(module_name)
+        if (
+            live_cfg is not None
+            and hasattr(live_cfg, "_values")
+            and isinstance(config_data, dict)
+        ):
+            live_cfg.from_dict(config_data)
+            config_data = live_cfg.to_dict()
+
         self.logger.debug(
             f"[Kernel] save_module_config module={module_name} "
             f"data={mask_sensitive_data(str(config_data))}"
@@ -635,13 +644,7 @@ class KernelCoreMixin:
         try:
             result = await self._cfg.save_module_config(module_name, config_data)
 
-            live_cfg = self._live_module_configs.get(module_name)
-            if live_cfg is not None:
-                if hasattr(live_cfg, "_values") and isinstance(config_data, dict):
-                    for key, value in config_data.items():
-                        if key != "__mcub_config__":
-                            live_cfg[key] = value
-            else:
+            if live_cfg is None:
                 live_mod = self.loaded_modules.get(
                     module_name
                 ) or self.system_modules.get(module_name)

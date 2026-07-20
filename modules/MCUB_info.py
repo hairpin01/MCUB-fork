@@ -117,19 +117,19 @@ class MCUBInfoMod(ModuleBase):
             "info_quote_media",
             False,
             description="Send media in quotes",
-            validator=Boolean(default=False),
+            validator=Boolean(),
         ),
         ConfigValue(
             "info_invert_media",
             False,
             description="Invert media colors",
-            validator=Boolean(default=False),
+            validator=Boolean(),
         ),
         ConfigValue(
             "info_banner_url",
             "",
             description="Banner image URL for inline preview",
-            validator=String(default=""),
+            validator=String(),
         ),
         ConfigValue(
             "info_custom_text",
@@ -146,19 +146,19 @@ class MCUBInfoMod(ModuleBase):
                 "{now_hour}, {now_minute}, {now_second}\n"
                 "Heroku/hikka placeholders supported."
             ),
-            validator=Placeholders(default="", placeholder_scope="any"),
+            validator=Placeholders(placeholder_scope="any"),
         ),
         ConfigValue(
             "placeholders",
             "",
             description="Available placeholders (auto-generated, read-only)",
-            validator=String(default=""),
+            validator=String(),
         ),
         ConfigValue(
             "info_start_emoji",
             CUSTOM_EMOJI["load"],
             description="Start emoji",
-            validator=String(default=CUSTOM_EMOJI["load"]),
+            validator=String(),
         ),
     )
 

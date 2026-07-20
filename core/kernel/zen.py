@@ -61,7 +61,7 @@ try:
     from ..lib.loader.inline import InlineManager
     from ..lib.loader.inline import InlineMessage as _InlineMessage
     from ..lib.loader.loader import ModuleLoader
-    from ..lib.loader.register import Register
+    from ..lib.loader.register import Register, _collect_command_docs
     from ..lib.loader.repository import RepositoryManager
     from ..lib.time.cache import TTLCache
     from ..lib.time.scheduler import TaskScheduler
@@ -417,15 +417,18 @@ class Kernel:
             module_name: Name of the module.
             config_data: Configuration dictionary to save.
         """
+        live_cfg = self._live_module_configs.get(module_name)
+        if (
+            live_cfg is not None
+            and hasattr(live_cfg, "_values")
+            and isinstance(config_data, dict)
+        ):
+            live_cfg.from_dict(config_data)
+            config_data = live_cfg.to_dict()
+
         result = await self._cfg.save_module_config(module_name, config_data)
 
-        live_cfg = self._live_module_configs.get(module_name)
-        if live_cfg is not None:
-            if hasattr(live_cfg, "_values"):
-                for key, value in config_data.items():
-                    if key != "__mcub_config__":
-                        live_cfg[key] = value
-        else:
+        if live_cfg is None:
             live_mod = self.loaded_modules.get(module_name) or self.system_modules.get(
                 module_name
             )
@@ -941,7 +944,13 @@ class Kernel:
         }
 
     def register_command(
-        self, pattern: str, func=None, doc=None, doc_en=None, doc_ru=None
+        self,
+        pattern: str,
+        func=None,
+        doc=None,
+        doc_en=None,
+        doc_ru=None,
+        **doc_kwargs: Any,
     ):
         """Register a userbot command.  Raises ValueError / CommandConflictError on bad input."""
         cmd = pattern.lstrip("^\\" + self.custom_prefix).rstrip("$")
@@ -968,22 +977,23 @@ class Kernel:
         def _register(f):
             self.command_handlers[cmd] = f
             self.command_owners[cmd] = self.current_loading_module
-            if doc or doc_en or doc_ru:
-                docs = {}
-                if doc and isinstance(doc, dict):
-                    docs.update(doc)
-                if doc_en:
-                    docs["en"] = doc_en
-                if doc_ru:
-                    docs["ru"] = doc_ru
-                if docs:
-                    self.command_docs[cmd] = docs
+            docs = _collect_command_docs(
+                {"doc": doc, "doc_en": doc_en, "doc_ru": doc_ru, **doc_kwargs}
+            )
+            if docs:
+                self.command_docs[cmd] = docs
             return f
 
         return _register(func) if func else _register
 
     def register_command_bot(
-        self, pattern: str, func=None, doc=None, doc_en=None, doc_ru=None
+        self,
+        pattern: str,
+        func=None,
+        doc=None,
+        doc_en=None,
+        doc_ru=None,
+        **doc_kwargs: Any,
     ):
         """Register a bot command (starting with /)."""
         if not pattern.startswith("/"):
@@ -1004,16 +1014,11 @@ class Kernel:
         def _register(f):
             self.bot_command_handlers[cmd] = (pattern, f)
             self.bot_command_owners[cmd] = self.current_loading_module
-            if doc or doc_en or doc_ru:
-                docs = {}
-                if doc and isinstance(doc, dict):
-                    docs.update(doc)
-                if doc_en:
-                    docs["en"] = doc_en
-                if doc_ru:
-                    docs["ru"] = doc_ru
-                if docs:
-                    self.bot_command_docs[cmd] = docs
+            docs = _collect_command_docs(
+                {"doc": doc, "doc_en": doc_en, "doc_ru": doc_ru, **doc_kwargs}
+            )
+            if docs:
+                self.bot_command_docs[cmd] = docs
             return f
 
         return _register(func) if func else _register

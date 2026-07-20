@@ -124,7 +124,7 @@ ConfigValue(
     "info_custom_text",
     "",
     "Template with placeholders",
-    validator=Placeholders(default="", placeholder_scope="any"),
+    validator=Placeholders(placeholder_scope="any"),
 )
 ```
 

@@ -32,7 +32,7 @@ class SettingsModule(ModuleBase):
             "settings_any_prefix",
             False,
             description="Allow multi-character prefixes (bypass 1-char restriction)",
-            validator=Boolean(default=False),
+            validator=Boolean(),
         ),
     )
 

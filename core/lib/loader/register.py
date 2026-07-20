@@ -35,6 +35,39 @@ if TYPE_CHECKING:
     from core.lib.types import Kernel, Message
 
 
+def _doc_locale_from_kwarg(name: str | None) -> str | None:
+    """Return locale suffix for ``doc_<locale>`` keyword names."""
+    if not isinstance(name, str) or not name.startswith("doc_"):
+        return None
+    locale = name[4:].strip().lower()
+    return locale or None
+
+
+def _collect_command_docs(kwargs: dict[str, Any]) -> dict[str, str]:
+    """Collect command docs from ``doc={...}`` and arbitrary ``doc_<locale>`` kwargs."""
+    docs: dict[str, str] = {}
+
+    doc = kwargs.get("doc")
+    if isinstance(doc, dict):
+        for key, value in doc.items():
+            if not isinstance(key, str) or not isinstance(value, str):
+                continue
+            locale = key.strip().lower()
+            value = value.strip()
+            if locale and value:
+                docs[locale] = value
+
+    for key, value in kwargs.items():
+        locale = _doc_locale_from_kwarg(key)
+        if not locale or not isinstance(value, str):
+            continue
+        value = value.strip()
+        if value:
+            docs[locale] = value
+
+    return docs
+
+
 try:
     from core.lib.utils.exceptions import CommandConflictError
 except ImportError:
@@ -587,29 +620,18 @@ class Register:
                     self.kernel.command_metadata = {}
                 self.kernel.command_metadata[cmd] = more
 
-            doc = kwargs.get("doc")
-            doc_en = kwargs.get("doc_en")
-            doc_ru = kwargs.get("doc_ru")
-            if not (doc or doc_en or doc_ru):
+            docs = _collect_command_docs(kwargs)
+            if not docs:
                 raw_doc = (getattr(func, "__doc__", None) or "").strip()
                 if raw_doc:
                     first_line = raw_doc.splitlines()[0].strip()
                     if first_line:
                         # Fallback: same doc for RU/EN when localized docs are absent.
-                        doc_ru = first_line
-                        doc_en = first_line
-            if doc or doc_en or doc_ru:
+                        docs = {"ru": first_line, "en": first_line}
+            if docs:
                 if not hasattr(self.kernel, "command_docs"):
                     self.kernel.command_docs = {}
-                docs = {}
-                if doc and isinstance(doc, dict):
-                    docs.update(doc)
-                if doc_en:
-                    docs["en"] = doc_en
-                if doc_ru:
-                    docs["ru"] = doc_ru
-                if docs:
-                    self.kernel.command_docs[cmd] = docs
+                self.kernel.command_docs[cmd] = docs
 
             return func
 
@@ -647,21 +669,11 @@ class Register:
             self.kernel.bot_command_handlers[cmd] = (pattern, func)
             self.kernel.bot_command_owners[cmd] = self.kernel.current_loading_module
 
-            doc = kwargs.get("doc")
-            doc_en = kwargs.get("doc_en")
-            doc_ru = kwargs.get("doc_ru")
-            if doc or doc_en or doc_ru:
+            docs = _collect_command_docs(kwargs)
+            if docs:
                 if not hasattr(self.kernel, "bot_command_docs"):
                     self.kernel.bot_command_docs = {}
-                docs = {}
-                if doc and isinstance(doc, dict):
-                    docs.update(doc)
-                if doc_en:
-                    docs["en"] = doc_en
-                if doc_ru:
-                    docs["ru"] = doc_ru
-                if docs:
-                    self.kernel.bot_command_docs[cmd] = docs
+                self.kernel.bot_command_docs[cmd] = docs
 
             return func
 

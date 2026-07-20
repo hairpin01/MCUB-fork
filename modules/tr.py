@@ -50,7 +50,6 @@ class TrModule(ModuleBase):
                     "ko",
                     "ar",
                 ],
-                default="ru",
             ),
         ),
     )

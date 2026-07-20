@@ -5,6 +5,15 @@ from collections.abc import Callable
 from typing import Any
 
 
+def _validate_doc_kwargs(kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Allow only arbitrary ``doc_<locale>`` kwargs in command decorators."""
+    invalid = [key for key in kwargs if not key.startswith("doc_")]
+    if invalid:
+        name = invalid[0]
+        raise TypeError(f"unexpected keyword argument {name!r}")
+    return kwargs
+
+
 def command(
     pattern: str,
     *,
@@ -12,6 +21,7 @@ def command(
     doc: dict | None = None,
     doc_ru: str | None = None,
     doc_en: str | None = None,
+    **doc_kwargs: Any,
 ) -> Callable:
     """
     Class-level decorator for registering commands in class-style modules.
@@ -21,20 +31,19 @@ def command(
         from core.lib.loader.module_base import ModuleBase, command
 
         class MyModule(ModuleBase):
-            @command("hello", doc_ru="пpивeт", doc_en="hello")
+            @command("hello", doc_ru="пpивeт", doc_en="hello", doc_rofl="дapoвa")
             async def cmd_hello(self, event):
                 await event.edit("Hello!")
     """
 
+    extra_docs = _validate_doc_kwargs(doc_kwargs)
+    command_meta = {"alias": alias, "doc": doc, "doc_ru": doc_ru, "doc_en": doc_en}
+    command_meta.update(extra_docs)
+
     def decorator(func: Callable) -> Callable:
         if not hasattr(func, "_mcub_commands"):
             func._mcub_commands = []
-        func._mcub_commands.append(
-            (
-                pattern,
-                {"alias": alias, "doc": doc, "doc_ru": doc_ru, "doc_en": doc_en},
-            )
-        )
+        func._mcub_commands.append((pattern, command_meta))
         return func
 
     return decorator
@@ -360,6 +369,7 @@ def bot_command(
     doc: dict | None = None,
     doc_ru: str | None = None,
     doc_en: str | None = None,
+    **doc_kwargs: Any,
 ) -> Callable:
     """
     Class-level decorator for registering bot commands.
@@ -369,20 +379,19 @@ def bot_command(
         from core.lib.loader.module_base import ModuleBase, bot_command
 
         class MyModule(ModuleBase):
-            @bot_command("start", doc_ru="cтapт", doc_en="start")
+            @bot_command("start", doc_ru="cтapт", doc_en="start", doc_rofl="пoгнaли")
             async def cmd_start(self, event):
                 await event.answer("Hello from bot!")
     """
 
+    extra_docs = _validate_doc_kwargs(doc_kwargs)
+    command_meta = {"alias": alias, "doc": doc, "doc_ru": doc_ru, "doc_en": doc_en}
+    command_meta.update(extra_docs)
+
     def decorator(func: Callable) -> Callable:
         if not hasattr(func, "_mcub_bot_commands"):
             func._mcub_bot_commands = []
-        func._mcub_bot_commands.append(
-            (
-                pattern,
-                {"alias": alias, "doc": doc, "doc_ru": doc_ru, "doc_en": doc_en},
-            )
-        )
+        func._mcub_bot_commands.append((pattern, command_meta))
         return func
 
     return decorator

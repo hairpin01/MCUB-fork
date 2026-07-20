@@ -18,7 +18,7 @@ class WelcomeModule(ModuleBase):
             "enabled",
             True,
             description="Enable welcome messages",
-            validator=Boolean(default=True),
+            validator=Boolean(),
         ),
     )
 

@@ -485,6 +485,37 @@ class TestInlineFeatures:
         assert handled is False
         assert seen == {"event": event, "text": "catalog"}
 
+    def test_loader_catalog_inline_owner_is_loader(self):
+        """catalog must stay attached to loader even if loading context is stale."""
+        from modules.loader import Loader
+
+        callbacks = {}
+        kernel = SimpleNamespace(
+            current_loading_module="userbot-backup",
+            inline_handlers={},
+            inline_handlers_owners={},
+        )
+
+        def register_inline_handler(pattern, handler):
+            kernel.inline_handlers[pattern] = handler
+            if kernel.current_loading_module:
+                kernel.inline_handlers_owners[pattern] = kernel.current_loading_module
+
+        def register_callback_handler(pattern, handler):
+            callbacks[pattern] = handler
+
+        kernel.register_inline_handler = register_inline_handler
+        kernel.register_callback_handler = register_callback_handler
+
+        loader_module = Loader.__new__(Loader)
+        loader_module.kernel = kernel
+
+        Loader._register_catalog_handlers(loader_module)
+
+        assert "catalog" in kernel.inline_handlers
+        assert kernel.inline_handlers_owners["catalog"] == "loader"
+        assert "catalog_" in callbacks
+
 
 class TestInlineButtonCleanupWatcher:
     class _Cache:

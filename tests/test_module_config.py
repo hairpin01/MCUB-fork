@@ -5,15 +5,22 @@
 Tests for core/lib/loader/module_config - validators and config containers.
 """
 
+import asyncio
+
 import pytest
 
 from core.lib.loader.module_config import (
+    Answer,
     Boolean,
+    Buttons,
+    Callback,
     Choice,
     ConfigValue,
+    Divider,
     Emoji,
     EntityLike,
     Float,
+    Group,
     Integer,
     Link,
     ModuleConfig,
@@ -21,15 +28,17 @@ from core.lib.loader.module_config import (
     NoneType,
     Placeholders,
     RegExp,
+    Row,
     Secret,
     String,
+    Notice,
+    Status,
     TelegramID,
     Union,
+    Url,
     ValidationError,
     Validator,
 )
-
-# ─── Validator base ────────────────────────────────────────────────────
 
 
 class TestValidator:
@@ -47,9 +56,6 @@ class TestValidator:
 
     def test_type_name(self):
         assert Validator(default=0).type_name == "Validator"
-
-
-# ─── Boolean ───────────────────────────────────────────────────────────
 
 
 class TestBoolean:
@@ -73,9 +79,6 @@ class TestBoolean:
     def test_invalid_raises(self, val):
         with pytest.raises(ValidationError, match="Expected boolean"):
             Boolean().validate(val)
-
-
-# ─── Integer ───────────────────────────────────────────────────────────
 
 
 class TestInteger:
@@ -133,9 +136,6 @@ class TestInteger:
         assert iv.validate(None) is None
 
 
-# ─── Float ─────────────────────────────────────────────────────────────
-
-
 class TestFloat:
     def test_none_returns_none(self):
         fv = Float(default=None)
@@ -169,7 +169,7 @@ class TestFloat:
         assert fv.validate(0.5) == 0.5
 
 
-# ─── String ────────────────────────────────────────────────────────────
+#     String
 
 
 class TestString:
@@ -196,7 +196,7 @@ class TestString:
         assert sv.validate("abc") == "abc"
 
 
-# ─── Placeholders ──────────────────────────────────────────────────────
+#     Placeholders
 
 
 class TestPlaceholders:
@@ -210,7 +210,7 @@ class TestPlaceholders:
         assert pv.placeholder_scope == "any"
 
 
-# ─── Link / URL ────────────────────────────────────────────────────────
+#     Link / URL
 
 
 class TestLink:
@@ -236,7 +236,7 @@ class TestLink:
             lv.validate("https://example.com")
 
 
-# ─── RegExp ────────────────────────────────────────────────────────────
+#     RegExp
 
 
 class TestRegExp:
@@ -259,7 +259,7 @@ class TestRegExp:
         assert rv.validate("abc123") == "abc123"
 
 
-# ─── TelegramID ────────────────────────────────────────────────────────
+#     TelegramID
 
 
 class TestTelegramID:
@@ -284,7 +284,7 @@ class TestTelegramID:
             tv.validate(True)
 
 
-# ─── NoneType ──────────────────────────────────────────────────────────
+#     NoneType
 
 
 class TestNoneType:
@@ -306,7 +306,7 @@ class TestNoneType:
             NoneType().validate("something")
 
 
-# ─── Emoji ─────────────────────────────────────────────────────────────
+#     Emoji
 
 
 class TestEmoji:
@@ -330,7 +330,7 @@ class TestEmoji:
             ev.validate("abc")
 
 
-# ─── EntityLike ────────────────────────────────────────────────────────
+#     EntityLike
 
 
 class TestEntityLike:
@@ -359,7 +359,7 @@ class TestEntityLike:
             ev.validate(True)
 
 
-# ─── Choice ────────────────────────────────────────────────────────────
+#     Choice
 
 
 class TestChoice:
@@ -383,7 +383,7 @@ class TestChoice:
             cv.validate(None)
 
 
-# ─── MultiChoice ───────────────────────────────────────────────────────
+#     MultiChoice
 
 
 class TestMultiChoice:
@@ -402,7 +402,7 @@ class TestMultiChoice:
             mcv.validate(["a", "c"])
 
 
-# ─── Union ─────────────────────────────────────────────────────────────
+#     Union
 
 
 class TestUnion:
@@ -429,7 +429,7 @@ class TestUnion:
         assert uv.to_storage(42) == 42
 
 
-# ─── Secret ────────────────────────────────────────────────────────────
+#     Secret
 
 
 class TestSecret:
@@ -443,32 +443,32 @@ class TestSecret:
         assert getattr(sv, "secret", False) is True
 
 
-# ─── ConfigValue ───────────────────────────────────────────────────────
+#     ConfigValue
 
 
 class TestConfigValue:
     def test_default_used_when_not_set(self):
-        cv = ConfigValue("key", 42, validator=Integer(default=42))
+        cv = ConfigValue("key", 42, validator=Integer())
         assert cv.get_value() == 42
 
     def test_set_value_validates(self):
-        cv = ConfigValue("key", 0, validator=Integer(default=0))
+        cv = ConfigValue("key", 0, validator=Integer())
         cv.set_value(10)
         assert cv.get_value() == 10
 
     def test_set_value_invalid_raises(self):
-        cv = ConfigValue("key", 0, validator=Integer(default=0))
+        cv = ConfigValue("key", 0, validator=Integer())
         with pytest.raises(ValidationError):
             cv.set_value("not_a_number")
 
     def test_from_storage_none_integer_does_not_crash(self):
         """Regression: backup_chat_id=None on load must not crash."""
-        cv = ConfigValue("backup_chat_id", None, validator=Integer(default=None))
+        cv = ConfigValue("backup_chat_id", None, validator=Integer())
         cv.from_storage(None)
         assert cv.get_value() is None
 
     def test_to_storage(self):
-        cv = ConfigValue("key", 42, validator=Integer(default=42))
+        cv = ConfigValue("key", 42, validator=Integer())
         cv.set_value(99)
         assert cv.to_storage() == 99
 
@@ -490,19 +490,484 @@ class TestConfigValue:
         assert len(calls) == 1
         assert calls[0] == (0, 99)
 
+    def test_owner_aware_on_change_called(self):
+        """on_change can receive bound module owner as (module, old, new)."""
+        owner = object()
+        calls = []
+        cfg = ModuleConfig(
+            ConfigValue(
+                "key",
+                0,
+                on_change=lambda module, old, new: calls.append((module, old, new)),
+            )
+        ).bind_owner(owner)
 
-# ─── ModuleConfig ──────────────────────────────────────────────────────
+        cfg["key"] = 7
+
+        assert calls == [(owner, 0, 7)]
+
+    @pytest.mark.asyncio
+    async def test_async_on_change_called(self):
+        """Async on_change callbacks are scheduled from ModuleConfig.__setitem__."""
+        calls = []
+
+        async def on_change(old, new):
+            await asyncio.sleep(0)
+            calls.append((old, new))
+
+        cfg = ModuleConfig(ConfigValue("key", 0, on_change=on_change))
+        cfg["key"] = 42
+
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        assert calls == [(0, 42)]
+
+    @pytest.mark.asyncio
+    async def test_async_owner_aware_on_change_called(self):
+        """Async owner-aware on_change callbacks are scheduled correctly."""
+        owner = object()
+        calls = []
+
+        async def on_change(module, old, new):
+            await asyncio.sleep(0)
+            calls.append((module, old, new))
+
+        cfg = ModuleConfig(ConfigValue("key", 0, on_change=on_change)).bind_owner(owner)
+        cfg["key"] = 42
+
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        assert calls == [(owner, 0, 42)]
+
+    def test_from_dict_does_not_call_on_change(self):
+        """Hydrating persisted config must not fire user-change hooks."""
+        calls = []
+        cfg = ModuleConfig(
+            ConfigValue("key", 0, on_change=lambda old, new: calls.append((old, new)))
+        )
+
+        cfg.from_dict({"key": 99})
+
+        assert cfg["key"] == 99
+        assert calls == []
+
+    def test_global_on_change_called_for_any_key(self):
+        calls = []
+        cfg = ModuleConfig(
+            ConfigValue("first", 1),
+            ConfigValue("second", 2),
+            on_change=lambda key, old, new: calls.append((key, old, new)),
+        )
+
+        cfg["second"] = 20
+
+        assert calls == [("second", 2, 20)]
+
+    def test_owner_aware_global_on_change_called(self):
+        owner = object()
+        calls = []
+        cfg = ModuleConfig(
+            ConfigValue("key", 0),
+            on_change=lambda module, key, old, new: calls.append(
+                (module, key, old, new)
+            ),
+        ).bind_owner(owner)
+
+        cfg["key"] = 5
+
+        assert calls == [(owner, "key", 0, 5)]
+
+    def test_from_dict_does_not_call_global_on_change(self):
+        calls = []
+        cfg = ModuleConfig(
+            ConfigValue("key", 0),
+            on_change=lambda key, old, new: calls.append((key, old, new)),
+        )
+
+        cfg.from_dict({"key": 10})
+
+        assert cfg["key"] == 10
+        assert calls == []
+
+    def test_version_is_saved_and_migrate_can_rename_keys(self):
+        def migrate(data, old_version):
+            assert old_version == 1
+            migrated = dict(data)
+            migrated["new_key"] = migrated.pop("old_key")
+            return migrated
+
+        cfg = ModuleConfig(
+            ConfigValue("new_key", "default", validator=String()),
+            version=2,
+            migrate=migrate,
+        )
+
+        cfg.from_dict(
+            {
+                "old_key": "persisted",
+                "__mcub_config__": True,
+                "__mcub_config_version__": 1,
+            }
+        )
+
+        assert cfg["new_key"] == "persisted"
+        assert cfg.to_dict() == {
+            "new_key": "persisted",
+            "__mcub_config__": True,
+            "__mcub_config_version__": 2,
+        }
+
+
+#     ModuleConfig
 
 
 class TestModuleConfig:
     def test_get_item(self):
-        cfg = ModuleConfig(ConfigValue("port", 8080, validator=Integer(default=8080)))
+        cfg = ModuleConfig(ConfigValue("port", 8080, validator=Integer()))
         assert cfg["port"] == 8080
 
     def test_set_item(self):
-        cfg = ModuleConfig(ConfigValue("port", 8080, validator=Integer(default=8080)))
+        cfg = ModuleConfig(ConfigValue("port", 8080, validator=Integer()))
         cfg["port"] = 9000
         assert cfg["port"] == 9000
+
+    def test_buttons_are_ui_only_items(self):
+        button = object()
+        buttons_item = Buttons(
+            "Actions",
+            "Module actions",
+            "Open actions",
+            [[button]],
+            key="actions",
+        )
+        cfg = ModuleConfig(
+            ConfigValue("enabled", True, validator=Boolean()),
+            buttons_item,
+        )
+
+        assert cfg.items() == [("enabled", True)]
+        assert cfg.keys() == ["enabled"]
+        assert cfg.to_dict() == {"enabled": True, "__mcub_config__": True}
+        assert buttons_item.ui_only is True
+        assert buttons_item.ui_type == "buttons"
+        assert cfg.get_button("buttons_actions") is buttons_item
+        assert cfg.button_keys() == ["buttons_actions"]
+        assert cfg.ui_items() == [("enabled", True), ("buttons_actions", buttons_item)]
+
+    def test_custom_ui_only_item_is_not_config_value(self):
+        class CustomUiItem:
+            ui_only = True
+            ui_type = "custom"
+            key = None
+
+        item = CustomUiItem()
+        cfg = ModuleConfig(ConfigValue("enabled", True, validator=Boolean()), item)
+
+        assert cfg.items() == [("enabled", True)]
+        assert cfg.keys() == ["enabled"]
+        assert cfg.to_dict() == {"enabled": True, "__mcub_config__": True}
+        assert cfg.ui_items() == [("enabled", True), ("custom_1", item)]
+        assert item.key == "custom_1"
+
+    def test_buttons_schema_entry(self):
+        cfg = ModuleConfig(
+            Buttons("Actions", "Module actions", "Open actions", [], key="actions")
+        )
+
+        assert cfg.schema == [
+            {
+                "key": "buttons_actions",
+                "type": "buttons",
+                "default": None,
+                "description": "Module actions",
+                "hidden": False,
+                "button_text": "Open actions",
+                "title": "Actions",
+            }
+        ]
+
+    def test_buttons_only_config_keeps_ui_items_without_stored_keys(self):
+        buttons_item = Buttons("Actions", "Module actions", "Open actions", [])
+        cfg = ModuleConfig(buttons_item)
+
+        assert cfg.to_dict() == {"__mcub_config__": True}
+        assert cfg.items() == []
+        assert cfg.ui_items() == [("buttons_0", buttons_item)]
+
+    def test_row_is_layout_only_item(self):
+        row = Row()
+        cfg = ModuleConfig(
+            ConfigValue("first", 1, validator=Integer()),
+            row,
+            ConfigValue("second", 2, validator=Integer()),
+        )
+
+        assert cfg.items() == [("first", 1), ("second", 2)]
+        assert cfg.keys() == ["first", "second"]
+        assert row.ui_only is True
+        assert row.ui_type == "row"
+        assert cfg.row_keys() == ["row_1"]
+        assert cfg.to_dict() == {"first": 1, "second": 2, "__mcub_config__": True}
+        assert cfg.ui_items() == [("first", 1), ("row_1", row), ("second", 2)]
+        assert [entry["key"] for entry in cfg.schema] == ["first", "second"]
+
+    def test_answer_is_ui_only_item(self):
+        answer = Answer("About", "API key from Gemini AI", alert=False, key="about")
+        cfg = ModuleConfig(
+            ConfigValue("enabled", True, validator=Boolean()),
+            answer,
+        )
+
+        assert cfg.items() == [("enabled", True)]
+        assert cfg.keys() == ["enabled"]
+        assert cfg.to_dict() == {"enabled": True, "__mcub_config__": True}
+        assert answer.ui_only is True
+        assert answer.ui_type == "answer"
+        assert answer.button_text == "About"
+        assert answer.text == "API key from Gemini AI"
+        assert answer.alert is False
+        assert cfg.get_ui_item("answer_about") is answer
+        assert cfg.ui_items() == [("enabled", True), ("answer_about", answer)]
+        assert [entry["key"] for entry in cfg.schema] == ["enabled"]
+
+    def test_config_value_show_if_accepts_owner(self):
+        class Owner:
+            show_secret = True
+
+        item = ConfigValue(
+            "log_chat",
+            "",
+            validator=String(),
+            show_if=lambda module: module.show_secret,
+        )
+
+        assert item.is_visible(Owner()) is True
+        owner = Owner()
+        owner.show_secret = False
+        assert item.is_visible(owner) is False
+
+    def test_group_show_if_accepts_owner(self):
+        class Owner:
+            enabled = False
+
+        group = Group(
+            "Advanced",
+            [ConfigValue("debug", False, validator=Boolean())],
+            show_if=lambda module: module.enabled,
+        )
+
+        assert group.is_visible(Owner()) is False
+
+        owner = Owner()
+        owner.enabled = True
+        assert group.is_visible(owner) is True
+
+    @pytest.mark.asyncio
+    async def test_group_on_click_owner_event_callback(self):
+        owner = object()
+        event = object()
+        calls = []
+        group = Group(
+            "Advanced",
+            [],
+            on_click=lambda module, event: calls.append((module, event)),
+        )
+
+        await group.trigger_on_click(owner, event)
+
+        assert calls == [(owner, event)]
+
+    def test_new_ui_items_are_ui_only_items(self):
+        divider = Divider("    ", key="line")
+        url = Url("Docs", "https://example.com", key="docs")
+        callback = Callback("Refresh", key="refresh")
+        status = Status("Runtime", "ready", key="runtime")
+        notice = Notice("Only visible when rules match", key="rules")
+        cfg = ModuleConfig(
+            ConfigValue("enabled", True, validator=Boolean()),
+            divider,
+            url,
+            callback,
+            status,
+            notice,
+        )
+
+        assert cfg.items() == [("enabled", True)]
+        assert cfg.keys() == ["enabled"]
+        assert cfg.to_dict() == {"enabled": True, "__mcub_config__": True}
+        assert cfg.get_ui_item("divider_line") is divider
+        assert cfg.get_ui_item("url_docs") is url
+        assert cfg.get_ui_item("callback_refresh") is callback
+        assert cfg.get_ui_item("status_runtime") is status
+        assert cfg.get_ui_item("notice_rules") is notice
+        assert cfg.ui_items() == [
+            ("enabled", True),
+            ("divider_line", divider),
+            ("url_docs", url),
+            ("callback_refresh", callback),
+            ("status_runtime", status),
+            ("notice_rules", notice),
+        ]
+        assert [entry["key"] for entry in cfg.schema] == ["enabled"]
+
+    def test_new_ui_items_accept_owner_aware_values(self):
+        class Owner:
+            show_notice = True
+            status_text = "runtime ok"
+
+        owner = Owner()
+        divider = Divider(lambda module: module.status_text)
+        url = Url(
+            lambda module: f"Docs: {module.status_text}",
+            lambda module: "https://example.com/docs",
+        )
+        status = Status("Runtime", lambda module: module.status_text)
+        notice = Notice(
+            lambda module: module.status_text, lambda module: module.show_notice
+        )
+
+        assert divider.get_button_text(owner) == "runtime ok"
+        assert url.get_button_text(owner) == "Docs: runtime ok"
+        assert url.get_url(owner) == "https://example.com/docs"
+        assert status.get_value(owner) == "runtime ok"
+        assert notice.get_text(owner) == "runtime ok"
+        assert notice.is_visible(owner) is True
+
+        owner.show_notice = False
+        assert notice.is_visible(owner) is False
+
+    @pytest.mark.asyncio
+    async def test_callback_ui_item_triggers_owner_event_callback(self):
+        owner = object()
+        event = object()
+        calls = []
+        item = Callback("Refresh", lambda module, event: calls.append((module, event)))
+
+        await item.trigger_on_click(owner, event)
+
+        assert calls == [(owner, event)]
+
+    def test_group_registers_nested_config_and_ui_items(self):
+        row = Row()
+        answer = Answer("About", "api key from gemini ai")
+        group = Group(
+            "🗂 API",
+            [
+                ConfigValue("api_key", "", validator=Secret()),
+                row,
+                answer,
+            ],
+            description="Gemini API settings",
+            key="api",
+        )
+        cfg = ModuleConfig(
+            ConfigValue("enabled", True, validator=Boolean()),
+            group,
+            ConfigValue("mode", "chat", validator=String()),
+        )
+
+        assert cfg.keys() == ["enabled", "api_key", "mode"]
+        assert cfg.items() == [("enabled", True), ("api_key", ""), ("mode", "chat")]
+        assert cfg.to_dict() == {
+            "enabled": True,
+            "api_key": "",
+            "mode": "chat",
+            "__mcub_config__": True,
+        }
+        assert group.ui_only is True
+        assert group.ui_type == "group"
+        assert group.title == "🗂 API"
+        assert group.description == "Gemini API settings"
+        assert cfg.get_ui_item("group_api") is group
+        assert cfg.ui_items() == [
+            ("enabled", True),
+            ("group_api", group),
+            ("mode", "chat"),
+        ]
+        assert cfg.group_items("group_api") == [
+            ("api_key", ""),
+            ("row_1_1", row),
+            ("answer_1_2", answer),
+        ]
+        assert [entry["key"] for entry in cfg.schema] == [
+            "enabled",
+            "api_key",
+            "mode",
+        ]
+
+    def test_from_dict_to_dict_prunes_stale_keys(self):
+        cfg = ModuleConfig(ConfigValue("active", True, validator=Boolean()))
+
+        cfg.from_dict(
+            {"active": False, "removed_key": "stale", "__mcub_config__": True}
+        )
+
+        assert cfg.to_dict() == {"active": False, "__mcub_config__": True}
+
+    def test_buttons_accept_callable_content(self):
+        cfg = ModuleConfig(
+            Buttons(
+                lambda: "Dynamic title",
+                lambda: "Dynamic description",
+                lambda: "Dynamic button",
+                lambda: [["button"]],
+            )
+        )
+        item = cfg.get_button("buttons_0")
+
+        assert item is not None
+        assert item.title == "Dynamic title"
+        assert item.description == "Dynamic description"
+        assert item.button_text == "Dynamic button"
+        assert item.get_buttons() == [["button"]]
+
+    def test_buttons_callable_can_accept_owner(self):
+        owner = object()
+        cfg = ModuleConfig(Buttons("Actions", buttons=lambda module: [[module]]))
+        item = cfg.get_button("buttons_0")
+
+        assert item is not None
+        assert item.get_buttons(owner) == [[owner]]
+
+    @pytest.mark.asyncio
+    async def test_buttons_on_click_owner_event_callback(self):
+        owner = object()
+        event = object()
+        calls = []
+        item = Buttons(
+            "Actions",
+            on_click=lambda module, event: calls.append((module, event)),
+        )
+
+        await item.trigger_on_click(owner, event)
+
+        assert calls == [(owner, event)]
+
+    @pytest.mark.asyncio
+    async def test_buttons_on_click_event_only_callback(self):
+        event = object()
+        calls = []
+        item = Buttons("Actions", on_click=lambda event: calls.append(event))
+
+        await item.trigger_on_click(None, event)
+
+        assert calls == [event]
+
+    @pytest.mark.asyncio
+    async def test_buttons_on_click_async_callback(self):
+        owner = object()
+        event = object()
+        calls = []
+
+        async def on_click(module, event):
+            await asyncio.sleep(0)
+            calls.append((module, event))
+
+        item = Buttons("Actions", on_click=on_click)
+
+        await item.trigger_on_click(owner, event)
+
+        assert calls == [(owner, event)]
 
     def test_set_item_unknown_key_raises(self):
         cfg = ModuleConfig()
@@ -516,8 +981,8 @@ class TestModuleConfig:
 
     def test_from_dict(self):
         cfg = ModuleConfig(
-            ConfigValue("host", "localhost", validator=String(default="localhost")),
-            ConfigValue("port", 8080, validator=Integer(default=8080)),
+            ConfigValue("host", "localhost", validator=String()),
+            ConfigValue("port", 8080, validator=Integer()),
         )
         cfg.from_dict({"host": "0.0.0.0", "port": 9090})
         assert cfg["host"] == "0.0.0.0"
@@ -525,9 +990,7 @@ class TestModuleConfig:
 
     def test_from_dict_skips_missing_keys(self):
         cfg = ModuleConfig(
-            ConfigValue(
-                "host", "default_host", validator=String(default="default_host")
-            ),
+            ConfigValue("host", "default_host", validator=String()),
         )
         cfg.from_dict({})
         assert cfg["host"] == "default_host"
@@ -535,8 +998,8 @@ class TestModuleConfig:
     def test_from_dict_none_integer_does_not_crash(self):
         """Regression: ModuleConfig loading with None for Integer field."""
         cfg = ModuleConfig(
-            ConfigValue("chat_id", None, validator=Integer(default=None)),
-            ConfigValue("interval", 12, validator=Integer(default=12)),
+            ConfigValue("chat_id", None, validator=Integer()),
+            ConfigValue("interval", 12, validator=Integer()),
         )
         cfg.from_dict({"chat_id": None, "interval": 12})
         assert cfg["chat_id"] is None
@@ -544,7 +1007,7 @@ class TestModuleConfig:
 
     def test_to_dict(self):
         cfg = ModuleConfig(
-            ConfigValue("port", 8080, validator=Integer(default=8080)),
+            ConfigValue("port", 8080, validator=Integer()),
         )
         cfg["port"] = 7070
         d = cfg.to_dict()
@@ -553,36 +1016,34 @@ class TestModuleConfig:
 
     def test_items(self):
         cfg = ModuleConfig(
-            ConfigValue("a", 1, validator=Integer(default=1)),
-            ConfigValue("b", 2, validator=Integer(default=2)),
+            ConfigValue("a", 1, validator=Integer()),
+            ConfigValue("b", 2, validator=Integer()),
         )
         items = dict(cfg.items())
         assert items == {"a": 1, "b": 2}
 
     def test_keys(self):
         cfg = ModuleConfig(
-            ConfigValue("x", 0, validator=Integer(default=0)),
+            ConfigValue("x", 0, validator=Integer()),
         )
         assert list(cfg.keys()) == ["x"]
 
     def test_values(self):
         cfg = ModuleConfig(
-            ConfigValue("x", 42, validator=Integer(default=42)),
+            ConfigValue("x", 42, validator=Integer()),
         )
         assert list(cfg.values()) == [42]
 
     def test_update(self):
         cfg = ModuleConfig(
-            ConfigValue("a", 1, validator=Integer(default=1)),
+            ConfigValue("a", 1, validator=Integer()),
         )
         cfg.update({"a": 99})
         assert cfg["a"] == 99
 
     def test_schema(self):
         cfg = ModuleConfig(
-            ConfigValue(
-                "port", 8080, description="Port number", validator=Integer(default=8080)
-            ),
+            ConfigValue("port", 8080, description="Port number", validator=Integer()),
         )
         schema = cfg.schema
         assert len(schema) == 1

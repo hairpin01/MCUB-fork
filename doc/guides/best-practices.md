@@ -101,25 +101,25 @@ def register(kernel):
             "enabled",
             True,
             description="Enable module",
-            validator=Boolean(default=True)
+            validator=Boolean()
         ),
         ConfigValue(
             "api_url",
             "https://api.example.com",
             description="API endpoint URL",
-            validator=String(default="https://api.example.com")
+            validator=String()
         ),
         ConfigValue(
             "timeout",
             30,
             description="Request timeout (seconds)",
-            validator=Integer(default=30, min=1, max=300)
+            validator=Integer(min=1, max=300)
         ),
         ConfigValue(
             "mode",
             "default",
             description="Operation mode",
-            validator=Choice(choices=["default", "fast", "safe"], default="default")
+            validator=Choice(choices=["default", "fast", "safe"])
         )
     )
 
@@ -327,7 +327,7 @@ config = ModuleConfig(
         "api_key",
         "",
         description="API Key (keep secret)",
-        validator=Secret(default="")
+        validator=Secret()
     )
 )
 ```

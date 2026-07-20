@@ -1147,7 +1147,7 @@ class TestClassStyleModule:
 
     @pytest.mark.asyncio
     async def test_class_module_command_with_all_options(self):
-        """Test @command with alias, doc, doc_ru, doc_en"""
+        """Test @command with alias, doc, doc_ru, doc_en, and arbitrary doc_*"""
         from core.lib.loader.loader import ModuleLoader
         from core.lib.loader.module_base import ModuleBase, command
 
@@ -1161,7 +1161,14 @@ class TestClassStyleModule:
         class TestMod(ModuleBase):
             name = "Test"
 
-            @command("hello", alias=["hi", "h"], doc_ru="пpивeт", doc_en="hello")
+            @command(
+                "hello",
+                alias=["hi", "h"],
+                doc_ru="пpивeт",
+                doc_en="hello",
+                doc_rofl="дapoвa",
+                doc_linux="man hello",
+            )
             async def hello(self, event):
                 pass
 
@@ -1175,6 +1182,8 @@ class TestClassStyleModule:
         assert call_kwargs["alias"] == ["hi", "h"]
         assert call_kwargs["doc_ru"] == "пpивeт"
         assert call_kwargs["doc_en"] == "hello"
+        assert call_kwargs["doc_rofl"] == "дapoвa"
+        assert call_kwargs["doc_linux"] == "man hello"
 
 
 class TestClassStyleMetadata:
@@ -1310,6 +1319,28 @@ def register(kernel):
         assert metadata["version"] == "3.2.1"
         assert metadata["description"] == "Kernel style test module"
         assert metadata["commands"]["term"] == "зaпycтить shell"
+
+    @pytest.mark.asyncio
+    async def test_get_module_metadata_arbitrary_command_docs(self):
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel = MagicMock()
+        loader = ModuleLoader(kernel)
+
+        code = """
+from core.lib.loader.module_base import ModuleBase, command
+
+class TestMod(ModuleBase):
+    name = "TestModule"
+
+    @command("install", doc_linux="man mcub-install", doc_rofl="paткo ycтaнoвкa")
+    async def install(self, event):
+        pass
+"""
+
+        metadata = await loader.get_module_metadata(code)
+
+        assert metadata["commands"]["install"] == "man mcub-install"
 
     @pytest.mark.asyncio
     async def test_get_module_metadata_header_author_with_port_prefix(self):

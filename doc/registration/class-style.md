@@ -821,25 +821,25 @@ class MyModule(ModuleBase):
             "enabled",
             True,
             description="Enable module",
-            validator=Boolean(default=True),
+            validator=Boolean(),
         ),
         ConfigValue(
             "max_count",
             100,
             description="Maximum count",
-            validator=Integer(default=100, min=1, max=1000),
+            validator=Integer(min=1, max=1000),
         ),
         ConfigValue(
             "greeting",
             "Hello!",
             description="Greeting message",
-            validator=String(default="Hello!"),
+            validator=String(),
         ),
         ConfigValue(
             "mode",
             "default",
             description="Operation mode",
-            validator=Choice(choices=["default", "fast", "safe"], default="default"),
+            validator=Choice(choices=["default", "fast", "safe"]),
         ),
     )
 

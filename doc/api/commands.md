@@ -75,23 +75,32 @@ cmd_alias = kernel.register.get_command_alias('ping')
 
 ## Command Documentation
 
-You can add documentation for commands using the `doc`, `doc_en`, and `doc_ru` parameters.
+You can add documentation for commands using `doc_<locale>` keyword parameters.
+The locale suffix is arbitrary, so custom langpacks can use keys like `doc_rofl`, `doc_linux`, `doc_uk`, etc.
+The `doc={...}` dict form is also supported as an alternative notation.
 
-### Using `doc` (dict with multiple languages)
+### Using separate locale parameters
+
+```python
+@kernel.register.command(
+    'search',
+    doc_en='[modules] search modules',
+    doc_ru='[мoдyль] нaйди мoдyли',
+    doc_rofl='[мoдyль] нy-кa пoищи этy дичь',
+    doc_linux='grep -R module',
+)
+async def search_modules(event):
+    await event.edit('Searching...')
+```
+
+### Compatibility: using `doc` dict
 
 ```python
 @kernel.register.command('search', doc={
     'ru': '[мoдyль] нaйди мoдyли',
     'en': '[modules] search modules',
+    'rofl': '[мoдyль] нy-кa пoищи этy дичь',
 })
-async def search_modules(event):
-    await event.edit('Searching...')
-```
-
-### Using separate parameters
-
-```python
-@kernel.register.command('search', doc_en='[modules] search modules', doc_ru='[мoдyль] нaйди мoдyли')
 async def search_modules(event):
     await event.edit('Searching...')
 ```
@@ -103,11 +112,15 @@ cmd_info = kernel.register.get_command('search')
 # {
 #     'handler': <function>,
 #     'owner': 'loader',
-#     'docs': {'ru': '[мoдyль] нaйди мoдyли', 'en': '[modules] search modules'}
+#     'docs': {
+#         'ru': '[мoдyль] нaйди мoдyли',
+#         'en': '[modules] search modules',
+#         'rofl': '[мoдyль] нy-кa пoищи этy дичь',
+#     }
 # }
 
 # Get just docs
-docs = cmd_info['docs']  # {'ru': '...', 'en': '...'}
+docs = cmd_info['docs']  # {'ru': '...', 'en': '...', 'rofl': '...'}
 ```
 
 ## Inline Bot Information

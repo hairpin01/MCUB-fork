@@ -211,25 +211,25 @@ class TesterMod(ModuleBase):
             "quote_media",
             False,
             description="Send media with quote in .ping",
-            validator=Boolean(default=False),
+            validator=Boolean(),
         ),
         ConfigValue(
             "invert_media",
             False,
             description="Invert media colors",
-            validator=Boolean(default=False),
+            validator=Boolean(),
         ),
         ConfigValue(
             "banner_url",
             "",
             description="Banner image URL for inline preview",
-            validator=String(default=""),
+            validator=String(),
         ),
         ConfigValue(
             "start_banner_url",
             "",
             description="Start banner image URL for inline preview",
-            validator=String(default=""),
+            validator=String(),
         ),
         ConfigValue(
             "custom_text",
@@ -245,13 +245,13 @@ class TesterMod(ModuleBase):
                 "{now_hour}, {now_minute}, {now_second}\n"
                 "Heroku/hikka placeholders supported."
             ),
-            validator=Placeholders(default="", placeholder_scope="any"),
+            validator=Placeholders(placeholder_scope="any"),
         ),
         ConfigValue(
             "start_emoji",
             CUSTOM_EMOJI["✏️"],
             description="Start emoji for .ping",
-            validator=String(default=CUSTOM_EMOJI["✏️"]),
+            validator=String(),
         ),
         ConfigValue(
             "start_emoji_dynamically_enabled",
@@ -262,7 +262,7 @@ class TesterMod(ModuleBase):
                 "or slower than your previous average ping. Uses low_emoji until "
                 "there's at least one prior measurement."
             ),
-            validator=Boolean(default=False),
+            validator=Boolean(),
         ),
         ConfigValue(
             "start_emoji_dynamically",
@@ -273,7 +273,7 @@ class TesterMod(ModuleBase):
                 "shortcuts as start_emoji. Only used when "
                 "start_emoji_dynamically_enabled is True."
             ),
-            validator=DictType(default=_default_dynamic_start_emojis()),
+            validator=DictType(),
         ),
     )
 

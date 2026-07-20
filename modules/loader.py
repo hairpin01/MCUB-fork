@@ -144,19 +144,19 @@ class Loader(ModuleBase):
             "loader_protect_system",
             True,
             description="Protect system modules from being overwritten",
-            validator=Boolean(default=True),
+            validator=Boolean(),
         ),
         ConfigValue(
             "loader_show_banners",
             True,
             description="Show module banners in loaded modules list",
-            validator=Boolean(default=True),
+            validator=Boolean(),
         ),
         ConfigValue(
             "loader_allow_hikka_modules",
             True,
             description="Allow loading Hikka/Heroku compatible modules",
-            validator=Boolean(default=True),
+            validator=Boolean(),
         ),
     )
 
@@ -177,13 +177,21 @@ class Loader(ModuleBase):
         if clean:
             await self.kernel.save_module_config(self.name, clean)
 
-        self.kernel.register_inline_handler("catalog", self._catalog_inline_handler)
-        self.kernel.register_callback_handler(
-            "catalog_", self._catalog_callback_handler
-        )
+        self._register_catalog_handlers()
 
     async def on_unload(self) -> None:
         pass
+
+    def _register_catalog_handlers(self) -> None:
+        self.kernel.register_inline_handler("catalog", self._catalog_inline_handler)
+
+        inline_owners = getattr(self.kernel, "inline_handlers_owners", None)
+        if isinstance(inline_owners, dict):
+            inline_owners["catalog"] = self.name
+
+        self.kernel.register_callback_handler(
+            "catalog_", self._catalog_callback_handler
+        )
 
     def get_config(self):
         live = getattr(self.kernel, "_live_module_configs", {}).get(self.name)

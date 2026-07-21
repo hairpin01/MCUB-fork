@@ -3,8 +3,8 @@
 # name: config
 from __future__ import annotations
 
-import hashlib
 import html
+import inspect
 
 # author: @Hairpin00
 # version: 1.3.0
@@ -89,6 +89,14 @@ def is_config_status_like(obj) -> bool:
 def is_config_notice_like(obj) -> bool:
     """Check if object is a UI-only ModuleConfig notice popup."""
     return is_config_ui_only_like(obj) and get_config_ui_type(obj) == "notice"
+
+
+def is_multi_choice_validator(validator) -> bool:
+    """Return True for MultiChoice validators without importing core classes here."""
+    return (
+        getattr(validator, "internal_id", "") == "MultiChoice"
+        or validator.__class__.__name__ == "MultiChoice"
+    )
 
 
 def update_live_config_schema(kernel, module_name, key=None, value=None):
@@ -640,8 +648,8 @@ def register(kernel):
         return name
 
     def generate_key_id(key, page, config_type="kernel"):
-        hash_obj = hashlib.md5(f"{config_type}_{key}_{page}".encode())
-        return hash_obj.hexdigest()[:8]
+        """Generate a short non-reused cache id for inline config controls."""
+        return uuid.uuid4().hex[:12]
 
     def format_key_value(key, value, reveal=False):
         value_type = type(value).__name__
@@ -964,9 +972,19 @@ def register(kernel):
         if event is not None and hasattr(item, "trigger_on_click"):
             await item.trigger_on_click(owner, event)
 
-        title = item.title or item.button_text
+        title = (
+            item.get_title(owner) if hasattr(item, "get_title") else item.title
+        ) or (
+            item.get_button_text(owner)
+            if hasattr(item, "get_button_text")
+            else item.button_text
+        )
         text = f"{emoji_provider['🧩']} <b>{html.escape(str(title))}</b>"
-        description = item.description
+        description = (
+            item.get_description(owner)
+            if hasattr(item, "get_description")
+            else item.description
+        )
         if description:
             text += (
                 "\n\n"
@@ -1005,10 +1023,17 @@ def register(kernel):
         buttons.append([Button.inline("❌ Close", data=b"cfg_close", style="danger")])
         return text, buttons
 
-    def build_config_answer_payload(item):
+    def build_config_answer_payload(module_name, item):
+        owner = get_live_module_owner(module_name)
+        button_text = (
+            item.get_button_text(owner)
+            if hasattr(item, "get_button_text")
+            else item.button_text
+        )
+        answer_text = item.get_text(owner) if hasattr(item, "get_text") else item.text
         text = (
-            f"{emoji_provider['📖']} <b>{html.escape(str(item.button_text))}</b>"
-            f"\n\n<blockquote>{html.escape(str(item.text))}</blockquote>"
+            f"{emoji_provider['📖']} <b>{html.escape(str(button_text))}</b>"
+            f"\n\n<blockquote>{html.escape(str(answer_text))}</blockquote>"
         )
         return text, [[Button.inline("❌ Close", data=b"cfg_close", style="danger")]]
 
@@ -1057,8 +1082,13 @@ def register(kernel):
     def build_config_notice_payload(module_name, item):
         owner = get_live_module_owner(module_name)
         notice_text = item.get_text(owner) if hasattr(item, "get_text") else item.text
+        button_text = (
+            item.get_button_text(owner)
+            if hasattr(item, "get_button_text")
+            else item.button_text
+        )
         text = (
-            f"{emoji_provider['📖']} <b>{html.escape(str(item.button_text))}</b>"
+            f"{emoji_provider['📖']} <b>{html.escape(str(button_text))}</b>"
             f"\n\n<blockquote>{html.escape(str(notice_text))}</blockquote>"
         )
         return text, [[Button.inline("❌ Close", data=b"cfg_close", style="danger")]]
@@ -1548,6 +1578,67 @@ def register(kernel):
         except Exception as e:
             await event.answer(t("error", error=str(e)[:50]), alert=True)
 
+    def build_custom_config_handler_data(module_name, modules_page=0):
+        standard_nav_id = generate_key_id(module_name, 0, "module_nav")
+        kernel.cache.set(f"module_nav_{standard_nav_id}", (module_name, 0), ttl=86400)
+        return {
+            "module_name": module_name,
+            "modules_page": modules_page,
+            "back_to_modules": f"config_modules_page_{modules_page}".encode(),
+            "standard_config": f"module_cfg_page_nav_{standard_nav_id}".encode(),
+            "menu": b"config_menu",
+            "close": b"cfg_close",
+        }
+
+    async def run_module_custom_config_handler(
+        event, module_name, modules_page=0
+    ) -> bool:
+        """Run custom ModuleConfig handler for module-list button clicks."""
+        live_cfg = get_live_module_config(module_name)
+        if not is_module_config_like(live_cfg):
+            return False
+        if not callable(getattr(live_cfg, "custom_handler", None)):
+            return False
+
+        owner = get_live_module_owner(module_name)
+        handler_data = build_custom_config_handler_data(module_name, modules_page)
+        try:
+            if hasattr(live_cfg, "trigger_custom_handler"):
+                result = await live_cfg.trigger_custom_handler(
+                    owner, event, handler_data
+                )
+            else:
+                result = live_cfg.custom_handler(owner, event)
+                if inspect.isawaitable(result):
+                    result = await result
+
+            if result is None:
+                return True
+            if isinstance(result, dict):
+                text = result.get("text", "")
+                buttons = result.get("buttons")
+                parse_mode = result.get("parse_mode", "html")
+                await event.edit(text, buttons=buttons, parse_mode=parse_mode)
+                return True
+            if isinstance(result, tuple):
+                text = result[0] if len(result) > 0 else ""
+                buttons = result[1] if len(result) > 1 else None
+                parse_mode = result[2] if len(result) > 2 else "html"
+                await event.edit(text, buttons=buttons, parse_mode=parse_mode)
+                return True
+            if isinstance(result, str):
+                await event.edit(result, parse_mode="html")
+                return True
+            return True
+        except Exception as e:
+            await kernel.handle_error(
+                e,
+                message="Custom module config handler error",
+                event=event,
+            )
+            await event.answer(t("error", error=str(e)[:50]), alert=True)
+            return True
+
     async def _build_module_key_view_payload(
         module_name, key, page, event=None, parent_group_key=None
     ):
@@ -1556,7 +1647,8 @@ def register(kernel):
             ui_item = live_cfg.get_ui_item(key)
             if is_config_divider_like(ui_item):
                 if event is not None:
-                    await event.answer(ui_item.button_text, alert=False)
+                    owner = get_live_module_owner(module_name)
+                    await event.answer(ui_item.get_button_text(owner), alert=False)
                 return NO_EDIT
             if is_config_url_like(ui_item):
                 if event is not None:
@@ -1580,9 +1672,15 @@ def register(kernel):
                 return build_config_notice_payload(module_name, ui_item)
             if is_config_answer_like(ui_item):
                 if event is not None:
-                    await event.answer(ui_item.text, alert=ui_item.alert)
+                    owner = get_live_module_owner(module_name)
+                    answer_text = (
+                        ui_item.get_text(owner)
+                        if hasattr(ui_item, "get_text")
+                        else ui_item.text
+                    )
+                    await event.answer(answer_text, alert=ui_item.alert)
                     return NO_EDIT
-                return build_config_answer_payload(ui_item)
+                return build_config_answer_payload(module_name, ui_item)
             if is_config_group_like(ui_item):
                 return await build_config_group_payload(
                     module_name, key, ui_item, page, parent_group_key, event=event
@@ -1617,7 +1715,8 @@ def register(kernel):
             )
             if is_config_divider_like(ui_item):
                 if event is not None:
-                    await event.answer(ui_item.button_text, alert=False)
+                    owner = get_live_module_owner(module_name)
+                    await event.answer(ui_item.get_button_text(owner), alert=False)
                 return NO_EDIT
             if is_config_url_like(ui_item):
                 if event is not None:
@@ -1641,9 +1740,15 @@ def register(kernel):
                 return build_config_notice_payload(module_name, ui_item)
             if is_config_answer_like(ui_item):
                 if event is not None:
-                    await event.answer(ui_item.text, alert=ui_item.alert)
+                    owner = get_live_module_owner(module_name)
+                    answer_text = (
+                        ui_item.get_text(owner)
+                        if hasattr(ui_item, "get_text")
+                        else ui_item.text
+                    )
+                    await event.answer(answer_text, alert=ui_item.alert)
                     return NO_EDIT
-                return build_config_answer_payload(ui_item)
+                return build_config_answer_payload(module_name, ui_item)
             if is_config_group_like(ui_item):
                 return await build_config_group_payload(
                     module_name, key, ui_item, page, parent_group_key, event=event
@@ -1735,6 +1840,7 @@ def register(kernel):
 
         # Append ModuleConfig metadata if available (works for both live and dict-stored configs)
         choices = None
+        is_multi_choice = False
         # Final fallback - try to get choices from live config directly
         if choices is None:
             try:
@@ -1749,12 +1855,19 @@ def register(kernel):
                     cv = live_cfg._values.get(key)
                     if cv and hasattr(cv, "validator"):
                         choices = getattr(cv.validator, "choices", None)
+                        is_multi_choice = is_multi_choice_validator(cv.validator)
             except Exception:
                 pass
 
         if config_value:
             validator = config_value.validator
-            description = config_value.description
+            is_multi_choice = is_multi_choice_validator(validator)
+            owner = get_live_module_owner(module_name)
+            description = (
+                config_value.get_description(owner)
+                if hasattr(config_value, "get_description")
+                else config_value.description
+            )
             if description:
                 text += f"\n\n{emoji_provider['📖']} <blockquote expandable><i>{html.escape(str(description))}</i></blockquote>"
 
@@ -1850,13 +1963,24 @@ def register(kernel):
             cache_key = f"module_choice_{choice_id}"
             kernel.cache.set(
                 cache_key,
-                (module_name, key, page, list(choices), parent_group_key),
+                (
+                    module_name,
+                    key,
+                    page,
+                    list(choices),
+                    parent_group_key,
+                    is_multi_choice,
+                ),
                 ttl=86400,
             )
             choice_buttons = []
             row = []
             for i, choice in enumerate(choices):
-                is_selected = choice == value
+                is_selected = (
+                    choice in value
+                    if is_multi_choice and isinstance(value, (list, tuple, set))
+                    else choice == value
+                )
                 btn_text = f"{'☑️' if is_selected else '🔘'} {choice}"
                 row.append(
                     Button.inline(
@@ -1873,7 +1997,12 @@ def register(kernel):
                 buttons.append(row)
 
         # List/Dict operation buttons
-        if value_type == "list" and not is_hidden and not is_secret:
+        if (
+            value_type == "list"
+            and not is_hidden
+            and not is_secret
+            and not is_multi_choice
+        ):
             key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
             cache_module_key_view(
                 key_id, module_name, key, page, parent_group_key, event=event
@@ -3305,6 +3434,8 @@ def register(kernel):
                     return
 
                 module_name, page = cached
+                if await run_module_custom_config_handler(cb_event, module_name, page):
+                    return
                 await show_module_config_view(cb_event, module_name, 0)
             except Exception as e:
                 await cb_event.answer(str(e)[:50], alert=True)
@@ -3408,16 +3539,33 @@ def register(kernel):
                 if not cached:
                     await cb_event.answer(t("expired"), alert=True)
                     return
-                parent_group_key = cached[4] if len(cached) > 4 else None
                 module_name, key, page, choices = cached[:4]
-                kernel.logger.debug(
-                    f"Choice selected: {module_name}, {key}={choices[choice_idx]}, choices={choices}"
-                )
+                parent_group_key = cached[4] if len(cached) > 4 else None
+                is_multi_choice = bool(cached[5]) if len(cached) > 5 else False
                 if choice_idx >= len(choices):
                     await cb_event.answer(t("invalid_format"), alert=True)
                     return
-                new_value = choices[choice_idx]
+                choice_value = choices[choice_idx]
+                kernel.logger.debug(
+                    f"Choice selected: {module_name}, {key}={choice_value}, choices={choices}, multi={is_multi_choice}"
+                )
                 module_config = await get_writable_module_config(module_name, key)
+                if is_multi_choice:
+                    if isinstance(module_config, dict):
+                        current_value = module_config.get(key, [])
+                    else:
+                        current_value = module_config[key]
+                    current_list = (
+                        list(current_value)
+                        if isinstance(current_value, (list, tuple, set))
+                        else []
+                    )
+                    if choice_value in current_list:
+                        new_value = [v for v in current_list if v != choice_value]
+                    else:
+                        new_value = [*current_list, choice_value]
+                else:
+                    new_value = choice_value
                 if isinstance(module_config, dict):
                     module_config[key] = new_value
                 elif hasattr(module_config, "__setitem__"):
@@ -3430,7 +3578,12 @@ def register(kernel):
                         else module_config.to_dict()
                     ),
                 )
-                await cb_event.answer(t("changed_to", value=new_value), alert=False)
+                display_new_value = (
+                    ", ".join(map(str, new_value)) if is_multi_choice else new_value
+                )
+                await cb_event.answer(
+                    t("changed_to", value=display_new_value), alert=False
+                )
                 await show_module_key_view(
                     cb_event, module_name, key, page, parent_group_key
                 )

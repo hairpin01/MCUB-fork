@@ -144,19 +144,19 @@ class Loader(ModuleBase):
             "loader_protect_system",
             True,
             description="Protect system modules from being overwritten",
-            validator=Boolean(default=True),
+            validator=Boolean(),
         ),
         ConfigValue(
             "loader_show_banners",
             True,
             description="Show module banners in loaded modules list",
-            validator=Boolean(default=True),
+            validator=Boolean(),
         ),
         ConfigValue(
             "loader_allow_hikka_modules",
             True,
             description="Allow loading Hikka/Heroku compatible modules",
-            validator=Boolean(default=True),
+            validator=Boolean(),
         ),
     )
 
@@ -177,13 +177,21 @@ class Loader(ModuleBase):
         if clean:
             await self.kernel.save_module_config(self.name, clean)
 
-        self.kernel.register_inline_handler("catalog", self._catalog_inline_handler)
-        self.kernel.register_callback_handler(
-            "catalog_", self._catalog_callback_handler
-        )
+        self._register_catalog_handlers()
 
     async def on_unload(self) -> None:
         pass
+
+    def _register_catalog_handlers(self) -> None:
+        self.kernel.register_inline_handler("catalog", self._catalog_inline_handler)
+
+        inline_owners = getattr(self.kernel, "inline_handlers_owners", None)
+        if isinstance(inline_owners, dict):
+            inline_owners["catalog"] = self.name
+
+        self.kernel.register_callback_handler(
+            "catalog_", self._catalog_callback_handler
+        )
 
     def get_config(self):
         live = getattr(self.kernel, "_live_module_configs", {}).get(self.name)
@@ -205,6 +213,34 @@ class Loader(ModuleBase):
             current_lang,
             fallback,
         )
+
+    def _build_module_type_text(
+        self,
+        module_name: str,
+        module_obj: Any | None = None,
+        *,
+        hikka_compat: bool = False,
+        hikka_library: bool = False,
+    ) -> str:
+        man_module = self.lookup_module("man")
+        if man_module is None or not hasattr(man_module, "_build_module_type_text"):
+            return ""
+        typ = "library" if hikka_library else "user"
+        return man_module._build_module_type_text(
+            module_name,
+            typ,
+            module_obj,
+            hikka_compat=hikka_compat,
+            hikka_library=hikka_library,
+        )
+
+    def _build_module_config_text(
+        self, module_name: str, module_obj: Any | None = None
+    ) -> str:
+        man_module = self.lookup_module("man")
+        if man_module is None or not hasattr(man_module, "_build_module_config_text"):
+            return ""
+        return man_module._build_module_config_text(module_name, module_obj)
 
     async def _mcub_handler(self) -> str:
         me = await self.kernel.client.get_me()
@@ -378,20 +414,28 @@ class Loader(ModuleBase):
     def _get_source_link(self, module_name: str) -> str:
         source = self.kernel._module_sources.get(module_name)
         if source:
+            if isinstance(source, str):
+                return f'<blockquote><tg-emoji emoji-id="5411527152212411235">🔗</tg-emoji> Source link {source}</blockquote>'
             url = source.get("url")
-            repo = source.get("repo")
-            # Use original_name (filename from repo/URL) as the display name
-            # Falls back to module_name if not set
-            orig_name = source.get("original_name", module_name)
             if url:
-                url = url.rstrip("/")
-                # Extract directory part from the URL
-                base_url = url.rsplit("/", 1)[0] if "/" in url else url
-                return f'<blockquote><tg-emoji emoji-id="5411527152212411235">🔗</tg-emoji> Source link {base_url}/{orig_name}.py</blockquote>'
-            elif repo:
-                repo = repo.rstrip("/")
-                return f'<blockquote><tg-emoji emoji-id="5411527152212411235">🔗</tg-emoji> Source link {repo}/{orig_name}.py</blockquote>'
+                return f'<blockquote><tg-emoji emoji-id="5411527152212411235">🔗</tg-emoji> Source link {url}</blockquote>'
         return ""
+
+    @staticmethod
+    def _full_module_source_url(
+        source_url: str | None,
+        source_repo: str | None,
+        module_name: str,
+    ) -> str | None:
+        if source_url:
+            return source_url.strip()
+        if source_repo:
+            return f"{source_repo.rstrip('/')}/{module_name}.py"
+        return None
+
+    def _store_module_source(self, module_name: str, source_url: str | None) -> None:
+        if source_url:
+            self.kernel._module_sources[module_name] = {"url": source_url}
 
     async def _get_inline_bot_username(self) -> str | None:
         username = self.kernel.config.get("inline_bot_username")
@@ -924,6 +968,7 @@ class Loader(ModuleBase):
                     module_name = module_name.split(".")[0]
         else:
             module_name = module_or_url
+        source_file_name = module_name
 
         cfg = self.get_config()
         force_unload = not (cfg and cfg.get("loader_protect_system", True))
@@ -1436,6 +1481,18 @@ class Loader(ModuleBase):
                     self.kernel.logger.info(
                         f"Hikka мoдyль {actual_module_name} ycтaнoвлeн"
                     )
+                    loaded_obj = self.kernel.loaded_modules.get(actual_module_name)
+                    module_type_text = self._build_module_type_text(
+                        actual_module_name,
+                        loaded_obj,
+                        hikka_compat=True,
+                        hikka_library=bool(extra.get("library")),
+                    )
+                    config_lookup_name = extra.get("library") or actual_module_name
+                    module_config_text = self._build_module_config_text(
+                        config_lookup_name,
+                        loaded_obj,
+                    )
                     await self._send_module_loaded(
                         msg or event,
                         metadata,
@@ -1443,6 +1500,8 @@ class Loader(ModuleBase):
                         actual_module_name,
                         commands_list + conflict_text,
                         emoji,
+                        module_type_text=module_type_text,
+                        module_config_text=module_config_text,
                     )
                 else:
                     add_log(self.strings("log_install_error", error=err))
@@ -1466,8 +1525,8 @@ class Loader(ModuleBase):
                 file_path,
                 module_name,
                 is_system_target,
-                source_url=module_or_url if is_url else None,
-                source_repo=repo_url if not is_url and repo_url else None,
+                source_url=None,
+                source_repo=None,
             )
 
             result_tuple = result
@@ -1489,12 +1548,14 @@ class Loader(ModuleBase):
                     loaded_module_name, metadata
                 )
 
-                self.kernel._module_sources[actual_module_name] = {
-                    "type": "url" if is_url else "repo",
-                    "url": module_or_url if is_url else None,
-                    "repo": repo_url if not is_url and repo_url else None,
-                    "original_name": module_name,
-                }
+                self._store_module_source(
+                    actual_module_name,
+                    self._full_module_source_url(
+                        module_or_url if is_url else None,
+                        repo_url if not is_url and repo_url else None,
+                        source_file_name,
+                    ),
+                )
 
                 # Clean up stale entry that may have been saved with wrong key
                 if module_name != actual_module_name:
@@ -1526,6 +1587,17 @@ class Loader(ModuleBase):
                 )
 
                 self.kernel.logger.info(f"Moдyль {actual_module_name} cкaчaн")
+                loaded_obj = self.kernel.loaded_modules.get(
+                    actual_module_name
+                ) or self.kernel.system_modules.get(actual_module_name)
+                module_type_text = self._build_module_type_text(
+                    actual_module_name,
+                    loaded_obj,
+                )
+                module_config_text = self._build_module_config_text(
+                    actual_module_name,
+                    loaded_obj,
+                )
                 await self._send_module_loaded(
                     event,
                     metadata,
@@ -1534,6 +1606,8 @@ class Loader(ModuleBase):
                     commands_list,
                     emoji,
                     source_link=self._get_source_link(actual_module_name),
+                    module_type_text=module_type_text,
+                    module_config_text=module_config_text,
                 )
             else:
                 add_log(self.strings("log_install_error", error=message_text))
@@ -1750,6 +1824,8 @@ class Loader(ModuleBase):
         commands_list: str,
         emoji: str,
         source_link: str = "",
+        module_type_text: str = "",
+        module_config_text: str = "",
     ) -> None:
         cfg = self.get_config()
         show_banners = cfg.get("loader_show_banners", False) if cfg else False
@@ -1768,6 +1844,16 @@ class Loader(ModuleBase):
             commands_list=commands_list,
             source_link=source_link,
         )
+        if module_type_text:
+            final_msg += (
+                f"\n<blockquote>{CUSTOM_EMOJI['lib']} "
+                f"<i>{html.escape(module_type_text)}</i></blockquote>"
+            )
+        if module_config_text:
+            final_msg += (
+                f"\n<blockquote>{CUSTOM_EMOJI['lib']} "
+                f"<i>{html.escape(module_config_text)}</i></blockquote>"
+            )
         final_msg += self._build_placeholders_block(module_scope)
 
         if (
@@ -1789,7 +1875,7 @@ class Loader(ModuleBase):
 
     @command(
         "iload",
-        alias="im",
+        alias=["im", "loadmod", "lm"],
         doc_en="<reply> load module from reply",
         doc_ru="<oтвeт> зaгpyзить мoдyль из oтвeтa",
     )
@@ -2028,10 +2114,6 @@ class Loader(ModuleBase):
                             module_name
                         )
                         loaded_modules.append(actual_module_name)
-                        self.kernel._module_sources[actual_module_name] = {
-                            "type": "archive",
-                            "pack_type": "single",
-                        }
                     else:
                         rollback_created_paths()
                         await self._edit_with_emoji(
@@ -2071,10 +2153,6 @@ class Loader(ModuleBase):
                                     mod.name
                                 )
                                 loaded_modules.append(actual_module_name)
-                                self.kernel._module_sources[actual_module_name] = {
-                                    "type": "archive",
-                                    "pack_type": "pack",
-                                }
                             else:
                                 failed_modules.append(f"{mod.name}: {msg_txt}")
                                 add_log(f"Failed to load {mod.name}: {msg_txt}")
@@ -2473,8 +2551,6 @@ class Loader(ModuleBase):
                 actual_module_name = self._resolve_actual_module_name(
                     loaded_module_name, metadata
                 )
-                self.kernel._module_sources[actual_module_name] = {"type": "local"}
-
                 loaded_obj = self.kernel.loaded_modules.get(
                     actual_module_name
                 ) or self.kernel.system_modules.get(actual_module_name)
@@ -2500,6 +2576,14 @@ class Loader(ModuleBase):
                 )
 
                 self.kernel.logger.info(f"Moдyль {display_name} ycтaнoвлeн")
+                module_type_text = self._build_module_type_text(
+                    actual_module_name,
+                    loaded_obj,
+                )
+                module_config_text = self._build_module_config_text(
+                    actual_module_name,
+                    loaded_obj,
+                )
                 self.strings(
                     "module_loaded",
                     success=CUSTOM_EMOJI["success"],
@@ -2521,6 +2605,8 @@ class Loader(ModuleBase):
                     commands_list,
                     emoji,
                     source_link=self._get_source_link(actual_module_name),
+                    module_type_text=module_type_text,
+                    module_config_text=module_config_text,
                 )
             else:
                 add_log(self.strings("log_install_error", error=message_text))
@@ -2596,6 +2682,7 @@ class Loader(ModuleBase):
 
     @command(
         "dlm",
+        alias="dlmod",
         doc_en="<URL/[-send] [name]/[-list] [name/None]> download and install module from URL or repo",
         doc_ru="<URL/[-send] [name]/[-list] [name/None]> cкaчaть и ycтaнoвить мoдyль из URL или peпoзитopия",
     )
@@ -2773,6 +2860,7 @@ class Loader(ModuleBase):
 
     @command(
         "um",
+        alias=["unloadmod", "ulm"],
         doc_en="<n> unload module by name, -f to wipe module data",
         doc_ru="<имя> выгpyзить мoдyль пo имeни, -f для yдaлeния дaнныx мoдyля",
     )
@@ -3042,13 +3130,18 @@ class Loader(ModuleBase):
                     del self.kernel.loaded_modules[module_name]
 
                 old_source = self.kernel._module_sources.get(module_name)
+                old_url = (
+                    old_source.get("url")
+                    if isinstance(old_source, dict)
+                    else old_source
+                )
                 result = await self.kernel.load_module_from_file(
                     file_path,
                     module_name,
                     False,
                     is_reload=True,
-                    source_url=old_source.get("url") if old_source else None,
-                    source_repo=old_source.get("repo") if old_source else None,
+                    source_url=old_url,
+                    source_repo=None,
                 )
                 success = result[0]
                 self.kernel.dedupe_event_builders(

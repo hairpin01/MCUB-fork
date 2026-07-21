@@ -51,9 +51,7 @@ class LogBot(ModuleBase):
             "banner_url",
             default="https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/start_userbot.png",
             description="banner url for start_userbot message",
-            validator=String(
-                default="https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/start_userbot.png"
-            ),
+            validator=String(),
         ),
         ConfigValue(
             "start_message",
@@ -65,19 +63,19 @@ class LogBot(ModuleBase):
                 "{branch}, {module_version}, {module_name},\n"
                 "{module_version_text}, {prefix}, {error_load_modules}"
             ),
-            validator=Placeholders(default="", placeholder_scope="any"),
+            validator=Placeholders(placeholder_scope="any"),
         ),
         ConfigValue(
             "placeholders",
             default="",
             description="Available placeholders (auto-generated, read-only)",
-            validator=String(default=""),
+            validator=String(),
         ),
         ConfigValue(
             "auto_update",
             default=False,
             description="Auto update MCUB",
-            validator=Boolean(default=False),
+            validator=Boolean(),
         ),
     )
 

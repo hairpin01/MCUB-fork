@@ -25,6 +25,67 @@ class TestRegisterClass:
         assert register.kernel is kernel
 
 
+class TestCommandDocs:
+    """Test command documentation registration."""
+
+    def _kernel(self):
+        kernel = MagicMock()
+        kernel.custom_prefix = "."
+        kernel.command_handlers = {}
+        kernel.command_owners = {}
+        kernel.command_docs = {}
+        kernel.bot_command_handlers = {}
+        kernel.bot_command_owners = {}
+        kernel.bot_command_docs = {}
+        kernel.aliases = {}
+        kernel.system_modules = {}
+        kernel.current_loading_module = "test_module"
+        return kernel
+
+    def test_command_accepts_arbitrary_doc_locale_kwargs(self):
+        from core.lib.loader.register import Register
+
+        kernel = self._kernel()
+        register = Register(kernel)
+
+        @register.command(
+            "install",
+            doc={"en": "old install", "ru": "cтapoe oпиcaниe"},
+            doc_linux="man mcub-install",
+            doc_rofl="paткo ycтaнoвкa",
+        )
+        async def install(event):
+            pass
+
+        assert kernel.command_docs["install"] == {
+            "en": "old install",
+            "ru": "cтapoe oпиcaниe",
+            "linux": "man mcub-install",
+            "rofl": "paткo ycтaнoвкa",
+        }
+
+    def test_bot_command_accepts_arbitrary_doc_locale_kwargs(self):
+        from core.lib.loader.register import Register
+
+        kernel = self._kernel()
+        register = Register(kernel)
+
+        @register.bot_command(
+            "start",
+            doc_en="start bot",
+            doc_ru="cтapт бoтa",
+            doc_linux="systemctl start mcub-bot",
+        )
+        async def start(event):
+            pass
+
+        assert kernel.bot_command_docs["start"] == {
+            "en": "start bot",
+            "ru": "cтapт бoтa",
+            "linux": "systemctl start mcub-bot",
+        }
+
+
 class TestCommandPrefixHandling:
     """Test command prefix handling - Bug fix for lstrip regex issue"""
 

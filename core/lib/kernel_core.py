@@ -223,7 +223,7 @@ class KernelCoreMixin:
         # Script engine (beta) - lazy import on first use
         self.script_engine = None
 
-        # Module source tracking: {module_name: {"url": str, "repo": str or None}}
+        # Module source tracking: {module_name: {"url": full_file_url}}
         self._module_sources = {}
 
     def _init_runtime(self) -> None:
@@ -628,6 +628,15 @@ class KernelCoreMixin:
         """Save a module's config to the database."""
         from core.lib.utils.logger import mask_sensitive_data
 
+        live_cfg = self._live_module_configs.get(module_name)
+        if (
+            live_cfg is not None
+            and hasattr(live_cfg, "_values")
+            and isinstance(config_data, dict)
+        ):
+            live_cfg.from_dict(config_data)
+            config_data = live_cfg.to_dict()
+
         self.logger.debug(
             f"[Kernel] save_module_config module={module_name} "
             f"data={mask_sensitive_data(str(config_data))}"
@@ -635,13 +644,7 @@ class KernelCoreMixin:
         try:
             result = await self._cfg.save_module_config(module_name, config_data)
 
-            live_cfg = self._live_module_configs.get(module_name)
-            if live_cfg is not None:
-                if hasattr(live_cfg, "_values") and isinstance(config_data, dict):
-                    for key, value in config_data.items():
-                        if key != "__mcub_config__":
-                            live_cfg[key] = value
-            else:
+            if live_cfg is None:
                 live_mod = self.loaded_modules.get(
                     module_name
                 ) or self.system_modules.get(module_name)
@@ -866,13 +869,13 @@ class KernelCoreMixin:
             file_path, module_name, is_system, is_reload=is_reload
         )
 
-        # Track source if provided
-        if result[0] and (source_url or source_repo):
-            self._module_sources[module_name] = {
-                "url": source_url,
-                "repo": source_repo,
-                "original_name": module_name,
-            }
+        full_source_url = source_url or (
+            f"{source_repo.rstrip('/')}/{module_name}.py" if source_repo else None
+        )
+
+        # Track source if provided: one canonical full file URL.
+        if result[0] and full_source_url:
+            self._module_sources[module_name] = {"url": full_source_url}
             await self.save_module_sources()
 
         return result

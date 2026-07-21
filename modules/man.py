@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import inspect
 import json
 import os
 import traceback
@@ -78,67 +80,67 @@ class ManModule(ModuleBase):
             "man_quote_media",
             True,
             description="Send media in quotes",
-            validator=Boolean(default=True),
+            validator=Boolean(),
         ),
         ConfigValue(
             "man_banner_url",
             "",
             description="Banner image URL for inline preview",
-            validator=String(default=""),
+            validator=String(),
         ),
         ConfigValue(
             "man_invert_media",
             False,
             description="Invert media colors",
-            validator=Boolean(default=False),
+            validator=Boolean(),
         ),
         ConfigValue(
             "man_emoji_system_list",
             "▫️",
             description="emoji for list system module",
-            validator=String(default="▫️"),
+            validator=String(),
         ),
         ConfigValue(
             "man_emoji_user_list",
             "▪️",
             description="emoji for list user module",
-            validator=String(default="▪️"),
+            validator=String(),
         ),
         ConfigValue(
             "man_emoji",
             CUSTOM_EMOJI["crystal"],
             description="emoji main inline panel",
-            validator=String(default=str(CUSTOM_EMOJI["crystal"])),
+            validator=String(),
         ),
         ConfigValue(
             "man_emoji_no_command",
             "❔",
             description="emoji for No command module",
-            validator=String(default="❔"),
+            validator=String(),
         ),
         ConfigValue(
             "man_modules_per_page",
             10,
             description="module count per inline man page",
-            validator=Integer(default=10, min=1, max=50),
+            validator=Integer(min=1, max=50),
         ),
         ConfigValue(
             "man_emoji_author",
             CUSTOM_EMOJI["alembic"],
             description="emoji for about module",
-            validator=String(default=CUSTOM_EMOJI["alembic"]),
+            validator=String(),
         ),
         ConfigValue(
             "man_emoji_bot",
             CUSTOM_EMOJI["bot"],
             description="emoji for inline commands",
-            validator=String(default=str(CUSTOM_EMOJI["bot"])),
+            validator=String(),
         ),
         ConfigValue(
             "man_emoji_error",
             CUSTOM_EMOJI["blocked"],
             description="emoji for errors and not found messages",
-            validator=String(default=str(CUSTOM_EMOJI["blocked"])),
+            validator=String(),
         ),
     )
 
@@ -238,11 +240,14 @@ class ManModule(ModuleBase):
         def _merge_runtime_metadata(metadata: dict) -> dict:
             system_modules = getattr(self.kernel, "system_modules", {}) or {}
             loaded_modules = getattr(self.kernel, "loaded_modules", {}) or {}
-            module_obj = (
-                system_modules.get(name)
-                if typ == "system"
-                else loaded_modules.get(name)
-            )
+            if typ == "library":
+                module_obj = self._find_hikka_library(name)
+            else:
+                module_obj = (
+                    system_modules.get(name)
+                    if typ == "system"
+                    else loaded_modules.get(name)
+                )
             class_instance = getattr(module_obj, "_class_instance", None)
             target = class_instance or module_obj
             if target is None:
@@ -252,6 +257,8 @@ class ManModule(ModuleBase):
                 runtime_version = getattr(target, "version", None)
                 if isinstance(runtime_version, str) and runtime_version.strip():
                     metadata["version"] = runtime_version.strip()
+                elif isinstance(runtime_version, tuple):
+                    metadata["version"] = ".".join(map(str, runtime_version))
 
             author = metadata.get("author")
             if (
@@ -287,6 +294,8 @@ class ManModule(ModuleBase):
 
         file_path = self._resolve_module_path(name, typ)
         s = self.strings
+        if typ == "library":
+            return _merge_runtime_metadata(_fallback_metadata())
         try:
             mtime = os.path.getmtime(file_path)
         except OSError:
@@ -313,8 +322,135 @@ class ManModule(ModuleBase):
         return metadata
 
     def _get_module_commands(self, module_name: str) -> tuple[dict, dict, dict]:
+        if self._find_hikka_library(module_name) is not None:
+            return {}, {}, {}
         lang = self.kernel.config.get("language", "ru")
         return self.kernel._loader.get_module_commands(module_name, lang)
+
+    def _iter_hikka_libraries(self) -> list[Any]:
+        libraries = getattr(self.kernel, "_hikka_compat_libraries", []) or []
+        return list(libraries) if isinstance(libraries, (list, tuple, set)) else []
+
+    def _hikka_library_names(self, library: Any) -> set[str]:
+        class_name = library.__class__.__name__
+        names = {
+            str(getattr(library, "name", "") or "").lower(),
+            class_name.lower(),
+        }
+        if class_name.endswith("Lib"):
+            names.add(class_name[:-3].lower())
+        return {name for name in names if name}
+
+    def _find_hikka_library(self, name: str, module: Any | None = None) -> Any | None:
+        wanted = str(name).lower()
+        for library in self._iter_hikka_libraries():
+            if module is library or wanted in self._hikka_library_names(library):
+                return library
+        return None
+
+    def _type_module_strings(self):
+        return self.strings("type_module")
+
+    def _detect_native_module_style(self, name: str, module: Any, target: Any) -> str:
+        type_strings = self._type_module_strings()
+        if target is not module or isinstance(target, ModuleBase):
+            return type_strings("module_style_class")
+
+        loader = getattr(self.kernel, "_loader", None)
+        module_name = getattr(module, "__name__", name)
+        cache = getattr(loader, "_module_type_cache", {}) or {}
+        cached_type = cache.get(module_name) or cache.get(name)
+        if cached_type in {"class", "new", "old", "method"}:
+            style_key = {
+                "class": "module_style_class",
+                "new": "module_style_kernel",
+                "old": "module_style_client_old",
+                "method": "module_style_kernel",
+            }[cached_type]
+            return type_strings(style_key)
+
+        register = getattr(module, "register", None)
+        if callable(register):
+            iter_methods = getattr(loader, "_iter_register_methods", None)
+            with contextlib.suppress(Exception):
+                if callable(iter_methods) and iter_methods(register):
+                    return type_strings("module_style_kernel")
+            with contextlib.suppress(TypeError, ValueError):
+                params = list(inspect.signature(register).parameters.values())
+                if params:
+                    style_key = (
+                        "module_style_kernel"
+                        if params[0].name == "kernel"
+                        else "module_style_client_old"
+                    )
+                    return type_strings(style_key)
+
+        return type_strings("module_style_kernel")
+
+    def _build_module_type_text(
+        self,
+        name: str,
+        typ: str,
+        module: Any,
+        *,
+        hikka_compat: bool = False,
+        hikka_library: bool = False,
+    ) -> str:
+        type_strings = self._type_module_strings()
+        if hikka_library or typ == "library" or self._find_hikka_library(name, module):
+            return type_strings("module_type_hikka_library")
+
+        target = getattr(module, "_class_instance", None) or module
+        if hikka_compat or getattr(target, "_hikka_compat", False):
+            return type_strings("module_type_hikka")
+
+        style = self._detect_native_module_style(name, module, target)
+        return type_strings("module_type_native", style=style)
+
+    @staticmethod
+    def _count_module_config_keys(config: Any) -> int:
+        if config is None:
+            return 0
+        for attr in ("_values", "_config"):
+            values = getattr(config, attr, None)
+            if isinstance(values, dict):
+                return len(values)
+        schema = getattr(config, "schema", None)
+        if isinstance(schema, list):
+            return len(schema)
+        if isinstance(config, dict):
+            return len([key for key in config if key != "__mcub_config__"])
+        keys = getattr(config, "keys", None)
+        if callable(keys):
+            with contextlib.suppress(Exception):
+                return len([key for key in keys() if key != "__mcub_config__"])
+        return 0
+
+    def _module_config_key_count(self, name: str, module: Any | None = None) -> int:
+        live_configs = getattr(self.kernel, "_live_module_configs", {}) or {}
+        candidates = [live_configs.get(name)]
+        target = getattr(module, "_class_instance", None) or module
+        if target is not None:
+            target_name = getattr(target, "name", None)
+            class_name = target.__class__.__name__
+            candidates.extend(
+                [
+                    getattr(target, "config", None),
+                    live_configs.get(target_name) if target_name else None,
+                    live_configs.get(class_name),
+                ]
+            )
+        for config in candidates:
+            count = self._count_module_config_keys(config)
+            if count:
+                return count
+        return 0
+
+    def _build_module_config_text(self, name: str, module: Any | None = None) -> str:
+        count = self._module_config_key_count(name, module)
+        if not count:
+            return ""
+        return self._type_module_strings()("module_config_info", count=count)
 
     def _gather_all_modules(
         self, show_hidden: bool, hidden: list[str]
@@ -324,6 +460,9 @@ class ManModule(ModuleBase):
             all_modules[name] = ("system", module)
         for name, module in self.kernel.loaded_modules.items():
             all_modules[name] = ("user", module)
+        for library in self._iter_hikka_libraries():
+            library_name = getattr(library, "name", None) or library.__class__.__name__
+            all_modules[str(library_name)] = ("library", library)
         if not show_hidden:
             all_modules = {k: v for k, v in all_modules.items() if k not in hidden}
         return all_modules
@@ -411,7 +550,16 @@ class ManModule(ModuleBase):
         module_emoji = self.config.get("man_emoji") or CUSTOM_EMOJI["dna"]
         author_emoji = self.config.get("man_emoji_author") or CUSTOM_EMOJI["alembic"]
         msg = f"<blockquote>{module_emoji} <b>{display_name}</b> <i>(v{metadata.get('version', '1.0.0')})</i></blockquote>\n"
-        msg += f"<blockquote expandable>{author_emoji} <i>{description}</i></blockquote>\n\n"
+        msg += (
+            f"<blockquote expandable>{author_emoji} <i>{description}</i></blockquote>\n"
+        )
+        module_type_text = self._build_module_type_text(name, typ, _module)
+        if module_type_text:
+            msg += f"<blockquote>{CUSTOM_EMOJI['tot']} <i>{escape(module_type_text)}</i></blockquote>\n"
+        module_config_text = self._build_module_config_text(name, _module)
+        if module_config_text:
+            msg += f"<blockquote>{CUSTOM_EMOJI['tot']} <i>{escape(module_config_text)}</i></blockquote>\n"
+        msg += "\n"
         msg += "<blockquote expandable>"
         if commands:
             # Use list + join for O(n) instead of O(n²) string concatenation

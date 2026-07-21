@@ -949,6 +949,182 @@ class TestRuntimeModuleUI:
         assert instance.ui.emoji("missing") == ""
 
 
+class TestRuntimeLibraryCompat:
+    """Test Heroku loader.Library compatibility."""
+
+    @staticmethod
+    def make_kernel():
+        client = MagicMock()
+        client.tg_id = 12345
+        return types.SimpleNamespace(
+            logger=MagicMock(),
+            client=client,
+            bot_client=None,
+            config={},
+            aliases={},
+            _loader=None,
+            loaded_modules={},
+            system_modules={},
+            command_handlers={},
+            command_owners={},
+            inline_handlers={},
+            inline_handlers_owners={},
+            callback_handlers={},
+            ADMIN_ID=12345,
+            db_manager=None,
+            _hikka_compat_allmodules_proxy=None,
+            _hikka_compat_inline_proxy=None,
+        )
+
+    def test_allmodules_commands_exposes_kernel_aliases(self):
+        from core.lib.loader.hikka_compat.runtime import _AllModulesStub
+
+        async def dlm_handler(event):
+            return event
+
+        kernel = self.make_kernel()
+        kernel.command_handlers["dlm"] = dlm_handler
+        kernel.aliases["dlmod"] = "dlm"
+
+        allmodules = _AllModulesStub(kernel)
+
+        assert allmodules.commands["dlmod"] is dlm_handler
+        assert allmodules.commands["dlm"] is dlm_handler
+        assert not hasattr(allmodules, "_raw_kernel")
+
+    def test_import_lib_supports_heroku_relative_loader_import(self, monkeypatch):
+        import asyncio
+
+        from core.lib.loader.hikka_compat import runtime
+        from core.lib.loader.hikka_compat.runtime import Module
+
+        code = """
+from .. import loader
+
+class RemoteLib(loader.Library):
+    async def init(self):
+        self.ready = True
+"""
+
+        class FakeResponse:
+            def raise_for_status(self):
+                return None
+
+            async def text(self):
+                return code
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+        class FakeSession:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            def get(self, url):
+                assert url == "https://example.com/remote_lib.py"
+                return FakeResponse()
+
+        monkeypatch.setattr(runtime.aiohttp, "ClientSession", FakeSession)
+
+        module = Module()
+        module._mcub_bind(self.make_kernel(), module_name="Importer")
+        lib = asyncio.run(module.import_lib("https://example.com/remote_lib.py"))
+
+        assert lib.name == "RemoteLib"
+        assert lib.ready is True
+        assert lib.__class__.__module__.startswith("heroku.libraries.")
+        assert module.allmodules.lookup("Remote") is lib
+
+    def test_library_config_and_update_semantics(self):
+        import asyncio
+
+        from core.lib.loader.hikka_compat.config import ConfigValue, LibraryConfig
+        from core.lib.loader.hikka_compat.runtime import (
+            Library,
+            _AllModulesStub,
+            _register_library_object,
+        )
+
+        kernel = self.make_kernel()
+        allmodules = _AllModulesStub(kernel)
+        allmodules.db.set("ConfigLib", "__config__", {"enabled": False})
+
+        class ConfigLib(Library):
+            version = (1, 0, 0)
+            strings = {"name": "ConfigLib", "hello": "hi"}
+            config = LibraryConfig(
+                ConfigValue("enabled", True),
+            )
+
+            async def init(self):
+                self.initialized = True
+
+            async def on_lib_update(self, new_lib):
+                self.updated_to = new_lib.version
+
+        old = asyncio.run(
+            _register_library_object(kernel, allmodules, ConfigLib(), "https://old")
+        )
+        assert old.initialized is True
+        assert old.config["enabled"] is False
+        assert old.strings("hello") == "hi"
+        assert allmodules.lookup("Config") is old
+
+        NewConfigLib = type(
+            "ConfigLib",
+            (Library,),
+            {
+                "version": (2, 0, 0),
+                "init": lambda self: setattr(self, "initialized", True),
+            },
+        )
+
+        new = asyncio.run(
+            _register_library_object(kernel, allmodules, NewConfigLib(), "https://new")
+        )
+
+        assert new is not old
+        assert old.updated_to == (2, 0, 0)
+        assert allmodules.libraries == [new]
+
+    def test_load_hikka_module_accepts_library_only_file(self, tmp_path):
+        import asyncio
+
+        from core.lib.loader.hikka_compat.fake_package import load_hikka_module
+
+        module_path = tmp_path / "shared_lib.py"
+        module_path.write_text(
+            """
+from .. import loader
+
+class SharedLib(loader.Library):
+    async def init(self):
+        self.ready = True
+""",
+            encoding="utf-8",
+        )
+
+        kernel = self.make_kernel()
+        ok, msg, extra = asyncio.run(
+            load_hikka_module(kernel, str(module_path), "shared_lib")
+        )
+
+        assert ok is True
+        assert "SharedLib" in msg
+        assert extra["library"] == "SharedLib"
+        assert kernel._hikka_compat_libraries[0].ready is True
+        assert kernel.loaded_modules == {}
+
+
 class TestDbProxy:
     """Test DbProxy (heroku-style database access)."""
 

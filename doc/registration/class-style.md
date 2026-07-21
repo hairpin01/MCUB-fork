@@ -133,8 +133,6 @@ Returns `(success: bool, message: InlineMessage)`. The `InlineMessage` object ha
 
 | Method | Description |
 |--------|-------------|
-| `await msg.edit(text, buttons=None, *, parse_mode="html")` | Edit the message text/buttons |
-| `await msg.answer(text="", alert=False)` | Answer callback (toast/alert popup) |
 | `await msg.delete()` | Delete the message |
 | `msg.data` | Callback data (`bytes`) |
 | `msg.inline_message_id` | Inline message ID (str) |
@@ -145,7 +143,7 @@ Returns `(success: bool, message: InlineMessage)`. The `InlineMessage` object ha
 ```python
 ok, msg = await self.inline(event.chat_id, "User Info")
 if ok:
-    await msg.edit("Updated!", buttons=...)
+    await event.edit("Updated!", buttons=...)
 ```
 
 `self.inline_temp(func, ttl=300, article=None, data=None) -> str` - Register a temporary inline command handler. Returns an 8-character `form_id`.
@@ -823,25 +821,25 @@ class MyModule(ModuleBase):
             "enabled",
             True,
             description="Enable module",
-            validator=Boolean(default=True),
+            validator=Boolean(),
         ),
         ConfigValue(
             "max_count",
             100,
             description="Maximum count",
-            validator=Integer(default=100, min=1, max=1000),
+            validator=Integer(min=1, max=1000),
         ),
         ConfigValue(
             "greeting",
             "Hello!",
             description="Greeting message",
-            validator=String(default="Hello!"),
+            validator=String(),
         ),
         ConfigValue(
             "mode",
             "default",
             description="Operation mode",
-            validator=Choice(choices=["default", "fast", "safe"], default="default"),
+            validator=Choice(choices=["default", "fast", "safe"]),
         ),
     )
 

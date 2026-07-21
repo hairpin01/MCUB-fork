@@ -55,6 +55,7 @@ from .runtime import (
     _AllModulesStub,
     _CallableStringsDict,
     _instance_owner_names,
+    _register_library_object,
     _StringsShim,
     _translator_stub,
 )
@@ -97,6 +98,22 @@ def _parse_saved_config(raw: Any) -> dict:
 
 
 _FAKE_PKG_NAME = "heroku"
+
+
+def _ensure_fake_libraries_namespace(parent: types.ModuleType) -> types.ModuleType:
+    libraries_name = f"{_FAKE_PKG_NAME}.libraries"
+    libraries_mod = sys.modules.get(libraries_name)
+    if libraries_mod is None:
+        libraries_mod = types.ModuleType(libraries_name)
+        libraries_mod.__path__ = []
+        libraries_mod.__package__ = libraries_name
+        libraries_mod.__spec__ = importlib.util.spec_from_loader(
+            libraries_name,
+            loader=None,
+        )
+        sys.modules[libraries_name] = libraries_mod
+    parent.libraries = libraries_mod
+    return libraries_mod
 
 
 _MODULE_ALIASES: dict[str, str] = {
@@ -1059,6 +1076,7 @@ def _ensure_fake_package() -> str:
         elif f"{_FAKE_PKG_NAME}.validators" not in sys.modules:
             sys.modules[f"{_FAKE_PKG_NAME}.validators"] = parent_mod.validators
 
+        _ensure_fake_libraries_namespace(parent_mod)
         return _FAKE_PKG_NAME
 
     parent = types.ModuleType(_FAKE_PKG_NAME)
@@ -1495,6 +1513,7 @@ def _ensure_fake_package() -> str:
     parent.translations = translations._translations_mod
     parent.inline = inline_mod
     parent.strings = strings_mod
+    libraries_mod = _ensure_fake_libraries_namespace(parent)
 
     sys.modules[_FAKE_PKG_NAME] = parent
     sys.modules[f"{_FAKE_PKG_NAME}.loader"] = loader_mod
@@ -1506,6 +1525,7 @@ def _ensure_fake_package() -> str:
     sys.modules[f"{_FAKE_PKG_NAME}.inline.utils"] = inline_utils_mod
     sys.modules[f"{_FAKE_PKG_NAME}.validators"] = validators_mod
     sys.modules[f"{_FAKE_PKG_NAME}.strings"] = strings_mod
+    sys.modules[f"{_FAKE_PKG_NAME}.libraries"] = libraries_mod
     sys.modules["heroku"].validators = validators_mod
     _install_extended_submodules(_FAKE_PKG_NAME, parent)
 
@@ -1572,6 +1592,32 @@ def _find_module_class(mod_obj: types.ModuleType) -> type | None:
         obj = getattr(mod_obj, name, None)
         try:
             if isinstance(obj, type) and issubclass(obj, Module) and obj is not Module:
+                candidates.append(obj)
+        except TypeError:
+            continue
+
+    if not candidates:
+        return None
+    if len(candidates) == 1:
+        return candidates[0]
+
+    for cls in candidates:
+        if not any(issubclass(other, cls) for other in candidates if other is not cls):
+            return cls
+
+    return candidates[0]
+
+
+def _find_library_class(mod_obj: types.ModuleType) -> type | None:
+    candidates: list[type] = []
+    for name in dir(mod_obj):
+        obj = getattr(mod_obj, name, None)
+        try:
+            if (
+                isinstance(obj, type)
+                and issubclass(obj, Library)
+                and obj is not Library
+            ):
                 candidates.append(obj)
         except TypeError:
             continue
@@ -1986,6 +2032,30 @@ async def load_hikka_module(
 
     cls = _find_module_class(mod_obj)
     if cls is None:
+        lib_cls = _find_library_class(mod_obj)
+        if lib_cls is not None:
+            try:
+                lib_obj = lib_cls()
+                allmodules = _AllModulesStub(kernel)
+                inline_proxy = getattr(kernel, "_hikka_compat_inline_proxy", None)
+                if inline_proxy is None:
+                    inline_proxy = InlineProxy(kernel)
+                    kernel._hikka_compat_inline_proxy = inline_proxy
+                allmodules.inline = inline_proxy
+                registered = await _register_library_object(
+                    kernel,
+                    allmodules,
+                    lib_obj,
+                    file_path,
+                )
+            except Exception as e:
+                del sys.modules[child_pkg]
+                return False, f"Error loading library {module_name}: {e}", {}
+            return (
+                True,
+                f"Library {getattr(registered, 'name', lib_cls.__name__)} loaded",
+                {"library": getattr(registered, "name", lib_cls.__name__)},
+            )
         del sys.modules[child_pkg]
         return False, f"No loader.Module subclass found in {module_name}", {}
 

@@ -117,19 +117,19 @@ class MCUBInfoMod(ModuleBase):
             "info_quote_media",
             False,
             description="Send media in quotes",
-            validator=Boolean(default=False),
+            validator=Boolean(),
         ),
         ConfigValue(
             "info_invert_media",
             False,
             description="Invert media colors",
-            validator=Boolean(default=False),
+            validator=Boolean(),
         ),
         ConfigValue(
             "info_banner_url",
             "",
             description="Banner image URL for inline preview",
-            validator=String(default=""),
+            validator=String(),
         ),
         ConfigValue(
             "info_custom_text",
@@ -143,21 +143,22 @@ class MCUBInfoMod(ModuleBase):
                 "{mcub_emoji}, {user_id}, {me_first_name}, {me_username},\n"
                 "{prefix}, {now_date}, {now_time}, {now_day}, {now_month},\n"
                 "{now_month_name}, {now_year}, {now_weekday},\n"
-                "{now_hour}, {now_minute}, {now_second}"
+                "{now_hour}, {now_minute}, {now_second}\n"
+                "Heroku/hikka placeholders supported."
             ),
-            validator=Placeholders(default="", placeholder_scope="any"),
+            validator=Placeholders(placeholder_scope="any"),
         ),
         ConfigValue(
             "placeholders",
             "",
             description="Available placeholders (auto-generated, read-only)",
-            validator=String(default=""),
+            validator=String(),
         ),
         ConfigValue(
             "info_start_emoji",
             CUSTOM_EMOJI["load"],
             description="Start emoji",
-            validator=String(default=CUSTOM_EMOJI["load"]),
+            validator=String(),
         ),
     )
 
@@ -539,30 +540,43 @@ class MCUBInfoMod(ModuleBase):
         platform_type = self._get_platform_type()
 
         try:
+            me_name = me.first_name or me.username or str(me.id)
+            commit_short = (commit_sha or "")[:12]
             return await utils.resolve_placeholders(
                 self.name,
                 custom_text,
                 data={
                     "kernel_version": self.kernel.VERSION,
+                    "version": self.kernel.VERSION,
                     "core_name": core_name,
                     "prefix": self.kernel.custom_prefix,
                     "ping_time": ping_time,
+                    "ping": ping_time,
                     "uptime_str": uptime_str,
+                    "uptime": uptime_str,
                     "distro_name": distro_name,
                     "distro_emoji": distro_emoji,
                     "platform_type": platform_type,
+                    "platform": platform_type,
                     "cpu_usage": cpu_usage,
+                    "cpu": cpu_usage,
                     "ram_usage": ram_usage,
                     "system_user": system_user,
+                    "user": system_user,
                     "hostname": hostname,
                     "update_needed": update_needed,
+                    "upd": update_needed,
                     "branch": branch,
                     "commit_sha": commit_sha,
+                    "build": commit_short,
                     "commit_url": commit_url or "",
                     "mcub_emoji": mcub_emoji,
+                    "me": me_name,
                     "user_id": me.id,
                     "me_first_name": me.first_name or "",
                     "me_username": f"@{me.username}" if me.username else "",
+                    "os": distro_name,
+                    "kernel": platform.release(),
                     "now_date": now_date,
                     "now_time": now_time,
                     "now_day": now_day,

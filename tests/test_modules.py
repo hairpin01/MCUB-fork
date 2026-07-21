@@ -121,6 +121,36 @@ class TestConfigModule:
         assert hasattr(config_module, "TYPE_EMOJIS")
         assert isinstance(config_module.TYPE_EMOJIS, dict)
 
+    def test_config_result_handler_handles_validation_error_in_form(self):
+        """ValidationError in inline config result must edit form, not global error."""
+        import inspect
+        import modules.config as config_module
+
+        source = inspect.getsource(config_module)
+        validation_pos = source.index("except ValidationError as e:")
+        generic_pos = source.index('message="Config result handler error"')
+
+        assert "await show_validation_error(e)" in source
+        assert validation_pos < generic_pos
+
+    def test_config_group_back_keeps_parent_group_context(self):
+        """Grouped module config keys must return Back to their group submenu."""
+        import inspect
+        import modules.config as config_module
+
+        source = inspect.getsource(config_module)
+
+        assert "def unpack_module_key_cache(cached):" in source
+        assert (
+            "cache_module_key_view(key_id, module_name, key, page, group_key)" in source
+        )
+        assert "parent_group_key=None" in source
+        assert 'back_data = f"module_cfg_view_{back_nav_id}".encode()' in source
+        assert (
+            "module_key_cache_value(module_name, key, page, parent_group_key)" in source
+        )
+        assert 'data=f"module_cfg_page_{module_name}__{page}"' not in source
+
 
 class TestEvalModule:
     """Tests for modules/eval.py"""

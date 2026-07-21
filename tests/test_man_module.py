@@ -11,6 +11,14 @@ import pytest
 from modules import man
 
 
+class CallableStrings(dict):
+    def __call__(self, key: str, **kwargs):
+        value = self[key]
+        if isinstance(value, dict):
+            return CallableStrings(value)
+        return value.format(**kwargs) if kwargs and isinstance(value, str) else value
+
+
 @pytest.mark.asyncio
 async def test_load_module_metadata_uses_cache(tmp_path, monkeypatch):
     """Пoвтopнaя зaгpyзкa мeтaдaнныx нe дoлжнa читaть фaйл пoвтopнo."""
@@ -64,3 +72,120 @@ def test_gather_all_modules_hides_modules():
 
     result_shown = module_instance._gather_all_modules(show_hidden=True, hidden=hidden)
     assert "user" in result_shown and "sys" in result_shown
+
+
+def _make_man_instance(**kernel_overrides):
+    kernel = SimpleNamespace(
+        system_modules={},
+        loaded_modules={},
+        _hikka_compat_libraries=[],
+        config={"language": "ru"},
+        custom_prefix=".",
+        _loader=SimpleNamespace(_module_type_cache={}),
+        get_module_inline_commands=lambda name: [],
+    )
+    for key, value in kernel_overrides.items():
+        setattr(kernel, key, value)
+
+    module_instance = man.ManModule.__new__(man.ManModule)
+    module_instance.kernel = kernel
+    module_instance.strings = CallableStrings(
+        {
+            "no_description": "нeт",
+            "unknown": "?",
+            "no_commands": "нeт кoмaнд",
+            "author": "Aвтop",
+            "aliases": "Aлиacы",
+            "placeholders_title": "Плeйcxoлдepы",
+            "type_module": {
+                "module_style_class": "Class",
+                "module_style_kernel": "Kernel",
+                "module_style_client_old": "Client (устаревший)",
+                "module_type_native": "Данный модуль MCUB нативный, использует {style} стиль",
+                "module_type_hikka": "Данный модуль использует Heroku/Hikka compat (возможны ошибки)",
+                "module_type_hikka_library": "Данный модуль-библиотека использует Heroku/Hikka compat (возможны ошибки)",
+                "module_config_info": "У этого модуля есть Module config, всего ключей {count}",
+            },
+        }
+    )
+    return module_instance
+
+
+def test_module_type_text_for_native_styles():
+    module_instance = _make_man_instance()
+
+    class_module = SimpleNamespace(_class_instance=object())
+    assert "Class стиль" in module_instance._build_module_type_text(
+        "NativeClass", "user", class_module
+    )
+
+    kernel_module = SimpleNamespace(register=lambda kernel: None, __name__="kernel_mod")
+    assert "Kernel стиль" in module_instance._build_module_type_text(
+        "kernel_mod", "user", kernel_module
+    )
+
+    client_module = SimpleNamespace(register=lambda client: None, __name__="client_mod")
+    assert "Client (устаревший) стиль" in module_instance._build_module_type_text(
+        "client_mod", "user", client_module
+    )
+
+
+def test_module_type_text_for_hikka_module_and_library():
+    class VoiceLib:
+        name = "VoiceLib"
+
+    library = VoiceLib()
+    module_instance = _make_man_instance(_hikka_compat_libraries=[library])
+
+    hikka_module = SimpleNamespace(_hikka_compat=True)
+    assert module_instance._build_module_type_text("H", "user", hikka_module) == (
+        "Данный модуль использует Heroku/Hikka compat (возможны ошибки)"
+    )
+    assert module_instance._build_module_type_text("VoiceLib", "library", library) == (
+        "Данный модуль-библиотека использует Heroku/Hikka compat (возможны ошибки)"
+    )
+
+    gathered = module_instance._gather_all_modules(show_hidden=False, hidden=[])
+    assert gathered["VoiceLib"] == ("library", library)
+
+
+def test_module_config_text_counts_keys():
+    module_instance = _make_man_instance()
+
+    module = SimpleNamespace(config={"a": 1, "b": 2, "__mcub_config__": True})
+    assert module_instance._module_config_key_count("demo", module) == 2
+    assert "2" in module_instance._build_module_config_text("demo", module)
+
+    config = SimpleNamespace(_values={"x": object(), "y": object(), "z": object()})
+    module = SimpleNamespace(config=config)
+    assert module_instance._module_config_key_count("demo", module) == 3
+
+
+@pytest.mark.asyncio
+async def test_build_module_detail_includes_module_type_text(monkeypatch):
+    loader = SimpleNamespace(
+        _module_type_cache={},
+        pick_localized_text=lambda i18n, lang, fallback: fallback,
+        get_module_commands=lambda name, lang: ({}, {}, {}),
+    )
+    kernel_module = SimpleNamespace(register=lambda kernel: None, __name__="kernel_mod")
+    module_instance = _make_man_instance(_loader=loader)
+
+    async def _metadata(name, typ):
+        return {
+            "description": "desc",
+            "description_i18n": {},
+            "version": "1.0.0",
+            "author": "me",
+            "banner_url": None,
+            "commands": {},
+        }
+
+    monkeypatch.setattr(module_instance, "_load_module_metadata", _metadata)
+
+    text, banner = await module_instance._build_module_detail(
+        ("kernel_mod", "user", kernel_module)
+    )
+
+    assert banner is None
+    assert "Данный модуль MCUB нативный, использует Kernel стиль" in text

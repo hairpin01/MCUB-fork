@@ -118,13 +118,13 @@ class InfoLikeModule:
             "custom_text",
             "Ping: {ping_time} ms | Time: {now_iso}",
             "Template with placeholders",
-            validator=Placeholders(default="", placeholder_scope="any"),
+            validator=Placeholders(placeholder_scope="any"),
         ),
         ConfigValue(
             "placeholders",
             "",
             "Available placeholders (auto-generated, read-only)",
-            validator=String(default=""),
+            validator=String(),
         ),
     )
 

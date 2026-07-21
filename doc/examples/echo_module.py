@@ -25,25 +25,25 @@ class EchoModule(ModuleBase):
             "prefix",
             ">>>",
             description="Text prefix before echoed message",
-            validator=String(default=">>>"),
+            validator=String(),
         ),
         ConfigValue(
             "uppercase",
             False,
             description="Convert text to uppercase",
-            validator=Boolean(default=False),
+            validator=Boolean(),
         ),
         ConfigValue(
             "reverse",
             False,
             description="Reverse text",
-            validator=Boolean(default=False),
+            validator=Boolean(),
         ),
         ConfigValue(
             "repeat",
             1,
             description="Number of times to repeat (1-10)",
-            validator=Integer(default=1, min=1, max=10),
+            validator=Integer(min=1, max=10),
         ),
     )
 

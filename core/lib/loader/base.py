@@ -669,6 +669,9 @@ class ModuleBase(ABC):
                 val = klass.__dict__["config"]
                 if not isinstance(val, property):
                     self._config = val
+                    bind_owner = getattr(self._config, "bind_owner", None)
+                    if callable(bind_owner):
+                        bind_owner(self)
                     break
 
         self._strings = None
@@ -842,10 +845,9 @@ class ModuleBase(ABC):
                 continue
 
             kwargs_cmd = {
-                "alias": cmd_meta.get("alias"),
-                "doc": cmd_meta.get("doc"),
-                "doc_ru": cmd_meta.get("doc_ru"),
-                "doc_en": cmd_meta.get("doc_en"),
+                key: value
+                for key, value in cmd_meta.items()
+                if key == "alias" or key == "doc" or key.startswith("doc_")
             }
             kwargs_cmd = {k: v for k, v in kwargs_cmd.items() if v is not None}
 

@@ -1,7 +1,5 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлькa | @hairpin01
-#
-# lib/module_config.py
 """
 Module configuration system for MCUB.
 Provides declarative configuration similar to Hikka.
@@ -27,24 +25,49 @@ def _resolve_ui_value(value: Any, owner: Any | None = None) -> Any:
     if not callable(value):
         return value
 
-    if owner is not None:
-        try:
-            signature = inspect.signature(value)
-            accepts_owner = any(
-                parameter.kind
-                in (
-                    inspect.Parameter.POSITIONAL_ONLY,
-                    inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                    inspect.Parameter.VAR_POSITIONAL,
-                )
-                for parameter in signature.parameters.values()
-            )
-            if accepts_owner:
+    try:
+        signature = inspect.signature(value)
+    except (TypeError, ValueError):
+        if owner is not None:
+            try:
                 return value(owner)
-        except (TypeError, ValueError):
-            pass
+            except TypeError:
+                pass
+        try:
+            return value()
+        except TypeError:
+            return ""
 
-    return value()
+    parameters = list(signature.parameters.values())
+    accepts_owner = any(
+        parameter.kind == inspect.Parameter.VAR_POSITIONAL for parameter in parameters
+    ) or any(
+        parameter.kind
+        in (
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        )
+        for parameter in parameters
+    )
+    required_positional = [
+        parameter
+        for parameter in parameters
+        if parameter.kind
+        in (
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        )
+        and parameter.default is inspect.Parameter.empty
+    ]
+
+    if owner is not None and accepts_owner:
+        return value(owner)
+    if required_positional:
+        return ""
+    try:
+        return value()
+    except TypeError:
+        return ""
 
 
 def _ui_visible(show_if: Any, owner: Any | None = None) -> bool:
@@ -293,11 +316,18 @@ class TelegramID(Integer):
         default: Any = 0,
         min: int | None = -(10**15),
         max: int | None = 10**15,
+        allow_zero: bool = False,
     ):
+        # Compatibility: TelegramID historically defaulted to 0 and accepted it.
+        # Keep that sentinel valid unless the caller uses a non-zero/None default.
+        self.allow_zero = allow_zero or default == 0
         super().__init__(default=default, min=min, max=max)
 
     def validate(self, value: Any) -> int:
-        return super().validate(value)
+        val = super().validate(value)
+        if val == 0 and not self.allow_zero:
+            raise ValidationError("Telegram ID cannot be zero")
+        return val
 
 
 _EMOJI_MODIFIERS = {
@@ -536,20 +566,29 @@ class Hidden(Validator):
 class List(Validator):
     internal_id = "List"
 
-    def __init__(self, default: list | None = None, item_type: type | None = None):
+    def __init__(
+        self,
+        default: list | None = None,
+        item_type: type | Validator | None = None,
+    ):
         super().__init__(default or [])
         self.item_type = item_type
 
     def validate(self, value: Any) -> list:
         if not isinstance(value, list):
             raise ValidationError("Expected list")
+        result = list(value)
         if self.item_type is not None:
-            for item in value:
-                if not isinstance(item, self.item_type):
+            if isinstance(self.item_type, Validator):
+                result = [self.item_type.validate(item) for item in result]
+            else:
+                for item in result:
+                    if isinstance(item, self.item_type):
+                        continue
                     raise ValidationError(
                         f"List items must be of type {self.item_type.__name__}"
                     )
-        return value
+        return result
 
 
 class DictType(Validator):
@@ -558,29 +597,40 @@ class DictType(Validator):
     def __init__(
         self,
         default: dict | None = None,
-        key_type: type | None = None,
-        value_type: type | None = None,
+        key_type: type | Validator | None = None,
+        value_type: type | Validator | None = None,
     ):
         super().__init__(default or {})
         self.key_type = key_type
         self.value_type = value_type
 
+    @staticmethod
+    def _validate_type_or_validator(value: Any, expected: type | Validator, label: str):
+        if isinstance(expected, Validator):
+            return expected.validate(value)
+        if isinstance(value, expected):
+            return value
+        raise ValidationError(
+            f"Dictionary {label}s must be of type {expected.__name__}"
+        )
+
     def validate(self, value: Any) -> dict:
         if not isinstance(value, dict):
             raise ValidationError("Expected dictionary")
-        if self.key_type is not None:
-            for key in value:
-                if not isinstance(key, self.key_type):
-                    raise ValidationError(
-                        f"Dictionary keys must be of type {self.key_type.__name__}"
-                    )
-        if self.value_type is not None:
-            for val in value.values():
-                if not isinstance(val, self.value_type):
-                    raise ValidationError(
-                        f"Dictionary values must be of type {self.value_type.__name__}"
-                    )
-        return dict(value)
+        result = {}
+        for key, val in value.items():
+            new_key = (
+                self._validate_type_or_validator(key, self.key_type, "key")
+                if self.key_type is not None
+                else key
+            )
+            new_val = (
+                self._validate_type_or_validator(val, self.value_type, "value")
+                if self.value_type is not None
+                else val
+            )
+            result[new_key] = new_val
+        return result
 
 
 class ConfigValue:
@@ -619,11 +669,10 @@ class ConfigValue:
 
     @property
     def description(self):
-        return (
-            self._description()
-            if callable(self._description)
-            else self._description or ""
-        )
+        return self.get_description()
+
+    def get_description(self, owner: Any | None = None) -> str:
+        return str(_resolve_ui_value(self._description, owner) or "")
 
     def is_visible(self, owner: Any | None = None) -> bool:
         """Return whether this value should be visible in config UI."""
@@ -674,41 +723,33 @@ class Buttons:
 
     @staticmethod
     def _resolve(value: Any, owner: Any | None = None) -> Any:
-        if not callable(value):
-            return value
+        return _resolve_ui_value(value, owner)
 
-        if owner is not None:
-            try:
-                signature = inspect.signature(value)
-                accepts_owner = any(
-                    parameter.kind
-                    in (
-                        inspect.Parameter.POSITIONAL_ONLY,
-                        inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                        inspect.Parameter.VAR_POSITIONAL,
-                    )
-                    for parameter in signature.parameters.values()
-                )
-                if accepts_owner:
-                    return value(owner)
-            except (TypeError, ValueError):
-                pass
+    def get_title(self, owner: Any | None = None) -> str:
+        return str(self._resolve(self._title, owner) or "")
 
-        return value()
+    def get_description(self, owner: Any | None = None) -> str:
+        return str(self._resolve(self._description, owner) or "")
+
+    def get_button_text(self, owner: Any | None = None) -> str:
+        return str(
+            self._resolve(self._button_text, owner)
+            or self.get_title(owner)
+            or self.key
+            or "Buttons"
+        )
 
     @property
     def title(self) -> str:
-        return str(self._resolve(self._title) or "")
+        return self.get_title()
 
     @property
     def description(self) -> str:
-        return str(self._resolve(self._description) or "")
+        return self.get_description()
 
     @property
     def button_text(self) -> str:
-        return str(
-            self._resolve(self._button_text) or self.title or self.key or "Buttons"
-        )
+        return self.get_button_text()
 
     def get_buttons(self, owner: Any | None = None) -> list:
         buttons = self._resolve(self._buttons, owner)
@@ -960,16 +1001,22 @@ class Answer:
         self.alert = alert
 
     @staticmethod
-    def _resolve(value: Any) -> Any:
-        return value() if callable(value) else value
+    def _resolve(value: Any, owner: Any | None = None) -> Any:
+        return _resolve_ui_value(value, owner)
+
+    def get_button_text(self, owner: Any | None = None) -> str:
+        return str(self._resolve(self._button_text, owner) or self.key or "Info")
+
+    def get_text(self, owner: Any | None = None) -> str:
+        return str(self._resolve(self._text, owner) or "")
 
     @property
     def button_text(self) -> str:
-        return str(self._resolve(self._button_text) or self.key or "Info")
+        return self.get_button_text()
 
     @property
     def text(self) -> str:
-        return str(self._resolve(self._text) or "")
+        return self.get_text()
 
 
 class Group:
@@ -998,22 +1045,20 @@ class Group:
         self.items = list(items or [])
 
     @staticmethod
-    def _resolve(value: Any) -> Any:
-        return value() if callable(value) else value
+    def _resolve(value: Any, owner: Any | None = None) -> Any:
+        return _resolve_ui_value(value, owner)
 
     @property
     def title(self) -> str:
-        return str(self._resolve(self._title) or "")
+        return self.get_title()
 
     @property
     def description(self) -> str:
-        return str(self._resolve(self._description) or "")
+        return self.get_description()
 
     @property
     def button_text(self) -> str:
-        return str(
-            self._resolve(self._button_text) or self.title or self.key or "Group"
-        )
+        return self.get_button_text()
 
     def get_title(self, owner: Any | None = None) -> str:
         return str(_resolve_ui_value(self._title, owner) or "")
@@ -1061,6 +1106,7 @@ class ModuleConfig:
         on_change: Callable | None = None,
         version: int | str | None = None,
         migrate: Callable | None = None,
+        custom_handler: Callable | None = None,
     ):
         self._values: dict[str, ConfigValue] = {}
         self._ui_items: dict[str, Any] = {}
@@ -1070,6 +1116,7 @@ class ModuleConfig:
         self.on_change = on_change
         self.version = version
         self.migrate = migrate
+        self.custom_handler = custom_handler
         for index, item in enumerate(config_values):
             self._register_item(item, index, self._items_order)
 
@@ -1079,7 +1126,7 @@ class ModuleConfig:
             try:
                 item.key = key
             except Exception:
-                pass
+                _LOGGER.debug("Unable to assign generated UI key", exc_info=True)
             self._ui_items[key] = item
             order.append(key)
             if getattr(item, "ui_type", None) == "group":
@@ -1114,9 +1161,93 @@ class ModuleConfig:
             suffix += 1
         return key
 
-    def bind_owner(self, owner: Any) -> "ModuleConfig":
+    def bind_owner(self, owner: Any) -> ModuleConfig:
         """Bind a live module instance for owner-aware callbacks."""
         self._owner = owner
+        return self
+
+    def set_custom_handler(self, callback: Callable | None) -> ModuleConfig:
+        """Set a custom config UI handler for module-list entry clicks."""
+        self.custom_handler = callback
+        return self
+
+    @staticmethod
+    def _call_custom_handler(
+        callback: Callable, owner: Any | None, event: Any | None, data: Any | None
+    ) -> Any:
+        try:
+            signature = inspect.signature(callback)
+        except (TypeError, ValueError):
+            return callback(owner, event, data)
+
+        parameters = list(signature.parameters.values())
+        if any(
+            parameter.kind == inspect.Parameter.VAR_POSITIONAL
+            for parameter in parameters
+        ):
+            return callback(owner, event, data)
+
+        positional = [
+            parameter
+            for parameter in parameters
+            if parameter.kind
+            in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            )
+        ]
+        if len(positional) >= 3:
+            return callback(owner, event, data)
+        if len(positional) >= 2:
+            return callback(owner, event)
+        if len(positional) >= 1:
+            return callback(event)
+        return callback()
+
+    async def trigger_custom_handler(
+        self, owner: Any | None, event: Any | None, data: Any | None = None
+    ) -> Any:
+        """Run custom config UI handler if one is configured."""
+        if self.custom_handler is None:
+            return None
+        result = self._call_custom_handler(self.custom_handler, owner, event, data)
+        if inspect.isawaitable(result):
+            return await result
+        return result
+
+    def set_on_change(
+        self, key_or_callback: str | Callable | None, callback: Callable | None = None
+    ) -> ModuleConfig:
+        """
+        Set a global or per-key on_change callback.
+
+        Usage:
+            config.set_on_change(callback)
+            config.set_on_change("key", callback)
+        """
+        if callback is None and (callable(key_or_callback) or key_or_callback is None):
+            self.on_change = key_or_callback
+            return self
+
+        key = str(key_or_callback)
+        if key not in self._values:
+            raise KeyError(f"Unknown config key: {key}")
+        self._values[key].on_change = callback
+        return self
+
+    def reset_to_defaults(
+        self, *keys: str, trigger_on_change: bool = True
+    ) -> ModuleConfig:
+        """Reset all or selected config values to their defaults."""
+        target_keys = list(keys) if keys else list(self._values)
+        for key in target_keys:
+            if key not in self._values:
+                raise KeyError(f"Unknown config key: {key}")
+            default = self._values[key].default
+            if trigger_on_change:
+                self[key] = default
+            else:
+                self._values[key].set_value(default)
         return self
 
     @staticmethod
@@ -1409,10 +1540,22 @@ class ModuleConfig:
                         "key": key,
                         "type": "buttons",
                         "default": None,
-                        "description": item.description,
+                        "description": (
+                            item.get_description()
+                            if hasattr(item, "get_description")
+                            else item.description
+                        ),
                         "hidden": False,
-                        "button_text": item.button_text,
-                        "title": item.title,
+                        "button_text": (
+                            item.get_button_text()
+                            if hasattr(item, "get_button_text")
+                            else item.button_text
+                        ),
+                        "title": (
+                            item.get_title()
+                            if hasattr(item, "get_title")
+                            else item.title
+                        ),
                     }
                 )
         return schema

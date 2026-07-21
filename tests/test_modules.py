@@ -151,6 +151,51 @@ class TestConfigModule:
         )
         assert 'data=f"module_cfg_page_{module_name}__{page}"' not in source
 
+    def test_config_ids_are_nonce_based_to_avoid_stale_key_mapping(self):
+        """Inline config ids must not be deterministic key/page hashes."""
+        import inspect
+        import modules.config as config_module
+
+        source = inspect.getsource(config_module)
+
+        assert "uuid.uuid4().hex[:12]" in source
+        assert "hashlib.md5" not in source
+
+    def test_config_multichoice_toggles_list_values(self):
+        """MultiChoice UI must toggle list members, not save a scalar choice."""
+        import inspect
+        import modules.config as config_module
+
+        source = inspect.getsource(config_module)
+
+        assert "is_multi_choice_validator(validator)" in source
+        assert "choice in value" in source
+        assert "and not is_multi_choice" in source
+        assert "if is_multi_choice:" in source
+        assert "new_value = [v for v in current_list if v != choice_value]" in source
+        assert "new_value = [*current_list, choice_value]" in source
+
+    def test_config_module_select_uses_custom_handler_before_standard_ui(self):
+        """Module list button should allow custom ModuleConfig handler override."""
+        import inspect
+        import modules.config as config_module
+
+        source = inspect.getsource(config_module)
+        select_pos = source.index('elif data.startswith("module_select_"):')
+        custom_pos = source.index(
+            "await run_module_custom_config_handler(cb_event, module_name, page)",
+            select_pos,
+        )
+        standard_pos = source.index(
+            "await show_module_config_view(cb_event, module_name, 0)",
+            select_pos,
+        )
+
+        assert "def build_custom_config_handler_data" in source
+        assert "standard_config" in source
+        assert "back_to_modules" in source
+        assert custom_pos < standard_pos
+
 
 class TestEvalModule:
     """Tests for modules/eval.py"""

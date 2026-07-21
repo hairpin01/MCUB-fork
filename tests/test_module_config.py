@@ -16,6 +16,7 @@ from core.lib.loader.module_config import (
     Callback,
     Choice,
     ConfigValue,
+    DictType,
     Divider,
     Emoji,
     EntityLike,
@@ -23,16 +24,17 @@ from core.lib.loader.module_config import (
     Group,
     Integer,
     Link,
+    List,
     ModuleConfig,
     MultiChoice,
     NoneType,
+    Notice,
     Placeholders,
     RegExp,
     Row,
     Secret,
-    String,
-    Notice,
     Status,
+    String,
     TelegramID,
     Union,
     Url,
@@ -283,6 +285,28 @@ class TestTelegramID:
         with pytest.raises(ValidationError):
             tv.validate(True)
 
+    def test_zero_rejected_by_default(self):
+        tv = TelegramID(default=None)
+        with pytest.raises(ValidationError, match="zero"):
+            tv.validate(0)
+
+    def test_allow_zero_accepts_zero(self):
+        tv = TelegramID(default=0, allow_zero=True)
+        assert tv.validate(0) == 0
+
+    def test_default_zero_keeps_zero_sentinel_compatible(self):
+        tv = TelegramID(default=0)
+        assert tv.validate(0) == 0
+
+    def test_hikka_compat_allow_zero_accepts_zero(self):
+        from core.lib.loader.hikka_compat.validators import (
+            TelegramID as HikkaTelegramID,
+        )
+
+        assert HikkaTelegramID(allow_zero=True).validate(0) == 0
+        with pytest.raises(Exception, match="zero"):
+            HikkaTelegramID().validate(0)
+
 
 #     NoneType
 
@@ -427,6 +451,40 @@ class TestUnion:
     def test_to_storage(self):
         uv = Union(Integer(default=0), String(default=""))
         assert uv.to_storage(42) == 42
+
+
+#     List
+
+
+class TestList:
+    def test_item_type_can_be_python_type(self):
+        lv = List(item_type=str)
+        assert lv.validate(["a", "b"]) == ["a", "b"]
+        with pytest.raises(ValidationError, match="List items"):
+            lv.validate(["a", 1])
+
+    def test_item_type_can_be_validator(self):
+        lv = List(item_type=TelegramID(allow_zero=True))
+        assert lv.validate([0, "123"]) == [0, 123]
+
+
+#     DictType
+
+
+class TestDictType:
+    def test_key_value_types_can_be_python_types(self):
+        dv = DictType(key_type=str, value_type=int)
+        assert dv.validate({"a": 1}) == {"a": 1}
+        with pytest.raises(ValidationError, match="Dictionary values"):
+            dv.validate({"a": "1"})
+
+    def test_key_value_types_can_be_validators(self):
+        dv = DictType(key_type=String(), value_type=Union(Integer(), Float(), String()))
+        assert dv.validate({"a": "text", "b": 2, "c": 3.5}) == {
+            "a": "text",
+            "b": 2,
+            "c": 3.5,
+        }
 
 
 #     Secret
@@ -589,6 +647,76 @@ class TestConfigValue:
         assert cfg["key"] == 10
         assert calls == []
 
+    def test_set_on_change_global_and_per_key(self):
+        global_calls = []
+        key_calls = []
+        cfg = ModuleConfig(ConfigValue("key", 0), ConfigValue("other", 10))
+
+        cfg.set_on_change(lambda key, old, new: global_calls.append((key, old, new)))
+        cfg.set_on_change("key", lambda old, new: key_calls.append((old, new)))
+
+        cfg["key"] = 1
+        cfg["other"] = 11
+
+        assert key_calls == [(0, 1)]
+        assert global_calls == [("key", 0, 1), ("other", 10, 11)]
+
+    def test_reset_to_defaults_all_selected_and_silent(self):
+        calls = []
+        cfg = ModuleConfig(
+            ConfigValue(
+                "first", 1, on_change=lambda old, new: calls.append((old, new))
+            ),
+            ConfigValue("second", "a"),
+        )
+
+        cfg["first"] = 5
+        cfg["second"] = "b"
+        cfg.reset_to_defaults("second")
+
+        assert cfg["first"] == 5
+        assert cfg["second"] == "a"
+
+        cfg.reset_to_defaults(trigger_on_change=False)
+
+        assert cfg["first"] == 1
+        assert cfg["second"] == "a"
+        assert calls == [(1, 5)]
+
+    @pytest.mark.asyncio
+    async def test_custom_handler_receives_owner_event_data(self):
+        owner = object()
+        event = object()
+        data = {"standard_config": b"module_cfg_page_nav_x"}
+        calls = []
+        cfg = ModuleConfig(
+            ConfigValue("key", 1),
+            custom_handler=lambda module, event, data: calls.append(
+                (module, event, data)
+            )
+            or ("text", [["button"]]),
+        ).bind_owner(owner)
+
+        result = await cfg.trigger_custom_handler(owner, event, data)
+
+        assert result == ("text", [["button"]])
+        assert calls == [(owner, event, data)]
+
+    @pytest.mark.asyncio
+    async def test_set_custom_handler(self):
+        calls = []
+        cfg = ModuleConfig(ConfigValue("key", 1))
+
+        def handle_event(event):
+            calls.append(event)
+            return "ok"
+
+        cfg.set_custom_handler(handle_event)
+        result = await cfg.trigger_custom_handler(None, "event")
+
+        assert result == "ok"
+        assert calls == ["event"]
+
     def test_version_is_saved_and_migrate_can_rename_keys(self):
         def migrate(data, old_version):
             assert old_version == 1
@@ -625,6 +753,21 @@ class TestModuleConfig:
     def test_get_item(self):
         cfg = ModuleConfig(ConfigValue("port", 8080, validator=Integer()))
         assert cfg["port"] == 8080
+
+    def test_config_value_owner_aware_description(self):
+        class Owner:
+            def strings(self, key):
+                return {"desc_none": "None description"}[key]
+
+        value = ConfigValue(
+            "key",
+            None,
+            description=lambda module: module.strings("desc_none"),
+            validator=NoneType(),
+        )
+
+        assert value.description == ""
+        assert value.get_description(Owner()) == "None description"
 
     def test_set_item(self):
         cfg = ModuleConfig(ConfigValue("port", 8080, validator=Integer()))
@@ -836,6 +979,45 @@ class TestModuleConfig:
         owner.show_notice = False
         assert notice.is_visible(owner) is False
 
+    def test_owner_aware_ui_values_do_not_crash_without_owner(self):
+        divider = Divider(lambda module: module.status_text)
+        buttons = Buttons(
+            lambda module: module.status_text,
+            lambda module: module.status_text,
+            lambda module: module.status_text,
+            [],
+        )
+        notice = Notice(lambda module: module.status_text)
+        status = Status(
+            lambda module: module.status_text, lambda module: module.status_text
+        )
+        url = Url(lambda module: module.status_text, lambda module: module.docs_url)
+        answer = Answer(
+            lambda module: module.status_text, lambda module: module.status_text
+        )
+        group = Group(
+            lambda module: module.status_text,
+            [],
+            lambda module: module.status_text,
+            button_text=lambda module: module.status_text,
+        )
+
+        assert divider.button_text == "────────"
+        assert buttons.title == ""
+        assert buttons.description == ""
+        assert buttons.button_text == "Buttons"
+        assert notice.button_text == "Notice"
+        assert notice.text == ""
+        assert status.button_text == "Status"
+        assert status.value == ""
+        assert url.button_text == "Link"
+        assert url.url == ""
+        assert answer.button_text == "Info"
+        assert answer.text == ""
+        assert group.title == ""
+        assert group.description == ""
+        assert group.button_text == "Group"
+
     @pytest.mark.asyncio
     async def test_callback_ui_item_triggers_owner_event_callback(self):
         owner = object()
@@ -947,7 +1129,11 @@ class TestModuleConfig:
     async def test_buttons_on_click_event_only_callback(self):
         event = object()
         calls = []
-        item = Buttons("Actions", on_click=lambda event: calls.append(event))
+
+        def handle_event(event):
+            calls.append(event)
+
+        item = Buttons("Actions", on_click=handle_event)
 
         await item.trigger_on_click(None, event)
 

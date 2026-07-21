@@ -671,7 +671,7 @@ class ModuleBase(ABC):
                     self._config = val
                     bind_owner = getattr(self._config, "bind_owner", None)
                     if callable(bind_owner):
-                        bind_owner(self)
+                        bind_owner(self)  # pylint: disable=not-callable
                     break
 
         self._strings = None

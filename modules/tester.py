@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import getpass
 import json
+import logging
 import os
 import platform
 import random
@@ -32,10 +33,13 @@ import utils
 from core.lib.loader.module_base import ModuleBase, callback, command
 from core.lib.loader.module_config import (
     Boolean,
+    Choice,
     ConfigValue,
     DictType,
+    Group,
     ModuleConfig,
     Placeholders,
+    Row,
     String,
 )
 from utils.strings import Strings
@@ -166,37 +170,14 @@ class TesterMod(ModuleBase):
     author = "@hairpin00"
 
     async def on_load(self) -> None:
-        branch = _detect_branch_sync()
-        config_dict = await self.kernel.get_module_config(
-            self.name,
-            {
-                "quote_media": False,
-                "invert_media": False,
-                "custom_text": "",
-                "start_emoji": "✏️",
-                "banner_url": f"https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/{branch}/img/ping.png",
-                "start_banner_url": "",
-            },
+        await super().on_load()
+        self.config.set_on_change(
+            "telegram_log_level", self._on_telegram_log_level_change
         )
+        self.config.set_on_change("file_log_level", self._on_file_log_level_change)
+        self._apply_telegram_log_level()
+        self._apply_file_log_level()
         utils.register_decorated_placeholders(self.name, self)
-
-        if isinstance(config_dict, dict):
-            stored_dynamic_emojis = config_dict.get("start_emoji_dynamically")
-            if stored_dynamic_emojis is not None:
-                normalized_dynamic_emojis = _normalize_dynamic_start_emojis(
-                    stored_dynamic_emojis
-                )
-                if normalized_dynamic_emojis != stored_dynamic_emojis:
-                    config_dict = dict(config_dict)
-                    config_dict["start_emoji_dynamically"] = normalized_dynamic_emojis
-
-        self.config.from_dict(config_dict)
-        config_dict_clean = {
-            k: v for k, v in self.config.to_dict().items() if v is not None
-        }
-        if config_dict_clean:
-            await self.kernel.save_module_config(self.name, config_dict_clean)
-        self.kernel.store_module_config_schema(self.name, self.config)
 
     async def on_unload(self) -> None:
         utils.unregister_scope(self.name)
@@ -205,88 +186,217 @@ class TesterMod(ModuleBase):
         "ru": "Тecтep мoдyль (пинг, лoги, зaмopoзкa)",
         "en": "Tester module (ping, logs, freezing)",
     }
+    log_level_labels = ["debug", "info", "warning", "error", "critical", "all"]
+    telegram_log_level_labels = ["debug", "info", "warning", "error", "critical", "off"]
+    file_log_level_labels = telegram_log_level_labels
+    telegram_log_level_numbers = {
+        "debug": logging.DEBUG,
+        "info": logging.INFO,
+        "warning": logging.WARNING,
+        "error": logging.ERROR,
+        "critical": logging.CRITICAL,
+        "off": logging.CRITICAL + 1,
+    }
 
     config = ModuleConfig(
-        ConfigValue(
-            "quote_media",
-            False,
-            description="Send media with quote in .ping",
-            validator=Boolean(),
+        Group(
+            "Ping",
+            [
+                ConfigValue(
+                    "quote_media",
+                    False,
+                    description="Send media with quote in .ping",
+                    validator=Boolean(),
+                ),
+                ConfigValue(
+                    "invert_media",
+                    False,
+                    description="Invert media colors",
+                    validator=Boolean(),
+                ),
+                ConfigValue(
+                    "banner_url",
+                    "",
+                    description="Banner image URL for inline preview",
+                    validator=String(),
+                ),
+                ConfigValue(
+                    "start_banner_url",
+                    "",
+                    description="Start banner image URL for inline preview",
+                    validator=String(),
+                ),
+                Row(),
+                ConfigValue(
+                    "custom_text",
+                    "",
+                    description=(
+                        "Custom text for .ping. Available placeholders:\n"
+                        "{ping_time}, {raw_ping}, {prev_ping}, {ping_diff}, {timings},\n"
+                        "{avg_ping}, {min_ping}, {max_ping}, {ping_count},\n"
+                        "{dynamic_emoji}, {start_emoji}, {uptime}, {system_user}, {hostname},\n"
+                        "{cpu_usage}, {ram_usage}, {branch}, {commit_sha},\n"
+                        "{now_date}, {now_time}, {now_day}, {now_month},\n"
+                        "{now_month_name}, {now_year}, {now_weekday},\n"
+                        "{now_hour}, {now_minute}, {now_second}\n"
+                        "Heroku/hikka placeholders supported."
+                    ),
+                    validator=Placeholders(placeholder_scope="any"),
+                ),
+                ConfigValue(
+                    "start_emoji",
+                    CUSTOM_EMOJI["✏️"],
+                    description="Start emoji for .ping",
+                    validator=String(),
+                ),
+                ConfigValue(
+                    "start_emoji_dynamically_enabled",
+                    False,
+                    description=(
+                        "Enable dynamic start_emoji in .ping result: picks low_emoji/high_emoji "
+                        "from start_emoji_dynamically depending on whether this ping is faster "
+                        "or slower than your previous average ping. Uses low_emoji until "
+                        "there's at least one prior measurement."
+                    ),
+                    validator=Boolean(),
+                ),
+                ConfigValue(
+                    "start_emoji_dynamically",
+                    _default_dynamic_start_emojis,
+                    description=(
+                        "JSON dict with 'low_emoji' (ping faster than avg) and 'high_emoji' "
+                        "(ping slower than avg) keys. Values accept the same emoji/custom-emoji "
+                        "shortcuts as start_emoji. Only used when "
+                        "start_emoji_dynamically_enabled is True."
+                    ),
+                    validator=DictType(),
+                ),
+            ],
+            description="Ping settings",
+            key="ping_settings",
+            button_text="Command ping",
         ),
-        ConfigValue(
-            "invert_media",
-            False,
-            description="Invert media colors",
-            validator=Boolean(),
-        ),
-        ConfigValue(
-            "banner_url",
-            "",
-            description="Banner image URL for inline preview",
-            validator=String(),
-        ),
-        ConfigValue(
-            "start_banner_url",
-            "",
-            description="Start banner image URL for inline preview",
-            validator=String(),
-        ),
-        ConfigValue(
-            "custom_text",
-            "",
-            description=(
-                "Custom text for .ping. Available placeholders:\n"
-                "{ping_time}, {raw_ping}, {prev_ping}, {ping_diff}, {timings},\n"
-                "{avg_ping}, {min_ping}, {max_ping}, {ping_count},\n"
-                "{dynamic_emoji}, {start_emoji}, {uptime}, {system_user}, {hostname},\n"
-                "{cpu_usage}, {ram_usage}, {branch}, {commit_sha},\n"
-                "{now_date}, {now_time}, {now_day}, {now_month},\n"
-                "{now_month_name}, {now_year}, {now_weekday},\n"
-                "{now_hour}, {now_minute}, {now_second}\n"
-                "Heroku/hikka placeholders supported."
-            ),
-            validator=Placeholders(placeholder_scope="any"),
-        ),
-        ConfigValue(
-            "start_emoji",
-            CUSTOM_EMOJI["✏️"],
-            description="Start emoji for .ping",
-            validator=String(),
-        ),
-        ConfigValue(
-            "start_emoji_dynamically_enabled",
-            False,
-            description=(
-                "Enable dynamic start_emoji in .ping result: picks low_emoji/high_emoji "
-                "from start_emoji_dynamically depending on whether this ping is faster "
-                "or slower than your previous average ping. Uses low_emoji until "
-                "there's at least one prior measurement."
-            ),
-            validator=Boolean(),
-        ),
-        ConfigValue(
-            "start_emoji_dynamically",
-            _default_dynamic_start_emojis,
-            description=(
-                "JSON dict with 'low_emoji' (ping faster than avg) and 'high_emoji' "
-                "(ping slower than avg) keys. Values accept the same emoji/custom-emoji "
-                "shortcuts as start_emoji. Only used when "
-                "start_emoji_dynamically_enabled is True."
-            ),
-            validator=DictType(),
+        Group(
+            "Logs",
+            [
+                ConfigValue(
+                    "telegram_log_level",
+                    "warning",
+                    description=(
+                        "Minimum logger level forwarded to the Telegram log chat. "
+                        "Use 'off' to disable log-chat forwarding."
+                    ),
+                    validator=Choice(
+                        choices=telegram_log_level_labels,
+                    ),
+                ),
+                ConfigValue(
+                    "file_log_level",
+                    "debug",
+                    description=(
+                        "Minimum logger level written to logs/kernel.log. "
+                        "Use 'off' to disable file logging."
+                    ),
+                    validator=Choice(
+                        choices=file_log_level_labels,
+                    ),
+                ),
+            ],
+            description="Logger settings for the Telegram log chat and logs/kernel.log",
+            key="logs_settings",
+            button_text="Logger",
         ),
     )
 
     strings: dict[str, dict[str, str]] | Strings = {"name": "tester"}
 
     log_level_pattern = re.compile(r"^\d{4}-\d{2}-\d{2} .* \[([A-Z]+)\] ")
-    log_level_labels = ["debug", "info", "warning", "error", "critical", "all"]
 
     def _normalize_log_level(self, value: str | None) -> str | None:
         if not value:
             return None
         value = value.strip().lower()
         return value if value in self.log_level_labels else None
+
+    def _normalize_logger_writer_level(self, value: str | None, default: str) -> str:
+        if not value:
+            return default
+        value = value.strip().lower()
+        if value in self.telegram_log_level_labels:
+            return value
+        return default
+
+    def _normalize_telegram_log_level(self, value: str | None) -> str:
+        return self._normalize_logger_writer_level(value, "warning")
+
+    def _normalize_file_log_level(self, value: str | None) -> str:
+        return self._normalize_logger_writer_level(value, "debug")
+
+    def _iter_telegram_log_bridges(self):
+        seen: set[int] = set()
+        loggers = (
+            getattr(self.kernel, "logger", None),
+            logging.getLogger("kernel"),
+            logging.getLogger(),
+        )
+        for logger in loggers:
+            if not isinstance(logger, logging.Logger):
+                continue
+            for handler in logger.handlers:
+                if id(handler) in seen:
+                    continue
+                if not hasattr(handler, "_telegram_handler"):
+                    continue
+                seen.add(id(handler))
+                yield handler
+
+    def _iter_kernel_log_file_handlers(self):
+        seen: set[int] = set()
+        kernel_log_path = os.path.normpath(os.path.abspath("logs/kernel.log"))
+        kernel_log_suffix = os.path.normpath(os.path.join("logs", "kernel.log"))
+        loggers = (
+            logging.getLogger(),
+            getattr(self.kernel, "logger", None),
+            logging.getLogger("kernel"),
+        )
+        for logger in loggers:
+            if not isinstance(logger, logging.Logger):
+                continue
+            for handler in logger.handlers:
+                if id(handler) in seen:
+                    continue
+                base_filename = getattr(handler, "baseFilename", None)
+                if not base_filename:
+                    continue
+                handler_path = os.path.normpath(os.path.abspath(base_filename))
+                if handler_path != kernel_log_path and not handler_path.endswith(
+                    kernel_log_suffix
+                ):
+                    continue
+                seen.add(id(handler))
+                yield handler
+
+    def _apply_telegram_log_level(self, value: str | None = None) -> None:
+        level_name = self._normalize_telegram_log_level(
+            value if value is not None else self.config.get("telegram_log_level")
+        )
+        level = self.telegram_log_level_numbers[level_name]
+        for handler in self._iter_telegram_log_bridges():
+            handler.setLevel(level)
+
+    def _apply_file_log_level(self, value: str | None = None) -> None:
+        level_name = self._normalize_file_log_level(
+            value if value is not None else self.config.get("file_log_level")
+        )
+        level = self.telegram_log_level_numbers[level_name]
+        for handler in self._iter_kernel_log_file_handlers():
+            handler.setLevel(level)
+
+    def _on_telegram_log_level_change(self, _old_value: str, new_value: str) -> None:
+        self._apply_telegram_log_level(new_value)
+
+    def _on_file_log_level_change(self, _old_value: str, new_value: str) -> None:
+        self._apply_file_log_level(new_value)
 
     def _build_filtered_log(self, level: str, kernel_log_path: str) -> str | None:
         if level == "all":

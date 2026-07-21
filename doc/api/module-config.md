@@ -33,24 +33,30 @@ The recommended way to create module configuration. Provides:
 
 ### Available Validators
 
-| Validator | Description |
-|-----------|-------------|
-| `Boolean()` | Boolean value (True/False) |
-| `Integer(min=..., max=...)` | Integer number |
-| `Float(min=..., max=...)` | Floating point number |
-| `String(min_len=..., max_len=...)` | String value |
-| `Choice(choices=[...])` | One of a list of choices |
-| `MultiChoice(choices=[...])` | List of choices |
-| `List(item_type=...)` | List, optionally with item type validation |
-| `DictType(key_type=..., value_type=...)` | Dictionary, optionally with key/value type validation |
-| `Secret()` | Secret value (hidden in UI) |
-| `Link(schemes=("http", "https"), require_netloc=True)` | Valid URL |
-| `RegExp(pattern=..., flags=0, fullmatch=True)` | String that matches the given regular expression |
-| `TelegramID(allow_zero=False)` | Telegram ID |
-| `Union(*validators)` | Combines multiple validators, e.g. `Union(Integer(), Float())` |
-| `NoneType()` | `None` / `null` value |
-| `Emoji(min_count=1, max_count=None)` | Valid emoji or emoji sequence |
-| `EntityLike()` | Telegram entity-like value: ID, `@username`, `t.me` link or URL |
+All validators accept/return Python values and raise `ValidationError` on invalid
+input. Keep user-facing defaults in `ConfigValue(...)`; validator `default=` exists
+mostly for compatibility and low-level normalization.
+
+| Validator | Arguments | Description |
+|-----------|-----------|-------------|
+| `Boolean(default=None)` | `default` | Boolean value. Accepts booleans, common true/false strings and `0/1`. |
+| `Integer(default=None, min=None, max=None)` | `min`, `max` | Integer number, rejects bool and non-integral floats. |
+| `Float(default=None, min=None, max=None)` | `min`, `max` | Floating point number, rejects bool. |
+| `String(default="", min_len=None, max_len=None, supports_placeholders=False, placeholder_scope=None)` | `min_len`, `max_len`, `supports_placeholders`, `placeholder_scope` | String value with optional length checks and placeholder help. |
+| `Placeholders(default="", min_len=None, max_len=None, *, placeholder_scope="any")` | `placeholder_scope` | String with placeholder help enabled. |
+| `Choice(choices, default=None)` | `choices` | One of a list of choices. If `default` is omitted, the first choice is used internally. |
+| `MultiChoice(choices, default=None)` | `choices` | List of choices; config UI toggles choices on/off. |
+| `List(default=None, item_type=None)` | `item_type` | List, optionally requiring every item to match a Python type or a `Validator` instance. |
+| `DictType(default=None, key_type=None, value_type=None)` | `key_type`, `value_type` | Dictionary, optionally requiring keys/values to match Python types or `Validator` instances. |
+| `Secret(default=None)` | `default` | Secret value. Uses string validation and marks value as hidden/secret in UI. |
+| `Hidden(validator=None, default=None)` | `validator` | Wrap another validator and mark the value as hidden. |
+| `Link(default="", schemes=("http", "https"), require_netloc=True, **kwargs)` | `schemes`, `require_netloc` | URL string. `**kwargs` are forwarded to `String` (`min_len`, `max_len`, ...). |
+| `RegExp(pattern, default="", flags=0, fullmatch=True, **kwargs)` | `pattern`, `flags`, `fullmatch` | String matching a regex. `fullmatch=False` switches to search mode. |
+| `TelegramID(default=0, min=-10**15, max=10**15, allow_zero=False)` | `allow_zero`, `min`, `max` | Telegram ID. Use `allow_zero=True` for explicit `0` sentinel values. The historical `default=0` sentinel is kept compatible. |
+| `Union(*validators, default=...)` | validators | Combines validators; first successful validator wins. |
+| `NoneType(default=None)` | `default` | `None` / `null` value. Also accepts empty string and `"none"`/`"null"` strings. |
+| `Emoji(default="", min_count=1, max_count=None, **kwargs)` | `min_count`, `max_count` | Emoji or emoji sequence. `**kwargs` are forwarded to `String`. |
+| `EntityLike(default="")` | `default` | Telegram entity-like value: numeric ID, `@username`, `t.me` invite/link, or URL. |
 
 Put defaults in `ConfigValue`, not in the validator:
 
@@ -62,6 +68,15 @@ ConfigValue("timeout", 30, validator=Integer(min=1, max=300))
 ConfigValue("mode", "default", validator=Choice(choices=["default", "fast", "safe"]))
 ConfigValue("allowed_users", [], validator=List(item_type=int))
 ```
+
+Use `TelegramID(allow_zero=True)` when `0` is a valid sentinel/default value,
+for example a disabled `log_chat`. For backward compatibility,
+`TelegramID(default=0)` also accepts `0`, but explicit `allow_zero=True` is
+clearer in new modules.
+
+`Union(...)` uses validators in the order provided. Put broad validators like
+`String()` last if you want `Integer()` / `Float()` to preserve numeric values:
+`Union(Integer(), Float(), String())`.
 
 ### Usage (Class-Style - Recommended)
 
@@ -257,6 +272,24 @@ Built-in UI-only items (`Buttons`, `Row`, `Answer`, `Group`, `Divider`, `Url`,
 `ui_only = True` and `ui_type`.
 `ModuleConfig` uses this contract to keep UI helpers out of stored config values.
 
+#### UI-only Constructor Reference
+
+| Item | Arguments | Behavior |
+|------|-----------|----------|
+| `Buttons(title, description="", button_text=None, buttons=None, *, on_click=None, key=None)` | `title`, `description`, `button_text`, `buttons`, `on_click`, `key` | Opens a custom button submenu. `buttons` can be a static matrix or `lambda module: ...`. `on_click` runs before opening. |
+| `Row(*, key=None)` | `key` | Ends the current row so following buttons start on a new line. |
+| `Divider(text="────────", show_if=True, *, key=None)` | `text`, `show_if`, `key` | Visual separator row. `text`/`show_if` may be static or `lambda module: ...`. |
+| `Url(button_text, url, show_if=True, *, key=None)` | `button_text`, `url`, `show_if`, `key` | Direct URL button. `button_text` and `url` may be dynamic. |
+| `Callback(button_text, on_click=None, show_if=True, *, key=None)` | `button_text`, `on_click`, `show_if`, `key` | Single callback button. `on_click` can be sync/async and can accept `(module, event)`, `(event)`, or no args. |
+| `Status(title, value="", show_if=True, *, key=None)` | `title`, `value`, `show_if`, `key` | Read-only status view. `value` can be `lambda module: ...`. |
+| `Notice(text, show_if=True, *, alert=True, key=None)` | `text`, `show_if`, `alert`, `key` | Conditional popup button. Uses `event.answer(text, alert=alert)`. |
+| `Answer(button_text, text="", *, alert=True, key=None)` | `button_text`, `text`, `alert`, `key` | Informational popup button. Unlike `Notice`, button text and popup text are separate. |
+| `Group(title, items, description="", *, button_text=None, on_click=None, show_if=True, key=None)` | `title`, `items`, `description`, `button_text`, `on_click`, `show_if`, `key` | Submenu containing nested `ConfigValue` and UI-only items. `on_click` runs before rendering the group. |
+
+For all UI-only classes, `key` is optional and only controls the stable internal
+UI key. It is not a stored config value. `show_if` can be a boolean or
+`lambda module: ...` and controls whether the item appears in config UI.
+
 ```python
 config = ModuleConfig(
     ConfigValue("first", True, validator=Boolean()),
@@ -371,13 +404,91 @@ class MyModule(loader.ModuleBase):
         self._event_config = call
 ```
 
+### ModuleConfig Parameters and Methods
+
+```python
+ModuleConfig(
+    *config_values,        # ConfigValue and/or UI-only items
+    on_change=None,        # global catch-all callback
+    version=None,          # schema version stored in to_dict()
+    migrate=None,          # migrate(data) or migrate(data, old_version)
+    custom_handler=None,   # custom UI handler for module-list entry clicks
+)
+```
+
+Common methods:
+
+| Method | Description |
+|--------|-------------|
+| `config["key"]` / `config["key"] = value` | Read/write validated values. Writes trigger per-key and global `on_change`. |
+| `config.get(key, default=None)` | Safe read with default. |
+| `config.items()` / `config.keys()` | Stored config values only; UI-only items are excluded. |
+| `config.ui_items()` | Stored values plus UI-only items in display order. |
+| `config.group_items(group_key)` | Items inside a `Group(...)` submenu. |
+| `config.to_dict()` | Convert to DB-safe dict and add `__mcub_config__` marker. Adds `__mcub_config_version__` when `version` is set. |
+| `config.from_dict(data)` | Hydrate values from DB. Calls `migrate` first, ignores unknown keys, does **not** fire `on_change`. |
+| `config.bind_owner(module)` | Bind live module instance for owner-aware callbacks. Usually done by the loader. |
+| `config.set_custom_handler(callback)` | Set custom handler for the module button in the Modules Config list. |
+| `config.set_on_change(callback)` | Set global catch-all `on_change`. |
+| `config.set_on_change("key", callback)` | Set per-key `on_change` after construction. |
+| `config.reset_to_defaults(*keys, trigger_on_change=True)` | Reset all or selected keys to their defaults. |
+
+### Custom Module Config Handler
+
+By default, clicking a module in **Modules Config** opens the standard key list.
+Set `custom_handler` to override only that module-list button. Standard config UI
+is still available through the callback data passed to the handler.
+
+```python
+config = ModuleConfig(
+    ConfigValue("enabled", True, validator=Boolean()),
+    custom_handler=lambda module, event, data: module.open_custom_config(event, data),
+)
+
+
+async def open_custom_config(self, event, data):
+    await event.edit(
+        "<b>Custom config</b>",
+        buttons=[
+            [self.Button.inline("⚙️ Standard config", data["standard_config"])],
+            [self.Button.inline("🔙 Modules", data["back_to_modules"])],
+            [self.Button.inline("❌ Close", data["close"])],
+        ],
+        parse_mode="html",
+    )
+```
+
+Supported callback forms:
+
+- `custom_handler(module, event, data)` - full owner-aware form.
+- `custom_handler(module, event)` - no data payload.
+- `custom_handler(event)` or `custom_handler()` - simple forms.
+
+`data` is a dict with ready-to-use callback bytes:
+
+| Key | Meaning |
+|-----|---------|
+| `module_name` | Current module name. |
+| `modules_page` | Page number in the modules list. |
+| `back_to_modules` | Back to the modules list page. |
+| `standard_config` | Open the standard config UI for this module. |
+| `menu` | Back to the main config menu. |
+| `close` | Close the inline form. |
+
+If the handler returns `None`, MCUB assumes it edited/answered the event itself.
+It may also return:
+
+- `"text"` - edited as HTML text.
+- `(text, buttons)` or `(text, buttons, parse_mode)`.
+- `{"text": ..., "buttons": ..., "parse_mode": "html"}`.
+
 ### ConfigValue Parameters
 
 ```python
 ConfigValue(
     key,                    # str: Parameter name (required)
     default,                # Default value
-    description="",         # str: Description for UI
+    description="",         # str/callable: Description for UI
     validator=None,         # Validator (Boolean, String, Choice, etc.)
     hidden=False,           # bool: Hide in UI
     on_change=None,         # callable: Function on change (on_change(old, new))
@@ -395,6 +506,18 @@ ConfigValue(
     description="Log chat used only when notifications are enabled",
     validator=String(),
     show_if=lambda module: module.config["notify_errors"],
+)
+```
+
+`description` can also be owner-aware. This is useful for localized module
+strings:
+
+```python
+ConfigValue(
+    "key",
+    None,
+    description=lambda module: module.strings("desc_none"),
+    validator=NoneType(),
 )
 ```
 
@@ -443,6 +566,21 @@ config = ModuleConfig(
 
 The global callback can be `on_change(key, old, new)` or owner-aware
 `on_change(module, key, old, new)`.
+
+You can also install hooks after construction:
+
+```python
+config.set_on_change(lambda module, key, old, new: module.schedule_config_save())
+config.set_on_change("enabled", lambda old, new: print("enabled changed"))
+```
+
+Reset values back to defaults with:
+
+```python
+config.reset_to_defaults()                  # all keys, fires on_change hooks
+config.reset_to_defaults("enabled")         # selected key
+config.reset_to_defaults(trigger_on_change=False)  # silent reset
+```
 
 ### Schema Version and Migration
 

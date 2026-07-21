@@ -4,11 +4,14 @@
 """Тecты для yтилит modules/man.py."""
 
 from types import SimpleNamespace
+from unittest import TestCase
 from unittest.mock import AsyncMock
 
 import pytest
 
 from modules import man
+
+_ASSERT = TestCase()
 
 
 class CallableStrings(dict):
@@ -38,7 +41,7 @@ async def test_load_module_metadata_uses_cache(tmp_path, monkeypatch):
     man._METADATA_CACHE.clear()
 
     first = await module_instance._load_module_metadata("demo", "system")
-    assert first["description"] == "ok"
+    _ASSERT.assertEqual(first["description"], "ok")
 
     called = False
 
@@ -50,8 +53,8 @@ async def test_load_module_metadata_uses_cache(tmp_path, monkeypatch):
     kernel.get_module_metadata = _fail
 
     second = await module_instance._load_module_metadata("demo", "system")
-    assert second == first
-    assert called is False
+    _ASSERT.assertEqual(second, first)
+    _ASSERT.assertFalse(called)
 
 
 def test_gather_all_modules_hides_modules():
@@ -68,10 +71,12 @@ def test_gather_all_modules_hides_modules():
     hidden = ["user"]
 
     result = module_instance._gather_all_modules(show_hidden=False, hidden=hidden)
-    assert "user" not in result and "sys" in result
+    _ASSERT.assertNotIn("user", result)
+    _ASSERT.assertIn("sys", result)
 
     result_shown = module_instance._gather_all_modules(show_hidden=True, hidden=hidden)
-    assert "user" in result_shown and "sys" in result_shown
+    _ASSERT.assertIn("user", result_shown)
+    _ASSERT.assertIn("sys", result_shown)
 
 
 def _make_man_instance(**kernel_overrides):
@@ -115,18 +120,21 @@ def test_module_type_text_for_native_styles():
     module_instance = _make_man_instance()
 
     class_module = SimpleNamespace(_class_instance=object())
-    assert "Class стиль" in module_instance._build_module_type_text(
-        "NativeClass", "user", class_module
+    _ASSERT.assertIn(
+        "Class стиль",
+        module_instance._build_module_type_text("NativeClass", "user", class_module),
     )
 
     kernel_module = SimpleNamespace(register=lambda kernel: None, __name__="kernel_mod")
-    assert "Kernel стиль" in module_instance._build_module_type_text(
-        "kernel_mod", "user", kernel_module
+    _ASSERT.assertIn(
+        "Kernel стиль",
+        module_instance._build_module_type_text("kernel_mod", "user", kernel_module),
     )
 
     client_module = SimpleNamespace(register=lambda client: None, __name__="client_mod")
-    assert "Client (устаревший) стиль" in module_instance._build_module_type_text(
-        "client_mod", "user", client_module
+    _ASSERT.assertIn(
+        "Client (устаревший) стиль",
+        module_instance._build_module_type_text("client_mod", "user", client_module),
     )
 
 
@@ -138,27 +146,29 @@ def test_module_type_text_for_hikka_module_and_library():
     module_instance = _make_man_instance(_hikka_compat_libraries=[library])
 
     hikka_module = SimpleNamespace(_hikka_compat=True)
-    assert module_instance._build_module_type_text("H", "user", hikka_module) == (
-        "Данный модуль использует Heroku/Hikka compat (возможны ошибки)"
+    _ASSERT.assertEqual(
+        module_instance._build_module_type_text("H", "user", hikka_module),
+        "Данный модуль использует Heroku/Hikka compat (возможны ошибки)",
     )
-    assert module_instance._build_module_type_text("VoiceLib", "library", library) == (
-        "Данный модуль-библиотека использует Heroku/Hikka compat (возможны ошибки)"
+    _ASSERT.assertEqual(
+        module_instance._build_module_type_text("VoiceLib", "library", library),
+        "Данный модуль-библиотека использует Heroku/Hikka compat (возможны ошибки)",
     )
 
     gathered = module_instance._gather_all_modules(show_hidden=False, hidden=[])
-    assert gathered["VoiceLib"] == ("library", library)
+    _ASSERT.assertEqual(gathered["VoiceLib"], ("library", library))
 
 
 def test_module_config_text_counts_keys():
     module_instance = _make_man_instance()
 
     module = SimpleNamespace(config={"a": 1, "b": 2, "__mcub_config__": True})
-    assert module_instance._module_config_key_count("demo", module) == 2
-    assert "2" in module_instance._build_module_config_text("demo", module)
+    _ASSERT.assertEqual(module_instance._module_config_key_count("demo", module), 2)
+    _ASSERT.assertIn("2", module_instance._build_module_config_text("demo", module))
 
     config = SimpleNamespace(_values={"x": object(), "y": object(), "z": object()})
     module = SimpleNamespace(config=config)
-    assert module_instance._module_config_key_count("demo", module) == 3
+    _ASSERT.assertEqual(module_instance._module_config_key_count("demo", module), 3)
 
 
 @pytest.mark.asyncio
@@ -187,5 +197,5 @@ async def test_build_module_detail_includes_module_type_text(monkeypatch):
         ("kernel_mod", "user", kernel_module)
     )
 
-    assert banner is None
-    assert "Данный модуль MCUB нативный, использует Kernel стиль" in text
+    _ASSERT.assertIsNone(banner)
+    _ASSERT.assertIn("Данный модуль MCUB нативный, использует Kernel стиль", text)

@@ -1059,6 +1059,94 @@ def _replace_library_references(
                     setattr(holder, attr_name, new_lib)
 
 
+def _ensure_library_registry(kernel, allmodules) -> list:
+    libraries = getattr(kernel, "_hikka_compat_libraries", None)
+    if not isinstance(libraries, list):
+        libraries = []
+        kernel._hikka_compat_libraries = libraries
+    if hasattr(allmodules, "_libraries"):
+        allmodules._libraries = libraries
+    return libraries
+
+
+def _prepare_library_object(lib_obj: Any, allmodules, source_url: str) -> None:
+    lib_obj.source_url = str(source_url).strip("/")
+    lib_obj.allmodules = allmodules
+    lib_obj.internal_init()
+
+
+def _find_existing_library(libraries: list, lib_obj: Any) -> Any | None:
+    return next(
+        (lib for lib in libraries if getattr(lib, "name", None) == lib_obj.name),
+        None,
+    )
+
+
+def _should_keep_existing_library(existing: Any, lib_obj: Any) -> bool:
+    old_version = _library_version(existing)
+    new_version = _library_version(lib_obj)
+    return (old_version is None and new_version is None) or (
+        old_version is not None
+        and new_version is not None
+        and old_version >= new_version
+    )
+
+
+async def _run_library_init(lib_obj: Any) -> None:
+    init_method = getattr(lib_obj, "init", None)
+    if not hasattr(lib_obj, "init"):
+        return
+    if not callable(init_method):
+        raise ValueError("Library init() must be callable")
+    try:
+        await _maybe_await(init_method())
+    except Exception as e:
+        raise RuntimeError("Library init() failed") from e
+
+
+def _hydrate_library_config(lib_obj: Any, allmodules) -> None:
+    if not hasattr(lib_obj, "config"):
+        return
+
+    from .config import LibraryConfig
+
+    if not isinstance(lib_obj.config, LibraryConfig):
+        raise RuntimeError("Library config must be a `LibraryConfig` instance")
+
+    saved = _coerce_config_dict(
+        allmodules.db.get(lib_obj.__class__.__name__, "__config__", {})
+    )
+    for option in lib_obj.config:
+        value = (
+            saved[option]
+            if option in saved
+            else os.environ.get(f"{lib_obj.__class__.__name__}.{option}")
+            or lib_obj.config.getdef(option)
+        )
+        with contextlib.suppress(Exception):
+            lib_obj.config.set_no_raise(option, value, mark=False)
+
+
+def _install_library_compat_shims(lib_obj: Any) -> None:
+    if hasattr(lib_obj, "strings"):
+        lib_obj.strings = _StringsShim(lib_obj, _translator_stub)
+    lib_obj.translator = _translator_stub
+
+
+async def _finalize_library_registration(
+    kernel, libraries: list, existing: Any | None, lib_obj: Any
+) -> Any:
+    if existing is not None:
+        on_update = getattr(existing, "on_lib_update", None)
+        if callable(on_update):
+            await _maybe_await(on_update(lib_obj))
+        _replace_library_references(kernel, existing, lib_obj, libraries)
+        return lib_obj
+
+    libraries.append(lib_obj)
+    return lib_obj
+
+
 async def _register_library_object(
     kernel,
     allmodules,
@@ -1075,72 +1163,17 @@ async def _register_library_object(
             f"Invalid library. Classname {class_name} does not end with 'Lib'"
         )
 
-    libraries = getattr(kernel, "_hikka_compat_libraries", None)
-    if not isinstance(libraries, list):
-        libraries = []
-        kernel._hikka_compat_libraries = libraries
-    if hasattr(allmodules, "_libraries"):
-        allmodules._libraries = libraries
+    libraries = _ensure_library_registry(kernel, allmodules)
+    _prepare_library_object(lib_obj, allmodules, source_url)
 
-    lib_obj.source_url = str(source_url).strip("/")
-    lib_obj.allmodules = allmodules
-    lib_obj.internal_init()
+    existing = _find_existing_library(libraries, lib_obj)
+    if existing is not None and _should_keep_existing_library(existing, lib_obj):
+        return existing
 
-    existing = next(
-        (lib for lib in libraries if getattr(lib, "name", None) == lib_obj.name),
-        None,
-    )
-    if existing is not None:
-        old_version = _library_version(existing)
-        new_version = _library_version(lib_obj)
-        if (old_version is None and new_version is None) or (
-            old_version is not None
-            and new_version is not None
-            and old_version >= new_version
-        ):
-            return existing
-
-    init_method = getattr(lib_obj, "init", None)
-    if hasattr(lib_obj, "init"):
-        if not callable(init_method):
-            raise ValueError("Library init() must be callable")
-        try:
-            await _maybe_await(init_method())
-        except Exception as e:
-            raise RuntimeError("Library init() failed") from e
-
-    if hasattr(lib_obj, "config"):
-        from .config import LibraryConfig
-
-        if not isinstance(lib_obj.config, LibraryConfig):
-            raise RuntimeError("Library config must be a `LibraryConfig` instance")
-
-        saved = _coerce_config_dict(
-            allmodules.db.get(lib_obj.__class__.__name__, "__config__", {})
-        )
-        for option in lib_obj.config:
-            value = (
-                saved[option]
-                if option in saved
-                else os.environ.get(f"{lib_obj.__class__.__name__}.{option}")
-                or lib_obj.config.getdef(option)
-            )
-            with contextlib.suppress(Exception):
-                lib_obj.config.set_no_raise(option, value, mark=False)
-
-    if hasattr(lib_obj, "strings"):
-        lib_obj.strings = _StringsShim(lib_obj, _translator_stub)
-    lib_obj.translator = _translator_stub
-
-    if existing is not None:
-        on_update = getattr(existing, "on_lib_update", None)
-        if callable(on_update):
-            await _maybe_await(on_update(lib_obj))
-        _replace_library_references(kernel, existing, lib_obj, libraries)
-        return lib_obj
-
-    libraries.append(lib_obj)
-    return lib_obj
+    await _run_library_init(lib_obj)
+    _hydrate_library_config(lib_obj, allmodules)
+    _install_library_compat_shims(lib_obj)
+    return await _finalize_library_registration(kernel, libraries, existing, lib_obj)
 
 
 def _iter_kernel_module_items(kernel):

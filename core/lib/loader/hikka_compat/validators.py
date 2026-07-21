@@ -227,9 +227,16 @@ class Hidden(Validator):
 
 
 class TelegramID(Integer):
-    def __init__(self):
+    def __init__(self, *, allow_zero: bool = False):
         super().__init__()
         self.internal_id = "TelegramID"
+        self.allow_zero = allow_zero
+
+    def validate(self, value: Any) -> int:
+        value = super().validate(value)
+        if value == 0 and not self.allow_zero:
+            raise ValidationError("Telegram ID cannot be zero")
+        return value
 
 
 class EntityLike(String):

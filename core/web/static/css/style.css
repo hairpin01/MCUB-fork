@@ -1,7 +1,3 @@
-    /*
-   MCUB  -  merged stylesheet
-   base.css  +  dashboard  +  setup wizard
-    */
 @import "https://fonts.googleapis.com/css2?family=Hubballi&family=JetBrains+Mono:wght@300;400;600&display=swap";
 
 :root {
@@ -14,7 +10,6 @@
     --radius : 6px;
 }
 
-/* theme overrides */
 [data-theme="crimson"]  { --accent:#c0392b; --glow:#943737; }
 [data-theme="ocean"]    { --accent:#2e86c1; --glow:#1a5276; }
 [data-theme="violet"]   { --accent:#9b59b6; --glow:#6c3483; }
@@ -214,8 +209,6 @@ transform: translatex(calc(50vw - 50%)) translatey(calc(50vh - 50%)) rotate(120d
     font-size: 1.4rem;
     letter-spacing: .05em;
 }
-
-/* ── Activity log ── */
 .log-section {
     background: var(--card);
     border: 1px solid var(--border);
@@ -275,8 +268,6 @@ transform: translatex(calc(50vw - 50%)) translatey(calc(50vh - 50%)) rotate(120d
     margin-right: 10px;
     user-select: none;
 }
-
-/* ── Theme switcher ── */
 .themes-section {
     background: var(--card);
     border: 1px solid var(--border);
@@ -328,7 +319,6 @@ transform: translatex(calc(50vw - 50%)) translatey(calc(50vh - 50%)) rotate(120d
     flex-shrink: 0;
 }
 
-/* ── Footer ── */
 .panel-footer {
     text-align: center;
     font-family: Hubballi;
@@ -364,7 +354,6 @@ transform: translatex(calc(50vw - 50%)) translatey(calc(50vh - 50%)) rotate(120d
 }
 .wizard-subtitle { margin: 5px 0 0; color: #888; font-size: .9em; font-family: Hubballi; }
 
-/* Steps bar */
 .steps-bar {
     display: flex;
     align-items: center;
@@ -392,7 +381,6 @@ transform: translatex(calc(50vw - 50%)) translatey(calc(50vh - 50%)) rotate(120d
 .step.active .slabel, .step.done .slabel { color: #aaa; }
 .sconn { flex: 1; height: 1px; background: #2a2e37; min-width: 24px; margin-bottom: 16px; }
 
-/* Wizard card */
 .wizard-card {
     background: var(--card, rgba(22,24,29,0.55));
     border: 1px solid var(--border, rgba(42,46,55,0.9));
@@ -405,7 +393,6 @@ transform: translatex(calc(50vw - 50%)) translatey(calc(50vh - 50%)) rotate(120d
 .hint a { color: var(--accent, #0aad7c); }
 .hint.small { font-size: .78em; }
 
-/* Form */
 label {
     display: flex; flex-direction: column; gap: 5px;
     margin-bottom: 14px;
@@ -426,7 +413,6 @@ input:focus {
     box-shadow: 0 0 0 3px rgba(7, 121, 88, .15);
 }
 
-/* Buttons */
 .btn-primary {
     width: 100%; padding: 10px 0;
     background: transparent;
@@ -458,7 +444,6 @@ input:focus {
 .btn-row { display: flex; gap: 10px; margin-top: 4px; }
 .btn-row .btn-primary { flex: 1; }
 
-/* Error */
 .errmsg {
     background: rgba(148,55,55,.15);
     color: #f1948a;
@@ -469,7 +454,6 @@ input:focus {
     word-break: break-word;
 }
 
-/* Done */
 .done-icon { font-size: 3rem; text-align: center; margin-bottom: 6px; }
 .spinner {
     width: 32px; height: 32px;
@@ -480,11 +464,9 @@ input:focus {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* Util */
 .hidden { display: none !important; }
 .wizard-wrap footer { text-align: center; color: #444; font-size: .78em; font-family: Hubballi; }
 
-/* Responsive */
 @media (max-width: 540px) {
     .wizard-card { padding: 20px 16px; }
     .slabel { display: none; }

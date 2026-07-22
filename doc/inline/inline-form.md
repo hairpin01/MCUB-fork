@@ -62,6 +62,26 @@ Notes:
 - Expired tokens are cleaned automatically when creating forms and on any button press.
 - Telethon `Button.inline(...)` continues to work with explicit `data`; callable callbacks are only available via the dict format above.
 
+**Readable CodeInline facade:**
+```python
+from core_inline.api import CodeInline, InlineButton, InlineKeyboard
+
+async def on_save(event, item_id):
+    await event.answer("Saved", alert=True)
+
+ui = CodeInline(kernel, ttl=600)
+buttons = InlineKeyboard().row(
+    ui.action("Save", on_save, args=[item_id]),  # auto callback token
+    InlineButton.url_button("Docs", "https://example.com"),
+).rows
+
+await ui.form(event.chat_id, "Settings", buttons=buttons)
+```
+
+Use this style for new code when a module needs a small inline workflow. It keeps
+callback registration, TTL and button layout in one place while preserving the
+old dict and Telethon button formats.
+
 **Ready-made Telethon buttons:**
 ```python
 from telethon import Button

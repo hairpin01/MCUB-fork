@@ -16,6 +16,11 @@ from urllib.parse import urlparse
 
 from utils.security import safe_extract_archive
 
+from ..loader.protection import (
+    ModuleProtectionError,
+    ModuleProtectionPolicy,
+    sanitize_module_name,
+)
 from ..loader.repository import validate_remote_url
 
 try:
@@ -107,6 +112,38 @@ class ModuleLoaderMixin:
         """Return the filesystem path for a module file."""
         return _get_module_path(self, module_name)
 
+    def get_user_module_install_path(self, module_name: str) -> str:
+        """Return the user-module install path, never the system modules path."""
+        safe_name = sanitize_module_name(module_name)
+        return os.path.join(self.k.MODULES_LOADED_DIR, f"{safe_name}.py")
+
+    def _sanitize_module_name(self, module_name: object) -> str:
+        return sanitize_module_name(module_name)
+
+    def _protection_policy(self) -> ModuleProtectionPolicy:
+        return ModuleProtectionPolicy(self.k)
+
+    def _begin_system_loading(self) -> object:
+        return self._protection_policy().begin_system_loading()
+
+    def _end_system_loading(self, token: object) -> None:
+        self._protection_policy().end_system_loading(token)
+
+    def _assert_system_module_trusted(
+        self, module_name: str, file_path: str, code: str
+    ) -> None:
+        self._protection_policy().assert_system_path_allowed(file_path)
+        self._protection_policy().assert_system_manifest_allowed(
+            module_name, file_path, code
+        )
+
+    def _assert_user_load_allowed(
+        self, module_name: str | None, file_path: str, *, is_system: bool = False
+    ) -> None:
+        if is_system:
+            return
+        self._protection_policy().assert_user_load_allowed(module_name, file_path)
+
     def pick_localized_text(
         self, values: dict[str, str] | None, lang: str | None, fallback: str = ""
     ) -> str:
@@ -122,6 +159,12 @@ class ModuleLoaderMixin:
         """Return a human-readable conflict reason if *module_name* is forbidden, else ``None``."""
         if not module_name:
             return "Module name is empty - cannot load module without a valid name."
+        safe_name = sanitize_module_name(module_name)
+        if safe_name != module_name:
+            return (
+                f"Module name '{module_name}' contains path traversal or path "
+                "separators. Rename your module."
+            )
         if module_name in FORBIDDEN_MODULE_NAMES:
             return (
                 f"Module name '{module_name}' is reserved - it shadows a Python "
@@ -157,7 +200,7 @@ class ModuleLoaderMixin:
             if hasattr(k, "_class_module_instances"):
                 k._class_module_instances.pop(module_name, None)
 
-            if os.path.isfile(file_path):
+            if not is_system and os.path.isfile(file_path):
                 os.remove(file_path)
         except Exception as e:
             k.handle_error(
@@ -279,6 +322,7 @@ class ModuleLoaderMixin:
         """
         meta_name = self._parse_module_name_from_code(code)
         if meta_name and meta_name != module_name:
+            meta_name = sanitize_module_name(meta_name)
             if not skip_rename:
                 new_path = os.path.join(os.path.dirname(file_path), f"{meta_name}.py")
                 if not os.path.exists(new_path):
@@ -751,6 +795,8 @@ class ModuleLoaderMixin:
         module_name: str | None,
         is_system: bool = False,
         is_reload: bool = False,
+        *,
+        system_token: object | None = None,
     ) -> tuple[bool, str]:
         """Load a Python module from *file_path* and register it with the kernel.
 
@@ -769,6 +815,21 @@ class ModuleLoaderMixin:
             module_name = os.path.splitext(os.path.basename(file_path))[0]
 
         k = self.k
+        if is_system:
+            try:
+                self._protection_policy().assert_system_load_allowed(
+                    file_path, token=system_token
+                )
+            except ModuleProtectionError as e:
+                k.logger.warning("[loader] denied system module load: %s", e)
+                return False, str(e)
+        else:
+            try:
+                self._protection_policy().assert_user_path_allowed(file_path)
+            except ModuleProtectionError as e:
+                k.logger.warning("[loader] denied user module path: %s", e)
+                return False, str(e)
+
         try:
             self._purge_stale_loaded_module_entries()
 
@@ -781,6 +842,13 @@ class ModuleLoaderMixin:
             module_name, file_path = self._resolve_name_from_code(
                 code, module_name, file_path, k
             )
+
+            self._raise_forbidden_module_name(
+                module_name, file_path, is_system=is_system
+            )
+            if is_system:
+                self._assert_system_module_trusted(module_name, file_path, code)
+            self._assert_user_load_allowed(module_name, file_path, is_system=is_system)
 
             # --- Hikka / Geek module detection (early exit) ---
             try:
@@ -852,6 +920,7 @@ class ModuleLoaderMixin:
             self._raise_forbidden_module_name(
                 module_name, file_path, is_system=is_system
             )
+            self._assert_user_load_allowed(module_name, file_path, is_system=is_system)
 
             sys.modules.pop(module_name, None)
 
@@ -897,6 +966,7 @@ class ModuleLoaderMixin:
                     and class_display_name != "Unnamed"
                     and class_display_name != module_name
                 ):
+                    class_display_name = sanitize_module_name(class_display_name)
                     old_path = file_path
                     new_path = os.path.join(
                         os.path.dirname(file_path), f"{class_display_name}.py"
@@ -920,6 +990,9 @@ class ModuleLoaderMixin:
                     module_name = class_display_name
 
                     self._raise_forbidden_module_name(
+                        module_name, file_path, is_system=is_system
+                    )
+                    self._assert_user_load_allowed(
                         module_name, file_path, is_system=is_system
                     )
 

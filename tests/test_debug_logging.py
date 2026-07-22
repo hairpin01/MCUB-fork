@@ -70,6 +70,17 @@ async def test_config_manager_set_and_delete_key_logs_debug():
     assert "Config key delete skipped module=%r key=%r reason=missing" in debug_messages
 
 
+@pytest.mark.asyncio
+async def test_config_manager_accepts_python_literal_module_config():
+    kernel = _make_kernel()
+    kernel.db_get = AsyncMock(return_value="{'man_modules_per_page': 50}")
+
+    manager = ConfigManager(kernel)
+
+    assert await manager.get_module_config("man") == {"man_modules_per_page": 50}
+    kernel.logger.error.assert_not_called()
+
+
 def test_plugin_manager_load_plugins_logs_debug(caplog):
     app = web.Application()
     app[aiohttp_jinja2.APP_KEY] = MagicMock(

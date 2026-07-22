@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import ast
 import asyncio
 import contextlib
 import inspect
@@ -46,6 +47,9 @@ CUSTOM_EMOJI = {
 }
 
 ZERO_WIDTH_CHAR = "\u2060"
+MAN_MODULES_PER_PAGE_DEFAULT = 10
+MAN_MODULES_PER_PAGE_MIN = 1
+MAN_MODULES_PER_PAGE_MAX = 50
 
 _METADATA_CACHE: dict[str, tuple[float, dict]] = {}
 _METADATA_LOCKS: dict[int, asyncio.Lock] = {}
@@ -120,9 +124,12 @@ class ManModule(ModuleBase):
         ),
         ConfigValue(
             "man_modules_per_page",
-            10,
+            MAN_MODULES_PER_PAGE_DEFAULT,
             description="module count per inline man page",
-            validator=Integer(min=1, max=50),
+            validator=Integer(
+                min=MAN_MODULES_PER_PAGE_MIN,
+                max=MAN_MODULES_PER_PAGE_MAX,
+            ),
         ),
         ConfigValue(
             "man_emoji_author",
@@ -144,30 +151,95 @@ class ManModule(ModuleBase):
         ),
     )
 
+    @staticmethod
+    def _coerce_modules_per_page(value: Any) -> int:
+        if isinstance(value, bool):
+            return MAN_MODULES_PER_PAGE_DEFAULT
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            return MAN_MODULES_PER_PAGE_DEFAULT
+        return max(MAN_MODULES_PER_PAGE_MIN, min(MAN_MODULES_PER_PAGE_MAX, parsed))
+
+    @staticmethod
+    def _parse_persisted_config(raw: Any) -> tuple[dict[str, Any], bool]:
+        """Parse old/broken config payloads without breaking module startup."""
+        if raw in (None, ""):
+            return {}, False
+        if isinstance(raw, dict):
+            return dict(raw), True
+        if isinstance(raw, (bytes, bytearray)):
+            raw = raw.decode("utf-8", errors="replace")
+
+        text = str(raw).strip()
+        if not text:
+            return {}, False
+
+        try:
+            parsed = json.loads(text)
+            needs_save = False
+        except Exception:
+            try:
+                parsed = ast.literal_eval(text)
+                needs_save = True
+            except Exception:
+                return {}, True
+
+        if not isinstance(parsed, dict):
+            return {}, True
+        return dict(parsed), needs_save
+
+    async def _repair_persisted_config(self) -> None:
+        db_get = getattr(self.kernel, "db_get", None)
+        db_set = getattr(self.kernel, "db_set", None)
+        if not callable(db_get) or not callable(db_set):
+            return
+
+        try:
+            raw = await db_get("module_configs", self.name)
+        except Exception as e:
+            self.log.debug("man config repair read skipped: %s", e)
+            return
+
+        data, needs_save = self._parse_persisted_config(raw)
+        current = data.get("man_modules_per_page", MAN_MODULES_PER_PAGE_DEFAULT)
+        coerced = self._coerce_modules_per_page(current)
+        if current != coerced:
+            data["man_modules_per_page"] = coerced
+            needs_save = True
+
+        if not needs_save:
+            return
+
+        try:
+            await db_set(
+                "module_configs",
+                self.name,
+                json.dumps(data, ensure_ascii=False, indent=2),
+            )
+        except Exception as e:
+            self.log.debug("man config repair save skipped: %s", e)
+
+    def _repair_live_config(self) -> None:
+        cfg = getattr(self, "config", None)
+        if cfg is None or not hasattr(cfg, "get"):
+            return
+        current = cfg.get("man_modules_per_page", MAN_MODULES_PER_PAGE_DEFAULT)
+        coerced = self._coerce_modules_per_page(current)
+        if current == coerced:
+            return
+        try:
+            cfg["man_modules_per_page"] = coerced
+        except Exception as e:
+            self.log.debug("man live config repair skipped: %s", e)
+
     async def on_load(self) -> None:
-        config_dict = await self.kernel.get_module_config(
-            self.name,
-            {
-                "man_quote_media": True,
-                "man_banner_url": "",
-                "man_invert_media": False,
-                "man_emoji_user_list": "▪️",
-                "man_emoji_system_list": "▫️",
-                "man_emoji": CUSTOM_EMOJI["crystal"],
-                "man_emoji_no_command": "❔",
-                "man_modules_per_page": 60,
-                "man_emoji_author": CUSTOM_EMOJI["alembic"],
-                "man_emoji_bot": CUSTOM_EMOJI["bot"],
-                "man_emoji_error": CUSTOM_EMOJI["blocked"],
-            },
-        )
-        self.config.from_dict(config_dict)
-        config_dict_clean = {
-            k: v for k, v in self.config.to_dict().items() if v is not None
-        }
-        if config_dict_clean:
-            await self.kernel.save_module_config(self.name, config_dict_clean)
-        self.kernel.store_module_config_schema(self.name, self.config)
+        await self._repair_persisted_config()
+        try:
+            await super().on_load()
+        except Exception as e:
+            self.log.warning("Recovered from invalid man config during on_load: %s", e)
+        self._repair_live_config()
 
     @staticmethod
     def _make_thumb(url: str) -> InputWebDocument:

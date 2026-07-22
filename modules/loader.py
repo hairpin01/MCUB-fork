@@ -289,11 +289,14 @@ class Loader(ModuleBase):
         """Reload module from restored backup so commands are not lost."""
         if not backup_path or not os.path.exists(backup_path):
             return
+        if is_system_target:
+            add_log_fn("=X System module backup reload is blocked by loader policy")
+            return
         try:
             res = await self.kernel.load_module_from_file(
                 backup_path,
                 module_name,
-                is_system_target,
+                False,
                 is_reload=True,
             )
             if res and res[0]:
@@ -972,34 +975,23 @@ class Loader(ModuleBase):
 
         cfg = self.get_config()
         force_unload = not (cfg and cfg.get("loader_protect_system", True))
-        if cfg and cfg.get("loader_protect_system", True):
-            if module_name in self.kernel.system_modules:
-                await self._edit_with_emoji(
-                    event,
-                    self.strings(
-                        "system_module_install_attempt",
-                        confused=CUSTOM_EMOJI["confused"],
-                        module_name=module_name,
-                        blocked=CUSTOM_EMOJI["blocked"],
-                    ),
-                )
-                return None
+        if module_name in self.kernel.system_modules:
+            await self._edit_with_emoji(
+                event,
+                self.strings(
+                    "system_module_install_attempt",
+                    confused=CUSTOM_EMOJI["confused"],
+                    module_name=module_name,
+                    blocked=CUSTOM_EMOJI["blocked"],
+                ),
+            )
+            return None
 
-        is_update = (
-            module_name in self.kernel.loaded_modules
-            or module_name in self.kernel.system_modules
-        )
-        is_system_target = module_name in self.kernel.system_modules
+        is_update = module_name in self.kernel.loaded_modules
+        is_system_target = False
         old_version = None
         if is_update:
-            old_file_path = os.path.join(
-                (
-                    self.kernel.MODULES_DIR
-                    if module_name in self.kernel.system_modules
-                    else self.kernel.MODULES_LOADED_DIR
-                ),
-                f"{module_name}.py",
-            )
+            old_file_path = self.kernel._loader.get_module_path(module_name)
             old_version = await self.kernel._loader.get_module_version_from_file(
                 old_file_path
             )
@@ -1016,14 +1008,7 @@ class Loader(ModuleBase):
         # even if an exception is raised early in the try block.
         old_file_backup: str | None = None
         old_file_backup_path: str | None = None
-        file_path = os.path.join(
-            (
-                self.kernel.MODULES_DIR
-                if module_name in self.kernel.system_modules
-                else self.kernel.MODULES_LOADED_DIR
-            ),
-            f"{module_name}.py",
-        )
+        file_path = self.kernel._loader.get_user_module_install_path(module_name)
 
         try:
             code = preloaded_code
@@ -1219,11 +1204,7 @@ class Loader(ModuleBase):
 
             if metadata.get("is_class_style") and metadata.get("class_name"):
                 class_name = metadata["class_name"]
-                if (
-                    class_name in self.kernel.system_modules
-                    and cfg
-                    and cfg.get("loader_protect_system", True)
-                ):
+                if class_name in self.kernel.system_modules:
                     await self._edit_with_emoji(
                         event,
                         self.strings(
@@ -1386,11 +1367,7 @@ class Loader(ModuleBase):
                     post_meta_name = meta_name
             if post_meta_name and post_meta_name != module_name:
                 # Re-check protection with the real name from # name:
-                if (
-                    cfg
-                    and cfg.get("loader_protect_system", True)
-                    and post_meta_name in self.kernel.system_modules
-                ):
+                if post_meta_name in self.kernel.system_modules:
                     add_log(
                         self.strings(
                             "log_system_module_protected",
@@ -1410,9 +1387,8 @@ class Loader(ModuleBase):
                 # Update name & path so the rest of the flow uses the
                 # canonical name (the file will be saved where it belongs)
                 module_name = post_meta_name
-                file_path = os.path.join(
-                    self.kernel.MODULES_LOADED_DIR,
-                    f"{module_name}.py",
+                file_path = self.kernel._loader.get_user_module_install_path(
+                    module_name
                 )
 
             add_log(self.strings("log_saving_file", file_path=file_path))
@@ -1524,7 +1500,7 @@ class Loader(ModuleBase):
             result = await self.kernel.load_module_from_file(
                 file_path,
                 module_name,
-                is_system_target,
+                False,
                 source_url=None,
                 source_repo=None,
             )
@@ -1956,10 +1932,7 @@ class Loader(ModuleBase):
                 if result.metadata and result.metadata.name:
                     module_name = result.metadata.name
 
-                cfg = self.get_config()
-                protect_system = cfg and cfg.get("loader_protect_system", True)
-
-                if protect_system and module_name in self.kernel.system_modules:
+                if module_name in self.kernel.system_modules:
                     await self._edit_with_emoji(
                         event,
                         self.strings(
@@ -2122,18 +2095,17 @@ class Loader(ModuleBase):
                         )
                         return
                 else:
-                    if protect_system:
-                        system_conflicts = [
-                            mod.name
-                            for mod in result.modules
-                            if mod.name in self.kernel.system_modules
-                        ]
-                        if system_conflicts:
-                            await self._edit_with_emoji(
-                                event,
-                                f"{CUSTOM_EMOJI['confused']} <b>System module conflict:</b> {', '.join(system_conflicts)}",
-                            )
-                            return
+                    system_conflicts = [
+                        mod.name
+                        for mod in result.modules
+                        if mod.name in self.kernel.system_modules
+                    ]
+                    if system_conflicts:
+                        await self._edit_with_emoji(
+                            event,
+                            f"{CUSTOM_EMOJI['confused']} <b>System module conflict:</b> {', '.join(system_conflicts)}",
+                        )
+                        return
 
                     failed_modules: list[str] = []
                     for mod in result.modules:
@@ -2249,24 +2221,19 @@ class Loader(ModuleBase):
         cfg = self.get_config()
         force_unload = not (cfg and cfg.get("loader_protect_system", True))
 
-        if cfg and cfg.get("loader_protect_system", True):
-            if module_name in self.kernel.system_modules:
-                await self._edit_with_emoji(
-                    event,
-                    self.strings(
-                        "system_module_update_attempt",
-                        confused=CUSTOM_EMOJI["confused"],
-                        module_name=module_name,
-                        blocked=CUSTOM_EMOJI["blocked"],
-                    ),
-                )
-                return
+        if module_name in self.kernel.system_modules:
+            await self._edit_with_emoji(
+                event,
+                self.strings(
+                    "system_module_update_attempt",
+                    confused=CUSTOM_EMOJI["confused"],
+                    module_name=module_name,
+                    blocked=CUSTOM_EMOJI["blocked"],
+                ),
+            )
+            return
 
-        is_update = (
-            module_name in self.kernel.loaded_modules
-            or module_name in self.kernel.system_modules
-        )
-        is_system_target = module_name in self.kernel.system_modules
+        is_update = module_name in self.kernel.loaded_modules
 
         class_instance = getattr(
             self.kernel.loaded_modules.get(module_name), "_class_instance", None
@@ -2291,7 +2258,7 @@ class Loader(ModuleBase):
                 f"[loader] BEFORE download - old_file={old_file_path} old_version={old_version}"
             )
 
-        file_path = self.kernel._loader.get_module_path(module_name)
+        file_path = self.kernel._loader.get_user_module_install_path(module_name)
 
         try:
             add_log(self.strings("log_downloading", file_path=file_path))
@@ -2332,7 +2299,9 @@ class Loader(ModuleBase):
                         target_name = (
                             new_class_name or class_display_name or module_name
                         )
-                        file_path = self.kernel._loader.get_module_path(target_name)
+                        file_path = self.kernel._loader.get_user_module_install_path(
+                            target_name
+                        )
                         self.kernel.logger.info(
                             f"[loader] Using path {file_path} for class module {target_name}"
                         )
@@ -2349,11 +2318,7 @@ class Loader(ModuleBase):
 
             if metadata.get("is_class_style") and metadata.get("class_name"):
                 class_name = metadata["class_name"]
-                if (
-                    class_name in self.kernel.system_modules
-                    and cfg
-                    and cfg.get("loader_protect_system", True)
-                ):
+                if class_name in self.kernel.system_modules:
                     await self._edit_with_emoji(
                         event,
                         self.strings(
@@ -2406,11 +2371,7 @@ class Loader(ModuleBase):
                     add_log(
                         f"[iload] canonical name: {canonical!r} (uploaded as: {module_name!r})"
                     )
-                    if (
-                        cfg
-                        and cfg.get("loader_protect_system", True)
-                        and canonical in self.kernel.system_modules
-                    ):
+                    if canonical in self.kernel.system_modules:
                         await self._edit_with_emoji(
                             event,
                             self.strings(
@@ -2429,7 +2390,9 @@ class Loader(ModuleBase):
                     # move it to the canonical destination before load.
                     old_downloaded_path = file_path
                     module_name = canonical
-                    file_path = self.kernel._loader.get_module_path(module_name)
+                    file_path = self.kernel._loader.get_user_module_install_path(
+                        module_name
+                    )
                     if old_downloaded_path != file_path:
                         if os.path.exists(old_downloaded_path):
                             os.replace(old_downloaded_path, file_path)
@@ -2538,7 +2501,7 @@ class Loader(ModuleBase):
             result = await self.kernel.load_module_from_file(
                 file_path,
                 module_name,
-                is_system_target,
+                False,
                 source_url=None,
                 source_repo=None,
             )
@@ -2902,6 +2865,10 @@ class Loader(ModuleBase):
 
             module_name = actual_name
 
+            if module_name in self.kernel.system_modules:
+                failed.append(self.strings("um_system_module", module_name=module_name))
+                continue
+
             try:
                 await self.kernel.unregister_module_commands(
                     module_name, force=force_unload
@@ -2946,8 +2913,6 @@ class Loader(ModuleBase):
 
             if module_name in self.kernel.loaded_modules:
                 del self.kernel.loaded_modules[module_name]
-            if module_name in self.kernel.system_modules:
-                del self.kernel.system_modules[module_name]
 
             self.kernel._module_sources.pop(module_name, None)
             success.append(module_name)
@@ -3242,6 +3207,18 @@ class Loader(ModuleBase):
         file_path = self.kernel._loader.get_module_path(module_name)
         is_system = module_name in self.kernel.system_modules
 
+        if is_system:
+            await self._edit_with_emoji(
+                event,
+                self.strings(
+                    "system_module_update_attempt",
+                    confused=CUSTOM_EMOJI["confused"],
+                    module_name=module_name,
+                    blocked=CUSTOM_EMOJI["blocked"],
+                ),
+            )
+            return
+
         if not os.path.exists(file_path):
             self.kernel.logger.debug(
                 "[reload] single-missing-file module=%r file=%r system=%s",
@@ -3345,14 +3322,8 @@ class Loader(ModuleBase):
         if module_name in self.kernel.loaded_modules:
             del self.kernel.loaded_modules[module_name]
 
-        if is_system:
-            cfg = self.get_config()
-            if cfg and cfg.get("loader_protect_system", True):
-                if module_name in self.kernel.system_modules:
-                    del self.kernel.system_modules[module_name]
-
         result = await self.kernel.load_module_from_file(
-            file_path, module_name, is_system, is_reload=True
+            file_path, module_name, False, is_reload=True
         )
         success = result[0]
         message_text = result[1] if len(result) >= 2 else ""

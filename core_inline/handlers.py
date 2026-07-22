@@ -15,23 +15,27 @@ from typing import Any
 
 import aiohttp
 from telethon import Button, events
+from telethon.tl.functions.messages import (
+    EditInlineBotMessageRequest,
+    SetBotCallbackAnswerRequest,
+)
 from telethon.tl.types import (
     InputBotInlineMessageID,
     InputWebDocument,
     MessageEntityTextUrl,
+    UpdateBotCallbackQuery,
     UpdateBotInlineSend,
+    UpdateInlineBotCallbackQuery,
 )
 
 from .api import (
+    InlineButton,
     add_inline_keyboard_to_result,
-    build_button_callback,
-    build_button_game,
-    build_button_location,
-    build_button_phone,
-    build_button_switch,
-    build_button_url,
+    build_inline_button,
     build_inline_result_media,
     build_inline_result_text,
+    cleanup_inline_callback_map,
+    register_inline_callback,
 )
 
 try:
@@ -200,13 +204,28 @@ class _TelethonCallbackAdapter:
         message: str = "",
         alert: bool = False,
         url: str = "",
+        *,
+        text: str | None = None,
+        show_alert: bool | None = None,
+        **_: Any,
     ) -> None:
+        if text is not None:
+            message = text
+        if show_alert is not None:
+            alert = show_alert
         try:
-            await self._q.answer(
-                message=message,
-                alert=alert,
-                url=url if url else None,
-            )
+            try:
+                await self._q.answer(
+                    text=message,
+                    show_alert=alert,
+                    url=url if url else None,
+                )
+            except TypeError:
+                await self._q.answer(
+                    message=message,
+                    alert=alert,
+                    url=url if url else None,
+                )
         except Exception as e:
             self._kernel.logger.warning(
                 "[InlineHandlers] answer_callback failed: %s", e
@@ -265,6 +284,101 @@ class _TelethonCallbackAdapter:
             self._kernel.logger.warning(
                 "[InlineHandlers] aiogram edit_message_text failed: %s", e
             )
+
+
+class _RawCallbackUpdateAdapter:
+    """Telethon-compatible wrapper around raw callback update objects."""
+
+    __slots__ = (
+        "_kernel",
+        "_q",
+        "chat_instance",
+        "data",
+        "inline_message_id",
+        "message",
+        "msg_id",
+        "query_id",
+        "sender_id",
+    )
+
+    def __init__(self, update: Any, kernel: Any) -> None:
+        self._q = update
+        self._kernel = kernel
+        self.data: bytes | str = getattr(update, "data", None) or b""
+        self.sender_id: int = int(getattr(update, "user_id", 0) or 0)
+        self.chat_instance: int = getattr(update, "chat_instance", 0) or 0
+        self.msg_id: Any = getattr(update, "msg_id", None)
+        self.inline_message_id: Any = (
+            self.msg_id if isinstance(update, UpdateInlineBotCallbackQuery) else None
+        )
+        self.query_id: int = int(getattr(update, "query_id", 0) or 0)
+        self.message = None
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._q, name)
+
+    def _client(self) -> Any | None:
+        return getattr(self._kernel, "bot_client", None) or getattr(
+            self._kernel, "client", None
+        )
+
+    async def answer(
+        self,
+        message: str = "",
+        alert: bool = False,
+        url: str = "",
+        *,
+        text: str | None = None,
+        show_alert: bool | None = None,
+        **_: Any,
+    ) -> None:
+        client = self._client()
+        if client is None or not self.query_id:
+            return
+        if text is not None:
+            message = text
+        if show_alert is not None:
+            alert = show_alert
+        await client(
+            SetBotCallbackAnswerRequest(
+                query_id=self.query_id,
+                cache_time=0,
+                alert=bool(alert),
+                message=message or None,
+                url=url or None,
+            )
+        )
+
+    async def edit(
+        self,
+        text: str = "",
+        parse_mode: str = "html",
+        buttons: Any = None,
+        **kwargs: Any,
+    ) -> None:
+        client = self._client()
+        if client is None:
+            return
+
+        if isinstance(self._q, UpdateInlineBotCallbackQuery):
+            reply_markup = client.build_reply_markup(buttons) if buttons else None
+            await client(
+                EditInlineBotMessageRequest(
+                    id=self.msg_id,
+                    message=text,
+                    reply_markup=reply_markup,
+                )
+            )
+            return
+
+        peer = getattr(self._q, "peer", None)
+        if peer is None or self.msg_id is None or not hasattr(client, "edit_message"):
+            return
+        edit_kwargs = {"parse_mode": parse_mode}
+        if buttons:
+            edit_kwargs["buttons"] = buttons
+        edit_kwargs.update(kwargs)
+        await client.edit_message(peer, self.msg_id, text, **edit_kwargs)
 
 
 class InlineHandlers:
@@ -400,6 +514,9 @@ class InlineHandlers:
 
         if hasattr(query, "builder") or isinstance(query, events.CallbackQuery.Event):
             return query
+
+        if isinstance(query, (UpdateInlineBotCallbackQuery, UpdateBotCallbackQuery)):
+            return _RawCallbackUpdateAdapter(query, self.kernel)
 
         bot = self._get_api_bot()
         return _TelethonCallbackAdapter(query, bot, self.kernel)
@@ -1142,47 +1259,14 @@ class InlineHandlers:
                 row = [row]
             kb_row = []
             for btn in row:
-                if not isinstance(btn, dict):
-                    continue
-                b_type = btn.get("type", "callback").lower()
-                if b_type == "callback":
-                    kb_row.append(
-                        build_button_callback(
-                            btn.get("text", ""),
-                            btn.get("data", ""),
-                            btn.get("emoji"),
-                        )
-                    )
-                elif b_type == "url":
-                    kb_row.append(
-                        build_button_url(
-                            btn.get("text", ""),
-                            btn.get("url", ""),
-                            btn.get("emoji"),
-                        )
-                    )
-                elif b_type == "switch":
-                    kb_row.append(
-                        build_button_switch(
-                            btn.get("text", ""),
-                            btn.get("query", ""),
-                            btn.get("hint", ""),
-                            btn.get("emoji"),
-                            same_peer=bool(btn.get("same_peer", False)),
-                        )
-                    )
-                elif b_type == "phone":
-                    kb_row.append(
-                        build_button_phone(btn.get("text", ""), btn.get("emoji"))
-                    )
-                elif b_type == "location":
-                    kb_row.append(
-                        build_button_location(btn.get("text", ""), btn.get("emoji"))
-                    )
-                elif b_type == "game":
-                    kb_row.append(
-                        build_button_game(btn.get("text", ""), btn.get("emoji"))
-                    )
+                source = (
+                    self._dict_to_button(btn)
+                    if isinstance(btn, dict) and callable(btn.get("callback"))
+                    else btn
+                )
+                rendered = build_inline_button(source) if source else None
+                if rendered:
+                    kb_row.append(rendered)
             if kb_row:
                 result.append(kb_row)
         return result
@@ -1192,17 +1276,20 @@ class InlineHandlers:
 
     def _normalize_buttons(self, buttons, ttl: int | None = None):
         """Converts buttons to unified format (list of rows)."""
+        if hasattr(buttons, "rows"):
+            buttons = buttons.rows
+
         # Consolidate the three redundant falsy checks into one
         if not buttons or not isinstance(buttons, list):
             return None
 
-        # List of dicts (single-level) → each in separate row
-        if isinstance(buttons[0], dict):
-            parsed = [
-                [btn]
-                for item in buttons
-                if (btn := self._dict_to_button(item, ttl=ttl)) is not None
-            ]
+        # Single-level list → each item in a separate row.
+        if not isinstance(buttons[0], list):
+            parsed = []
+            for item in buttons:
+                btn = self._button_to_telethon(item, ttl=ttl)
+                if btn:
+                    parsed.append([btn])
             return parsed or None
 
         # List of rows
@@ -1210,26 +1297,31 @@ class InlineHandlers:
             parsed = []
             for row in buttons:
                 if not isinstance(row, list):
-                    continue
+                    row = [row]
                 parsed_row = []
                 for item in row:
-                    if isinstance(item, dict):
-                        btn = self._dict_to_button(item, ttl=ttl)
-                        if btn:
-                            parsed_row.append(btn)
-                    else:
-                        parsed_row.append(item)
+                    btn = self._button_to_telethon(item, ttl=ttl)
+                    if btn:
+                        parsed_row.append(btn)
                 if parsed_row:
                     parsed.append(parsed_row)
             return parsed or None
 
         return None
 
+    def _button_to_telethon(self, button, ttl: int | None = None):
+        if isinstance(button, InlineButton):
+            return self._dict_to_button(button.to_dict(), ttl=ttl)
+        if isinstance(button, dict):
+            return self._dict_to_button(button, ttl=ttl)
+        return button
+
     def _dict_to_button(self, btn_dict, ttl: int | None = None):
         if not isinstance(btn_dict, dict):
             return None
 
-        text = btn_dict.get("text", self.lang["btn_default"])
+        default_text = getattr(self, "lang", {}).get("btn_default", "Button")
+        text = btn_dict.get("text", default_text)
         b_type = btn_dict.get("type", "callback").lower()
 
         # If no explicit type, detect from keys (hikka style)
@@ -1237,6 +1329,7 @@ class InlineHandlers:
             b_type == "callback"
             and not btn_dict.get("callback")
             and not btn_dict.get("data")
+            and not btn_dict.get("callback_data")
         ):
             if "url" in btn_dict:
                 b_type = "url"
@@ -1254,31 +1347,19 @@ class InlineHandlers:
 
         if b_type == "callback":
             # Support both traditional byte data and callable callbacks with
-            data = btn_dict.get("data", "")
+            # auto-generated callback tokens.
+            data = btn_dict.get("data", btn_dict.get("callback_data", ""))
             callback = btn_dict.get("callback")
 
             if callable(callback):
-                token = btn_dict.get("token") or uuid.uuid4().hex
-                # Store mapping globally on kernel so multiple InlineHandlers
-                # instances share the same callback map and lock.
-                if not hasattr(self.kernel, "_inline_cb_lock"):
-                    self.kernel._inline_cb_lock = threading.Lock()
-                lock = self.kernel._inline_cb_lock
-
-                with lock:
-                    cb_map = getattr(self.kernel, "inline_callback_map", None)
-                    if cb_map is None:
-                        cb_map = {}
-                        self.kernel.inline_callback_map = cb_map
-
-                    cb_map[token] = {
-                        "handler": callback,
-                        "args": btn_dict.get("args", []),
-                        "kwargs": btn_dict.get("kwargs", {}),
-                        "expires_at": time.time() + (ttl or 3600),
-                    }
-
-                data = token
+                data = register_inline_callback(
+                    self.kernel,
+                    callback,
+                    args=btn_dict.get("args", []),
+                    kwargs=btn_dict.get("kwargs", {}),
+                    ttl=ttl or 3600,
+                    token=btn_dict.get("token"),
+                )
 
             if isinstance(data, str):
                 data = data.encode()
@@ -1308,22 +1389,9 @@ class InlineHandlers:
             markup = []
 
             def make_btn(btn_dict):
-                text = btn_dict.get("text", self.lang["btn_default"])
-                b_type = btn_dict.get("type", "callback").lower()
-                if b_type == "callback":
-                    return Button.inline(text, btn_dict.get("data", "").encode())
-                if b_type == "url":
-                    return Button.url(
-                        text, btn_dict.get("url", btn_dict.get("data", ""))
-                    )
-                if b_type == "switch":
-                    query = btn_dict.get("query", "")
-                    hint = btn_dict.get("hint", "")
-                    same_peer = bool(btn_dict.get("same_peer", False)) or bool(hint)
-                    return Button.switch_inline(
-                        text, hint or query, same_peer=same_peer
-                    )
-                return None
+                if not isinstance(btn_dict, dict):
+                    return None
+                return self._dict_to_button(btn_dict)
 
             if isinstance(data, list):
                 for row in data:
@@ -1357,26 +1425,31 @@ class InlineHandlers:
             return
 
         self._last_cleanup_time = now
-        lock = getattr(self.kernel, "_inline_cb_lock", None)
-        if lock is None:
-            return
+        cb_map = getattr(self.kernel, "inline_callback_map", None)
+        before = len(cb_map) if cb_map else 0
+        cleanup_inline_callback_map(self.kernel)
+        cb_map = getattr(self.kernel, "inline_callback_map", None)
+        removed = before - (len(cb_map) if cb_map else 0)
+        if removed:
+            self.kernel.logger.debug(
+                f"[InlineHandlers] cleaned {removed} expired callbacks"
+            )
 
-        with lock:
-            cb_map = getattr(self.kernel, "inline_callback_map", None)
-            if not cb_map:
-                return
+    @staticmethod
+    def _callback_entry_allows_user(entry: dict, sender_id: int | None) -> bool:
+        if entry.get("allow_all"):
+            return True
 
-            expired = [
-                key
-                for key, val in list(cb_map.items())
-                if val.get("expires_at") and val["expires_at"] < now
-            ]
-            if expired:
-                for key in expired:
-                    cb_map.pop(key, None)
-                self.kernel.logger.debug(
-                    f"[InlineHandlers] cleaned {len(expired)} expired callbacks"
-                )
+        allow_user = entry.get("allow_user")
+        if allow_user == "all":
+            return True
+        if allow_user is None:
+            return False
+        if isinstance(allow_user, int):
+            return sender_id == allow_user
+        if isinstance(allow_user, (list, tuple, set)):
+            return sender_id in allow_user
+        return False
 
     async def _save_inline_temp_data(
         self, temp_uuid: str, query_args: str, entry: dict
@@ -1813,7 +1886,7 @@ class InlineHandlers:
 
             if data_str in cb_map:
                 entry = cb_map[data_str]
-                if entry.get("allow_all"):
+                if self._callback_entry_allows_user(entry, event.sender_id):
                     is_allowed = True
 
             if not is_allowed:
@@ -1825,7 +1898,7 @@ class InlineHandlers:
                 ):
                     if entry is None:
                         return await event.answer(self.lang["no_access"], alert=False)
-                    elif not entry.get("allow_user"):
+                    elif not self._callback_entry_allows_user(entry, event.sender_id):
                         return await event.answer(self.lang["no_access"], alert=False)
 
             # 1. Built-in service callbacks

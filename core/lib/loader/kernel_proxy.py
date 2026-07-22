@@ -52,6 +52,12 @@ PROTECTED_KERNEL_NAMES = frozenset(
         "_class_module_instances",
         "_loader",
         "loader",
+        "load_module_from_file",
+        "load_system_modules",
+        "load_user_modules",
+        "reload_module",
+        "unload_module",
+        "unregister_module_commands",
         # Internal runtime state that modules must not touch
         "current_loading_module",
         "current_loading_module_type",
@@ -245,6 +251,7 @@ class ModuleKernelProxy:
             "client",
             "bot_client",
             "inline_bot",
+            "install_from_url",
             "_live_module_configs",
             "remove_inline_callback_tokens",
             "store_inline_callback",
@@ -457,6 +464,28 @@ class ModuleKernelProxy:
             kernel.callback_permissions = permissions
         permissions.allow(user_id, token, allow_ttl)
 
+    async def install_from_url(
+        self,
+        url: str,
+        module_name: str | None = None,
+        auto_dependencies: bool = True,
+    ) -> tuple[bool, str]:
+        """Install a remote module with user-level trust only.
+
+        This keeps catalog modules compatible with ``kernel.install_from_url``
+        without exposing raw loader access or any way to request system trust.
+        """
+        kernel = object.__getattribute__(self, "_kernel")
+        loader = getattr(kernel, "_loader", None)
+        if loader is not None and hasattr(loader, "install_from_url"):
+            return await loader.install_from_url(url, module_name, auto_dependencies)
+
+        install = getattr(kernel, "install_from_url", None)
+        if callable(install):
+            return await install(url, module_name, auto_dependencies)
+
+        return False, "Loader not available"
+
     def set_live_module_config(self, module_name: str, config: Any) -> None:
         kernel = object.__getattribute__(self, "_kernel")
         live_configs = getattr(kernel, "_live_module_configs", None)
@@ -510,6 +539,7 @@ class ModuleKernelProxy:
                 "client",
                 "bot_client",
                 "inline_bot",
+                "install_from_url",
                 "is_protected",
                 "lookup_module",
                 "get_loaded_module",

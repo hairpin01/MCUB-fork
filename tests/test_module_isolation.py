@@ -201,6 +201,42 @@ class TestModuleKernelProxy:
         assert "client" in names
         assert "lookup_module" in names
         assert "loaded_modules_view" in names
+        assert "install_from_url" in names
+
+    @pytest.mark.asyncio
+    async def test_proxy_install_from_url_delegates_user_install_only(self):
+        from core.lib.loader.kernel_proxy import ModuleKernelProxy
+
+        kernel = make_kernel()
+        kernel._loader = SimpleNamespace(
+            install_from_url=AsyncMock(return_value=(True, "installed"))
+        )
+
+        proxy = ModuleKernelProxy(kernel, "catalog")
+        result = await proxy.install_from_url("https://example.com/mod.py", "mod")
+
+        assert result == (True, "installed")
+        kernel._loader.install_from_url.assert_awaited_once_with(
+            "https://example.com/mod.py", "mod", True
+        )
+
+    def test_proxy_blocks_raw_loader_and_system_lifecycle_apis(self):
+        from core.lib.loader.kernel_proxy import ModuleKernelProxy
+        from core.lib.utils.exceptions import CallInsecure
+
+        kernel = make_kernel()
+        proxy = ModuleKernelProxy(kernel, "catalog")
+
+        for name in (
+            "load_module_from_file",
+            "load_system_modules",
+            "load_user_modules",
+            "unregister_module_commands",
+            "reload_module",
+            "unload_module",
+        ):
+            with pytest.raises(CallInsecure, match=name):
+                getattr(proxy, name)
 
 
 class TestClientProxy:

@@ -285,6 +285,106 @@ class TestKernelCommands:
     @patch("core.lib.kernel_core.setup_logging")
     @patch("core.lib.kernel_core.ConfigManager")
     @patch("core.lib.kernel_core.DatabaseManager")
+    async def test_command_event_dedupe_uses_chat_and_message_id(
+        self, mock_db, mock_cfg, mock_log
+    ):
+        """NewMessage and MessageEdited for the same message should dedupe."""
+        from core.kernel import Kernel
+
+        kernel = Kernel()
+        original = SimpleNamespace(chat_id=100, message=SimpleNamespace(id=200))
+        edited = SimpleNamespace(chat_id=100, message=SimpleNamespace(id=200))
+        other = SimpleNamespace(chat_id=100, message=SimpleNamespace(id=201))
+
+        assert kernel._is_command_event_processed(original) is False
+
+        kernel._mark_command_event_processed(original)
+
+        assert kernel._is_command_event_processed(edited) is True
+        assert kernel._is_command_event_processed(other) is False
+        assert not hasattr(original.message, "_mcub_command_processed")
+
+    @patch("core.lib.kernel_core.setup_logging")
+    @patch("core.lib.kernel_core.ConfigManager")
+    @patch("core.lib.kernel_core.DatabaseManager")
+    async def test_command_event_dedupe_ignores_events_without_ids(
+        self, mock_db, mock_cfg, mock_log
+    ):
+        """Synthetic events without ids should not be marked via object attrs."""
+        from core.kernel import Kernel
+
+        kernel = Kernel()
+        event = SimpleNamespace(message=SimpleNamespace())
+
+        kernel._mark_command_event_processed(event)
+
+        assert kernel._is_command_event_processed(event) is False
+        assert not hasattr(event.message, "_mcub_command_processed")
+
+    async def test_dispatcher_unmarks_unknown_command_event(self):
+        """Unknown commands should not poison dedupe for later edited commands."""
+        from core.lib.loader.dispatcher import CommandDispatcher
+
+        class DummyLogger:
+            def debug(self, *args, **kwargs):
+                pass
+
+            def warning(self, *args, **kwargs):
+                pass
+
+            def error(self, *args, **kwargs):
+                pass
+
+        class DummyKernel:
+            command_handlers = {}
+            aliases = {}
+            config = {}
+            logger_name = "test"
+            CORE_NAME = "standard"
+
+            def __init__(self):
+                self.logger = DummyLogger()
+                self._processed_command_events = {}
+
+            def is_admin(self, user_id):
+                return True
+
+            def should_process_command_event(self, event):
+                return True
+
+            def get_prefix_for_sender(self, sender_id):
+                return "."
+
+            def _command_event_key(self, event):
+                return (event.chat_id, event.message.id)
+
+            def _is_command_event_processed(self, event):
+                return self._command_event_key(event) in self._processed_command_events
+
+            def _mark_command_event_processed(self, event):
+                self._processed_command_events[self._command_event_key(event)] = (
+                    time.time()
+                )
+
+            def _unmark_command_event_processed(self, event):
+                self._processed_command_events.pop(self._command_event_key(event), None)
+
+        kernel = DummyKernel()
+        dispatcher = CommandDispatcher(kernel)
+        event = SimpleNamespace(
+            raw_text=".missing",
+            chat_id=100,
+            sender_id=123,
+            message=SimpleNamespace(id=200, out=True, raw_text=".missing"),
+        )
+
+        await dispatcher.watcher_message_handler(event)
+
+        assert kernel._processed_command_events == {}
+
+    @patch("core.lib.kernel_core.setup_logging")
+    @patch("core.lib.kernel_core.ConfigManager")
+    @patch("core.lib.kernel_core.DatabaseManager")
     async def test_dedupe_event_builders_keeps_latest_duplicate(
         self, mock_db, mock_cfg, mock_log
     ):

@@ -223,8 +223,9 @@ class KernelCoreMixin:
         self._pipe_macros = {}
         self._processed_command_events: dict[tuple[Any, Any], float] = {}
 
-        # Script engine (beta) - lazy import on first use
-        self.script_engine = None
+        import utils
+
+        self.utils = utils
 
         # Module source tracking: {module_name: {"url": full_file_url}}
         self._module_sources = {}
@@ -373,9 +374,11 @@ class KernelCoreMixin:
         # InlineManager
         try:
             self._inline = InlineManager(self) if InlineManager else None
+            self.inline = InlineManager(self) if InlineManager else None
         except Exception as e:
             self._warn("InlineManager", e)
             self._inline = None
+            self.inline = None
 
         # VersionManager
         try:
@@ -922,8 +925,14 @@ class KernelCoreMixin:
         source_repo: str | None = None,
     ) -> tuple:
         """Load a module from a .py file and register it."""
+        if is_system:
+            self.logger.warning(
+                "Denied public system module load request for %s", module_name
+            )
+            return False, "System module loading is internal only"
+
         result = await self._loader.load_module_from_file(
-            file_path, module_name, is_system, is_reload=is_reload
+            file_path, module_name, False, is_reload=is_reload
         )
 
         full_source_url = source_url or (

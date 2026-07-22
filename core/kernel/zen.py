@@ -162,6 +162,9 @@ class Kernel:
     Simple is better than complex. Readability counts.
     """
 
+    COMMAND_EVENT_DEDUPE_TTL = 300.0
+    COMMAND_EVENT_DEDUPE_MAX = 2048
+
     def __init__(self) -> None:
         self.VERSION = VERSION
         self.DB_VERSION = 2
@@ -182,6 +185,7 @@ class Kernel:
         self.callback_handlers: dict = {}
         self.aliases: dict = {}
         self._module_commands_index: dict = {}
+        self._processed_command_events: dict[tuple[Any, Any], float] = {}
 
         # Module source tracking: {module_name: {"url": str, "repo": str or None}}
         self._module_sources: dict = {}
@@ -566,8 +570,14 @@ class Kernel:
         is_system: bool = False,
         is_reload: bool = False,
     ) -> tuple:
+        if is_system:
+            self.logger.warning(
+                "Denied public system module load request for %s", module_name
+            )
+            return False, "System module loading is internal only"
+
         return await self._loader.load_module_from_file(
-            file_path, module_name, is_system, is_reload=is_reload
+            file_path, module_name, False, is_reload=is_reload
         )
 
     async def install_from_url(
@@ -1097,13 +1107,67 @@ class Kernel:
             return True
         return self.is_admin(getattr(event, "sender_id", None))
 
-    def _is_command_event_processed(self, event) -> bool:
+    def _command_event_key(self, event) -> tuple[Any, Any] | None:
+        """Return a stable command-event key shared by NewMessage and edits."""
         msg = getattr(event, "message", event)
-        return bool(getattr(msg, "_mcub_command_processed", False))
+        chat_id = getattr(event, "chat_id", None)
+        if chat_id is None:
+            chat_id = getattr(msg, "chat_id", None)
+
+        message_id = getattr(msg, "id", None)
+        if message_id is None:
+            message_id = getattr(event, "id", None)
+
+        if chat_id is None or message_id is None:
+            return None
+
+        key = (chat_id, message_id)
+        try:
+            hash(key)
+        except TypeError:
+            return None
+        return key
+
+    def _cleanup_processed_command_events(self, now: float | None = None) -> None:
+        """Keep the command-event dedupe registry bounded and fresh."""
+        seen = getattr(self, "_processed_command_events", None)
+        if not isinstance(seen, dict):
+            self._processed_command_events = {}
+            return
+
+        current_time = time.time() if now is None else now
+        ttl = getattr(self, "COMMAND_EVENT_DEDUPE_TTL", 300.0)
+        for key, timestamp in list(seen.items()):
+            if current_time - timestamp > ttl:
+                seen.pop(key, None)
+
+        max_events = getattr(self, "COMMAND_EVENT_DEDUPE_MAX", 2048)
+        overflow = len(seen) - max_events
+        if overflow > 0:
+            oldest = sorted(seen.items(), key=lambda item: item[1])[:overflow]
+            for key, _timestamp in oldest:
+                seen.pop(key, None)
+
+    def _is_command_event_processed(self, event) -> bool:
+        key = self._command_event_key(event)
+        if key is None:
+            return False
+        self._cleanup_processed_command_events()
+        return key in self._processed_command_events
 
     def _mark_command_event_processed(self, event) -> None:
-        msg = getattr(event, "message", event)
-        msg._mcub_command_processed = True
+        key = self._command_event_key(event)
+        if key is None:
+            return
+        now = time.time()
+        self._cleanup_processed_command_events(now)
+        self._processed_command_events[key] = now
+
+    def _unmark_command_event_processed(self, event) -> None:
+        key = self._command_event_key(event)
+        if key is None:
+            return
+        self._processed_command_events.pop(key, None)
 
     def is_bot_available(self) -> bool:
         return (

@@ -73,8 +73,12 @@ class SystemLoaderMixin:
                 )
 
         k._lock_loader_system = True
+        token = self._begin_system_loading()
 
-        await asyncio.gather(*[_load_one(f) for f in files])
+        try:
+            await asyncio.gather(*[_load_one(f) for f in files])
+        finally:
+            self._end_system_loading(token)
 
     async def _load_single_system_module(
         self, file_name: str, k, *, cached_code: str | None = None
@@ -98,6 +102,14 @@ class SystemLoaderMixin:
             module_name, file_path = self._resolve_name_from_code(
                 code, module_name, file_path, k
             )
+
+            try:
+                self._assert_system_module_trusted(module_name, file_path, code)
+            except PermissionError as e:
+                k.logger.error("System module %s denied: %s", module_name, e)
+                k.error_load_modules += 1
+                k.error_load_modules_name.append(module_name)
+                return
 
             # Reject forbidden module names (now with resolved name)
             if hasattr(self, "_raise_forbidden_module_name"):
@@ -133,6 +145,9 @@ class SystemLoaderMixin:
                         and class_display_name != module_name
                         and class_display_name not in k.system_modules
                     ):
+                        class_display_name = self._sanitize_module_name(
+                            class_display_name
+                        )
                         old_path = file_path
                         new_path = os.path.join(
                             k.MODULES_DIR, f"{class_display_name}.py"

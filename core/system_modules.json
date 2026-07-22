@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "description": "Trusted MCUB system modules loaded with system privileges.",
+  "modules": {
+    "MCUB_info": {
+      "path": "modules/MCUB_info.py",
+      "sha256": "88c9051f5a5cb4e6de1d53095018d0cd5badcdb7d240485565f41b68732f83bc"
+    },
+    "api_protection": {
+      "path": "modules/api_protection.py",
+      "sha256": "c737257403dbec78f7f24886eb501a35b4c6ab0c779bd297fb21dda5b82eb1cb"
+    },
+    "command": {
+      "path": "modules/command.py",
+      "sha256": "7aaed9b53f82021a3d698bd511149d5ada15a6fb619dadfb72f42268918495ce"
+    },
+    "config": {
+      "path": "modules/config.py",
+      "sha256": "b5df728ec03943e0f7f9ddeceed6ca6fcf26840346c56c12ef0ae8178e92b81e"
+    },
+    "evaluator": {
+      "path": "modules/evaluator.py",
+      "sha256": "ce7a57d722cd7c773ff2dcb4a93e2841921807493a7db239661cb3187dac8c59"
+    },
+    "installation": {
+      "path": "modules/installation.py",
+      "sha256": "3bf62aa984fa6cc61d40ffc4ee148303dc63ebebb9b4dd6cce19d9f2195c0a4a"
+    },
+    "loader": {
+      "path": "modules/loader.py",
+      "sha256": "9dd4cbbea7e73338abef5b1cbe2ce0d56b1c4eb182524e0d6986a4f9db4eb967"
+    },
+    "log_bot": {
+      "path": "modules/log_bot.py",
+      "sha256": "388e75e9bea735aca3402ff423e5d7152bcfb4931ef89ecdd6d1f5afddffc75e"
+    },
+    "man": {
+      "path": "modules/man.py",
+      "sha256": "872e74b6b8391c79aa514f33b5f9aba740b225af26111431f45e35a363735488"
+    },
+    "settings": {
+      "path": "modules/settings.py",
+      "sha256": "5f601efdbb57cdd9a9171494f742e3a0da459b8211048ede680837f29f59e319"
+    },
+    "terminal": {
+      "path": "modules/terminal.py",
+      "sha256": "f1c8696c6cb5f7c1a19da7320c1208603e2b23a3b807ddf928bdb19de8f91231"
+    },
+    "tester": {
+      "path": "modules/tester.py",
+      "sha256": "46ffe5c9bfe5132d3fe12b23d2e38c31183c62e8aa29ae00feaff468a173068d"
+    },
+    "tr": {
+      "path": "modules/tr.py",
+      "sha256": "8e17fbdab9fc56727477e401136b9062d6c1b4373afaafae346f2733d3a69b56"
+    },
+    "translations": {
+      "path": "modules/translations.py",
+      "sha256": "059751761fa4e7f98d951b38a77e9845dbf058f39023c490d937603e0e32165e"
+    },
+    "trusted": {
+      "path": "modules/trusted.py",
+      "sha256": "988be330ccb801ef3aad12f22c3298cf10d34b334c195131fb7564b635f60a25"
+    },
+    "updates": {
+      "path": "modules/updates.py",
+      "sha256": "da2d6a84ccab24fe70a148c7f143ff9ed2714ad1317d56b5831d31a8e863979a"
+    },
+    "userbot-backup": {
+      "path": "modules/userbot-backup.py",
+      "sha256": "208d7fd8298387af8099f1f5955289a00c72f8ffd212ccf5e343eadc53c3066e"
+    },
+    "utils-piped": {
+      "path": "modules/utils-piped.py",
+      "sha256": "c3ca6074cf838a7565ffdc59829a0407e54daeda31dc206e08c5142a321bc1b8"
+    }
+  }
+}

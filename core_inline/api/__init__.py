@@ -19,6 +19,9 @@ from .core import (
     build_inline_result_voice,
 )
 from .inline import (
+    CodeInline,
+    InlineButton,
+    InlineKeyboard,
     add_inline_keyboard_to_result,
     build_button_callback,
     build_button_game,
@@ -30,5 +33,9 @@ from .inline import (
     build_inline_keyboard,
     build_inline_keyboard_row,
     build_input_message_content,
+    cleanup_inline_callback_map,
+    code_inline,
     get_button_emoji,
+    make_cb_button,
+    register_inline_callback,
 )

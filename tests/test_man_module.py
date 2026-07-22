@@ -3,6 +3,7 @@
 
 """Тecты для yтилит modules/man.py."""
 
+import json
 from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import AsyncMock
@@ -12,6 +13,50 @@ import pytest
 from modules import man
 
 _ASSERT = TestCase()
+
+
+@pytest.mark.asyncio
+async def test_man_repairs_python_literal_config_and_clamps_page_size():
+    saved = {}
+
+    async def db_get(module, key):
+        assert (module, key) == ("module_configs", "man")
+        return "{'man_modules_per_page': 999, 'man_banner_url': 'https://example.com/a.jpg'}"
+
+    async def db_set(module, key, value):
+        saved[(module, key)] = value
+
+    module_instance = man.ManModule.__new__(man.ManModule)
+    module_instance.name = "man"
+    module_instance.kernel = SimpleNamespace(db_get=db_get, db_set=db_set)
+    module_instance.log = SimpleNamespace(debug=lambda *_, **__: None)
+
+    await module_instance._repair_persisted_config()
+
+    payload = json.loads(saved[("module_configs", "man")])
+    assert payload["man_modules_per_page"] == 50
+    assert payload["man_banner_url"] == "https://example.com/a.jpg"
+
+
+@pytest.mark.asyncio
+async def test_man_repairs_unparseable_config_payload():
+    saved = {}
+
+    async def db_get(module, key):
+        assert (module, key) == ("module_configs", "man")
+        return "{broken config"
+
+    async def db_set(module, key, value):
+        saved[(module, key)] = value
+
+    module_instance = man.ManModule.__new__(man.ManModule)
+    module_instance.name = "man"
+    module_instance.kernel = SimpleNamespace(db_get=db_get, db_set=db_set)
+    module_instance.log = SimpleNamespace(debug=lambda *_, **__: None)
+
+    await module_instance._repair_persisted_config()
+
+    assert json.loads(saved[("module_configs", "man")]) == {}
 
 
 class CallableStrings(dict):

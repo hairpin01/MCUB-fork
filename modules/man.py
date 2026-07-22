@@ -14,6 +14,7 @@ from html import escape
 from typing import Any
 
 from telethon import Button, events
+from telethon.errors import BadRequestError
 from telethon.tl.types import (
     DocumentAttributeImageSize,
     InputMediaWebPage,
@@ -70,7 +71,7 @@ def _get_metadata_lock() -> asyncio.Lock:
 
 class ManModule(ModuleBase):
     name = "man"
-    version = "1.1.1"
+    version = "1.1.2"
     author = "@hairpin00"
     description = {
         "ru": "Список модулей, и их описание",
@@ -150,6 +151,35 @@ class ManModule(ModuleBase):
             validator=String(),
         ),
     )
+
+    @staticmethod
+    def _is_webpage_url_invalid_error(error: BaseException) -> bool:
+        if not isinstance(error, BadRequestError):
+            return False
+
+        message = getattr(error, "message", "") or str(error)
+        return "WEBPAGE_URL_INVALID" in str(message)
+
+    async def _edit_with_banner_retry(
+        self,
+        event: events.NewMessage.Event,
+        text: str,
+        **kwargs: Any,
+    ) -> Any:
+        try:
+            return await self.edit(event, text, **kwargs)
+        except BadRequestError as e:
+            if not self._is_webpage_url_invalid_error(e):
+                raise
+
+            fallback_kwargs = dict(kwargs)
+            fallback_kwargs.pop("file", None)
+            fallback_kwargs.pop("invert_media", None)
+
+            with contextlib.suppress(Exception):
+                self.log.debug("Man banner URL rejected; retrying without banner")
+
+            return await self.edit(event, text, **fallback_kwargs)
 
     @staticmethod
     def _coerce_modules_per_page(value: Any) -> int:
@@ -1019,7 +1049,7 @@ class ManModule(ModuleBase):
                     )
                     try:
                         if self.config.get("man_quote_media", False):
-                            await self.edit(
+                            await self._edit_with_banner_retry(
                                 event,
                                 page_msg,
                                 file=InputMediaWebPage(
@@ -1036,7 +1066,7 @@ class ManModule(ModuleBase):
                                 ),
                             )
                         elif self.config.get("man_banner_url"):
-                            await self.edit(
+                            await self._edit_with_banner_retry(
                                 event,
                                 page_msg,
                                 file=self.config.get("man_banner_url"),
@@ -1112,7 +1142,7 @@ class ManModule(ModuleBase):
                 if banner_url and banner_url.startswith(("http://", "https://")):
                     try:
                         media = InputMediaWebPage(banner_url, optional=True)
-                        await self.edit(
+                        await self._edit_with_banner_retry(
                             event, msg, file=media, parse_mode="html", invert_media=True
                         )
                     except Exception as e:

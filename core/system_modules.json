@@ -28,15 +28,15 @@
     },
     "loader": {
       "path": "modules/loader.py",
-      "sha256": "9dd4cbbea7e73338abef5b1cbe2ce0d56b1c4eb182524e0d6986a4f9db4eb967"
+      "sha256": "be21b3c32295dc1a3f332ee5853246eba803c4e85043ebb99f388c9682a6939e"
     },
     "log_bot": {
       "path": "modules/log_bot.py",
-      "sha256": "388e75e9bea735aca3402ff423e5d7152bcfb4931ef89ecdd6d1f5afddffc75e"
+      "sha256": "bd4d759c8039f805eb5b347d8e3d7831e6fbd2ea34fafad20db6f295c0aab477"
     },
     "man": {
       "path": "modules/man.py",
-      "sha256": "872e74b6b8391c79aa514f33b5f9aba740b225af26111431f45e35a363735488"
+      "sha256": "a93b21c10bf02f3f7baccd7bc33c1518c49d6d6891bf2fed8cf25d29a046c2ee"
     },
     "settings": {
       "path": "modules/settings.py",

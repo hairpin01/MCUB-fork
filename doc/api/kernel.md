@@ -8,18 +8,18 @@ The `Kernel` class exposes the following core variables that can be accessed in 
 
 ### Module Registries
 
-| Variable | Type | Description |
-|----------|------|-------------|
-| `kernel.loaded_modules` | `dict` | Dictionary of all currently loaded user modules. Keys are module names (str), values are the module objects. |
-| `kernel.system_modules` | `dict` | Dictionary of all loaded system modules (from `modules/` directory). |
-| `kernel.command_handlers` | `dict` | Dictionary mapping command names to their handler functions. |
-| `kernel.command_owners` | `dict` | Dictionary mapping command names to the module that owns them. |
-| `kernel.bot_command_handlers` | `dict` | Dictionary of registered bot commands (starting with `/`). |
-| `kernel.bot_command_owners` | `dict` | Dictionary mapping bot command names to owning modules. |
-| `kernel.inline_handlers` | `dict` | Dictionary of registered inline query handlers. |
-| `kernel.inline_handlers_owners` | `dict` | Dictionary mapping inline handlers to owning modules. |
-| `kernel.callback_handlers` | `dict` | Dictionary of registered callback query handlers. |
-| `kernel.aliases` | `dict` | Dictionary of command aliases. |
+| Variable                        | Type   | Description                                                                                                                            |
+| ------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `kernel.loaded_modules`         | `dict` | Dictionary of all currently loaded user modules. Keys are module names (str), values are the module objects. [Docs](api/module-api.md) |
+| `kernel.system_modules`         | `dict` | Dictionary of all loaded system modules (from `modules/` directory).                                                                   |
+| `kernel.command_handlers`       | `dict` | Dictionary mapping command names to their handler functions. [Docs](api/commands.md)                                                   |
+| `kernel.command_owners`         | `dict` | Dictionary mapping command names to the module that owns them.                                                                         |
+| `kernel.bot_command_handlers`   | `dict` | Dictionary of registered bot commands (starting with `/`).                                                                             |
+| `kernel.bot_command_owners`     | `dict` | Dictionary mapping bot command names to owning modules.                                                                                |
+| `kernel.inline_handlers`        | `dict` | Dictionary of registered inline query handlers. [Docs](api/events.md)                                                                  |
+| `kernel.inline_handlers_owners` | `dict` | Dictionary mapping inline handlers to owning modules.                                                                                  |
+| `kernel.callback_handlers`      | `dict` | Dictionary of registered callback query handlers.                                                                                      |
+| `kernel.aliases`                | `dict` | Dictionary of command aliases.                                                                                                         |
 
 ### Runtime State
 
@@ -128,15 +128,3 @@ Prints colored text to the console using ANSI escape codes.
 ```python
 kernel.cprint("Success!", kernel.Colors.GREEN)
 ```
-
-### Kernel Version API
-
-`kernel.get_thread_id(event)` - Thread ID for topics
-
-`kernel.get_user_info(user_id)` - User info formatting
-
-`kernel.is_admin(user_id)` - Admin check
-
-`kernel.cprint(text, color='')` - Colored console output
-
-`kernel.Colors` - ANSI color codes (RESET, RED, GREEN, YELLOW, BLUE, PURPLE, CYAN)

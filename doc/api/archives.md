@@ -104,7 +104,7 @@ Information about a module found in an archive.
 
 ## `async kernel.install_from_url(url, module_name=None, auto_dependencies=True)`
 
-Install from a URL - automatically detects whether it's a direct `.py` file or an archive, downloads, extracts, and loads the module.
+Install from a URL - automatically detects whether it's a direct `.py` file or an archive, downloads, extracts, and loads the module. [Full Docs](api/module-api.md)
 
 ```python
 # Direct .py URL

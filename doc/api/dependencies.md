@@ -40,7 +40,7 @@ Has built-in mappings for common packages:
 | `bs4` | `beautifulsoup4` |
 | `yaml` | `PyYAML` |
 | `google.generativeai` | `google-generativeai` |
-| and more... | |
+| and more... |  |
 
 ### `async kernel.pre_install_requirements(code: str, module_name: str) -> None`
 

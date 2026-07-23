@@ -1,10 +1,32 @@
 # Inline Form
 
+<p align="center">
+  <img src="../assets/code-cards/inline-form-buttons.svg" alt="Inline form buttons code example" width="680"/>
+</p>
+
 ← [Index](../../API_DOC.md)
 
-## `kernel.inline_form()`
+## `kernel.inline.form()` (alias) /  `kernel.inline_form` (old)
 
 Sends an inline message with formatted fields and buttons.
+
+## Inline Form Flow
+
+```mermaid
+flowchart LR
+    A["Command handler"] --> B["Build fields and buttons"]
+    B --> C["kernel.inline.form"]
+    C --> D["Inline bot sends message"]
+    D --> E["User presses button"]
+    E --> F["Callback handler"]
+    F --> G["Edit form or answer popup"]
+```
+
+## Telegram Preview
+
+<p align="center">
+  <img src="../assets/example-screenshots/inline-form.png" alt="Inline form with Telegram buttons" width="680"/>
+</p>
 
 ### Parameters
 
@@ -96,26 +118,26 @@ buttons = [
 
 ```python
 # Basic form
-success, msg = await kernel.inline_form(event.chat_id, "User Profile")
+success, msg = await kernel.inline.form(event.chat_id, "User Profile")
 
 # Form with fields
 fields = {"Name": "John", "Status": "Active"}
-success, msg = await kernel.inline_form(event.chat_id, "Profile", fields=fields)
+success, msg = await kernel.inline.form(event.chat_id, "Profile", fields=fields)
 
 # Form with buttons
 buttons = [{"text": "Edit", "type": "callback", "data": "edit"}]
-success, msg = await kernel.inline_form(event.chat_id, "Profile", buttons=buttons)
+success, msg = await kernel.inline.form(event.chat_id, "Profile", buttons=buttons)
 
 # Form in a topic (supergroup with topics)
 reply_to = getattr(event.message, "reply_to", None) or event.message.id
-success, msg = await kernel.inline_form(
+success, msg = await kernel.inline.form(
     event.chat_id, "Topic Menu", fields=fields, reply_to=reply_to
 )
 ```
 
 ---
 
-## `kernel._inline.gallery()`
+## `kernel.inline.gallery()`
 
 Sends an inline gallery with navigation buttons `[◀] [🔄] [▶]`.
 
@@ -124,28 +146,28 @@ rows = [
     {"photo": "https://example.com/photo1.jpg", "text": "Item 1"},
     {"photo": "https://example.com/photo2.jpg", "text": "Item 2"},
 ]
-success, msg = await kernel._inline.gallery(event.chat_id, "Gallery", rows=rows)
+success, msg = await kernel.inline.gallery(event.chat_id, "Gallery", rows=rows)
 ```
 
 ---
 
-## `kernel._inline.list()`
+## `kernel.inline.list()`
 
 Sends an inline list with pagination `[◀] [🔄] [▶]`.
 
 ```python
 items = ["Item 1", "Item 2", "Item 3", "Item 4", "Item 5"]
-success, msg = await kernel._inline.list(event.chat_id, "List", items=items)
+success, msg = await kernel.inline.list(event.chat_id, "List", items=items)
 ```
 
 ---
 
-## `kernel.inline_query_and_click()`
+## `kernel.inline.query()`
 
 Performs an inline query through a bot and clicks on the selected result.
 
 ```python
-success, message = await kernel.inline_query_and_click(
+success, message = await kernel.inline.query(
     chat_id=event.chat_id,
     query="gif cat",
     bot_username="gif"
@@ -165,7 +187,7 @@ async def profile_handler(event):
     # Detect topic context for supergroups with topics
     reply_to = getattr(event.message, "reply_to", None) or event.message.id
 
-    success, msg = await kernel.inline_form(
+    success, msg = await kernel.inline.form(
         event.chat_id, "User Profile", fields=fields, buttons=buttons,
         reply_to=reply_to,
     )
@@ -178,5 +200,5 @@ async def casino_callback_handler(event):
         await event.edit("Starting game...")
 
 kernel.register_callback_handler('casino_', casino_callback_handler)
-
+```
 ---

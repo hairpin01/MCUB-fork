@@ -1,10 +1,31 @@
 # Lifecycle Callbacks
 
+<p align="center">
+  <img src="../assets/code-cards/lifecycle-callbacks.svg" alt="Lifecycle callbacks code example" width="680"/>
+</p>
+
 ← [Index](../../API_DOC.md)
 
 All lifecycle callbacks receive `kernel` as their only argument.
 
 This page describes the function-style `kernel.register` API. In class-style modules, use `async def on_load(self)`, `async def on_unload(self)`, `@on_install`, and `@on_uninstall`; those methods receive `self`, not `kernel`.
+
+## Lifecycle Flow
+
+```mermaid
+flowchart TD
+    A["Module file loaded"] --> B["Commands and handlers registered"]
+    B --> C{"First install?"}
+    C -- "yes" --> D["on_install"]
+    C -- "no" --> E["on_load"]
+    D --> E
+    E --> F["Module is active"]
+    F --> G{"Unload or reload"}
+    G --> H["Stop loops"]
+    H --> I["Remove watchers and events"]
+    I --> J["uninstall / on_unload"]
+    J --> K["Remove commands"]
+```
 
 ## `@kernel.register.on_load()`
 

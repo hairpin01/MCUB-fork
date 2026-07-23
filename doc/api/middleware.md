@@ -5,6 +5,18 @@
 `kernel.add_middleware(middleware_func)`
 Add middleware to process events before handlers.
 
+## Middleware Flow
+
+```mermaid
+flowchart LR
+    A["Incoming event"] --> B["Middleware 1"]
+    B --> C{"Allow?"}
+    C -- "no" --> D["Reply / stop"]
+    C -- "yes" --> E["Middleware 2"]
+    E --> F["Command handler"]
+    F --> G["Edit / reply result"]
+```
+
 ```python
 async def auth_middleware(event, handler):
     if not kernel.is_admin(event.sender_id):

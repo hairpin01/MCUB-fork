@@ -109,5 +109,6 @@ except Exception as e:
         message="MyModule: operation failed",
         event=event,
     )
-
-See [Error Handling](errors.md) for more details on `kernel.handle_error()`.
+```
+> [!TIP]
+> See [Error Handling](errors.md) for more details on `kernel.handle_error()`.

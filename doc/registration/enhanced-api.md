@@ -16,34 +16,14 @@ async def setup(kernel):
     kernel.logger.info("module initialised")
 ```
 
-### `@kernel.register.command(pattern, alias=None, doc=None, doc_ru=None, doc_en=None, **kwargs)`
+### Command decorators
 
-Register a userbot command.
+`@kernel.register.command(...)` registers userbot commands and
+`@kernel.register.bot_command(...)` registers native Telegram `/commands` on the
+bot account.
 
-```python
-@kernel.register.command('ping', alias=['p'])
-async def ping(event):
-    await event.edit("Pong!")
-```
-
-**Notes:**
-- `pattern` is normalized: the custom prefix and trailing `$` are stripped.
-- `alias` can be a string or a list of strings.
-- `doc`, `doc_ru`, and `doc_en` are stored in `kernel.command_docs` and shown by command/help tooling.
-- Raises `CommandConflictError` if the command or alias is already registered.
-- Raises `ValueError` if called while no module is being loaded.
-
-### `@kernel.register.bot_command(pattern, alias=None, doc=None, doc_ru=None, doc_en=None, **kwargs)`
-
-Register a Telegram native `/command` (requires bot client).
-
-```python
-@kernel.register.bot_command('start')
-async def start(event):
-    await event.respond("Hello!")
-```
-
-`doc`, `doc_ru`, and `doc_en` are stored in `kernel.bot_command_docs`. Duplicate bot commands raise `CommandConflictError`.
+See [Command Registration](../api/commands.md) for the canonical command syntax,
+aliases, documentation metadata, owner-only commands and conflict rules.
 
 ### `kernel.register.inline_temp(func, ttl=300, article=None, data=None, allow_user=None, allow_ttl=100)`
 
@@ -51,7 +31,7 @@ Register a temporary inline command handler and return an 8-character form id. T
 
 ```python
 async def handle_search(event, args, data=None):
-    await event.answer(f"Search: {args}")
+    kernel.logger.info(f'search: {args}')
 
 form_id = kernel.register.inline_temp(
     handle_search,
@@ -93,3 +73,9 @@ async def menu_cb(event):
 
 > [!IMPORTANT]
 > `callbackquery` handlers **must** use `bot_client=True`. Callback queries from inline buttons are routed through the Telegram Bot API.
+
+### `@kernel.register.watcher(bot_client=False, **tags)`
+
+Register a passive message watcher. Fires on every new message and is cleaned up automatically on module unload.
+
+See [Watchers](watchers.md) for the canonical watcher tags and examples.

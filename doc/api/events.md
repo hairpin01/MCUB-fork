@@ -1,5 +1,9 @@
 # Event Handlers
 
+<p align="center">
+  <img src="../assets/code-cards/event-handlers.svg" alt="Event handler code example" width="680"/>
+</p>
+
 ← [Index](../../API_DOC.md)
 
 > [!TIP]

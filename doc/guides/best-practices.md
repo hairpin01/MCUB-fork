@@ -34,8 +34,6 @@ async def hello_handler(event):  # noqa: ANN001
 
 > **Note:** Protocols are structural - no runtime overhead. They only affect type checkers and IDE hints. See [Type Protocols](../api/types.md) for the full reference.
 
-> **Note:** Protocols are structural - no runtime overhead. They only affect type checkers and IDE hints. See [Type Protocols](../api/types.md) for the full reference.
-
 ---
 
 ## Module Structure

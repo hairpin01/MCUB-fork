@@ -1,5 +1,9 @@
 # Class-Style Modules
 
+<p align="center">
+  <img src="../assets/code-cards/class-style-quick-start.svg" alt="Class-style module code example" width="680"/>
+</p>
+
 ← [Index](../../API_DOC.md)
 
 Class-style modules provide an object-oriented approach to module development. Instead of using function-based registration, you inherit from `ModuleBase` and define handlers as class methods.
@@ -127,7 +131,10 @@ await self.invoke("echo", args="hello world", chat_id=-100123456789)
 
 ### Inline Forms
 
-`self.inline(chat_id, title, fields=None, buttons=None, auto_send=True, ttl=200, reply_to=None, **kwargs)` - Send an inline form (wraps `kernel.inline_form()`).
+`self.subinline.form(chat_id, title, fields=None, buttons=None, auto_send=True, ttl=200, reply_to=None, **kwargs)` - Send an inline form (wraps `kernel.inline_form()`).
+
+> [!NOTE]
+>  `self.subinline` this is `self.kernel.inline`!
 
 Returns `(success: bool, message: InlineMessage)`. The `InlineMessage` object has its own API:
 
@@ -141,7 +148,7 @@ Returns `(success: bool, message: InlineMessage)`. The `InlineMessage` object ha
 | `msg.unit_id` | Internal form unit ID |
 
 ```python
-ok, msg = await self.inline(event.chat_id, "User Info")
+ok, msg = await self.subinline.form(event.chat_id, "User Info")
 if ok:
     await event.edit("Updated!", buttons=...)
 ```
@@ -199,7 +206,7 @@ async def cmd_color(self, event):
         [self.Button.inline("Blue", self.on_color, args=("blue",))],
         [self.Button.url("GitHub", "https://github.com")],
     ]
-    await self.inline(event.chat_id, "Pick a color", buttons=buttons)
+    await self.subinline.form(event.chat_id, "Pick a color", buttons=buttons)
 ```
 
 ---
@@ -228,57 +235,14 @@ class MyModule(ModuleBase):
 
 ## Decorators
 
-### `@command(pattern: str, *, alias: str | list[str] | None=None, doc: dict | None=None, doc_ru: str | None=None, doc_en: str | None=None)`
-Register a userbot command. The decorated method receives `self` and the `event`.
+### Command decorators
 
-```python
-@command("ping", alias=["p"], doc_ru="Пинг", doc_en="Ping")
-async def cmd_ping(self, event):
-    await event.edit("Pong!")
-```
+Class-style modules use `@command(...)`, `@bot_command(...)`, and
+`@owner_only(...)` on methods. The behavior, alias handling, documentation
+metadata and conflict rules are the same as function-style registration.
 
-**Parameters:**
-- `pattern` (str): Command name without prefix
-- `alias` (str | list): Alternative triggers
-- `doc` (dict): Descriptions like `{"ru": "...", "en": "..."}`
-- `doc_ru` (str): Russian description shorthand
-- `doc_en` (str): English description shorthand
-
-### `@bot_command(pattern: str, *, alias: str | list[str] | None=None, doc: dict | None=None, doc_ru: str | None=None, doc_en: str | None=None)`
-Register a command via bot account (not userbot). The decorated method receives `self` and the `event`.
-
-```python
-@bot_command("start", doc_ru="Cтapт", doc_en="Start")
-async def cmd_start(self, event):
-    await event.reply("Hello from bot!")
-```
-
-> [!NOTE]
-> Bot commands are registered on the bot account, while `@command` registers on the userbot.
-
-**Parameters:** Same as `@command`
-
-### `@owner_only(only_admin=False)`
-
-Decorator for owner/admin permission check. Use after `@command` or `@bot_command`.
-
-```python
-@command("admin")
-@owner_only(only_admin=True)
-async def cmd_admin(self, event):
-    await event.reply("Admin access granted!")
-```
-
-> [!IMPORTANT]
-> If you override `on_load()` and need `@method` decorators to work, call `await super().on_load()`:
-> ```python
-> async def on_load(self):
->     await super().on_load()  # calls @method decorated functions
->     # your additional initialization
-> ```
-
-**Parameters:**
-- `only_admin` (bool): If True, only bot admins can use this command (default: False)
+See [Command Registration](../api/commands.md) for the canonical command
+reference and examples.
 
 ### `@permissions(*, log_level="error", **tags)` / `@permission(...)`
 
@@ -296,14 +260,8 @@ async def cmd_stats(self, event):
     await event.reply("Stats!")
 ```
 
-**Available tags:** Same as `@watcher`:
-- `log_level` (str): logging level stored with the permission metadata (default: `"error"`)
-- Direction: `incoming`, `out`
-- Chat type: `only_pm`, `no_pm`, `only_groups`, `no_groups`, `only_channels`, `no_channels`
-- Content: `only_media`, `no_media`, `only_photos`, `no_videos`, `only_audios`, `only_docs`, `only_stickers`
-- Other: `only_forwards`, `no_forwards`, `only_reply`, `no_reply`
-- Text matching: `regex="pattern"`, `startswith="text"`, `endswith="text"`, `contains="text"`
-- IDs: `from_id=<int>`, `chat_id=<int>`
+**Available tags:** Same as [Watchers](watchers.md), plus `log_level` for the
+logging level stored with the permission metadata (default: `"error"`).
 
 **Use cases:**
 - Filter commands to specific chat types
@@ -345,7 +303,7 @@ async def handle_click(self, event):
 **Parameters:**
 - `ttl` (int): Time-to-live in seconds (default: 900)
 
-Use with `self.callback_button()` to create buttons.
+Use with `self.Button.inline('Click', self.handle_click)` to create buttons inline.
 
 > [!NOTE]
 > When the module is unloaded, all callback tokens are automatically cleaned up from `kernel.inline_callback_map`. This prevents memory leaks.
@@ -383,7 +341,7 @@ async def on_load(self):
 
 **Using in buttons:**
 ```python
-await event.edit("Search", buttons=[[self.Button.switch("Search", f"{form_id} ")]])
+await self.subinline.form("Search", buttons=[[self.Button.switch("Search", f"{form_id} ")]])
 ```
 
 > [!NOTE]
@@ -470,30 +428,9 @@ async def cleanup(self):
 The decorated method is called automatically during `on_unload()`.
 
 ### `@watcher(func: Callable | None=None, *, bot_client: bool=False, **tags: Any)`
-Register a message watcher that filters events declaratively.
 
-```python
-@watcher(only_pm=True)
-async def pm_watcher(self, event):
-    await event.reply("Got your message!")
-
-@watcher(only_groups=True, only_media=True)
-async def group_media_watcher(self, event):
-    await event.reply("Photo received!")
-
-@watcher(regex=r"hello", incoming=True)
-async def hello_watcher(self, event):
-    await event.reply("Hi there!")
-```
-
-**Available tags:**
-- Direction: `incoming`, `out`
-- Chat type: `only_pm`, `no_pm`, `only_groups`, `no_groups`, `only_channels`, `no_channels`
-- Content: `only_media`, `no_media`, `only_photos`, `only_videos`, `only_audios`, `only_docs`, `only_stickers`
-- Other: `only_forwards`, `no_forwards`, `only_reply`, `no_reply`
-- Text matching: `regex="pattern"`, `startswith="text"`, `endswith="text"`, `contains="text"`
-- IDs: `from_id=<int>`, `chat_id=<int>`
-- `bot_client` (bool): Register on bot_client instead of client
+Register a class-style message watcher. See [Watchers](watchers.md) for the
+canonical tag list and both function-style and class-style examples.
 
 ### `@loop(interval=60, autostart=True, wait_before=False)`
 
@@ -684,17 +621,18 @@ async def cmd_call(self, event):
 
 **Helper methods:**
 
-| Method | Description |
-|--------|-------------|
-| `self.args(event)` | Returns `ArgumentParser` for command arguments |
-| `self.args_raw(event)` | Raw argument string after command |
-| `self.args_html(event)` | Arguments with HTML preserved |
-| `self.get_prefix()` | Current command prefix (e.g., `.`) |
-| `self.get_lang()` | Current language code |
-| `self.answer(event, text, **kwargs)` | Universal send/edit/reply |
-| `self.edit(event, text, **kwargs)` | Edit or send message |
-| `self.reply(event, text, **kwargs)` | Reply to message |
-| `self.inline(chat_id, title, ..., reply_to=...)` | Send inline form message (optional `reply_to` for topics) |
+| Method                                                                                                     | Description                                               |
+| ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `self.args(event)`                                                                                         | Returns `ArgumentParser` for command arguments            |
+| `self.args_raw(event)`                                                                                     | Raw argument string after command                         |
+| `self.args_html(event)`                                                                                    | Arguments with HTML preserved                             |
+| `self.get_prefix()`                                                                                        | Current command prefix (e.g., `.`)                        |
+| `self.get_lang()`                                                                                          | Current language code                                     |
+| `self.answer(event, text, **kwargs)`                                                                       | Universal send/edit/reply                                 |
+| `self.edit(event, text, **kwargs)`                                                                         | Edit or send message                                      |
+| `self.reply(event, text, **kwargs)`                                                                        | Reply to message                                          |
+| `self.subinline.form(chat_id, title, ..., reply_to=...)`/ `self.inline(chat_id, title, ..., reply_to=...)` | Send inline form message (optional `reply_to` for topics) |
+| `self.subinline`                                                                                           | InlineManager (see [Docs](inline/inline-manager))         |
 
 ### Database and Cache Usage
 
@@ -811,7 +749,7 @@ from __future__ import annotations
 from typing import Any
 from telethon import events
 
-from core.lib.loader.module_config import ModuleConfig, ConfigValue, Integer, Boolean, String, Choice
+from core.lib.loader.module_config import ModuleConfig, ConfigValue, Integer, Boolean, String, Choice, Row
 from core.lib.loader.module_base import ModuleBase, command
 
 class MyModule(ModuleBase):
@@ -829,6 +767,7 @@ class MyModule(ModuleBase):
             description="Maximum count",
             validator=Integer(min=1, max=1000),
         ),
+        Row(),
         ConfigValue(
             "greeting",
             "Hello!",
@@ -1034,7 +973,7 @@ class MyModule(ModuleBase):
 
 Optional `data` handler variant:
 ```python
-from core.lib.types.inline_message import InlineMessage
+from core.lib.types import InlineMessage
 
 @callback
 async def handle_click(self, call: InlineMessage, data: dict[str, Any] | None = None) -> None:
@@ -1057,7 +996,7 @@ self.Button.url("GitHub", "https://github.com", icon=5325942077639384816)
 ```python
 @command("buttons")
 async def cmd_buttons(self, event):
-    await self.kernel.inline_form(
+    await self.subinline.form(
         event.chat_id,
         "Button Demo",
         buttons=[
@@ -1114,7 +1053,7 @@ class MyModule(loader.ModuleBase):
                  ]
         ]
 
-        await self.inline(
+        await self.subinline.form(
             event.chat_id,
             'Menu',
             buttons=btn
@@ -1190,7 +1129,7 @@ class CounterModule(ModuleBase):
         inc_btn: Any = self.Button.inline("+1", self.handle_inc, icon=5325942077639384820)
         dec_btn: Any = self.Button.inline("-1", self.handle_dec, icon=5325942077639384821)
         close_btn: Any = self.Button.close(event, icon=5325942077639384822)
-        await self.kernel.inline_form(
+        await self.subinline.form(
             event.chat_id,
             f"Count: {self._counter}",
             buttons=[[inc_btn, dec_btn], [close_btn]],

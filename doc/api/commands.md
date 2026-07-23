@@ -1,6 +1,14 @@
 # Command Registration
 
+<p align="center">
+  <img src="../assets/code-cards/command-registration.svg" alt="Command registration code example" width="680"/>
+</p>
+
 ← [Index](../../API_DOC.md)
+
+> [!NOTE]
+> This is the canonical command-registration reference. Other registration pages
+> link here instead of repeating the same command, alias and documentation rules.
 
 ## Standard Registration
 
@@ -16,6 +24,18 @@ async def example_handler(event):
 @kernel.register.command('example', alias=['ex', 'e'])
 async def example_handler(event):
     await event.edit(f"Works with {kernel.custom_prefix}example")
+```
+
+## Bot Commands
+
+`@kernel.register.bot_command(...)` registers a native Telegram `/command` on the
+bot account. It accepts the same `pattern`, `alias` and documentation arguments
+as `@kernel.register.command(...)`.
+
+```python
+@kernel.register.bot_command('start', doc_en='Start')
+async def start_handler(event):
+    await event.respond("Hello from bot!")
 ```
 
 ## Multiple Commands
@@ -72,6 +92,23 @@ cmd_alias = kernel.register.get_command_alias('ping')
 `kernel.register.get_all_aliases()` - Get all registered command aliases.
 
 `kernel.register.get_command_alias(command)` - Get the alias for a specific command.
+
+## Class-Style Decorators
+
+Class-style modules use `@command(...)`, `@bot_command(...)`, and
+`@owner_only(...)` from `core.lib.loader.module_base`. The arguments and command
+metadata rules are the same as the function-style API above; only the handler
+signature changes because methods receive `self`.
+
+```python
+from core.lib.loader.module_base import ModuleBase, command
+
+
+class Ping(ModuleBase):
+    @command("ping", alias=["p"], doc_en="Ping")
+    async def cmd_ping(self, event):
+        await event.edit("Pong!")
+```
 
 ## Command Documentation
 

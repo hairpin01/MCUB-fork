@@ -1,5 +1,9 @@
 # Module Structure
 
+<p align="center">
+  <img src="../assets/code-cards/module-structure-header.svg" alt="Module header code example" width="680"/>
+</p>
+
 ← [Index](../../API_DOC.md)
 
 ## Basic Structure
@@ -110,7 +114,7 @@ Controls which kernel versions the module is compatible with.
 
 There are **4 ways** to document commands:
 
-### 1. Comment after decorator (recommended)
+### 1. Comment after decorator (not recommended)
 
 Place a single-line comment **immediately after** the `@kernel.register.command(...)` decorator.
 
@@ -180,8 +184,6 @@ Only `ru` and `en` are supported in the UI (defined in settings module):
 | `ru` | Russian |
 | `en` | English |
 
-> [!TIP]
-> Keep command descriptions to **one line** - concise and lowercase.
 
 **Full example:**
 ```python

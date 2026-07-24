@@ -2363,6 +2363,40 @@ class Loader(ModuleBase):
                                 )
                                 break
 
+            canonical = metadata.get("name") or self._parse_name_from_comments(code)
+            if canonical and canonical != module_name:
+                add_log(
+                    f"[iload] canonical name: {canonical!r} (uploaded as: {module_name!r})"
+                )
+                if canonical in self.kernel.system_modules:
+                    await self._edit_with_emoji(
+                        event,
+                        self.strings(
+                            "system_module_install_attempt",
+                            confused=CUSTOM_EMOJI["confused"],
+                            module_name=canonical,
+                            blocked=CUSTOM_EMOJI["blocked"],
+                        ),
+                    )
+                    self._restore_backup_and_cleanup(
+                        old_file_backup, old_file_backup_path, file_path, add_log
+                    )
+                    return
+
+                old_downloaded_path = file_path
+                module_name = canonical
+                file_path = self.kernel._loader.get_user_module_install_path(
+                    module_name
+                )
+                if old_downloaded_path != file_path and os.path.exists(
+                    old_downloaded_path
+                ):
+                    os.replace(old_downloaded_path, file_path)
+                    add_log(
+                        f"[iload] moved file: {os.path.basename(old_downloaded_path)!r}"
+                        f" → {os.path.basename(file_path)!r}"
+                    )
+
             # Function-style modules: cross-check the ``# name:`` header.
             # The uploaded filename may differ from the module's real name.
             if not (metadata.get("is_class_style") and metadata.get("class_name")):

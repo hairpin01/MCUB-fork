@@ -12,6 +12,7 @@ import os
 import traceback
 from html import escape
 from typing import Any
+from urllib.parse import urlparse
 
 from telethon import Button, events
 from telethon.errors import BadRequestError
@@ -160,6 +161,21 @@ class ManModule(ModuleBase):
         message = getattr(error, "message", "") or str(error)
         return "WEBPAGE_URL_INVALID" in str(message)
 
+    @staticmethod
+    def _normalize_http_url(value: Any) -> str:
+        if not isinstance(value, str):
+            return ""
+
+        url = value.strip()
+        if not url:
+            return ""
+
+        parsed = urlparse(url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            return ""
+
+        return url
+
     async def _edit_with_banner_retry(
         self,
         event: events.NewMessage.Event,
@@ -291,13 +307,9 @@ class ManModule(ModuleBase):
 
     def _add_inline_banner_preview(self, message_html: str) -> str:
         cfg = self.config
-        banner_url = cfg.get("man_banner_url") if cfg else ""
+        banner_url = self._normalize_http_url(cfg.get("man_banner_url") if cfg else "")
         quote_media = cfg.get("man_quote_media", False) if cfg else False
-        if not (
-            quote_media
-            and isinstance(banner_url, str)
-            and banner_url.startswith(("http://", "https://"))
-        ):
+        if not (quote_media and banner_url):
             return message_html
         return f'<a href="{escape(banner_url, quote=True)}">{ZERO_WIDTH_CHAR}</a>{message_html}'
 
@@ -1048,28 +1060,30 @@ class ManModule(ModuleBase):
                         show_hidden=show_hidden,
                     )
                     try:
+                        raw_banner_url = self.config.get("man_banner_url") or ""
+                        banner_url = self._normalize_http_url(raw_banner_url)
                         if self.config.get("man_quote_media", False):
-                            await self._edit_with_banner_retry(
-                                event,
-                                page_msg,
-                                file=InputMediaWebPage(
-                                    self.config.get(
-                                        "man_banner_url",
-                                        "https://google.com",
+                            if banner_url:
+                                await self._edit_with_banner_retry(
+                                    event,
+                                    page_msg,
+                                    file=InputMediaWebPage(
+                                        banner_url,
+                                        optional=True,
                                     ),
-                                    optional=True,
-                                ),
-                                parse_mode="html",
-                                invert_media=self.config.get(
-                                    "man_invert_media",
-                                    False,
-                                ),
-                            )
-                        elif self.config.get("man_banner_url"):
+                                    parse_mode="html",
+                                    invert_media=self.config.get(
+                                        "man_invert_media",
+                                        False,
+                                    ),
+                                )
+                            else:
+                                await self.edit(event, page_msg, parse_mode="html")
+                        elif raw_banner_url:
                             await self._edit_with_banner_retry(
                                 event,
                                 page_msg,
-                                file=self.config.get("man_banner_url"),
+                                file=raw_banner_url,
                                 parse_mode="html",
                                 invert_media=self.config.get(
                                     "man_invert_media",
@@ -1095,9 +1109,9 @@ class ManModule(ModuleBase):
                         return
                     else:
                         await self.client.delete_messages(event.chat_id, [event.id])
-                        if self.config.get("man_banner_url", False) and self.config.get(
-                            "man_quote_media", False
-                        ):
+                        if self._normalize_http_url(
+                            self.config.get("man_banner_url")
+                        ) and self.config.get("man_quote_media", False):
                             await sent.click(1)
 
                     if self.config.get("man_invert_media", False):
@@ -1139,7 +1153,8 @@ class ManModule(ModuleBase):
                 msg, banner_url = await self._generate_detailed_page(
                     search_term, show_hidden=show_hidden
                 )
-                if banner_url and banner_url.startswith(("http://", "https://")):
+                banner_url = self._normalize_http_url(banner_url)
+                if banner_url:
                     try:
                         media = InputMediaWebPage(banner_url, optional=True)
                         await self._edit_with_banner_retry(

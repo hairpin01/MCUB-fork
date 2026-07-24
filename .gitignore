@@ -1,3 +1,4 @@
+tools/
 app-debug/
 *.bak
 openagent_*/
@@ -37,4 +38,5 @@ modules_loaded/
 .cache
 base16-opencode/*
 *answer.*
-.obsidian/*
+*/.obsidian/*
+*/*/.obsidian/*

@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлькa | @hairpin01
 
-"""Тecты для yтилит modules/man.py."""
-
 import json
 from types import SimpleNamespace
 from unittest import TestCase
@@ -68,8 +66,39 @@ class CallableStrings(dict):
 
 
 @pytest.mark.asyncio
+async def test_edit_with_banner_retry_removes_banner_on_webpage_url_invalid():
+    from telethon.errors import BadRequestError
+
+    calls = []
+
+    async def event_edit(text, **kwargs):
+        calls.append((text, dict(kwargs)))
+        if len(calls) == 1:
+            raise BadRequestError(object(), "WEBPAGE_URL_INVALID", 400)
+        return "ok"
+
+    module_instance = man.ManModule.__new__(man.ManModule)
+    module_instance.log = SimpleNamespace(debug=lambda *_, **__: None)
+    event = SimpleNamespace(edit=event_edit)
+
+    result = await module_instance._edit_with_banner_retry(
+        event,
+        "hello",
+        file="https://bad.example/banner.png",
+        parse_mode="html",
+        invert_media=True,
+    )
+
+    assert result == "ok"
+    assert len(calls) == 2
+    assert calls[0][1]["file"] == "https://bad.example/banner.png"
+    assert calls[0][1]["invert_media"] is True
+    assert calls[1] == ("hello", {"parse_mode": "html"})
+
+
+@pytest.mark.asyncio
 async def test_load_module_metadata_uses_cache(tmp_path, monkeypatch):
-    """Пoвтopнaя зaгpyзкa мeтaдaнныx нe дoлжнa читaть фaйл пoвтopнo."""
+    """The repeat file does not have to read the file repeatedly."""
 
     kernel = SimpleNamespace()
     kernel.MODULES_DIR = str(tmp_path)

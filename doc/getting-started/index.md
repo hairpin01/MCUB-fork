@@ -20,6 +20,11 @@
 > [!TIP]
 > Try a new type of modules! Class-style Modules!
 > -> [Docs](registration/class-style.md) <-
+
+> [!TIP]
+> You can also try [CubKit](../guides/cubkit.md) for creating MCUB modules from
+> multiple files and packing them into one `.py` module artifact.
+
 ## Quick Start
 
 ### 1. Create a module

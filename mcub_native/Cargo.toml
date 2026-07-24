@@ -1,0 +1,12 @@
+[package]
+name = "mcub_native"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "mcub_native"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pyo3 = { version = "0.27", features = ["extension-module"] }

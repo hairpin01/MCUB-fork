@@ -220,3 +220,12 @@ class TTLCache:
             len(self._expiry_heap),
             live_size,
         )
+
+
+try:
+    from mcub_native import TTLCache as _NativeTTLCache
+except Exception:
+    _NativeTTLCache = None
+
+if _NativeTTLCache is not None:
+    TTLCache = _NativeTTLCache

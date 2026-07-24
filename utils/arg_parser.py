@@ -568,3 +568,27 @@ class PipelineParser:
 def parse_pipeline(text: str) -> PipelineParser:
     """Parse *text* into a :class:`PipelineParser`.  Convenience wrapper."""
     return PipelineParser(text)
+
+
+try:
+    from mcub_native import (
+        ArgumentParser as _NativeArgumentParser,
+        PipelineParser as _NativePipelineParser,
+        PipelineSegment as _NativePipelineSegment,
+        extract_command as _native_extract_command,
+        parse_arguments as _native_parse_arguments,
+        parse_kwargs as _native_parse_kwargs,
+        parse_pipeline as _native_parse_pipeline,
+        split_args as _native_split_args,
+    )
+except Exception:
+    pass
+else:
+    ArgumentParser = _NativeArgumentParser
+    PipelineParser = _NativePipelineParser
+    PipelineSegment = _NativePipelineSegment
+    extract_command = _native_extract_command
+    parse_arguments = _native_parse_arguments
+    parse_kwargs = _native_parse_kwargs
+    parse_pipeline = _native_parse_pipeline
+    split_args = _native_split_args

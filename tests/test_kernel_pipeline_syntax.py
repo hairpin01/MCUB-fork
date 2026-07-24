@@ -115,6 +115,7 @@ class PipelineKernel(KernelPipelineMixin):
 
     def _set_event_text(self, event, text):
         event.text = text
+        event.raw_text = text
         if hasattr(event, "message"):
             event.message.text = text
             event.message.message = text
@@ -138,6 +139,7 @@ def make_event(text):
 
     return SimpleNamespace(
         text=text,
+        raw_text=text,
         chat_id=1,
         piped=False,
         pipe_input=None,
@@ -214,6 +216,7 @@ class DispatcherPipelineKernel(KernelPipelineMixin):
 
     def _set_event_text(self, event, text):
         event.text = text
+        event.raw_text = text
         if hasattr(event, "message"):
             event.message.text = text
             event.message.message = text

@@ -1033,6 +1033,10 @@ class KernelCoreMixin:
     def _set_event_text(self, event: Event, text: str) -> None:
         """Set event text on both the event and its inner message object."""
         event.text = text
+        try:
+            event.raw_text = text
+        except Exception:
+            pass
         if hasattr(event, "message"):
             event.message.message = text
             event.message.text = text

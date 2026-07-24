@@ -1,0 +1,18 @@
+[build-system]
+requires = ["maturin>=1.8,<2"]
+build-backend = "maturin"
+
+[project]
+name = "mcub-native"
+version = "0.1.0"
+description = "Optional PyO3 native accelerators for MCUB"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
+]
+
+[tool.maturin]
+bindings = "pyo3"
+module-name = "mcub_native"
+manifest-path = "Cargo.toml"

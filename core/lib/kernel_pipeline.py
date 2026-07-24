@@ -270,6 +270,7 @@ class KernelPipelineMixin:
             class _CaptureEvent:
                 def __init__(self_):
                     self_.text = cmd
+                    self_.raw_text = cmd
                     self_.piped = True
                     self_.pipe_input = parent_pipe_input
                     self_.pipe_output = None

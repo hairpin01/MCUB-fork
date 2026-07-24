@@ -86,9 +86,11 @@ try:
     from .arg_parser import (
         ArgumentParser,
         ArgumentValidator,
+        PipelineParser,
         extract_command,
         parse_arguments,
         parse_kwargs,
+        parse_pipeline,
         split_args,
     )
 
@@ -133,10 +135,12 @@ if ARG_PARSER_AVAILABLE:
         [
             "ArgumentParser",
             "ArgumentValidator",
+            "PipelineParser",
             "arg_parser",
             "extract_command",
             "parse_arguments",
             "parse_kwargs",
+            "parse_pipeline",
             "split_args",
         ]
     )

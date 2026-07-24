@@ -55,6 +55,7 @@
 | Document | Description |
 |----------|-------------|
 | [Best Practices](doc/guides/best-practices.md) | Recommended patterns for modules |
+| [CubKit](doc/guides/cubkit.md) | Build multi-file modules into one MCUB-loadable `.py` artifact |
 | [Custom Core](doc/guides/custom-core.md) | Creating custom kernel cores |
 | [Localization (i18n)](doc/guides/i18n.md) | Multi-language support |
 | [Pipeline](doc/guides/pipeline.md) | Command pipeline chaining |

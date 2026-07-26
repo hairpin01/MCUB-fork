@@ -58,6 +58,31 @@ def _callback_data(event) -> str:
     return str(data)
 
 
+def _unwrap_original_event(event):
+    """Return the raw callback event hidden behind MCUB wrapper objects.
+
+    Native MCUB auto-callback dispatch passes ``core.lib.types.InlineMessage``
+    to stored handlers.  Hikka-compatible calls need the original Telethon
+    callback event so methods like ``answer(show_alert=...)`` keep Hikka's
+    signature instead of hitting the native wrapper's narrower API.
+    """
+    seen: set[int] = set()
+    current = event
+    while current is not None:
+        marker = id(current)
+        if marker in seen:
+            break
+        seen.add(marker)
+        try:
+            raw = object.__getattribute__(current, "_event")
+        except AttributeError:
+            break
+        if raw is None or raw is current:
+            break
+        current = raw
+    return current
+
+
 class CompatCallbackQuery:
     """Telethon CallbackQuery adapter accepting Hikka reply_markup= on edit()."""
 
@@ -489,6 +514,7 @@ class InlineCall:
         message_id: int | None = None,
         from_user_id: int | None = None,
     ):
+        original_call = _unwrap_original_event(original_call)
         self.data = call_data
         self.unit_id = unit_id
         self._inline_proxy = inline_proxy
@@ -591,7 +617,9 @@ class BotInlineCall(InlineCall):
 
         super().__init__(
             call_data=(
-                getattr(event, "data", b"").decode() if hasattr(event, "data") else ""
+                getattr(event, "data", b"").decode(errors="replace")
+                if isinstance(getattr(event, "data", b""), (bytes, bytearray))
+                else str(getattr(event, "data", "") or "")
             ),
             unit_id=unit_id,
             inline_proxy=inline_proxy,

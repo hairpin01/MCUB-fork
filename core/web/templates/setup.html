@@ -4,473 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MCUB - Setup</title>
-<!-- QR Code library-->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hubballi&family=JetBrains+Mono:wght@300;400;600&display=swap">
-<style>
-:root {
-  --accent:      #7c3aed;
-  --accent-glow: #5b21b6;
-  --accent-soft: rgba(124,58,237,.18);
-
-  --bg:       #0d0d12;
-  --bg2:      #13131a;
-  --card:     rgba(20,18,30,.72);
-  --border:   rgba(124,58,237,.22);
-  --text:     #e8e6f0;
-  --text-dim: #6b6880;
-  --input-bg: rgba(10,8,18,.7);
-  --glow-col: #4c1d95;
-  --err-bg:   rgba(127,29,29,.35);
-  --err-border:rgba(239,68,68,.4);
-  --err-text: #fca5a5;
-}
-[data-theme="light"] {
-  --bg:       #f0eefa;
-  --bg2:      #e8e2f7;
-  --card:     rgba(255,255,255,.85);
-  --border:   rgba(124,58,237,.3);
-  --text:     #1e1a2e;
-  --text-dim: #8b80a8;
-  --input-bg: rgba(255,255,255,.9);
-  --glow-col: #c4b5fd;
-  --err-bg:   rgba(254,226,226,.8);
-  --err-border:rgba(239,68,68,.5);
-  --err-text: #b91c1c;
-}
-
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-
-html,body{
-  width:100%;height:100%;
-  background:var(--bg);
-  color:var(--text);
-  font-family:Hubballi,sans-serif;
-  transition:background .4s,color .4s;
-}
-
-.blob{
-  position:fixed;inset:0;z-index:0;pointer-events:none;
-  background:radial-gradient(ellipse 60% 50% at 50% 60%, var(--glow-col) 0%, transparent 70%);
-  opacity:.55;
-  transition:background .5s;
-  will-change:transform;        /* promote to own compositor layer */
-  transform:translateZ(0);
-}
-
-.lights{
-  position:fixed;inset:0;z-index:1;pointer-events:none;overflow:hidden;
-  animation:fi .8s ease forwards .5s;opacity:0;
-  /* Isolate animation layer from backdrop-filter compositing */
-  will-change:opacity;
-  contain:layout style;
-}
-.light{
-  position:absolute;width:3px;background:#fff;
-  /* Use top:50% + transform so GPU can handle the movement (no layout recalc) */
-  top:50%;left:0;right:0;
-  margin:auto;
-  filter:blur(4px);
-  /* Transform: start off-screen below; GPU-accelerated movement */
-  will-change:transform,opacity;
-  transform:translateY(50vh);
-}
-.x1{filter:blur(3px);animation:floatUp 4s infinite linear;}
-.x2{filter:blur(3px);animation:floatUp 7s infinite linear;left:15%;transform:translateY(50vh) scale(1.6);}
-.x3{filter:blur(3px);animation:floatUp 2.5s infinite linear;left:-15%;transform:translateY(50vh) scale(.5);}
-.x4{filter:blur(5px);animation:floatUp 4.5s infinite linear;left:-34%;transform:translateY(50vh) scale(1.2);}
-.x5{filter:blur(6px);animation:floatUp 8s infinite linear;left:-57%;transform:translateY(50vh) scale(2.2);}
-.x6{filter:blur(4px);animation:floatUp 3s infinite linear;left:-81%;transform:translateY(50vh) scale(.8);}
-.x7{filter:blur(3px);animation:floatUp 5.3s infinite linear;left:37%;transform:translateY(50vh) scale(3.2);}
-.x8{filter:blur(6px);animation:floatUp 4.7s infinite linear;left:62%;transform:translateY(50vh) scale(1.7);}
-.x9{filter:blur(3px);animation:floatUp 4.1s infinite linear;left:85%;transform:translateY(50vh) scale(.9);}
-
-/* GPU-accelerated: transform instead of top (no layout recalculation per frame) */
-@keyframes floatUp{
-  0%  {transform:translateY(50vh);opacity:0;}
-  25% {opacity:1;}
-  50% {transform:translateY(-50vh);opacity:.8;}
-  75% {opacity:1;}
-  100%{transform:translateY(-150vh);opacity:0;}
-}
-/* Variants with scale - keyframe must include scale to avoid override */
-.x2{animation:floatUpX2 7s infinite linear;}
-.x3{animation:floatUpX3 2.5s infinite linear;}
-.x4{animation:floatUpX4 4.5s infinite linear;}
-.x5{animation:floatUpX5 8s infinite linear;}
-.x6{animation:floatUpX6 3s infinite linear;}
-.x7{animation:floatUpX7 5.3s infinite linear;}
-.x8{animation:floatUpX8 4.7s infinite linear;}
-.x9{animation:floatUpX9 4.1s infinite linear;}
-@keyframes floatUpX2{0%{transform:translateY(50vh) scale(1.6);opacity:0;}25%{opacity:1;}50%{transform:translateY(-50vh) scale(1.6);opacity:.8;}75%{opacity:1;}100%{transform:translateY(-150vh) scale(1.6);opacity:0;}}
-@keyframes floatUpX3{0%{transform:translateY(50vh) scale(.5);opacity:0;}25%{opacity:1;}50%{transform:translateY(-50vh) scale(.5);opacity:.8;}75%{opacity:1;}100%{transform:translateY(-150vh) scale(.5);opacity:0;}}
-@keyframes floatUpX4{0%{transform:translateY(50vh) scale(1.2);opacity:0;}25%{opacity:1;}50%{transform:translateY(-50vh) scale(1.2);opacity:.8;}75%{opacity:1;}100%{transform:translateY(-150vh) scale(1.2);opacity:0;}}
-@keyframes floatUpX5{0%{transform:translateY(50vh) scale(2.2);opacity:0;}25%{opacity:1;}50%{transform:translateY(-50vh) scale(2.2);opacity:.8;}75%{opacity:1;}100%{transform:translateY(-150vh) scale(2.2);opacity:0;}}
-@keyframes floatUpX6{0%{transform:translateY(50vh) scale(.8);opacity:0;}25%{opacity:1;}50%{transform:translateY(-50vh) scale(.8);opacity:.8;}75%{opacity:1;}100%{transform:translateY(-150vh) scale(.8);opacity:0;}}
-@keyframes floatUpX7{0%{transform:translateY(50vh) scale(3.2);opacity:0;}25%{opacity:1;}50%{transform:translateY(-50vh) scale(3.2);opacity:.8;}75%{opacity:1;}100%{transform:translateY(-150vh) scale(3.2);opacity:0;}}
-@keyframes floatUpX8{0%{transform:translateY(50vh) scale(1.7);opacity:0;}25%{opacity:1;}50%{transform:translateY(-50vh) scale(1.7);opacity:.8;}75%{opacity:1;}100%{transform:translateY(-150vh) scale(1.7);opacity:0;}}
-@keyframes floatUpX9{0%{transform:translateY(50vh) scale(.9);opacity:0;}25%{opacity:1;}50%{transform:translateY(-50vh) scale(.9);opacity:.8;}75%{opacity:1;}100%{transform:translateY(-150vh) scale(.9);opacity:0;}}
-@keyframes fi{to{opacity:1;}}
-
-#sky{position:fixed;inset:0;overflow:hidden;z-index:1;pointer-events:none;
-  contain:layout style;          /* limit reflow scope */
-  will-change:transform;
-}
-#shootingstars{
-  position:fixed;overflow:hidden;
-  width:150vh;height:100vw;
-  transform:translateX(calc(50vw - 50%)) translateY(calc(50vh - 50%)) rotate(120deg);
-}
-.wish{
-  height:2px;width:100px;top:300px;
-  position:absolute;opacity:0;
-  background:linear-gradient(-45deg,#fff,rgba(0,0,255,0));
-  filter:drop-shadow(0 0 6px #fff);
-  will-change:transform,opacity;
-}
-
-/* ── Top-right controls ── */
-.top-controls{
-  position:fixed;top:18px;right:18px;z-index:999;
-  display:flex;gap:8px;align-items:center;
-}
-.icon-btn{
-  width:38px;height:38px;
-  background:var(--card);
-  border:1px solid var(--border);
-  border-radius:50%;
-  cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
-  font-size:1rem;
-  backdrop-filter:blur(8px);
-  transition:border-color .2s,box-shadow .2s,background .3s;
-  user-select:none;
-  font-family:'JetBrains Mono',monospace;font-weight:600;
-  color:var(--text-dim);
-}
-.icon-btn:hover{
-  border-color:var(--accent);
-  box-shadow:0 0 14px -4px var(--accent);
-  color:var(--text);
-}
-
-#toasts{
-  position:fixed;top:18px;left:18px;z-index:9999;
-  display:flex;flex-direction:column;gap:8px;
-  max-width:340px;
-}
-.toast{
-  display:flex;align-items:flex-start;gap:10px;
-  padding:11px 14px;
-  background:var(--err-bg);
-  border:1px solid var(--err-border);
-  border-radius:7px;
-  backdrop-filter:blur(10px);
-  font-family:'JetBrains Mono',monospace;
-  font-size:.76rem;
-  color:var(--err-text);
-  line-height:1.45;
-  animation:slideIn .25s ease;
-  cursor:pointer;
-}
-.toast.ok{
-  background:rgba(5,46,22,.4);
-  border-color:rgba(34,197,94,.4);
-  color:#86efac;
-}
-.toast-icon{flex-shrink:0;margin-top:1px;}
-.toast-close{margin-left:auto;flex-shrink:0;opacity:.5;padding-left:6px;}
-@keyframes slideIn{from{opacity:0;transform:translateX(-18px);}to{opacity:1;transform:none;}}
-@keyframes slideOut{to{opacity:0;transform:translateX(-18px);}}
-
-.page{
-  min-height:100vh;
-  display:flex;flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  padding:30px 16px 40px;
-  position:relative;z-index:2;
-}
-
-.logo-row{
-  display:flex;align-items:center;gap:14px;
-  margin-bottom:6px;
-}
-.logo-img{
-    height:2rem;
-    width:auto;
-    object-fit:contain;
-}
-.logo-text{
-  font-family:'JetBrains Mono',monospace;
-  font-size:2rem;font-weight:600;
-  letter-spacing:.18em;
-  color:var(--accent);
-  text-shadow:0 0 24px var(--accent);
-}
-.subtitle{
-  font-size:.88rem;color:var(--text-dim);
-  text-align:center;margin-bottom:18px;
-}
-
-.steps-bar{
-  display:flex;align-items:center;
-  justify-content:center;
-  margin-bottom:18px;
-}
-.step{display:flex;flex-direction:column;align-items:center;gap:3px;opacity:.35;transition:opacity .25s;}
-.step.active,.step.done{opacity:1;}
-.snum{
-  width:28px;height:28px;border-radius:50%;
-  border:1px solid var(--text-dim);color:var(--text-dim);
-  display:flex;align-items:center;justify-content:center;
-  font-family:'JetBrains Mono',monospace;font-weight:600;font-size:.78em;
-  transition:background .25s,border-color .25s,color .25s;
-}
-.step.active .snum{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 0 12px var(--accent);}
-.step.done   .snum{background:#16a34a;border-color:#16a34a;color:#fff;}
-.slabel{font-size:.65em;color:var(--text-dim);white-space:nowrap;}
-.step.active .slabel,.step.done .slabel{color:var(--text);}
-.sconn{flex:1;height:1px;background:var(--border);min-width:28px;margin-bottom:14px;}
-
-.wizard-card{
-  width:100%;max-width:460px;
-  background:var(--card);
-  border:1px solid var(--border);
-  border-radius:12px;
-  padding:28px 30px;
-  backdrop-filter:blur(8px);    /* reduced from 12px - halves GPU compositing cost */
-  box-shadow:0 8px 48px -12px rgba(124,58,237,.25);
-  transition:background .3s,border-color .3s;
-  contain:layout style;
-}
-.wstep h2{font-size:1.25rem;color:var(--text);margin-bottom:5px;}
-.hint{font-size:.83rem;color:var(--text-dim);line-height:1.55;margin-bottom:18px;}
-.hint a{color:var(--accent);text-decoration:none;}
-.hint.small{font-size:.76rem;}
-
-label{
-  display:flex;flex-direction:column;gap:5px;
-  margin-bottom:13px;
-  font-family:'JetBrains Mono',monospace;
-  font-size:.75rem;color:var(--text-dim);letter-spacing:.04em;
-}
-input[type=text],input[type=tel],input[type=password]{
-  width:100%;padding:9px 12px;
-  background:var(--input-bg);
-  border:1px solid var(--border);
-  border-radius:12px;
-  color:var(--text);
-  font-family:'JetBrains Mono',monospace;font-size:.9rem;
-  outline:none;
-  transition:border-color .2s,box-shadow .2s,background .3s;
-}
-input:focus{
-  border-color:var(--accent);
-  box-shadow:0 0 0 3px var(--accent-soft);
-}
-input::placeholder{color:var(--text-dim);opacity:.55;}
-
-.btn-primary{
-  width:100%;padding:10px 16px;
-  background:transparent;
-  color:var(--accent);
-  border:1px solid var(--accent);
-  border-radius:6px;
-  font-family:'JetBrains Mono',monospace;font-size:.88rem;
-  cursor:pointer;
-  transition:background .2s,color .2s,box-shadow .2s,transform .1s;
-  margin-top:0;
-  white-space:nowrap;
-}
-.btn-primary:hover:not(:disabled){
-  background:var(--accent);color:#fff;
-  box-shadow:0 0 20px -6px var(--accent);
-}
-.btn-primary:active:not(:disabled){ transform:scale(.97); }
-.btn-primary:disabled{opacity:.35;cursor:not-allowed;}
-
-.btn-ghost{
-  width:100%;padding:10px 16px;
-  background:transparent;color:var(--text-dim);
-  border:1px solid var(--border);border-radius:6px;
-  font-family:'JetBrains Mono',monospace;font-size:.88rem;
-  cursor:pointer;transition:border-color .2s,color .2s,transform .1s;
-  white-space:nowrap;
-}
-.btn-ghost:hover{ border-color:var(--text-dim);color:var(--text); }
-.btn-ghost:active{ transform:scale(.97); }
-
-.btn-row{ display:flex; gap:8px; margin-top:8px; }
-.btn-row > button { flex:1; margin:0; }
-
-.wstep > .btn-primary,
-.wstep > .btn-ghost { margin-bottom:8px; }
-
-.done-icon{font-size:2.8rem;text-align:center;margin-bottom:6px;}
-.spinner{
-  width:30px;height:30px;
-  border:2px solid var(--border);border-top-color:var(--accent);
-  border-radius:50%;animation:spin .7s linear infinite;margin:14px auto;
-}
-@keyframes spin{to{transform:rotate(360deg);}}
-
-.reset-bar{
-  font-family:'JetBrains Mono',monospace;
-  font-size:.68rem;color:var(--text-dim);
-  text-align:center;margin-bottom:12px;
-}
-.reset-link{color:var(--text-dim);text-decoration:none;transition:color .2s;}
-.reset-link:hover{color:var(--accent);}
-
-.setup-footer{
-  margin-top:18px;
-  font-size:.72rem;color:var(--text-dim);
-  font-family:Hubballi;
-}
-
-.hidden{display:none!important;}
-
-.page { animation: pageFadeUp .55s cubic-bezier(.22,1,.36,1) both; }
-@keyframes pageFadeUp {
-  from { opacity:0; transform:translateY(22px); }
-  to   { opacity:1; transform:none; }
-}
-
-.wizard-card { animation: cardPop .5s cubic-bezier(.22,1,.36,1) .1s both; }
-@keyframes cardPop {
-  from { opacity:0; transform:scale(.96) translateY(12px); }
-  to   { opacity:1; transform:none; }
-}
-
-.wstep { animation: stepIn .32s cubic-bezier(.22,1,.36,1) both; }
-@keyframes stepIn {
-  from { opacity:0; transform:translateX(18px); }
-  to   { opacity:1; transform:none; }
-}
-.wstep.slide-back { animation: stepInBack .32s cubic-bezier(.22,1,.36,1) both; }
-@keyframes stepInBack {
-  from { opacity:0; transform:translateX(-18px); }
-  to   { opacity:1; transform:none; }
-}
-
-.logo-img {
-  /* Replaced filter animation with opacity - GPU-composited, zero layout cost */
-  will-change: opacity;
-  animation: logoPulse 3s ease-in-out infinite;
-}
-@keyframes logoPulse {
-  0%,100% { opacity: .82; }
-  50%      { opacity: 1;   }
-}
-/* Glow halo via pseudo-element so filter stays static */
-.logo-row {
-  position: relative;
-}
-.logo-row::after {
-  content: '';
-  position: absolute;
-  inset: -24px;
-  background: radial-gradient(ellipse at center, var(--accent) 0%, transparent 70%);
-  opacity: 0;
-  pointer-events: none;
-  z-index: 0;
-  will-change: opacity;
-  animation: logoPulse 3s ease-in-out infinite;
-}
-.logo-img { position: relative; z-index: 1; }
-
-.step.active .snum { animation: dotBounce .35s cubic-bezier(.34,1.56,.64,1); }
-@keyframes dotBounce {
-  from { transform: scale(.6); }
-  to   { transform: scale(1); }
-}
-
-.sconn { position:relative; overflow:hidden; }
-.sconn::after {
-  content:''; position:absolute; inset:0;
-  background:var(--accent);
-  transform:scaleX(0); transform-origin:left;
-  transition:transform .4s ease;
-}
-.sconn.filled::after { transform:scaleX(1); }
-
-.blob { animation: blobDrift 8s ease-in-out infinite alternate; }
-/* Remove background-position animation (expensive repaint) - pure transform only */
-@keyframes blobDrift {
-  from { transform: translateZ(0) scale(1); }
-  to   { transform: translateZ(0) scale(1.08) translate(3%,2%); }
-}
-
-@keyframes inputShake {
-  0%,100% { transform:none; }
-  20%     { transform:translateX(-6px); }
-  40%     { transform:translateX(6px); }
-  60%     { transform:translateX(-4px); }
-  80%     { transform:translateX(4px); }
-}
-input.shake { animation: inputShake .4s ease; border-color: rgba(239,68,68,.8) !important; }
-
-.done-icon img { animation: successBounce .6s cubic-bezier(.34,1.56,.64,1) .1s both; }
-@keyframes successBounce {
-  from { transform:scale(0) rotate(-20deg); opacity:0; }
-  to   { transform:scale(1) rotate(0); opacity:1; }
-}
-
-#resetModal { transition: opacity .2s; }
-#resetModal > div { animation: modalPop .25s cubic-bezier(.22,1,.36,1); }
-@keyframes modalPop {
-  from { transform:scale(.92); opacity:0; }
-  to   { transform:none; opacity:1; }
-}
-
-#qr-image { animation: qrFadeIn .4s ease .1s both; }
-@keyframes qrFadeIn {
-  from { opacity:0; transform:scale(.9); }
-  to   { opacity:1; transform:none; }
-}
-
-#qr-image.refreshed { animation: qrFadeIn .3s ease both; }
-
-.btn-primary, .btn-ghost {
-  position: relative; overflow: hidden;
-}
-.ripple {
-  position:absolute; border-radius:50%;
-  background:rgba(255,255,255,.25);
-  transform:scale(0);
-  animation:rippleAnim .5s linear;
-  pointer-events:none;
-}
-@keyframes rippleAnim {
-  to { transform:scale(4); opacity:0; }
-}
-
-#reauthPage .wizard-card { animation: cardPop .5s cubic-bezier(.22,1,.36,1) .15s both; }
-
-@media(max-width:520px){
-  .wizard-card{padding:20px 16px;}
-  .slabel{display:none;}
-  .sconn{min-width:16px;}
-}
-
-/* ── MD3 rounded buttons ── */
-.btn-primary { border-radius: 20px !important; }
-.btn-ghost   { border-radius: 20px !important; }
-.icon-btn    { border-radius: 50%; }  /* keep pill for icon buttons */
-
-/* ── Reduced motion: disable all heavy animations ── */
-@media (prefers-reduced-motion: reduce) {
-  .light, .blob, .wish, .logo-img,
-  .step.active .snum, .sconn::after,
-  .wizard-card, .wstep, .page { animation: none !important; transition: none !important; }
-  .wizard-card { backdrop-filter: none; }
-}
-</style>
+<link rel="stylesheet" href="/static/css/setup.css">
 </head>
-<body>
+<body data-already-configured="{{ '1' if already_configured else '0' }}" data-show-reauth="{{ '1' if show_reauth else '0' }}">
 
-<!-- bg -->
+
 <div class="blob"></div>
 <div class="lights">
   <div class="light x1"></div><div class="light x2"></div><div class="light x3"></div>
@@ -484,7 +24,7 @@ input.shake { animation: inputShake .4s ease; border-color: rgba(239,68,68,.8) !
   <div class="wish"></div>
 </div></div>
 
-<!-- ── Top-right controls: lang + theme ── -->
+
 <div class="top-controls">
   <button class="icon-btn" id="langToggle" title="Switch language">EN</button>
   <button class="icon-btn" id="themeToggle" title="Toggle theme">🌙</button>
@@ -515,7 +55,7 @@ input.shake { animation: inputShake .4s ease; border-color: rgba(239,68,68,.8) !
 
   <div class="wizard-card">
 
-    <!-- Step 1 -->
+
     <div class="wstep" id="s1">
       <h2 data-i18n="s1_title"></h2>
       <p class="hint" data-i18n-html="s1_hint"></p>
@@ -532,26 +72,26 @@ input.shake { animation: inputShake .4s ease; border-color: rgba(239,68,68,.8) !
         <input id="f_phone" type="tel" placeholder="+1234567890" autocomplete="tel">
       </label>
       <div class="btn-row">
-        <button class="btn-primary" id="btn1" onclick="step1()" data-i18n="btn_send_code"></button>
-        <button class="btn-ghost" id="btn1_qr" onclick="step1QR()" data-i18n="btn_qr_code"></button>
+        <button class="btn-primary" id="btn1" data-action="step1" data-i18n="btn_send_code"></button>
+        <button class="btn-ghost" id="btn1_qr" data-action="step1QR" data-i18n="btn_qr_code"></button>
       </div>
     </div>
 
-    <!-- Step 1.5: QR Code -->
+
     <div class="wstep hidden" id="s1qr">
       <h2 data-i18n="s1qr_title"></h2>
       <p class="hint" data-i18n="s1qr_hint"></p>
-      <div id="qr-container" style="text-align:center;margin:20px 0;">
-        <div id="qr-image" style="display:inline-block;padding:12px;background:#fff;border-radius:8px;"></div>
+      <div id="qr-container" class="qr-container">
+        <div id="qr-image" class="qr-image-box"></div>
       </div>
       <p class="hint small" id="qr-status" data-i18n="qr_waiting"></p>
       <div class="btn-row">
-        <button class="btn-ghost" onclick="show(1)" data-i18n="btn_back"></button>
-        <button class="btn-primary" id="btn_qr_poll" onclick="pollQR()" data-i18n="btn_check_again"></button>
+        <button class="btn-ghost" data-show-step="1" data-i18n="btn_back"></button>
+        <button class="btn-primary" id="btn_qr_poll" data-action="pollQR" data-i18n="btn_check_again"></button>
       </div>
     </div>
 
-    <!-- Step 2 -->
+
     <div class="wstep hidden" id="s2">
       <h2 data-i18n="s2_title"></h2>
       <p class="hint" data-i18n="s2_hint"></p>
@@ -560,12 +100,12 @@ input.shake { animation: inputShake .4s ease; border-color: rgba(239,68,68,.8) !
         <input id="f_code" type="text" inputmode="numeric" placeholder="12345" autocomplete="one-time-code" maxlength="10">
       </label>
       <div class="btn-row">
-        <button class="btn-ghost" onclick="show(1)" data-i18n="btn_back_arrow"></button>
-        <button class="btn-primary" id="btn2" onclick="step2()" data-i18n="btn_verify"></button>
+        <button class="btn-ghost" data-show-step="1" data-i18n="btn_back_arrow"></button>
+        <button class="btn-primary" id="btn2" data-action="step2" data-i18n="btn_verify"></button>
       </div>
     </div>
 
-    <!-- Step 3 -->
+
     <div class="wstep hidden" id="s3">
       <h2 data-i18n="s3_title"></h2>
       <p class="hint" data-i18n="s3_hint"></p>
@@ -574,12 +114,12 @@ input.shake { animation: inputShake .4s ease; border-color: rgba(239,68,68,.8) !
         <input id="f_pass" type="password" placeholder="••••••••" autocomplete="current-password">
       </label>
       <div class="btn-row">
-        <button class="btn-ghost" onclick="show(2)" data-i18n="btn_back_arrow"></button>
-        <button class="btn-primary" id="btn3" onclick="step3()" data-i18n="btn_confirm"></button>
+        <button class="btn-ghost" data-show-step="2" data-i18n="btn_back_arrow"></button>
+        <button class="btn-primary" id="btn3" data-action="step3" data-i18n="btn_confirm"></button>
       </div>
     </div>
 
-    <!-- Step 4: Bot -->
+
     <div class="wstep hidden" id="s4">
       <h2 data-i18n="s4_title"></h2>
       <p class="hint" data-i18n-html="s4_hint"></p>
@@ -587,17 +127,17 @@ input.shake { animation: inputShake .4s ease; border-color: rgba(239,68,68,.8) !
         <span data-i18n="label_bot_token_skip"></span>
         <input id="f_bot_token" type="text" placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz">
       </label>
-      <button class="btn-primary" id="btn4verify" onclick="verifyBotInSetup()" data-i18n="btn_verify_token"></button>
-      <button class="btn-ghost" id="btn4auto" onclick="autoCreateBot()" data-i18n="btn_auto_create"></button>
+      <button class="btn-primary" id="btn4verify" data-action="verifyBotInSetup" data-i18n="btn_verify_token"></button>
+      <button class="btn-ghost" id="btn4auto" data-action="autoCreateBot" data-i18n="btn_auto_create"></button>
       <div class="btn-row">
-        <button class="btn-ghost" onclick="skipBot()" data-i18n="btn_skip"></button>
-        <button class="btn-primary" id="btn4" onclick="finishWithBot()" disabled data-i18n="btn_continue"></button>
+        <button class="btn-ghost" data-action="skipBot" data-i18n="btn_skip"></button>
+        <button class="btn-primary" id="btn4" data-action="finishWithBot" disabled data-i18n="btn_continue"></button>
       </div>
     </div>
 
-    <!-- Step 5 -->
+
     <div class="wstep hidden" id="s5">
-      <div class="done-icon"><img src="/static/img/success.png" alt="Success" style="width:60px;height:60px;"></div>
+      <div class="done-icon"><img src="/static/img/success.png" alt="Success" class="done-icon-img"></div>
       <h2 data-i18n="s5_title"></h2>
       <p class="hint" data-i18n="s5_hint"></p>
       <div class="spinner"></div>
@@ -607,21 +147,21 @@ input.shake { animation: inputShake .4s ease; border-color: rgba(239,68,68,.8) !
   </div>
 
   <div class="reset-bar">
-    <span data-i18n="reset_configured"></span> <a href="#" class="reset-link" onclick="showResetChoice();return false;" data-i18n="reset_link"></a>
+    <span data-i18n="reset_configured"></span> <a href="#" class="reset-link" data-action="showResetChoice" data-i18n="reset_link"></a>
   </div>
-  <div class="reset-bar" style="margin-top:8px;">
+  <div class="reset-bar reset-bar-secondary">
     <a href="/bot" class="reset-link" data-i18n="bot_settings_link"></a>
   </div>
 
-  <!-- Reset modal: note - uses display:flex via inline style; .hidden class overrides with !important -->
-  <div id="resetModal" class="hidden" style="position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.7);">
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:360px;width:90%;">
-      <h3 style="margin-bottom:12px;" data-i18n="modal_title"></h3>
-      <p class="hint" style="margin-bottom:18px;" data-i18n="modal_hint"></p>
-      <button class="btn-primary" onclick="resetAndChoose('qr')" data-i18n="modal_qr"></button>
-      <div class="btn-row" style="margin-top:8px;">
-        <button class="btn-ghost" onclick="resetAndChoose('code')" data-i18n="modal_code"></button>
-        <button class="btn-ghost" onclick="document.getElementById('resetModal').classList.add('hidden')" data-i18n="btn_cancel"></button>
+
+  <div id="resetModal" class="reset-modal hidden">
+    <div class="reset-modal-card">
+      <h3 class="reset-modal-title" data-i18n="modal_title"></h3>
+      <p class="hint reset-modal-hint" data-i18n="modal_hint"></p>
+      <button class="btn-primary" data-reset-choice="qr" data-i18n="modal_qr"></button>
+      <div class="btn-row reset-modal-actions">
+        <button class="btn-ghost" data-reset-choice="code" data-i18n="modal_code"></button>
+        <button class="btn-ghost" data-action="hideResetModal" data-i18n="btn_cancel"></button>
       </div>
     </div>
   </div>
@@ -636,7 +176,7 @@ input.shake { animation: inputShake .4s ease; border-color: rgba(239,68,68,.8) !
   <p class="subtitle" data-i18n="configured_subtitle"></p>
 
   <div class="wizard-card">
-    <div class="done-icon"><img src="/static/img/success.png" alt="Success" style="width:60px;height:60px;"></div>
+    <div class="done-icon"><img src="/static/img/success.png" alt="Success" class="done-icon-img"></div>
     <h2 data-i18n="configured_title"></h2>
     <p class="hint" data-i18n="configured_hint"></p>
   </div>
@@ -656,9 +196,9 @@ input.shake { animation: inputShake .4s ease; border-color: rgba(239,68,68,.8) !
   <div class="wizard-card">
     <h2 data-i18n="reauth_title"></h2>
     <p class="hint" data-i18n="reauth_hint"></p>
-    <div class="btn-row" style="margin-top:20px;">
-      <button class="btn-primary" onclick="showReauthQR()" data-i18n="btn_qr_code"></button>
-      <button class="btn-ghost" onclick="showReauthCode()" data-i18n="btn_send_code"></button>
+    <div class="btn-row reauth-actions">
+      <button class="btn-primary" data-action="showReauthQR" data-i18n="btn_qr_code"></button>
+      <button class="btn-ghost" data-action="showReauthCode" data-i18n="btn_send_code"></button>
     </div>
   </div>
 
@@ -668,7 +208,7 @@ input.shake { animation: inputShake .4s ease; border-color: rgba(239,68,68,.8) !
   <footer class="setup-footer" data-i18n="footer"></footer>
 </div>
 
-<!-- Bot Settings Page -->
+
 <div class="page hidden" id="botPage">
 
   <div class="logo-row">
@@ -682,7 +222,7 @@ input.shake { animation: inputShake .4s ease; border-color: rgba(239,68,68,.8) !
       <p class="hint" data-i18n="loading"></p>
     </div>
 
-    <!-- FIX: was duplicate ID "f_bot_token" - renamed to "f_bot_token_page" -->
+
     <div id="botForm" class="hidden">
       <h2 data-i18n="bot_form_title"></h2>
       <p class="hint" data-i18n="bot_form_hint"></p>
@@ -690,10 +230,10 @@ input.shake { animation: inputShake .4s ease; border-color: rgba(239,68,68,.8) !
         <span data-i18n="label_bot_token"></span>
         <input id="f_bot_token_page" type="text" placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz">
       </label>
-      <button class="btn-primary" id="btnBotVerify" onclick="verifyBotToken()" data-i18n="btn_verify_token"></button>
+      <button class="btn-primary" id="btnBotVerify" data-action="verifyBotToken" data-i18n="btn_verify_token"></button>
       <div class="btn-row">
-        <button class="btn-ghost" onclick="location.href='/'" data-i18n="btn_back_arrow"></button>
-        <button class="btn-primary" id="btnBotSave" onclick="saveBotToken()" disabled data-i18n="btn_save_token"></button>
+        <button class="btn-ghost" data-action="goHome" data-i18n="btn_back_arrow"></button>
+        <button class="btn-primary" id="btnBotSave" data-action="saveBotToken" disabled data-i18n="btn_save_token"></button>
       </div>
     </div>
 
@@ -701,832 +241,13 @@ input.shake { animation: inputShake .4s ease; border-color: rgba(239,68,68,.8) !
       <h2 data-i18n="bot_active_title"></h2>
       <p class="hint" id="botUsernameDisplay"></p>
       <div class="btn-row">
-        <button class="btn-ghost" onclick="location.href='/'" data-i18n="btn_back_arrow"></button>
-        <button class="btn-primary" id="btnBotStart" onclick="startBot()" data-i18n="btn_start_bot"></button>
+        <button class="btn-ghost" data-action="goHome" data-i18n="btn_back_arrow"></button>
+        <button class="btn-primary" id="btnBotStart" data-action="startBot" data-i18n="btn_start_bot"></button>
       </div>
     </div>
   </div>
 </div>
 
-<script>
-
-/* ═══════════════════════════════════════════════
-   i18n - translations
-═══════════════════════════════════════════════ */
-const TRANSLATIONS = {
-  en: {
-    // page subtitles
-    subtitle_setup:       'First-time setup',
-    configured_subtitle:  'MCUB is already configured',
-    configured_title:     'Welcome to MCUB!',
-    configured_hint:      'Your instance is already configured and ready to use.',
-    subtitle_reauth:      'Session Expired',
-    subtitle_bot:         'Inline Bot Settings',
-    // step labels
-    step_credentials:     'Credentials',
-    step_scan:            'Scan',
-    step_code:            'Code',
-    step_bot:             'Bot',
-    step_done:            'Done',
-    // step 1
-    s1_title:             'API Credentials',
-    s1_hint:              'Open <a href="https://my.telegram.org" target="_blank">my.telegram.org</a> → API development tools → create app → paste values below.',
-    label_api_id:         'API ID',
-    label_api_hash:       'API Hash',
-    label_phone:          'Phone number',
-    btn_send_code:        'Send code',
-    btn_qr_code:          'QR Code',
-    // step 1qr
-    s1qr_title:           'Scan QR Code',
-    s1qr_hint:            'Scan this QR code with your Telegram app to log in.',
-    qr_waiting:           'Waiting for scan...',
-    btn_back:             'Back',
-    btn_check_again:      'Check Again',
-    // step 2
-    s2_title:             'Telegram Code',
-    s2_hint:              'A code was sent to your Telegram account. Enter it below.',
-    label_code:           'Code',
-    btn_back_arrow:       '← Back',
-    btn_verify:           'Verify →',
-    // step 3
-    s3_title:             'Two-Factor Auth',
-    s3_hint:              'Your account has 2FA enabled. Enter your cloud password.',
-    label_cloud_password: 'Cloud password', // pragma: allowlist secret
-    btn_confirm:          'Confirm →',
-    // step 4
-    s4_title:             'Inline Bot (Optional)',
-    s4_hint:              'Create a bot via @BotFather for inline buttons support.<br>Or skip this step and create bot later in settings.',
-    label_bot_token_skip: 'Bot Token (leave empty to skip)',
-    btn_verify_token:     'Verify Token',
-    btn_auto_create:      'Auto Create Bot',
-    btn_skip:             'Skip →',
-    btn_continue:         'Continue →',
-    // step 5
-    s5_title:             'MCUB is installed!',
-    s5_hint:              'Kernel is starting - redirecting to dashboard…',
-    kernel_waiting:       'Waiting for kernel…',
-    kernel_ready:         '✅ Kernel ready! Redirecting…',
-    kernel_poll:          'Waiting for kernel… ({n})',
-    // reset bar
-    reset_configured:     'Already configured?',
-    reset_link:           'Reset & reconfigure',
-    bot_settings_link:    'Bot Settings',
-    reset_fresh:          'Reset & start fresh',
-    // modal
-    modal_title:          'Choose Login Method',
-    modal_hint:           'How would you like to log in to your Telegram account?',
-    modal_qr:             'Login via QR Code',
-    modal_code:           'Send Code',
-    btn_cancel:           'Cancel',
-    // footer
-    footer:               'MCUB Kernel - setup wizard',
-    // reauth
-    reauth_title:         'Re-authenticate',
-    reauth_hint:          'Your session has expired. Please log in again to continue.',
-    // bot page
-    bot_form_title:       'Bot Token',
-    bot_form_hint:        'Create a bot via @BotFather in Telegram, then enter the token below.',
-    label_bot_token:      'Bot Token',
-    btn_save_token:       'Save Token',
-    bot_active_title:     'Bot Active',
-    btn_start_bot:        'Start Bot',
-    // misc
-    loading:              'Loading...',
-    // JS toast strings
-    err_fields_required:  'All fields are required.',
-    err_api_required:     'API ID and Hash are required.',
-    err_enter_code:       'Please enter the code.',
-    err_enter_password:   'Please enter your password.', // pragma: allowlist secret
-    err_token_required:   'Token is required',
-    err_invalid_token:    'Invalid token',
-    err_saving:           'Error saving',
-    err_unknown:          'Unknown error',
-    err_network:          'Network error: ',
-    err_auto_create:      'Auto create failed. Enter token manually or skip.',
-    err_bot_start:        'Error starting bot',
-    err_bot_create:       'Error creating bot',
-    err_loading_status:   'Error loading status',
-    err_fill_credentials: 'Fill in API credentials to continue',
-    ok_token_valid:       'Token valid! Bot: @{username}',
-    ok_bot_created:       'Bot @{username} created! Continue.',
-    ok_bot_started:       'Bot started!',
-    ok_token_saved:       'Token saved! Restart kernel to apply.',
-    ok_qr_regenerated:    'QR code expired, new one generated',
-    ok_enter_credentials: 'Enter API credentials and click QR Code button',
-    qr_scan_app:          'Scan with your Telegram app...',
-    qr_new_generated:     'New QR code generated - scan again!',
-    qr_checking:          'Checking...',
-    btn_please_wait:      '⏳ Please wait…',
-  },
-
-  ru: {
-    // page subtitles
-    subtitle_setup:       'Пepвичнaя нacтpoйкa',
-    configured_subtitle:  'MCUB yжe нacтpoeн',
-    configured_title:     'Дoбpo пoжaлoвaть в MCUB!',
-    configured_hint:      'Вaш экзeмпляp yжe нacтpoeн и гoтoв к иcпoльзoвaнию.',
-    subtitle_reauth:      'Ceccия иcтeклa',
-    subtitle_bot:         'Hacтpoйки бoтa',
-    // step labels
-    step_credentials:     'Дaнныe',
-    step_scan:            'Cкaн',
-    step_code:            'Кoд',
-    step_bot:             'Бoт',
-    step_done:            'Гoтoвo',
-    // step 1
-    s1_title:             'API Credentials',
-    s1_hint:              'Oткpoйтe <a href="https://my.telegram.org" target="_blank">my.telegram.org</a> → API development tools → coздaйтe пpилoжeниe → вcтaвьтe знaчeния нижe.',
-    label_api_id:         'API ID',
-    label_api_hash:       'API Hash',
-    label_phone:          'Hoмep тeлeфoнa',
-    btn_send_code:        'Oтпpaвить',
-    btn_qr_code:          'QR-кoд',
-    // step 1qr
-    s1qr_title:           'Cкaниpoвaть QR-кoд',
-    s1qr_hint:            'Oтcкaниpyйтe QR-кoд в пpилoжeнии Telegram для вxoдa.',
-    qr_waiting:           'Oжидaниe cкaниpoвaния...',
-    btn_back:             'Haзaд',
-    btn_check_again:      'Пpoвepить cнoвa',
-    // step 2
-    s2_title:             'Кoд из Telegram',
-    s2_hint:              'Кoд был oтпpaвлeн в вaш Telegram. Ввeдитe eгo нижe.',
-    label_code:           'Кoд',
-    btn_back_arrow:       '← Haзaд',
-    btn_verify:           'Дaлee →',
-    // step 3
-    s3_title:             'Двyxфaктopнaя ayтeнтификaция',
-    s3_hint:              'Ha вaшeм aккayнтe включeнa 2FA. Ввeдитe oблaчный пapoль.',
-    label_cloud_password: 'Oблaчный пapoль', // pragma: allowlist secret
-    btn_confirm:          'Дaлee →',
-    // step 4
-    s4_title:             'Вcтpoeнный бoт (нeoбязaтeльнo)',
-    s4_hint:              'Coздaйтe бoтa чepeз @BotFather для пoддepжки инлaйн-кнoпoк.<br>Или пpoпycтитe этoт шaг и coздaйтe бoтa пoзжe в нacтpoйкax.',
-    label_bot_token_skip: 'Тoкeн бoтa (ocтaвьтe пycтым, чтoбы пpoпycтить)',
-    btn_verify_token:     'Пpoвepить',
-    btn_auto_create:      'Aвтo-coздaть бoтa',
-    btn_skip:             'Пpoпycтить →',
-    btn_continue:         'Пpoдoлжить →',
-    // step 5
-    s5_title:             'MCUB ycтaнoвлeн!',
-    s5_hint:              'Ядpo зaпycкaeтcя - пepexoд к пaнeли yпpaвлeния…',
-    kernel_waiting:       'Oжидaниe ядpa…',
-    kernel_ready:         '✅ Ядpo гoтoвo! Пepeнaпpaвлeниe…',
-    kernel_poll:          'Oжидaниe ядpa… ({n})',
-    // reset bar
-    reset_configured:     'Ужe нacтpoeнo?',
-    reset_link:           'Cбpocить и пepeнacтpoить',
-    bot_settings_link:    'Hacтpoйки бoтa',
-    reset_fresh:          'Cбpocить и нaчaть зaнoвo',
-    // modal
-    modal_title:          'Выбepитe cпocoб вxoдa',
-    modal_hint:           'Кaк вы xoтитe вoйти в cвoй aккayнт Telegram?',
-    modal_qr:             'Вoйти пo QR',
-    modal_code:           'Кoд нa тeлeфoн',
-    btn_cancel:           'Oтмeнa',
-    // footer
-    footer:               'MCUB Kernel - мacтep нacтpoйки',
-    // reauth
-    reauth_title:         'Пoвтopнaя aвтopизaция',
-    reauth_hint:          'Вaшa ceccия иcтeклa. Пoжaлyйcтa, вoйдитe cнoвa для пpoдoлжeния.',
-    // bot page
-    bot_form_title:       'Тoкeн бoтa',
-    bot_form_hint:        'Coздaйтe бoтa чepeз @BotFather в Telegram, зaтeм ввeдитe тoкeн нижe.',
-    label_bot_token:      'Тoкeн бoтa',
-    btn_save_token:       'Coxpaнить',
-    bot_active_title:     'Бoт aктивeн',
-    btn_start_bot:        'Зaпycтить',
-    // misc
-    loading:              'Зaгpyзкa...',
-    // JS toast strings
-    err_fields_required:  'Вce пoля oбязaтeльны для зaпoлнeния.',
-    err_api_required:     'Heoбxoдимы API ID и Hash.',
-    err_enter_code:       'Пoжaлyйcтa, ввeдитe кoд.',
-    err_enter_password:   'Пoжaлyйcтa, ввeдитe пapoль.', // pragma: allowlist secret
-    err_token_required:   'Тoкeн oбязaтeлeн',
-    err_invalid_token:    'Heдeйcтвитeльный тoкeн',
-    err_saving:           'Oшибкa coxpaнeния',
-    err_unknown:          'Heизвecтнaя oшибкa',
-    err_network:          'Oшибкa ceти: ',
-    err_auto_create:      'Aвтocoздaниe нe yдaлocь. Ввeдитe тoкeн вpyчнyю или пpoпycтитe.',
-    err_bot_start:        'Oшибкa зaпycкa бoтa',
-    err_bot_create:       'Oшибкa coздaния бoтa',
-    err_loading_status:   'Oшибкa зaгpyзки cтaтyca',
-    err_fill_credentials: 'Зaпoлнитe API credentials для пpoдoлжeния',
-    ok_token_valid:       'Тoкeн дeйcтвитeлeн! Бoт: @{username}',
-    ok_bot_created:       'Бoт @{username} coздaн! Пpoдoлжaйтe.',
-    ok_bot_started:       'Бoт зaпyщeн!',
-    ok_token_saved:       'Тoкeн coxpaнён! Пepeзaпycтитe ядpo для пpимeнeния.',
-    ok_qr_regenerated:    'QR-кoд иcтёк, cгeнepиpoвaн нoвый',
-    ok_enter_credentials: 'Ввeдитe API credentials и нaжмитe кнoпкy QR-кoд',
-    qr_scan_app:          'Oтcкaниpyйтe в пpилoжeнии Telegram...',
-    qr_new_generated:     'Cгeнepиpoвaн нoвый QR-кoд - oтcкaниpyйтe cнoвa!',
-    qr_checking:          'Пpoвepяeм...',
-    btn_please_wait:      '⏳ Ждитe…',
-  }
-};
-
-/* ═══════════════════════════════════════════════
-   i18n engine
-═══════════════════════════════════════════════ */
-let lang = localStorage.getItem('mcub_lang') || 'en';
-
-function t(key, vars = {}) {
-  const str = TRANSLATIONS[lang]?.[key] ?? TRANSLATIONS.en[key] ?? key;
-  return str.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
-}
-
-function applyI18n() {
-  // textContent - covers all simple elements including spans inside labels
-  document.querySelectorAll('[data-i18n]').forEach(el => {
-    el.textContent = t(el.dataset.i18n);
-  });
-  // innerHTML - for hints that contain links
-  document.querySelectorAll('[data-i18n-html]').forEach(el => {
-    el.innerHTML = t(el.dataset.i18nHtml);
-  });
-  document.documentElement.lang = lang;
-}
-
-function toggleLang() {
-  lang = lang === 'en' ? 'ru' : 'en';
-  localStorage.setItem('mcub_lang', lang);
-  langToggleBtn.textContent = lang.toUpperCase();
-  applyI18n();
-}
-
-/* ═══════════════════════════════════════════════
-   Theme
-═══════════════════════════════════════════════ */
-const toggleBtn     = document.getElementById('themeToggle');
-const langToggleBtn = document.getElementById('langToggle');
-let dark = localStorage.getItem('mcub_theme') !== 'light';
-
-function applyTheme() {
-  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
-  toggleBtn.textContent = dark ? '🌙' : '☀️';
-  localStorage.setItem('mcub_theme', dark ? 'dark' : 'light');
-}
-
-// Init on load
-applyTheme();
-applyI18n();
-langToggleBtn.textContent = lang.toUpperCase();
-
-toggleBtn.onclick    = () => { dark = !dark; applyTheme(); };
-langToggleBtn.onclick = toggleLang;
-
-/* ═══════════════════════════════════════════════
-   Toast / UI helpers
-═══════════════════════════════════════════════ */
-function dismiss(el) {
-  el.style.animation = 'slideOut .25s ease forwards';
-  setTimeout(() => el.remove(), 250);
-}
-
-function shakeInput(id) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.classList.remove('shake');
-  void el.offsetWidth;
-  el.classList.add('shake');
-  el.addEventListener('animationend', () => el.classList.remove('shake'), {once:true});
-}
-
-function toast(msg, type = 'err') {
-  if (type === 'err') {
-    const active = document.activeElement;
-    if (active && active.tagName === 'INPUT') {
-      active.classList.remove('shake');
-      void active.offsetWidth;
-      active.classList.add('shake');
-      active.addEventListener('animationend', () => active.classList.remove('shake'), {once:true});
-    }
-  }
-  const MAX_TOASTS = 5;
-  const wrap = document.getElementById('toasts');
-  const el   = document.createElement('div');
-  el.className = 'toast' + (type === 'ok' ? ' ok' : '');
-  el.innerHTML = `<span class="toast-icon">${type === 'ok' ? '✓' : '⚠'}</span><span>${msg}</span><span class="toast-close">✕</span>`;
-  wrap.prepend(el);
-  while (wrap.children.length > MAX_TOASTS) wrap.lastElementChild.remove();
-  setTimeout(() => { if (el.isConnected) dismiss(el); }, 6000);
-}
-
-/* ═══════════════════════════════════════════════
-   Step navigation
-   FIX: wstepMap and stepMap were identical objects - merged into one
-═══════════════════════════════════════════════ */
-let _currentStep = 1;
-
-const STEP_MAP = { '1':1, '1qr':2, '2':3, '3':4, '4':5, '5':6 };
-
-function show(n) {
-  const idx = STEP_MAP[String(n)];
-  if (idx === undefined) return;
-
-  const goingBack = idx < _currentStep;
-  _currentStep = idx;
-
-  document.querySelectorAll('.wstep').forEach((el, i) => {
-    const visible = i + 1 === idx;
-    el.classList.toggle('hidden', !visible);
-    if (visible) {
-      el.classList.remove('slide-back');
-      void el.offsetWidth;
-      if (goingBack) el.classList.add('slide-back');
-    }
-  });
-
-  document.querySelectorAll('.step').forEach((el, i) => {
-    el.classList.toggle('active', i + 1 === idx);
-    el.classList.toggle('done',   i + 1 < idx);
-  });
-
-  document.querySelectorAll('.sconn').forEach((el, i) => {
-    el.classList.toggle('filled', i < idx - 1);
-  });
-
-  const inp = document.querySelector(`#s${n} input`);
-  if (inp) setTimeout(() => inp.focus(), 80);
-}
-
-/* ═══════════════════════════════════════════════
-   btnLoading
-   FIX: now saves the original disabled state so it can be correctly restored
-═══════════════════════════════════════════════ */
-function btnLoading(id, on) {
-  const b = document.getElementById(id);
-  if (!b) return;
-  if (on) {
-    b._label    = b.textContent;
-    b._disabled = b.disabled;      // save original disabled state
-    b.textContent = t('btn_please_wait');
-    b.disabled    = true;
-  } else {
-    b.textContent = b._label ?? b.textContent;
-    b.disabled    = b._disabled ?? false;  // restore original state
-  }
-}
-
-/* ═══════════════════════════════════════════════
-   HTTP helper
-   FIX: handles non-JSON responses (500 HTML error pages) gracefully
-═══════════════════════════════════════════════ */
-async function post(url, body) {
-  const r = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-  let data = {};
-  try { data = await r.json(); } catch (_) { /* non-JSON response */ }
-  return { ok: r.ok, status: r.status, ...data };
-}
-
-/* ═══════════════════════════════════════════════
-   QR helper - extracted to avoid duplication
-═══════════════════════════════════════════════ */
-function renderQR(url) {
-  const container = document.getElementById('qr-image');
-  container.innerHTML = '';
-  new QRCode(container, {
-    text: url,
-    width: 220, height: 220,
-    colorDark: '#000', colorLight: '#fff',
-    correctLevel: QRCode.CorrectLevel.M
-  });
-}
-
-function setQRStatus(key, raw) {
-  document.getElementById('qr-status').textContent = raw ?? t(key);
-}
-
-/* ═══════════════════════════════════════════════
-   Setup steps
-═══════════════════════════════════════════════ */
-async function step1() {
-  const api_id   = document.getElementById('f_api_id').value.trim();
-  const api_hash = document.getElementById('f_api_hash').value.trim();
-  const phone    = document.getElementById('f_phone').value.trim();
-  if (!api_id || !api_hash || !phone) { toast(t('err_fields_required')); return; }
-  btnLoading('btn1', true);
-  try {
-    const r = await post('/api/setup/send_code', { api_id, api_hash, phone });
-    if (!r.ok) { toast(r.error || t('err_unknown')); return; }
-    show(2);
-  } catch(e) { toast(t('err_network') + e.message); }
-  finally    { btnLoading('btn1', false); }
-}
-
-async function step2() {
-  const code = document.getElementById('f_code').value.trim();
-  if (!code) { toast(t('err_enter_code')); return; }
-  btnLoading('btn2', true);
-  try {
-    const r = await post('/api/setup/verify_code', { code });
-    if (r.requires_2fa) { show(3); return; }
-    if (!r.ok) { toast(r.error || t('err_unknown')); return; }
-    show(4);
-  } catch(e) { toast(t('err_network') + e.message); }
-  finally    { btnLoading('btn2', false); }
-}
-
-async function step3() {
-  const password = document.getElementById('f_pass').value;
-  if (!password) { toast(t('err_enter_password')); return; }
-  btnLoading('btn3', true);
-  try {
-    // NOTE: backend accepts { password } at /api/setup/verify_code - same endpoint as step2
-    const r = await post('/api/setup/verify_code', { password });
-    if (!r.ok) { toast(r.error || t('err_unknown')); return; }
-    show(4);
-  } catch(e) { toast(t('err_network') + e.message); }
-  finally    { btnLoading('btn3', false); }
-}
-
-async function step1QR() {
-  const api_id   = document.getElementById('f_api_id').value.trim();
-  const api_hash = document.getElementById('f_api_hash').value.trim();
-  if (!api_id || !api_hash) { toast(t('err_api_required')); return; }
-
-  // FIX: manually manage button state - never rely on saved _disabled,
-  // always force-enable on any error/success so the button can't get stuck
-  const btn = document.getElementById('btn1_qr');
-  btn._label = btn.textContent;
-  btn.textContent = t('btn_please_wait');
-  btn.disabled = true;
-  const resetBtn = () => { btn.textContent = btn._label; btn.disabled = false; };
-
-  try {
-    const r = await post('/api/setup/qr_login', { api_id, api_hash });
-    if (!r.ok) { toast(r.error || t('err_unknown')); resetBtn(); return; }
-    renderQR(r.qr_url);
-    setQRStatus('qr_scan_app');
-    show('1qr');
-    pollQRLoop();
-    resetBtn();
-  } catch(e) { toast(t('err_network') + e.message); resetBtn(); }
-}
-
-/* ═══════════════════════════════════════════════
-   QR polling
-═══════════════════════════════════════════════ */
-let qrPollInterval = null;
-
-function pollQRLoop() {
-  if (qrPollInterval) clearInterval(qrPollInterval);
-  qrPollInterval = setInterval(async () => {
-    try {
-      const r = await post('/api/setup/qr_poll', {});
-      if (r.requires_2fa) {
-        clearInterval(qrPollInterval);
-        show(3);
-        return;
-      }
-      if (r.qr_expired && r.qr_url) {
-        renderQR(r.qr_url);
-        setQRStatus('qr_new_generated');
-        toast(t('ok_qr_regenerated'), 'ok');
-        animateQR();
-        return;
-      }
-      if (r.ok && !r.waiting) {
-        clearInterval(qrPollInterval);
-        show(4);
-        return;
-      }
-      if (r.error) {
-        clearInterval(qrPollInterval);
-        toast(r.error);
-        show(1);
-      }
-    } catch(_) {}
-  }, 3000);
-}
-
-// FIX: manual pollQR now also handles qr_expired (was missing before)
-async function pollQR() {
-  setQRStatus('qr_checking');
-  try {
-    const r = await post('/api/setup/qr_poll', {});
-    if (r.requires_2fa) {
-      clearInterval(qrPollInterval);
-      show(3);
-      return;
-    }
-    if (r.qr_expired && r.qr_url) {
-      renderQR(r.qr_url);
-      setQRStatus('qr_new_generated');
-      toast(t('ok_qr_regenerated'), 'ok');
-      animateQR();
-      return;
-    }
-    if (r.ok && !r.waiting) {
-      clearInterval(qrPollInterval);
-      show(4);
-      return;
-    }
-    setQRStatus('qr_waiting');
-  } catch(e) {
-    document.getElementById('qr-status').textContent = t('err_network') + e.message;
-  }
-}
-
-/* ═══════════════════════════════════════════════
-   Kernel polling
-═══════════════════════════════════════════════ */
-function pollKernel() {
-  const st = document.getElementById('poll-status');
-  let n = 0;
-  const interval = setInterval(async () => {
-    n++;
-    try {
-      const r = await fetch('/status');
-      if (r.ok) {
-        clearInterval(interval);
-        st.textContent = t('kernel_ready');
-        setTimeout(() => location.href = '/', 1200);
-        return;
-      }
-    } catch(_) {}
-    st.textContent = t('kernel_poll', { n });
-  }, 2000);
-}
-
-/* ═══════════════════════════════════════════════
-   Reset modal
-═══════════════════════════════════════════════ */
-function showResetChoice() {
-  document.getElementById('resetModal').classList.remove('hidden');
-}
-
-async function resetAndChoose(method) {
-  document.getElementById('resetModal').classList.add('hidden');
-  try { await fetch('/setup/reset', { method: 'GET' }); } catch(_) {}
-
-  if (method === 'qr') {
-    show(1);
-    toast(t('ok_enter_credentials'), 'ok');
-  } else {
-    location.reload();
-  }
-}
-
-/* ═══════════════════════════════════════════════
-   Bot setup (Step 4)
-═══════════════════════════════════════════════ */
-async function verifyBotInSetup() {
-  const token = document.getElementById('f_bot_token').value.trim();
-  if (!token) {
-    document.getElementById('btn4').disabled = false;
-    return;
-  }
-  btnLoading('btn4verify', true);
-  try {
-    const r = await post('/api/bot/verify_token', { token });
-    if (!r.ok || !r.valid) { toast(r.error || t('err_invalid_token')); return; }
-    toast(t('ok_token_valid', { username: r.username }), 'ok');
-    document.getElementById('btn4').disabled = false;
-  } catch(e) { toast(t('err_network') + e.message); }
-  finally    { btnLoading('btn4verify', false); }
-}
-
-async function autoCreateBot() {
-  btnLoading('btn4auto', true);
-  try {
-    const r = await post('/api/bot/auto_create', {});
-    if (!r.ok) {
-      toast(r.manual ? t('err_auto_create') : (r.error || t('err_bot_create')));
-      return;
-    }
-    document.getElementById('f_bot_token').value = r.token;
-    toast(t('ok_bot_created', { username: r.username }), 'ok');
-    document.getElementById('btn4').disabled = false;
-  } catch(e) { toast(t('err_network') + e.message); }
-  finally    { btnLoading('btn4auto', false); }
-}
-
-async function skipBot() {
-  await post('/api/setup/complete', {});
-  show(5);
-  pollKernel();
-}
-
-async function finishWithBot() {
-  const token = document.getElementById('f_bot_token').value.trim();
-  btnLoading('btn4', true);
-  try {
-    if (token) {
-      const r = await post('/api/bot/save_token', { token });
-      if (!r.ok) { toast(r.error || t('err_saving')); return; }
-    }
-    await post('/api/setup/complete', {});
-    show(5);
-    pollKernel();
-  } catch(e) { toast(t('err_network') + e.message); }
-  finally    { btnLoading('btn4', false); }
-}
-
-/* ═══════════════════════════════════════════════
-   Bot settings page (/bot)
-   FIX: uses correct ID "f_bot_token_page" (was duplicate "f_bot_token")
-═══════════════════════════════════════════════ */
-async function loadBotStatus() {
-  try {
-    const r    = await fetch('/api/bot/status');
-    const data = await r.json();
-
-    document.getElementById('botStatus').classList.add('hidden');
-
-    if (data.running) {
-      document.getElementById('botActions').classList.remove('hidden');
-      document.getElementById('botUsernameDisplay').textContent = 'Running as @' + data.username;
-      document.getElementById('btnBotStart').textContent = 'Running ✓';
-      document.getElementById('btnBotStart').disabled = true;
-    } else if (data.has_token) {
-      document.getElementById('botActions').classList.remove('hidden');
-      document.getElementById('botUsernameDisplay').textContent = t('ok_token_saved').split('!')[0] + '!';
-      document.getElementById('btnBotStart').disabled = false;
-    } else {
-      document.getElementById('botForm').classList.remove('hidden');
-    }
-  } catch(_) {
-    document.getElementById('botStatus').innerHTML = `<p class="hint">${t('err_loading_status')}</p>`;
-  }
-}
-
-async function verifyBotToken() {
-  const token = document.getElementById('f_bot_token_page').value.trim();
-  if (!token) { toast(t('err_token_required')); return; }
-
-  btnLoading('btnBotVerify', true);
-  try {
-    const r = await post('/api/bot/verify_token', { token });
-    if (!r.ok)   { toast(r.error || t('err_invalid_token')); return; }
-    if (r.valid) {
-      toast(t('ok_token_valid', { username: r.username }), 'ok');
-      document.getElementById('btnBotSave').disabled = false;
-    }
-  } catch(e) { toast(t('err_network') + e.message); }
-  finally    { btnLoading('btnBotVerify', false); }
-}
-
-async function saveBotToken() {
-  const token = document.getElementById('f_bot_token_page').value.trim();
-  btnLoading('btnBotSave', true);
-  try {
-    const r = await post('/api/bot/save_token', { token });
-    if (!r.ok) { toast(r.error || t('err_saving')); return; }
-    toast(t('ok_token_saved'), 'ok');
-    setTimeout(() => location.reload(), 1500);
-  } catch(e) { toast(t('err_network') + e.message); }
-  finally    { btnLoading('btnBotSave', false); }
-}
-
-async function startBot() {
-  btnLoading('btnBotStart', true);
-  try {
-    const r = await post('/api/bot/start', {});
-    if (!r.ok) { toast(r.error || t('err_bot_start')); return; }
-    toast(t('ok_bot_started'), 'ok');
-    setTimeout(() => location.reload(), 1500);
-  } catch(e) { toast(t('err_network') + e.message); }
-  finally    { btnLoading('btnBotStart', false); }
-}
-
-/* ═══════════════════════════════════════════════
-   Reauth page
-═══════════════════════════════════════════════ */
-async function showReauthQR() {
-  document.getElementById('reauthPage').classList.add('hidden');
-  document.getElementById('setupPage').classList.remove('hidden');
-  const d = await _prefillFromConfig();
-  if (d.ok && d.api_id && d.api_hash) {
-    await step1QR();
-  } else {
-    show(1);
-    toast(t('err_fill_credentials'), 'err');
-  }
-}
-
-async function showReauthCode() {
-  document.getElementById('reauthPage').classList.add('hidden');
-  document.getElementById('setupPage').classList.remove('hidden');
-  const d = await _prefillFromConfig();
-  if (d.ok && d.api_id && d.api_hash && d.phone) {
-    await step1();
-  } else {
-    show(1);
-    toast(t('err_fill_credentials'), 'err');
-  }
-}
-
-async function _prefillFromConfig() {
-  try {
-    const r = await fetch('/api/setup/prefill');
-    const d = await r.json();
-    if (d.ok) {
-      document.getElementById('f_api_id').value   = d.api_id   || '';
-      document.getElementById('f_api_hash').value = d.api_hash || '';
-      document.getElementById('f_phone').value    = d.phone    || '';
-    }
-    return d;
-  } catch(_) { return {}; }
-}
-
-/* ═══════════════════════════════════════════════
-   Route: /bot page
-═══════════════════════════════════════════════ */
-if (location.pathname === '/bot') {
-  document.getElementById('setupPage').classList.add('hidden');
-  document.getElementById('botPage').classList.remove('hidden');
-  loadBotStatus();
-}
-
-/* ═══════════════════════════════════════════════
-   Reauth check (injected by Jinja2 template)
-═══════════════════════════════════════════════ */
-{% if already_configured %}
-document.getElementById('setupPage').classList.add('hidden');
-document.getElementById('configuredPage').classList.remove('hidden');
-{% elif show_reauth %}
-document.getElementById('setupPage').classList.add('hidden');
-document.getElementById('reauthPage').classList.remove('hidden');
-{% else %}
-(async function checkReauth() {
-  try {
-    const r     = await fetch('/api/setup/state');
-    const state = await r.json();
-    if (state.needs_reauth) {
-      document.getElementById('setupPage').classList.add('hidden');
-      document.getElementById('reauthPage').classList.remove('hidden');
-    }
-  } catch(_) {}
-})();
-{% endif %}
-
-/* ═══════════════════════════════════════════════
-   QR animation helper
-═══════════════════════════════════════════════ */
-function animateQR() {
-  const el = document.getElementById('qr-image');
-  el.classList.remove('refreshed');
-  void el.offsetWidth;
-  el.classList.add('refreshed');
-}
-
-/* ═══════════════════════════════════════════════
-   Event listeners (grouped)
-═══════════════════════════════════════════════ */
-document.getElementById('f_phone').addEventListener('keydown',    e => e.key === 'Enter' && step1());
-document.getElementById('f_code').addEventListener('keydown',     e => e.key === 'Enter' && step2());
-document.getElementById('f_pass').addEventListener('keydown',     e => e.key === 'Enter' && step3());
-document.getElementById('f_api_hash').addEventListener('keydown', e => e.key === 'Enter' && document.getElementById('f_phone').focus());
-
-// Toast close button
-document.getElementById('toasts').addEventListener('click', e => {
-  const closeBtn = e.target.closest('.toast-close');
-  if (closeBtn) {
-    const toastEl = closeBtn.closest('.toast');
-    if (toastEl) dismiss(toastEl);
-  }
-});
-
-// Ripple effect on buttons
-document.addEventListener('click', e => {
-  const btn = e.target.closest('.btn-primary, .btn-ghost');
-  if (!btn) return;
-  const r    = document.createElement('span');
-  r.className = 'ripple';
-  const rect = btn.getBoundingClientRect();
-  const size = Math.max(rect.width, rect.height);
-  r.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX - rect.left - size / 2}px;top:${e.clientY - rect.top - size / 2}px`;
-  btn.appendChild(r);
-  r.addEventListener('animationend', () => r.remove());
-});
-
-/* ═══════════════════════════════════════════════
-   Shooting stars animation
-═══════════════════════════════════════════════ */
-function rand(a, b) { return Math.random() * (b - a) + a; }
-
-document.querySelectorAll('.wish').forEach(el => {
-  function shoot() {
-    // Batch all style writes in one cssText assignment - one style recalc instead of 5
-    el.style.cssText = `top:${rand(10,80)|0}px;left:${rand(10,100)|0}%;width:${rand(40,200)|0}px;opacity:0;animation-name:none`;
-    // Double rAF: avoids el.offsetWidth forced reflow while still flushing the animation reset
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      el.style.animation = `shoot ${rand(1, 3).toFixed(2)}s ease-in-out forwards`;
-      el.addEventListener('animationend', () => setTimeout(shoot, rand(500, 5000)|0), { once: true });
-    }));
-  }
-  setTimeout(shoot, rand(0, 5000)|0);
-});
-
-</script>
-
-<style>
-@keyframes shoot{0%{opacity:0;transform:translateX(0);}10%{opacity:1;}80%{opacity:.6;}100%{opacity:0;transform:translateX(-800px);}}
-</style>
+<script src="/static/js/setup.js"></script>
 </body>
 </html>

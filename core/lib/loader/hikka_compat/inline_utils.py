@@ -167,7 +167,12 @@ def process_buttons(
                             message_id = getattr(event, "message_id", None) or getattr(
                                 message, "id", None
                             )
-                            data_str = event.data.decode() if event.data else ""
+                            data_raw = getattr(event, "data", b"") or b""
+                            data_str = (
+                                data_raw.decode(errors="replace")
+                                if isinstance(data_raw, (bytes, bytearray))
+                                else str(data_raw)
+                            )
                             payload = getattr(_proxy, "_custom_map", {}).get(
                                 data_str,
                                 {},

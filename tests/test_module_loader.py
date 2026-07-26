@@ -54,6 +54,111 @@ class TestModuleLoading:
         kernel.clear_loading_module.assert_called_once()
 
 
+class TestModuleTrustProtection:
+    """Privilege-escalation guards for system/user module loading."""
+
+    def _kernel(self, tmp_path):
+        modules_dir = tmp_path / "modules"
+        loaded_dir = tmp_path / "modules_loaded"
+        modules_dir.mkdir()
+        loaded_dir.mkdir()
+
+        kernel = MagicMock()
+        kernel.MODULES_DIR = str(modules_dir)
+        kernel.MODULES_LOADED_DIR = str(loaded_dir)
+        kernel.client = MagicMock()
+        kernel.custom_prefix = "."
+        kernel.loaded_modules = {}
+        kernel.system_modules = {"loader": object()}
+        kernel.command_owners = {}
+        kernel.command_handlers = {}
+        kernel.aliases = {}
+        kernel._class_module_instances = {}
+        kernel._log = None
+        kernel.config = {"hikka_compat": False}
+        kernel.version_manager = SimpleNamespace(
+            check_module_compatibility=AsyncMock(return_value=(True, "OK"))
+        )
+        kernel.clear_loading_module = MagicMock()
+        kernel.set_loading_module = MagicMock()
+        kernel.handle_error = MagicMock()
+        return kernel, modules_dir, loaded_dir
+
+    @pytest.mark.asyncio
+    async def test_external_system_flag_is_denied(self, tmp_path):
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel, _modules_dir, loaded_dir = self._kernel(tmp_path)
+        path = loaded_dir / "safe.py"
+        path.write_text(
+            "# name: safe\ndef register(kernel):\n    pass\n", encoding="utf-8"
+        )
+
+        ok, message = await ModuleLoader(kernel).load_module_from_file(
+            str(path), "safe", is_system=True
+        )
+
+        assert ok is False
+        assert "internal only" in message
+        assert "safe" not in kernel.system_modules
+
+    @pytest.mark.asyncio
+    async def test_user_name_header_cannot_shadow_system_module(self, tmp_path):
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel, _modules_dir, loaded_dir = self._kernel(tmp_path)
+        path = loaded_dir / "not_loader.py"
+        path.write_text(
+            "# name: loader\ndef register(kernel):\n    pass\n", encoding="utf-8"
+        )
+
+        ok, message = await ModuleLoader(kernel).load_module_from_file(
+            str(path), "not_loader"
+        )
+
+        assert ok is False
+        assert "protected system module" in message
+        assert "loader" not in kernel.loaded_modules
+
+    @pytest.mark.asyncio
+    async def test_user_class_name_cannot_shadow_system_module(self, tmp_path):
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel, _modules_dir, loaded_dir = self._kernel(tmp_path)
+        path = loaded_dir / "evil.py"
+        path.write_text(
+            "from core.lib.loader.module_base import ModuleBase\n"
+            "class Evil(ModuleBase):\n"
+            "    name = 'loader'\n",
+            encoding="utf-8",
+        )
+
+        ok, message = await ModuleLoader(kernel).load_module_from_file(
+            str(path), "evil"
+        )
+
+        assert ok is False
+        assert "protected system module" in message
+        assert "loader" not in kernel.loaded_modules
+
+    @pytest.mark.asyncio
+    async def test_user_load_from_system_directory_is_denied(self, tmp_path):
+        from core.lib.loader.loader import ModuleLoader
+
+        kernel, modules_dir, _loaded_dir = self._kernel(tmp_path)
+        path = modules_dir / "evil.py"
+        path.write_text(
+            "# name: evil\ndef register(kernel):\n    pass\n", encoding="utf-8"
+        )
+
+        ok, message = await ModuleLoader(kernel).load_module_from_file(
+            str(path), "evil"
+        )
+
+        assert ok is False
+        assert "system modules directory" in message
+
+
 class TestHikkaInlineDelete:
     """Test Hikka inline message deletion safety."""
 

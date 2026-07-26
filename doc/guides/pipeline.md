@@ -4,6 +4,19 @@
 
 Pipeline allows chaining commands with `|` (pipe) operator. Each command's output becomes the next command's input.
 
+## Pipeline Flow
+
+```mermaid
+flowchart LR
+    A[".cmd1 input"] --> B["cmd1 handler"]
+    B --> C["event.pipe_output"]
+    C --> D["cmd2 receives event.pipe_input"]
+    D --> E["cmd2 handler"]
+    E --> F{"pipe_exit_code == 0?"}
+    F -- "yes" --> G["continue chain"]
+    F -- "no" --> H["stop pipeline"]
+```
+
 ## Basic Concepts
 
 | Attribute | Description |

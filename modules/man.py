@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import ast
 import asyncio
 import contextlib
 import inspect
@@ -11,8 +12,10 @@ import os
 import traceback
 from html import escape
 from typing import Any
+from urllib.parse import urlparse
 
 from telethon import Button, events
+from telethon.errors import BadRequestError
 from telethon.tl.types import (
     DocumentAttributeImageSize,
     InputMediaWebPage,
@@ -46,6 +49,9 @@ CUSTOM_EMOJI = {
 }
 
 ZERO_WIDTH_CHAR = "\u2060"
+MAN_MODULES_PER_PAGE_DEFAULT = 10
+MAN_MODULES_PER_PAGE_MIN = 1
+MAN_MODULES_PER_PAGE_MAX = 50
 
 _METADATA_CACHE: dict[str, tuple[float, dict]] = {}
 _METADATA_LOCKS: dict[int, asyncio.Lock] = {}
@@ -66,7 +72,7 @@ def _get_metadata_lock() -> asyncio.Lock:
 
 class ManModule(ModuleBase):
     name = "man"
-    version = "1.1.1"
+    version = "1.1.2"
     author = "@hairpin00"
     description = {
         "ru": "Список модулей, и их описание",
@@ -120,9 +126,12 @@ class ManModule(ModuleBase):
         ),
         ConfigValue(
             "man_modules_per_page",
-            10,
+            MAN_MODULES_PER_PAGE_DEFAULT,
             description="module count per inline man page",
-            validator=Integer(min=1, max=50),
+            validator=Integer(
+                min=MAN_MODULES_PER_PAGE_MIN,
+                max=MAN_MODULES_PER_PAGE_MAX,
+            ),
         ),
         ConfigValue(
             "man_emoji_author",
@@ -144,30 +153,139 @@ class ManModule(ModuleBase):
         ),
     )
 
+    @staticmethod
+    def _is_webpage_url_invalid_error(error: BaseException) -> bool:
+        if not isinstance(error, BadRequestError):
+            return False
+
+        message = getattr(error, "message", "") or str(error)
+        return "WEBPAGE_URL_INVALID" in str(message)
+
+    @staticmethod
+    def _normalize_http_url(value: Any) -> str:
+        if not isinstance(value, str):
+            return ""
+
+        url = value.strip()
+        if not url:
+            return ""
+
+        parsed = urlparse(url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            return ""
+
+        return url
+
+    async def _edit_with_banner_retry(
+        self,
+        event: events.NewMessage.Event,
+        text: str,
+        **kwargs: Any,
+    ) -> Any:
+        try:
+            return await self.edit(event, text, **kwargs)
+        except BadRequestError as e:
+            if not self._is_webpage_url_invalid_error(e):
+                raise
+
+            fallback_kwargs = dict(kwargs)
+            fallback_kwargs.pop("file", None)
+            fallback_kwargs.pop("invert_media", None)
+
+            with contextlib.suppress(Exception):
+                self.log.debug("Man banner URL rejected; retrying without banner")
+
+            return await self.edit(event, text, **fallback_kwargs)
+
+    @staticmethod
+    def _coerce_modules_per_page(value: Any) -> int:
+        if isinstance(value, bool):
+            return MAN_MODULES_PER_PAGE_DEFAULT
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            return MAN_MODULES_PER_PAGE_DEFAULT
+        return max(MAN_MODULES_PER_PAGE_MIN, min(MAN_MODULES_PER_PAGE_MAX, parsed))
+
+    @staticmethod
+    def _parse_persisted_config(raw: Any) -> tuple[dict[str, Any], bool]:
+        """Parse old/broken config payloads without breaking module startup."""
+        if raw in (None, ""):
+            return {}, False
+        if isinstance(raw, dict):
+            return dict(raw), True
+        if isinstance(raw, (bytes, bytearray)):
+            raw = raw.decode("utf-8", errors="replace")
+
+        text = str(raw).strip()
+        if not text:
+            return {}, False
+
+        try:
+            parsed = json.loads(text)
+            needs_save = False
+        except Exception:
+            try:
+                parsed = ast.literal_eval(text)
+                needs_save = True
+            except Exception:
+                return {}, True
+
+        if not isinstance(parsed, dict):
+            return {}, True
+        return dict(parsed), needs_save
+
+    async def _repair_persisted_config(self) -> None:
+        db_get = getattr(self.kernel, "db_get", None)
+        db_set = getattr(self.kernel, "db_set", None)
+        if not callable(db_get) or not callable(db_set):
+            return
+
+        try:
+            raw = await db_get("module_configs", self.name)
+        except Exception as e:
+            self.log.debug("man config repair read skipped: %s", e)
+            return
+
+        data, needs_save = self._parse_persisted_config(raw)
+        current = data.get("man_modules_per_page", MAN_MODULES_PER_PAGE_DEFAULT)
+        coerced = self._coerce_modules_per_page(current)
+        if current != coerced:
+            data["man_modules_per_page"] = coerced
+            needs_save = True
+
+        if not needs_save:
+            return
+
+        try:
+            await db_set(
+                "module_configs",
+                self.name,
+                json.dumps(data, ensure_ascii=False, indent=2),
+            )
+        except Exception as e:
+            self.log.debug("man config repair save skipped: %s", e)
+
+    def _repair_live_config(self) -> None:
+        cfg = getattr(self, "config", None)
+        if cfg is None or not hasattr(cfg, "get"):
+            return
+        current = cfg.get("man_modules_per_page", MAN_MODULES_PER_PAGE_DEFAULT)
+        coerced = self._coerce_modules_per_page(current)
+        if current == coerced:
+            return
+        try:
+            cfg["man_modules_per_page"] = coerced
+        except Exception as e:
+            self.log.debug("man live config repair skipped: %s", e)
+
     async def on_load(self) -> None:
-        config_dict = await self.kernel.get_module_config(
-            self.name,
-            {
-                "man_quote_media": True,
-                "man_banner_url": "",
-                "man_invert_media": False,
-                "man_emoji_user_list": "▪️",
-                "man_emoji_system_list": "▫️",
-                "man_emoji": CUSTOM_EMOJI["crystal"],
-                "man_emoji_no_command": "❔",
-                "man_modules_per_page": 60,
-                "man_emoji_author": CUSTOM_EMOJI["alembic"],
-                "man_emoji_bot": CUSTOM_EMOJI["bot"],
-                "man_emoji_error": CUSTOM_EMOJI["blocked"],
-            },
-        )
-        self.config.from_dict(config_dict)
-        config_dict_clean = {
-            k: v for k, v in self.config.to_dict().items() if v is not None
-        }
-        if config_dict_clean:
-            await self.kernel.save_module_config(self.name, config_dict_clean)
-        self.kernel.store_module_config_schema(self.name, self.config)
+        await self._repair_persisted_config()
+        try:
+            await super().on_load()
+        except Exception as e:
+            self.log.warning("Recovered from invalid man config during on_load: %s", e)
+        self._repair_live_config()
 
     @staticmethod
     def _make_thumb(url: str) -> InputWebDocument:
@@ -189,13 +307,9 @@ class ManModule(ModuleBase):
 
     def _add_inline_banner_preview(self, message_html: str) -> str:
         cfg = self.config
-        banner_url = cfg.get("man_banner_url") if cfg else ""
+        banner_url = self._normalize_http_url(cfg.get("man_banner_url") if cfg else "")
         quote_media = cfg.get("man_quote_media", False) if cfg else False
-        if not (
-            quote_media
-            and isinstance(banner_url, str)
-            and banner_url.startswith(("http://", "https://"))
-        ):
+        if not (quote_media and banner_url):
             return message_html
         return f'<a href="{escape(banner_url, quote=True)}">{ZERO_WIDTH_CHAR}</a>{message_html}'
 
@@ -946,28 +1060,30 @@ class ManModule(ModuleBase):
                         show_hidden=show_hidden,
                     )
                     try:
+                        raw_banner_url = self.config.get("man_banner_url") or ""
+                        banner_url = self._normalize_http_url(raw_banner_url)
                         if self.config.get("man_quote_media", False):
-                            await self.edit(
-                                event,
-                                page_msg,
-                                file=InputMediaWebPage(
-                                    self.config.get(
-                                        "man_banner_url",
-                                        "https://google.com",
+                            if banner_url:
+                                await self._edit_with_banner_retry(
+                                    event,
+                                    page_msg,
+                                    file=InputMediaWebPage(
+                                        banner_url,
+                                        optional=True,
                                     ),
-                                    optional=True,
-                                ),
-                                parse_mode="html",
-                                invert_media=self.config.get(
-                                    "man_invert_media",
-                                    False,
-                                ),
-                            )
-                        elif self.config.get("man_banner_url"):
-                            await self.edit(
+                                    parse_mode="html",
+                                    invert_media=self.config.get(
+                                        "man_invert_media",
+                                        False,
+                                    ),
+                                )
+                            else:
+                                await self.edit(event, page_msg, parse_mode="html")
+                        elif raw_banner_url:
+                            await self._edit_with_banner_retry(
                                 event,
                                 page_msg,
-                                file=self.config.get("man_banner_url"),
+                                file=raw_banner_url,
                                 parse_mode="html",
                                 invert_media=self.config.get(
                                     "man_invert_media",
@@ -993,9 +1109,9 @@ class ManModule(ModuleBase):
                         return
                     else:
                         await self.client.delete_messages(event.chat_id, [event.id])
-                        if self.config.get("man_banner_url", False) and self.config.get(
-                            "man_quote_media", False
-                        ):
+                        if self._normalize_http_url(
+                            self.config.get("man_banner_url")
+                        ) and self.config.get("man_quote_media", False):
                             await sent.click(1)
 
                     if self.config.get("man_invert_media", False):
@@ -1037,10 +1153,11 @@ class ManModule(ModuleBase):
                 msg, banner_url = await self._generate_detailed_page(
                     search_term, show_hidden=show_hidden
                 )
-                if banner_url and banner_url.startswith(("http://", "https://")):
+                banner_url = self._normalize_http_url(banner_url)
+                if banner_url:
                     try:
                         media = InputMediaWebPage(banner_url, optional=True)
-                        await self.edit(
+                        await self._edit_with_banner_retry(
                             event, msg, file=media, parse_mode="html", invert_media=True
                         )
                     except Exception as e:

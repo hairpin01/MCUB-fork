@@ -145,7 +145,13 @@ class CommandDispatcher:
             )
             return
 
-        if self.kernel._is_command_event_processed(event):
+        text = getattr(event, "raw_text", None) or getattr(msg, "raw_text", "") or ""
+        active_prefix = self.kernel.get_prefix_for_sender(
+            getattr(event, "sender_id", None)
+        )
+        is_command_text = bool(text and text.startswith(active_prefix))
+
+        if is_command_text and self.kernel._is_command_event_processed(event):
             self.logger.debug(
                 "[dispatcher] skip-duplicate handler=watcher_message "
                 "text=%r sender=%r chat=%r",
@@ -155,10 +161,13 @@ class CommandDispatcher:
             )
             return
 
-        self.kernel._mark_command_event_processed(event)
+        if is_command_text:
+            self.kernel._mark_command_event_processed(event)
 
         try:
-            await self.process_command(event)
+            handled = await self.process_command(event)
+            if is_command_text and not handled:
+                self.kernel._unmark_command_event_processed(event)
         except RPCError as e:
             await self._handle_rpc_error(event, e)
         except Exception as e:

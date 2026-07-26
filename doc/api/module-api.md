@@ -1,6 +1,22 @@
 # Kernel Module API
 
+<p align="center">
+  <img src="../assets/code-cards/module-api-loading.svg" alt="Module loading code example" width="680"/>
+</p>
+
 ← [Index](../../API_DOC.md)
+
+## Module Flow
+
+```mermaid
+flowchart LR
+    A["Repository URL or .py file"] --> B["Download source"]
+    B --> C["Validate metadata"]
+    C --> D["Install dependencies"]
+    D --> E["Load module"]
+    E --> F["Register commands, events, loops"]
+    F --> G["Track source in kernel._module_sources"]
+```
 
 ## Repository Management
 
@@ -83,14 +99,12 @@ await kernel.unregister_module_commands("loader", force=True)
 ```python
 {
     "module_name": {
-        "url": "https://...",   # Direct URL or None
-        "repo": "https://..."   # Repo URL or None
-    }
+        "url": "https://.../module.py"   # Direct URL or None
 }
 ```
 
 ```python
 if "mymodule" in kernel._module_sources:
     source = kernel._module_sources["mymodule"]
-    await event.edit(f"Installed from: {source.get('repo') or source.get('url')}")
+    await event.edit(f"Installed from: {source.get('url')}")
 ```

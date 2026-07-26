@@ -1,6 +1,15 @@
 # Watchers
 
+<p align="center">
+  <img src="../assets/code-cards/watchers-filter.svg" alt="Message watcher code example" width="680"/>
+</p>
+
 ← [Index](../../API_DOC.md)
+
+> [!NOTE]
+> This is the canonical watcher reference for both function-style and
+> class-style modules. Other registration pages link here instead of repeating
+> the same tags and examples.
 
 `@kernel.register.watcher(bot_client=False, **tags)`
 Register a passive message watcher. Fires on every new message and is cleaned up automatically on module unload.
@@ -69,6 +78,39 @@ def register(kernel):
     async def numbers(event):
         await event.reply("That's a long number.")
 ```
+
+## Class style
+
+```python
+from core.lib.loader.module_base import ModuleBase, watcher
+
+class DemoWatchers(ModuleBase):
+    name = 'demoWatchers'
+
+    # Fire on every message
+    @watcher
+    async def log_all(self, event):
+        self.log.debug(f"msg: {event.text[:50]}")
+
+    # Only outgoing PMs, no media
+    @watcher(out=True, only_pm=True, no_media=True)
+    async def pm_watcher(self, event):
+        self.log.info(f"sent in PM: {event.text}")
+
+    # React to keyword
+    @watcher(contains="кyпи cлoнa")
+    async def elephant(self, event):
+        await event.reply("A y нac ecть cлoны!")
+
+    # Regex filter
+    @watcher(regex=r"^\d{4,}$")
+    async def numbers(self, event):
+        await event.reply("That's a long number.")
+```
+
+<p align="center">
+  <img src="../assets/example-screenshots/list-watchers.png" alt="Watcher output in Telegram" width="680"/>
+</p>
 
 > [!TIP]
 > Watcher errors are caught and logged automatically - a crash in one watcher never affects others.

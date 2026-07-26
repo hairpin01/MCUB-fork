@@ -4,6 +4,20 @@
 
 MCUB provides two ways to configure modules: a simple dict-based API and a structured **ModuleConfig** system (recommended). Both are backed by the database and persist across restarts.
 
+## Config UI Flow
+
+```mermaid
+flowchart TD
+    A["ModuleConfig schema"] --> B["store_module_config_schema"]
+    B --> C["Modules Config UI"]
+    C --> D{"User edits value"}
+    D --> E["Validator normalizes input"]
+    E --> F["Save to database"]
+    F --> G["Module reads updated config"]
+    C --> H["UI-only Buttons / Group / Notice"]
+    H --> I["Callback action without stored value"]
+```
+
 ## Simple Dict API
 
 `kernel.get_module_config(module_name, default=None)` - Retrieve the full config dict for a module.
@@ -30,6 +44,17 @@ The recommended way to create module configuration. Provides:
 - Declarative parameter definitions with validation
 - Automatic display in **Modules Config** UI
 - Typed values with Boolean, Integer, Float, String, Choice, MultiChoice, Secret support
+
+### Telegram Preview
+
+<p align="center">
+  <img src="../assets/example-screenshots/now-UI-folders-for-config.png" alt="Module config folders in Telegram" width="320"/>
+  <img src="../assets/example-screenshots/now-custom-config.png" alt="Custom module config menu in Telegram" width="320"/>
+</p>
+
+<p align="center">
+  <img src="../assets/example-screenshots/now-UI-Buttons-for-config.png" alt="Module config UI buttons in Telegram" width="680"/>
+</p>
 
 ### Available Validators
 

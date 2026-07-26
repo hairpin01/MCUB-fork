@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import os
@@ -43,6 +44,26 @@ class ConfigManager:
 
     def __init__(self, kernel: Kernel) -> None:
         self.k = kernel
+
+    @staticmethod
+    def _parse_module_config(raw: Any) -> dict:
+        if raw in (None, ""):
+            return {}
+        if isinstance(raw, dict):
+            return dict(raw)
+        if isinstance(raw, (bytes, bytearray)):
+            raw = raw.decode("utf-8", errors="replace")
+
+        text = str(raw).strip()
+        if not text:
+            return {}
+
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            parsed = ast.literal_eval(text)
+
+        return parsed if isinstance(parsed, dict) else {}
         self._backup_api_hash = ""
         self._previous_config = {}
 
@@ -509,9 +530,11 @@ class ConfigManager:
                 bool(raw),
                 len(raw) if raw else 0,
             )
-            return json.loads(raw) if raw else (default if default is not None else {})
+            if raw:
+                return self._parse_module_config(raw)
+            return default if default is not None else {}
         except Exception as e:
-            k.logger.error(f"Error loading config for {module_name}: {e}")
+            k.logger.warning(f"Ignoring invalid config for {module_name}: {e}")
             return default if default is not None else {}
 
     async def save_module_config(self, module_name: str, config_data: dict) -> bool:

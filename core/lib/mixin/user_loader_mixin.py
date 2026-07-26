@@ -219,6 +219,15 @@ class UserLoaderMixin:
                 code, module_name, file_path, k
             )
 
+            if hasattr(self, "_assert_user_load_allowed"):
+                try:
+                    self._assert_user_load_allowed(module_name, file_path)
+                except PermissionError as e:
+                    k.logger.error("User module %s denied: %s", module_name, e)
+                    k.error_load_modules += 1
+                    k.error_load_modules_name.append(module_name)
+                    return
+
             if _hikka_compat:
                 from core.lib.loader.hikka_compat import (
                     is_hikka_module,
@@ -308,6 +317,10 @@ class UserLoaderMixin:
                         )
                         if not class_display_name:
                             class_display_name = module_name
+                        if hasattr(self, "_assert_user_load_allowed"):
+                            self._assert_user_load_allowed(
+                                class_display_name, file_path
+                            )
                         old_path = file_path
                         new_path = os.path.join(
                             k.MODULES_LOADED_DIR, f"{class_display_name}.py"

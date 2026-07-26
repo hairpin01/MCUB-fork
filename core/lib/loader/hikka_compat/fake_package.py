@@ -2288,7 +2288,12 @@ async def load_hikka_module(
             from .inline_types import BotInlineCall, InlineCall
 
             inline_proxy = getattr(instance, "inline", None)
-            data_str = event.data.decode() if event.data else ""
+            data_raw = getattr(event, "data", b"") or b""
+            data_str = (
+                data_raw.decode(errors="replace")
+                if isinstance(data_raw, (bytes, bytearray))
+                else str(data_raw)
+            )
             payload = getattr(inline_proxy, "_custom_map", {}).get(data_str, {})
             unit_id = payload.get("unit_id", "") if isinstance(payload, dict) else ""
             is_bot_message = (

@@ -1,8 +1,7 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлькa | @hairpin01
 
-"""Тecты для yтилит modules/man.py."""
-
+import json
 from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import AsyncMock
@@ -14,6 +13,50 @@ from modules import man
 _ASSERT = TestCase()
 
 
+@pytest.mark.asyncio
+async def test_man_repairs_python_literal_config_and_clamps_page_size():
+    saved = {}
+
+    async def db_get(module, key):
+        assert (module, key) == ("module_configs", "man")
+        return "{'man_modules_per_page': 999, 'man_banner_url': 'https://example.com/a.jpg'}"
+
+    async def db_set(module, key, value):
+        saved[(module, key)] = value
+
+    module_instance = man.ManModule.__new__(man.ManModule)
+    module_instance.name = "man"
+    module_instance.kernel = SimpleNamespace(db_get=db_get, db_set=db_set)
+    module_instance.log = SimpleNamespace(debug=lambda *_, **__: None)
+
+    await module_instance._repair_persisted_config()
+
+    payload = json.loads(saved[("module_configs", "man")])
+    assert payload["man_modules_per_page"] == 50
+    assert payload["man_banner_url"] == "https://example.com/a.jpg"
+
+
+@pytest.mark.asyncio
+async def test_man_repairs_unparseable_config_payload():
+    saved = {}
+
+    async def db_get(module, key):
+        assert (module, key) == ("module_configs", "man")
+        return "{broken config"
+
+    async def db_set(module, key, value):
+        saved[(module, key)] = value
+
+    module_instance = man.ManModule.__new__(man.ManModule)
+    module_instance.name = "man"
+    module_instance.kernel = SimpleNamespace(db_get=db_get, db_set=db_set)
+    module_instance.log = SimpleNamespace(debug=lambda *_, **__: None)
+
+    await module_instance._repair_persisted_config()
+
+    assert json.loads(saved[("module_configs", "man")]) == {}
+
+
 class CallableStrings(dict):
     def __call__(self, key: str, **kwargs):
         value = self[key]
@@ -23,8 +66,39 @@ class CallableStrings(dict):
 
 
 @pytest.mark.asyncio
+async def test_edit_with_banner_retry_removes_banner_on_webpage_url_invalid():
+    from telethon.errors import BadRequestError
+
+    calls = []
+
+    async def event_edit(text, **kwargs):
+        calls.append((text, dict(kwargs)))
+        if len(calls) == 1:
+            raise BadRequestError(object(), "WEBPAGE_URL_INVALID", 400)
+        return "ok"
+
+    module_instance = man.ManModule.__new__(man.ManModule)
+    module_instance.log = SimpleNamespace(debug=lambda *_, **__: None)
+    event = SimpleNamespace(edit=event_edit)
+
+    result = await module_instance._edit_with_banner_retry(
+        event,
+        "hello",
+        file="https://bad.example/banner.png",
+        parse_mode="html",
+        invert_media=True,
+    )
+
+    assert result == "ok"
+    assert len(calls) == 2
+    assert calls[0][1]["file"] == "https://bad.example/banner.png"
+    assert calls[0][1]["invert_media"] is True
+    assert calls[1] == ("hello", {"parse_mode": "html"})
+
+
+@pytest.mark.asyncio
 async def test_load_module_metadata_uses_cache(tmp_path, monkeypatch):
-    """Пoвтopнaя зaгpyзкa мeтaдaнныx нe дoлжнa читaть фaйл пoвтopнo."""
+    """The repeat file does not have to read the file repeatedly."""
 
     kernel = SimpleNamespace()
     kernel.MODULES_DIR = str(tmp_path)

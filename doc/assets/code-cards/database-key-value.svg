@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="168" viewBox="0 0 560 168" role="img" aria-label="Key-value storage code example">
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#010409" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <rect width="560" height="168" rx="24" fill="#161B22"/>
+  <rect x="14" y="14" width="532" height="140" rx="18" fill="#0D1117" stroke="#30363D" filter="url(#shadow)"/>
+  <circle cx="38" cy="36" r="6" fill="#FF5F56"/>
+  <circle cx="58" cy="36" r="6" fill="#FFBD2E"/>
+  <circle cx="78" cy="36" r="6" fill="#27C93F"/>
+  <text x="280" y="41" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="600" fill="#C9D1D9">Key-value storage</text>
+  <g font-family="Hack, JetBrains Mono, SFMono-Regular, Consolas, monospace" font-size="14">
+  <text x="34" y="58" xml:space="preserve"><tspan fill="#FF7B72">await</tspan><tspan fill="#E6EDF3"> </tspan><tspan fill="#E6EDF3">self</tspan><tspan fill="#FF7B72">.</tspan><tspan fill="#E6EDF3">db</tspan><tspan fill="#FF7B72">.</tspan><tspan fill="#E6EDF3">db_set</tspan><tspan fill="#FF7B72">(</tspan><tspan fill="#E6EDF3">self</tspan><tspan fill="#FF7B72">.</tspan><tspan fill="#E6EDF3">name</tspan><tspan fill="#FF7B72">,</tspan><tspan fill="#E6EDF3"> </tspan><tspan fill="#A5D6FF">&quot;counter&quot;</tspan><tspan fill="#FF7B72">,</tspan><tspan fill="#E6EDF3"> </tspan><tspan fill="#79C0FF">1</tspan><tspan fill="#FF7B72">)</tspan></text>
+  <text x="34" y="78" xml:space="preserve"><tspan fill="#E6EDF3"></tspan></text>
+  <text x="34" y="98" xml:space="preserve"><tspan fill="#E6EDF3">value</tspan><tspan fill="#E6EDF3"> </tspan><tspan fill="#FF7B72">=</tspan><tspan fill="#E6EDF3"> </tspan><tspan fill="#FF7B72">await</tspan><tspan fill="#E6EDF3"> </tspan><tspan fill="#E6EDF3">self</tspan><tspan fill="#FF7B72">.</tspan><tspan fill="#E6EDF3">db</tspan><tspan fill="#FF7B72">.</tspan><tspan fill="#E6EDF3">db_get</tspan><tspan fill="#FF7B72">(</tspan><tspan fill="#E6EDF3">self</tspan><tspan fill="#FF7B72">.</tspan><tspan fill="#E6EDF3">name</tspan><tspan fill="#FF7B72">,</tspan><tspan fill="#E6EDF3"> </tspan><tspan fill="#A5D6FF">&quot;counter&quot;</tspan><tspan fill="#FF7B72">)</tspan></text>
+  <text x="34" y="118" xml:space="preserve"><tspan fill="#FF7B72">await</tspan><tspan fill="#E6EDF3"> </tspan><tspan fill="#E6EDF3">event</tspan><tspan fill="#FF7B72">.</tspan><tspan fill="#E6EDF3">edit</tspan><tspan fill="#FF7B72">(</tspan><tspan fill="#E6EDF3">f&quot;</tspan><tspan fill="#E6EDF3">Counter: </tspan><tspan fill="#FF7B72">{</tspan><tspan fill="#E6EDF3">value</tspan><tspan fill="#FF7B72">}</tspan><tspan fill="#E6EDF3">&quot;</tspan><tspan fill="#FF7B72">)</tspan></text>
+  </g>
+</svg>

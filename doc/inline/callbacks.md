@@ -1,5 +1,9 @@
 # Callback Permission Management
 
+<p align="center">
+  <img src="../assets/code-cards/callback-permissions.svg" alt="Callback permission code example" width="680"/>
+</p>
+
 ← [Index](../../API_DOC.md)
 
 MCUB includes a built-in callback permission manager to control user access to inline button interactions.
@@ -159,5 +163,5 @@ class MyModule(ModuleBase):
     @command("search")
     async def cmd_search(self, event):
         form_id = self.get_inline_temp_id("handle_search")
-        await event.edit("Search", buttons=[[self.Button.switch("Search", f"{form_id} ")]])
+        await self.subinline.form("Search", buttons=[[self.Button.switch("Search", f"{form_id} ")]])
 ```

@@ -2,7 +2,7 @@
 
 ← [Index](../../API_DOC.md)
 
-The `InlineManager` is accessible via `kernel.inline_manager` and via `core/lib/loader/inline.py` (`InlineManager` class). It provides advanced inline form operations beyond the basic `inline_form`.
+The `InlineManager` is accessible via `kernel.inline_manager` / `kernel.inline` and via `core/lib/loader/inline.py` (`InlineManager` class). It provides advanced inline form operations beyond the basic `inline_form`.
 
 All methods that return a `message` return an **`InlineMessage`** object with methods:
 - `await msg.edit(text, buttons=None, *, parse_mode="html")` - edit the message
@@ -14,13 +14,13 @@ All methods that return a `message` return an **`InlineMessage`** object with me
 
 ---
 
-## `await kernel.inline_manager.inline_form(chat_id, title, fields=None, buttons=None, auto_send=True, ttl=200, reply_to=None, **kwargs)`
+## `await kernel.inline_manager.form(chat_id, title, fields=None, buttons=None, auto_send=True, ttl=200, reply_to=None, **kwargs)` / `kernel.inline_manager.inline_form`
 
 Send an inline form message. See [Inline Form](inline-form.md) for full documentation.
 
 ---
 
-## `await kernel.inline_manager.inline_query_and_click(chat_id, query, bot_username=None, result_index=0, buttons=None, silent=False, reply_to=None, **kwargs)`
+## `await kernel.inline_manager.inline_query_and_click(chat_id, query, bot_username=None, result_index=0, buttons=None, silent=False, reply_to=None, **kwargs)` / `await kernel.inline_manager.query()`
 
 Perform an inline bot query and automatically click (send) the specified result.
 
@@ -38,20 +38,16 @@ Perform an inline bot query and automatically click (send) the specified result.
 The returned `InlineMessage` has: `edit(text, buttons)`, `answer(text, alert)`, `delete()`, `data`, `inline_message_id`, `chat_id`, `sender_id`.
 
 ```python
-success, msg = await kernel.inline_manager.inline_query_and_click(
+success, msg = await kernel.inline_manager.query(
     event.chat_id,
     "search hello",
     result_index=0,
 )
 ```
 
-```python
-success, msg = await kernel.inline_manager.inline_query_and_click(
-    event.chat_id,
-    "search hello",
-    result_index=0,
-)
-```
+<p align="center">
+  <img src="../assets/example-screenshots/inline-query.png" alt="Inline query results in Telegram" width="680"/>
+</p>
 
 ---
 

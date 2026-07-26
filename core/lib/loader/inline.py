@@ -840,6 +840,32 @@ class InlineManager:
                 )
             return False, None
 
+    async def query(
+        self,
+        chat_id: int,
+        query: str,
+        bot_username: str | None = None,
+        result_index: int = 0,
+        buttons: list | None = None,
+        silent: bool = False,
+        reply_to: int | None = None,
+        form_sms: Message | None = None,
+        **kwargs,
+    ):
+        """Alias inline_query_and_click()"""
+
+        await self.inline_query_and_click(
+            chat_id,
+            query,
+            bot_username,
+            result_index,
+            buttons,
+            silent,
+            reply_to,
+            form_sms,
+            **kwargs,
+        )
+
     async def inline_form(
         self,
         chat_id: int,
@@ -934,6 +960,34 @@ class InlineManager:
                         parse_mode="html",
                     )
             return (False, None) if auto_send else None
+
+    async def form(
+        self,
+        chat_id: int,
+        title: str,
+        fields=None,
+        buttons=None,
+        auto_send: bool = True,
+        ttl: int = 200,
+        media: str | None = None,
+        media_type: str = "photo",
+        reply_to: int | None = None,
+        parse_mode: str = "html",
+        **kwargs,
+    ):
+        await self.inline_form(
+            chat_id,
+            title,
+            fields,
+            buttons,
+            auto_send,
+            ttl,
+            media,
+            media_type,
+            reply_to,
+            parse_mode,
+            **kwargs,
+        )
 
     async def gallery(
         self,

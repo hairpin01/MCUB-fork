@@ -1,5 +1,9 @@
 # Configuration Management
 
+<p align="center">
+  <img src="../assets/code-cards/configuration-management.svg" alt="Configuration management code example" width="680"/>
+</p>
+
 ← [Index](../../API_DOC.md)
 
 ## Reading Configuration

@@ -1,5 +1,9 @@
 # Database API
 
+<p align="center">
+  <img src="../assets/code-cards/database-key-value.svg" alt="Database key-value storage code example" width="680"/>
+</p>
+
 ← [Index](../../API_DOC.md)
 
 MCUB uses SQLite for module data storage. Database methods are async. Access them via

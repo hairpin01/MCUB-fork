@@ -13,7 +13,7 @@ from telethon.tl.types import InputMediaWebPage
 
 from core.lib.loader.module_base import ModuleBase, callback, command
 from core.lib.loader.module_config import Boolean, ConfigValue, ModuleConfig
-from utils import answer
+from utils import answer, Strings
 
 
 class SettingsModule(ModuleBase):
@@ -462,7 +462,7 @@ class SettingsModule(ModuleBase):
         )
 
         if success:
-            await self.client.delete_messages(event.chat_id, [event.message_id])
+            await self.client.delete_messages(event.chat_id, [event.message.id])
 
     async def _clear_db(self) -> str:
         db_path = self._get_db_path()

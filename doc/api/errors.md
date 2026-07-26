@@ -2,6 +2,16 @@
 
 ← [Index](../../API_DOC.md)
 
+## Telegram Preview
+
+<p align="center">
+  <img src="../assets/example-screenshots/handler_error.png" alt="Handler error report in Telegram" width="680"/>
+</p>
+
+<p align="center">
+  <img src="../assets/example-screenshots/call-(command)-failed-RPC-error.png" alt="RPC command failure log in Telegram" width="680"/>
+</p>
+
 ## Basic Error Handling
 
 ```python

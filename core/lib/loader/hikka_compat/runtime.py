@@ -1297,7 +1297,12 @@ class _CompatLoaderProxy:
     ):
         loader = getattr(self._kernel, "_loader", None)
         if loader is not None and hasattr(loader, "load_module_from_file"):
-            return await loader.load_module_from_file(path, module_name, is_system)
+            if is_system:
+                logger.warning(
+                    "[hikka_compat] denied system trust request for module %s",
+                    module_name,
+                )
+            return await loader.load_module_from_file(path, module_name, False)
         return (False, "Loader not available")
 
     async def install_packages(self, packages) -> bool:
@@ -1550,6 +1555,53 @@ class InlineProxy:
             return message
         return None
 
+    def _derive_sender_id(self, message) -> int | None:
+        if message is None or isinstance(message, int):
+            return None
+
+        for attr in ("sender_id", "from_id", "user_id"):
+            value = getattr(message, attr, None)
+            if isinstance(value, int):
+                return value
+            nested = getattr(value, "user_id", None)
+            if isinstance(nested, int):
+                return nested
+
+        sender = getattr(message, "sender", None) or getattr(message, "from_user", None)
+        sender_id = getattr(sender, "id", None)
+        return sender_id if isinstance(sender_id, int) else None
+
+    def _resolve_allow_user(
+        self,
+        *,
+        unit_id: str | None = None,
+        allow_user=None,
+        always_allow=None,
+    ):
+        allowed: list = []
+
+        def add(value) -> None:
+            if value in (None, False):
+                return
+            if isinstance(value, (list, tuple, set)):
+                for item in value:
+                    add(item)
+                return
+            if value not in allowed:
+                allowed.append(value)
+
+        if unit_id and allow_user is None:
+            unit = self._units.get(unit_id)
+            if isinstance(unit, dict):
+                add(unit.get("allow_user"))
+
+        add(allow_user)
+        add(always_allow)
+
+        if not allowed:
+            return None
+        return allowed[0] if len(allowed) == 1 else allowed
+
     def _unit_id(self, kind: str = "unit") -> str:
         return f"{kind}_{_rand_token(12)}"
 
@@ -1596,11 +1648,17 @@ class InlineProxy:
         unit_id: str | None = None,
         force_me: bool = False,
         always_allow=None,
+        allow_user=None,
         disable_security: bool = False,
     ):
         rows = self._normalize_markup(markup)
         if always_allow is None:
             always_allow = []
+        allow_user = self._resolve_allow_user(
+            unit_id=unit_id,
+            allow_user=allow_user,
+            always_allow=always_allow,
+        )
 
         try:
             from telethon.tl.custom.button import Button as TelethonButton
@@ -1701,6 +1759,7 @@ class InlineProxy:
                         "args": tuple(raw_args),
                         "kwargs": dict(raw_kwargs),
                         "always_allow": btn.get("always_allow", always_allow),
+                        "allow_user": btn.get("allow_user", allow_user),
                         "force_me": bool(btn.get("force_me", force_me)),
                         "disable_security": bool(
                             btn.get("disable_security", disable_security)
@@ -1743,7 +1802,12 @@ class InlineProxy:
                         message_id = getattr(event, "message_id", None) or getattr(
                             message, "id", None
                         )
-                        data_str = event.data.decode() if event.data else ""
+                        data_raw = getattr(event, "data", b"") or b""
+                        data_str = (
+                            data_raw.decode(errors="replace")
+                            if isinstance(data_raw, (bytes, bytearray))
+                            else str(data_raw)
+                        )
 
                         call_obj = InlineCall(
                             data_str,
@@ -1763,6 +1827,10 @@ class InlineProxy:
                         "kwargs": {},
                         "expires_at": _time.time() + ttl,
                         "unit_id": unit_id,
+                        "allow_user": btn.get("allow_user", allow_user),
+                        "allow_all": bool(
+                            btn.get("disable_security", disable_security)
+                        ),
                     }
                 elif isinstance(cb, str):
                     btn["callback_data"] = cb
@@ -2177,6 +2245,10 @@ class InlineProxy:
         chat_id = self._derive_chat_id(message)
         if chat_id is None:
             return False
+        allow_user = self._resolve_allow_user(
+            allow_user=self._derive_sender_id(message),
+            always_allow=always_allow,
+        )
 
         self._current_form_ttl = ttl or 3600
         created_at = time.time()
@@ -2189,6 +2261,7 @@ class InlineProxy:
             unit_id=unit_id,
             force_me=force_me,
             always_allow=always_allow,
+            allow_user=allow_user,
             disable_security=disable_security,
         )
 
@@ -2216,6 +2289,7 @@ class InlineProxy:
                 "expires_at": expires_at,
                 "force_me": force_me,
                 "always_allow": always_allow,
+                "allow_user": allow_user,
                 "disable_security": disable_security,
                 "manual_security": manual_security,
                 "on_unload": on_unload,
@@ -2690,6 +2764,7 @@ class InlineProxy:
                 unit_id=unit_id,
                 force_me=bool(unit.get("force_me", False)),
                 always_allow=unit.get("always_allow", []),
+                allow_user=unit.get("allow_user"),
                 disable_security=bool(unit.get("disable_security", False)),
             )
 

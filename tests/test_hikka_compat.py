@@ -615,6 +615,35 @@ class TestInlineCall:
         asyncio.run(call.answer("ok", show_alert=True))
         mock_orig.answer.assert_called_once_with(text="ok", show_alert=True, url=None)
 
+    def test_inline_call_unwraps_native_inline_message_answer(self, inline_proxy):
+        from core.lib.loader.hikka_compat.inline_types import InlineCall
+        from core.lib.types import InlineMessage as NativeInlineMessage
+
+        class RawCallbackEvent:
+            data = b"token"
+            inline_message_id = "inline-message-id"
+            chat_id = 100
+            message_id = 200
+            sender_id = 300
+            from_user = types.SimpleNamespace(id=300)
+            answer = AsyncMock()
+
+        raw_event = RawCallbackEvent()
+        native_call = NativeInlineMessage(raw_event, kernel=MagicMock())
+
+        call = InlineCall(
+            call_data="token",
+            unit_id="u1",
+            inline_proxy=inline_proxy,
+            original_call=native_call,
+        )
+
+        import asyncio
+
+        asyncio.run(call.answer("ok", show_alert=True))
+        assert call.original_call is raw_event
+        raw_event.answer.assert_awaited_once_with(text="ok", show_alert=True, url=None)
+
     def test_inline_call_edit(self, inline_proxy):
         from core.lib.loader.hikka_compat.inline_types import InlineCall
 
@@ -1188,6 +1217,7 @@ class TestInlineProxyFormGalleryList:
     def kernel(self):
         k = MagicMock()
         k._hikka_compat_inline_state = {}
+        k.inline_callback_map = {}
         k.logger = MagicMock()
         k._inline = None
         return k
@@ -1197,6 +1227,125 @@ class TestInlineProxyFormGalleryList:
         from core.lib.loader.hikka_compat.runtime import InlineProxy
 
         return InlineProxy(kernel)
+
+    def test_prepare_markup_stores_callback_allow_user(self, proxy, kernel):
+        async def handler(call):
+            return None
+
+        proxy._current_form_ttl = 60
+        proxy._prepare_markup(
+            [[{"text": "Go", "callback": handler}]],
+            unit_id="unit-1",
+            allow_user=12345,
+        )
+
+        entry = next(iter(kernel.inline_callback_map.values()))
+        assert entry["allow_user"] == 12345
+        assert entry["allow_all"] is False
+
+    def test_prepare_markup_reuses_unit_allow_user_for_nested_buttons(
+        self, proxy, kernel
+    ):
+        async def handler(call):
+            return None
+
+        proxy._register_unit("unit-1", {"allow_user": [12345, 67890]})
+        proxy._current_form_ttl = 60
+        proxy._prepare_markup(
+            [[{"text": "Next", "callback": handler}]],
+            unit_id="unit-1",
+        )
+
+        entry = next(iter(kernel.inline_callback_map.values()))
+        assert entry["allow_user"] == [12345, 67890]
+
+    def test_prepare_markup_maps_disable_security_to_allow_all(self, proxy, kernel):
+        async def handler(call):
+            return None
+
+        proxy._current_form_ttl = 60
+        proxy._prepare_markup(
+            [[{"text": "Open", "callback": handler}]],
+            unit_id="unit-1",
+            disable_security=True,
+        )
+
+        entry = next(iter(kernel.inline_callback_map.values()))
+        assert entry["allow_all"] is True
+
+    def test_raw_inline_bot_callback_query_dispatches_hikka_token(self, proxy, kernel):
+        import asyncio
+        import threading
+
+        from telethon.tl.types import (
+            InputBotInlineMessageID,
+            UpdateInlineBotCallbackQuery,
+        )
+
+        from core_inline.handlers import InlineHandlers
+
+        requests = []
+
+        class Client:
+            def build_reply_markup(self, buttons):
+                return buttons
+
+            async def __call__(self, request):
+                requests.append(type(request).__name__)
+                return True
+
+        async def runner():
+            seen = {}
+
+            async def handler(call):
+                seen["data"] = call.data
+                await call.answer("OK")
+
+            kernel.bot_client = Client()
+            kernel.client = kernel.bot_client
+            kernel.cache = None
+            kernel.callback_permissions = types.SimpleNamespace(
+                is_allowed=lambda *_: False
+            )
+            kernel.handler_error = False
+
+            proxy._current_form_ttl = 60
+            proxy._prepare_markup(
+                [[{"text": "Go", "callback": handler}]],
+                unit_id="unit-1",
+                allow_user=12345,
+            )
+            token = next(iter(kernel.inline_callback_map))
+
+            inline_handlers = InlineHandlers.__new__(InlineHandlers)
+            inline_handlers.kernel = kernel
+            inline_handlers._api_bot = None
+            inline_handlers._cb_lock = threading.Lock()
+            inline_handlers._last_cleanup_time = 9999999999
+            inline_handlers._cleanup_interval = 300
+            inline_handlers._inline_manager = types.SimpleNamespace(
+                is_allowed=AsyncMock(return_value=False)
+            )
+            inline_handlers._dedup_runtime_event = lambda *_, **__: False
+            inline_handlers.lang = {
+                "no_access": "NO",
+                "form_expired": "EXP",
+                "critical_error": "CRIT",
+            }
+
+            event = UpdateInlineBotCallbackQuery(
+                query_id=42,
+                user_id=12345,
+                msg_id=InputBotInlineMessageID(dc_id=2, id=3, access_hash=4),
+                chat_instance=5,
+                data=token.encode(),
+            )
+
+            await inline_handlers.process_callback_query(event)
+            assert seen["data"] == token
+            assert requests == ["SetBotCallbackAnswerRequest"]
+
+        asyncio.run(runner())
 
     def test_bot_properties(self, proxy):
         bot = proxy.bot

@@ -636,6 +636,7 @@ class ModuleBase(ABC):
 
     def __init__(self, kernel: Kernel, client: Client, register: Register) -> None:
         self.kernel = kernel
+        self.subinline = self.kernel.inline
         self.client = client
         self._register = register
 

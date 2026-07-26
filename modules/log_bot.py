@@ -25,12 +25,15 @@ from telethon.tl.types import InputMediaWebPage, InputUserSelf
 
 import utils
 from core.lib.loader.module_base import ModuleBase, callback, command, loop
+from core.lib.types import InlineMessage, Event
 from core.lib.loader.module_config import (
     Boolean,
+    Integer,
     ConfigValue,
     ModuleConfig,
     Placeholders,
     String,
+    Row,
 )
 from utils.strings import Strings
 
@@ -77,7 +80,19 @@ class LogBot(ModuleBase):
             description="Auto update MCUB",
             validator=Boolean(),
         ),
+        Row(),
+        ConfigValue(
+            "chat_id",
+            default=0,
+            description=lambda mod: f"log chat id (saving for kernel config, module key not edit)\nnow the value is: {mod.kernel.config['log_chat_id']}",
+            validator=Integer(),
+            on_change=lambda mod, old, new: mod.apply_chat_id(old, new),
+        ),
     )
+
+    def apply_chat_id(self, old, new) -> None:
+        self.kernel.config["log_chat_id"] = new
+        self.kernel.save_config()
 
     async def get_git_commit(self):
         try:
@@ -294,7 +309,7 @@ class LogBot(ModuleBase):
             self.log.error(f"update_check_loop error: {e}")
 
     @callback()
-    async def on_update_callback(self, call: events.CallbackQuery.Event, data=None):
+    async def on_update_callback(self, call: InlineMessage, data=None):
         await call.answer()
         try:
             await self.edit(
@@ -597,7 +612,7 @@ class LogBot(ModuleBase):
         )
 
     @command("log_setup", doc_en="setup logging chat", doc_ru="нacтpoить чaт для лoгoв")
-    async def log_setup_handler(self, event: events.NewMessage.Event):
+    async def log_setup_handler(self, event: Event):
         await event.edit(self.lang["log_setup_title"])
         if await self.setup_log_chat():
             await event.edit(
@@ -791,19 +806,7 @@ class LogBot(ModuleBase):
     # self.kernel.log_module = log_module
 
     async def on_load(self):
-        defaults = {
-            "banner_url": "https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/start_userbot.png",
-            "start_message": "",
-            "placeholders": "",
-            "auto_update": False,
-        }
-        config_dict = await self.kernel.get_module_config(self.name, defaults)
-        config_dict["placeholders"] = utils.format_placeholders(self.name)
-        self.config.from_dict(config_dict)
-        self.kernel.store_module_config_schema(self.name, self.config)
-        clean = {k: v for k, v in self.config.to_dict().items() if v is not None}
-        if clean:
-            await self.kernel.save_module_config(self.name, clean)
+        await super().on_load()
 
         self.lang = self.strings
         await self.setup_log_chat()

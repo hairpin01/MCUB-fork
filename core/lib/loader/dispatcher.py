@@ -62,6 +62,18 @@ class CommandDispatcher:
         else:
             self.strings = Strings(kernel, {"name": "kernel"})
 
+    @staticmethod
+    def _event_text(event: Any) -> str:
+        """Return command text from real, proxy, or lightweight events."""
+        for source in (event, getattr(event, "message", None)):
+            if source is None:
+                continue
+            for attr in ("raw_text", "text", "message"):
+                value = getattr(source, attr, None)
+                if isinstance(value, str) and value:
+                    return value
+        return ""
+
     def register(self) -> None:
         """
         Bind the central message handler to the Telethon client.
@@ -145,7 +157,7 @@ class CommandDispatcher:
             )
             return
 
-        text = getattr(event, "raw_text", None) or getattr(msg, "raw_text", "") or ""
+        text = self._event_text(event)
         active_prefix = self.kernel.get_prefix_for_sender(
             getattr(event, "sender_id", None)
         )
@@ -212,7 +224,7 @@ class CommandDispatcher:
             )
             return False
 
-        text = getattr(event, "raw_text", "") or ""
+        text = self._event_text(event)
         active_prefix = self.kernel.get_prefix_for_sender(
             getattr(event, "sender_id", None)
         )
@@ -301,7 +313,7 @@ class CommandDispatcher:
         Resolves aliases, wraps the event for the owning module and
         calls the handler.
         """
-        text = getattr(event, "raw_text", "") or ""
+        text = self._event_text(event)
 
         # Guarantee pipeline attributes exist
         for attr_name, default in (

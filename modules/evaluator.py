@@ -70,12 +70,16 @@ class EvalModule(ModuleBase):
         m = event
         bot = self.kernel.bot_client
         reply = await m.get_reply_message()
-        r_text = html.unescape(self.kernel.raw_text(reply))
+        r_text = (
+            getattr(reply, "raw_text", None) or getattr(reply, "message", None) or ""
+        )
+        r_html = html.unescape(self.kernel.raw_text(reply))
 
         local_vars: dict[str, Any] = {
             "loader": loader,
             "self": self,
             "r_text": r_text,
+            "r_html": r_html,
             "r": reply,
             "c": self.client,
             "m": m,

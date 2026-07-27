@@ -1031,11 +1031,43 @@ class KernelCoreMixin:
                 self._request_middleware_ids.add(middleware_id)
 
     def _set_event_text(self, event: Event, text: str) -> None:
-        """Set event text on both the event and its inner message object."""
-        event.text = text
-        if hasattr(event, "message"):
-            event.message.message = text
-            event.message.text = text
+        """Set event text without invoking Telethon's markdown parser.
+
+        ``Message.text`` is a formatted-text property in Telethon.  Assigning to
+        it runs the markdown parser, so strings like ``__call__`` are converted
+        to italic entities and the literal underscores disappear from
+        ``raw_text``.  Command rewriting must work with plain/raw command text,
+        therefore update the raw message payload directly and keep ``event.text``
+        as a shadow attribute when possible.
+        """
+        try:
+            event_dict = getattr(event, "__dict__", None)
+            if isinstance(event_dict, dict):
+                event_dict["text"] = text
+            else:
+                setattr(event, "text", text)
+        except Exception:
+            try:
+                setattr(event, "text", text)
+            except Exception:
+                pass
+
+        message = getattr(event, "message", None)
+        if message is None:
+            return
+
+        try:
+            message.raw_text = text
+        except Exception:
+            try:
+                message.message = text
+                message.entities = []
+                if hasattr(message, "_text"):
+                    message._text = None
+                if hasattr(message, "_html_text"):
+                    message._html_text = None
+            except Exception:
+                pass
 
     def raw_text(self, source) -> str:
         """Convert a Telethon message or plain string to HTML-safe text."""

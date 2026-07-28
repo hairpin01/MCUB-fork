@@ -12,10 +12,8 @@ import time
 import traceback
 from typing import Any
 
-from telethon import events
-
+from core.lib.types import Event
 import core.lib.loader.module_base as loader
-from core.lib.loader.module_base import ModuleBase, command
 from core.lib.utils.logger import ErrorFormatter
 from utils.strings import Strings
 
@@ -35,7 +33,7 @@ LANG_EMOJI = {
 }
 
 
-class EvalModule(ModuleBase):
+class EvalModule(loader.ModuleBase):
     name = "evaluator"
     version = "1.1.0"
     author = "@hairpin00"
@@ -46,12 +44,12 @@ class EvalModule(ModuleBase):
 
     strings: dict | Strings = {"name": "eval"}
 
-    @command(
+    @loader.command(
         "py",
         doc_ru="<кoд> выпoлнить Python кoд",
         doc_en="<code> execute Python code",
     )
-    async def cmd_py(self, event: events.NewMessage.Event) -> None:
+    async def cmd_py(self, event: Event) -> None:
         code = html.unescape(self.args_raw(event).strip()).replace("\u00a0", " ")
         pipe_input = getattr(event, "pipe_input", None) or ""
 
@@ -295,7 +293,7 @@ class EvalModule(ModuleBase):
 
     async def _format_subprocess_output(
         self,
-        event: events.NewMessage.Event,
+        event: Event,
         code: str,
         output: str,
         error: str | None,
@@ -370,12 +368,12 @@ class EvalModule(ModuleBase):
         event.pipe_output = tb_raw or result
         return True
 
-    @command(
+    @loader.command(
         "js",
         doc_en="<code> execute JavaScript (Node.js) code",
         doc_ru="<кoд> выпoлнить JavaScript (Node.js) кoд",
     )
-    async def cmd_js(self, event: events.NewMessage.Event) -> None:
+    async def cmd_js(self, event: Event) -> None:
         code = self.args_raw(event).strip()
         pipe_input = getattr(event, "pipe_input", None) or ""
         if not code and pipe_input:
@@ -390,12 +388,12 @@ class EvalModule(ModuleBase):
             return
         await self._format_subprocess_output(event, code, out, err, elapsed, "js")
 
-    @command(
+    @loader.command(
         "rb",
         doc_en="<code> execute Ruby code",
         doc_ru="<кoд> выпoлнить Ruby кoд",
     )
-    async def cmd_rb(self, event: events.NewMessage.Event) -> None:
+    async def cmd_rb(self, event: Event) -> None:
         code = self.args_raw(event).strip()
         pipe_input = getattr(event, "pipe_input", None) or ""
         if not code and pipe_input:
@@ -410,12 +408,12 @@ class EvalModule(ModuleBase):
             return
         await self._format_subprocess_output(event, code, out, err, elapsed, "rb")
 
-    @command(
+    @loader.command(
         "go",
         doc_en="<code> execute Go code",
         doc_ru="<кoд> выпoлнить Go кoд",
     )
-    async def cmd_go(self, event: events.NewMessage.Event) -> None:
+    async def cmd_go(self, event: Event) -> None:
         code = self.args_raw(event).strip()
         pipe_input = getattr(event, "pipe_input", None) or ""
         if not code and pipe_input:
@@ -430,12 +428,12 @@ class EvalModule(ModuleBase):
             return
         await self._format_subprocess_output(event, code, out, err, elapsed, "go")
 
-    @command(
+    @loader.command(
         "rs",
         doc_en="<code> execute Rust code",
         doc_ru="<кoд> выпoлнить Rust кoд",
     )
-    async def cmd_rs(self, event: events.NewMessage.Event) -> None:
+    async def cmd_rs(self, event: Event) -> None:
         code = self.args_raw(event).strip()
         pipe_input = getattr(event, "pipe_input", None) or ""
         if not code and pipe_input:

@@ -20,7 +20,7 @@
     },
     "evaluator": {
       "path": "modules/evaluator.py",
-      "sha256": "1ffff2a21de2b55c3f8db61b22f5e7f8340924f371292a51e56fe31133354b76"
+      "sha256": "ac68440e59e02dde8189742c3c1857ecf9663b62b94441f036e2ffaf407a4e37"
     },
     "installation": {
       "path": "modules/installation.py",

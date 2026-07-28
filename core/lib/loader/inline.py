@@ -854,7 +854,7 @@ class InlineManager:
     ):
         """Alias inline_query_and_click()"""
 
-        await self.inline_query_and_click(
+        return await self.inline_query_and_click(
             chat_id,
             query,
             bot_username,
@@ -975,7 +975,7 @@ class InlineManager:
         parse_mode: str = "html",
         **kwargs,
     ):
-        await self.inline_form(
+        return await self.inline_form(
             chat_id,
             title,
             fields,

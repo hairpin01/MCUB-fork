@@ -60,9 +60,11 @@ try:
     from ..lib.base.permissions import CallbackPermissionManager
     from ..lib.loader.inline import InlineManager
     from ..lib.loader.inline import InlineMessage as _InlineMessage
+    from ..lib.loader.kernel_proxy import wrap_event_for_module
     from ..lib.loader.loader import ModuleLoader
     from ..lib.loader.register import Register, _collect_command_docs
     from ..lib.loader.repository import RepositoryManager
+    from ..lib.loader.security_chats import SecurityChats
     from ..lib.time.cache import TTLCache
     from ..lib.time.scheduler import TaskScheduler
     from ..lib.utils.colors import Colors
@@ -210,6 +212,8 @@ class Kernel:
         self.log_chat_id = None
         self.log_bot_enabled = False
         self.inline_message_manager = None
+        self.security_chats = None
+        self.chat_security = None
 
         self.MODULES_DIR = "modules"
         self.MODULES_LOADED_DIR = "modules_loaded"
@@ -227,6 +231,8 @@ class Kernel:
 
         self.cache = TTLCache(max_size=500, ttl=600)
         self.logger = setup_logging()
+        self.security_chats = SecurityChats(self)
+        self.chat_security = self.security_chats
         self.register = Register(self)
         self.callback_permissions = CallbackPermissionManager()
 
@@ -1107,6 +1113,30 @@ class Kernel:
             return True
         return self.is_admin(getattr(event, "sender_id", None))
 
+    def should_deliver_module_event(
+        self,
+        event,
+        *,
+        module: str | None = None,
+        action: str = "event",
+    ) -> bool:
+        """Return True if chat/user security allows launcher delivery."""
+
+        security = getattr(self, "security_chats", None)
+        checker = getattr(security, "can_process_event", None)
+        if not callable(checker):
+            return True
+        try:
+            return bool(checker(event, module=module, action=action))
+        except Exception as exc:
+            self.logger.error(
+                "[security_chats] fail-open action=%r module=%r error=%s",
+                action,
+                module,
+                exc,
+            )
+            return True
+
     def _command_event_key(self, event) -> tuple[Any, Any] | None:
         """Return a stable command-event key shared by NewMessage and edits."""
         msg = getattr(event, "message", event)
@@ -1248,7 +1278,19 @@ class Kernel:
 
         if cmd in self.bot_command_handlers:
             _, handler = self.bot_command_handlers[cmd]
-            await handler(event)
+            owner = self.bot_command_owners.get(cmd, "bot_command")
+            if not self.should_deliver_module_event(
+                event,
+                module=owner,
+                action="bot_command",
+            ):
+                self.logger.debug(
+                    "[process_bot_command] blocked-security cmd=%r owner=%r",
+                    cmd,
+                    owner,
+                )
+                return True
+            await handler(wrap_event_for_module(event, owner, self))
             return True
 
         return False

@@ -724,7 +724,20 @@ class KernelLifecycleMixin:
 
         if cmd in self.bot_command_handlers:
             _, handler = self.bot_command_handlers[cmd]
-            await handler(wrap_event_for_module(event, "bot_command", self))
+            owner = self.bot_command_owners.get(cmd, "bot_command")
+            checker = getattr(self, "should_deliver_module_event", None)
+            if callable(checker) and not checker(
+                event,
+                module=owner,
+                action="bot_command",
+            ):
+                self.logger.debug(
+                    "[process_bot_command] blocked-security cmd=%r owner=%r",
+                    cmd,
+                    owner,
+                )
+                return True
+            await handler(wrap_event_for_module(event, owner, self))
             return True
 
         return False

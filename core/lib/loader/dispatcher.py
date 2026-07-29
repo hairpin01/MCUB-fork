@@ -74,6 +74,17 @@ class CommandDispatcher:
                     return value
         return ""
 
+    def _should_deliver(
+        self,
+        event: Any,
+        module: str | None,
+        action: str,
+    ) -> bool:
+        checker = getattr(self.kernel, "should_deliver_module_event", None)
+        if not callable(checker):
+            return True
+        return bool(checker(event, module=module, action=action))
+
     def register(self) -> None:
         """
         Bind the central message handler to the Telethon client.
@@ -154,6 +165,16 @@ class CommandDispatcher:
                 getattr(event, "chat_id", None),
                 getattr(msg, "out", False),
                 self.kernel.is_admin(getattr(event, "sender_id", None)),
+            )
+            return
+
+        if not self._should_deliver(event, None, "command_discovery"):
+            self.logger.debug(
+                "[dispatcher] skip-security handler=watcher_message "
+                "text=%r sender=%r chat=%r",
+                getattr(msg, "raw_text", None),
+                getattr(event, "sender_id", None),
+                getattr(event, "chat_id", None),
             )
             return
 
@@ -355,6 +376,13 @@ class CommandDispatcher:
                 )
                 if cmd in self.kernel.command_handlers:
                     _mod = self.kernel.command_owners.get(cmd, "unknown")
+                    if not self._should_deliver(event, _mod, "command"):
+                        self.logger.debug(
+                            "[process_command] blocked-security cmd=%r owner=%r",
+                            cmd,
+                            _mod,
+                        )
+                        return True
                     await self.kernel.command_handlers[cmd](
                         wrap_event_for_module(event, _mod, self.kernel)
                     )
@@ -385,6 +413,13 @@ class CommandDispatcher:
                 return False
 
             _mod = self.kernel.command_owners.get(cmd, "unknown")
+            if not self._should_deliver(event, _mod, "command"):
+                self.logger.debug(
+                    "[process_command] blocked-security cmd=%r owner=%r",
+                    cmd,
+                    _mod,
+                )
+                return True
             await handler(wrap_event_for_module(event, _mod, self.kernel))
             return True
 

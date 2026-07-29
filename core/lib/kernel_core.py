@@ -100,6 +100,12 @@ except Exception as e:
     RepositoryManager = None
 
 try:
+    from ..lib.loader.security_chats import SecurityChats
+except Exception as e:
+    print(f"\033[93m⚠  Degraded: SecurityChats not loaded: {e}\033[0m")
+    SecurityChats = None
+
+try:
     from ..lib.time.cache import TTLCache
 except Exception as e:
     print(f"\033[93m⚠  Degraded: TTLCache not loaded - using dict cache: {e}\033[0m")
@@ -255,6 +261,8 @@ class KernelCoreMixin:
         self.log_chat_id = None
         self.log_bot_enabled = False
         self.inline_message_manager = None
+        self.security_chats = None
+        self.chat_security = None
 
         # Reconnection settings
         self.reconnect_attempts = 0
@@ -319,6 +327,15 @@ class KernelCoreMixin:
         except Exception as e:
             self._warn("setup_logging", e)
             self.logger = None
+
+        # Chat / user delivery security
+        try:
+            self.security_chats = SecurityChats(self) if SecurityChats else None
+            self.chat_security = self.security_chats
+        except Exception as e:
+            self._warn("SecurityChats", e)
+            self.security_chats = None
+            self.chat_security = None
 
         # Dirs
         try:
@@ -587,6 +604,31 @@ class KernelCoreMixin:
         if getattr(msg, "out", False):
             return True
         return self.is_admin(getattr(event, "sender_id", None))
+
+    def should_deliver_module_event(
+        self,
+        event: Event,
+        *,
+        module: str | None = None,
+        action: str = "event",
+    ) -> bool:
+        """Return True if chat/user security allows delivery to a launcher."""
+
+        security = getattr(self, "security_chats", None)
+        checker = getattr(security, "can_process_event", None)
+        if not callable(checker):
+            return True
+        try:
+            return bool(checker(event, module=module, action=action))
+        except Exception as exc:
+            if getattr(self, "logger", None):
+                self.logger.error(
+                    "[security_chats] fail-open action=%r module=%r error=%s",
+                    action,
+                    module,
+                    exc,
+                )
+            return True
 
     def _command_event_key(self, event: Event) -> tuple[Any, Any] | None:
         """Return a stable command-event key shared by NewMessage and edits."""

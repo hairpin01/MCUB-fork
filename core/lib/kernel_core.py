@@ -1087,10 +1087,10 @@ class KernelCoreMixin:
             if isinstance(event_dict, dict):
                 event_dict["text"] = text
             else:
-                setattr(event, "text", text)
+                event.text = text
         except Exception:
             try:
-                setattr(event, "text", text)
+                event.text = text
             except Exception:
                 pass
 

@@ -12,7 +12,6 @@ import traceback
 from datetime import datetime
 
 import aiohttp
-from telethon import events
 from telethon.errors import MessageIdInvalidError
 from telethon.tl.functions.channels import EditPhotoRequest, InviteToChannelRequest
 from telethon.tl.functions.messages import (
@@ -25,16 +24,16 @@ from telethon.tl.types import InputMediaWebPage, InputUserSelf
 
 import utils
 from core.lib.loader.module_base import ModuleBase, callback, command, loop
-from core.lib.types import InlineMessage, Event
 from core.lib.loader.module_config import (
     Boolean,
-    Integer,
     ConfigValue,
+    Integer,
     ModuleConfig,
     Placeholders,
-    String,
     Row,
+    String,
 )
+from core.lib.types import Event, InlineMessage
 from utils.strings import Strings
 
 
@@ -586,6 +585,10 @@ class LogBot(ModuleBase):
     async def _promote_log_bot(self, bot_entity) -> bool:
         try:
             chat = await self.kernel.client.get_entity(self.kernel.log_chat_id)
+            if await self._log_bot_is_admin(chat, bot_entity):
+                self.log.debug("Log bot already has admin rights")
+                return True
+
             await self.kernel.client.edit_admin(
                 chat,
                 bot_entity,
@@ -597,10 +600,30 @@ class LogBot(ModuleBase):
             )
             return True
         except Exception as e:
+            try:
+                chat = await self.kernel.client.get_entity(self.kernel.log_chat_id)
+                if await self._log_bot_is_admin(chat, bot_entity):
+                    self.log.debug(
+                        "Log bot already has admin rights after edit_admin failure: %s",
+                        e,
+                    )
+                    return True
+            except Exception:
+                pass
+
             self.log.warning(
                 f"{self.kernel.Colors.YELLOW}Log bot admin rights were not granted: {e}{self.kernel.Colors.RESET}"
             )
             return False
+
+    async def _log_bot_is_admin(self, chat, bot_entity) -> bool:
+        try:
+            permissions = await self.kernel.client.get_permissions(chat, bot_entity)
+        except Exception as e:
+            self.log.debug("Could not check log bot permissions: %s", e)
+            return False
+
+        return bool(getattr(permissions, "is_admin", False))
 
     @staticmethod
     def _is_already_participant_error(error: Exception) -> bool:

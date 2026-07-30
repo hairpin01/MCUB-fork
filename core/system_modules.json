@@ -70,10 +70,6 @@
       "path": "modules/userbot-backup.py",
       "sha256": "208d7fd8298387af8099f1f5955289a00c72f8ffd212ccf5e343eadc53c3066e"
     },
-    "utils-piped": {
-      "path": "modules/utils-piped.py",
-      "sha256": "c3ca6074cf838a7565ffdc59829a0407e54daeda31dc206e08c5142a321bc1b8"
-    },
     "switch_inline": {
       "path": "modules/switch_inline.py",
       "sha256": "697ff0acf5ce204ee3bc0c2ee74367bec805edfcdce50a45e5cc824ef62bf1cb"

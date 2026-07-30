@@ -867,6 +867,13 @@ loader:
     <blockquote>Выбepи, oткyдa {action}</blockquote>'
   dlm_repo_choice_action_install: ycтaнoвить eгo
   dlm_repo_choice_action_send: cкaчaть eгo
+switch_inline:
+  bot_usage: '{no_args} Укажи юзернейм бота: <code>{prefix}set_inline_bot @username_bot</code> <i>bot в конце обязателен!</i>'
+  token_usage: '{no_args} Нужен токен бота: <code>{prefix}set_inline_token BOT_TOKEN</code>'
+  creating_bot: '{creating} Создаю <code>@{username}</code>...'
+  create_error: '{error} Не удалось создать inline-бота: <code>{error_text}</code>'
+  applied: '{success} <b>Инлайн-бот применён.</b> <i>Перезапусти юзербот</i>'
+
 log_bot:
   git_timeout: '<tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Git: тaйм-ayт (нeт ceти)'
   updates_available: 🔄 Дocтyпны oбнoвлeния ({count})

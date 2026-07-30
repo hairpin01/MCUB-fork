@@ -73,6 +73,10 @@
     "utils-piped": {
       "path": "modules/utils-piped.py",
       "sha256": "c3ca6074cf838a7565ffdc59829a0407e54daeda31dc206e08c5142a321bc1b8"
+    },
+    "switch_inline": {
+      "path": "modules/switch_inline.py",
+      "sha256": "697ff0acf5ce204ee3bc0c2ee74367bec805edfcdce50a45e5cc824ef62bf1cb"
     }
   }
 }

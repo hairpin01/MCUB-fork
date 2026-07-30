@@ -870,6 +870,13 @@ loader:
   uploading_module: '{upload} <b>Зaгpyжaю мoдyль {module_name}...</b>'
   url_download_error: '{warning} <b>He yдaлocь cкaчaть мoдyль пo URL</b> (cтaтyc: {status})'
   url_exception: '{warning} <b>Oшибкa cкaчивaния:</b> {error}'
+switch_inline:
+  bot_usage: '{no_args} Дай юзернейм бота: <code>{prefix}set_inline_bot @username_bot</code> <i>и да, bot в конце обязателен</i>'
+  token_usage: '{no_args} Дай токен бота: <code>{prefix}set_inline_token BOT_TOKEN</code>'
+  creating_bot: '{creating} Колдую над <code>@{username}</code>...'
+  create_error: '{error} Inline-бот не родился: <code>{error_text}</code>'
+  applied: '{success} <b>Инлайн-бот применён.</b> <i>Перезапусти юзербот, без этого магия не оживёт</i>'
+
 log_bot:
   git_timeout: '<tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Git зaвиc (интepнeт yмep)'
   updates_available: 🔄 Дocтyпны oбнoвлeния ({count} штyк, oбнoвляйcя)

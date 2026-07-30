@@ -962,6 +962,13 @@ loader:
 
     '
   and_more: • <code>+{count} more</code>
+switch_inline:
+  bot_usage: '{no_args} Specify bot username: <code>{prefix}set_inline_bot @username_bot</code> <i>username must end with bot!</i>'
+  token_usage: '{no_args} Bot token is required: <code>{prefix}set_inline_token BOT_TOKEN</code>'
+  creating_bot: '{creating} Creating <code>@{username}</code>...'
+  create_error: '{error} Failed to create inline bot: <code>{error_text}</code>'
+  applied: '{success} <b>Inline bot applied.</b> <i>Restart the userbot</i>'
+
 log_bot:
   git_timeout: '<tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Git: timeout (no network)'
   updates_available: 🔄 Updates available ({count})

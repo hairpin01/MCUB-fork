@@ -887,6 +887,13 @@ loader:
     '
   and_more: • <code>+{count} more</code>
 
+switch_inline:
+  bot_usage: '{no_args} usage: <code>{prefix}set_inline_bot @username_bot</code> <i>username must end with bot</i>'
+  token_usage: '{no_args} usage: <code>{prefix}set_inline_token BOT_TOKEN</code>'
+  creating_bot: '{creating} systemctl start <code>@{username}</code>...'
+  create_error: '{error} EFAULT: failed to provision inline bot: <code>{error_text}</code>'
+  applied: '{success} <b>inline-bot.service applied.</b> <i>restart mcub.service</i>'
+
 log_bot:
   git_timeout: '<tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> "git: ETIMEDOUT (no network)"'
   updates_available: "🔄 apt: {count} updates available"

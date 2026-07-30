@@ -36,6 +36,8 @@ if TYPE_CHECKING:
     from kernel import Kernel
     from telethon.types import Message
 
+from telethon import TelegramClient
+
 try:
     from core.lib.loader.kernel_proxy import wrap_event_for_module
 except ImportError:
@@ -76,6 +78,10 @@ class InlineManager:
         # Periodic cleanup counter: purge at most once every N operations
         self._cleanup_counter = 0
         self._cleanup_interval = 10  # every 10th put/get
+
+    @property
+    def bot(self) -> TelegramClient | None:
+        return self.k.bot_client
 
     def _purge_expired_sessions(self, force: bool = False) -> None:
         """Remove expired sessions.  Runs at most every *cleanup_interval*

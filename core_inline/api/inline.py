@@ -204,6 +204,22 @@ class CodeInline:
         ttl = kwargs.pop("ttl", self.ttl)
         return await self.kernel.inline_form(chat_id, title, ttl=ttl, **kwargs)
 
+    async def rich_form(self, chat_id: int, rich_text: str | None = None, **kwargs):
+        """Send an inline form backed by Telegram rich_message formatting."""
+
+        ttl = kwargs.pop("ttl", self.ttl)
+        rich_form = getattr(self.kernel, "rich_form", None)
+        if rich_form is not None:
+            return await rich_form(chat_id, rich_text, ttl=ttl, **kwargs)
+
+        return await self.kernel.inline_form(
+            chat_id,
+            kwargs.pop("text", rich_text or ""),
+            ttl=ttl,
+            rich_text=rich_text,
+            **kwargs,
+        )
+
 
 def build_inline_keyboard_row(buttons: list[Any]) -> list[dict[str, Any]]:
     result = []

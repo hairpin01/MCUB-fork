@@ -966,6 +966,13 @@ class InlineHandlers:
         ttl: int = 3600,
         media: Any = None,
         media_type: str = "photo",
+        parse_mode: str = "html",
+        rich_text: str | None = None,
+        rich_parse_mode: str = "html",
+        rich_message: Any = None,
+        rich_rtl: bool | None = None,
+        rich_noautolink: bool | None = None,
+        rich_files: Any = None,
     ) -> str:
         """
         Creates an inline form and returns its ID.
@@ -979,6 +986,13 @@ class InlineHandlers:
             ttl: Form cache lifetime (seconds)
             media: URL or file_id of media file (optional)
             media_type: Media type - "photo", "document", "gif" (default "photo")
+            parse_mode: Fallback text parse mode.
+            rich_text: HTML or Markdown source for Telegram rich_message.
+            rich_parse_mode: Format for rich_text ("html", "markdown" or "md").
+            rich_message: Prebuilt Telethon InputRichMessage.
+            rich_rtl: Render rich message right-to-left.
+            rich_noautolink: Disable automatic links in rich message.
+            rich_files: Optional InputRichFile references used by rich_text.
 
         Returns:
             str: Form ID for use in inline query
@@ -1002,6 +1016,13 @@ class InlineHandlers:
             "created_at": time.time(),
             "media": media,
             "media_type": media_type,
+            "parse_mode": parse_mode,
+            "rich_text": rich_text,
+            "rich_parse_mode": rich_parse_mode,
+            "rich_message": rich_message,
+            "rich_rtl": rich_rtl,
+            "rich_noautolink": rich_noautolink,
+            "rich_files": rich_files,
             "_ttl": ttl,
         }
 
@@ -1743,6 +1764,37 @@ class InlineHandlers:
                     mtype = (form_data.get("media_type") or "photo").lower()
                     buttons = form_data.get("buttons")
                     text = form_data["text"]
+                    parse_mode = form_data.get("parse_mode") or "html"
+                    rich_text = form_data.get("rich_text")
+                    rich_message = form_data.get("rich_message")
+
+                    if rich_text is not None or rich_message is not None:
+                        article_kwargs = {
+                            "buttons": buttons,
+                            "rich_text": rich_text,
+                            "rich_parse_mode": form_data.get("rich_parse_mode")
+                            or "html",
+                            "rich_message": rich_message,
+                            "rich_rtl": form_data.get("rich_rtl"),
+                            "rich_noautolink": form_data.get("rich_noautolink"),
+                            "rich_files": form_data.get("rich_files"),
+                        }
+                        try:
+                            builder = event.builder.article(
+                                "Inline Form",
+                                **article_kwargs,
+                            )
+                        except TypeError:
+                            # Older adapters/Bot API fall back to a normal
+                            # formatted article instead of failing the form.
+                            builder = event.builder.article(
+                                "Inline Form",
+                                text=text,
+                                buttons=buttons,
+                                parse_mode=parse_mode,
+                            )
+                        await event.answer([builder])
+                        return
 
                     _bot_token = self.kernel.config.get("inline_bot_token")
 
@@ -1751,7 +1803,7 @@ class InlineHandlers:
                             "Inline Form",
                             text=text,
                             buttons=buttons,
-                            parse_mode="html",
+                            parse_mode=parse_mode,
                         )
                         await event.answer([builder])
                         return

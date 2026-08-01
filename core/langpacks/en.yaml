@@ -548,6 +548,7 @@ man:
     Example: man ping'
   search_results: Search results
   command: Command
+  bot_commands: Bot commands
   and_more_commands: '... and {count} more commands'
   not_found_hint: Try another query.
   closed: Closed

@@ -433,6 +433,7 @@ man:
     Приклад: man ping'
   search_results: Результати пошуку
   command: Command
+  bot_commands: Бот-команди
   and_more_commands: '... і ще {count} команд'
   not_found_hint: Спробуйте інший запит.
   closed: Closed

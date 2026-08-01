@@ -487,6 +487,7 @@ man:
     Пpимep: man ping'
   search_results: Peзyльтaты пoиcкa
   command: Command
+  bot_commands: Бoт-кoмaнды
   and_more_commands: '... и eщe {count} кoмaнд'
   not_found_hint: Пoпpoбyйтe дpyгoй зaпpoc.
   closed: Closed

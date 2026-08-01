@@ -12,7 +12,7 @@
     },
     "command": {
       "path": "modules/command.py",
-      "sha256": "64db8740824b8c209a1bc4f94b87348540ca865155ff11557e39ad5d5c220772"
+      "sha256": "b25749710384dac8bedbb552f5c916f6af2d1e9036a31c6f4b846cc8c4b43eca"
     },
     "config": {
       "path": "modules/config.py",
@@ -32,11 +32,11 @@
     },
     "log_bot": {
       "path": "modules/log_bot.py",
-      "sha256": "0505a5ef774531effe019000af26d5deeebb350045d783153b8d8e5a7e7e43c1"
+      "sha256": "27d433ec1fbfa24001fcc6b5d734bfb9125b8fd8166a5a8fc877359ef43915ed"
     },
     "man": {
       "path": "modules/man.py",
-      "sha256": "711b56327cf18b19072b607b337b2528369564f0516126d538c0763608550070"
+      "sha256": "7b511380f92bb30b8d8a43507942c875e3aed78e0eefb40ee63fa0d9484b4807"
     },
     "settings": {
       "path": "modules/settings.py",
@@ -48,7 +48,7 @@
     },
     "tester": {
       "path": "modules/tester.py",
-      "sha256": "20f9f8030fb0ded9fbe06b6136452c1aa91131378bb4391a5237e8f7264c55ad"
+      "sha256": "77920cd3b688a5d6bcc3333524a4613c0a7ebe0647fedf68b7eb48b770b3f7ef"
     },
     "tr": {
       "path": "modules/tr.py",
@@ -60,11 +60,11 @@
     },
     "trusted": {
       "path": "modules/trusted.py",
-      "sha256": "765a67b51fac5fa9b40d45962600d7d50d5d223e11918dc818c8d1e72245b836"
+      "sha256": "7a7510366e11059c11257af7a9be9e6ecf8cbf6761ab80d99bfd22fbecee28da"
     },
     "updates": {
       "path": "modules/updates.py",
-      "sha256": "72113bf3f5ebb37c9fb38e765388b5faac1f89139949d515136a5918193e96f1"
+      "sha256": "ade9a31a798550d5ea7aa026842556d82badde64f8bacddb0361c342c4a689c6"
     },
     "userbot-backup": {
       "path": "modules/userbot-backup.py",

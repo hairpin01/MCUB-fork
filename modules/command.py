@@ -14,7 +14,11 @@ class CommandModule(ModuleBase):
     name = "command"
     version = "1.2.0"
     author = "@hairpin00"
-    description = {"ru": "Oбpaбoтчики кoмaнд бoтa", "en": "Bot command handlers"}
+    description = {
+        "ru": "Oбpaбoтчики кoмaнд бoтa",
+        "en": "Bot command handlers",
+        "uk": "Обробники команд бота",
+    }
 
     strings: dict | Strings = {"name": "command"}
 

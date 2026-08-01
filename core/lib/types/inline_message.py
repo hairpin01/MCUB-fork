@@ -297,7 +297,7 @@ class InlineMessage:
         rich_message: Any = None,
         markdown: str | None = None,
         text: str = "",
-        fallback: bool = True,
+        fallback: bool = False,
         fallback_text: str | None = None,
         fallback_parse_mode: Any = None,
         link_preview: bool = False,
@@ -308,8 +308,9 @@ class InlineMessage:
     ) -> InlineMessage:
         """Edit this inline message using Telegram rich_message formatting.
 
-        Falls back to regular ``edit()`` when Telegram rejects rich messages for
-        the current peer with ``RICH_MESSAGE_UNSUPPORTED``.
+        By default rich edit errors are propagated so debugging shows the real
+        Telegram error. Pass ``fallback=True`` to fall back to regular
+        ``edit()`` when Telegram rejects rich messages for the current peer.
         """
         input_rich_message = _build_input_rich_message(
             html=html,
@@ -319,6 +320,22 @@ class InlineMessage:
             noautolink=noautolink,
             files=files,
         )
+
+        event_edit_rich = getattr(self._event, "edit_rich", None)
+        if event_edit_rich is not None:
+            await event_edit_rich(
+                html,
+                rich_message=input_rich_message,
+                markdown=markdown,
+                text=text,
+                fallback=fallback,
+                fallback_text=fallback_text,
+                fallback_parse_mode=fallback_parse_mode,
+                link_preview=link_preview,
+                buttons=buttons,
+                **kwargs,
+            )
+            return self
 
         async def fallback_edit(inline_message_id: Any = None) -> InlineMessage:
             nonlocal fallback_text, fallback_parse_mode
@@ -384,28 +401,6 @@ class InlineMessage:
             return True
 
         k = self._kernel
-        if k is not None and self.chat_id and self.message_id:
-            bot_client = getattr(k, "bot_client", None)
-            if bot_client is not None and hasattr(bot_client, "edit_rich_message"):
-                try:
-                    await bot_client.edit_rich_message(
-                        self.chat_id,
-                        self.message_id,
-                        html,
-                        rich_message=input_rich_message,
-                        markdown=markdown,
-                        text=text,
-                        fallback=fallback,
-                        fallback_text=fallback_text,
-                        fallback_parse_mode=fallback_parse_mode,
-                        link_preview=link_preview,
-                        buttons=buttons,
-                    )
-                    return self
-                except Exception as error:
-                    if fallback and _rich_message_unsupported(error):
-                        return await fallback_edit()
-
         if self.unit_id and k is not None and self.message_id:
             from core_inline.handlers import InlineHandlers
 
@@ -433,23 +428,9 @@ class InlineMessage:
                     return await fallback_edit(self.inline_message_id)
                 raise
 
-        event_edit_rich = getattr(self._event, "edit_rich", None)
-        if event_edit_rich is not None:
-            await event_edit_rich(
-                html,
-                rich_message=input_rich_message,
-                markdown=markdown,
-                text=text,
-                fallback=fallback,
-                fallback_text=fallback_text,
-                fallback_parse_mode=fallback_parse_mode,
-                link_preview=link_preview,
-                buttons=buttons,
-                **kwargs,
-            )
-            return self
-
-        return await fallback_edit()
+        if fallback:
+            return await fallback_edit()
+        raise RuntimeError("No rich inline edit path available for this InlineMessage")
 
     async def delete(self) -> None:
         """Delete the inline message."""

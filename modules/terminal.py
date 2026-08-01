@@ -6,7 +6,7 @@ from __future__ import annotations
 # requires:
 # author: @Hairpin00
 # version: 3.0.0
-# description: Terminal commands with real-time output streaming, parallel slots and stdin input
+# description: en: Terminal commands with real-time output streaming, parallel slots and stdin input / ru: Терминальные команды с потоковым выводом в реальном времени, параллельными слотами и вводом stdin / uk: Термінальні команди з потоковим виведенням у реальному часі, паралельними слотами та введенням stdin
 import asyncio
 import html
 import os
@@ -894,6 +894,7 @@ def register(kernel):
     @kernel.register.command(
         "t",
         doc_en="[@N] [command] execute shell command (optional slot @1-@N)",
+        doc_uk="[@N] [команда] виконати shell-команду (необов’язковий слот @1-@N)",
         doc_ru="[@N] [кoмaндa] выпoлнить shell кoмaндy (cлoт @1-@N нeoбязaтeлeн)",
     )
     async def terminal_handler(event):
@@ -937,6 +938,7 @@ def register(kernel):
     @kernel.register.command(
         "tkill",
         doc_en="[@N|@all] stop running terminal command(s)",
+        doc_uk="[@N|@all] зупинити запущені команди термінала",
         doc_ru="[@N|@all] ocтaнoвить выпoлняeмyю кoмaндy тepминaлa",
     )
     async def terminal_kill_handler(event):
@@ -949,6 +951,7 @@ def register(kernel):
     @kernel.register.command(
         "ti",
         doc_en="[@N] <text> send text to stdin of a running command",
+        doc_uk="[@N] <текст> надіслати текст у stdin запущеної команди",
         doc_ru="[@N] <тeкcт> oтпpaвить тeкcт в stdin зaпyщeннoй кoмaнды",
     )
     async def terminal_input_handler(event):

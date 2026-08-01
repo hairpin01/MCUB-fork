@@ -41,6 +41,7 @@ class LogBot(ModuleBase):
     name = "log_bot"
     description: dict[dict[str], dict[str]] = {
         "ru": "Moдyль лoгиpoвaния",
+        "uk": "Модуль логування",
         "en": "Log bot module",
     }
     author = "@Hairpin00"
@@ -634,7 +635,12 @@ class LogBot(ModuleBase):
             or "user_already_participant" in error_text
         )
 
-    @command("log_setup", doc_en="setup logging chat", doc_ru="нacтpoить чaт для лoгoв")
+    @command(
+        "log_setup",
+        doc_en="setup logging chat",
+        doc_ru="нacтpoить чaт для лoгoв",
+        doc_uk="налаштувати чат для логів",
+    )
     async def log_setup_handler(self, event: Event):
         await event.edit(self.lang["log_setup_title"])
         if await self.setup_log_chat():

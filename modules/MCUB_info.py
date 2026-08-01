@@ -109,6 +109,7 @@ class MCUBInfoMod(ModuleBase):
 
     description: dict[str, str] = {
         "ru": "Инфo o cиcтeмe",
+        "uk": "Інформація про систему",
         "en": "System info",
     }
 
@@ -344,7 +345,7 @@ class MCUBInfoMod(ModuleBase):
         self.cache.set("info:platform_type", platform_type)
         return platform_type
 
-    @command("info", doc_ru="пoкaзaть инфo", doc_en="show info")
+    @command("info", doc_ru="пoкaзaть инфo", doc_en="show info", doc_uk="показати інфо")
     async def cmd_info(self, event: Any) -> None:
         try:
             start_time = time.time()

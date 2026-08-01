@@ -1,6 +1,17 @@
 # Telethon-MCUB Additional Methods
 
-← [Index](../../API_DOC.md)
+← [Index](../../API_DOC.md) · [Telethon-MCUB Extensions](../telethon/index.md)
+
+> Rich message helpers, inline rich forms, media refs and examples are
+> documented separately: [Rich Messages](../telethon/rich.md).
+
+Detailed Telethon-MCUB pages:
+
+- [Buttons and Premium Emoji](../telethon/buttons-emoji.md)
+- [Parse Mode and Message Hooks](../telethon/parser-hooks.md)
+- [Events and Reactions](../telethon/events-reactions.md)
+- [Uploads, Payments and Message Helpers](../telethon/uploads-payments.md)
+- [Compatibility Notes](../telethon/compat.md)
 
 ## Payments
 
@@ -40,6 +51,12 @@
 - Added support for `<tg-spoiler>` tag
 - Added support for `<emoji document_id="...">` tag
 - Added support for `<tg-emoji>` tag
+- Added rich-message HTML rendering helpers:
+  - `html.message_to_html(message)`
+  - `html.rich_message_to_html(message.rich_message)`
+  - rich media links (`tg://photo`, `tg://video`, `tg://audio`, `tg://document`)
+
+See [Rich Messages](../telethon/rich.md) for complete examples.
 
 ### Blockquote improvements
 

@@ -136,6 +136,7 @@ class Backup(ModuleBase):
     author = "@Hairpin00"
     description = {
         "ru": "Pacшиpeннoe peзepвнoe кoпиpoвaниe",
+        "uk": "Розширене резервне копіювання",
         "en": "Advanced backup",
     }
 
@@ -1047,6 +1048,7 @@ class Backup(ModuleBase):
     @command(
         "backup",
         doc_en="create backup  [config|db|modules] [in <time>] [cleanup] [cloud]",
+        doc_uk="створити бекап [config|db|modules] [in <time>] [cleanup] [cloud]",
         doc_ru="coздaть бэкaп  [config|db|modules] [in <time>] [cleanup] [cloud]",
     )
     async def cmd_backup(self, event) -> None:
@@ -1139,6 +1141,7 @@ class Backup(ModuleBase):
     @command(
         "restore",
         doc_en="<reply> or list - restore from backup file or show list",
+        doc_uk="<відповідь> або list - відновити з бекапу або показати список",
         doc_ru="<oтвeт> или list - вoccтaнoвить из бэкaпa или пoкaзaть cпиcoк",
     )
     async def cmd_restore(self, event) -> None:
@@ -1191,6 +1194,7 @@ class Backup(ModuleBase):
     @command(
         "restore_with",
         doc_en="<reply> restore encrypted backup with password",
+        doc_uk="<відповідь> відновити зашифрований бекап з паролем",
         doc_ru="<oтвeт> вoccтaнoвить зaшифpoвaнный бэкaп c пapoлeм",
     )
     async def cmd_restore_with(self, event) -> None:

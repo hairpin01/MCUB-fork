@@ -490,9 +490,9 @@ class ModuleLoaderMixin:
 
         # Supports patterns like:
         # "ru: Description / en: Description"
-        # "en: Description | ru: Description"
+        # "en: Description | ru: Description | uk: Description"
         i18n_matches = re.findall(
-            r"(?:^|\s*[|/]\s*)(ru|en)\s*:\s*(.*?)(?=\s*[|/]\s*(?:ru|en)\s*:|$)",
+            r"(?:^|\s*[|/]\s*)(ru|en|uk)\s*:\s*(.*?)(?=\s*[|/]\s*(?:ru|en|uk)\s*:|$)",
             value,
             flags=re.IGNORECASE,
         )

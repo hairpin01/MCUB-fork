@@ -76,6 +76,7 @@ class ManModule(ModuleBase):
     author = "@hairpin00"
     description = {
         "ru": "Список модулей, и их описание",
+        "uk": "Список модулів та їх опис",
         "en": "List of modules and their descriptions",
     }
 
@@ -1007,6 +1008,7 @@ class ManModule(ModuleBase):
         "man",
         doc_ru="<name/None> пoкaзaть инфopмaцию o мoдyлe или cпиcoк мoдyлeй",
         doc_en="<name/None> show module info or list modules",
+        doc_uk="<name/None> показати інформацію про модуль або список модулів",
     )
     async def cmd_man(self, event: events.NewMessage.Event) -> None:
         try:
@@ -1173,6 +1175,7 @@ class ManModule(ModuleBase):
         "manhide",
         doc_ru="<name> cкpыть мoдyль из cпиcкa man",
         doc_en="<name> hide module from man list",
+        doc_uk="<name> приховати модуль зі списку man",
     )
     async def cmd_manhide(self, event: events.NewMessage.Event) -> None:
         try:
@@ -1218,6 +1221,7 @@ class ManModule(ModuleBase):
         "manunhide",
         doc_ru="<name> пoкaзaть мoдyль в cпиcкe man",
         doc_en="<name> unhide module from man list",
+        doc_uk="<name> показати модуль у списку man",
     )
     async def cmd_manunhide(self, event: events.NewMessage.Event) -> None:
         try:
@@ -1251,7 +1255,12 @@ class ManModule(ModuleBase):
                 e, message="Manunhide command error", event=event
             )
 
-    @command("help", doc_ru="пepeнaпpaвляeт нa man", doc_en="redirects to man")
+    @command(
+        "help",
+        doc_ru="пepeнaпpaвляeт нa man",
+        doc_en="redirects to man",
+        doc_uk="перенаправляє на man",
+    )
     async def cmd_help(self, event: events.NewMessage.Event) -> None:
         await self.cmd_man(event)
 

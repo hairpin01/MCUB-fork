@@ -1,0 +1,1347 @@
+lang: ru
+
+material_emoji:
+  __global__: 1
+  load_1: '<tg-emoji emoji-id="5345778951031658558">😭</tg-emoji>'
+  load_2: '<tg-emoji emoji-id="5345988476716226868">🤔</tg-emoji>'
+  load_3: '<tg-emoji emoji-id="5346022209389372742">🤔</tg-emoji>'
+  wave_pr_1: '<tg-emoji emoji-id="5346107885396991553">🌊</tg-emoji>'
+  wave_pr_2: '<tg-emoji emoji-id="5346162384237006847">🌊</tg-emoji>'
+  wave_pr_3: '<tg-emoji emoji-id="5345800090860691308">🌊</tg-emoji>'
+  process_bar_pr_1: '<tg-emoji emoji-id="5348038425951904524">⚪️</tg-emoji>'
+  process_bar_pr_2: '<tg-emoji emoji-id="5348350060188965263">⚪️</tg-emoji>'
+  process_bar_pr_3: '<tg-emoji emoji-id="5348486163407609131">⚪️</tg-emoji>'
+  load_process_bar_pr_1: '<tg-emoji emoji-id="5348210173104134595">🌊</tg-emoji>'
+  load_process_bar_pr_2: '<tg-emoji emoji-id="5350601434800889611">🌊</tg-emoji>'
+  load_process_bar_pr_3: '<tg-emoji emoji-id="5348267111485581196">🌊</tg-emoji>'
+  load_process_bar_mini: '<tg-emoji emoji-id="5350505605490584388">🌊</tg-emoji>'
+  pulsating_circle: '<tg-emoji emoji-id="5348549041728826116">⚪️</tg-emoji>'
+  load_4: '<tg-emoji emoji-id="5348140933936359091">⚪️</tg-emoji>'
+  tumbler: '<tg-emoji emoji-id="5346270183621171895">🤩</tg-emoji>'
+  load_5: '<tg-emoji emoji-id="5348179313764112796">📷</tg-emoji>'
+  map: '<tg-emoji emoji-id="5348342251938423329">🗺️</tg-emoji>'
+  delete: '<tg-emoji emoji-id="5348118479847333898">🗑</tg-emoji>'
+  music: '<tg-emoji emoji-id="5420367985908947060">😉</tg-emoji>'
+
+type_module:
+  __global__: 1
+  module_style_class: Class
+  module_style_kernel: Kernel
+  module_style_client_old: Client (застарілий)
+  module_type_native: Цей модуль MCUB нативний, використовує стиль {style}
+  module_type_hikka: Цей модуль використовує Heroku/Hikka compat (можливі помилки)
+  module_type_hikka_library: Цей модуль-бібліотека використовує Heroku/Hikka compat (можливі помилки)
+  module_config_info: У цього модуля є Module config, всього ключів {count}
+
+null:
+  null: 'null'
+
+error:
+  __global__: on
+  full_error: '🚫 <b>Error:</b> <code>{error}</code>
+
+    🥁 Full logs:
+
+    <pre>{full_error}</pre>'
+  error: ❌ <b>Помилка:</b> <code>{error}</code>
+  timeout: <b>Час очікування запиту вичерпано</b>
+  unknown: ❌ <b>Невідома помилка</b>
+  api_error: ❌ <b>Помилка API:</b> <code>{error}</code>
+  permission_denied: ❌ <b>Доступ заборонено</b>
+
+buttons:
+  __global__: 1
+  close: 🙈 Close
+  yes: 💠 Yes
+  no: 🚫 No
+  back: < Back
+  next: 'Next >'
+  update: 🔄 Update
+  page: 'Page: {}'
+  back_menu: 🔙 Menu
+
+langbutton:
+  __global__: 1
+  btn_ru: 🇷🇺 Російська
+  btn_en: 🇬🇧 English
+  btn_uk: 🇺🇦 Українська
+
+core_inline:
+  no_access: Вибачте, але у вас немає доступу!
+  no_access_id: 'ID'
+  mcub_bot_title: MCUB Bot
+  version: Version
+  modules: Modules
+  bot_limit_warn1: "Видали зайвого бота — у тебе їх забагато, я не можу створити нового."
+  bot_limit_warn2: "Ти не видалив бота. Якщо це повториться ще раз, я припиню спроби."
+  bot_limit_give_up: "Все, я припиняю. Видали бота вручну і спробуй знову."
+  bot_limit_prompt: "Видалив? [Y/n]: "
+  info_description: Info userbot
+  command: Команда
+  execute: Виконати
+  no_commands: Немає зареєстрованих inline-команд
+  inline_command_no_access: Команда <code>{cmd}</code> недоступна
+  form_not_found: Форму не знайдено або вона прострочена
+  form_id: ID
+  error: Inline query error
+  error_description: E
+  btn_default: Кнопка
+  json_parsing_error: Помилка парсингу JSON кнопок
+  form_expired: Форму не знайдено
+  traceback_invalid_id: Невірний ID помилки
+  traceback_expired: Трейсбек прострочений у кеші
+  full_traceback: Full Traceback
+  critical_error: Критична помилка
+  invalid_request: Невірний запит
+  no_similar_errors: Немає схожих помилок
+  similar_errors: Схожі помилки
+  similar_count: count
+  invalid_format: Невірний формат даних
+  error_muted: error_type
+  muted_for_hour: '{error_type} ({source}) заглушено на 1г'
+  confirm_yes: Підтверджено
+  command_confirmed: Команду підтверджено
+  executing: Виконую
+  confirm_no: Скасовано
+  command_cancelled: Команду скасовано
+  command_not_found: Команду не знайдено
+  command_not_found_or_executed: Команду не знайдено або вже виконано
+  nothing_to_cancel: Нічого скасовувати
+  data_error: Помилка даних
+  catalog_not_loaded: Каталог не завантажено
+  catalog_title: Каталог модулів
+  page: Стор
+  no_description: Опис відсутній
+  author: Автор
+  commands: Команди
+  use_dlm: Використовуйте
+  nav_back: Назад
+  nav_forward: Вперед
+terminal:
+  shell: 'Оболонка:'
+  empty: порожньо
+  command_already_running: Вже виконується команда
+  system_command: 'системна команда:'
+  executing: виконується...
+  launch_error: 'Помилка запуску:'
+  already_completed: Команду вже завершено
+  running_time: 'виконується:'
+  seconds: сек.
+  exit_code: 'код виходу:'
+  completed_in: виконано за
+  command_stopped: Команду зупинено
+  stop_error: 'Помилка зупинки:'
+  no_running_commands: Немає команд, що виконуються
+  stdout: 'stdout:'
+  stderr: 'stderr:'
+  command_not_specified: Команду не вказано
+  config_filter_proxychains: Прибирати рядки [proxychains] з виводу (stdout/stderr)
+  config_custom_shell: Шлях до кастомної оболонки (використовується при shell=custom)
+  config_args: "Аргументи оболонки (за замовчуванням: -c)"
+  config_filter_ansi: "Прибирати ANSI ескейп-коди з виводу"
+  config_filter_pattern: "Кастомний regex: видаляти рядки, позначені паттерном"
+  config_strip_trailing_whitespace: "Видаляти кінцеві пробіли в кожному рядку"
+  config_max_lines: "Обрізати вивід до останніх N рядків (0 = обмеження по байтах)"
+  config_tail_lines: "Показувати тільки останні N рядків (0 = вимк)"
+  config_timeout: "Автоматично вбити процес через N сек (0 = вимк)"
+  config_cwd: "Робоча директорія (порожньо = cwd бота)"
+  config_env_extra: "Доп. змінні: KEY=VAL (через пробіл)"
+  config_stdin_eof: "Закривати stdin одразу після запуску"
+  config_show_stderr_inline: "Вбудовувати stderr у stdout"
+  config_show_pid: "Показувати PID процесу у футері"
+  config_compact_mode: "Приховувати футер під час виконання, показувати після завершення"
+  config_min_edit_interval: "Мінімальний інтервал між редагуваннями (сек)"
+  config_edit_on_newline_only: "Редагувати тільки при появі нового рядка"
+  config_update_interval: Інтервал оновлення виводу термінала (сек., 1-30). Оновлення також відбувається при появі нових даних.
+command:
+  hello: <tg-emoji emoji-id="6012620675829734836">❤️</tg-emoji> Привіт! Я бот від MCUB-fork
+  developers: 'Розробники:'
+  fork: 'fork:'
+  original: 'Оригінал:'
+  github_repo: Репозиторій
+  original_mcub: Оригінальний MCUBFB
+  support: Підтримка
+  profile: 'Профіль:'
+  name: 'Ім''я:'
+  prefix: 'Префікс:'
+  kernel_version: 'Версія ядра:'
+  profile_error: <tg-emoji emoji-id="6010399722471168034">❔</tg-emoji> Не вдалося отримати інформацію про профіль.
+  goodbye: <tg-emoji emoji-id="6012610604131424315">🥺</tg-emoji> До побачення!
+  bot_removed: Бота видалено з чату
+  delete_error: Не вдалося видалити бота з чату.
+  hello_installed: <tg-emoji emoji-id="6012620675829734836">❤️</tg-emoji> Привіт, MCUC встановлено!
+  main_commands: 'Основні команди:'
+  new_prefix: новий префікс
+  module_name: назва
+  setprefix: 'Встановити префікс:'
+  logs: 'Логи:'
+  info: 'Інфо:'
+  ping: 'Пінг:'
+  module_management: 'Управління модулями:'
+  load: 'Завантажити:'
+  remove: 'Видалити:'
+  list_modules: 'Список репо:'
+  choose_language: <tg-emoji emoji-id="6010399722471168034">❔</tg-emoji> Оберіть мову
+  setup_completed: <tg-emoji emoji-id="6012423240478103267">🥰</tg-emoji> Налаштування завершено!
+  start_init_error: 'Помилка start_init:'
+  backup_setup: Налаштування авто-бекапу
+  backup_enable: <tg-emoji emoji-id="6012610604131424315">🥺</tg-emoji> Увімкнути авто-бекап?
+  backup_interval: 'Оберіть інтервал:'
+  backup_created: Групу MCUB-backup створено!
+  backup_skip: Пропустити
+  backup_yes: Так
+  backup_no: Ні
+  backup_enabled: <tg-emoji emoji-id="6012423240478103267">🥰</tg-emoji> Авто-бекап увімкнено
+  backup_disabled: Авто-бекап вимкнено
+  backup_not_found: Модуль backup не знайдено
+eval:
+  code: Код
+  result: Результат
+  result_file: Результат надіслано файлом
+  result_in_message: Результат у повідомленні
+  executed_in: Виконано за
+  ms: мс
+  usage_js: .js <код> - виконати JavaScript (Node.js) код
+  usage_rb: .rb <код> - виконати Ruby код
+  usage_go: .go <код> - виконати Go код
+  usage_rs: .rs <код> - виконати Rust код
+  lang_js: JavaScript
+  lang_rb: Ruby
+  lang_go: Go
+  lang_rs: Rust
+  not_installed: '{lang} не встановлено'
+  result_header_error: 'Помилка:'
+  result_header_stdout: 'Вивід print():'
+  result_header_return: 'Програма повернула:'
+  result_header_executed: 'Виконано:'
+  result_header_output: 'Результат:'
+  result_header_empty: 'Порожній результат'
+kernel:
+  success: Перезавантаження <b>успішне!</b>
+  loading: але модулі ще завантажуються...
+  loaded: Твій <b>{mcub}</b> повністю завантажився!
+  errors: Твій <b>{mcub}</b> <b>завантажився з помилками</b> :(
+  modules_not_loaded: 'Модулі, які не завантажились:'
+  rpc_error: <b>RPC Помилка:</b> <code>{error}</code>
+  call_failed: <b>Виклик <code>{cmd}</code> не виконано через помилку RPC:</b> <code>{rpc_msg}</code>
+  call_failed_traceback: '<b>Виклик:<code> {cmd} </code>провалився!</b>
+
+    <b><i>Повні логи:</i></b>
+
+    <pre>{traceback}</pre>'
+  could_not_edit: 'Не вдалося відредагувати повідомлення про помилку RPC: {error}'
+  full_log: <b><i>Повні логи:</i></b>
+  warning_not_allowed_inline: Інлайн-форми заборонені в цьому чаті.
+  open_inline_form_error: '<i><b>Не вдалося відкрити інлайн форму</b></i>
+
+    <blockquote>Помилки:</blockquote> <pre>{raw_tb}</pre>'
+  open_inline_form: <i><b>Відкриваю інлайн форму...</b></i>
+tr:
+  loading: Перекладаю...
+  no_args: No args
+  specify_text: Вкажіть текст для перекладу або дайте відповідь на повідомлення
+  no_text: Не вказано текст для перекладу
+  translation_error: Помилка перекладу
+  network_error: 'Помилка мережі:'
+  translation_failed: Не вдалося отримати переклад
+  request_timeout: Таймаут запиту
+  decode_error: Помилка декодування відповіді
+  translation_error_generic: 'Помилка перекладу:'
+api_protection:
+  enabled: ✅ API захист увімкнено
+  disabled: ❌ API захист вимкнено
+  usage: 'Використання: .api_protection [on/off] [параметр значення]'
+  are_you_sure: Ви впевнені?
+  true: захист <b>увімкнено</b>
+  false: захист <b>вимкнено</b>
+  too_many_requests: <i>Забагато запитів</i>
+  bot_stopped: <tg-emoji emoji-id="5431895003821513760">❄️</tg-emoji> Бота зупинено на <b>{seconds}</b> секунд
+  bot_unlocked: <tg-emoji emoji-id="5431895003821513760">❄️</tg-emoji> Бота розблоковано після <b>{seconds}</b> секунд очікування
+  request_limit_exceeded: <b>Перевищено ліміт запитів</b> (<u>{limit_type}</u>)
+  insufficient_permissions: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Недостатньо прав</b>
+  limits_reset: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <b>Ліміти скинуто</b>
+  processing: ⏳ Обробка...
+  error_processing: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Помилка обробки</b>
+  stats: '📋 <b>Статистика API</b>
+
+    <blockquote>⏱ За останні <b>{interval}</b>с</blockquote>
+
+    • <u>Всього запитів</u>: <b>{total_all}</b>
+
+    • <u>Враховуваних</u>: <b>{total_relevant}</b>
+
+    📋 <b>Топ методів (усі):</b>
+
+    {methods}'
+  stats_empty: 📋 <i>Немає запитів за останні {interval}с</i>
+  reset_done: ✅ <b>Статистику, аналітику та блокування скинуто</b>
+  suspend: 🥶 <b>Захист призупинено</b> на <code>{seconds}</code>с
+  param_set: ✅ Параметр <code>{param}</code> встановлено в <code>{value}</code>
+  param_error: ❌ <b>Невірний параметр або значення</b>
+  overload_notify: '⚠️ <b>Перевищено ліміт API!</b>
+
+    <blockquote>⏱ Враховуваних запитів за <b>{interval}</b>с: <b>{total}</b> (поріг <u>{threshold}</u>)</blockquote>
+
+    • <b>Тригер</b>: <code>{trigger}</code>
+
+    • <b>Блокування</b>: <code>{block_seconds}</code>с (спроба #{trigger_count})
+
+    📋 <b>Топ методів:</b>
+
+    {methods}'
+  warn_threshold: '🔶 <b>Попередження API</b>: <i>{percent}%</i> від порогу (<code>{current}/{threshold}</code> за <b>{interval}</b>с)'
+  predict_block: '🔮 <b>Прогностичне попередження</b>: перевищення порогу через <code>~{eta}</code>с
+
+    <blockquote>⚡ Прискорення: <u>{accel}</u> req/s²</blockquote>'
+  ignore_usage: ⚙️ <b>Використання:</b> <code>.api_ignore [list|add|remove|clear] [method]</code>
+  ignore_list: '📋 <b>Ігноровані методи:</b>
+
+    <code>{methods}</code>'
+  ignore_list_empty: 📋 <i>Список ігнорованих методів порожній</i>
+  ignore_added: ✅ Метод <code>{method}</code> додано до ігнорованих
+  ignore_removed: ✅ Метод <code>{method}</code> видалено з ігнорованих
+  ignore_cleared: ✅ <b>Список ігнорованих методів очищено</b>
+  ignore_not_found: ❌ Метод <code>{method}</code> не знайдено у списку
+  api_stats: '<tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <b>Статистика API</b>
+
+    <blockquote>⏱ За останні <b>{interval}</b>с</blockquote>
+
+    • <u>Всього запитів</u>: <b>{total_all}</b>
+
+    • <u>Враховуваних</u>: <b>{total_relevant}</b>
+
+    📋 <b>Топ методів (усі):</b>
+
+    {methods}'
+  api_stats_empty: <tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <i>Немає запитів за останні {interval}с</i>
+  api_reset_done: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <b>Статистику, аналітику та блокування скинуто</b>
+  api_suspend: <tg-emoji emoji-id="5372892693024218813">🥶</tg-emoji> <b>Захист призупинено</b> на <code>{seconds}</code>с
+  api_param_set: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Параметр <code>{param}</code> встановлено в <code>{value}</code>
+  api_param_error: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Невірний параметр або значення</b>
+  api_overload_notify: '<tg-emoji emoji-id="5904692292324692386">⚠️</tg-emoji> <b>Перевищено ліміт API!</b>
+
+    <blockquote>⏱ Враховуваних запитів за <b>{interval}</b>с: <b>{total}</b> (поріг <u>{threshold}</u>)</blockquote>
+
+    • <b>Тригер</b>: <code>{trigger}</code>
+
+    • <b>Блокування</b>: <code>{block_seconds}</code>с (спроба #{trigger_count})
+
+    📋 <b>Топ методів:</b>
+
+    {methods}'
+  api_warn_threshold: '<tg-emoji emoji-id="5406792732452613826">🔶</tg-emoji> <b>Попередження API</b>: <i>{percent}%</i> від порогу (<code>{current}/{threshold}</code> за <b>{interval}</b>с)'
+  api_predict_block: '<tg-emoji emoji-id="5445259009311391329">🔮</tg-emoji> <b>Прогностичне попередження</b>: перевищення порогу через <code>~{eta}</code>с
+
+    <blockquote>⚡ Прискорення: <u>{accel}</u> req/s²</blockquote>'
+  api_ignore_usage: <tg-emoji emoji-id="5332654441508119011">⚙️</tg-emoji> <b>Використання:</b> <code>.api_ignore [list|add|remove|clear] [method]</code>
+  api_ignore_list: '<tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <b>Ігноровані методи:</b>
+
+    <code>{methods}</code>'
+  api_ignore_list_empty: <tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <i>Список ігнорованих методів порожній</i>
+  api_ignore_added: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Метод <code>{method}</code> додано до ігнорованих
+  api_ignore_removed: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Метод <code>{method}</code> видалено з ігнорованих
+  api_ignore_cleared: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <b>Список ігнорованих методів очищено</b>
+  api_ignore_not_found: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Метод <code>{method}</code> не знайдено у списку
+  yes: "Так"
+  no: "Ні"
+  analyze_report: '<tg-emoji emoji-id="4904936030232117798">🔬</tg-emoji> <b>Глибокий аналіз API</b>
+
+    <tg-emoji emoji-id="5431736674147114227">📋</tg-emoji> <b>Багаторівневі вікна</b> <code>{windows}</code>
+
+    <tg-emoji emoji-id="5373001317042101552">📈</tg-emoji> <b>Z-score аномалії</b>: <code>{zscore}</code>  <i>(поріг ±{threshold}σ)</i> <tg-emoji emoji-id="5445259009311391329">🔮</tg-emoji> <b>Прогноз до перевищення</b>: <code>{eta}</code> <tg-emoji emoji-id="5383140876316669109">⚡</tg-emoji> <b>Прискорення</b>: <code>{accel}</code>
+
+    <tg-emoji emoji-id="5368513458469878442">🧬</tg-emoji> <b>Схожість з профілем</b>: <code>{cosine}</code>
+
+    <tg-emoji emoji-id="5264727218734524899">🔀</tg-emoji> <b>Топ переходів методів</b>: <code>{transitions}</code>
+
+    <tg-emoji emoji-id="5370872220149099318">🚨</tg-emoji> <b>Аномальні переходи</b>: <code>{anomalous}</code>
+
+    <tg-emoji emoji-id="5422742359930356292">⏱</tg-emoji> <b>Наступне блокування (backoff)</b>: <code>{backoff}</code>'
+  analyze_eta_safe: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <i>Не очікується</i>
+  analyze_eta_now: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Вже перевищено</b>
+  analyze_eta_in: <code>~{seconds}</code>с
+  analyze_profile_insufficient: <i>недостатньо даних</i>
+  mcub_not_supported: <tg-emoji emoji-id="5904692292324692386">⚠️</tg-emoji> <b>Telethon-MCUB не знайдено</b> - штатний захист недоступний
+  mcub_mode_set: <tg-emoji emoji-id="5253671358734281000">🛡</tg-emoji> <b>Режим захисту MCUB:</b> <code>{mode}</code><i>{dry}</i>
+  mcub_mode_dry: "<i>(dry-run: порушення логуються, не блокуються)</i>"
+  mcub_mode_usage: <tg-emoji emoji-id="5332654441508119011">⚙️</tg-emoji> <b>Використання:</b> <code>.api_mode [off|safe|strict|custom] [dry]</code>
+  mcub_violation: "<tg-emoji emoji-id=\"5767151002666929821\">🚫</tg-emoji> <b>MCUB заблокував запит</b>\n<blockquote>• <b>Метод:</b> <code>{method}</code> • <b>Режим:</b> <code>{mode}</code> • <b>Причина:</b> <i>{reason}</i></blockquote>"
+  mcub_status: "<tg-emoji emoji-id=\"5253671358734281000\">🛡</tg-emoji> <b>MCUB захист</b>\n<blockquote>• <b>Режим:</b> <code>{mode}</code> • <b>Dry-run:</b> <i>{dry}</i> • <b>Allowlist:</b> <code>{allowlist}</code></blockquote>"
+  mcub_choose_mode: <tg-emoji emoji-id="5253671358734281000">🛡</tg-emoji> <b>Обери режим захисту MCUB:</b>
+  mcub_mode_default: 👾 За замовчуванням ({mode})
+updates:
+  restarting: Твій <b>{mcub}</b> перезавантажується...
+  restart_log: Перезавантаження...
+  already_updated: <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> <b>Вже остання версія {version}</b>
+  git_pull_success: '<tg-emoji emoji-id="5332654441508119011">📝</tg-emoji> <b>Git pull успішний!</b>
+
+
+    <code>{output}</code>'
+  update_success: '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji> <b>Оновлення успішне!</b> {emoji}
+
+    Перезавантаження через 2 секунди...'
+  trying_another_method: <tg-emoji emoji-id="5174058394576882777">🔧</tg-emoji> <b>Пробую інший метод оновлення...</b>
+  updating_to_version: <tg-emoji emoji-id="5286434424331775494">📥</tg-emoji> <b>Оновлюю до {version}...</b> {emoji}
+  update_success_with_backup: '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji> <b>Оновлення успішне!</b> {emoji}
+
+
+    📦 Бекап створено
+
+    Перезавантаження...'
+  cant_check_version: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Не вдалося перевірити версію</b>
+  cant_get_update: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Не вдалося отримати оновлення</b>
+  error: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Помилка:</b> <code>{error}</code>
+  stopping: <tg-emoji emoji-id="5372892693024218813">🧲</tg-emoji> <b>Твій <i>{mcub}</i> зупиняється...</b> {emoji}
+  backup_not_found: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Бекап не знайдено</b>
+  rolling_back: <tg-emoji emoji-id="5248998218212392977">🔙</tg-emoji> <b>Відкочую до попередньої версії...</b> <i>{emoji}</i>
+  rollback_success: '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji> <b>Відкат завершено!</b> {emoji}
+
+
+    Перезавантаження...'
+  rollback_error: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <b>Помилка відкату:</b> <code>{error}</code>
+man:
+  help_not_command: 'Можливо, ви мали на увазі '
+  module: Модуль
+  description: Опис
+  version: Версія
+  no_description: Немає опису
+  unknown: Невідомо
+  aliases: Аліаси
+  no_commands: Немає команд
+  author: Автор
+  found_modules: Знайдено модулі
+  and_more: '... і ще <code>{count}</code>'
+  no_exact_match: Точного збігу не знайдено
+  module_not_found: Модуль не знайдено
+  system_modules: Системні модулі
+  user_modules_page: Користувацькі модулі (Сторінка {page} |<code> {count}</code>)
+  close: Закрити
+  inline_bot_not_configured: 'Inline бот не налаштовано
+
+    Встановіть inline_bot_token у config'
+  no_inline_results: ❌ Немає inline результатів
+  error: Помилка
+  module_manager: 'Менеджер модулів
+
+
+    Використовуйте "man" для перегляду модулів або "man [модуль]" для пошуку.'
+  search_hint: '🔍 Пошук модулів
+
+
+    Напишіть "man [назва]" для пошуку модулів та команд
+
+    Приклад: man ping'
+  search_results: Результати пошуку
+  command: Command
+  and_more_commands: '... і ще {count} команд'
+  not_found_hint: Спробуйте інший запит.
+  closed: Closed
+  page_error: Error
+  search_error: Search Error
+  search_error_desc: An error occurred
+  module_hidden: 👁️🗨️ <b>Модуль приховано зі списку.</b>
+  module_already_hidden: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Модуль вже прихований.
+  module_unhidden: ✅ <b>Модуль прибрано з прихованих.</b>
+  module_not_hidden: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Цей модуль не прихований.
+  manhide_usage: '😕 Використання: <code>.manhide [модуль]</code>'
+  manunhide_usage: '😕 Використання: <code>.manunhide [модуль]</code>'
+  system_module_note: "{blocked} <b>Це системний модуль, і його просто так не можна вивантажити loader'ом</b>"
+  kernel_not_full_loaded: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>Ядро ще не повністю завантажило всі модулі</b> (<code>{status}</code>)
+  placeholders_title: Кастомні плейсхолдери
+
+translations:
+  lang_usage: '❌ Використання: {prefix}lang [ru/en/uk]'
+  lang_available: '❌ Доступні мови: {langs}'
+  lang_changed: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Мову змінено на: {lang}'
+  select_language: <tg-emoji emoji-id="5472164874886846699">✨</tg-emoji> Select language
+  reloadlang_done: 'Мовні пакети перезавантажено з диску'
+
+settings:
+  prefix_usage: '❌ Використання: {prefix}setprefix [символ] [id/@username/reply]'
+  prefix_one_char: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> <b>Префікс має бути рівно 1 символом</b>
+  prefix_changed: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji><b> Префікс змінено на </b><code>{prefix}</code>, <b>щоб повернути, напишіть:</b>
+
+    <pre>{prefix}setprefix {prefix_old}</pre>'
+  prefix_target_invalid: ❌ <b>Невірно вказано ціль (власника)</b>
+  prefix_owner_changed: ✅ <b>Префікс для</b> <code>{owner_id}</code> <b>змінено:</b> <code>{prefix_old}</code> → <code>{prefix}</code>
+  alias_usage: '❌ Використання: `{prefix}addalias аліас = команда`'
+  alias_created: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Аліас створено: <code>{prefix}{alias}</code> → <code>{prefix}{command}</code>'
+  alias_target_not_found: <tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Команду <code>{command}</code> не знайдено. Перевірте ім'я команди.
+  delalias_usage: '❌ Використання: `{prefix}delalias аліас`'
+  delalias_done: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Аліас видалено: <code>{prefix}{alias}</code>'
+  delalias_not_found: ❌ Аліас <code>{alias}</code> не знайдено.
+  aliases_empty: 📋 Аліаси відсутні.
+  iloadalias_usage: '❌ Використання: `{prefix}iloadalias <посилання>` або дайте відповідь на JSON-файл'
+  iloadalias_fetch_error: ❌ Не вдалося завантажити аліаси з <code>{url}</code>
+  iloadalias_invalid_json: ❌ Невірний формат JSON
+  iloadalias_invalid_format: ❌ JSON має містити об'єкт "aliases" з маппінгом аліас→команда
+  iloadalias_done: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Імпортовано аліасів: <b>{count}</b>'
+  unla_uploading: '📤 <b>Експорт аліасів...</b>'
+  unla_file_caption: '📄 <b>Аліаси:</b> aliases.json
+
+    <blockquote><code>{prefix}iloadalias</code> для імпорту</blockquote>'
+  2fa_enabled: 🔐 Двофакторна аутентифікація <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> увімкнена (інлайн-підтвердження)
+  2fa_disabled: 🔐 Двофакторна аутентифікація ❌ вимкнена
+  powersave_enabled: 🔋 увімкнено
+  powersave_disabled: ⚡ вимкнено
+  powersave_features: '
+
+    • Логування вимкнено
+
+    • Healthcheck рідше в 3 рази
+
+    • Знижено навантаження'
+  inline_bot_not_set: '❌ Inline бот не налаштовано
+
+    Встановіть inline_bot_token у конфізі'
+  inline_no_results: ❌ Немає результатів inline
+  inline_error: '❌ Помилка: {error}'
+  prefix_reset: <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Префікс скинуто на `.`
+  aliases_cleared: <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Аліаси очищено
+  api_enabled: <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> увімкнено
+  api_disabled: ❌ вимкнено
+  mcubinfo_error: '🌩️ <b>error, check logs</b>
+
+    Full Logs: <pre>{e}<pre>'
+  powersave_status: 🔋 Power save mode {status}{features}
+  piped_on: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Pipeline <b>увімкнено</b>
+
+    <blockquote>Команди виконуватимуться послідовно через |</blockquote>'
+  piped_off: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Pipeline <b>вимкнено</b>
+
+    <blockquote>Звичайний режим роботи</blockquote>'
+  settings_inline_description: Userbot settings panel
+  btn_reset_prefix: reset prefix
+  btn_reset_alias: reset alias
+  btn_api_protection: '{status} api protection'
+  btn_powersave: '{status} powersave'
+  btn_2fa: '{status} 2fa'
+  btn_mcubinfo: mcub info
+  btn_kernel_version: 'Kernel version: {version}'
+  api_protection_status: API protection {status}
+  2fa_status: 2FA {status}
+  danger_inline_not_set: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Inline bot is not configured
+
+    Confirmation is unavailable'
+  btn_confirm: ✅ Confirm
+  btn_cancel: ✖ Cancel
+  cleardb_confirm: '<tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> <b>Видалити базу даних?</b>
+
+    <blockquote>Це просто видалить файл бази даних.</blockquote>'
+  cleardb_done: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Базу даних видалено: <code>{path}</code>'
+  cleardb_missing: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Файл бази даних вже відсутній: <code>{path}</code>'
+  cleardb_error: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Не вдалося видалити базу даних: <code>{error}</code>'
+  clearmodules_confirm: '⚠️ <b>Видалити всі завантажені модулі?</b>
+
+    <blockquote>Всі файли з <code>{path}</code> буде видалено.</blockquote>'
+  clearmodules_done: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Видалено модулів: <code>{count}</code>'
+  clearmodules_missing: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Директорія <code>{path}</code> вже порожня або відсутня
+  clearmodules_error: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Не вдалося очистити modules_loaded: <code>{error}</code>'
+  clearcache_confirm: '⚠️ <b>Очистити кеш?</b>
+
+    <blockquote>Ядро та модулі можуть зберігати деякі дані у кеші. Після очищення частина даних буде відтворена знову.</blockquote>'
+  clearcache_done: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Кеш очищено
+  clearcache_error: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Не вдалося очистити кеш: <code>{error}</code>'
+  danger_cancelled: <tg-emoji emoji-id="5453892731094973831">❄️</tg-emoji> Дію скасовано
+  mcubinfo_html: '<tg-emoji emoji-id="5472164874886846699">✨</tg-emoji> <b>Що таке юзербот?</b>
+
+    <blockquote expandable>Це програма, яка працює через ваш особистий акаунт Telegram, використовуючи клієнтський API. На відміну від звичайних ботів (<code>Bot API</code>), юзербот має доступ до всіх функцій звичайного користувача — може надсилати повідомлення, управляти групами, автоматизувати дії та багато іншого.</blockquote>
+
+
+    <tg-emoji emoji-id="5435957248314579621">⭐</tg-emoji> <b>Переваги:</b> <blockquote expandable><tg-emoji emoji-id="5226945370684140473">➕</tg-emoji> <b>Повна автоматизація</b> — можна налаштувати автовідповіді, моніторинг чатів, управління каналами та групами
+
+    <tg-emoji emoji-id="5226945370684140473">➕</tg-emoji> <b>Необмежені можливості</b> — доступ до всіх функцій Telegram, включаючи ті, що недоступні звичайним ботам
+
+    <tg-emoji emoji-id="5226945370684140473">➕</tg-emoji> <b>Гнучкість та кастомізація</b> — можна писати власний код під будь-які задачі
+
+    <tg-emoji emoji-id="5226945370684140473">➕</tg-emoji> <b>Пряме підключення</b> — робота напряму з серверами Telegram без зайвих проміжних шарів.</blockquote>
+
+
+    <tg-emoji emoji-id="5471950641918121951">☃️</tg-emoji> <b>Головні ризики та недоліки:</b>
+
+    <blockquote expandable><tg-emoji emoji-id="5229113891081956317">➖</tg-emoji> <b>Блокування акаунту</b> — Telegram може заблокувати акаунт за підозрілу активність (спам, масові дії)
+
+    <tg-emoji emoji-id="5229113891081956317">➖</tg-emoji> <b>Відсутність офіційної підтримки</b> — User API офіційно не задокументовано, можуть бути нестабільності
+
+    <tg-emoji emoji-id="5229113891081956317">➖</tg-emoji> <b>Відповідальність на користувачі</b> — за дії юзербота, що порушують правила Telegram, відповідає власник акаунту
+
+    <tg-emoji emoji-id="5229113891081956317">➖</tg-emoji> <b>Ризик для основного акаунту</b> — рекомендується використовувати окремий акаунт для юзербота</blockquote>'
+  settings_title: '⚙️ Налаштування юзербота'
+  settings_inline_title: '⚙️ Налаштування'
+  piped_usage: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Використання: {prefix}piped [on/off]'
+loader:
+  choose: |-
+    <b>{mcub_emoji} installation</b>
+
+    Оберіть платформу:
+  choose_category: |-
+    <b>{mcub_emoji} installation</b>
+
+    Оберіть тип пристрою:
+  arch: |-
+    {emoji} <b>Arch Linux:</b>
+    <pre>sudo pacman -Sy
+    sudo pacman -S --noconfirm python3 python3-pip git
+    git clone https://github.com/hairpin01/MCUB-fork.git
+    cd MCUB-fork
+    pip3 install -r requirements.txt
+    python3 -m core --set-default-core standard
+    python3 -m core --no-web</pre>
+    {emoji_venv}<b> Під час встановлення MCUB всередині <u><code>proot-distro</code></u> або <u><code>WSL</code></u> рекомендується створити <u>venv</u>:</b>
+    <pre><code class="language-shell">python3 -m venv .venv
+    source .venv/bin/activate # Bash
+    source .venv/bin/activate.fish # Fish</code></pre>
+    {emoji_tip} TIP: рекомендуємо додати це в конфіг shell (bash):</b>
+    <pre><code class="language-shell">echo 'source $HOME/.venv/activate' >> ~/.bashrc</code></pre>
+    {emoji_elif} <b>Fish:</b><pre><code class="language-shell">echo 'source $HOME/.venv/activate.fish' >> ~/.config/fish/config.fish</code></pre>
+  debian: |-
+    {emoji} <b>Debian based:</b>
+    <pre>sudo apt update
+    sudo apt install -y python3 git
+    git clone https://github.com/hairpin01/MCUB-fork.git
+    cd MCUB-fork
+    pip install -r requirements.txt
+    python3 -m core --set-default-core standard
+    python3 -m core --no-web</pre>
+    {emoji_venv}<b> Під час встановлення MCUB всередині <u><code>proot-distro</code></u> або <u><code>WSL</code></u> рекомендується створити <u>venv</u>:</b>
+    <pre><code class="language-shell">python3 -m venv .venv
+    source .venv/bin/activate # Bash
+    source .venv/bin/activate.fish # Fish</code></pre>
+    {emoji_tip} TIP: рекомендуємо додати це в конфіг shell (bash):</b>
+    <pre><code class="language-shell">echo 'source $HOME/.venv/activate' >> ~/.bashrc</code></pre>
+    {emoji_elif} <b>Fish:</b><pre><code class="language-shell">echo 'source $HOME/.venv/activate.fish' >> ~/.config/fish/config.fish</code></pre>
+  termux: |-
+    {emoji} <b>Termux:</b>
+    <pre>pkg update
+    pkg install -y python3 git python-psutil
+    git clone https://github.com/hairpin01/MCUB-fork.git
+    cd MCUB-fork
+    pip install -r requirements.txt
+    python3 -m core --set-default-core standard
+    python3 -m core --no-web</pre>
+    {emoji_venv}<b> Щоб уникнути проблем із <u>pydantic_core</u> та <u>Telethon</u>, рекомендуємо встановити <u>Rust</u>:</b>
+    <pre>pkg install rust</pre>
+  btn_arch: |-
+    Arch Linux
+  btn_debian: |-
+    Debian/Ubuntu
+  btn_termux: |-
+    Termux
+  loading: |-
+    завантаження...
+  unknown_platform: |-
+    Невідома платформа
+  link: |-
+    <tg-emoji emoji-id="5429571366384842791">🔎</tg-emoji> Підтримка: <a href="https://t.me/MCUB_support">натисни</a>
+  phone: |-
+    Телефон
+  vds: |-
+    VDS
+  source: |-
+    Вихідний код можна прочитати <a href='https://github.com/hairpin01/MCUB-fork'>тут</a>
+  wait: '{wait} <b>Будь ласка, зачекайте...</b>'
+  reply_to_py: '{warning} <b>Дайте відповідь на .py файл</b>'
+  not_py_file: '{warning} <b>Це не .py файл</b>'
+  system_module_update_attempt: '{confused} <b>Ой, здається ти спробував оновити системний модуль</b> <code>{module_name}</code>
+
+    <blockquote><i>{blocked} На жаль, не можна оновлювати системні модулі за допомогою <code>loader''а</code></i></blockquote>'
+  system_module_unload_attempt: '{confused} <b>Ой, здається ти спробував вивантажити системний модуль</b> <code>{module_name}</code>
+
+    <blockquote><i>{blocked} На жаль, не можна вивантажувати системні модулі</i></blockquote>'
+  starting_install: '{action} <b>модуль</b>'
+  installing: '{test} <b>Встановлюю</b>'
+  updating: '{reload} <b>Оновлюю</b>'
+  updating_version: '{reload} <b>Оновлюю до v</b><code>{old_version}</code> <b>→ v</b><code>{new_version}</code>'
+  log_start: =- Починаю {action} модуля {module_name}
+  log_filename: '=> Ім''я файлу: {filename}'
+  log_downloading: =- Завантажую файл у {file_path}
+  log_downloaded: => Файл успішно завантажено
+  log_file_read: => Файл прочитано
+  log_checking_compatibility: =- Перевіряю сумісність модуля...
+  log_incompatible: =X Модуль несумісний (Heroku/Hikka тип)
+  log_compatible: => Модуль сумісний
+  log_getting_metadata: Отримую метадані модуля...
+  log_author: 'Автор: {author}'
+  log_version: 'Версія: {version}'
+  log_description: 'Опис: {description}'
+  log_checking_deps: =- Перевіряю залежності...
+  log_deps_found: '=> Знайдено залежності: {deps}'
+  installing_deps: '{dependencies} <b>встановлюю залежності:</b>
+
+    <blockquote expandable><code>{deps_list}</code></blockquote>'
+  log_installing_dep: '=- Встановлюю залежність: {dep}'
+  log_dep_installed: => Залежність {dep} встановлено успішно
+  log_dep_error: '=X Помилка встановлення {dep}: {error}'
+  log_deps_installer_missing: '=X Встановлювач залежностей "{fallback}" недоступний, використовую запасний спосіб'
+  log_removing_old: =- Видаляю старі команди модуля {module_name}
+  log_loading_module: =- Завантажую модуль {module_name}...
+  log_module_loaded: => Модуль успішно завантажено
+  log_commands_found: '=> Знайдено команд: {count}'
+  module_loaded: '{success} <b>Модуль</b> <code>{module_name}</code> <b>завантажено!</b> (<code>{version}</code>) {emoji}
+
+    <blockquote expandable>{idea} <b>Опис:</b> {description}</blockquote>
+
+    <blockquote expandable>{commands_list}</blockquote>
+
+    <blockquote>{emoji_author} Автор: {author}</blockquote>
+
+    {source_link}'
+  module_loaded_no_cmds: '{success} <b>Модуль</b> <code>{module_name}</code> <b>завантажено!</b> (<code>{version}</code>) {emoji}
+
+    <blockquote expandable>{idea} <b>Опис:</b> {description}</blockquote>
+
+    <blockquote>{emoji_author} Автор: {author}</blockquote>
+
+    {source_link}'
+  placeholders_title: Кастомні плейсхолдери
+  placeholders_block: "\n<blockquote expandable>🧩 <b>{title}:</b>\n<i>{placeholders}</i></blockquote>"
+  no_cmd_desc: '{no_cmd} У команди немає опису'
+  command_line: '{crystal} <code>{prefix}{cmd}</code> - <b>{desc}</b>'
+  aliases_text: ' (Aliases: {alias_text})'
+  log_aliases_found: 'Команда {cmd} має аліаси: {aliases}'
+  log_install_error: '=X Помилка завантаження модуля: {error}'
+  install_failed: '<b>{blocked} Здається, встановлення пройшло невдало</b>
+
+    <b>{idea} Install Log:</b>
+
+    <pre>{log}</pre>'
+  log_conflict: '✗ Конфлікт команд: {error}'
+  conflict_system: '{shield} <b>Конфлікт системної команди!</b>
+
+    <blockquote>Команда <code>{prefix}{command}</code> вже зареєстрована системним модулем.</blockquote>
+
+    <b>Install Log:</b>
+
+    <pre>{log}</pre>'
+  conflict_user: '{error} <b>Конфлікт команд модулів!</b>
+
+    <blockquote>Команда <code>{prefix}{command}</code> вже зареєстрована модулем <code>{owner_module}</code>.</blockquote>
+
+    <b>Install Log:</b>
+
+    <pre>{log}</pre>'
+  log_critical: '=X Критична помилка: {error}'
+  log_traceback: 'Трейсбек:
+
+    {traceback}'
+  dlm_usage: '{warning} <b>Використання:</b> <code>{prefix}dlm [-send/-s/-list] назва_модуля або посилання</code>'
+  dlm_list_loading: '{loading} <b>Отримую список модулів...</b>'
+  dlm_list_title: '{folder} <b>Список модулів з репозиторіїв:</b>
+
+    <blockquote expandable>{list}</blockquote>'
+  dlm_list_errors: '
+
+
+    {warning} <b>Помилки:</b>
+
+    <blockquote expandable>{errors}</blockquote>'
+  dlm_list_failed: '{warning} <b>Не вдалося отримати список модулів</b>'
+  dlm_searching: '{loading} <b>Шукаю модуль {module_name}...</b>'
+  module_info: '{file} <b>Модуль:</b> <code>{module_name}</code>
+
+    {idea} <b>Опис:</b> <i>{description}</i>
+
+    {crystal} <b>Версія:</b> <code>{version}</code>
+
+    {angel} <b>Автор:</b> <i>{author}</i>
+
+    {folder} <b>Розмір:</b> <code>{size} байт</code>
+
+    {cloud} <b>Репозиторій:</b> <code>{repo}</code>'
+  module_not_found: '{warning} <b>Модуль {module_name} не знайдено в жодному репозиторії</b>'
+  dlm_send_usage: '{warning} <b>Використання:</b> <code>{prefix}dlm -send назва_модуля або посилання</code>'
+  system_module_install_attempt: '{confused} <b>Ой, здається ти спробував встановити системний модуль</b> <code>{module_name}</code>
+
+    <blockquote><i>{blocked} Системні модулі не можна встановлювати через <code>dlm</code></i></blockquote>'
+  downloading_module: '{download} завантажую'
+  log_mode: '=+ Режим: {mode}'
+  log_type: '=+ Тип: {type}'
+  log_download_url: '=- Завантажую модуль за URL: {url}'
+  log_download_success: '=> ✓ Модуль завантажено успішно (статус: {status})'
+  log_download_failed: '=X Помилка завантаження (статус: {status})'
+  url_download_error: '{warning} <b>Не вдалося завантажити модуль за посиланням</b> (статус: {status})'
+  log_download_exception: '=X Помилка завантаження: {error}'
+  url_exception: '{warning} <b>Помилка завантаження:</b> {error}'
+  log_checking_repos: =- Перевіряю репозиторії ({count} шт.)
+  log_using_repo: '=- Використовую вказаний репозиторій: {repo}'
+  log_found_in_repo: => Модуль знайдено у вказаному репозиторії
+  log_not_found_in_repo: =X Модуль не знайдено у вказаному репозиторії
+  log_checking_repo: '=- Перевіряю репозиторій {index}: {repo}'
+  log_repo_error: '=X Помилка перевірки репозиторію {repo}: {error}'
+  module_not_found_repos: '{warning} <b>Модуль<code> {module_name} </code>не знайдено в репозиторіях</b>'
+  log_saving_for_send: Зберігаю файл для відправки
+  sending_module: '{upload} <b>Надсилаю модуль {module_name}...</b>'
+  file_sent_caption: '<blockquote expandable>{file} <b>Модуль:</b> <code>{module_name}.py</code>
+
+    {idea} <b>Опис:</b> <i>{description}</i>
+
+    {crystal} <b>Версія:</b> <code>{version}</code>
+
+    {angel} <b>Автор:</b> <i>{author}</i>
+
+    {folder} <b>Розмір:</b> <code>{size} байт</code></blockquote>'
+  log_file_sent: => Файл надіслано, видаляю тимчасовий файл
+  log_install_mode: =- Режим встановлення, продовжую...
+  log_saving_file: '=- Зберігаю файл модуля: {file_path}'
+  log_loading_to_kernel: =- Завантажую модуль у ядро
+  log_module_loaded_kernel: => Модуль успішно завантажено в ядро
+  conflict_system_alt: '{shield} <b>Ой, цей модуль хотів перезаписати системну команду</b> (<code>{command}</code>)
+
+    <blockquote><i>Це не помилка, а міра <b>безпеки</b></i></blockquote>
+
+    <b>Лог встановлення:</b>
+
+    <pre>{log}</pre>'
+  conflict_user_alt: '{error} <b>Ой, здається стався конфлікт модулів</b> <i>(їх команд)</i>
+
+    <blockquote><i>Деталі конфлікту в логах 🔭</i></blockquote>
+
+    <b>Лог встановлення:</b>
+
+    <pre>{log}</pre>'
+  log_deleting_due_conflict: => Видаляю файл модуля через конфлікт
+  log_deleting_due_error: => Видаляю файл модуля через помилку
+  um_usage: '{warning} <b>Використання:</b> <code>{prefix}um назва_модуля</code>'
+  module_not_found_um: '{warning} <b>Модуль {module_name} не знайдено</b>'
+  module_unloaded: '{success} <b>Модуль {module_name} видалено</b>'
+  um_not_found: '<code>{module_name}</code> - не знайдено'
+  um_system_module: '<code>{module_name}</code> - системний модуль'
+  um_success_header: '{success} <b>rmmod: {count} видалено</b>'
+  um_failed_header: '{blocked} <b>Помилок: {count}</b>'
+  um_data_wiped: 'Дані модуля очищено'
+  unlm_usage: '{warning} <b>Використання:</b> <code>{prefix}unlm назва_модуля</code>'
+  module_file_not_found: '{warning} <b>Файл модуля не знайдено</b>'
+  uploading_module: '{upload} <b>Відправка модуля {module_name}...</b>'
+  file_upload_caption: '{file} <b>Модуль:</b> {module_name}.py
+
+
+    <blockquote><code>{prefix}im</code> для встановлення</blockquote>
+
+    {source_link}'
+  reload_usage: '{warning} <b>Використання:</b> <code>{prefix}reload назва_модуля</code>'
+  reloading: '{reload} <b>Перезавантаження <code>{module_name}</code>...</b>'
+  reload_success: '{success} <b>Модуль {module_name} перезавантажено!</b> {emoji}
+
+
+    <blockquote expandable>{cmd_text}</blockquote>'
+  no_commands: Немає команд
+  reload_error: '{warning} <b>Помилка, дивись логи</b>'
+  no_modules: '{folder} <b>Модулі не завантажено</b>'
+  loaded_modules: '{crystal} <b>Завантажені модулі:</b>
+
+
+    '
+  system_modules: '{shield} <b>Системні модулі:</b>
+
+    '
+  user_modules: '{sparkle} <b>Користувацькі модулі:</b>
+
+    '
+  module_line: '• <b>{name}</b> <i>({count} команд)</i>
+
+    '
+  addrepo_usage: '{warning} <b>Використання:</b> <code>{prefix}addrepo URL</code>'
+  delrepo_usage: '{warning} <b>Використання:</b> <code>{prefix}delrepo індекс</code>'
+  catalog_title: '<b>🌩️ Офіційний репозиторій MCUB</b> <code>{repo_url}</code>
+
+
+    '
+  catalog_custom: '<i>{repo_name}</i> <code>{repo_url}</code>
+
+
+    '
+  no_modules_catalog: 📭 Немає модулів
+  catalog_page: <tg-emoji emoji-id="5453892731094973831">❄️</tg-emoji> Сторінка {page}/{total_pages}
+  catalog_error: '❌ Помилка завантаження каталогу: {error}'
+  catalog_main_menu: '<blockquote><b>📦 Module Catalog</b></blockquote>
+  <blockquote>Оберіть дію:</blockquote>'
+  catalog_install_btn: 🧩 Встановити за ім'ям/URL
+  catalog_open_btn: 🫥 Відкрити каталог
+  catalog_install_menu: '<blockquote><b>Install from repo/URL</b>
+  <blockquote>Ім''я модуля з підключених репозиторіїв або пряме посилання на .py/.zip архів.</blockquote>'
+  catalog_install_input_btn: 🧩 Ввести ім'я або URL
+  catalog_install_placeholder: module_name або https://.../module.py
+  catalog_search_repo_btn: 🔎 Знайти (у цьому репо)
+  catalog_search_all_btn: 🌐 Знайти у всіх
+  catalog_search_placeholder: Ім'я модуля...
+  catalog_search_expired: '<blockquote><b>Пошук застарів</b></blockquote>'
+  catalog_search_empty: 📭 Нічого не знайдено
+  catalog_search_result: '<blockquote><b>Пошук:</b> <code>{query}</code></blockquote>
+<blockquote>{body}</blockquote>
+<blockquote>{page}</blockquote>'
+  catalog_back_btn: 🔙 Назад
+  dlm_repo_choice_repo: '{index}. {repo_name}'
+  dlm_repo_choice_expired: 🗿 Вибір репозиторію застарів
+  dlm_repo_choice_cancel: Скасувати
+  dlm_repo_choice_cancelled: Вибір скасовано
+  btn_back: Назад
+  btn_next: Вперед
+  modules_not_mcub: '{warning} Модуль не {mcub} типу <i>[Heroku/Hikka]</i>'
+  log_hikka_detected: =+ Виявлено Hikka/Heroku модуль
+  hikka_no_compat: '{warning} <b>Hikka compat не знайдено.</b>'
+  hikka_disabled: '{warning} <b>Підтримку Hikka/Heroku модулів вимкнено через конфіг loader (loader_allow_hikka_modules).</b>'
+  reload_all: '{reload} <b>Перезавантажую всі модулі...</b>'
+  reload_all_success: '{success} <b>Всі модулі перезавантажено!</b>
+
+    <blockquote>{count}</blockquote>'
+  reload_all_success_one: '{success} <b>Всі модулі перезавантажено!</b>
+
+    {count} (<code>{name}</code>)'
+  reload_all_failed: '{warning} <b>Не вдалося перезавантажити {count} модуль(ів):</b>
+
+    <blockquote expandable>{failed_list}</blockquote>'
+  reload_all_partial: '{success} <b>Модулі перезавантажено!</b>
+
+    {success_count}
+
+    {warning} <b>Не вдалося: {failed_count}</b>
+
+    <blockquote expandable>{failed_list}</blockquote>'
+  failed_module: '• <code>{name}</code>
+
+    '
+  and_more: • <code>+{count} ще</code>
+  dlm_repo_choice_title: '{cloud} <b>Модуль</b> <code>{module_name}</code> <b>знайдено в кількох репозиторіях</b>
+
+    <blockquote>Обери, звідки {action}</blockquote>'
+  dlm_repo_choice_action_install: встановити його
+  dlm_repo_choice_action_send: завантажити його
+switch_inline:
+  bot_usage: '{no_args} Вкажи юзернейм бота: <code>{prefix}set_inline_bot @username_bot</code> <i>bot в кінці обов''язковий!</i>'
+  token_usage: '{no_args} Потрібен токен бота: <code>{prefix}set_inline_token BOT_TOKEN</code>'
+  creating_bot: '{creating} Створюю <code>@{username}</code>...'
+  create_error: '{error} Не вдалося створити inline-бота: <code>{error_text}</code>'
+  applied: '{success} <b>Інлайн-бот застосовано.</b> <i>Перезапусти юзербот</i>'
+
+log_bot:
+  git_timeout: '<tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Git: таймаут (немає мережі)'
+  updates_available: 🔄 Доступні оновлення ({count})
+  up_to_date: ✅ Актуальна версія
+  git_error: <tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Помилка Git
+  setup_log_group: 🤖 Налаштування лог-групи
+  searching_logs: Помилка пошуку логів
+  creating_log_group: 📝 Створюю лог-групу...
+  bot_prepare_error: Не вдалося підготувати бота для додавання
+  chat_id_error: ❌ Не вдалося отримати ID створеного чату
+  avatar_error: <tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Не вдалося встановити аватарку
+  invite_error: <tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Не вдалося отримати посилання (немає прав)
+  bot_added: ✅ Бота додано
+  bot_add_error: ⚠️ Не вдалося додати бота
+  chat_create_error: ❌ Помилка створення чату
+  log_setup_title: Налаштовую лог-групу...
+  log_setup_success: ✅ Лог-групу налаштовано
+  log_setup_fail: ❌ Не вдалося налаштувати
+  test_title: Тестую відправку логів...
+  test_bot_available: Бот доступний
+  test_bot_not_available: Бот недоступний
+  test_bot_auth: Бот авторизований
+  test_bot_not_auth: Бот не авторизований
+  test_log_chat_id: Лог-чат ID
+  test_not_set: не встановлено
+  test_time: Час
+  test_success: ✅ Тестове повідомлення надіслано
+  test_fail: ❌ Не вдалося надіслати
+  test_error: ❌ Помилка тесту
+  log_status_on: ✅ увімкнено
+  log_status_off: ❌ вимкнено
+  log_not_configured: Не налаштовано
+  bot_running: ✅ запущено
+  bot_not_running: ❌ не запущено
+  errors_sent: ✅ надсилаються
+  errors_not_sent: ❌ не надсилаються
+  log_status_title: Статус лог-бота
+  log_group: Лог-група
+  bot_sending: Відправка через бота
+  errors: Помилки
+  startup_via_bot: ✅ Стартове повідомлення через бота
+  startup_via_userbot: ⚠️ Стартове повідомлення через юзербот
+  startup_error: ❌ Помилка відправки
+  send_log_error: ❌ Не вдалося надіслати в лог
+  started: started!
+  update_status: Статус оновлення
+  prefix: Префікс
+  new_commits_header: <tg-emoji emoji-id="5465300082628763143">💬</tg-emoji> <b>Доступно {count} оновлень на гілку</b> <code>{branch}</code>
+  new_commits_btn: 🔄 Оновити
+  update_running: <tg-emoji emoji-id="5326015457155620929">📦</tg-emoji> <b>Оновлюю...</b>
+  update_done: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Оновлено до <code>{sha}</code>
+
+    <blockquote><tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Автоматичне перезавантаження</blockquote>'
+  update_error: '❌ Помилка оновлення: <code>{error}</code>'
+  update_no_log: ⚠️ Лог-чат не налаштовано, сповіщення про оновлення недоступні
+  and_more_commits: '... і ще {} комітів'
+  banner_load: <tg-emoji emoji-id="5326015457155620929">😐</tg-emoji> <b>Завантажую банер...</b>
+  version: '<tg-emoji emoji-id="5472164874886846699">✨</tg-emoji> <b>Версія Модуля:</b> <code>{version}</code> (<code>{name}</code>)'
+userbot_backup:
+  creating_backup: <tg-emoji emoji-id="5426958067763804056">⏳</tg-emoji> <i>Створюю бекап...</i>
+  backup_created: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <b>Бекап створено</b>
+  backup_failed: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <i><b>Помилка створення бекапу</b></i>
+  reply_to_backup: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <u>Дайте відповідь на повідомлення з бекапом</u>
+  not_backup_file: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> <u>Це не файл бекапу</u>
+  restoring: <tg-emoji emoji-id="5426958067763804056">⏳</tg-emoji> <i>Відновлюю...</i>
+  restored: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> <b>Відновлено:</b>
+  no_files: <tg-emoji emoji-id="5409235172979672859">⚠️</tg-emoji> <u>Немає файлів для відновлення</u>
+  restore_error: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Помилка:'
+  chat_id: 'Chat ID:'
+  interval: 'Інтервал:'
+  auto_backup: 'Авто-бекап:'
+  last_backup: 'Останній бекап:'
+  total_backups: 'Всього бекапів:'
+  commands: 'Команди:'
+  set_interval: Встановити інтервал бекапу
+  enable_disable: Увімкнути/вимкнути авто-бекап
+  set_chat: Встановити чат для бекапу
+  interval_set: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Інтервал встановлено на {hours} годин
+  interval_invalid: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Інтервал має бути від 1 до 168 годин
+  backup_settings: <tg-emoji emoji-id="5332654441508119011">⚙️</tg-emoji> Налаштування бекапу
+  auto_enabled: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Авто-бекап увімкнено
+  auto_disabled: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Авто-бекап вимкнено
+  chat_set: '<tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Чат для бекапу встановлено: {chat_id}'
+  check_pm: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Перевірте ЛС з ботом
+  bot_not_available: <tg-emoji emoji-id="5409235172979672859">⚠️</tg-emoji> Бот недоступний. Спочатку напишіть боту в ЛС.
+  cant_send_pm: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Не вдалося надіслати ЛС. Спочатку напишіть боту
+  invalid_chat_id: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Невірний ID чату
+  unknown_command: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Невідома команда
+  select_interval: '<tg-emoji emoji-id="5326015457155620929">🧳</tg-emoji> Оберіть інтервал бекапу:'
+  processing: 🔄 Обробка...
+  group_created: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> Групу для бекапів створено
+  tip_restore: 'підказка: {prefix}restore для відновлення бекапу'
+  btn_restore: 🔄 Відновити
+  btn_1_hour: 1 година
+  btn_6_hours: 6 годин
+  btn_12_hours: 12 годин
+  btn_24_hours: 24 години
+  not_set: Не встановлено
+  hours: годин
+  enabled: Увімкнено
+  disabled: Вимкнено
+  invalid_interval: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Невірний інтервал
+  error_processing: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Помилка обробки
+  encrypted_note: <blockquote><tg-emoji emoji-id="5447644880824181073">🔐</tg-emoji> Зашифровано</blockquote>
+  wrong_password: <tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Невірний пароль або архів пошкоджено
+  hash_ok: <tg-emoji emoji-id="5118861066981344121">✅</tg-emoji> SHA256 збігається — файл цілий
+  hash_mismatch: <blockquote><tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> SHA256 не збігається — файл пошкоджено!</blockquote>
+  hash_unknown: <tg-emoji emoji-id="5409235172979672859">⚠️</tg-emoji> SHA256 не знайдено у підписі
+  cloud_ok: '<tg-emoji emoji-id="5359954476607521990">☁️</tg-emoji> {provider}: завантажено успішно'
+  cloud_fail: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> {provider}: помилка завантаження'
+  cleanup_done: '<tg-emoji emoji-id="5380186498827373381">🗑️</tg-emoji> Видалено старих бекапів: {count}'
+  no_backups_found: <tg-emoji emoji-id="5409235172979672859">⚠️</tg-emoji> Бекапів не знайдено у чаті
+  select_backup: <tg-emoji emoji-id="5411192149058289173">☁️</tg-emoji> <b>Оберіть бекап для відновлення:</b>
+  delayed_scheduled: <tg-emoji emoji-id="5326015457155620929">🧳</tg-emoji> Бекап буде створено о <b>{time}</b>
+  invalid_time: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Невірний формат часу. Приклад: 30m, 2h, 90s'
+  unknown_arg: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Невідомий аргумент. Доступно: config, db, modules, in <час>, cleanup'
+  low_disk: '<tg-emoji emoji-id="5409235172979672859">⚠️</tg-emoji> Мало місця на диску: потрібно ~{needed}MB, вільно {free}MB'
+  encrypted_restore: '<tg-emoji emoji-id="5447644880824181073">🔐</tg-emoji> Архів зашифровано. Вкажіть пароль: <code>{prefix}restore_with &lt;пароль&gt;</code>'
+  restore_with_usage: '<tg-emoji emoji-id="5388785832956016892">❌</tg-emoji> Використання: <code>{prefix}restore_with &lt;пароль&gt;</code>'
+tester:
+  error_logs: "{snowflake} <b>Помилка, дивись логи</b>"
+  logs_not_found: "{file} Файл kernel.log не знайдено"
+  logs_sending: "{printer} Надсилаю логи kernel"
+  freezing_usage: "{speech} Використання: {prefix}freezing [секунди]"
+  freezing_range: "{speech} Вкажіть від 1 до 60 секунд"
+  freezing_number: "{speech} Вкажіть число секунд"
+  freezing_start: "{snowflake} Заморожую на {seconds} секунд..."
+  freezing_done: "{check} Розморожено після {seconds} секунд"
+  custom_text_error: "<b>Помилка у форматуванні кастомного тексту:</b> {error}"
+  logs: Логи
+  kernel_version: Версія ядра
+  ping: пінг
+  raw_ping: сирий MTProto-пінг
+  uptime: час роботи
+  ms: мс
+  hours: г
+  minutes: хв
+  seconds: с
+  branch: Гілка
+  logs_not_fount_args: "<b>Доступні аргументи: </b><code>clear</code>, <code>debug</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code>, <code>all</code>"
+  logs_clear: "<b>Логи очищено</b>"
+  file_empty: "<b>Логи порожні</b>"
+  logs_level_invalid: "<b>Доступні рівні:</b> <code>debug</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code>, <code>all</code>"
+  logs_choose_level: "{paper} <b>Обери рівень логів</b>"
+  logs_choose_desc: "Надішлю тільки записи обраного рівня з <code>kernel.log</code>."
+  logs_level_warning: "{snowflake} <b>Попередження</b>\n<blockquote>Логи рівня <code>{level}</code> можуть містити особисту інформацію, токени, chat id, текст повідомлень та інші чутливі дані.</blockquote>\n<b>Все одно надіслати?</b>"
+  logs_send_cancelled: "{snowflake} <b>Відправку логів скасовано</b>"
+
+  teaser_recording: "🎥 Записую виконання <code>{cmd}</code>..."
+  teaser_done: "✅ <b>Готово!</b> Виконання <code>{cmd}</code> записано"
+  teaser_no_cmd: "❌ <b>Вкажіть команду для тесту</b>, приклад: <code>{{prefix}}teaser ping</code>"
+  teaser_cmd_not_found: "❌ <b>Команду</b> <code>{cmd}</code> <b>не знайдено</b>"
+  teaser_report_header: "<b>📊 Teaser Звіт:</b> <code>{cmd}</code>\n\n"
+  teaser_event_log: "<b>📋 Виклики Event:</b>\n<blockquote expandable>{log}</blockquote>"
+  teaser_kernel_log: "<b>📝 Логи Kernel:</b>\n<blockquote expandable>{log}</blockquote>"
+  teaser_empty_log: "<b>Записів у kernel.log не знайдено</b>"
+  teaser_recording_event: "⏺️ Записую виклики event..."
+  teaser_recording_kernel: "⏺️ Записую логи kernel..."
+  logs_level_caption: '{logs_title} <b>{logs}</b> {mcub}
+
+    <blockquote>{pen} <b>{kernel_version}</b> {version}#<a href="{commit_url}">{commit_sha}</a>
+
+    {satellite} <b>{branch_label}:</b> {branch}
+
+    {printer} <b>Рівень:</b> <code>{level}</code></blockquote>'
+mcub_info:
+  custom_text_error: "<b>Помилка у форматуванні:</b> {error}"
+  error_see_logs: "{warning} <b>Помилка, дивись логи</b>"
+trusted:
+  not_owner: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Тільки власник може використовувати цю команду.'
+  usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Використання: <code>.trust</code> / <code>.untrust</code> (реплай, @username або ID)'
+  trust_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Користувача додано до списку довірених.</b>'
+  trust_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Користувача видалено зі списку довірених.</b>'
+  trust_already: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> <i>Користувач вже у списку довірених.</i>'
+  trust_not_in_list: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Користувача немає у списку довірених.'
+  trustlist_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Список довірених порожній.'
+  trustlist_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Довірені користувачі:</b>'
+  ownerprefix_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Використання: <code>.ownerprefix</code> [id/@username] або реплай'
+  ownerprefix_list_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Власники та їх префікси:</b>'
+  ownerprefix_list_item: '• {user} (<code>{user_id}</code>) - <code>{prefix}</code> <em>({source})</em>'
+  ownerprefix_one: '🔎 <b>Префікс власника:</b> {user} (<code>{user_id}</code>)\n• <b>Префікс:</b> <code>{prefix}</code>\n• <b>Джерело:</b> <em>{source}</em>'
+  ownerprefix_source_personal: персональний
+  ownerprefix_source_fallback: fallback від адміна
+  btn_cancel: Скасувати
+  nonick_step_title: '<tg-emoji emoji-id="5332723564711804828">✨</tg-emoji> <b>Увімкнути NoNick для {name}?</b>'
+  nonick_step_desc: |-
+    При увімкненому <b>NoNick</b> користувач зможе виконувати команди просто як <code>{prefix}команда</code>.
+    Без нього потрібно писати <code>{prefix}команда@{alias}</code>.
+  nonick_step_desc_no_alias: |-
+    При увімкненому <b>NoNick</b> користувач зможе виконувати команди без суфікса.
+    Без нього потрібно вказувати <code>@username</code> власника.
+  btn_nonick_yes: Увімкнути NoNick
+  btn_nonick_no: Без NoNick
+  nonick_toggled_on: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> NoNick <b>увімкнено</b> для {name}.'
+  nonick_toggled_off: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> NoNick <b>вимкнено</b> для {name}.'
+  nonick_list_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Немає довірених користувачів з NoNick.'
+  nonick_list_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Довірені користувачі з NoNick:</b>'
+  nonick_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Використання: <code>.nonickuser</code> (реплай, @username або ID)'
+  watchers_title: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Активні спостерігачі:</b>'
+  watchers_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Активних спостерігачів немає.'
+  watchers_debug_title: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Налагодження watchers:</b>'
+  watchers_debug_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Відповідних watchers немає.'
+  watcher_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Використання: <code>.watcher модуль watcher</code>'
+  watcher_disabled: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Watcher вимкнено:</b> <code>{module}.{watcher}</code>'
+  watcher_enabled: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Watcher увімкнено:</b> <code>{module}.{watcher}</code>'
+  watcher_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Watcher не знайдено: <code>{module}.{watcher}</code>'
+  trustaccess_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Використання: <code>.trustaccess</code> (реплай, @username або ID)'
+  trustaccess_footer: "<em>Якщо доступ вимкнено, бот просто проігнорує відповідні команди.</em>"
+  trustaccess_title: "🔐 <b>Доступ owner для {user}</b>"
+  btn_close: 🙈 Закрити це меню
+  btn_allow_all: Дозволити все
+  btn_deny_all: Заборонити все
+  access_allowed: дозволено
+  access_denied: заборонено
+  access_allowed_group: дозволено (група)
+  trustcmd_usage: |-
+    <tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Управління доступом до команд для довірених</b>
+
+    <code>.trustcmd @username +py</code> - дозволити команду py
+    <code>.trustcmd @username -py</code> - заборонити команду py
+    <code>.trustcmd @username list</code> - показати права на команди
+
+    <i>Потребує щоб користувач був у списку довірених</i>
+  trustcmd_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Доступ до <code>{cmd}</code> <b>дозволено</b> для {user}.'
+  trustcmd_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Доступ до <code>{cmd}</code> <b>заборонено</b> для {user}.'
+  trustcmd_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Команду <code>{cmd}</code> не знайдено.'
+  trustcmd_list_title: "🔐 <b>Доступ до команд для {user}:</b>"
+  trustcmd_list_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Немає специфічних дозволів на команди.'
+  percmd_title: "🔐 <b>Команди для {user}</b>"
+  percmd_back: "← Назад"
+  btn_cmds: "📋 Команди"
+  btn_inline_cmds: "📋 Inline-команди"
+  inlinecmd_title: "📋 <b>Інлайн-команди для {user}</b>"
+  inlinecmd_empty: "Немає інлайн-команд"
+  inlinesec_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Використання: <code>.inlinesec</code> (реплай, @username або ID) [інлайн-команда]'
+  inlinesec_not_found: 'Інлайн-команду <code>{cmd}</code> не знайдено.'
+  inlinesec_allowed: '✅ <code>{cmd}</code> дозволено для {user}'
+  inlinesec_denied: '🚫 <code>{cmd}</code> заборонено для {user}'
+  trust_time_title: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Додати користувача на обмежений час?</b>'
+  trust_time_desc: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> Користувача буде видалено з довірених через {time}.'
+  btn_1h: 1 година
+  btn_24h: 24 години
+  btn_7d: 7 днів
+  btn_permanent: Назавжди
+  trust_added_timed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Користувача додано до довірених на {time}.</b>'
+  trust_expired: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Довіру для <b>{user}</b> вичерпано.'
+  timed_trusted_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Тимчасові довірені:</b>'
+  timed_trusted_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Немає тимчасових довірених.'
+  trust_expiring: " (закінчується через {time})"
+  sgroup_usage: |-
+    <tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Групи доступу</b>
+
+    <b>Команди:</b>
+    <code>.sgroup create mygroup</code> - створити групу
+    <code>.sgroup delete mygroup</code> - видалити групу
+    <code>.sgroup add mygroup @user</code> - додати користувача
+    <code>.sgroup remove mygroup @user</code> - видалити користувача
+    <code>.sgroup access mygroup</code> - налаштувати доступ (меню)
+    <code>.sgroup list</code> - список груп
+    <code>.sgroup info mygroup</code> - інфо про групу
+
+    <i>Групи дозволяють управляти доступом кількох користувачів одразу</i>
+  sgroup_created: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Групу доступу <b>{name}</b> створено.'
+  sgroup_deleted: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Групу доступу <b>{name}</b> видалено.'
+  sgroup_already_exists: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Група <b>{name}</b> вже існує.'
+  sgroup_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Групу <b>{name}</b> не знайдено.'
+  sgroup_user_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Користувача <b>{user}</b> додано до групи <b>{group}</b>.'
+  sgroup_user_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Користувача <b>{user}</b> видалено з групи <b>{group}</b>.'
+  sgroup_user_in_group: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Користувач вже в цій групі.'
+  sgroup_user_not_in_group: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Користувача немає в цій групі.'
+  sgroup_list_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Групи доступу:</b>'
+  sgroup_list_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Немає груп доступу.'
+  sgroup_info_users_empty: Немає користувачів
+  sgroup_info_access_empty: Немає специфічного доступу
+  sgroup_menu_title: "<b>Управління групою: {name}</b>"
+  sgroup_btn_add_user: Додати користувача
+  sgroup_btn_remove_user: Видалити користувача
+  sgroup_btn_access: Доступ
+  sgroup_btn_delete: Видалити групу
+  sgroup_confirm_delete: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> Видалити групу <b>{name}</b>?'
+  btn_confirm_delete: Видалити
+access_categories:
+  modules:
+    label: Модулі
+    desc: вивантаження, очищення та управління вже встановленими модулями
+  loader:
+    label: Встановлення модулів
+    desc: встановлення зовнішніх модулів з файлів, посилань та пресетів
+  config:
+    label: Конфіг
+    desc: налаштування юзербота та базові параметри
+  backup:
+    label: Бекапи
+    desc: резервні копії бази та модулів
+  terminal:
+    label: Термінал
+    desc: системні shell-команди на сервері
+  eval:
+    label: Код / Eval
+    desc: eval та виконання коду
+  security:
+    label: Безпека
+    desc: owner, security, targeted rules та доступи
+  system:
+    label: Система
+    desc: update, restart та системне обслуговування
+  inline:
+    label: Inline
+    desc: використовувати інлайн-команди та бота
+  callback:
+    label: Callback
+    desc: натискати на callback-кнопки
+presets:
+  user:
+    label: 👤 Користувач
+  programmer:
+    label: 💻 Програміст
+  moderator:
+    label: 🛡 Модератор
+config:
+  config_menu_text: |-
+    {menu_emoji} <b>Меню конфіга</b>
+    Оберіть розділ:
+  btn_kernel_config: 🪄 Конфіг ядра
+  btn_modules_config: 🚂 Конфіг модулів
+  kernel_config_title: |-
+    {pencil} <b>Конфіг ядра</b>
+    {page_emoji} Сторінка <b>{page}/{total_pages}</b> ({total_keys} ключів)
+  modules_config_title: |-
+    {puzzle} <b>Конфіг модулів</b>
+    {page_emoji} Сторінка <b>{page}/{total_pages}</b> ({total_modules} модулів)
+  module_config_title: |-
+    {puzzle} <b>Модуль:</b> <code>{module_name}</code>
+    {page_emoji} Сторінка <b>{page}/{total_pages}</b> ({total_items} ключів)
+  key_view: |-
+    {note} <b>{key}</b> ({type_emoji} {value_type})
+    {display_value}
+  btn_back: "⬅️"
+  btn_next: "➡️"
+  filter_all: "❌ Всі"
+  filter_core: "🛰 Системні"
+  filter_user: "🎯 Користувацькі"
+  btn_menu: 🔙 Меню
+  btn_modules: 🔙 Модулі
+  btn_back_simple: 🔙 Назад
+  expired: "❌ Прострочено"
+  invalid_type: "❌ Невірний тип конфіга"
+  not_found: "❌ Не знайдено"
+  no_config: "❌ У модуля немає конфіга"
+  no_default: "❌ Немає значення за замовчуванням"
+  not_module_config: "❌ Це не ModuleConfig"
+  not_boolean: "❌ Не булеве значення"
+  btn_reset_default: ♻️ Скинути на default
+  reset_success: ♻️ Скинуто на default
+  changed_to: "✅ Змінено на {value}"
+  error: "❌ Помилка: {error}"
+  cfg_usage: "{gear} <b>Конфіг</b>: Використовуйте інлайн або <code>.cfg [ключ]</code> або <code>.cfg [now/hide/unhide] [ключ]</code>"
+  hidden_key: "{briefcase} <b>Прихований</b>: <code>{key}</code>"
+  key_not_found: "{ballot} <b>Не знайдено</b>: <code>{key}</code>"
+  system_key: "{paperclip} <b>Системний ключ</b>"
+  visible_key: "{book} <b>Видимий</b>: <code>{key}</code>"
+  fcfg_usage: "{gear} <code>.fcfg [set/del/add/dict/list] -m [модулі]</code>"
+  specify_module: "{cross} Вкажіть ім'я модуля після -m"
+  not_enough_args: "{cross} Недостатньо аргументів"
+  protected_key: "{cross} <b>Захищений</b>"
+  set_success: "{check} <b>Встановлено</b> <code>{key}</code> = <code>{value}</code>"
+  set_module_success: "{check} <b>Встановлено</b> в модулі <code>{module}</code> ключ <code>{key}</code> = <code>{value}</code>"
+  delete_success: "{ballot} <b>Видалено</b> <code>{key}</code>"
+  delete_module_success: "{ballot} <b>Видалено</b> з модуля <code>{module}</code> ключ <code>{key}</code>"
+  not_found_in_module: "{cross} Не знайдено у конфізі модуля"
+  key_exists: "{cross} Вже існує"
+  add_success: "{check} <b>Додано</b> <code>{key}</code>"
+  add_module_success: "{check} <b>Додано</b> до модуля <code>{module}</code> ключ <code>{key}</code>"
+  not_dict: "{cross} Ключ не є словником"
+  dict_success: "{check} <b>Словник</b> <code>{key}[{subkey}]</code> оновлено"
+  dict_module_success: "{check} <b>Словник</b> у модулі <code>{module}</code> ключ <code>{key}[{subkey}]</code> оновлено"
+  not_list: "{cross} Ключ не є списком"
+  list_success: "{check} <b>Список</b> <code>{key}</code> доповнено"
+  list_module_success: "{check} <b>Список</b> у модулі <code>{module}</code> ключ <code>{key}</code> доповнено"
+  toggle_false: "❌ Встановити false"
+  toggle_true: "✅ Встановити true"
+  cfg_range_both: Значення має бути від {min} до {max}
+  cfg_range_min: Значення не може бути менше {min}
+  cfg_range_max: Значення не може перевищувати {max}
+  cfg_len_both: Довжина має бути від {min} до {max} символів
+  cfg_len_min: Довжина має бути не менше {min} символів
+  cfg_len_max: Довжина має бути не більше {max} символів
+  cfg_type_bool: Значення має бути логічним (true/false)
+  cfg_choices: Доступні варіанти
+  cfg_placeholders_title: Кастомні плейсхолдери
+  invalid_format: "❌ Невірний формат"
+  btn_edit: "✏️ Змінити"
+  btn_delete: "🗑️ Видалити"
+  btn_reveal: "👁️ Показати"
+  btn_list_add: "📝 Додати до списку"
+  btn_list_del: "🗑️ Видалити зі списку"
+  btn_list_set: "✏️ Змінити елемент списку"
+  btn_dict_add: "🔑 Додати до словника"
+  btn_dict_del: "🗑️ Видалити ключ словника"
+  btn_dict_set: "✏️ Змінити значення словника"
+  fcfg_inline_usage: "Використання: fcfg set <key_id> <value> | fcfg list/dict <add/del/set> <key_id> [value] | fcfg module <module> ..."
+  fcfg_inline_only_set: "❌ Тільки дія set підтримується в інлайн режимі"
+  fcfg_inline_no_module: "❌ Невірна комбінація модуля/ключа"
+  fcfg_inline_success: "✅ Ключ {key} змінено на {value}"
+  fcfg_inline_id_not_found: "❌ ID ключа не знайдено або прострочено"
+  fcfg_inline_protected: "❌ Цей ключ захищений"
+  fcfg_confirm_title: "✅ Підтвердіть значення"
+  fcfg_confirm_text: Значення буде передано до конфіга
+  fcfg_confirm_success: "✅ Конфіг ключ {key} оновлено до {value}"
+  fcfg_module_update: "<tg-emoji emoji-id=\"5238156910363950406\">✏️</tg-emoji> Ключ <code>{key}</code> модуля <code>{module}</code> <b>оновлено!</b>\n<blockquote><i>Був: {old}</i>\n<b>Став:</b> <code>{new}</code></blockquote>"
+  fcfg_confirm_error: "❌ Помилка оновлення конфіга: {error}"
+  fcfg_confirm_expired: "❌ Підтвердження прострочено або вже використано"
+  key_deleted: "🗑️ Ключ видалено"
+  value_inserted: "✅ Значення вставлено"
+  list_empty: "📭 Список порожній"
+  dict_empty: "📭 Словник порожній"
+  list_add_confirm: "➕ Додати: {value}"
+  list_remove_confirm: "🗑️ Видалити елемент {index}: {value}"
+  list_set_confirm: "✏️ Замінити елемент {index}: {old} → {new}"
+  dict_add_confirm: "🔑 Додати ключ: {key} = {value}"
+  dict_remove_confirm: "🗑️ Видалити ключ: {key}"
+  dict_set_confirm: "✏️ Встановити ключ {key}: {old} → {new}"
+  operation_success: "✅ Операція успішна"
+  operation_failed: "❌ Операція не вдалася: {error}"
+  btn_close: "❌ Закрити"
+  kernel_config_title_short: Конфіг ядра - {page}
+  modules_config_title_short: Конфіг модулів - {page}
+zen:
+  success: 'Перезавантаження <b>успішне!</b>'
+  loading: 'але модулі ще завантажуються...'
+  loaded: 'Ваш <b>{mcub}</b> повністю завантажено!'
+  errors: 'Ваш <b>{mcub}</b> <b>завантажився з помилками</b> :('

@@ -215,11 +215,12 @@ class CommandDispatcher:
 
                 await event.edit(
                     (
-                        f"<b>Error in <code>{safe_cmd}</code></b>\n" f"<pre>{tb}</pre>"
+                        f"🪫 <b>Error in <code>{safe_cmd}</code></b>\n"
+                        f"<pre>{tb}</pre>"
                         if self.strings is None
-                        else self.strings(
+                        else f"{self.strings('material_emoji')('load_1')} {self.strings(
                             "call_failed_traceback", cmd=safe_cmd, traceback=tb
-                        )
+                        )}"
                     ),
                     parse_mode="html",
                 )
@@ -455,7 +456,7 @@ class CommandDispatcher:
         cmd_text = html.escape(getattr(event, "raw_text", "") or "")
         rpc_msg = html.escape(str(error))
         try:
-            _tele = '<tg-emoji emoji-id="5429283852684124412">' "\U0001f52d</tg-emoji>"
+            _tele = '<tg-emoji emoji-id="5348118479847333898">🗑</tg-emoji>'
             msg = (
                 f"{_tele} {self.strings('call_failed', cmd=cmd_text, rpc_msg=rpc_msg)}"
                 if self.strings is not None

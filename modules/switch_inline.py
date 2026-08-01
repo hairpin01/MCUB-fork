@@ -26,6 +26,7 @@ class SwitchInline(ModuleBase):
     author = "@Hairpin00"
     description = {
         "ru": "Настройка inline-бота MCUB",
+        "uk": "Налаштування inline-бота MCUB",
         "en": "MCUB inline bot switcher",
         "linux": "Settings inline bot",
         "rofl": "менятор инлайн бота",
@@ -62,6 +63,7 @@ class SwitchInline(ModuleBase):
         "set_inline_bot",
         doc_ru="<@username> создать нового inline-бота и сохранить его в config",
         doc_en="<@username> create a new inline bot and save it to config",
+        doc_uk="<@username> створити нового inline-бота і зберегти його в config",
         doc_linux="<@username> create a new inline bot and save it to /etc/config_inline_bot.cfg",
         doc_rofl="<@username> создать нови инлайн бота и засейвить в cfg",
     )
@@ -103,6 +105,7 @@ class SwitchInline(ModuleBase):
         "set_inline_token",
         doc_ru="<BOT_TOKEN> сохранить токен inline-бота в config",
         doc_en="<BOT_TOKEN> save inline bot token to config",
+        doc_uk="<BOT_TOKEN> зберегти токен inline-бота в config",
         doc_linux="<BOT_TOKEN> save inline bot token to /etc/config_inline_bot.cfg",
         doc_rofl="<BOT_TOKEN> поменять бот токен инлайн бота, и засейвить в cfg",
     )

@@ -18,6 +18,7 @@ class TranslationsModule(ModuleBase):
     author = "@hairpin00"
     description = {
         "ru": "Пepeключeниe языкa юзepбoтa",
+        "uk": "Перемикання мови юзербота",
         "en": "Switch userbot language",
     }
 
@@ -32,6 +33,7 @@ class TranslationsModule(ModuleBase):
         "setlang",
         doc_ru="[ru/en] - пepeключить язык юзepбoтa",
         doc_en="[ru/en] - switch userbot language",
+        doc_uk="[ru/en/uk] - перемкнути мову юзербота",
     )
     async def cmd_lang(self, event: events.NewMessage.Event) -> None:
         args = self.args_raw(event).split()
@@ -107,6 +109,7 @@ class TranslationsModule(ModuleBase):
         "reloadlang",
         doc_ru="пepeзaгpyзить языкoвыe пaкeты c диcкa",
         doc_en="reload language packs from disk",
+        doc_uk="перезавантажити мовні пакети з диска",
     )
     async def cmd_reloadlang(self, event: events.NewMessage.Event) -> None:
         reload_packs()

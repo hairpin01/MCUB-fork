@@ -131,7 +131,11 @@ await self.invoke("echo", args="hello world", chat_id=-100123456789)
 
 ### Inline Forms
 
+Full rich-message examples are documented in [Telethon-MCUB Rich Messages](../telethon/rich.md).
+
 `self.subinline.form(chat_id, title, fields=None, buttons=None, auto_send=True, ttl=200, reply_to=None, **kwargs)` - Send an inline form (wraps `kernel.inline_form()`).
+
+`self.subinline.rich_form(chat_id, rich_text, buttons=None, auto_send=True, ttl=200, reply_to=None, rich_parse_mode="html", **kwargs)` - Send an inline form with Telegram `rich_message` formatting.
 
 > [!NOTE]
 >  `self.subinline` this is `self.kernel.inline`!
@@ -151,6 +155,35 @@ Returns `(success: bool, message: InlineMessage)`. The `InlineMessage` object ha
 ok, msg = await self.subinline.form(event.chat_id, "User Info")
 if ok:
     await event.edit("Updated!", buttons=...)
+```
+
+```python
+ok, msg = await self.subinline.rich_form(
+    event.chat_id,
+    "<h1>Title</h1><p><b>Rich</b> body</p>",
+)
+```
+
+With rich media, no Telethon TL imports are needed in the module:
+
+```python
+reply = await event.get_reply_message()
+ok, msg = await self.subinline.rich_form(
+    event.chat_id,
+    '<a href="tg://photo?id=hero">Photo</a>',
+    rich_media={"hero": reply},
+)
+```
+
+Remote URLs can use `tg://media?id=...`; MCUB uploads the URL and rewrites the
+link to the inferred type:
+
+```python
+ok, msg = await self.subinline.rich_form(
+    event.chat_id,
+    '<a href="tg://media?id=hero">Video</a>',
+    rich_media={"hero": "https://example.com/video.mp4"},
+)
 ```
 
 `self.inline_temp(func, ttl=300, article=None, data=None) -> str` - Register a temporary inline command handler. Returns an 8-character `form_id`.
@@ -632,7 +665,7 @@ async def cmd_call(self, event):
 | `self.edit(event, text, **kwargs)`                                                                         | Edit or send message                                      |
 | `self.reply(event, text, **kwargs)`                                                                        | Reply to message                                          |
 | `self.subinline.form(chat_id, title, ..., reply_to=...)`/ `self.inline(chat_id, title, ..., reply_to=...)` | Send inline form message (optional `reply_to` for topics) |
-| `self.subinline`                                                                                           | InlineManager (see [Docs](inline/inline-manager))         |
+| `self.subinline`                                                                                           | InlineManager (see [Docs](../inline/inline-manager.md))   |
 
 ### Database and Cache Usage
 

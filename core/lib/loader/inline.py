@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import sys
 import time
 import traceback
@@ -12,6 +13,10 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from html import escape as html_escape
 from typing import TYPE_CHECKING, Any
+
+_RICH_MEDIA_REF_RE = re.compile(
+    r'tg://(photo|document|video|audio|media)\?id=([^"\'<>\s&]+)'
+)
 
 try:
     from telethon import Button, events
@@ -23,6 +28,13 @@ try:
 except ImportError:
     BadRequestError = Exception
     ChatSendInlineForbiddenError = Exception
+
+try:
+    from telethon import utils as tg_utils
+    from telethon.tl import functions as tg_functions
+    from telethon.tl import types as tg_types
+except ImportError:
+    tg_utils = tg_functions = tg_types = None
 
 try:
     from core_inline.api.inline import make_cb_button
@@ -884,6 +896,12 @@ class InlineManager:
         media_type: str = "photo",
         reply_to: int | None = None,
         parse_mode: str = "html",
+        rich_text: str | None = None,
+        rich_parse_mode: str = "html",
+        rich_message: Any = None,
+        rich_rtl: bool | None = None,
+        rich_noautolink: bool | None = None,
+        rich_files: Any = None,
         **kwargs,
     ):
         """Create and optionally send an inline form.
@@ -902,6 +920,13 @@ class InlineManager:
                       Can be an int, or a MessageReplyHeader object from
                       event.message.reply_to - will be normalized to int.
             parse_mode: Parse mode for the form message (default "html").
+            rich_text: Optional HTML/Markdown source for a Telegram
+                       ``rich_message`` inline form.
+            rich_parse_mode: Format for rich_text ("html", "markdown" or "md").
+            rich_message: Prebuilt Telethon InputRichMessage object.
+            rich_rtl: Render rich message right-to-left.
+            rich_noautolink: Disable automatic links in rich message.
+            rich_files: Optional InputRichFile references used by rich_text.
 
         Returns:
             (success, message) when auto_send=True, else form_id str.
@@ -931,6 +956,13 @@ class InlineManager:
                 ttl,
                 media=media,
                 media_type=media_type,
+                parse_mode=parse_mode,
+                rich_text=rich_text,
+                rich_parse_mode=rich_parse_mode,
+                rich_message=rich_message,
+                rich_rtl=rich_rtl,
+                rich_noautolink=rich_noautolink,
+                rich_files=rich_files,
             )
 
             if auto_send:
@@ -966,6 +998,317 @@ class InlineManager:
                         parse_mode="html",
                     )
             return (False, None) if auto_send else None
+
+    async def rich_form(
+        self,
+        chat_id: int,
+        rich_text: str | None = None,
+        *,
+        buttons=None,
+        auto_send: bool = True,
+        ttl: int = 200,
+        reply_to: int | None = None,
+        rich_parse_mode: str = "html",
+        rich_message: Any = None,
+        text: str | None = None,
+        parse_mode: str | None = None,
+        rtl: bool | None = None,
+        noautolink: bool | None = None,
+        files: Any = None,
+        rich_media: Any = None,
+        **kwargs,
+    ):
+        """Create and optionally send an inline form with rich formatting.
+
+        ``rich_text`` is sent as Telegram ``rich_message`` content when the
+        inline bot is answered through Telethon-MCUB. ``text`` is an optional
+        fallback shown by clients/adapters that do not support rich messages.
+        """
+
+        if rich_text is None and rich_message is None:
+            raise ValueError("Either rich_text or rich_message must be provided")
+
+        if text is None:
+            text = rich_text or ""
+
+        if parse_mode is None:
+            mode = (
+                rich_parse_mode.lower() if isinstance(rich_parse_mode, str) else "html"
+            )
+            parse_mode = "markdown" if mode in {"markdown", "md"} else "html"
+
+        rich_text, rich_files = await self._normalize_rich_media_for_form(
+            rich_media, files, rich_text=rich_text
+        )
+
+        return await self.inline_form(
+            chat_id=chat_id,
+            title=text,
+            fields=None,
+            buttons=buttons,
+            auto_send=auto_send,
+            ttl=ttl,
+            reply_to=reply_to,
+            parse_mode=parse_mode,
+            rich_text=rich_text,
+            rich_parse_mode=rich_parse_mode,
+            rich_message=rich_message,
+            rich_rtl=rtl,
+            rich_noautolink=noautolink,
+            rich_files=rich_files,
+            **kwargs,
+        )
+
+    async def _normalize_rich_media_for_form(
+        self,
+        rich_media: Any = None,
+        files: Any = None,
+        rich_text: str | None = None,
+    ) -> tuple[str | None, list[Any] | None]:
+        result = []
+        refs = self._extract_rich_media_refs(rich_text)
+        if files:
+            if isinstance(files, (list, tuple)):
+                result.extend(files)
+            else:
+                result.append(files)
+
+        if rich_media:
+            specs = self._iter_rich_media_specs(rich_media)
+            for spec in specs:
+                rich_file, resolved_type = await self._make_input_rich_file_for_form(
+                    spec, refs.get(str(spec.get("id")))
+                )
+                result.append(rich_file)
+                if refs.get(str(spec.get("id"))) == "media":
+                    rich_text = self._replace_media_ref_type(
+                        rich_text, str(spec.get("id")), resolved_type
+                    )
+
+        self._validate_rich_files_refs(result, self._extract_rich_media_refs(rich_text))
+        return rich_text, result or None
+
+    @staticmethod
+    def _normalize_rich_media(
+        rich_media: Any = None,
+        files: Any = None,
+        rich_text: str | None = None,
+    ) -> list[Any] | None:
+        result = []
+        refs = InlineManager._extract_rich_media_refs(rich_text)
+        if files:
+            if isinstance(files, (list, tuple)):
+                result.extend(files)
+            else:
+                result.append(files)
+
+        if rich_media:
+            specs = InlineManager._iter_rich_media_specs(rich_media)
+            result.extend(
+                InlineManager._make_input_rich_file(spec, refs.get(str(spec.get("id"))))
+                for spec in specs
+            )
+
+        InlineManager._validate_rich_files_refs(result, refs)
+
+        return result or None
+
+    @staticmethod
+    def _extract_rich_media_refs(rich_text: str | None) -> dict[str, str]:
+        if not rich_text:
+            return {}
+        refs: dict[str, str] = {}
+        for media_type, media_id in _RICH_MEDIA_REF_RE.findall(rich_text):
+            refs.setdefault(media_id, media_type)
+        return refs
+
+    @staticmethod
+    def _replace_media_ref_type(
+        rich_text: str | None, media_id: str, media_type: str
+    ) -> str | None:
+        if not rich_text or media_type == "media":
+            return rich_text
+        return re.sub(
+            rf"tg://media\?id={re.escape(media_id)}(?=\b|[\"'<>\s&])",
+            f"tg://{media_type}?id={media_id}",
+            rich_text,
+        )
+
+    @staticmethod
+    def _iter_rich_media_specs(rich_media: Any):
+        if isinstance(rich_media, Mapping):
+            if "id" in rich_media:
+                yield rich_media
+            else:
+                for media_id, media in rich_media.items():
+                    yield {"id": media_id, "media": media}
+            return
+
+        if isinstance(rich_media, Sequence) and not isinstance(
+            rich_media, (str, bytes, bytearray)
+        ):
+            for item in rich_media:
+                if isinstance(item, Mapping):
+                    yield item
+                elif (
+                    isinstance(item, Sequence)
+                    and not isinstance(item, (str, bytes, bytearray))
+                    and len(item) >= 2
+                ):
+                    yield {"id": item[0], "media": item[1]}
+                else:
+                    raise TypeError(
+                        "rich_media items must be dicts or (id, media) pairs"
+                    )
+            return
+
+        raise TypeError("rich_media must be a mapping, a spec dict, or a list of specs")
+
+    @staticmethod
+    def _make_input_rich_file(
+        spec: Mapping[str, Any], referenced_type: str | None = None
+    ) -> Any:
+        if tg_utils is None or tg_types is None:
+            raise RuntimeError("Telethon rich media helpers are not available")
+
+        media_id = spec.get("id")
+        if not media_id:
+            raise ValueError("rich_media spec requires a non-empty 'id'")
+        media_id = str(media_id)
+        media = spec.get("media", spec.get("file"))
+        media_type = spec.get("type") or referenced_type
+
+        if spec.get("photo") is not None:
+            media = spec["photo"]
+            media_type = media_type or "photo"
+        if spec.get("document") is not None:
+            media = spec["document"]
+            media_type = media_type or "document"
+        if media is None:
+            raise ValueError("rich_media spec requires 'media', 'photo' or 'document'")
+
+        if media_type in {None, "photo"}:
+            try:
+                return tg_types.InputRichFilePhoto(
+                    media_id, tg_utils.get_input_photo(media)
+                )
+            except TypeError as e:
+                if media_type == "photo":
+                    raise ValueError(
+                        f"rich_media id {media_id!r} is referenced as photo but the value is not a photo"
+                    ) from e
+
+        if media_type in {None, "document", "doc", "file", "audio", "video"}:
+            try:
+                return tg_types.InputRichFileDocument(
+                    media_id, tg_utils.get_input_document(media)
+                )
+            except TypeError as e:
+                if media_type is not None:
+                    raise ValueError(
+                        f"rich_media id {media_id!r} is referenced as {media_type} but the value is not a document"
+                    ) from e
+
+        raise TypeError(
+            "rich_media value must be a Telegram photo/document/message media object "
+            "or an InputPhoto/InputDocument"
+        )
+
+    async def _make_input_rich_file_for_form(
+        self,
+        spec: Mapping[str, Any],
+        referenced_type: str | None = None,
+    ) -> tuple[Any, str]:
+        media_id = spec.get("id")
+        media = spec.get("media", spec.get("file"))
+        if spec.get("photo") is not None:
+            media = spec["photo"]
+        if spec.get("document") is not None:
+            media = spec["document"]
+
+        media_type = spec.get("type") or referenced_type
+        if isinstance(media, str) and re.match(r"https?://", media):
+            resolved_type = self._infer_url_rich_media_type(media, media_type)
+            return (
+                await self._upload_url_as_rich_file(
+                    str(media_id), media, resolved_type
+                ),
+                resolved_type,
+            )
+
+        rich_file = self._make_input_rich_file(spec, referenced_type)
+        if tg_types is not None and isinstance(rich_file, tg_types.InputRichFilePhoto):
+            return rich_file, "photo"
+        if media_type in {"video", "audio"}:
+            return rich_file, media_type
+        return rich_file, "document"
+
+    @staticmethod
+    def _infer_url_rich_media_type(url: str, media_type: str | None = None) -> str:
+        if media_type and media_type != "media":
+            return "document" if media_type in {"doc", "file"} else media_type
+
+        clean = url.split("?", 1)[0].split("#", 1)[0].lower()
+        if clean.endswith((".jpg", ".jpeg", ".png", ".webp", ".gif")):
+            return "photo"
+        if clean.endswith((".mp4", ".mov", ".m4v", ".webm", ".mkv")):
+            return "video"
+        if clean.endswith((".mp3", ".ogg", ".oga", ".m4a", ".wav", ".flac")):
+            return "audio"
+        return "document"
+
+    async def _upload_url_as_rich_file(
+        self, media_id: str, url: str, media_type: str
+    ) -> Any:
+        if tg_types is None or tg_functions is None or tg_utils is None:
+            raise RuntimeError("Telethon rich media helpers are not available")
+
+        _file_handle, media, _as_image = await self.k.client._file_to_media(
+            url,
+            force_document=media_type != "photo",
+            supports_streaming=media_type == "video",
+        )
+        uploaded = await self.k.client(
+            tg_functions.messages.UploadMediaRequest(tg_types.InputPeerSelf(), media)
+        )
+
+        if media_type == "photo":
+            return tg_types.InputRichFilePhoto(
+                media_id, tg_utils.get_input_photo(uploaded.photo)
+            )
+
+        return tg_types.InputRichFileDocument(
+            media_id,
+            tg_utils.get_input_document(uploaded.document),
+        )
+
+    @staticmethod
+    def _validate_rich_files_refs(
+        rich_files: list[Any], refs: Mapping[str, str]
+    ) -> None:
+        if not refs or tg_types is None:
+            return
+
+        by_id = {
+            str(getattr(rich_file, "id", "")): rich_file for rich_file in rich_files
+        }
+        for media_id, media_type in refs.items():
+            rich_file = by_id.get(media_id)
+            if rich_file is None:
+                continue
+
+            if media_type == "photo" and not isinstance(
+                rich_file, tg_types.InputRichFilePhoto
+            ):
+                raise ValueError(
+                    f"rich_media id {media_id!r} is referenced as photo but resolved as document"
+                )
+            if media_type in {"document", "video", "audio"} and not isinstance(
+                rich_file, tg_types.InputRichFileDocument
+            ):
+                raise ValueError(
+                    f"rich_media id {media_id!r} is referenced as {media_type} but resolved as photo"
+                )
 
     async def form(
         self,

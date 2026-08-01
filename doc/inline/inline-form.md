@@ -6,9 +6,72 @@
 
 ← [Index](../../API_DOC.md)
 
+> Full rich-message guide: [Telethon-MCUB Rich Messages](../telethon/rich.md).
+
 ## `kernel.inline.form()` (alias) /  `kernel.inline_form` (old)
 
 Sends an inline message with formatted fields and buttons.
+
+## `self.subinline.rich_form()` / `kernel.rich_form()`
+
+Sends an inline form whose selected inline result uses Telegram
+`rich_message` formatting when Telethon-MCUB can answer the inline query
+natively.
+
+```python
+await self.subinline.rich_form(
+    event.chat_id,
+    "<h1>Title</h1><p><b>Rich</b> body</p>",
+)
+```
+
+Markdown is also supported:
+
+```python
+await self.subinline.rich_form(
+    event.chat_id,
+    "# Title\n\n**Rich** body",
+    rich_parse_mode="markdown",
+)
+```
+
+Media can be referenced from rich HTML without importing Telethon TL types in
+your module. Use `rich_media` and reference the same id in `tg://...` links:
+
+```python
+reply = await event.get_reply_message()
+
+await self.subinline.rich_form(
+    event.chat_id,
+    '<h1>Photo</h1><a href="tg://photo?id=hero">Open photo</a>',
+    rich_media={"hero": reply},  # Message/Photo/Document/InputPhoto/InputDocument
+)
+```
+
+For remote URLs you can use the `tg://media?id=...` alias. MCUB will upload
+the URL through Telegram, infer the media type from the extension, and rewrite
+the link to `tg://video`, `tg://photo`, `tg://audio` or `tg://document`:
+
+```python
+await self.subinline.rich_form(
+    event.chat_id,
+    '<h1>Video</h1><a href="tg://media?id=hero">Open video</a>',
+    rich_media={"hero": "https://example.com/video.mp4"},
+)
+```
+
+For documents use `tg://document?id=...` and pass a document/message media:
+
+```python
+await self.subinline.rich_form(
+    event.chat_id,
+    '<a href="tg://document?id=file1">Open file</a>',
+    rich_media={"file1": reply},
+)
+```
+
+If the current inline adapter cannot send Telegram rich messages, MCUB falls
+back to a normal formatted inline article using the same text.
 
 ## Inline Form Flow
 
@@ -38,6 +101,19 @@ flowchart LR
 - `ttl` (int, default=200): Cache TTL for form (seconds)
 - `reply_to` (int, optional): Topic/thread message ID for supergroups with topics.
   The inline form message and its result will be sent into this topic.
+
+### Rich Form Parameters
+
+- `rich_text` (str): HTML/Markdown rich message source.
+- `rich_parse_mode` (str, default=`"html"`): `"html"`, `"markdown"` or `"md"`.
+- `rich_message` (InputRichMessage, optional): Prebuilt Telethon rich message.
+- `text` (str, optional): Fallback text for clients/adapters without rich support.
+- `rtl` (bool, optional): Render rich content right-to-left.
+- `noautolink` (bool, optional): Disable automatic link detection.
+- `files` (list, optional): `InputRichFile` references used by rich content.
+- `rich_media` (dict | list, optional): Convenient media specs converted by
+  MCUB into `InputRichFilePhoto`/`InputRichFileDocument`. The key is the same
+  string id used in `tg://photo?id=...` or `tg://document?id=...` links.
 
 ### Button Configuration
 

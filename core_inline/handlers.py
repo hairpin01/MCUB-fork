@@ -1144,11 +1144,29 @@ class InlineHandlers:
         Returns:
             dict: Bot API response
         """
+
+        def _is_parse_error(error: Any) -> bool:
+            text = str(error).lower()
+            return "can't parse" in text or "parse entities" in text
+
+        def _strip_parse_modes(value: Any) -> Any:
+            if isinstance(value, dict):
+                return {
+                    key: _strip_parse_modes(item)
+                    for key, item in value.items()
+                    if key != "parse_mode"
+                }
+            if isinstance(value, list):
+                return [_strip_parse_modes(item) for item in value]
+            return value
+
         _bot_token = self._get_bot_token()
+
+        request_results = results
 
         payload = {
             "inline_query_id": inline_query_id,
-            "results": results,
+            "results": request_results,
             "cache_time": cache_time,
             "is_personal": is_personal,
         }
@@ -1167,6 +1185,9 @@ class InlineHandlers:
                 )
                 return {"ok": True, "result": True}
             except Exception as e:
+                if _is_parse_error(e):
+                    request_results = _strip_parse_modes(results)
+                    payload["results"] = request_results
                 self.kernel.logger.warning(
                     "[InlineHandlers] aiogram answer_inline_query failed: %s",
                     e,
@@ -1176,7 +1197,23 @@ class InlineHandlers:
             f"https://api.telegram.org/bot{_bot_token}/answerInlineQuery",
             json=payload,
         ) as resp:
-            return await resp.json()
+            data = await resp.json()
+
+        description = str(data.get("description", "")) if isinstance(data, dict) else ""
+        if (
+            isinstance(data, dict)
+            and not data.get("ok")
+            and _is_parse_error(description)
+            and request_results is results
+        ):
+            payload["results"] = _strip_parse_modes(results)
+            async with self.kernel.session.post(
+                f"https://api.telegram.org/bot{_bot_token}/answerInlineQuery",
+                json=payload,
+            ) as resp:
+                return await resp.json()
+
+        return data
 
     def create_form_with_validation(
         self,

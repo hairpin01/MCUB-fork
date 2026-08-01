@@ -39,6 +39,7 @@ from .decorators import (
     tds,
     watcher,
 )
+from .dependencies import VALID_PIP_PACKAGES
 from .proxies import (
     PointerDict,
     PointerList,
@@ -1435,10 +1436,7 @@ def _ensure_fake_package() -> str:
     loader_mod.SelfSuspend = SelfSuspend
     loader_mod.StopLoop = StopLoop
     loader_mod.StringLoader = StringLoader
-    loader_mod.VALID_PIP_PACKAGES = re.compile(
-        r"# ?scope: ?pip ?((?:[A-Za-z0-9\-_>=<!\[\].]+(?:\s+|$))+)",
-        re.MULTILINE,
-    )
+    loader_mod.VALID_PIP_PACKAGES = VALID_PIP_PACKAGES
     loader_mod.VALID_APT_PACKAGES = re.compile(
         r"# ?scope: ?apt ?((?:[A-Za-z0-9\-_]+(?:\s+|$))+)",
         re.MULTILINE,
@@ -1686,6 +1684,24 @@ def _normalize_watcher_tags(method: Callable) -> dict:
         if mapped:
             normalized[mapped] = value
     return normalized
+
+
+def _exception_cause_summary(exc: BaseException) -> str:
+    cause = exc.__cause__ or exc.__context__
+    if cause is None:
+        return ""
+    return f"; cause={type(cause).__name__}: {cause}"
+
+
+def _log_exception_cause(logger, prefix: str, exc: BaseException) -> None:
+    cause = exc.__cause__ or exc.__context__
+    if cause is None:
+        return
+    logger.debug(
+        "%s cause traceback:\n%s",
+        prefix,
+        "".join(traceback.format_exception(type(cause), cause, cause.__traceback__)),
+    )
 
 
 def _watcher_passes_filters(event: Any, tags: dict, kernel) -> bool:
@@ -2452,6 +2468,8 @@ async def load_hikka_module(
             try:
                 await _maybe_await(instance.client_ready())
                 instance._hikka_compat_ready = True
+            except (SelfUnload, SelfSuspend):
+                raise
             except Exception as e:
                 kernel.logger.warning(
                     f"[hikka_compat] client_ready() error in {module_name}: {e}"
@@ -2470,7 +2488,13 @@ async def load_hikka_module(
         except SelfSuspend as e:
             instance._self_suspended = True
             kernel.logger.info(
-                f"[hikka_compat] {module_name} suspended on client_ready: {e}"
+                f"[hikka_compat] {module_name} suspended on client_ready: "
+                f"{e}{_exception_cause_summary(e)}"
+            )
+            _log_exception_cause(
+                kernel.logger,
+                f"[hikka_compat] {module_name} suspended on client_ready",
+                e,
             )
         except Exception as e:
             kernel.logger.warning(

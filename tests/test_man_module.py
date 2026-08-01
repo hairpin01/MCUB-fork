@@ -173,6 +173,7 @@ def _make_man_instance(**kernel_overrides):
             "no_description": "нeт",
             "unknown": "?",
             "no_commands": "нeт кoмaнд",
+            "bot_commands": "Бoт-кoмaнды",
             "author": "Aвтop",
             "aliases": "Aлиacы",
             "placeholders_title": "Плeйcxoлдepы",
@@ -273,3 +274,51 @@ async def test_build_module_detail_includes_module_type_text(monkeypatch):
 
     _ASSERT.assertIsNone(banner)
     _ASSERT.assertIn("Данный модуль MCUB нативный, использует Kernel стиль", text)
+
+
+@pytest.mark.asyncio
+async def test_build_module_detail_includes_bot_commands_with_descriptions(
+    monkeypatch,
+):
+    loader = SimpleNamespace(
+        _module_type_cache={},
+        pick_localized_text=lambda i18n, lang, fallback: i18n.get(lang)
+        or i18n.get("en")
+        or fallback,
+        get_module_commands=lambda name, lang: ({}, {}, {}),
+    )
+    kernel_module = SimpleNamespace(register=lambda kernel: None, __name__="bot_mod")
+    module_instance = _make_man_instance(
+        _loader=loader,
+        bot_command_owners={
+            "start": "bot_mod",
+            "help": "bot_mod",
+            "skip": "other_mod",
+        },
+        bot_command_docs={
+            "start": {"ru": "Пoкaзaть cтapтoвoe мeню", "en": "Show start menu"},
+            "help": {"en": "Show help"},
+        },
+    )
+
+    async def _metadata(name, typ):
+        return {
+            "description": "desc",
+            "description_i18n": {},
+            "version": "1.0.0",
+            "author": "me",
+            "banner_url": None,
+            "commands": {},
+        }
+
+    monkeypatch.setattr(module_instance, "_load_module_metadata", _metadata)
+
+    text, banner = await module_instance._build_module_detail(
+        ("bot_mod", "user", kernel_module)
+    )
+
+    _ASSERT.assertIsNone(banner)
+    _ASSERT.assertIn("Бoт-кoмaнды", text)
+    _ASSERT.assertIn("<code>/start</code> - <b>Пoкaзaть cтapтoвoe мeню</b>", text)
+    _ASSERT.assertIn("<code>/help</code> - <b>Show help</b>", text)
+    _ASSERT.assertNotIn("/skip", text)

@@ -302,16 +302,17 @@ class InlineMessage:
         # If we have a stored callback event, use event.edit() directly.
         # The event carries an already-resolved InputPeer, bypassing the
         # entity-resolution issue that affects bot_client.edit_message().
+        prepared_markup = None
         if self._event is not None and hasattr(self._event, "edit"):
             if reply_markup is not None:
                 proxy = self._inline_proxy
                 if proxy is not None and hasattr(proxy, "_prepare_markup"):
                     try:
-                        prepared = proxy._prepare_markup(
+                        prepared_markup = proxy._prepare_markup(
                             reply_markup,
                             unit_id=self.unit_id,
                         )
-                        converted = proxy._to_telethon_buttons(prepared)
+                        converted = proxy._to_telethon_buttons(prepared_markup)
                         if converted is not None:
                             kwargs["buttons"] = converted
                     except Exception as e:
@@ -333,22 +334,21 @@ class InlineMessage:
                 kwargs["file"] = file_kwarg
 
             try:
-                result = await self._event.edit(
-                    *args,
-                    **kwargs,
-                )
-                if result is not None:
-                    if self.unit_id and self._units:
-                        unit = self._units.get(self.unit_id)
-                        if unit is not None:
-                            text = None
+                await self._event.edit(*args, **kwargs)
+                if self.unit_id and self._units:
+                    unit = self._units.get(self.unit_id)
+                    if unit is not None:
+                        text = kwargs.get("text")
+                        if text is None:
                             for a in args:
                                 if isinstance(a, str):
                                     text = a
                                     break
-                            if text is not None:
-                                unit["text"] = text
-                    return self
+                        if text is not None:
+                            unit["text"] = text
+                        if prepared_markup is not None:
+                            unit["buttons"] = prepared_markup
+                return self
             except Exception as e:
                 logger.error("InlineMessage event.edit failed: %s", e)
                 return self
@@ -549,16 +549,24 @@ class InlineCall:
         )
 
         if self.original_call is not None and hasattr(self.original_call, "answer"):
-            try:
-                await self.original_call.answer(
-                    text=text,
-                    show_alert=show_alert,
-                    url=url,
-                )
-                self._answered = True
-                return
-            except Exception as e:
-                logger.error("InlineCall.answer failed: %s", e)
+            answer = self.original_call.answer
+            attempts = [
+                {"text": text, "show_alert": show_alert, "url": url},
+                {"text": text, "alert": show_alert, "url": url},
+                {"message": text, "alert": show_alert, "url": url},
+                {"text": text, "alert": show_alert},
+                {"message": text, "alert": show_alert},
+            ]
+            for call_kwargs in attempts:
+                try:
+                    await answer(**call_kwargs)
+                    self._answered = True
+                    return
+                except TypeError:
+                    continue
+                except Exception as e:
+                    logger.error("InlineCall.answer failed: %s", e)
+                    break
 
         self._answered = True
 

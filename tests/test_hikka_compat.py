@@ -96,6 +96,35 @@ class TestImportsAndConstants:
         assert InlineProxy
         assert Module
 
+    def test_hikka_requires_and_scope_pip_dependency_markers(self):
+        from core.lib.loader.hikka_compat.dependencies import parse_pip_requirements
+
+        hikka_requires = parse_pip_requirements(
+            "# requires: emoji alphabet_detector aiohttp>=3"
+        )
+        scope_pip = parse_pip_requirements("# scope: pip pillow>=10 requests")
+
+        assert hikka_requires == [
+            "emoji",
+            "alphabet_detector",
+            "aiohttp>=3",
+        ]
+        assert scope_pip == ["pillow>=10", "requests"]
+
+    def test_hikka_dependency_markers_reject_unsafe_pip_targets(self):
+        from core.lib.loader.hikka_compat.dependencies import parse_pip_requirements
+
+        assert (
+            parse_pip_requirements("# requires: git+https://example.com/pkg.git") == []
+        )
+        assert parse_pip_requirements("# requires: https://example.com/pkg.whl") == []
+        assert (
+            parse_pip_requirements("# requires: package @ https://example.com/pkg.whl")
+            == []
+        )
+        assert parse_pip_requirements("# requires: ../local-package") == []
+        assert parse_pip_requirements("# requires: --extra-index-url") == []
+
 
 class TestSecurityDecorators:
     """Test security decorators set correct bitmasks."""
@@ -559,6 +588,31 @@ class TestInlineMessage:
         result = asyncio.run(msg.unload())
         assert result is False
 
+    def test_inline_message_event_edit_none_is_success(self):
+        import asyncio
+
+        from core.lib.loader.hikka_compat.inline_types import InlineMessage
+
+        raw_event = types.SimpleNamespace(edit=AsyncMock(return_value=None))
+        inline_proxy = types.SimpleNamespace(
+            _units={"unit_123": {"text": "old"}},
+            _edit_unit=AsyncMock(return_value=False),
+        )
+
+        msg = InlineMessage(
+            inline_message_id="test_id",
+            unit_id="unit_123",
+            inline_proxy=inline_proxy,
+            event=raw_event,
+        )
+
+        result = asyncio.run(msg.edit("new text"))
+
+        assert result is msg
+        raw_event.edit.assert_awaited_once()
+        inline_proxy._edit_unit.assert_not_awaited()
+        assert inline_proxy._units["unit_123"]["text"] == "new text"
+
 
 class TestInlineCall:
     """Test InlineCall (callback handler) API."""
@@ -626,7 +680,12 @@ class TestInlineCall:
             message_id = 200
             sender_id = 300
             from_user = types.SimpleNamespace(id=300)
-            answer = AsyncMock()
+
+            def __init__(self):
+                self.answer_calls = []
+
+            async def answer(self, text="", alert=False, url=None):
+                self.answer_calls.append({"text": text, "alert": alert, "url": url})
 
         raw_event = RawCallbackEvent()
         native_call = NativeInlineMessage(raw_event, kernel=MagicMock())
@@ -642,7 +701,44 @@ class TestInlineCall:
 
         asyncio.run(call.answer("ok", show_alert=True))
         assert call.original_call is raw_event
-        raw_event.answer.assert_awaited_once_with(text="ok", show_alert=True, url=None)
+        assert raw_event.answer_calls == [{"text": "ok", "alert": True, "url": None}]
+
+    def test_inline_call_answer_supports_telethon_message_signature(self, inline_proxy):
+        from core.lib.loader.hikka_compat.inline_types import InlineCall
+
+        class TelethonLikeCallback:
+            def __init__(self):
+                self.answer_calls = []
+
+            async def answer(self, message=None, cache_time=0, url=None, alert=False):
+                self.answer_calls.append(
+                    {
+                        "message": message,
+                        "cache_time": cache_time,
+                        "url": url,
+                        "alert": alert,
+                    }
+                )
+
+        original = TelethonLikeCallback()
+        call = InlineCall(
+            call_data="data",
+            unit_id="u1",
+            inline_proxy=inline_proxy,
+            original_call=original,
+        )
+
+        import asyncio
+
+        asyncio.run(call.answer("saved", show_alert=True, url="https://example.com"))
+        assert original.answer_calls == [
+            {
+                "message": "saved",
+                "cache_time": 0,
+                "url": "https://example.com",
+                "alert": True,
+            }
+        ]
 
     def test_inline_call_edit(self, inline_proxy):
         from core.lib.loader.hikka_compat.inline_types import InlineCall
@@ -718,6 +814,19 @@ class TestBotInlineCall:
         assert call.data == "btn_data"
         assert call.unit_id == "u1"
         assert call.from_user.id == 42
+
+
+class TestHikkaInfiniteLoop:
+    def test_loop_interval_is_clamped_to_safe_minimum(self):
+        from core.lib.loader.hikka_compat.decorators import InfiniteLoop
+
+        async def body(self):
+            return None
+
+        assert InfiniteLoop(body, interval=0).interval == InfiniteLoop.MIN_INTERVAL
+        assert InfiniteLoop(body, interval=-1).interval == InfiniteLoop.MIN_INTERVAL
+        assert InfiniteLoop(body, interval=None).interval == InfiniteLoop.MIN_INTERVAL
+        assert InfiniteLoop(body, interval=5).interval == 5.0
 
 
 class TestInlineQuery:
@@ -1021,6 +1130,103 @@ class TestRuntimeLibraryCompat:
         assert allmodules.commands["dlm"] is dlm_handler
         assert not hasattr(allmodules, "_raw_kernel")
 
+    def test_lookup_matches_mcub_module_name_without_touching_strings(self):
+        from core.lib.loader.hikka_compat.runtime import _AllModulesStub
+
+        class EvalModule:
+            name = "evaluator"
+
+            @property
+            def strings(self):
+                raise AttributeError("strings unavailable")
+
+        kernel = self.make_kernel()
+        evaluator = EvalModule()
+        kernel.loaded_modules["modules.evaluator"] = evaluator
+
+        allmodules = _AllModulesStub(kernel)
+
+        assert allmodules.lookup("evaluator") is evaluator
+        kernel.logger.error.assert_not_called()
+
+    def test_lookup_loader_proxy_uses_raw_kernel_without_security_violation(self):
+        from core.lib.loader.hikka_compat.runtime import Module, _CompatLoaderProxy
+
+        kernel = self.make_kernel()
+        module = Module()
+        module._mcub_bind(kernel, module_name="Probe")
+
+        loader_proxy = module.allmodules.lookup("loader")
+        module_loader_proxy = module.lookup("loader")
+
+        assert isinstance(loader_proxy, _CompatLoaderProxy)
+        assert isinstance(module_loader_proxy, _CompatLoaderProxy)
+        assert loader_proxy.allmodules is module.allmodules
+        assert module_loader_proxy.allmodules is module.allmodules
+        kernel.logger.error.assert_not_called()
+
+    def test_allmodules_client_tg_id_falls_back_to_kernel_admin_id(self):
+        from core.lib.loader.hikka_compat.runtime import _AllModulesStub
+
+        class ClientWithoutTgId:
+            pass
+
+        kernel = self.make_kernel()
+        kernel.client = ClientWithoutTgId()
+
+        allmodules = _AllModulesStub(kernel)
+
+        assert allmodules.client.tg_id == 12345
+
+    def test_library_internal_init_survives_client_without_raw_tg_id(self):
+        from core.lib.loader.hikka_compat.runtime import Library, _AllModulesStub
+
+        class ClientWithoutTgId:
+            pass
+
+        class DemoLib(Library):
+            pass
+
+        kernel = self.make_kernel()
+        kernel.client = ClientWithoutTgId()
+        lib = DemoLib()
+        lib.allmodules = _AllModulesStub(kernel)
+
+        lib.internal_init()
+
+        assert lib.tg_id == 12345
+        assert lib._tg_id == 12345
+
+    def test_kernel_db_facade_supports_hikka_style_setdefault_bucket(self):
+        from core.lib.loader.hikka_compat.runtime import _AllModulesStub
+
+        kernel = self.make_kernel()
+        allmodules = _AllModulesStub(kernel)
+
+        bucket = allmodules.db.setdefault("ApodiktumLib", {})
+        chats = bucket.setdefault("chats", {})
+        chats["chat-id"] = {"rank": "vip"}
+        bucket["chats"] = chats
+
+        assert allmodules.db.get("ApodiktumLib", "chats", {}) == {
+            "chat-id": {"rank": "vip"}
+        }
+        assert allmodules.db["ApodiktumLib"]["chats"] == {"chat-id": {"rank": "vip"}}
+
+    def test_db_proxy_supports_hikka_style_module_bucket_setdefault(self):
+        from core.lib.loader.hikka_compat.runtime import DbProxy
+
+        kernel = self.make_kernel()
+        db = DbProxy(kernel, "Apo-Donators")
+
+        lib_db = db["ApodiktumLib"]
+        chats = lib_db.setdefault("chats", {})
+        chats["chat-id"] = {"rank": "vip"}
+        lib_db["chats"] = chats
+
+        assert db.get("ApodiktumLib", "chats", {}) == {"chat-id": {"rank": "vip"}}
+        assert db["ApodiktumLib"]["chats"] == {"chat-id": {"rank": "vip"}}
+
     def test_import_lib_supports_heroku_relative_loader_import(self, monkeypatch):
         import asyncio
 
@@ -1072,6 +1278,73 @@ class RemoteLib(loader.Library):
         assert lib.ready is True
         assert lib.__class__.__module__.startswith("heroku.libraries.")
         assert module.allmodules.lookup("Remote") is lib
+
+    def test_import_lib_prefers_library_when_file_has_helper_modules(self, monkeypatch):
+        import asyncio
+
+        from core.lib.loader.hikka_compat import runtime
+        from core.lib.loader.hikka_compat.runtime import Module
+
+        code = """
+from .. import loader
+
+class ApodiktumLib(loader.Library):
+    version = (1, 0, 0)
+
+    async def init(self):
+        self.loaded_classes = {}
+        self._controllerloader = ApodiktumControllerLoader(self)
+        self.loaded_classes["_controllerloader"] = self._controllerloader
+
+class ApodiktumControllerLoader(loader.Module):
+    def __init__(self, lib):
+        self.lib = lib
+        self._db = lib.db
+        self._client = lib.client
+        self.inline = lib.inline
+        self.unload_controller = False
+"""
+
+        class FakeResponse:
+            def raise_for_status(self):
+                return None
+
+            async def text(self):
+                return code
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+        class FakeSession:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            def get(self, url):
+                assert url == "https://example.com/apodiktum_library.py"
+                return FakeResponse()
+
+        monkeypatch.setattr(runtime.aiohttp, "ClientSession", FakeSession)
+
+        module = Module()
+        module._mcub_bind(self.make_kernel(), module_name="Importer")
+        lib = asyncio.run(module.import_lib("https://example.com/apodiktum_library.py"))
+
+        assert lib.name == "ApodiktumLib"
+        assert lib._controllerloader.lib is lib
+        assert lib._controllerloader._db is lib.db
+        assert lib.loaded_classes["_controllerloader"] is lib._controllerloader
+        assert lib._controllerloader.unload_controller is False
+        assert module.allmodules.lookup("Apodiktum") is lib
+        assert module.allmodules.lookup("ApodiktumControllerLoader") is None
 
     def test_library_config_and_update_semantics(self):
         import asyncio
@@ -1273,6 +1546,41 @@ class TestInlineProxyFormGalleryList:
         entry = next(iter(kernel.inline_callback_map.values()))
         assert entry["allow_all"] is True
 
+    def test_form_keeps_callback_token_registered_after_unit_registration(
+        self, proxy, kernel
+    ):
+        import asyncio
+
+        async def handler(call):
+            return None
+
+        async def inline_form(**kwargs):
+            return True, types.SimpleNamespace(id=777, inline_message_id="1:2:3")
+
+        kernel._inline = types.SimpleNamespace(inline_form=inline_form)
+        token = "mcub_probe_token"
+
+        asyncio.run(
+            proxy.form(
+                "Probe",
+                types.SimpleNamespace(chat_id=100, sender_id=12345),
+                reply_markup=[
+                    [
+                        {
+                            "text": "Go",
+                            "callback": handler,
+                            "data": token,
+                        }
+                    ]
+                ],
+                ttl=60,
+            )
+        )
+
+        assert token in kernel.inline_callback_map
+        assert token in proxy._custom_map
+        assert kernel.inline_callback_map[token]["unit_id"] in proxy._units
+
     def test_raw_inline_bot_callback_query_dispatches_hikka_token(self, proxy, kernel):
         import asyncio
         import threading
@@ -1300,6 +1608,7 @@ class TestInlineProxyFormGalleryList:
             async def handler(call):
                 seen["data"] = call.data
                 await call.answer("OK")
+                await call.edit("Edited")
 
             kernel.bot_client = Client()
             kernel.client = kernel.bot_client
@@ -1343,9 +1652,146 @@ class TestInlineProxyFormGalleryList:
 
             await inline_handlers.process_callback_query(event)
             assert seen["data"] == token
-            assert requests == ["SetBotCallbackAnswerRequest"]
+            assert requests == [
+                "SetBotCallbackAnswerRequest",
+                "EditInlineBotMessageRequest",
+            ]
 
         asyncio.run(runner())
+
+    def test_edit_unit_uses_inline_message_id_without_chat_message_target(
+        self, proxy, kernel
+    ):
+        import asyncio
+
+        requests = []
+
+        class Client:
+            async def __call__(self, request):
+                requests.append(request)
+                return True
+
+        kernel.client = Client()
+        kernel.bot_client = kernel.client
+        proxy._register_unit(
+            "unit-1",
+            {
+                "id": "unit-1",
+                "type": "form",
+                "text": "Old",
+                "buttons": [],
+                "chat": None,
+                "message_id": None,
+                "inline_message_id": "2:3:4",
+                "created_at": 0,
+                "expires_at": None,
+                "allow_user": 12345,
+            },
+        )
+
+        asyncio.run(proxy._edit_unit("Edited", unit_id="unit-1"))
+
+        assert len(requests) == 1
+        assert type(requests[0]).__name__ == "EditInlineBotMessageRequest"
+        assert requests[0].message == "Edited"
+
+    def test_prepare_markup_accepts_aiogram_like_markup(self, proxy):
+        class AiogramLikeButton:
+            def __init__(self, text, callback_data=None, url=None):
+                self.text = text
+                self.callback_data = callback_data
+                self.url = url
+
+            def model_dump(self, exclude_none=False):
+                data = {
+                    "text": self.text,
+                    "callback_data": self.callback_data,
+                    "url": self.url,
+                }
+                if exclude_none:
+                    data = {
+                        key: value for key, value in data.items() if value is not None
+                    }
+                return data
+
+        class AiogramLikeMarkup:
+            inline_keyboard = [[AiogramLikeButton("Open", callback_data="cb-token")]]
+
+        prepared = proxy._prepare_markup(AiogramLikeMarkup(), unit_id="unit-1")
+
+        assert prepared == [[{"text": "Open", "callback_data": "cb-token"}]]
+        assert proxy._strip_callbacks_for_mcub(prepared) == [
+            [{"text": "Open", "data": "cb-token"}]
+        ]
+
+    def test_to_telethon_buttons_registers_direct_hikka_callback(self, proxy, kernel):
+        import asyncio
+
+        seen = {}
+
+        async def handler(call, value):
+            seen["data"] = call.data
+            seen["value"] = value
+
+        proxy._current_form_ttl = 60
+        buttons = proxy._to_telethon_buttons(
+            [[{"text": "Go", "callback": handler, "args": ("ok",)}]]
+        )
+
+        assert buttons
+        token = next(iter(kernel.inline_callback_map))
+        entry = kernel.inline_callback_map[token]
+        assert entry["unit_id"] is None
+
+        event = types.SimpleNamespace(
+            data=token.encode(),
+            from_user=types.SimpleNamespace(id=12345),
+            inline_message_id="inline-id",
+            chat_id=100,
+            message_id=200,
+        )
+        asyncio.run(entry["handler"](event))
+
+        assert seen == {"data": token, "value": "ok"}
+
+    def test_input_button_registers_inline_temp_and_preserves_query_space(
+        self, proxy, kernel
+    ):
+        import asyncio
+
+        captured = {}
+        seen = {}
+
+        class Register:
+            def inline_temp(self, handler, **kwargs):
+                captured["handler"] = handler
+                captured["kwargs"] = kwargs
+                return "input-token"
+
+        async def handler(call, text, marker):
+            seen["data"] = call.data
+            seen["text"] = text
+            seen["marker"] = marker
+
+        kernel.register = Register()
+        proxy._current_form_ttl = 60
+
+        prepared = proxy._prepare_markup(
+            [[{"text": "Ask", "input": "Type", "handler": handler, "args": ("m",)}]],
+            unit_id="unit-1",
+        )
+
+        button = prepared[0][0]
+        assert button["_switch_query"] == "input-token"
+        assert button["switch_inline_query_current_chat"] == "input-token "
+        assert captured["kwargs"]["ttl"] == 60
+
+        telethon_buttons = proxy._to_telethon_buttons(prepared)
+        assert telethon_buttons[0][0].query == "input-token "
+
+        event = types.SimpleNamespace(msg_id=None, user_id=12345)
+        asyncio.run(captured["handler"](event, "typed text"))
+        assert seen == {"data": "typed text", "text": "typed text", "marker": "m"}
 
     def test_bot_properties(self, proxy):
         bot = proxy.bot

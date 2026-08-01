@@ -659,6 +659,16 @@ def _make_client_proxy():
             # Hikka/Heroku modules expect HTML parse mode by default.
             if name == "parse_mode":
                 return "html"
+            # Hikka attaches the current account id to TelegramClient as
+            # ``client.tg_id``.  MCUB keeps the same value on the kernel as
+            # ADMIN_ID, so expose it through the safe client facade when the
+            # raw Telethon client does not provide it itself.
+            if name == "tg_id":
+                client = client_map[self]
+                value = getattr(client, "tg_id", None)
+                if value is not None:
+                    return value
+                raise AttributeError(name)
             # Introspection helpers often probe dunders with getattr(..., default).
             # Raise AttributeError for harmless dunders so such probes keep working,
             # while explicitly blocked magic names above still report insecure access.

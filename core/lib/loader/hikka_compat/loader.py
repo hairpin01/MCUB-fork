@@ -4,6 +4,7 @@
 import re
 import site
 
+from .dependencies import VALID_PIP_PACKAGES
 from .config import ConfigValue, LibraryConfig, ModuleConfig
 from .decorators import (
     InfiniteLoop,
@@ -31,10 +32,6 @@ from .types import (
 )
 from .validators import validators
 
-VALID_PIP_PACKAGES = re.compile(
-    r"# ?scope: ?pip ?((?:[A-Za-z0-9\-_>=<!\[\].]+(?:\s+|$))+)",
-    re.MULTILINE,
-)
 VALID_APT_PACKAGES = re.compile(
     r"# ?scope: ?apt ?((?:[A-Za-z0-9\-_]+(?:\s+|$))+)",
     re.MULTILINE,

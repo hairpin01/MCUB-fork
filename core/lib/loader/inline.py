@@ -69,6 +69,24 @@ except ImportError:
     Strings = None
 
 
+_INLINE_FORM_ONLY_KWARGS = {
+    "media",
+    "media_type",
+    "photo",
+    "gif",
+    "file",
+    "document",
+    "video",
+    "audio",
+    "rich_text",
+    "rich_parse_mode",
+    "rich_message",
+    "rich_rtl",
+    "rich_noautolink",
+    "rich_files",
+}
+
+
 @dataclass(slots=True)
 class _Session:
     expires_at: float
@@ -768,7 +786,13 @@ class InlineManager:
                 click_kwargs["silent"] = silent
             if reply_to:
                 click_kwargs["reply_to"] = reply_to
-            click_kwargs.update(kwargs)
+            click_kwargs.update(
+                {
+                    key: value
+                    for key, value in kwargs.items()
+                    if key not in _INLINE_FORM_ONLY_KWARGS
+                }
+            )
             try:
                 message = await results[result_index].click(chat_id, **click_kwargs)
             except BadRequestError as e:
@@ -943,6 +967,32 @@ class InlineManager:
         k = self.k
         form_sms = None
         try:
+            photo = kwargs.pop("photo", None)
+            gif = kwargs.pop("gif", None)
+            file = kwargs.pop("file", None)
+            document = kwargs.pop("document", None)
+            video = kwargs.pop("video", None)
+            audio = kwargs.pop("audio", None)
+            if media is None:
+                if photo is not None:
+                    media = photo
+                    media_type = "photo"
+                elif gif is not None:
+                    media = gif
+                    media_type = "gif"
+                elif video is not None:
+                    media = video
+                    media_type = "video"
+                elif document is not None:
+                    media = document
+                    media_type = "document"
+                elif file is not None:
+                    media = file
+                    media_type = "document"
+                elif audio is not None:
+                    media = audio
+                    media_type = "audio"
+
             lines = [title]
             if isinstance(fields, dict):
                 lines += [f"{fk}: {fv}" for fk, fv in fields.items()]

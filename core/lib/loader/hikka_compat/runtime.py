@@ -81,9 +81,8 @@ def _make_compat_kernel_proxy():
 
         @property
         def client(self):
-            from ..kernel_proxy import ClientProxy
-
-            return ClientProxy(kernel_map[self].client, self.module_name)
+            kernel = kernel_map[self]
+            return _make_hikka_client_proxy(kernel, self.module_name)
 
         @property
         def bot_client(self):
@@ -155,6 +154,39 @@ def _make_compat_kernel_proxy():
 
 
 CompatKernelProxy = _make_compat_kernel_proxy()
+
+
+class _HikkaClientProxy:
+    """Small Hikka-only facade that adds client.tg_id to MCUB ClientProxy."""
+
+    __slots__ = ("_proxy", "tg_id", "_tg_id")
+
+    def __init__(self, proxy, tg_id: int | None):
+        self._proxy = proxy
+        self.tg_id = tg_id
+        self._tg_id = tg_id
+
+    def __getattr__(self, name: str):
+        return getattr(self._proxy, name)
+
+    async def __call__(self, *args, **kwargs):
+        return await self._proxy(*args, **kwargs)
+
+    def __repr__(self) -> str:
+        return repr(self._proxy)
+
+
+def _make_hikka_client_proxy(kernel, module_name: str, client=None):
+    from ..kernel_proxy import ClientProxy
+
+    raw_client = client if client is not None else kernel.client
+    proxy = ClientProxy(raw_client, module_name)
+    tg_id = getattr(raw_client, "tg_id", None)
+    if tg_id is None:
+        tg_id = getattr(kernel, "ADMIN_ID", None)
+    if tg_id is None:
+        return proxy
+    return _HikkaClientProxy(proxy, tg_id)
 
 
 class _CompatUI:
@@ -591,6 +623,41 @@ class _NamedTupleMiddlewareDict:
         del self._pointer[key]
 
 
+class _ModuleDbBucket(dict):
+    def __init__(self, facade: "_KernelDbFacade", owner: str, initial=None):
+        self._facade = facade
+        self._owner = owner
+        super().__init__(initial or {})
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key, value)
+        self._facade.set(self._owner, key, value)
+
+    def __delitem__(self, key):
+        super().__delitem__(key)
+        self._facade.delete(self._owner, key)
+
+    def clear(self):
+        for key in list(self):
+            del self[key]
+
+    def update(self, *args, **kwargs):
+        for key, value in dict(*args, **kwargs).items():
+            self[key] = value
+
+    def setdefault(self, key, default=None):
+        if key not in self:
+            self[key] = default
+        return self[key]
+
+    def pop(self, key, default=None):
+        if key in self:
+            value = super().pop(key)
+            self._facade.delete(self._owner, key)
+            return value
+        return default
+
+
 class _KernelDbFacade:
     def __init__(self, kernel):
         self._kernel = kernel
@@ -598,6 +665,35 @@ class _KernelDbFacade:
 
     def _mem_key(self, owner: str, key: str) -> str:
         return f"{owner}:{key}"
+
+    def _read_owner_values(self, owner: str) -> dict:
+        result = {
+            key.split(":", maxsplit=1)[1]: value
+            for key, value in self._mem.items()
+            if key.startswith(f"{owner}:")
+        }
+
+        db_manager = getattr(self._kernel, "db_manager", None)
+        if db_manager is None or not hasattr(db_manager, "_resolve_db_file"):
+            return result
+
+        proxy = DbProxy(self._kernel, owner)
+        try:
+            conn = sqlite3.connect(db_manager._resolve_db_file())
+            try:
+                rows = conn.execute(
+                    "SELECT key, value FROM module_data WHERE module = ?",
+                    (owner,),
+                ).fetchall()
+            finally:
+                conn.close()
+        except Exception:
+            return result
+
+        for key, raw_value in rows:
+            if key not in result:
+                result[key] = proxy._coerce_value(raw_value)
+        return result
 
     def get(self, owner: str, key: str, default=None):
         mk = self._mem_key(owner, key)
@@ -619,6 +715,33 @@ class _KernelDbFacade:
             except Exception:
                 pass
         return True
+
+    def delete(self, owner: str, key: str) -> bool:
+        self._mem.pop(self._mem_key(owner, key), None)
+        if hasattr(self._kernel, "db_delete"):
+            try:
+                asyncio.get_event_loop().create_task(self._kernel.db_delete(owner, key))
+            except Exception:
+                pass
+        return True
+
+    def __getitem__(self, owner: str):
+        return _ModuleDbBucket(self, owner, self._read_owner_values(owner))
+
+    def __setitem__(self, owner: str, value):
+        if not isinstance(value, dict):
+            raise TypeError("module database bucket must be a dict")
+        bucket = self[owner]
+        bucket.clear()
+        bucket.update(value)
+
+    def setdefault(self, owner: str, default=None):
+        values = self._read_owner_values(owner)
+        if not values and isinstance(default, dict):
+            for key, value in default.items():
+                self.set(owner, key, value)
+            values = dict(default)
+        return _ModuleDbBucket(self, owner, values)
 
     def pointer(self, owner: str, key: str, default=None, item_type=None):
         value = self.get(owner, key, default)
@@ -850,6 +973,17 @@ class DbProxy:
         self._mem[self._mem_key(module, key)] = value
         self._schedule_write(module, key, value)
 
+    def delete(self, module: str, key: str) -> bool:
+        self._mem.pop(self._mem_key(module, key), None)
+        if hasattr(self._kernel, "db_delete"):
+            try:
+                asyncio.get_event_loop().create_task(
+                    self._kernel.db_delete(module, key)
+                )
+            except Exception:
+                pass
+        return True
+
     def get(self, *args, default: Any = None) -> Any:
         module, key, default = self._resolve_get_args(args, default)
         mk = self._mem_key(module, key)
@@ -859,6 +993,52 @@ class DbProxy:
         if result is not default:
             self._mem[mk] = result
         return self._coerce_to_default_shape(result, default)
+
+    def __getitem__(self, module: str):
+        return _ModuleDbBucket(self, module, self._read_module_values(module))
+
+    def __setitem__(self, module: str, value):
+        if not isinstance(value, dict):
+            raise TypeError("module database bucket must be a dict")
+        bucket = self[module]
+        bucket.clear()
+        bucket.update(value)
+
+    def setdefault(self, module: str, default=None):
+        values = self._read_module_values(module)
+        if not values and isinstance(default, dict):
+            for key, value in default.items():
+                self.set(module, key, value)
+            values = dict(default)
+        return _ModuleDbBucket(self, module, values)
+
+    def _read_module_values(self, module: str) -> dict:
+        result = {
+            key.split(":", maxsplit=1)[1]: value
+            for key, value in self._mem.items()
+            if key.startswith(f"{module}:")
+        }
+
+        db_manager = getattr(self._kernel, "db_manager", None)
+        if db_manager is None or not hasattr(db_manager, "_resolve_db_file"):
+            return result
+
+        try:
+            conn = sqlite3.connect(db_manager._resolve_db_file())
+            try:
+                rows = conn.execute(
+                    "SELECT key, value FROM module_data WHERE module = ?",
+                    (module,),
+                ).fetchall()
+            finally:
+                conn.close()
+        except Exception:
+            return result
+
+        for key, raw_value in rows:
+            if key not in result:
+                result[key] = self._coerce_value(raw_value)
+        return result
 
     def keys(self):
         values = set(self._read_all_modules())
@@ -912,16 +1092,28 @@ class DbProxy:
         return db_data if db_data is not None else True
 
     def __contains__(self, key: str) -> bool:
-        return self._mem_key(self._module_name, key) in self._mem
+        return self._mem_key(self._module_name, key) in self._mem or key in self.keys()
 
     def __getitem__(self, key: str) -> Any:
-        return self.get(key)
+        value = self.get(key)
+        if value is not None:
+            return value
+        return _ModuleDbBucket(self, key, self._read_module_values(key))
 
     def __setitem__(self, key: str, value: Any) -> None:
+        if isinstance(value, dict):
+            bucket = _ModuleDbBucket(self, key, self._read_module_values(key))
+            bucket.clear()
+            bucket.update(value)
+            return
         self.set(key, value)
 
     def __delitem__(self, key: str) -> None:
-        self._mem.pop(self._mem_key(self._module_name, key), None)
+        if self._mem_key(self._module_name, key) in self._mem:
+            self._mem.pop(self._mem_key(self._module_name, key), None)
+            return
+        bucket = _ModuleDbBucket(self, key, self._read_module_values(key))
+        bucket.clear()
 
     async def async_get(self, module: str, key: str, default: Any = None) -> Any:
         mk = self._mem_key(module, key)
@@ -1192,7 +1384,20 @@ def _module_matches_name(key: str, inst, lowered: str) -> bool:
     if str(key).lower() == lowered:
         return True
 
-    raw_strings = getattr(inst, "strings", {})
+    for candidate in (
+        getattr(inst, "name", None),
+        getattr(getattr(inst, "__class__", None), "name", None),
+    ):
+        if candidate is not None and str(candidate).lower() == lowered:
+            return True
+
+    raw_strings = {}
+    with contextlib.suppress(Exception):
+        attrs = vars(inst)
+        if isinstance(attrs, dict):
+            raw_strings = attrs.get("strings", raw_strings)
+    if not raw_strings:
+        raw_strings = getattr(type(inst), "__dict__", {}).get("strings", {})
     if callable(raw_strings):
         raw_name = str(raw_strings("name", None) or "").lower()
     elif isinstance(raw_strings, dict):
@@ -1328,7 +1533,7 @@ class _BotProxy:
         bc = getattr(k, "bot_client", None)
         if bc:
             return ClientProxy(bc, module_name="inline_bot")
-        return ClientProxy(k.client, module_name="inline_bot")
+            return _make_hikka_client_proxy(k, "inline_bot")
 
     @property
     def id(self) -> int | None:
@@ -1606,40 +1811,124 @@ class InlineProxy:
         return f"{kind}_{_rand_token(12)}"
 
     def _normalize_markup(self, markup):
-        if not markup:
-            return []
+        from .inline_utils import _normalize_markup as _normalize_inline_markup
 
-        if isinstance(markup, dict):
-            if "inline_keyboard" in markup:
-                markup = markup.get("inline_keyboard") or []
-            elif "buttons" in markup:
-                markup = markup.get("buttons") or []
-            elif "text" in markup:
-                return [[dict(markup)]]
-            else:
-                return []
+        return _normalize_inline_markup(markup, inline_proxy=self)
 
-        if not isinstance(markup, list):
-            return []
+    def _register_hikka_callback_button(
+        self,
+        btn: dict,
+        *,
+        unit_id: str | None = None,
+        force_me: bool = False,
+        always_allow=None,
+        allow_user=None,
+        disable_security: bool = False,
+    ) -> str | None:
+        cb = btn.get("callback")
+        if not callable(cb):
+            return None
 
-        if not markup:
-            return []
+        cb_data = str(
+            btn.get("_callback_data")
+            or btn.get("callback_data")
+            or btn.get("data")
+            or _rand_token(30)
+        )
+        btn["_callback_data"] = cb_data
+        btn["callback_data"] = cb_data
 
-        # If all elements are dicts, it's a single row (list of buttons)
-        if all(isinstance(btn, dict) for btn in markup):
-            return [[dict(btn) for btn in markup]]
+        raw_args = btn.get("args", ())
+        if raw_args is None:
+            raw_args = ()
+        if not isinstance(raw_args, (list, tuple)):
+            raw_args = (raw_args,)
+        raw_kwargs = btn.get("kwargs", {})
+        if not isinstance(raw_kwargs, dict):
+            raw_kwargs = {}
 
-        rows = []
-        for row in markup:
-            if isinstance(row, dict):
-                rows.append([dict(row)])
-                continue
-            if not isinstance(row, (list, tuple)):
-                continue
-            parsed_row = [dict(btn) for btn in row if isinstance(btn, dict)]
-            if parsed_row:
-                rows.append(parsed_row)
-        return rows
+        effective_allow_user = btn.get("allow_user", allow_user)
+        effective_always_allow = btn.get("always_allow", always_allow)
+        if effective_allow_user is None:
+            effective_allow_user = self._resolve_allow_user(
+                unit_id=unit_id,
+                allow_user=None,
+                always_allow=effective_always_allow,
+            )
+
+        self._custom_map[cb_data] = {
+            "handler": cb,
+            "args": tuple(raw_args),
+            "kwargs": dict(raw_kwargs),
+            "always_allow": effective_always_allow or [],
+            "allow_user": effective_allow_user,
+            "force_me": bool(btn.get("force_me", force_me)),
+            "disable_security": bool(btn.get("disable_security", disable_security)),
+            "unit_id": unit_id or btn.get("unit_id"),
+        }
+
+        cb_map = getattr(self._kernel, "inline_callback_map", None)
+        if cb_map is None:
+            cb_map = {}
+            self._kernel.inline_callback_map = cb_map
+
+        ttl = getattr(self, "_current_form_ttl", 3600)
+        from .inline_types import InlineCall
+
+        cb_handler = cb
+        cb_args = tuple(raw_args)
+        cb_kwargs = dict(raw_kwargs)
+
+        async def _hikka_callback_wrapper(
+            event,
+            _h=cb_handler,
+            _a=cb_args,
+            _k=cb_kwargs,
+            _proxy=self,
+            _unit_id=unit_id or btn.get("unit_id"),
+        ):
+            from .inline_types import _unwrap_original_event
+
+            raw_event = _unwrap_original_event(event)
+            from_user_id = getattr(getattr(raw_event, "from_user", None), "id", None)
+            if from_user_id is None:
+                from_user_id = getattr(raw_event, "sender_id", None)
+            inline_message_id = getattr(raw_event, "inline_message_id", None)
+            message = getattr(raw_event, "message", None)
+            chat_id = getattr(raw_event, "chat_id", None) or getattr(
+                message, "chat_id", None
+            )
+            message_id = getattr(raw_event, "message_id", None) or getattr(
+                message, "id", None
+            )
+            data_raw = getattr(raw_event, "data", b"") or b""
+            data_str = (
+                data_raw.decode(errors="replace")
+                if isinstance(data_raw, (bytes, bytearray))
+                else str(data_raw)
+            )
+            call_obj = InlineCall(
+                data_str,
+                unit_id=_unit_id or "",
+                inline_proxy=_proxy,
+                original_call=raw_event,
+                inline_message_id=inline_message_id,
+                chat_id=chat_id,
+                message_id=message_id,
+                from_user_id=from_user_id,
+            )
+            return await _h(call_obj, *_a, **_k)
+
+        cb_map[cb_data] = {
+            "handler": _hikka_callback_wrapper,
+            "args": (),
+            "kwargs": {},
+            "expires_at": time.time() + ttl if ttl else None,
+            "unit_id": unit_id or btn.get("unit_id"),
+            "allow_user": effective_allow_user,
+            "allow_all": bool(btn.get("disable_security", disable_security)),
+        }
+        return cb_data
 
     def _prepare_markup(
         self,
@@ -1741,97 +2030,14 @@ class InlineProxy:
 
                 cb = btn.get("callback")
                 if callable(cb):
-                    cb_data = str(btn.get("_callback_data") or _rand_token(30))
-                    btn["_callback_data"] = cb_data
-                    btn["callback_data"] = cb_data
-
-                    raw_args = btn.get("args", ())
-                    if raw_args is None:
-                        raw_args = ()
-                    if not isinstance(raw_args, (list, tuple)):
-                        raw_args = (raw_args,)
-                    raw_kwargs = btn.get("kwargs", {})
-                    if not isinstance(raw_kwargs, dict):
-                        raw_kwargs = {}
-
-                    self._custom_map[cb_data] = {
-                        "handler": cb,
-                        "args": tuple(raw_args),
-                        "kwargs": dict(raw_kwargs),
-                        "always_allow": btn.get("always_allow", always_allow),
-                        "allow_user": btn.get("allow_user", allow_user),
-                        "force_me": bool(btn.get("force_me", force_me)),
-                        "disable_security": bool(
-                            btn.get("disable_security", disable_security)
-                        ),
-                        "unit_id": unit_id,
-                    }
-
-                    cb_map = getattr(self._kernel, "inline_callback_map", None)
-                    if cb_map is None:
-                        cb_map = {}
-                        self._kernel.inline_callback_map = cb_map
-
-                    ttl = getattr(self, "_current_form_ttl", 3600)
-                    import time as _time
-
-                    from .inline_types import InlineCall
-
-                    cb_id = cb_data
-                    cb_handler = cb
-                    cb_args = tuple(raw_args)
-                    cb_kwargs = dict(raw_kwargs)
-
-                    async def _hikka_callback_wrapper(
-                        event,
-                        _id=cb_id,
-                        _h=cb_handler,
-                        _a=cb_args,
-                        _k=cb_kwargs,
-                        _proxy=self,
-                        _unit_id=unit_id,
-                    ):
-                        from_user_id = getattr(
-                            getattr(event, "from_user", None), "id", None
-                        )
-                        inline_message_id = getattr(event, "inline_message_id", None)
-                        message = getattr(event, "message", None)
-                        chat_id = getattr(event, "chat_id", None) or getattr(
-                            message, "chat_id", None
-                        )
-                        message_id = getattr(event, "message_id", None) or getattr(
-                            message, "id", None
-                        )
-                        data_raw = getattr(event, "data", b"") or b""
-                        data_str = (
-                            data_raw.decode(errors="replace")
-                            if isinstance(data_raw, (bytes, bytearray))
-                            else str(data_raw)
-                        )
-
-                        call_obj = InlineCall(
-                            data_str,
-                            unit_id=_unit_id,
-                            inline_proxy=_proxy,
-                            original_call=event,
-                            inline_message_id=inline_message_id,
-                            chat_id=chat_id,
-                            message_id=message_id,
-                            from_user_id=from_user_id,
-                        )
-                        return await _h(call_obj, *_a, **_k)
-
-                    cb_map[cb_data] = {
-                        "handler": _hikka_callback_wrapper,
-                        "args": (),
-                        "kwargs": {},
-                        "expires_at": _time.time() + ttl,
-                        "unit_id": unit_id,
-                        "allow_user": btn.get("allow_user", allow_user),
-                        "allow_all": bool(
-                            btn.get("disable_security", disable_security)
-                        ),
-                    }
+                    self._register_hikka_callback_button(
+                        btn,
+                        unit_id=unit_id,
+                        force_me=force_me,
+                        always_allow=always_allow,
+                        allow_user=allow_user,
+                        disable_security=disable_security,
+                    )
                 elif isinstance(cb, str):
                     btn["callback_data"] = cb
 
@@ -1987,12 +2193,10 @@ class InlineProxy:
                             "switch_inline_query_current_chat",
                             f"{_switch_q or ''} ",
                         )
-                    ).strip()
+                    )
                     out_row.append(Button.switch_inline(text, query, same_peer=True))
                 elif "switch_inline_query_current_chat" in button:
-                    query = str(
-                        button.get("switch_inline_query_current_chat", "")
-                    ).strip()
+                    query = str(button.get("switch_inline_query_current_chat", ""))
                     out_row.append(Button.switch_inline(text, query, same_peer=True))
                 elif "switch_inline_query" in button:
                     query = str(button.get("switch_inline_query", "")).strip()
@@ -2008,10 +2212,20 @@ class InlineProxy:
                         "callback_data",
                         button.get("data", button.get("callback", "")),
                     )
-                    if callable(data) or not data:
+                    if callable(data):
+                        cb_key = self._register_hikka_callback_button(button)
+                        if not cb_key:
+                            cb_key = _rand_token(12)
+                            self._custom_map[cb_key] = {
+                                "handler": data,
+                                "args": [],
+                                "kwargs": {},
+                            }
+                        cb_data = cb_key.encode("utf-8", errors="replace")
+                    elif not data:
                         cb_key = _rand_token(12)
                         self._custom_map[cb_key] = {
-                            "handler": data if callable(data) else None,
+                            "handler": None,
                             "args": [],
                             "kwargs": {},
                         }
@@ -2027,12 +2241,12 @@ class InlineProxy:
 
     def _register_unit(self, unit_id: str, payload: dict) -> None:
         self._cleanup_expired_units()
-        self._cleanup_custom_map()
         payload["module_name"] = self._module_name
-        if len(self._units) >= self.MAX_UNITS:
+        if unit_id not in self._units and len(self._units) >= self.MAX_UNITS:
             oldest = next(iter(self._units))
             self._unload_unit_sync(oldest)
         self._units[unit_id] = payload
+        self._cleanup_custom_map()
 
     def _cleanup_expired_units(self) -> int:
         now = time.time()
@@ -2775,6 +2989,32 @@ class InlineProxy:
         target_chat = chat_id if chat_id is not None else unit.get("chat")
         target_msg = message_id if message_id is not None else unit.get("message_id")
         if target_chat is None or target_msg is None:
+            inline_id = inline_message_id or unit.get("inline_message_id")
+            if inline_id:
+                try:
+                    from core.lib.types.inline_message import (
+                        _normalize_inline_message_id,
+                    )
+                    from telethon.tl.functions.messages import (
+                        EditInlineBotMessageRequest,
+                    )
+
+                    request_kwargs = {"id": _normalize_inline_message_id(inline_id)}
+                    if text is not None:
+                        request_kwargs["message"] = text
+                    buttons = self._to_telethon_buttons(unit.get("buttons"))
+                    if buttons:
+                        request_kwargs["reply_markup"] = buttons
+                    if request_kwargs.keys() != {"id"}:
+                        client = getattr(self._kernel, "bot_client", None) or getattr(
+                            self._kernel, "client", None
+                        )
+                        if client is not None:
+                            await client(EditInlineBotMessageRequest(**request_kwargs))
+                except Exception as e:
+                    self._kernel.logger.debug(
+                        f"[hikka_compat] _edit_unit inline edit failed: {e}"
+                    )
             return _InlineMessage(
                 inline_message_id=str(unit.get("inline_message_id", "") or ""),
                 unit_id=unit_id,
@@ -3039,7 +3279,7 @@ class _AllModulesStub:
 
         _remember_raw_kernel(self, kernel)
         self._kernel = CompatKernelProxy(kernel, module_name="allmodules")
-        self._client_proxy = ClientProxy(kernel.client, module_name="allmodules")
+        self._client_proxy = _make_hikka_client_proxy(kernel, "allmodules")
         self.db = getattr(kernel, "_hikka_compat_db_facade", None)
         if self.db is None:
             self.db = _KernelDbFacade(kernel)
@@ -3084,10 +3324,12 @@ class _AllModulesStub:
         if inst is not None:
             lowered = str(name).lower()
             if lowered in {"loader", "Loader".lower()}:
-                return _CompatLoaderProxy(self._kernel, inst)
+                raw_kernel = _get_raw_kernel(self) or self._kernel
+                return _CompatLoaderProxy(raw_kernel, inst)
             return inst
         if str(name).lower() == "loader":
-            return _CompatLoaderProxy(self._kernel)
+            raw_kernel = _get_raw_kernel(self) or self._kernel
+            return _CompatLoaderProxy(raw_kernel)
         lowered = str(name).lower()
         for lib in self.libraries:
             names = {
@@ -3390,7 +3632,7 @@ class Module:
 
         inline_proxy._bind_module(self)
 
-        self.client = ClientProxy(kernel.client, module_name=type(self).__name__)
+        self.client = _make_hikka_client_proxy(kernel, type(self).__name__)
         self._client = self.client
 
         if getattr(kernel.client, "dispatcher", None) is None:
@@ -3419,7 +3661,10 @@ class Module:
         self.inline = inline_proxy
         self.tg_id = getattr(kernel, "ADMIN_ID", None)
         self._tg_id = self.tg_id
-        self.allmodules = _AllModulesStub(kernel)
+        self.allmodules = getattr(kernel, "_hikka_compat_allmodules_proxy", None)
+        if self.allmodules is None:
+            self.allmodules = _AllModulesStub(kernel)
+            kernel._hikka_compat_allmodules_proxy = self.allmodules
         self.allmodules.inline = self.inline
         self.strings = _StringsShim(self, _translator_stub)
         self.translator = _translator_stub
@@ -3513,10 +3758,12 @@ class Module:
         _, inst = _find_kernel_module(self._kernel, module_name)
         if inst is not None:
             if str(module_name).lower() == "loader":
-                return _CompatLoaderProxy(self._kernel, inst)
+                raw_kernel = _get_raw_kernel(self) or self._kernel
+                return _CompatLoaderProxy(raw_kernel, inst)
             return inst
         if str(module_name).lower() == "loader":
-            return _CompatLoaderProxy(self._kernel)
+            raw_kernel = _get_raw_kernel(self) or self._kernel
+            return _CompatLoaderProxy(raw_kernel)
         return None
 
     def get_string(self, key: str) -> str:
@@ -3552,6 +3799,26 @@ class Module:
         if command not in all_cmds:
             raise ValueError(f"Command {command!r} not found")
         cmd_text = f"{self.get_prefix()}{command} {args or ''}".strip()
+
+        raw_kernel = _get_raw_kernel(self) or self._kernel
+        register = getattr(raw_kernel, "register", None)
+        register_invoke = getattr(register, "invoke", None)
+        if callable(register_invoke) and not edit:
+            chat_id = peer
+            if chat_id is None and message is not None:
+                chat_id = getattr(message, "chat_id", None) or getattr(
+                    message, "peer_id", None
+                )
+            reply_to = getattr(message, "id", None) if message is not None else None
+            return await register_invoke(
+                command,
+                args=args,
+                chat_id=chat_id,
+                reply_to=reply_to,
+                prefix=self.get_prefix(),
+                original_event=message,
+            )
+
         if peer:
             message = await self._client.send_message(peer, cmd_text)
         elif message:
@@ -3584,7 +3851,7 @@ class Module:
         suspend_on_error: bool = False,
         _did_requirements: bool = False,
     ):
-        from .loader import USER_INSTALL, VALID_PIP_PACKAGES
+        from .loader import USER_INSTALL
         from .types import StringLoader
 
         async def _raise(exc: Exception):
@@ -3626,16 +3893,13 @@ class Module:
                 sys.modules.pop(module_name, None)
                 await _raise(e)
 
-            requirements = []
-            match = VALID_PIP_PACKAGES.search(code)
-            if match:
-                requirements = [
-                    pkg
-                    for pkg in map(str.strip, match.group(1).split())
-                    if pkg and not pkg.startswith(("-", "_", "."))
-                ]
+            from .dependencies import is_safe_pip_requirement, parse_pip_requirements
+
+            requirements = parse_pip_requirements(code)
             if not requirements and getattr(e, "name", None):
-                requirements = [e.name]
+                missing_requirement = str(e.name).split(".", 1)[0]
+                if is_safe_pip_requirement(missing_requirement):
+                    requirements = [missing_requirement]
 
             if not requirements:
                 sys.modules.pop(module_name, None)
@@ -3803,8 +4067,8 @@ class Library:
         self._db = self.allmodules.db
         self.client = self.allmodules.client
         self._client = self.allmodules.client
-        self.tg_id = self._client.tg_id
-        self._tg_id = self._client.tg_id
+        self.tg_id = getattr(self._client, "tg_id", None)
+        self._tg_id = self.tg_id
         self.lookup = self.allmodules.lookup
         self.get_prefix = self.allmodules.get_prefix
         self.get_prefixes = self.allmodules.get_prefixes

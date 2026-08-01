@@ -1344,11 +1344,6 @@ class ModuleBase(ABC):
                 self._strings = None
 
         if self._strings is None:
-            self.kernel.logger.error(
-                f"[FATAL] {self.name}.strings is None! "
-                f"type(self).__name__={type(self).__name__}, "
-                f"class has strings={'strings' in type(self).__dict__}"
-            )
             raise AttributeError(
                 f"strings is not initialized for {self.name}. "
                 "Make sure the module defines 'strings' as a class dict attribute."

@@ -943,6 +943,135 @@ class TestInlineRichForm:
         assert calls[0]["rich_parse_mode"] == "html"
         assert calls[0]["ttl"] == 60
 
+    @pytest.mark.asyncio
+    async def test_inline_form_consumes_photo_alias_as_media(self):
+        from core.lib.loader.inline import InlineManager
+
+        class Cache:
+            def __init__(self):
+                self.values = {}
+
+            def get(self, key):
+                return self.values.get(key)
+
+            def set(self, key, value, ttl=None):
+                self.values[key] = value
+
+        manager = InlineManager.__new__(InlineManager)
+        manager.k = SimpleNamespace(
+            cache=Cache(),
+            logger=MagicMock(),
+            config={},
+            bot_client=None,
+            inline_callback_map={},
+            session=SimpleNamespace(closed=False),
+        )
+
+        form_id = await InlineManager.inline_form(
+            manager,
+            chat_id=123,
+            title="Photo form",
+            auto_send=False,
+            photo="https://example.com/pic.jpg",
+        )
+
+        form_data = manager.k.cache.get(form_id)
+        assert form_data["media"] == "https://example.com/pic.jpg"
+        assert form_data["media_type"] == "photo"
+
+    @pytest.mark.asyncio
+    async def test_inline_query_and_click_strips_form_only_media_kwargs(self):
+        from core.lib.loader.inline import InlineManager
+
+        class Result:
+            def __init__(self):
+                self.kwargs = None
+
+            async def click(self, chat_id, **kwargs):
+                self.kwargs = kwargs
+                return SimpleNamespace(id=1, inline_message_id="inline-id")
+
+        result = Result()
+        manager = InlineManager.__new__(InlineManager)
+        manager.k = SimpleNamespace(
+            config={"inline_bot_username": "bot"},
+            logger=MagicMock(),
+            client=SimpleNamespace(inline_query=AsyncMock(return_value=[result])),
+            bot_client=None,
+            handle_error=AsyncMock(),
+            session=SimpleNamespace(closed=False),
+            cache=SimpleNamespace(get=lambda *_: None, set=lambda *_, **__: None),
+            inline_callback_map={},
+        )
+
+        success, message = await InlineManager.inline_query_and_click(
+            manager,
+            chat_id=123,
+            query="form_1",
+            photo="https://example.com/pic.jpg",
+            media_type="photo",
+            silent=True,
+        )
+
+        assert success is True
+        assert message.inline_message_id == "inline-id"
+        assert result.kwargs == {"silent": True}
+
+    @pytest.mark.asyncio
+    async def test_answer_inline_query_retries_without_parse_mode_on_entity_error(self):
+        from core_inline.handlers import InlineHandlers
+
+        class ApiBot:
+            async def answer_inline_query(self, **kwargs):
+                raise RuntimeError("Bad Request: can't parse InlineQueryResult")
+
+        class Response:
+            def __init__(self, payloads):
+                self.payloads = payloads
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            async def json(self):
+                return {"ok": True, "result": True}
+
+        class Session:
+            def __init__(self):
+                self.payloads = []
+
+            def post(self, url, json):
+                self.payloads.append(json)
+                return Response(self.payloads)
+
+        session = Session()
+        handlers = InlineHandlers.__new__(InlineHandlers)
+        handlers.kernel = SimpleNamespace(session=session, logger=MagicMock())
+        handlers._api_bot = ApiBot()
+        handlers._get_api_bot = lambda: handlers._api_bot
+        handlers._get_bot_token = lambda: "token"
+
+        result = await InlineHandlers.answer_inline_query_custom(
+            handlers,
+            inline_query_id="qid",
+            results=[
+                {
+                    "type": "photo",
+                    "id": "1",
+                    "photo_url": "https://example.com/pic.jpg",
+                    "thumbnail_url": "https://example.com/pic.jpg",
+                    "caption": "<broken",
+                    "parse_mode": "HTML",
+                }
+            ],
+        )
+
+        assert result["ok"] is True
+        assert session.payloads[0]["results"][0]["caption"] == "<broken"
+        assert "parse_mode" not in session.payloads[0]["results"][0]
+
     def test_rich_form_normalizes_rich_media_mapping(self):
         from telethon.tl import types
 

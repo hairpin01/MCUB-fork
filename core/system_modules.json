@@ -36,7 +36,7 @@
     },
     "man": {
       "path": "modules/man.py",
-      "sha256": "25c17809d07ca93b54fa42123ff8cffe5d6486c4225aeea349699f3ee4a13c0d"
+      "sha256": "33e718a985d8a1cd88c113d8ce8097a1e5053c97a4dc48f187fc8690c725394f"
     },
     "settings": {
       "path": "modules/settings.py",

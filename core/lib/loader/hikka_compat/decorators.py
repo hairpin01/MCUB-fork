@@ -3,8 +3,13 @@
 
 import asyncio
 import contextlib
+import logging
+import time
 
 from .types import StopLoop
+
+
+logger = logging.getLogger(__name__)
 
 
 def tds(cls):
@@ -172,6 +177,10 @@ def raw_handler(*updates):
 class InfiniteLoop:
     """Class for creating infinite loops in modules."""
 
+    MIN_INTERVAL = 0.1
+    MODULE_WAIT_INTERVAL = 0.1
+    EXCEPTION_LOG_INTERVAL = 60.0
+
     _task = None
     status = False
     module_instance = None
@@ -185,10 +194,21 @@ class InfiniteLoop:
         stop_clause: str | None = None,
     ):
         self.func = func
-        self.interval = interval
+        self.interval = self._normalize_interval(interval)
         self._wait_before = wait_before
         self._stop_clause = stop_clause
         self.autostart = autostart
+        self._last_exception_log = 0.0
+
+    @classmethod
+    def _normalize_interval(cls, interval):
+        try:
+            value = float(interval)
+        except (TypeError, ValueError):
+            return cls.MIN_INTERVAL
+        if value < cls.MIN_INTERVAL:
+            return cls.MIN_INTERVAL
+        return value
 
     def _stop(self, *args, **kwargs):
         if hasattr(self, "_wait_for_stop"):
@@ -223,7 +243,7 @@ class InfiniteLoop:
 
     async def actual_loop(self, *args, **kwargs):
         while not self.module_instance:
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(self.MODULE_WAIT_INTERVAL)
 
         if isinstance(self._stop_clause, str) and self._stop_clause:
             self.module_instance.set(self._stop_clause, True)
@@ -246,7 +266,14 @@ class InfiniteLoop:
             except StopLoop:
                 break
             except Exception:
-                pass
+                now = time.monotonic()
+                if now - self._last_exception_log >= self.EXCEPTION_LOG_INTERVAL:
+                    self._last_exception_log = now
+                    logger.exception(
+                        "Hikka loop %s failed; continuing after %.3fs throttle",
+                        getattr(self.func, "__name__", repr(self.func)),
+                        self.interval,
+                    )
 
             if not self._wait_before:
                 await asyncio.sleep(self.interval)

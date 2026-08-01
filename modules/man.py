@@ -779,11 +779,7 @@ class ManModule(ModuleBase):
                         f" - <b>{CUSTOM_EMOJI['confused']} {s['no_description']}</b>"
                     )
                 bot_lines.append(line)
-            msg += (
-                f"<blockquote expandable>{bot_emoji} <b>{bot_title}:</b>\n"
-                + "\n".join(bot_lines)
-                + "\n</blockquote>"
-            )
+            msg += "<blockquote expandable>" + "\n".join(bot_lines) + "\n</blockquote>"
 
         inline_commands = self.kernel.get_module_inline_commands(name)
         if inline_commands:

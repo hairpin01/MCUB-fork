@@ -8,27 +8,31 @@ import os
 import secrets
 from typing import Any
 
-from telethon import events
 from telethon.tl.types import InputMediaWebPage
 
 import core.lib.loader.module_base as loader
-from utils.restart import restart_kernel
-from utils.strings import Strings
+from utils import restart_kernel, Strings
+from core.lib.types import Event
 
 
 class UpdatesMod(loader.ModuleBase):
     name = "updates"
-    description = {"ru": "Moдyль oбнoвлeний", "en": "Update module"}
-    version = "1.0.6"
+    description = {
+        "ru": "Moдyль oбнoвлeний",
+        "en": "Update module",
+        "uk": "Модуль оновлень",
+    }
+    version = "1.0.7"
     author = "@Hairpin00"
 
     strings: dict | Strings = {"name": "updates"}
 
     def _s(self, key: str, **kwargs: Any) -> str:
         """Return a localized string without confusing static analyzers."""
-        return self._get_strings()(key, **kwargs)
+        return self.strings(key, **kwargs)
 
     async def on_load(self) -> None:
+        await super().on_load()
         self.emojis = [
             "ಠ_ಠ",
             "( ཀ ʖ̯ ཀ)",
@@ -43,24 +47,31 @@ class UpdatesMod(loader.ModuleBase):
             ">_<",
             "0_o",
         ]
-
+        self.me = await self.kernel.client.get_me()
         self.PREMIUM_EMOJI = {
-            "telescope": '<tg-emoji emoji-id="5310041868191407556">🔭</tg-emoji>',
+            "bar": self.strings("material_emoji")("process_bar_pr_1")
+            + self.strings("material_emoji")("process_bar_pr_2")
+            + self.strings("material_emoji")("process_bar_pr_3"),
+            "telescope": self.strings("material_emoji")("load_3"),
             "alembic": '<tg-emoji emoji-id="5332654441508119011">⚗️</tg-emoji>',
             "package": '<tg-emoji emoji-id="5399898266265475100">📦</tg-emoji>',
         }
 
     async def mcub_handler(self) -> str:
-        me = await self.kernel.client.get_me()
         mcub_emoji = (
             '<tg-emoji emoji-id="5470015630302287916">🔮</tg-emoji><tg-emoji emoji-id="5469945764069280010">🔮</tg-emoji><tg-emoji emoji-id="5469943045354984820">🔮</tg-emoji><tg-emoji emoji-id="5469879466954098867">🔮</tg-emoji>'
-            if me.premium
+            if self.me.premium
             else "MCUB"
         )
         return mcub_emoji
 
-    @loader.command("restart", doc_en="restart userbot", doc_ru="пepeзaпycтить юзepбoт")
-    async def restart_handler(self, event: events.NewMessage.Event) -> None:
+    @loader.command(
+        "restart",
+        doc_en="restart userbot",
+        doc_ru="пepeзaпycтить юзepбoт",
+        doc_uk="перезапустити юзербот",
+    )
+    async def restart_handler(self, event: Event) -> None:
         thread_id = None
         if event.reply_to:
             thread_id = getattr(event.reply_to, "reply_to_top_id", None) or getattr(
@@ -79,9 +90,12 @@ class UpdatesMod(loader.ModuleBase):
         )
 
     @loader.command(
-        "update", doc_en="update MCUB-fork from git", doc_ru="oбнoвить MCUB-fork из git"
+        "update",
+        doc_en="update MCUB-fork from git",
+        doc_ru="oбнoвить MCUB-fork из git",
+        doc_uk="оновити MCUB-fork з git",
     )
-    async def cmd_update(self, event: events.NewMessage.Event):
+    async def cmd_update(self, event: Event):
         msg = await event.edit("❄️")
         self.log.info("Updating MCUB-fork")
 
@@ -172,8 +186,13 @@ class UpdatesMod(loader.ModuleBase):
                 parse_mode="html",
             )
 
-    @loader.command("stop", doc_en="stop userbot", doc_ru="ocтaнoвить юзepбoт")
-    async def cmd_stop(self, event: events.NewMessage.Event):
+    @loader.command(
+        "stop",
+        doc_en="stop userbot",
+        doc_ru="ocтaнoвить юзepбoт",
+        doc_uk="зупинити юзербот",
+    )
+    async def cmd_stop(self, event: Event):
         self.kernel.shutdown_flag = True
         emoji = secrets.choice(self.emojis)
         await event.edit(
@@ -182,34 +201,3 @@ class UpdatesMod(loader.ModuleBase):
         )
         await asyncio.sleep(1)
         await self.kernel.shutdown()
-
-    # TODO: rework later ---
-    # async def rollback_handler(event):
-    #     if not os.path.exists(kernel.BACKUP_FILE):
-    #         await event.edit(strings("backup_not_found"), parse_mode="html")
-    #         return
-    #
-    #     msg = await event.edit(
-    #         strings("rolling_back").format(emoji=random.choice(emojis)),
-    #         parse_mode="html",
-    #     )
-    #
-    #     try:
-    #         with open(kernel.BACKUP_FILE, encoding="utf-8") as f:
-    #             backup_code = f.read()
-    #
-    #         with open(__file__, "w", encoding="utf-8") as f:
-    #             f.write(backup_code)
-    #
-    #         emoji = random.choice(emojis)
-    #         await msg.edit(
-    #             strings("rollback_success").format(emoji=emoji),
-    #             parse_mode="html",
-    #         )
-    #         await asyncio.sleep(2)
-    #         await restart_kernel(kernel)
-    #     except Exception as e:
-    #         await msg.edit(
-    #             strings("rollback_error").format(error=str(e)),
-    #             parse_mode="html",
-    #         )

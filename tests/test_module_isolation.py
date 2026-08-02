@@ -320,7 +320,6 @@ class TestClientProxy:
 
     def test_hikka_module_client_alias_is_sandboxed(self):
         from core.lib.loader.hikka_compat.runtime import Module
-        from core.lib.loader.kernel_proxy import ClientProxy
         from core.lib.utils.exceptions import CallInsecure
 
         kernel = make_kernel()
@@ -331,7 +330,8 @@ class TestClientProxy:
         module = Module()
         module._mcub_bind(kernel, module_name="ClientSandboxAudit")
 
-        assert isinstance(module._client, ClientProxy)
+        assert repr(module._client).startswith("<ClientProxy")
+        assert module._client.tg_id is kernel.client.tg_id
         with pytest.raises(CallInsecure):
             module._client.session.save()
         with pytest.raises(CallInsecure):
@@ -341,7 +341,6 @@ class TestClientProxy:
 
     def test_hikka_module_kernel_aliases_are_sandboxed(self):
         from core.lib.loader.hikka_compat.runtime import Module
-        from core.lib.loader.kernel_proxy import ClientProxy
         from core.lib.utils.exceptions import CallInsecure
 
         kernel = make_kernel()
@@ -358,7 +357,8 @@ class TestClientProxy:
         module._mcub_bind(kernel, module_name="KernelSandboxAudit")
 
         kernel_proxy = object.__getattribute__(module, "_kernel")
-        assert isinstance(kernel_proxy.client, ClientProxy)
+        assert repr(kernel_proxy.client).startswith("<ClientProxy")
+        assert kernel_proxy.client.tg_id is kernel.client.tg_id
         assert kernel_proxy.config == {"language": "en"}
 
         with pytest.raises(CallInsecure):

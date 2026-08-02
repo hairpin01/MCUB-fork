@@ -1,3 +1,26 @@
+material_emoji:
+  __global__: 1
+  load_1: '<tg-emoji emoji-id="5345778951031658558">😭</tg-emoji>'
+  load_2: '<tg-emoji emoji-id="5345988476716226868">🤔</tg-emoji>'
+  load_3: '<tg-emoji emoji-id="5346022209389372742">🤔</tg-emoji>'
+  wave_pr_1: '<tg-emoji emoji-id="5346107885396991553">🌊</tg-emoji>'
+  wave_pr_2: '<tg-emoji emoji-id="5346162384237006847">🌊</tg-emoji>'
+  wave_pr_3: '<tg-emoji emoji-id="5345800090860691308">🌊</tg-emoji>'
+  process_bar_pr_1: '<tg-emoji emoji-id="5348038425951904524">⚪️</tg-emoji>'
+  process_bar_pr_2: '<tg-emoji emoji-id="5348350060188965263">⚪️</tg-emoji>'
+  process_bar_pr_3: '<tg-emoji emoji-id="5348486163407609131">⚪️</tg-emoji>'
+  load_process_bar_pr_1: '<tg-emoji emoji-id="5348210173104134595">🌊</tg-emoji>'
+  load_process_bar_pr_2: '<tg-emoji emoji-id="5350601434800889611">🌊</tg-emoji>'
+  load_process_bar_pr_3: '<tg-emoji emoji-id="5348267111485581196">🌊</tg-emoji>'
+  load_process_bar_mini: '<tg-emoji emoji-id="5350505605490584388">🌊</tg-emoji>'
+  pulsating_circle: '<tg-emoji emoji-id="5348549041728826116">⚪️</tg-emoji>'
+  load_4: '<tg-emoji emoji-id="5348140933936359091">⚪️</tg-emoji>'
+  tumbler: '<tg-emoji emoji-id="5346270183621171895">🤩</tg-emoji>'
+  load_5: '<tg-emoji emoji-id="5348179313764112796">📷</tg-emoji>'
+  map: '<tg-emoji emoji-id="5348342251938423329">🗺️</tg-emoji>'
+  delete: '<tg-emoji emoji-id="5348118479847333898">🗑</tg-emoji>'
+  music: '<tg-emoji emoji-id="5420367985908947060">😉</tg-emoji>'
+
 type_module:
   __global__: 1
   module_style_class: Class
@@ -10,8 +33,9 @@ type_module:
 
 lang: en
 
-null:
-  null: 'null'
+'null':
+  __global__: 1
+  'null': 'null'
 
 error:
   __global__: on
@@ -29,13 +53,19 @@ error:
 buttons:
   __global__: 1
   close: 🙈 Close
-  yes: 💠 Yes
-  no: 🚫 No
+  'yes': 💠 Yes
+  'no': 🚫 No
   back: < Back
   next: 'Next >'
   update: 🔄 Update
   page: 'Page: {}'
   back_menu: 🔙 Menu
+
+langbutton:
+  __global__: 1
+  btn_ru: 🇷🇺 ru_RU.UTF-8
+  btn_en: 🇬🇧 en_US.UTF-8
+  btn_uk: 🇺🇦 uk_UK.UTF-8
 
 core_inline:
   no_access: "I'm sorry, but you don't have access!"
@@ -543,11 +573,6 @@ translations:
   lang_changed: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> locale-gen: locale set to: {lang}'
   select_language: '<tg-emoji emoji-id="5472164874886846699">✨</tg-emoji> locale-gen: select locale'
   reloadlang_done: 'locale-gen: reloaded from disk'
-
-langbutton:
-  __global__: 1
-  btn_ru: 🇷🇺 ru_RU.UTF-8
-  btn_en: 🇬🇧 en_US.UTF-8
   settings_inline_title: ⚙️ /etc/mcubd.conf
   piped_usage: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Usage: {prefix}piped [on/off]'
   piped_on: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Pipeline <b>enabled</b>
@@ -614,6 +639,73 @@ langbutton:
     <tg-emoji emoji-id="5229113891081956317">➖</tg-emoji> <b>Risk to main account</b> - it is recommended to use a separate account for the userbot</blockquote>'
 
 loader:
+  choose: |-
+    <b>{mcub_emoji} install</b>
+
+    select target distro:
+  choose_category: |-
+    <b>{mcub_emoji} install</b>
+
+    select target device:
+  arch: |-
+    {emoji} <b>Arch Linux:</b>
+    <pre>sudo pacman -Sy
+    sudo pacman -S --noconfirm python3 python3-pip git
+    git clone https://github.com/hairpin01/MCUB-fork.git
+    cd MCUB-fork
+    pip3 install -r requirements.txt
+    python3 -m core --set-default-core standard
+    python3 -m core --no-web</pre>
+    {emoji_venv} When installing MCUB inside <u><code>proot-distro</code></u> or <u><code>WSL</code></u> it is recommended to create a <u>venv</u>:</b>
+    <pre>python3 -m venv .venv
+    source .venv/bin/activate</pre>
+    {emoji_tip}<b> TIP: recommended to add to cfg shell (bash):</b>
+    <pre><code class="language-shell">echo 'source $HOME/.venv/activate' >> ~/.bashrc</code></pre>
+    {emoji_elif} <b>elif: Fish:</b><pre><code class='language-shell'>echo 'source $HOME/.venv/activate.fish' >> ~/.config/fish/config.fish</code></pre>
+  debian: |-
+    {emoji} <b>Debian based:</b>
+    <pre>sudo apt update
+    sudo apt install -y python3 git
+    git clone https://github.com/hairpin01/MCUB-fork.git
+    cd MCUB-fork
+    pip install -r requirements.txt
+    python3 -m core --set-default-core standard
+    python3 -m core --no-web</pre>
+    {emoji_tip} When installing MCUB inside <u><code>proot-distro</code></u> or <u><code>WSL</code></u> it is recommended to create a <u>venv</u>:</b>
+    <pre>python3 -m venv .venv
+    source .venv/bin/activate</pre>
+    {emoji_tip}<b> TIP: recommended to add to cfg shell (bash):</b>
+    <pre><code class="language-shell">echo 'source $HOME/.venv/activate' >> ~/.bashrc</code></pre>
+    {emoji_elif} <b>elif: Fish:</b><pre><code class='language-shell'>echo 'source $HOME/.venv/activate.fish' >> ~/.config/fish/config.fish</code></pre>
+  termux: |-
+    {emoji} <b>Termux:</b>
+    <pre>pkg update
+    pkg install -y python3 git python-psutil
+    git clone https://github.com/hairpin01/MCUB-fork.git
+    cd MCUB-fork
+    pip install -r requirements.txt
+    python3 -m core --set-default-core standard
+    python3 -m core --no-web</pre>
+    {emoji_venv}<b> To avoid issues with <u>pydantic_core</u> and <u>Telethon</u>, we recommend installing <u>Rust</u>:</b>
+    <pre>pkg install rust</pre>
+  btn_arch: |-
+    pacman -S mcub
+  btn_debian: |-
+    apt install mcub
+  btn_termux: |-
+    ssh termux ./install.sh
+  loading: |-
+    fork() -> execve(install)...
+  unknown_platform: |-
+    EINVAL: unsupported target platform
+  link: |-
+    <tg-emoji emoji-id="5429571366384842791">🔎</tg-emoji> Support: <a href="https://t.me/MCUB_support">click</a>
+  phone: |-
+    Phone
+  vds: |-
+    VDS
+  source: |-
+    The source code can be read <a href='https://github.com/hairpin01/MCUB-fork''>here</a>
   wait: '{wait} <b>[ .... ] Please wait...</b>'
   reply_to_py: '{warning} <b>EINVAL: Reply to a .py file</b>'
   not_py_file: '{warning} <b>EINVAL: Not a .py file</b>'
@@ -886,6 +978,13 @@ loader:
 
     '
   and_more: • <code>+{count} more</code>
+
+switch_inline:
+  bot_usage: '{no_args} usage: <code>{prefix}set_inline_bot @username_bot</code> <i>username must end with bot</i>'
+  token_usage: '{no_args} usage: <code>{prefix}set_inline_token BOT_TOKEN</code>'
+  creating_bot: '{creating} systemctl start <code>@{username}</code>...'
+  create_error: '{error} EFAULT: failed to provision inline bot: <code>{error_text}</code>'
+  applied: '{success} <b>inline-bot.service applied.</b> <i>restart mcub.service</i>'
 
 log_bot:
   git_timeout: '<tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> "git: ETIMEDOUT (no network)"'

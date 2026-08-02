@@ -4,75 +4,75 @@
   "modules": {
     "MCUB_info": {
       "path": "modules/MCUB_info.py",
-      "sha256": "88c9051f5a5cb4e6de1d53095018d0cd5badcdb7d240485565f41b68732f83bc"
+      "sha256": "1426905ea55d52337d6563fcd4b6f7515dd9e1b74e4265812ce11a61d4f62754"
     },
     "api_protection": {
       "path": "modules/api_protection.py",
-      "sha256": "c737257403dbec78f7f24886eb501a35b4c6ab0c779bd297fb21dda5b82eb1cb"
+      "sha256": "e2c88b54bbd0b8d8c934acf6b628e7eeef1e1e73a7ccd2bc57a10c31302f526c"
     },
     "command": {
       "path": "modules/command.py",
-      "sha256": "7aaed9b53f82021a3d698bd511149d5ada15a6fb619dadfb72f42268918495ce"
+      "sha256": "b25749710384dac8bedbb552f5c916f6af2d1e9036a31c6f4b846cc8c4b43eca"
     },
     "config": {
       "path": "modules/config.py",
-      "sha256": "b5df728ec03943e0f7f9ddeceed6ca6fcf26840346c56c12ef0ae8178e92b81e"
+      "sha256": "2dc86697375cdcc4e7e06efa455c9a4d4fe194056218eb3c8325133c5bc1b46e"
     },
     "evaluator": {
       "path": "modules/evaluator.py",
-      "sha256": "8aa982b8e51b755790af2b7e2db001b86310c7b91a47f41c74319d27950ea1ec"
+      "sha256": "f299d8d250bf68d14c8e9a20d53bdbc12ba7a54af8edbe9a1dc3d56bb231bb65"
     },
     "installation": {
       "path": "modules/installation.py",
-      "sha256": "3bf62aa984fa6cc61d40ffc4ee148303dc63ebebb9b4dd6cce19d9f2195c0a4a"
+      "sha256": "6d0e9bdfb4cd685895dff205d21a2e4f1cb9c045c46b07ee01a10964a1da6cfa"
     },
     "loader": {
       "path": "modules/loader.py",
-      "sha256": "112acff5c0f42290968c6dc037ec6f0dfeabe3d88b775930885bb820d4a48b82"
+      "sha256": "c6da0cebcb3f74a9ebee5c72d02470790cc12be9da6a9450b41102f847f2927e"
     },
     "log_bot": {
       "path": "modules/log_bot.py",
-      "sha256": "bd4d759c8039f805eb5b347d8e3d7831e6fbd2ea34fafad20db6f295c0aab477"
+      "sha256": "27d433ec1fbfa24001fcc6b5d734bfb9125b8fd8166a5a8fc877359ef43915ed"
     },
     "man": {
       "path": "modules/man.py",
-      "sha256": "09e733ca3179fd742b805d4ef92b4b42a1c9944f0eb53f19ebb0181a8ccd792e"
+      "sha256": "33e718a985d8a1cd88c113d8ce8097a1e5053c97a4dc48f187fc8690c725394f"
     },
     "settings": {
       "path": "modules/settings.py",
-      "sha256": "4fa1200802156f20f63c751f8fcd3b013e486cb6018dd783ce85db65665d40ec"
+      "sha256": "5a90270f5b36f99777e27b1a89d8d94e06e8ea8e9294dda03d94e8230e645d96"
     },
     "terminal": {
       "path": "modules/terminal.py",
-      "sha256": "f1c8696c6cb5f7c1a19da7320c1208603e2b23a3b807ddf928bdb19de8f91231"
+      "sha256": "22101e9e21b2101c3116cf96fc5f12fe2f74bdb2bfdc77694ecc5052040616dd"
     },
     "tester": {
       "path": "modules/tester.py",
-      "sha256": "46ffe5c9bfe5132d3fe12b23d2e38c31183c62e8aa29ae00feaff468a173068d"
+      "sha256": "77920cd3b688a5d6bcc3333524a4613c0a7ebe0647fedf68b7eb48b770b3f7ef"
     },
     "tr": {
       "path": "modules/tr.py",
-      "sha256": "8e17fbdab9fc56727477e401136b9062d6c1b4373afaafae346f2733d3a69b56"
+      "sha256": "5e3bf6b2ad638d209eac299385f18da0ab52212f8ded7d61ad4eeba1630c47d5"
     },
     "translations": {
       "path": "modules/translations.py",
-      "sha256": "059751761fa4e7f98d951b38a77e9845dbf058f39023c490d937603e0e32165e"
+      "sha256": "1738b9b04cd3a3988b728b4fe144ae34bf7420a543cc49186b474735e179b129"
     },
     "trusted": {
       "path": "modules/trusted.py",
-      "sha256": "988be330ccb801ef3aad12f22c3298cf10d34b334c195131fb7564b635f60a25"
+      "sha256": "7a7510366e11059c11257af7a9be9e6ecf8cbf6761ab80d99bfd22fbecee28da"
     },
     "updates": {
       "path": "modules/updates.py",
-      "sha256": "da2d6a84ccab24fe70a148c7f143ff9ed2714ad1317d56b5831d31a8e863979a"
+      "sha256": "ade9a31a798550d5ea7aa026842556d82badde64f8bacddb0361c342c4a689c6"
     },
     "userbot-backup": {
       "path": "modules/userbot-backup.py",
-      "sha256": "208d7fd8298387af8099f1f5955289a00c72f8ffd212ccf5e343eadc53c3066e"
+      "sha256": "71688058408b5350c1c22549b588e20d4bd130ed204573f00e81f482efa6cf23"
     },
-    "utils-piped": {
-      "path": "modules/utils-piped.py",
-      "sha256": "c3ca6074cf838a7565ffdc59829a0407e54daeda31dc206e08c5142a321bc1b8"
+    "switch_inline": {
+      "path": "modules/switch_inline.py",
+      "sha256": "65daea82535d3200a3a0fbffd4eebdc3f622d2cbec539c8a6594ce4330e48dc3"
     }
   }
 }

@@ -55,7 +55,7 @@ class DatabaseManager:
         "reverse_unordered_selects",
         "cell_size_check",
     }
-    _VALID_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_.\-:]+$")
+    _VALID_ID_PATTERN = re.compile(r"^[а-яА-ЯёЁa-zA-Z0-9_.\-: ]+$")
 
     SENSITIVE_KEY_PATTERNS: list[re.Pattern[str]] = [
         re.compile(r"token", re.IGNORECASE),
@@ -260,7 +260,7 @@ class DatabaseManager:
     @staticmethod
     def sanitize_key(value: str) -> str:
         """Replace characters not allowed in identifiers with underscores."""
-        return re.sub(r"[^a-zA-Z0-9_.\-:]+", "_", value)
+        return re.sub(r"[^а-яА-ЯёЁa-zA-Z0-9_.\-: ]+", "_", value)
 
     def _cache_put(self, cache_key: str, value: str | None) -> None:
         """Insert into the bounded LRU get-cache, evicting the oldest entry if full."""

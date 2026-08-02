@@ -290,6 +290,17 @@ class Register:
         self._all_watchers: list[tuple] = []
         self._all_event_handlers: list[tuple] = []
 
+    def _should_deliver(
+        self,
+        event: Event,
+        module_name: str | None,
+        action: str,
+    ) -> bool:
+        checker = getattr(self.kernel, "should_deliver_module_event", None)
+        if not callable(checker):
+            return True
+        return bool(checker(event, module=module_name, action=action))
+
     def _get_disabled_watchers(self) -> set:
         disabled = getattr(self.kernel, "_disabled_watchers", None)
         if not isinstance(disabled, set):
@@ -475,16 +486,35 @@ class Register:
                     )
                     return handler
 
-            tg_client.add_event_handler(handler, event_obj)
+            async def _security_wrapper(event: Event) -> None:
+                if not self._should_deliver(event, _mod_name, f"event:{key}"):
+                    self.kernel.logger.debug(
+                        "[register.event] skipped-security module=%r handler=%r",
+                        _mod_name,
+                        handler_name,
+                    )
+                    return
+
+                result = handler(event)
+                if inspect.isawaitable(result):
+                    await result
+
+            _security_wrapper.__name__ = f"event:{_mod_name}:{handler_name}"
+            _security_wrapper.__module__ = _mod_name
+            _security_wrapper.__event_original__ = handler
+            _security_wrapper.__event_module__ = _mod_name
+            _security_wrapper.__event_name__ = handler_name
+
+            tg_client.add_event_handler(_security_wrapper, event_obj)
 
             if _passed_module:
                 reg = self._get_or_create_register(_passed_module)
                 event_handlers = self._ensure_list(reg, "__event_handlers__")
                 # Keep per-module bindings for unload/reload/debug utilities.
-                event_handlers.append((handler, event_obj, tg_client))
+                event_handlers.append((_security_wrapper, event_obj, tg_client))
                 self._all_event_handlers.append(
                     (
-                        handler,
+                        _security_wrapper,
                         event_obj,
                         tg_client,
                         {
@@ -770,6 +800,13 @@ class Register:
                 if watcher_key in self._get_disabled_watchers():
                     self.kernel.logger.debug(
                         "[watcher] skipped-disabled module=%r watcher=%r",
+                        module_name,
+                        watcher_name,
+                    )
+                    return
+                if not self._should_deliver(event, module_name, "watcher"):
+                    self.kernel.logger.debug(
+                        "[watcher] skipped-security module=%r watcher=%r",
                         module_name,
                         watcher_name,
                     )

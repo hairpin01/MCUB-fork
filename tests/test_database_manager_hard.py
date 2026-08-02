@@ -111,14 +111,33 @@ class TestDatabaseManagerHard:
         with pytest.raises(PermissionError):
             await db.db_query("DELETE FROM module_data WHERE module = ?", ("m",))
 
-    async def test_identifier_validation_blocks_invalid_keys(self):
+    async def test_identifier_validation_allows_spaces_and_blocks_invalid_chars(self):
         db = DatabaseManager(_make_kernel())
         db.conn = AsyncMock()
+        db.conn.execute = AsyncMock()
+        db.conn.commit = AsyncMock()
+
+        await db.db_set("bad module", "k", "v")
+        db.conn.execute.assert_awaited_with(
+            "INSERT OR REPLACE INTO module_data VALUES (?, ?, ?)",
+            ("bad module", "k", "v"),
+        )
+
+        cursor = AsyncMock()
+        cursor.fetchone = AsyncMock(return_value=None)
+        cursor.close = AsyncMock()
+        db.conn.execute = AsyncMock(return_value=cursor)
+
+        assert await db.db_get("module", "bad key") is None
+        db.conn.execute.assert_awaited_with(
+            "SELECT LENGTH(value) FROM module_data WHERE module = ? AND key = ?",
+            ("module", "bad key"),
+        )
 
         with pytest.raises(ValueError):
-            await db.db_set("bad module", "k", "v")
+            await db.db_set("bad/module", "k", "v")
         with pytest.raises(ValueError):
-            await db.db_get("module", "bad key")
+            await db.db_get("module", "bad/key")
 
     async def test_db_query_blocks_semicolon(self):
         db = DatabaseManager(_make_kernel())

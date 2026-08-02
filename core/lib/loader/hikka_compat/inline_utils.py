@@ -10,6 +10,103 @@ import types
 import typing
 
 VALID_BUTTON_STYLES = {"danger", "primary", "success"}
+_SUPPORTED_OBJECT_BUTTON_FIELDS = {
+    "text",
+    "url",
+    "data",
+    "callback_data",
+    "switch_inline_query",
+    "switch_inline_query_current_chat",
+    "web_app",
+    "copy",
+    "copy_text",
+    "style",
+    "emoji_id",
+}
+
+
+def _drop_none_values(data: dict) -> dict:
+    return {key: value for key, value in data.items() if value is not None}
+
+
+def _filter_supported_object_button_fields(data: dict) -> dict:
+    return {
+        key: value
+        for key, value in _drop_none_values(data).items()
+        if key in _SUPPORTED_OBJECT_BUTTON_FIELDS
+    }
+
+
+def _object_to_dict(obj) -> dict | None:
+    """Best-effort conversion for aiogram/pydantic inline button objects."""
+
+    if isinstance(obj, dict):
+        return dict(obj)
+
+    for method_name in ("model_dump", "dict", "to_python", "to_dict"):
+        method = getattr(obj, method_name, None)
+        if not callable(method):
+            continue
+        try:
+            if method_name in {"model_dump", "dict"}:
+                data = method(exclude_none=True)
+            else:
+                data = method()
+        except TypeError:
+            try:
+                data = method()
+            except Exception:
+                continue
+        except Exception:
+            continue
+        if isinstance(data, dict) and data.get("text") is not None:
+            return _filter_supported_object_button_fields(data)
+
+    text = getattr(obj, "text", None)
+    if text is None:
+        return None
+
+    data = {"text": text}
+    for attr in (
+        "url",
+        "data",
+        "callback_data",
+        "switch_inline_query",
+        "switch_inline_query_current_chat",
+        "web_app",
+        "copy_text",
+    ):
+        value = getattr(obj, attr, None)
+        if value is not None:
+            data[attr] = value
+    return data
+
+
+def _extract_markup_rows(markup):
+    if isinstance(markup, dict):
+        if "inline_keyboard" in markup:
+            return markup.get("inline_keyboard") or []
+        if "buttons" in markup:
+            return markup.get("buttons") or []
+        return None
+
+    for attr in ("inline_keyboard", "buttons"):
+        value = getattr(markup, attr, None)
+        if value is not None:
+            return value
+
+    data = _object_to_dict(markup)
+    if data:
+        if "inline_keyboard" in data:
+            return data.get("inline_keyboard") or []
+        if "buttons" in data:
+            return data.get("buttons") or []
+
+    return None
+
+
+def _normalize_button(button):
+    return _object_to_dict(button) or button
 
 
 class InlineMarkupBuilder:
@@ -105,7 +202,16 @@ def process_buttons(
             btn_copy = dict(button)
             _apply_action_button(btn_copy, inline_proxy)
 
-            if "callback" in btn_copy and "_callback_data" not in btn_copy:
+            register_callback = getattr(
+                inline_proxy,
+                "_register_hikka_callback_button",
+                None,
+            )
+            callback_registered_by_proxy = False
+            if "callback" in btn_copy and callable(register_callback):
+                register_callback(btn_copy, unit_id=unit_id)
+                callback_registered_by_proxy = True
+            elif "callback" in btn_copy and "_callback_data" not in btn_copy:
                 btn_copy["_callback_data"] = _generate_id(30)
 
             if "input" in btn_copy and "_switch_query" not in btn_copy:
@@ -120,6 +226,7 @@ def process_buttons(
                 custom_map is not None
                 and "callback" in btn_copy
                 and "_callback_data" in btn_copy
+                and not callback_registered_by_proxy
             ):
                 custom_map[btn_copy["_callback_data"]] = {
                     "handler": btn_copy["callback"],
@@ -131,7 +238,7 @@ def process_buttons(
                     "unit_id": unit_id or btn_copy.get("unit_id"),
                 }
 
-                if inline_proxy is not None:
+                if inline_proxy is not None and not callable(register_callback):
                     kernel = getattr(inline_proxy, "_kernel", None)
                     if kernel is not None:
                         cb_map = getattr(kernel, "inline_callback_map", None)
@@ -298,28 +405,33 @@ def _normalize_markup(markup, inline_proxy=None) -> list[list[dict]]:
         unit = units.get(markup, {})
         markup = unit.get("buttons", [])
 
-    if isinstance(markup, dict):
-        if "buttons" in markup and isinstance(markup["buttons"], list):
-            markup = markup["buttons"]
-        else:
-            return [[markup]]
+    extracted_rows = _extract_markup_rows(markup)
+    if extracted_rows is not None:
+        markup = extracted_rows
+    elif isinstance(markup, dict):
+        return [[dict(markup)]]
+    else:
+        button = _object_to_dict(markup)
+        if button is not None:
+            return [[button]]
 
-    if not isinstance(markup, list):
+    if not isinstance(markup, (list, tuple)):
         return []
 
     if not markup:
         return []
 
-    if any(isinstance(i, dict) for i in markup):
-        return [typing.cast(list[dict], markup)]
+    if any(_object_to_dict(i) is not None for i in markup):
+        return [[_normalize_button(btn) for btn in markup]]
 
-    normalized: list[list[dict]] = []
+    normalized: list[list] = []
     for row in markup:
-        if isinstance(row, dict):
-            normalized.append([row])
+        row_button = _object_to_dict(row)
+        if row_button is not None:
+            normalized.append([row_button])
             continue
-        if isinstance(row, list):
-            normalized.append([btn for btn in row if isinstance(btn, dict)])
+        if isinstance(row, (list, tuple)):
+            normalized.append([_normalize_button(btn) for btn in row])
 
     return [row for row in normalized if row]
 
@@ -373,6 +485,8 @@ def _build_button(button: dict) -> dict | None:
         result["url"] = button["url"]
     elif "callback" in button:
         result["callback_data"] = button.get("_callback_data", "")
+    elif "callback_data" in button:
+        result["callback_data"] = str(button.get("callback_data", ""))
     elif "data" in button:
         result["callback_data"] = str(button.get("data", ""))
     elif "input" in button:
@@ -385,8 +499,13 @@ def _build_button(button: dict) -> dict | None:
         )
     elif "switch_inline_query" in button:
         result["switch_inline_query"] = str(button.get("switch_inline_query", ""))
-    elif "copy" in button:
-        result["copy_text"] = str(button.get("copy", ""))
+    elif "copy" in button or "copy_text" in button:
+        copy_value = button.get("copy")
+        if copy_value is None:
+            copy_value = button.get("copy_text")
+        if isinstance(copy_value, dict):
+            copy_value = copy_value.get("text", "")
+        result["copy_text"] = str(copy_value or "")
     elif "web_app" in button:
         result["web_app"] = button["web_app"]
 

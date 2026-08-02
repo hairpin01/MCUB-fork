@@ -76,6 +76,7 @@ class ManModule(ModuleBase):
     author = "@hairpin00"
     description = {
         "ru": "Список модулей, и их описание",
+        "uk": "Список модулів та їх опис",
         "en": "List of modules and their descriptions",
     }
 
@@ -441,6 +442,65 @@ class ManModule(ModuleBase):
         lang = self.kernel.config.get("language", "ru")
         return self.kernel._loader.get_module_commands(module_name, lang)
 
+    def _get_bot_command_description(self, docs: Any, lang: str) -> str:
+        if isinstance(docs, str):
+            return docs.strip()
+        if not isinstance(docs, dict) or not docs:
+            return ""
+
+        normalized_lang = str(lang or "").strip().lower()
+        locales = []
+        if normalized_lang:
+            locales.append(normalized_lang)
+            base_lang = normalized_lang.replace("-", "_").split("_", 1)[0]
+            if base_lang and base_lang not in locales:
+                locales.append(base_lang)
+        for fallback_lang in ("ru", "en"):
+            if fallback_lang not in locales:
+                locales.append(fallback_lang)
+
+        for locale in locales:
+            value = docs.get(locale)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        for value in docs.values():
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return ""
+
+    def _get_module_bot_commands(self, module_name: str) -> list[tuple[str, str]]:
+        if self._find_hikka_library(module_name) is not None:
+            return []
+
+        owners = getattr(self.kernel, "bot_command_owners", {}) or {}
+        if not hasattr(owners, "items"):
+            return []
+
+        docs_by_command = getattr(self.kernel, "bot_command_docs", {}) or {}
+        if not isinstance(docs_by_command, dict):
+            docs_by_command = {}
+
+        config = getattr(self.kernel, "config", {}) or {}
+        lang = config.get("language", "ru") if isinstance(config, dict) else "ru"
+        wanted = str(module_name).lower()
+        bot_commands: list[tuple[str, str]] = []
+
+        for cmd, owner in owners.items():
+            owner_name = getattr(owner, "name", owner)
+            if str(owner_name).lower() != wanted:
+                continue
+
+            command_name = str(cmd).strip().lstrip("/")
+            if not command_name:
+                continue
+
+            description = self._get_bot_command_description(
+                docs_by_command.get(cmd, {}), lang
+            )
+            bot_commands.append((command_name, description))
+
+        return bot_commands
+
     def _iter_hikka_libraries(self) -> list[Any]:
         libraries = getattr(self.kernel, "_hikka_compat_libraries", []) or []
         return list(libraries) if isinstance(libraries, (list, tuple, set)) else []
@@ -704,6 +764,22 @@ class ManModule(ModuleBase):
             )
             msg += f"{no_command_emoji} {s['no_commands']}\n"
         msg += "</blockquote>"
+
+        bot_commands = self._get_module_bot_commands(name)
+        if bot_commands:
+            bot_emoji = self.config.get("man_emoji_bot") or CUSTOM_EMOJI["bot"]
+            bot_title = s.get("bot_commands", "Bot commands")
+            bot_lines = []
+            for cmd, desc in bot_commands:
+                line = f"{bot_emoji} <code>/{cmd}</code>"
+                if desc:
+                    line += f" - <b>{desc}</b>"
+                else:
+                    line += (
+                        f" - <b>{CUSTOM_EMOJI['confused']} {s['no_description']}</b>"
+                    )
+                bot_lines.append(line)
+            msg += "<blockquote expandable>" + "\n".join(bot_lines) + "\n</blockquote>"
 
         inline_commands = self.kernel.get_module_inline_commands(name)
         if inline_commands:
@@ -1007,6 +1083,7 @@ class ManModule(ModuleBase):
         "man",
         doc_ru="<name/None> пoкaзaть инфopмaцию o мoдyлe или cпиcoк мoдyлeй",
         doc_en="<name/None> show module info or list modules",
+        doc_uk="<name/None> показати інформацію про модуль або список модулів",
     )
     async def cmd_man(self, event: events.NewMessage.Event) -> None:
         try:
@@ -1173,6 +1250,7 @@ class ManModule(ModuleBase):
         "manhide",
         doc_ru="<name> cкpыть мoдyль из cпиcкa man",
         doc_en="<name> hide module from man list",
+        doc_uk="<name> приховати модуль зі списку man",
     )
     async def cmd_manhide(self, event: events.NewMessage.Event) -> None:
         try:
@@ -1218,6 +1296,7 @@ class ManModule(ModuleBase):
         "manunhide",
         doc_ru="<name> пoкaзaть мoдyль в cпиcкe man",
         doc_en="<name> unhide module from man list",
+        doc_uk="<name> показати модуль у списку man",
     )
     async def cmd_manunhide(self, event: events.NewMessage.Event) -> None:
         try:
@@ -1251,7 +1330,12 @@ class ManModule(ModuleBase):
                 e, message="Manunhide command error", event=event
             )
 
-    @command("help", doc_ru="пepeнaпpaвляeт нa man", doc_en="redirects to man")
+    @command(
+        "help",
+        doc_ru="пepeнaпpaвляeт нa man",
+        doc_en="redirects to man",
+        doc_uk="перенаправляє на man",
+    )
     async def cmd_help(self, event: events.NewMessage.Event) -> None:
         await self.cmd_man(event)
 

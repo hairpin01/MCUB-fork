@@ -53,6 +53,7 @@ try:
     from aiogram import Bot as AioBot
     from aiogram.client.default import DefaultBotProperties
     from aiogram.types import (
+        CopyTextButton,
         InlineKeyboardButton,
         InlineKeyboardMarkup,
         InlineQueryResultArticle,
@@ -65,6 +66,135 @@ except Exception:  # pragma: no cover - optional dependency at runtime
     InputTextMessageContent = None
     InlineKeyboardMarkup = None
     InlineKeyboardButton = None
+    CopyTextButton = None
+
+
+def _button_rows(buttons: Any) -> list[list[Any]]:
+    if not buttons:
+        return []
+    if hasattr(buttons, "rows"):
+        buttons = buttons.rows
+    if isinstance(buttons, dict) or not isinstance(buttons, (list, tuple)):
+        buttons = [buttons]
+    if not buttons:
+        return []
+
+    def is_row(value: Any) -> bool:
+        return isinstance(value, (list, tuple)) or hasattr(value, "buttons")
+
+    rows = []
+    for row in buttons if is_row(buttons[0]) else [buttons]:
+        if hasattr(row, "buttons"):
+            row = row.buttons
+        elif isinstance(row, dict) or not isinstance(row, (list, tuple)):
+            row = [row]
+        rows.append(list(row))
+    return rows
+
+
+def _copy_text_payload(value: Any) -> Any:
+    if isinstance(value, dict):
+        value = value.get("text", "")
+    elif hasattr(value, "text"):
+        value = value.text
+
+    if CopyTextButton is not None:
+        return CopyTextButton(text=str(value or ""))
+    return {"text": str(value or "")}
+
+
+def _aiogram_button_from_dict(button: dict[str, Any]) -> Any | None:
+    text = str(button.get("text", ""))
+    payload = {"text": text}
+
+    if style := button.get("style"):
+        payload["style"] = style
+    if emoji_id := button.get("emoji_id", button.get("icon_custom_emoji_id")):
+        payload["icon_custom_emoji_id"] = str(emoji_id)
+
+    b_type = str(button.get("type", "")).lower()
+    if "url" in button or b_type == "url":
+        payload["url"] = str(button.get("url", ""))
+    elif "copy" in button or "copy_text" in button or b_type == "copy":
+        copy_value = button.get("copy")
+        if copy_value is None:
+            copy_value = button.get("copy_text")
+        payload["copy_text"] = _copy_text_payload(copy_value)
+    elif "callback_data" in button:
+        payload["callback_data"] = str(button.get("callback_data", ""))
+    elif "data" in button or b_type == "callback":
+        payload["callback_data"] = str(button.get("data", ""))
+    elif "switch_inline_query_current_chat" in button:
+        payload["switch_inline_query_current_chat"] = str(
+            button.get("switch_inline_query_current_chat", "")
+        )
+    elif "switch_inline_query" in button:
+        payload["switch_inline_query"] = str(button.get("switch_inline_query", ""))
+    elif "web_app" in button:
+        payload["web_app"] = button.get("web_app")
+    else:
+        return None
+
+    return InlineKeyboardButton(**payload)
+
+
+def _aiogram_button_from_telethon(button: Any) -> Any | None:
+    text = str(getattr(button, "text", ""))
+    payload = {"text": text}
+
+    style = getattr(button, "style", None)
+    if style is not None:
+        if getattr(style, "icon", None):
+            payload["icon_custom_emoji_id"] = str(style.icon)
+        if getattr(style, "bg_primary", None):
+            payload["style"] = "primary"
+        elif getattr(style, "bg_success", None):
+            payload["style"] = "success"
+        elif getattr(style, "bg_danger", None):
+            payload["style"] = "danger"
+
+    if hasattr(button, "url"):
+        payload["url"] = button.url
+    elif hasattr(button, "copy_text"):
+        payload["copy_text"] = _copy_text_payload(button.copy_text)
+    elif hasattr(button, "data"):
+        data = button.data
+        payload["callback_data"] = data.decode() if isinstance(data, bytes) else data
+    else:
+        return None
+
+    return InlineKeyboardButton(**payload)
+
+
+def _aiogram_inline_button(button: Any) -> Any | None:
+    if InlineKeyboardButton is None:
+        return None
+    if isinstance(button, InlineKeyboardButton):
+        return button
+    if isinstance(button, dict):
+        return _aiogram_button_from_dict(button)
+    return _aiogram_button_from_telethon(button)
+
+
+def _aiogram_inline_markup(buttons: Any) -> Any | None:
+    if InlineKeyboardMarkup is None:
+        return None
+    if isinstance(buttons, InlineKeyboardMarkup):
+        return buttons
+
+    rows = []
+    for row in _button_rows(buttons):
+        row_buttons = []
+        for button in row:
+            rendered = _aiogram_inline_button(button)
+            if rendered is not None:
+                row_buttons.append(rendered)
+        if row_buttons:
+            rows.append(row_buttons)
+
+    if not rows:
+        return None
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 class _TelethonInlineQueryAdapter:
@@ -96,56 +226,7 @@ class _TelethonInlineQueryAdapter:
                 InlineQueryResultArticle is not None
                 and InputTextMessageContent is not None
             ):
-                kb = None
-                if buttons:
-                    rows = []
-                    for row in (
-                        buttons
-                        if hasattr(buttons, "__iter__")
-                        and not isinstance(buttons, dict)
-                        else [buttons]
-                    ):
-                        row_btns = []
-                        for btn in (
-                            row
-                            if hasattr(row, "__iter__") and not isinstance(row, dict)
-                            else [row]
-                        ):
-                            if hasattr(btn, "url"):
-                                row_btns.append(
-                                    InlineKeyboardButton(text=btn.text, url=btn.url)
-                                )
-                            elif hasattr(btn, "data"):
-                                row_btns.append(
-                                    InlineKeyboardButton(
-                                        text=btn.text,
-                                        callback_data=(
-                                            btn.data.decode()
-                                            if isinstance(btn.data, bytes)
-                                            else btn.data
-                                        ),
-                                    )
-                                )
-                            elif isinstance(btn, dict):
-                                btype = btn.get("type", "callback").lower()
-                                if btype == "url":
-                                    row_btns.append(
-                                        InlineKeyboardButton(
-                                            text=btn.get("text", ""),
-                                            url=btn.get("url", ""),
-                                        )
-                                    )
-                                elif btype == "callback":
-                                    row_btns.append(
-                                        InlineKeyboardButton(
-                                            text=btn.get("text", ""),
-                                            callback_data=btn.get("data", ""),
-                                        )
-                                    )
-                        if row_btns:
-                            rows.append(row_btns)
-                    if rows:
-                        kb = InlineKeyboardMarkup(inline_keyboard=rows)
+                kb = _aiogram_inline_markup(buttons)
 
                 return InlineQueryResultArticle(
                     id=str(uuid.uuid4()),
@@ -240,39 +321,7 @@ class _TelethonCallbackAdapter:
         msg = self.message
         if msg is None:
             return
-        kb = None
-        if buttons:
-            rows = []
-            for row in (
-                buttons
-                if hasattr(buttons, "__iter__") and not isinstance(buttons, dict)
-                else [buttons]
-            ):
-                row_btns = []
-                for btn in (
-                    row
-                    if hasattr(row, "__iter__") and not isinstance(row, dict)
-                    else [row]
-                ):
-                    if hasattr(btn, "url"):
-                        row_btns.append(
-                            InlineKeyboardButton(text=btn.text, url=btn.url)
-                        )
-                    elif hasattr(btn, "data"):
-                        row_btns.append(
-                            InlineKeyboardButton(
-                                text=btn.text,
-                                callback_data=(
-                                    btn.data.decode()
-                                    if isinstance(btn.data, bytes)
-                                    else btn.data
-                                ),
-                            )
-                        )
-                if row_btns:
-                    rows.append(row_btns)
-            if rows:
-                kb = InlineKeyboardMarkup(inline_keyboard=rows)
+        kb = _aiogram_inline_markup(buttons)
 
         try:
             await msg.edit_text(
@@ -553,31 +602,7 @@ class InlineHandlers:
                 message_text=text,
                 parse_mode=parse_mode,
             )
-            kb = None
-            if buttons:
-                rows = []
-                for row in buttons if hasattr(buttons, "__iter__") else [buttons]:
-                    row_btns = []
-                    for btn in row if hasattr(row, "__iter__") else [row]:
-                        if hasattr(btn, "url"):
-                            row_btns.append(
-                                InlineKeyboardButton(text=btn.text, url=btn.url)
-                            )
-                        elif hasattr(btn, "data"):
-                            row_btns.append(
-                                InlineKeyboardButton(
-                                    text=btn.text,
-                                    callback_data=(
-                                        btn.data.decode()
-                                        if isinstance(btn.data, bytes)
-                                        else btn.data
-                                    ),
-                                )
-                            )
-                    if row_btns:
-                        rows.append(row_btns)
-                if rows:
-                    kb = InlineKeyboardMarkup(inline_keyboard=rows)
+            kb = _aiogram_inline_markup(buttons)
 
             return InlineQueryResultArticle(
                 id=str(uuid.uuid4()),
@@ -966,6 +991,13 @@ class InlineHandlers:
         ttl: int = 3600,
         media: Any = None,
         media_type: str = "photo",
+        parse_mode: str = "html",
+        rich_text: str | None = None,
+        rich_parse_mode: str = "html",
+        rich_message: Any = None,
+        rich_rtl: bool | None = None,
+        rich_noautolink: bool | None = None,
+        rich_files: Any = None,
     ) -> str:
         """
         Creates an inline form and returns its ID.
@@ -979,6 +1011,13 @@ class InlineHandlers:
             ttl: Form cache lifetime (seconds)
             media: URL or file_id of media file (optional)
             media_type: Media type - "photo", "document", "gif" (default "photo")
+            parse_mode: Fallback text parse mode.
+            rich_text: HTML or Markdown source for Telegram rich_message.
+            rich_parse_mode: Format for rich_text ("html", "markdown" or "md").
+            rich_message: Prebuilt Telethon InputRichMessage.
+            rich_rtl: Render rich message right-to-left.
+            rich_noautolink: Disable automatic links in rich message.
+            rich_files: Optional InputRichFile references used by rich_text.
 
         Returns:
             str: Form ID for use in inline query
@@ -1002,6 +1041,13 @@ class InlineHandlers:
             "created_at": time.time(),
             "media": media,
             "media_type": media_type,
+            "parse_mode": parse_mode,
+            "rich_text": rich_text,
+            "rich_parse_mode": rich_parse_mode,
+            "rich_message": rich_message,
+            "rich_rtl": rich_rtl,
+            "rich_noautolink": rich_noautolink,
+            "rich_files": rich_files,
             "_ttl": ttl,
         }
 
@@ -1123,11 +1169,29 @@ class InlineHandlers:
         Returns:
             dict: Bot API response
         """
+
+        def _is_parse_error(error: Any) -> bool:
+            text = str(error).lower()
+            return "can't parse" in text or "parse entities" in text
+
+        def _strip_parse_modes(value: Any) -> Any:
+            if isinstance(value, dict):
+                return {
+                    key: _strip_parse_modes(item)
+                    for key, item in value.items()
+                    if key != "parse_mode"
+                }
+            if isinstance(value, list):
+                return [_strip_parse_modes(item) for item in value]
+            return value
+
         _bot_token = self._get_bot_token()
+
+        request_results = results
 
         payload = {
             "inline_query_id": inline_query_id,
-            "results": results,
+            "results": request_results,
             "cache_time": cache_time,
             "is_personal": is_personal,
         }
@@ -1146,6 +1210,9 @@ class InlineHandlers:
                 )
                 return {"ok": True, "result": True}
             except Exception as e:
+                if _is_parse_error(e):
+                    request_results = _strip_parse_modes(results)
+                    payload["results"] = request_results
                 self.kernel.logger.warning(
                     "[InlineHandlers] aiogram answer_inline_query failed: %s",
                     e,
@@ -1155,7 +1222,23 @@ class InlineHandlers:
             f"https://api.telegram.org/bot{_bot_token}/answerInlineQuery",
             json=payload,
         ) as resp:
-            return await resp.json()
+            data = await resp.json()
+
+        description = str(data.get("description", "")) if isinstance(data, dict) else ""
+        if (
+            isinstance(data, dict)
+            and not data.get("ok")
+            and _is_parse_error(description)
+            and request_results is results
+        ):
+            payload["results"] = _strip_parse_modes(results)
+            async with self.kernel.session.post(
+                f"https://api.telegram.org/bot{_bot_token}/answerInlineQuery",
+                json=payload,
+            ) as resp:
+                return await resp.json()
+
+        return data
 
     def create_form_with_validation(
         self,
@@ -1743,6 +1826,37 @@ class InlineHandlers:
                     mtype = (form_data.get("media_type") or "photo").lower()
                     buttons = form_data.get("buttons")
                     text = form_data["text"]
+                    parse_mode = form_data.get("parse_mode") or "html"
+                    rich_text = form_data.get("rich_text")
+                    rich_message = form_data.get("rich_message")
+
+                    if rich_text is not None or rich_message is not None:
+                        article_kwargs = {
+                            "buttons": buttons,
+                            "rich_text": rich_text,
+                            "rich_parse_mode": form_data.get("rich_parse_mode")
+                            or "html",
+                            "rich_message": rich_message,
+                            "rich_rtl": form_data.get("rich_rtl"),
+                            "rich_noautolink": form_data.get("rich_noautolink"),
+                            "rich_files": form_data.get("rich_files"),
+                        }
+                        try:
+                            builder = event.builder.article(
+                                "Inline Form",
+                                **article_kwargs,
+                            )
+                        except TypeError:
+                            # Older adapters/Bot API fall back to a normal
+                            # formatted article instead of failing the form.
+                            builder = event.builder.article(
+                                "Inline Form",
+                                text=text,
+                                buttons=buttons,
+                                parse_mode=parse_mode,
+                            )
+                        await event.answer([builder])
+                        return
 
                     _bot_token = self.kernel.config.get("inline_bot_token")
 
@@ -1751,7 +1865,7 @@ class InlineHandlers:
                             "Inline Form",
                             text=text,
                             buttons=buttons,
-                            parse_mode="html",
+                            parse_mode=parse_mode,
                         )
                         await event.answer([builder])
                         return

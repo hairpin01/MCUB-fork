@@ -126,6 +126,7 @@
 | [InlineManager API](doc/inline/inline-manager.md) | Gallery, list, paginated text, query-and-click |
 | [Inline Result Builders](doc/inline/inline-results.md) | Build inline query results (text, photo, video, document) |
 | [Callbacks](doc/inline/callbacks.md) | Callback permission management |
+| [Rich Messages](doc/telethon/rich.md) | Telethon-MCUB rich messages, inline rich forms, media refs |
 
 ---
 
@@ -135,6 +136,8 @@
 |----------|-------------|
 | [Premium Emoji](doc/reference/emoji.md) | Custom emoji usage |
 | [Telethon-MCUB](doc/reference/telethon.md) | Additional Telethon methods |
+| [Telethon-MCUB Extensions](doc/telethon/index.md) | Full fork additions: rich, buttons, hooks, reactions, uploads, compatibility |
+| [Telethon-MCUB Rich Messages](doc/telethon/rich.md) | Rich message helpers and MCUB examples |
 | [AntiScam](doc/reference/antiscam.md) | Account protection |
 | [xlib](doc/lib/xlib.md) | Extended helpers and compatibility utilities |
 

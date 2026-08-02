@@ -22,6 +22,7 @@ class TrModule(ModuleBase):
     author = "@hairpin00"
     description = {
         "ru": "Пepeвoдчик чepeз Google Translate",
+        "uk": "Перекладач через Google Translate",
         "en": "Translator using Google Translate API",
     }
 
@@ -123,6 +124,7 @@ class TrModule(ModuleBase):
         "tr",
         doc_ru="пepeвecти тeкcт чepeз Google Translate",
         doc_en="translate text using Google Translate",
+        doc_uk="перекласти текст через Google Translate",
     )
     async def cmd_tr(self, event: events.NewMessage.Event) -> None:
         try:

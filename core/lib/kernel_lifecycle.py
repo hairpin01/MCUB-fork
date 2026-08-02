@@ -214,7 +214,7 @@ class KernelLifecycleMixin:
                     "0_o",
                 ]
 
-                em_alembic = '<tg-emoji emoji-id="5310041868191407556">🔭</tg-emoji>'
+                em_alembic = strings("material_emoji")("tumbler")
                 emoji = secrets.choice(emojis)
                 total_ms = round(time.time() - restart_time, 2) if restart_time else 0
 
@@ -222,7 +222,7 @@ class KernelLifecycleMixin:
                     restart_chat_id,
                     restart_msg_id,
                     f"<blockquote>{em_alembic} <b>{strings('success')}</b> <i>{emoji}</i></blockquote>\n"
-                    f"<blockquote><i>{strings('loading')}</i> <b>Kernel boot:</b><code> {total_ms} </code>s</blockquote>",
+                    f"<blockquote>{strings('material_emoji')('load_3')} <i>{strings('loading')}</i> {strings('material_emoji')('music')}<code> {total_ms}</code>s</blockquote>",
                     parse_mode="html",
                 )
             except Exception:
@@ -558,15 +558,14 @@ class KernelLifecycleMixin:
                 if me.premium
                 else "MCUB"
             )
+            s = self._get_strings()
 
-            em_package = '<tg-emoji emoji-id="5399898266265475100">📦</tg-emoji>'
-            em_error = '<tg-emoji emoji-id="5208923808169222461">🥀</tg-emoji>'
-            em_items = '<tg-emoji emoji-id="5375106250449100282">🧳</tg-emoji>'
+            em_package = s("material_emoji")("music")
+            em_error = s("material_emoji")("delete")
+            em_items = s("material_emoji")("pulsating_circle")
 
             kernel_s = round(modules_start - restart_time, 2)
             mod_s = round(modules_end - modules_start, 2)
-
-            s = self._get_strings()
 
             if not self.client.is_connected():
                 return
@@ -724,7 +723,20 @@ class KernelLifecycleMixin:
 
         if cmd in self.bot_command_handlers:
             _, handler = self.bot_command_handlers[cmd]
-            await handler(wrap_event_for_module(event, "bot_command", self))
+            owner = self.bot_command_owners.get(cmd, "bot_command")
+            checker = getattr(self, "should_deliver_module_event", None)
+            if callable(checker) and not checker(
+                event,
+                module=owner,
+                action="bot_command",
+            ):
+                self.logger.debug(
+                    "[process_bot_command] blocked-security cmd=%r owner=%r",
+                    cmd,
+                    owner,
+                )
+                return True
+            await handler(wrap_event_for_module(event, owner, self))
             return True
 
         return False

@@ -772,14 +772,41 @@ class TestCoreInlineMessageRichEdit:
         assert request.rich_message.html == "<b>hello</b>"
 
     @pytest.mark.asyncio
-    async def test_edit_rich_falls_back_to_edit_message_for_unsupported_peer(self):
+    async def test_edit_rich_prefers_event_edit_rich(self):
+        from core.lib.types import InlineMessage
+
+        event = _inline_event()
+        event.edit_rich = AsyncMock()
+        client = _RichInlineClient()
+        kernel = SimpleNamespace(client=client, bot_client=None)
+        message = InlineMessage(event, kernel=kernel)
+
+        result = await message.edit_rich("<b>hello</b>")
+
+        assert result is message
+        event.edit_rich.assert_awaited_once()
+        assert client.requests == []
+
+    @pytest.mark.asyncio
+    async def test_edit_rich_raises_by_default_for_unsupported_peer(self):
         from core.lib.types import InlineMessage
 
         client = _RichInlineClient(fail_rich=True)
         kernel = SimpleNamespace(client=client, bot_client=None)
         message = InlineMessage(_inline_event(), kernel=kernel)
 
-        result = await message.edit_rich("<b>hello</b>")
+        with pytest.raises(Exception, match="RICH_MESSAGE_UNSUPPORTED"):
+            await message.edit_rich("<b>hello</b>")
+
+    @pytest.mark.asyncio
+    async def test_edit_rich_can_fall_back_to_edit_message_for_unsupported_peer(self):
+        from core.lib.types import InlineMessage
+
+        client = _RichInlineClient(fail_rich=True)
+        kernel = SimpleNamespace(client=client, bot_client=None)
+        message = InlineMessage(_inline_event(), kernel=kernel)
+
+        result = await message.edit_rich("<b>hello</b>", fallback=True)
 
         assert result is message
         assert len(client.requests) == 1
@@ -787,3 +814,397 @@ class TestCoreInlineMessageRichEdit:
         args, kwargs = client.edit_message_calls[0]
         assert args[1] == "<b>hello</b>"
         assert kwargs["parse_mode"] == "html"
+
+
+class TestInlineRichForm:
+    class _Cache:
+        def __init__(self):
+            self.values = {}
+
+        def get(self, key):
+            return self.values.get(key)
+
+        def set(self, key, value, ttl=None):
+            self.values[key] = value
+
+    def _handlers(self):
+        from core_inline.handlers import InlineHandlers
+
+        handlers = InlineHandlers.__new__(InlineHandlers)
+        handlers.kernel = SimpleNamespace(
+            cache=self._Cache(),
+            config={},
+            logger=MagicMock(),
+            inline_callback_map={},
+        )
+        handlers._form_counter = 0
+        handlers._last_cleanup_time = 0.0
+        handlers._cleanup_interval = 999999.0
+        handlers.lang = {"btn_default": "Button"}
+        return handlers
+
+    def test_create_inline_form_stores_rich_payload(self):
+        handlers = self._handlers()
+
+        form_id = handlers.create_inline_form(
+            "fallback",
+            ttl=123,
+            parse_mode="html",
+            rich_text="<h1>Title</h1>",
+            rich_parse_mode="html",
+            rich_rtl=True,
+            rich_noautolink=True,
+        )
+
+        form_data = handlers.get_inline_form(form_id)
+        assert form_data["text"] == "fallback"
+        assert form_data["parse_mode"] == "html"
+        assert form_data["rich_text"] == "<h1>Title</h1>"
+        assert form_data["rich_parse_mode"] == "html"
+        assert form_data["rich_rtl"] is True
+        assert form_data["rich_noautolink"] is True
+        assert form_data["_ttl"] == 123
+
+    @pytest.mark.asyncio
+    async def test_rich_form_query_uses_builder_rich_article(self):
+        from core_inline.handlers import InlineHandlers
+
+        class Builder:
+            def __init__(self):
+                self.calls = []
+
+            def article(self, title, **kwargs):
+                self.calls.append((title, kwargs))
+                return SimpleNamespace(title=title, kwargs=kwargs)
+
+        handlers = self._handlers()
+        handlers.check_admin = AsyncMock(return_value=True)
+        handlers._dispatch_inline_handler = AsyncMock(return_value=False)
+        handlers._wrap_aiogram_inline_query = lambda event: event
+        handlers._dedup_runtime_event = lambda *_args, **_kwargs: False
+        handlers.kernel.cache.values["form_rich"] = {
+            "text": "fallback",
+            "buttons": None,
+            "media": None,
+            "media_type": "photo",
+            "parse_mode": "html",
+            "rich_text": "<h1>Title</h1>",
+            "rich_parse_mode": "html",
+            "rich_message": None,
+            "rich_rtl": True,
+            "rich_noautolink": False,
+            "rich_files": None,
+        }
+        builder = Builder()
+        event = SimpleNamespace(
+            text="form_rich",
+            sender_id=1,
+            query=SimpleNamespace(query_id=42),
+            builder=builder,
+            answer=AsyncMock(),
+        )
+
+        await InlineHandlers.process_inline_query(handlers, event)
+
+        event.answer.assert_awaited_once()
+        title, kwargs = builder.calls[0]
+        assert title == "Inline Form"
+        assert "text" not in kwargs
+        assert "parse_mode" not in kwargs
+        assert kwargs["rich_text"] == "<h1>Title</h1>"
+        assert kwargs["rich_parse_mode"] == "html"
+        assert kwargs["rich_rtl"] is True
+
+    @pytest.mark.asyncio
+    async def test_subinline_rich_form_calls_inline_form_with_rich_payload(self):
+        from core.lib.loader.inline import InlineManager
+
+        manager = InlineManager.__new__(InlineManager)
+        calls = []
+
+        async def fake_inline_form(**kwargs):
+            calls.append(kwargs)
+            return True, object()
+
+        manager.inline_form = fake_inline_form
+
+        result = await InlineManager.rich_form(
+            manager,
+            123,
+            "<b>rich</b>",
+            ttl=60,
+            buttons=[],
+        )
+
+        assert result[0] is True
+        assert calls[0]["chat_id"] == 123
+        assert calls[0]["title"] == "<b>rich</b>"
+        assert calls[0]["rich_text"] == "<b>rich</b>"
+        assert calls[0]["rich_parse_mode"] == "html"
+        assert calls[0]["ttl"] == 60
+
+    @pytest.mark.asyncio
+    async def test_inline_form_consumes_photo_alias_as_media(self):
+        from core.lib.loader.inline import InlineManager
+
+        class Cache:
+            def __init__(self):
+                self.values = {}
+
+            def get(self, key):
+                return self.values.get(key)
+
+            def set(self, key, value, ttl=None):
+                self.values[key] = value
+
+        manager = InlineManager.__new__(InlineManager)
+        manager.k = SimpleNamespace(
+            cache=Cache(),
+            logger=MagicMock(),
+            config={},
+            bot_client=None,
+            inline_callback_map={},
+            session=SimpleNamespace(closed=False),
+        )
+
+        form_id = await InlineManager.inline_form(
+            manager,
+            chat_id=123,
+            title="Photo form",
+            auto_send=False,
+            photo="https://example.com/pic.jpg",
+        )
+
+        form_data = manager.k.cache.get(form_id)
+        assert form_data["media"] == "https://example.com/pic.jpg"
+        assert form_data["media_type"] == "photo"
+
+    @pytest.mark.asyncio
+    async def test_inline_query_and_click_strips_form_only_media_kwargs(self):
+        from core.lib.loader.inline import InlineManager
+
+        class Result:
+            def __init__(self):
+                self.kwargs = None
+
+            async def click(self, chat_id, **kwargs):
+                self.kwargs = kwargs
+                return SimpleNamespace(id=1, inline_message_id="inline-id")
+
+        result = Result()
+        manager = InlineManager.__new__(InlineManager)
+        manager.k = SimpleNamespace(
+            config={"inline_bot_username": "bot"},
+            logger=MagicMock(),
+            client=SimpleNamespace(inline_query=AsyncMock(return_value=[result])),
+            bot_client=None,
+            handle_error=AsyncMock(),
+            session=SimpleNamespace(closed=False),
+            cache=SimpleNamespace(get=lambda *_: None, set=lambda *_, **__: None),
+            inline_callback_map={},
+        )
+
+        success, message = await InlineManager.inline_query_and_click(
+            manager,
+            chat_id=123,
+            query="form_1",
+            photo="https://example.com/pic.jpg",
+            media_type="photo",
+            silent=True,
+        )
+
+        assert success is True
+        assert message.inline_message_id == "inline-id"
+        assert result.kwargs == {"silent": True}
+
+    @pytest.mark.asyncio
+    async def test_answer_inline_query_retries_without_parse_mode_on_entity_error(self):
+        from core_inline.handlers import InlineHandlers
+
+        class ApiBot:
+            async def answer_inline_query(self, **kwargs):
+                raise RuntimeError("Bad Request: can't parse InlineQueryResult")
+
+        class Response:
+            def __init__(self, payloads):
+                self.payloads = payloads
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            async def json(self):
+                return {"ok": True, "result": True}
+
+        class Session:
+            def __init__(self):
+                self.payloads = []
+
+            def post(self, url, json):
+                self.payloads.append(json)
+                return Response(self.payloads)
+
+        session = Session()
+        handlers = InlineHandlers.__new__(InlineHandlers)
+        handlers.kernel = SimpleNamespace(session=session, logger=MagicMock())
+        handlers._api_bot = ApiBot()
+        handlers._get_api_bot = lambda: handlers._api_bot
+        handlers._get_bot_token = lambda: "token"
+
+        result = await InlineHandlers.answer_inline_query_custom(
+            handlers,
+            inline_query_id="qid",
+            results=[
+                {
+                    "type": "photo",
+                    "id": "1",
+                    "photo_url": "https://example.com/pic.jpg",
+                    "thumbnail_url": "https://example.com/pic.jpg",
+                    "caption": "<broken",
+                    "parse_mode": "HTML",
+                }
+            ],
+        )
+
+        assert result["ok"] is True
+        assert session.payloads[0]["results"][0]["caption"] == "<broken"
+        assert "parse_mode" not in session.payloads[0]["results"][0]
+
+    def test_rich_form_normalizes_rich_media_mapping(self):
+        from telethon.tl import types
+
+        from core.lib.loader.inline import InlineManager
+
+        photo = types.InputPhoto(1, 2, b"ref")
+        document = types.InputDocument(3, 4, b"doc")
+
+        rich_files = InlineManager._normalize_rich_media(
+            {
+                "hero": photo,
+                "file1": document,
+            }
+        )
+
+        assert isinstance(rich_files[0], types.InputRichFilePhoto)
+        assert rich_files[0].id == "hero"
+        assert rich_files[0].photo is photo
+        assert isinstance(rich_files[1], types.InputRichFileDocument)
+        assert rich_files[1].id == "file1"
+        assert rich_files[1].document is document
+
+    def test_rich_form_uses_rich_text_media_refs_as_type_hints(self):
+        from telethon.tl import types
+
+        from core.lib.loader.inline import InlineManager
+
+        photo = types.InputPhoto(1, 2, b"ref")
+        document = types.InputDocument(3, 4, b"doc")
+
+        rich_files = InlineManager._normalize_rich_media(
+            {
+                "hero": photo,
+                "file1": document,
+            },
+            rich_text=(
+                '<a href="tg://photo?id=hero">Photo</a>'
+                '<a href="tg://document?id=file1">File</a>'
+            ),
+        )
+
+        assert isinstance(rich_files[0], types.InputRichFilePhoto)
+        assert isinstance(rich_files[1], types.InputRichFileDocument)
+
+    def test_rich_form_rejects_photo_link_document_mismatch_locally(self):
+        from telethon.tl import types
+
+        from core.lib.loader.inline import InlineManager
+
+        document = types.InputDocument(3, 4, b"doc")
+
+        with pytest.raises(ValueError, match="referenced as photo"):
+            InlineManager._normalize_rich_media(
+                {"hero": document},
+                rich_text='<a href="tg://photo?id=hero">Photo</a>',
+            )
+
+    @pytest.mark.asyncio
+    async def test_rich_form_uploads_url_and_rewrites_media_alias(self):
+        from telethon.tl import types
+
+        from core.lib.loader.inline import InlineManager
+
+        manager = InlineManager.__new__(InlineManager)
+        uploaded = []
+
+        async def fake_upload(media_id, url, media_type):
+            uploaded.append((media_id, url, media_type))
+            return types.InputRichFileDocument(
+                media_id, types.InputDocument(1, 2, b"ref")
+            )
+
+        manager._upload_url_as_rich_file = fake_upload
+
+        rich_text, rich_files = await manager._normalize_rich_media_for_form(
+            {"hero": "https://x0.at/ctOi.mp4"},
+            rich_text='<a href="tg://media?id=hero">Фото</a>',
+        )
+
+        assert rich_text == '<a href="tg://video?id=hero">Фото</a>'
+        assert uploaded == [("hero", "https://x0.at/ctOi.mp4", "video")]
+        assert isinstance(rich_files[0], types.InputRichFileDocument)
+        assert rich_files[0].id == "hero"
+
+    @pytest.mark.asyncio
+    async def test_rich_form_uploads_photo_url_for_media_alias(self):
+        from telethon.tl import types
+
+        from core.lib.loader.inline import InlineManager
+
+        manager = InlineManager.__new__(InlineManager)
+        uploaded = []
+
+        async def fake_upload(media_id, url, media_type):
+            uploaded.append((media_id, url, media_type))
+            return types.InputRichFilePhoto(media_id, types.InputPhoto(1, 2, b"ref"))
+
+        manager._upload_url_as_rich_file = fake_upload
+
+        rich_text, rich_files = await manager._normalize_rich_media_for_form(
+            {"hero": "https://example.com/photo.jpg"},
+            rich_text='<a href="tg://media?id=hero">Фото</a>',
+        )
+
+        assert rich_text == '<a href="tg://photo?id=hero">Фото</a>'
+        assert uploaded == [("hero", "https://example.com/photo.jpg", "photo")]
+        assert isinstance(rich_files[0], types.InputRichFilePhoto)
+
+    def test_rich_form_normalizes_rich_media_specs_and_preserves_files(self):
+        from telethon.tl import types
+
+        from core.lib.loader.inline import InlineManager
+
+        existing = object()
+        photo = types.InputPhoto(1, 2, b"ref")
+        document = types.InputDocument(3, 4, b"doc")
+
+        rich_files = InlineManager._normalize_rich_media(
+            [
+                {"id": "hero", "photo": photo},
+                ("doc", document),
+            ],
+            files=[existing],
+        )
+
+        assert rich_files[0] is existing
+        assert isinstance(rich_files[1], types.InputRichFilePhoto)
+        assert rich_files[1].id == "hero"
+        assert isinstance(rich_files[2], types.InputRichFileDocument)
+        assert rich_files[2].id == "doc"
+
+    def test_rich_form_rejects_unknown_rich_media(self):
+        from core.lib.loader.inline import InlineManager
+
+        with pytest.raises(TypeError):
+            InlineManager._normalize_rich_media({"bad": object()})

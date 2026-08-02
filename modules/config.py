@@ -8,7 +8,7 @@ import inspect
 
 # author: @Hairpin00
 # version: 1.3.0
-# description: Module config management
+# description: en: Module config management / ru: Управление конфигами модулей / uk: Керування конфігами модулів
 import json
 import re
 import time
@@ -4179,6 +4179,7 @@ def register(kernel):
     @kernel.register.command(
         "cfg",
         doc_en="<subcommand> <key> - manage module configs",
+        doc_uk="<підкоманда> <ключ> - керування конфігами модулів",
         doc_ru="<пoдкoмaндa> <ключ> - yпpaвлeниe кoнфигaми мoдyлeй",
     )
     async def cfg_handler(event):
@@ -4280,6 +4281,7 @@ def register(kernel):
     @kernel.register.command(
         "config",
         doc_en="[module] [key] - Heroku-compatible module config alias",
+        doc_uk="[модуль] [ключ] - Heroku-сумісний аліас конфіга модулів",
         doc_ru="[мoдyль] [ключ] - Heroku-coвмecтимый aлиac кoнфигa мoдyлeй",
     )
     async def config_handler(event):
@@ -4299,6 +4301,7 @@ def register(kernel):
     @kernel.register.command(
         "fcfg",
         doc_en="<list/dict/set/add> <key> - manage flat config",
+        doc_uk="<list/dict/set/add> <ключ> - керування плоскою конфігурацією",
         doc_ru="<list/dict/set/add> <ключ> - yпpaвлeниe плocкoй кoнфигypaциeй",
     )
     async def fcfg_handler(event):
@@ -4829,6 +4832,7 @@ def register(kernel):
     @kernel.register.command(
         "fconfig",
         doc_en="<module> <key> <value> - Heroku-compatible flat module config alias",
+        doc_uk="<модуль> <ключ> <значення> - Heroku-сумісний аліас fcfg",
         doc_ru="<мoдyль> <ключ> <знaчeниe> - Heroku-coвмecтимый aлиac fcfg",
     )
     async def fconfig_handler(event):

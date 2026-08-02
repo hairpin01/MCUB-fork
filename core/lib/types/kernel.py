@@ -28,6 +28,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
+    from core.lib.loader.security_chats import SecurityChats
     from core.lib.types.client import Client
     from core.lib.types.event import Event
     from core.lib.types.register import Register
@@ -57,6 +58,8 @@ class Kernel(Protocol):
 
     config: dict[str, Any]
     cache: Any
+    security_chats: SecurityChats | None
+    chat_security: SecurityChats | None
 
     @property
     def module_name(self) -> str: ...
@@ -87,6 +90,13 @@ class Kernel(Protocol):
     async def process_command(self, event: Event, depth: int = 0) -> bool: ...
     async def process_bot_command(self, event: Event) -> bool: ...
     def should_process_command_event(self, event: Event) -> bool: ...
+    def should_deliver_module_event(
+        self,
+        event: Event,
+        *,
+        module: str | None = None,
+        action: str = "event",
+    ) -> bool: ...
 
     async def get_module_config(self, module_name: str, default: Any = None) -> Any: ...
     async def save_module_config(self, module_name: str, config_data: dict) -> bool: ...

@@ -260,3 +260,17 @@ class TestInlineButtonFactory:
         kwargs = mock_wrap.call_args.kwargs
         assert kwargs.get("allow_user") == "all"
         assert kwargs.get("allow_ttl") == 100
+
+    def test_copy_button_uses_copy_text_not_callback_payload(self):
+        from telethon.tl import types
+
+        from core.lib.loader.module_base import ModuleBase
+
+        module = ModuleBase.__new__(ModuleBase)
+        module.kernel = MagicMock()
+
+        button = ModuleBase.ButtonFactory(module).copy("Copy", "secret")
+
+        assert isinstance(button, types.KeyboardButtonCopy)
+        assert button.text == "Copy"
+        assert button.copy_text == "secret"

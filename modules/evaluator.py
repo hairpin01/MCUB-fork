@@ -3,17 +3,19 @@
 
 from __future__ import annotations
 
+import ast
 import asyncio
 import html
 import io
 import os
+import pprint
 import tempfile
 import time
 import traceback
 from typing import Any
 
-from core.lib.types import Event
 import core.lib.loader.module_base as loader
+from core.lib.types import Event
 from core.lib.utils.logger import ErrorFormatter
 from utils.strings import Strings
 
@@ -32,6 +34,41 @@ LANG_EMOJI = {
     "rs": '<tg-emoji emoji-id="5301209568594894358">💻</tg-emoji>',
 }
 
+_NO_RETURN = object()
+
+
+def _compile_eval_function(code: str):
+    tree = ast.parse(code or "pass", mode="exec")
+    body = list(tree.body)
+    if body and isinstance(body[-1], ast.Expr):
+        body[-1] = ast.copy_location(ast.Return(value=body[-1].value), body[-1])
+    body.append(ast.Return(value=ast.Name(id="_NO_RETURN", ctx=ast.Load())))
+
+    fn = ast.AsyncFunctionDef(
+        name="__exec",
+        args=ast.arguments(
+            posonlyargs=[],
+            args=[],
+            vararg=None,
+            kwonlyargs=[],
+            kw_defaults=[],
+            kwarg=None,
+            defaults=[],
+        ),
+        body=body,
+        decorator_list=[],
+    )
+    module = ast.Module(body=[fn], type_ignores=[])
+    ast.fix_missing_locations(module)
+    return compile(module, "<evaluator>", "exec")
+
+
+def _format_eval_value(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    width = 1 if isinstance(value, (dict, list, tuple, set, frozenset)) else 88
+    return pprint.pformat(value, width=width, compact=False, sort_dicts=False)
+
 
 class EvalModule(loader.ModuleBase):
     name = "evaluator"
@@ -39,6 +76,7 @@ class EvalModule(loader.ModuleBase):
     author = "@hairpin00"
     description = {
         "ru": "Выпoлнeниe Python, JS, Ruby, Go, Rust кoдa",
+        "uk": "Виконання коду Python, JS, Ruby, Go, Rust",
         "en": "Execute Python, JS, Ruby, Go, Rust code",
     }
 
@@ -48,6 +86,7 @@ class EvalModule(loader.ModuleBase):
         "py",
         doc_ru="<кoд> выпoлнить Python кoд",
         doc_en="<code> execute Python code",
+        doc_uk="<код> виконати Python код",
     )
     async def cmd_py(self, event: Event) -> None:
         code = html.unescape(self.args_raw(event).strip()).replace("\u00a0", " ")
@@ -68,9 +107,7 @@ class EvalModule(loader.ModuleBase):
         m = event
         bot = self.kernel.bot_client
         reply = await m.get_reply_message()
-        r_text = (
-            getattr(reply, "raw_text", None) or getattr(reply, "message", None) or ""
-        )
+        r_text = html.unescape(self.kernel.raw_text(reply))
         r_html = html.unescape(self.kernel.raw_text(reply))
 
         local_vars: dict[str, Any] = {
@@ -95,19 +132,17 @@ class EvalModule(loader.ModuleBase):
             "events": __import__("telethon").events,
             "pipe_input": pipe_input,
             "_": pipe_input,
+            "_NO_RETURN": _NO_RETURN,
         }
 
         _tb_raw: str | None = None
         import contextlib
 
         stdout_text = ""
-        return_val = None
+        return_val = _NO_RETURN
         try:
             with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
-                exec(
-                    "async def __exec():\n    " + "\n    ".join(code.split("\n")),
-                    local_vars,
-                )
+                exec(_compile_eval_function(code), local_vars)
                 return_val = await local_vars["__exec"]()
             stdout_text = output.getvalue()
         except Exception:
@@ -132,20 +167,21 @@ class EvalModule(loader.ModuleBase):
                 f'{CUSTOM_EMOJI["❌"]} <code>{html.escape(error_part)}</code>'
             )
             result_header = s["result_header_error"]
-        elif stdout_text and return_val is not None:
-            result_text = stdout_text + (
-                "\n" + str(return_val) if return_val is not None else ""
-            )
-            result_header = s["result_header_executed"]
-        elif stdout_text:
-            result_text = stdout_text
-            result_header = s["result_header_stdout"]
-        elif return_val is not None:
-            result_text = str(return_val)
-            result_header = s["result_header_return"]
         else:
-            result_text = ""
-            result_header = s["result_header_empty"]
+            result_parts = []
+            stdout_text = stdout_text.rstrip("\n")
+            if stdout_text:
+                result_parts.append(
+                    f'{CUSTOM_EMOJI["🧬"]} <b>{s["result_header_stdout"]}</b>\n'
+                    f"<blockquote expandable><code>{html.escape(stdout_text)}</code></blockquote>"
+                )
+            if return_val is not _NO_RETURN and return_val is not None:
+                result_parts.append(
+                    f'{CUSTOM_EMOJI["🧬"]} <b>{s["result_header_return"]}</b>\n'
+                    f"<blockquote expandable><code>{html.escape(_format_eval_value(return_val))}</code></blockquote>"
+                )
+            result_text = "\n".join(result_parts)
+            result_header = ""
 
         code_display = html.escape(code[:1000]) + ("..." if len(code) > 1000 else "")
 
@@ -187,13 +223,17 @@ class EvalModule(loader.ModuleBase):
                         pass
         else:
             if _tb_raw:
-                result_block = f"<blockquote expandable>{result_text}</blockquote>"
+                result_output = (
+                    f'{CUSTOM_EMOJI["🧬"]} <b>{result_header}</b>\n'
+                    f"<blockquote expandable>{result_text}</blockquote>"
+                )
+            elif result_text:
+                result_output = result_text
             else:
-                result_block = f"<blockquote expandable><code>{html.escape(result_text)}</code></blockquote>"
+                result_output = ""
             response = f"""{LANG_EMOJI["py"]} <b>{s["code"]}</b>
 <blockquote expandable><code>{code_display}</code></blockquote>
-{CUSTOM_EMOJI["🧬"]} <b>{result_header}</b>
-{result_block}
+{result_output}
 <blockquote>{CUSTOM_EMOJI["💠"]} <i>{s["executed_in"]}</i> <code>{elapsed}{s["ms"]}</code></blockquote>"""
             try:
                 await self.edit(event, response, as_html=True)
@@ -375,6 +415,7 @@ class EvalModule(loader.ModuleBase):
     @loader.command(
         "js",
         doc_en="<code> execute JavaScript (Node.js) code",
+        doc_uk="<код> виконати JavaScript (Node.js) код",
         doc_ru="<кoд> выпoлнить JavaScript (Node.js) кoд",
     )
     async def cmd_js(self, event: Event) -> None:
@@ -395,6 +436,7 @@ class EvalModule(loader.ModuleBase):
     @loader.command(
         "rb",
         doc_en="<code> execute Ruby code",
+        doc_uk="<код> виконати Ruby код",
         doc_ru="<кoд> выпoлнить Ruby кoд",
     )
     async def cmd_rb(self, event: Event) -> None:
@@ -415,6 +457,7 @@ class EvalModule(loader.ModuleBase):
     @loader.command(
         "go",
         doc_en="<code> execute Go code",
+        doc_uk="<код> виконати Go код",
         doc_ru="<кoд> выпoлнить Go кoд",
     )
     async def cmd_go(self, event: Event) -> None:
@@ -435,6 +478,7 @@ class EvalModule(loader.ModuleBase):
     @loader.command(
         "rs",
         doc_en="<code> execute Rust code",
+        doc_uk="<код> виконати Rust код",
         doc_ru="<кoд> выпoлнить Rust кoд",
     )
     async def cmd_rs(self, event: Event) -> None:

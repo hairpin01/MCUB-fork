@@ -1147,14 +1147,14 @@ class ModuleBase(ABC):
         def copy(
             self,
             text: str = "Copy",
+            copy_text: str | None = None,
             *,
-            payload: bytes | None = None,
             icon: int | None = None,
             style: str | None = None,
         ) -> Any:
             """Create a copy button."""
             return self._telethon_button.copy(
-                text, payload=payload, style=style, icon=icon
+                text, copy_text=copy_text, style=style, icon=icon
             )
 
         def request_phone(

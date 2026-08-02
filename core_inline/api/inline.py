@@ -39,6 +39,7 @@ class InlineButton:
     type: str = "callback"
     data: str | None = None
     url: str | None = None
+    copy_text: str | None = None
     query: str = ""
     hint: str = ""
     emoji: str | None = None
@@ -63,6 +64,16 @@ class InlineButton:
         emoji: str | None = None,
     ) -> "InlineButton":
         return cls(text=text, type="url", url=url, emoji=emoji)
+
+    @classmethod
+    def copy(
+        cls,
+        text: str,
+        copy_text: str,
+        *,
+        emoji: str | None = None,
+    ) -> "InlineButton":
+        return cls(text=text, type="copy", copy_text=copy_text, emoji=emoji)
 
     @classmethod
     def switch(
@@ -100,6 +111,8 @@ class InlineButton:
             return build_button_callback(self.text, self.data or "", self.emoji)
         if self.type == "url":
             return build_button_url(self.text, self.url or "", self.emoji)
+        if self.type == "copy":
+            return build_button_copy(self.text, self.copy_text or self.text, self.emoji)
         if self.type == "switch":
             return build_button_switch(
                 self.text,
@@ -114,7 +127,7 @@ class InlineButton:
             return build_button_location(self.text, self.emoji)
         if self.type == "game":
             return build_button_game(self.text, self.emoji)
-        return _with_emoji({"text": self.text}, self.emoji)
+        return build_button_callback(self.text, self.data or self.text, self.emoji)
 
 
 @dataclass
@@ -254,6 +267,7 @@ def build_inline_keyboard(
 def build_inline_button(btn: Any) -> dict[str, Any] | None:
     from telethon.tl.types import (
         KeyboardButtonCallback,
+        KeyboardButtonCopy,
         KeyboardButtonGame,
         KeyboardButtonRequestGeoLocation,
         KeyboardButtonRequestPhone,
@@ -281,6 +295,15 @@ def build_inline_button(btn: Any) -> dict[str, Any] | None:
 
     elif isinstance(btn, KeyboardButtonUrl):
         return _with_emoji({"text": btn.text, "url": btn.url}, emoji)
+
+    elif isinstance(btn, KeyboardButtonCopy):
+        return _with_emoji(
+            {
+                "text": btn.text,
+                "copy_text": {"text": btn.copy_text},
+            },
+            emoji,
+        )
 
     elif isinstance(btn, KeyboardButtonSwitchInline):
         query = btn.query or ""
@@ -323,13 +346,21 @@ def build_inline_button(btn: Any) -> dict[str, Any] | None:
             emoji,
         )
 
-    return {"text": str(btn)}
+    return None
 
 
 def _build_button_from_dict(btn: dict[str, Any]) -> dict[str, Any] | None:
     b_type = str(btn.get("type", "callback")).lower()
     text = str(btn.get("text", ""))
     emoji = btn.get("emoji")
+
+    if b_type == "copy" or "copy" in btn or "copy_text" in btn:
+        copy_value = btn.get("copy")
+        if copy_value is None:
+            copy_value = btn.get("copy_text")
+        if isinstance(copy_value, dict):
+            copy_value = copy_value.get("text", "")
+        return build_button_copy(text, str(copy_value or ""), emoji)
 
     if b_type == "callback":
         callback_data = btn.get("callback_data", btn.get("data", ""))
@@ -350,7 +381,7 @@ def _build_button_from_dict(btn: dict[str, Any]) -> dict[str, Any] | None:
         return build_button_location(text, emoji)
     if b_type == "game":
         return build_button_game(text, emoji)
-    return _with_emoji({"text": text}, emoji)
+    return None
 
 
 def build_button_callback(
@@ -361,6 +392,12 @@ def build_button_callback(
 
 def build_button_url(text: str, url: str, emoji: str | None = None) -> dict[str, Any]:
     return _with_emoji({"text": text, "url": url}, emoji)
+
+
+def build_button_copy(
+    text: str, copy_text: str, emoji: str | None = None
+) -> dict[str, Any]:
+    return _with_emoji({"text": text, "copy_text": {"text": copy_text}}, emoji)
 
 
 def cleanup_inline_callback_map(kernel) -> None:

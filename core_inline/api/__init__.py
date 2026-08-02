@@ -24,6 +24,7 @@ from .inline import (
     InlineKeyboard,
     add_inline_keyboard_to_result,
     build_button_callback,
+    build_button_copy,
     build_button_game,
     build_button_location,
     build_button_phone,

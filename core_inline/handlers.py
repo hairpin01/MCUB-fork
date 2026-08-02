@@ -53,6 +53,7 @@ try:
     from aiogram import Bot as AioBot
     from aiogram.client.default import DefaultBotProperties
     from aiogram.types import (
+        CopyTextButton,
         InlineKeyboardButton,
         InlineKeyboardMarkup,
         InlineQueryResultArticle,
@@ -65,6 +66,135 @@ except Exception:  # pragma: no cover - optional dependency at runtime
     InputTextMessageContent = None
     InlineKeyboardMarkup = None
     InlineKeyboardButton = None
+    CopyTextButton = None
+
+
+def _button_rows(buttons: Any) -> list[list[Any]]:
+    if not buttons:
+        return []
+    if hasattr(buttons, "rows"):
+        buttons = buttons.rows
+    if isinstance(buttons, dict) or not isinstance(buttons, (list, tuple)):
+        buttons = [buttons]
+    if not buttons:
+        return []
+
+    def is_row(value: Any) -> bool:
+        return isinstance(value, (list, tuple)) or hasattr(value, "buttons")
+
+    rows = []
+    for row in buttons if is_row(buttons[0]) else [buttons]:
+        if hasattr(row, "buttons"):
+            row = row.buttons
+        elif isinstance(row, dict) or not isinstance(row, (list, tuple)):
+            row = [row]
+        rows.append(list(row))
+    return rows
+
+
+def _copy_text_payload(value: Any) -> Any:
+    if isinstance(value, dict):
+        value = value.get("text", "")
+    elif hasattr(value, "text"):
+        value = value.text
+
+    if CopyTextButton is not None:
+        return CopyTextButton(text=str(value or ""))
+    return {"text": str(value or "")}
+
+
+def _aiogram_button_from_dict(button: dict[str, Any]) -> Any | None:
+    text = str(button.get("text", ""))
+    payload = {"text": text}
+
+    if style := button.get("style"):
+        payload["style"] = style
+    if emoji_id := button.get("emoji_id", button.get("icon_custom_emoji_id")):
+        payload["icon_custom_emoji_id"] = str(emoji_id)
+
+    b_type = str(button.get("type", "")).lower()
+    if "url" in button or b_type == "url":
+        payload["url"] = str(button.get("url", ""))
+    elif "copy" in button or "copy_text" in button or b_type == "copy":
+        copy_value = button.get("copy")
+        if copy_value is None:
+            copy_value = button.get("copy_text")
+        payload["copy_text"] = _copy_text_payload(copy_value)
+    elif "callback_data" in button:
+        payload["callback_data"] = str(button.get("callback_data", ""))
+    elif "data" in button or b_type == "callback":
+        payload["callback_data"] = str(button.get("data", ""))
+    elif "switch_inline_query_current_chat" in button:
+        payload["switch_inline_query_current_chat"] = str(
+            button.get("switch_inline_query_current_chat", "")
+        )
+    elif "switch_inline_query" in button:
+        payload["switch_inline_query"] = str(button.get("switch_inline_query", ""))
+    elif "web_app" in button:
+        payload["web_app"] = button.get("web_app")
+    else:
+        return None
+
+    return InlineKeyboardButton(**payload)
+
+
+def _aiogram_button_from_telethon(button: Any) -> Any | None:
+    text = str(getattr(button, "text", ""))
+    payload = {"text": text}
+
+    style = getattr(button, "style", None)
+    if style is not None:
+        if getattr(style, "icon", None):
+            payload["icon_custom_emoji_id"] = str(style.icon)
+        if getattr(style, "bg_primary", None):
+            payload["style"] = "primary"
+        elif getattr(style, "bg_success", None):
+            payload["style"] = "success"
+        elif getattr(style, "bg_danger", None):
+            payload["style"] = "danger"
+
+    if hasattr(button, "url"):
+        payload["url"] = button.url
+    elif hasattr(button, "copy_text"):
+        payload["copy_text"] = _copy_text_payload(button.copy_text)
+    elif hasattr(button, "data"):
+        data = button.data
+        payload["callback_data"] = data.decode() if isinstance(data, bytes) else data
+    else:
+        return None
+
+    return InlineKeyboardButton(**payload)
+
+
+def _aiogram_inline_button(button: Any) -> Any | None:
+    if InlineKeyboardButton is None:
+        return None
+    if isinstance(button, InlineKeyboardButton):
+        return button
+    if isinstance(button, dict):
+        return _aiogram_button_from_dict(button)
+    return _aiogram_button_from_telethon(button)
+
+
+def _aiogram_inline_markup(buttons: Any) -> Any | None:
+    if InlineKeyboardMarkup is None:
+        return None
+    if isinstance(buttons, InlineKeyboardMarkup):
+        return buttons
+
+    rows = []
+    for row in _button_rows(buttons):
+        row_buttons = []
+        for button in row:
+            rendered = _aiogram_inline_button(button)
+            if rendered is not None:
+                row_buttons.append(rendered)
+        if row_buttons:
+            rows.append(row_buttons)
+
+    if not rows:
+        return None
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 class _TelethonInlineQueryAdapter:
@@ -96,56 +226,7 @@ class _TelethonInlineQueryAdapter:
                 InlineQueryResultArticle is not None
                 and InputTextMessageContent is not None
             ):
-                kb = None
-                if buttons:
-                    rows = []
-                    for row in (
-                        buttons
-                        if hasattr(buttons, "__iter__")
-                        and not isinstance(buttons, dict)
-                        else [buttons]
-                    ):
-                        row_btns = []
-                        for btn in (
-                            row
-                            if hasattr(row, "__iter__") and not isinstance(row, dict)
-                            else [row]
-                        ):
-                            if hasattr(btn, "url"):
-                                row_btns.append(
-                                    InlineKeyboardButton(text=btn.text, url=btn.url)
-                                )
-                            elif hasattr(btn, "data"):
-                                row_btns.append(
-                                    InlineKeyboardButton(
-                                        text=btn.text,
-                                        callback_data=(
-                                            btn.data.decode()
-                                            if isinstance(btn.data, bytes)
-                                            else btn.data
-                                        ),
-                                    )
-                                )
-                            elif isinstance(btn, dict):
-                                btype = btn.get("type", "callback").lower()
-                                if btype == "url":
-                                    row_btns.append(
-                                        InlineKeyboardButton(
-                                            text=btn.get("text", ""),
-                                            url=btn.get("url", ""),
-                                        )
-                                    )
-                                elif btype == "callback":
-                                    row_btns.append(
-                                        InlineKeyboardButton(
-                                            text=btn.get("text", ""),
-                                            callback_data=btn.get("data", ""),
-                                        )
-                                    )
-                        if row_btns:
-                            rows.append(row_btns)
-                    if rows:
-                        kb = InlineKeyboardMarkup(inline_keyboard=rows)
+                kb = _aiogram_inline_markup(buttons)
 
                 return InlineQueryResultArticle(
                     id=str(uuid.uuid4()),
@@ -240,39 +321,7 @@ class _TelethonCallbackAdapter:
         msg = self.message
         if msg is None:
             return
-        kb = None
-        if buttons:
-            rows = []
-            for row in (
-                buttons
-                if hasattr(buttons, "__iter__") and not isinstance(buttons, dict)
-                else [buttons]
-            ):
-                row_btns = []
-                for btn in (
-                    row
-                    if hasattr(row, "__iter__") and not isinstance(row, dict)
-                    else [row]
-                ):
-                    if hasattr(btn, "url"):
-                        row_btns.append(
-                            InlineKeyboardButton(text=btn.text, url=btn.url)
-                        )
-                    elif hasattr(btn, "data"):
-                        row_btns.append(
-                            InlineKeyboardButton(
-                                text=btn.text,
-                                callback_data=(
-                                    btn.data.decode()
-                                    if isinstance(btn.data, bytes)
-                                    else btn.data
-                                ),
-                            )
-                        )
-                if row_btns:
-                    rows.append(row_btns)
-            if rows:
-                kb = InlineKeyboardMarkup(inline_keyboard=rows)
+        kb = _aiogram_inline_markup(buttons)
 
         try:
             await msg.edit_text(
@@ -553,31 +602,7 @@ class InlineHandlers:
                 message_text=text,
                 parse_mode=parse_mode,
             )
-            kb = None
-            if buttons:
-                rows = []
-                for row in buttons if hasattr(buttons, "__iter__") else [buttons]:
-                    row_btns = []
-                    for btn in row if hasattr(row, "__iter__") else [row]:
-                        if hasattr(btn, "url"):
-                            row_btns.append(
-                                InlineKeyboardButton(text=btn.text, url=btn.url)
-                            )
-                        elif hasattr(btn, "data"):
-                            row_btns.append(
-                                InlineKeyboardButton(
-                                    text=btn.text,
-                                    callback_data=(
-                                        btn.data.decode()
-                                        if isinstance(btn.data, bytes)
-                                        else btn.data
-                                    ),
-                                )
-                            )
-                    if row_btns:
-                        rows.append(row_btns)
-                if rows:
-                    kb = InlineKeyboardMarkup(inline_keyboard=rows)
+            kb = _aiogram_inline_markup(buttons)
 
             return InlineQueryResultArticle(
                 id=str(uuid.uuid4()),

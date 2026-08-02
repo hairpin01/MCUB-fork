@@ -1,15 +1,19 @@
 import time
 
+from telethon import Button
+from telethon.tl import types
+
 from core_inline.api import (
     CodeInline,
     InlineButton,
     InlineKeyboard,
+    build_button_copy,
     build_inline_button,
     build_inline_keyboard,
     code_inline,
     register_inline_callback,
 )
-from core_inline.handlers import InlineHandlers
+from core_inline.handlers import InlineHandlers, _aiogram_inline_markup, _button_rows
 
 
 class FakeLogger:
@@ -58,6 +62,34 @@ def test_build_inline_keyboard_accepts_dicts_and_button_objects():
             ]
         ]
     }
+
+
+def test_inline_button_copy_renders_bot_api_copy_text():
+    button = InlineButton.copy("Copy", "secret", emoji="📋")
+
+    assert button.to_dict() == {
+        "text": "Copy",
+        "copy_text": {"text": "secret"},
+        "emoji": "📋",
+    }
+    assert build_button_copy("Copy", "secret") == {
+        "text": "Copy",
+        "copy_text": {"text": "secret"},
+    }
+
+
+def test_build_inline_button_accepts_telethon_copy_button():
+    button = Button.copy("Copy", "secret")
+
+    assert build_inline_button(button) == {
+        "text": "Copy",
+        "copy_text": {"text": "secret"},
+    }
+
+
+def test_build_inline_button_does_not_emit_text_only_button():
+    assert build_inline_button({"text": "Only text", "type": "unknown"}) is None
+    assert build_inline_button(object()) is None
 
 
 def test_register_inline_callback_cleans_expired_entries_and_stores_token():
@@ -130,6 +162,14 @@ def test_inline_handlers_build_buttons_dict_accepts_new_button_objects():
     ) == [[{"text": "A", "callback_data": "a"}, {"text": "B", "url": "https://b"}]]
 
 
+def test_inline_handlers_build_buttons_dict_accepts_copy_buttons():
+    handler = object.__new__(InlineHandlers)
+
+    assert handler.build_buttons_dict(
+        [[{"text": "Copy", "type": "copy", "copy_text": "secret"}]]
+    ) == [[{"text": "Copy", "copy_text": {"text": "secret"}}]]
+
+
 def test_inline_handlers_normalize_buttons_accepts_keyboard_builder():
     handler = object.__new__(InlineHandlers)
     button = InlineButton.callback("A", "a")
@@ -149,6 +189,27 @@ def test_inline_handlers_normalize_buttons_accepts_single_level_objects():
 
     assert build_inline_button(normalized[0][0]) == {"text": "A", "callback_data": "a"}
     assert build_inline_button(normalized[1][0]) == {"text": "B", "url": "https://b"}
+
+
+def test_aiogram_inline_markup_accepts_copy_buttons():
+    markup = _aiogram_inline_markup(
+        [[Button.copy("Copy", "secret")], [{"text": "Dict", "copy": "value"}]]
+    )
+
+    assert markup is not None
+    assert markup.model_dump(exclude_none=True) == {
+        "inline_keyboard": [
+            [{"text": "Copy", "copy_text": {"text": "secret"}}],
+            [{"text": "Dict", "copy_text": {"text": "value"}}],
+        ]
+    }
+
+
+def test_button_rows_accepts_telethon_keyboard_rows():
+    button = Button.copy("Copy", "secret")
+    row = types.KeyboardButtonRow([button])
+
+    assert _button_rows([row]) == [[button]]
 
 
 def test_inline_handlers_callback_entry_allow_user_checks_sender():

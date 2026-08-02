@@ -728,7 +728,10 @@ class MyModule(ModuleBase):
 - Fallback to `ru` if key not found in current locale
 - Formatting via `self.strings("key", var=value)`
 - Attribute access via `self.strings["key"]`
+- Built-in global groups via nested calls, e.g. `self.strings("material_emoji")("load_1")` and `self.strings("error")("full_error", error="...", full_error="...")`
 - **Flat mode**: Simple strings auto-expand to all locales
+
+See [Localization (i18n)](../guides/i18n.md#built-in-global-strings) for the full list of built-in groups, keys and placeholders: `material_emoji`, `type_module`, `null`, `error`, `buttons`.
 
 **Flat Mode:**
 

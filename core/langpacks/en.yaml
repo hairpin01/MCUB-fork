@@ -33,8 +33,9 @@ type_module:
   module_type_hikka_library: This library module uses Heroku/Hikka compat (errors are possible)
   module_config_info: This module has Module config, total keys {count}
 
-null:
-  null: 'null'
+'null':
+  __global__: 1
+  'null': 'null'
 
 error:
   __global__: on
@@ -52,8 +53,8 @@ error:
 buttons:
   __global__: on
   close: 🙈 Close
-  yes: 💠 Yes
-  no: 🚫 No
+  'yes': 💠 Yes
+  'no': 🚫 No
   back: < Back
   next: 'Next >'
   update: 🔄 Update

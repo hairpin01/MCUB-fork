@@ -33,8 +33,9 @@ type_module:
 
 lang: en
 
-null:
-  null: 'null'
+'null':
+  __global__: 1
+  'null': 'null'
 
 error:
   __global__: on
@@ -52,8 +53,8 @@ error:
 buttons:
   __global__: 1
   close: 🙈 Close
-  yes: 💠 Yes
-  no: 🚫 No
+  'yes': 💠 Yes
+  'no': 🚫 No
   back: < Back
   next: 'Next >'
   update: 🔄 Update

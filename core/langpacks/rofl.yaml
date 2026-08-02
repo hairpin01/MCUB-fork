@@ -33,8 +33,9 @@ type_module:
 
 lang: ru  # Base language for fallback
 
-null:
-  null: 'null'
+'null':
+  __global__: 1
+  'null': 'null'
 
 error:
   __global__: on
@@ -59,8 +60,8 @@ langbutton:
 buttons:
   __global__: 1
   close: 🙈 Close
-  yes: 💠 Yes
-  no: 🚫 No
+  'yes': 💠 Yes
+  'no': 🚫 No
   back: < Back
   next: 'Next >'
   update: 🔄 Update

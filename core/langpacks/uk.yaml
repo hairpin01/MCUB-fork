@@ -33,8 +33,9 @@ type_module:
   module_type_hikka_library: Цей модуль-бібліотека використовує Heroku/Hikka compat (можливі помилки)
   module_config_info: У цього модуля є Module config, всього ключів {count}
 
-null:
-  null: 'null'
+'null':
+  __global__: 1
+  'null': 'null'
 
 error:
   __global__: on
@@ -52,8 +53,8 @@ error:
 buttons:
   __global__: 1
   close: 🙈 Close
-  yes: 💠 Yes
-  no: 🚫 No
+  'yes': 💠 Yes
+  'no': 🚫 No
   back: < Back
   next: 'Next >'
   update: 🔄 Update

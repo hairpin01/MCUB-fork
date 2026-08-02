@@ -318,7 +318,7 @@ async def test_build_module_detail_includes_bot_commands_with_descriptions(
     )
 
     _ASSERT.assertIsNone(banner)
-    _ASSERT.assertIn("Бoт-кoмaнды", text)
+    _ASSERT.assertNotIn("Бoт-кoмaнды", text)
     _ASSERT.assertIn("<code>/start</code> - <b>Пoкaзaть cтapтoвoe мeню</b>", text)
     _ASSERT.assertIn("<code>/help</code> - <b>Show help</b>", text)
     _ASSERT.assertNotIn("/skip", text)

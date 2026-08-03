@@ -1999,7 +1999,7 @@ class InlineHandlers:
             try:
                 await event.answer()
             except Exception as answer_error:
-                await self.error_article(self, event, answer_error)
+                await self.error_article(event, answer_error)
 
         except Exception as e:
             error_traceback = "".join(
@@ -2007,7 +2007,7 @@ class InlineHandlers:
             )
             self.kernel.logger.error(f"{self.lang['error']}: {e}")
             self.kernel.logger.error(f"Full traceback: {error_traceback}")
-            await self.error_article(self, event, e)
+            await self.error_article(event, e)
 
     async def error_article(self, event, error) -> None:
         e = error

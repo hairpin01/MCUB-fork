@@ -1810,6 +1810,26 @@ class InlineHandlers:
             temp_map = getattr(self.kernel, "_inline_temp_map", None)
             if temp_map and query_cmd in temp_map:
                 entry = temp_map[query_cmd]
+                if not self._should_deliver(
+                    event,
+                    entry.get("module_name"),
+                    "inline_temp",
+                ):
+                    no_access_text = (
+                        f"{self.EMOJI_BLOCK} <b>{self.lang['no_access']}</b>"
+                    )
+                    await self._answer_inline_query(
+                        event,
+                        [
+                            self._build_article_result(
+                                event,
+                                self.lang["no_access"],
+                                no_access_text,
+                            )
+                        ],
+                        cache_time=0,
+                    )
+                    return
                 article_callable = entry.get("article")
                 try:
                     if article_callable:
@@ -2095,6 +2115,12 @@ class InlineHandlers:
 
                 handler = entry.get("handler")
                 if callable(handler):
+                    if not self._should_deliver(
+                        event,
+                        entry.get("module_name"),
+                        "callback",
+                    ):
+                        return await event.answer(self.lang["no_access"], alert=False)
                     try:
                         from core.lib.types import InlineMessage
 
@@ -2121,6 +2147,16 @@ class InlineHandlers:
             for pattern, handler in list(self.kernel.callback_handlers.items()):
                 p_str = pattern.decode() if isinstance(pattern, bytes) else str(pattern)
                 if data_str.startswith(p_str):
+                    handler_func = getattr(handler, "__func__", handler)
+                    module_name = getattr(
+                        handler,
+                        "__mcub_module_name__",
+                        None,
+                    ) or getattr(handler_func, "__mcub_module_name__", None)
+                    if module_name is None:
+                        module_name = getattr(handler, "__module__", None)
+                    if not self._should_deliver(event, module_name, "callback_handler"):
+                        return await event.answer(self.lang["no_access"], alert=False)
                     await handler(event)
 
         except Exception as e:
@@ -2280,6 +2316,21 @@ class InlineHandlers:
             return True
 
         handler = self.kernel.inline_handlers[cmd]
+        module_name = getattr(self.kernel, "inline_handlers_owners", {}).get(cmd)
+        if not self._should_deliver(event, module_name, "inline"):
+            no_access_text = f"{self.EMOJI_BLOCK} <b>{self.lang['no_access']}</b>"
+            await self._answer_inline_query(
+                event,
+                [
+                    self._build_article_result(
+                        event,
+                        self.lang["no_access"],
+                        no_access_text,
+                    )
+                ],
+                cache_time=0,
+            )
+            return True
         self.kernel.logger.debug(
             f"[InlineHandlers] handler found: {handler}, cmd={cmd}"
         )

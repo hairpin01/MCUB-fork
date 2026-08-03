@@ -53,7 +53,9 @@ ACCESS_CATEGORIES = {
         "uk": {"label": "Конфіг", "desc": "налаштування юзербота та базові параметри"},
         "commands": [
             "cfg",
+            "config",
             "fcfg",
+            "fconfig",
             "setprefix",
             "addalias",
             "delalias",
@@ -1923,6 +1925,15 @@ def register(kernel: Kernel_type) -> None:
 
         actual_cmd = resolved_cmd
         if actual_cmd not in kernel.command_handlers:
+            return
+
+        checker = getattr(kernel, "should_deliver_module_event", None)
+        module_name = getattr(kernel, "command_owners", {}).get(actual_cmd)
+        if callable(checker) and not checker(
+            event,
+            module=module_name,
+            action="trusted",
+        ):
             return
 
         try:

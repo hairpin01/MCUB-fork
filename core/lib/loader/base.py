@@ -628,6 +628,7 @@ class ModuleBase(ABC):
             "handler": self._make_class_callback_wrapper(func, ttl),
             "args": [],
             "kwargs": {},
+            "module_name": self.name,
             "expires_at": time.time() + ttl if ttl else None,
         }
 
@@ -896,6 +897,7 @@ class ModuleBase(ABC):
             "args": args,
             "kwargs": kwargs or {},
             "data": data,
+            "module_name": self.name,
             "expires_at": time.time() + ttl if ttl else None,
         }
 

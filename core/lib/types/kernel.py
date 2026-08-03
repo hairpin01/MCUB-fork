@@ -28,7 +28,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
-    from core.lib.loader.security_chats import SecurityChats
+    from core.lib.loader.security import SecurityChats
     from core.lib.types.client import Client
     from core.lib.types.event import Event
     from core.lib.types.register import Register
@@ -58,6 +58,7 @@ class Kernel(Protocol):
 
     config: dict[str, Any]
     cache: Any
+    security: SecurityChats | None
     security_chats: SecurityChats | None
     chat_security: SecurityChats | None
 

@@ -663,6 +663,17 @@ class InlineManager:
             # Telethon: `data=` is exact bytes match; `pattern=` uses `re.match` against bytes.
             # Most callbacks here are prefix-based ("gallery_<id>_next"), so use `pattern=`.
             pattern_bytes = pattern.encode() if isinstance(pattern, str) else pattern
+            module_name = k.current_loading_module or getattr(
+                handler,
+                "__module__",
+                "callback",
+            )
+            try:
+                setattr(handler, "__mcub_module_name__", module_name)
+            except AttributeError:
+                handler_func = getattr(handler, "__func__", None)
+                if handler_func is not None:
+                    setattr(handler_func, "__mcub_module_name__", module_name)
             k.callback_handlers[pattern_bytes] = handler
             k.logger.debug(
                 f"[InlineManager] register_callback_handler added total={len(k.callback_handlers)}"
@@ -673,9 +684,14 @@ class InlineManager:
                 @k.client.on(events.CallbackQuery(pattern=pattern_bytes))
                 async def _wrapper(event):
                     try:
-                        _pe = wrap_event_for_module(
-                            event, getattr(handler, "__module__", "callback"), k
-                        )
+                        checker = getattr(k, "should_deliver_module_event", None)
+                        if callable(checker) and not checker(
+                            event,
+                            module=module_name,
+                            action="callback_handler",
+                        ):
+                            return
+                        _pe = wrap_event_for_module(event, module_name, k)
                         await handler(_pe)
                     except Exception as e:
                         await k.handle_error(

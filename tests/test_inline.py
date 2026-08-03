@@ -451,6 +451,117 @@ class TestInlineFeatures:
         assert seen == {"query": "wiki heroku", "args": "heroku"}
 
     @pytest.mark.asyncio
+    async def test_hikka_inline_dict_result_preserves_reply_markup_and_thumb(self):
+        """Hikka-style dict inline results keep buttons and thumb metadata."""
+        from core.lib.loader.hikka_compat.fake_package import mark_hikka_inline_handler
+        from core_inline.handlers import InlineHandlers
+
+        captured = {}
+        converted_buttons = [[SimpleNamespace(text="⏱️ PePing")]]
+        reply_markup = [{"text": "⏱️ PePing", "callback": AsyncMock()}]
+
+        class InlineProxy:
+            def _to_telethon_buttons(self, markup):
+                captured["markup"] = markup
+                return converted_buttons
+
+        async def ping_handler(query):
+            captured["args"] = query.args
+            return {
+                "title": "Ping",
+                "description": "Tap here",
+                "message": "pong",
+                "thumb": "https://example.com/thumb.jpg",
+                "reply_markup": reply_markup,
+            }
+
+        article = SimpleNamespace(id="article")
+        event = SimpleNamespace(
+            sender_id=123,
+            query=SimpleNamespace(query_id="qid", offset=""),
+            builder=SimpleNamespace(article=MagicMock(return_value=article)),
+            answer=AsyncMock(),
+        )
+        kernel = MagicMock()
+        kernel.inline_handlers = {"ping": mark_hikka_inline_handler(ping_handler)}
+        kernel.logger = MagicMock()
+        kernel._hikka_compat_inline_proxy = InlineProxy()
+
+        handlers = InlineHandlers.__new__(InlineHandlers)
+        handlers.kernel = kernel
+        handlers._inline_manager = SimpleNamespace(
+            is_allowed=AsyncMock(return_value=True)
+        )
+
+        handled = await handlers._dispatch_inline_handler("ping", "ping now", event)
+
+        assert handled is True
+        assert captured == {"args": "now", "markup": reply_markup}
+        event.answer.assert_awaited_once_with([article])
+
+        kwargs = event.builder.article.call_args.kwargs
+        assert kwargs["title"] == "Ping"
+        assert kwargs["description"] == "Tap here"
+        assert kwargs["text"] == "pong"
+        assert kwargs["buttons"] is converted_buttons
+        assert kwargs["thumb"].url == "https://example.com/thumb.jpg"
+
+    @pytest.mark.asyncio
+    async def test_hikka_inline_list_result_preserves_buttons_alias(self):
+        """Dict items inside inline result lists keep the buttons alias."""
+        from core.lib.loader.hikka_compat.fake_package import mark_hikka_inline_handler
+        from core_inline.handlers import InlineHandlers
+
+        captured = {}
+        converted_buttons = [[SimpleNamespace(text="Go")]]
+        buttons = [[{"text": "Go", "data": "token"}]]
+
+        class InlineProxy:
+            def _to_telethon_buttons(self, markup):
+                captured["markup"] = markup
+                return converted_buttons
+
+        async def catalog_handler(query):
+            return [
+                {
+                    "title": "Catalog",
+                    "description": "Open",
+                    "text": "body",
+                    "buttons": buttons,
+                }
+            ]
+
+        article = SimpleNamespace(id="article")
+        event = SimpleNamespace(
+            sender_id=123,
+            query=SimpleNamespace(query_id="qid", offset=""),
+            builder=SimpleNamespace(article=MagicMock(return_value=article)),
+            answer=AsyncMock(),
+        )
+        kernel = MagicMock()
+        kernel.inline_handlers = {"catalog": mark_hikka_inline_handler(catalog_handler)}
+        kernel.logger = MagicMock()
+        kernel._hikka_compat_inline_proxy = InlineProxy()
+
+        handlers = InlineHandlers.__new__(InlineHandlers)
+        handlers.kernel = kernel
+        handlers._inline_manager = SimpleNamespace(
+            is_allowed=AsyncMock(return_value=True)
+        )
+
+        handled = await handlers._dispatch_inline_handler("catalog", "catalog", event)
+
+        assert handled is True
+        assert captured == {"markup": buttons}
+        event.answer.assert_awaited_once_with([article])
+
+        kwargs = event.builder.article.call_args.kwargs
+        assert kwargs["title"] == "Catalog"
+        assert kwargs["description"] == "Open"
+        assert kwargs["text"] == "body"
+        assert kwargs["buttons"] is converted_buttons
+
+    @pytest.mark.asyncio
     async def test_native_suffix_inline_handler_receives_raw_event(self):
         """Native MCUB handlers may also end with _inline_handler."""
         from core_inline.handlers import InlineHandlers
@@ -916,6 +1027,54 @@ class TestInlineRichForm:
         assert kwargs["rich_rtl"] is True
 
     @pytest.mark.asyncio
+    async def test_rich_form_query_passes_photo_to_rich_article(self):
+        from core_inline.handlers import InlineHandlers
+
+        class Builder:
+            def __init__(self):
+                self.calls = []
+
+            def article(self, title, **kwargs):
+                self.calls.append((title, kwargs))
+                return SimpleNamespace(title=title, kwargs=kwargs)
+
+        handlers = self._handlers()
+        handlers.check_admin = AsyncMock(return_value=True)
+        handlers._dispatch_inline_handler = AsyncMock(return_value=False)
+        handlers._wrap_aiogram_inline_query = lambda event: event
+        handlers._dedup_runtime_event = lambda *_args, **_kwargs: False
+        handlers.kernel.cache.values["form_rich"] = {
+            "text": "fallback",
+            "buttons": None,
+            "media": "https://example.com/pic.jpg",
+            "media_type": "photo",
+            "parse_mode": "html",
+            "rich_text": "<h1>Title</h1>",
+            "rich_parse_mode": "html",
+            "rich_message": None,
+            "rich_rtl": None,
+            "rich_noautolink": None,
+            "rich_files": None,
+        }
+        builder = Builder()
+        event = SimpleNamespace(
+            text="form_rich",
+            sender_id=1,
+            query=SimpleNamespace(query_id=42),
+            builder=builder,
+            answer=AsyncMock(),
+        )
+
+        await InlineHandlers.process_inline_query(handlers, event)
+
+        event.answer.assert_awaited_once()
+        _title, kwargs = builder.calls[0]
+        assert kwargs["rich_text"] == "<h1>Title</h1>"
+        assert kwargs["thumb"].url == "https://example.com/pic.jpg"
+        assert kwargs["content"].url == "https://example.com/pic.jpg"
+        assert kwargs["thumb"].mime_type == "image/jpeg"
+
+    @pytest.mark.asyncio
     async def test_subinline_rich_form_calls_inline_form_with_rich_payload(self):
         from core.lib.loader.inline import InlineManager
 
@@ -978,6 +1137,65 @@ class TestInlineRichForm:
         form_data = manager.k.cache.get(form_id)
         assert form_data["media"] == "https://example.com/pic.jpg"
         assert form_data["media_type"] == "photo"
+
+    @pytest.mark.asyncio
+    async def test_inline_form_accepts_event_and_edits_status_message(self):
+        from core.lib.loader.inline import InlineManager
+
+        class Cache:
+            def __init__(self):
+                self.values = {}
+
+            def get(self, key):
+                return self.values.get(key)
+
+            def set(self, key, value, ttl=None):
+                self.values[key] = value
+
+        class Result:
+            def __init__(self):
+                self.chat_id = None
+                self.kwargs = None
+
+            async def click(self, chat_id, **kwargs):
+                self.chat_id = chat_id
+                self.kwargs = kwargs
+                return SimpleNamespace(id=1, inline_message_id="inline-id")
+
+        result = Result()
+        status_message = SimpleNamespace(delete=AsyncMock(), edit=AsyncMock())
+        event = SimpleNamespace(
+            chat_id=456,
+            edit=AsyncMock(return_value=status_message),
+        )
+        manager = InlineManager.__new__(InlineManager)
+        manager.k = SimpleNamespace(
+            cache=Cache(),
+            logger=MagicMock(),
+            config={"inline_bot_username": "bot"},
+            client=SimpleNamespace(
+                inline_query=AsyncMock(return_value=[result]),
+                send_message=AsyncMock(),
+            ),
+            bot_client=None,
+            inline_callback_map={},
+            session=SimpleNamespace(closed=False),
+            handle_error=AsyncMock(),
+        )
+        manager.s = lambda key, **kwargs: key
+
+        success, message = await InlineManager.inline_form(
+            manager,
+            chat_id=event,
+            title="Event form",
+        )
+
+        assert success is True
+        assert message.inline_message_id == "inline-id"
+        event.edit.assert_awaited_once()
+        manager.k.client.send_message.assert_not_called()
+        assert result.chat_id == 456
+        status_message.delete.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_inline_query_and_click_strips_form_only_media_kwargs(self):

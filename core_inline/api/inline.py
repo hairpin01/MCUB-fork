@@ -213,7 +213,7 @@ class CodeInline:
             keyboard.row(*(row if isinstance(row, (list, tuple)) else [row]))
         return keyboard
 
-    async def form(self, chat_id: int, title: str, **kwargs):
+    async def form(self, chat_id: Any, title: str, **kwargs):
         ttl = kwargs.pop("ttl", self.ttl)
         return await self.kernel.inline_form(chat_id, title, ttl=ttl, **kwargs)
 

@@ -28,6 +28,68 @@ class TestKernelCore:
         assert hasattr(kernel, "VERSION")
         assert kernel.custom_prefix == "."
 
+    def test_raw_text_uses_html_unparse_when_message_helper_is_missing(
+        self,
+        monkeypatch,
+    ):
+        """Telethon-MCUB renders regular message entities through html.unparse."""
+        from core.lib.kernel_core import KernelCoreMixin
+        from telethon.extensions import html as telethon_html
+
+        monkeypatch.delattr(telethon_html, "message_to_html", raising=False)
+
+        def fake_unparse(text, entities):
+            assert text == "plain"
+            assert entities == ["entity"]
+            return "<b>plain</b>"
+
+        monkeypatch.setattr(telethon_html, "unparse", fake_unparse)
+
+        kernel = object.__new__(KernelCoreMixin)
+        kernel.logger = MagicMock()
+
+        assert (
+            kernel.raw_text(SimpleNamespace(message="plain", entities=["entity"]))
+            == "<b>plain</b>"
+        )
+        kernel.logger.error.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_save_module_config_hydrates_hikka_compat_config(self):
+        """Legacy/Hikka configs use load_from_dict but must save via kernel UI flow."""
+        from core.lib.kernel_core import KernelCoreMixin
+        from core.lib.loader.hikka_compat.config import ConfigValue, ModuleConfig
+
+        class ConfigBackend:
+            def __init__(self):
+                self.saved = None
+
+            async def save_module_config(self, module_name, config_data):
+                self.saved = (module_name, config_data)
+                return True
+
+        backend = ConfigBackend()
+        live_config = ModuleConfig(ConfigValue("enabled", True))
+
+        kernel = object.__new__(KernelCoreMixin)
+        kernel._live_module_configs = {"Legacy": live_config}
+        kernel._cfg = backend
+        kernel.logger = MagicMock()
+        kernel.loaded_modules = {}
+        kernel.system_modules = {}
+
+        result = await kernel.save_module_config(
+            "Legacy",
+            {"enabled": False, "stale": "ignored", "__mcub_config__": True},
+        )
+
+        assert result is True
+        assert live_config["enabled"] is False
+        assert backend.saved == (
+            "Legacy",
+            {"enabled": False, "__mcub_config__": True},
+        )
+
     @patch("core.lib.kernel_core.setup_logging")
     @patch("core.lib.kernel_core.ConfigManager")
     @patch("core.lib.kernel_core.DatabaseManager")

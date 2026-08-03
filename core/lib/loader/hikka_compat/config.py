@@ -203,6 +203,10 @@ class ModuleConfig(dict):
                 continue
             self.set_no_raise(key, value, mark=False)
 
+    def from_dict(self, data: dict) -> None:
+        """Hydrate config using the MCUB ModuleConfig method name."""
+        self.load_from_dict(data)
+
     @property
     def schema(self) -> list[dict]:
         return [

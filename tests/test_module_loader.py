@@ -990,6 +990,36 @@ class TestHikkaModuleConfigSchema:
         assert functions.account is account
         assert account.UpdateNotifySettingsRequest is not None
 
+    @pytest.mark.asyncio
+    async def test_herokutl_requires_has_importlib_spec_for_dependency_check(self):
+        """`# requires: herokutl` must not crash importlib.find_spec()."""
+        import importlib.util
+
+        from core.lib.loader.hikka_compat.fake_package import _ensure_fake_package
+        from core.lib.loader.loader import ModuleLoader
+
+        for mod_name in list(sys.modules):
+            if mod_name == "herokutl" or mod_name.startswith("herokutl."):
+                sys.modules.pop(mod_name, None)
+
+        _ensure_fake_package()
+
+        assert importlib.util.find_spec("herokutl") is not None
+        assert importlib.util.find_spec("herokutl.types") is not None
+        assert importlib.util.find_spec("herokutl.tl.functions") is not None
+
+        kernel = MagicMock()
+        kernel.logger = MagicMock()
+        loader = ModuleLoader(kernel)
+        loader._pip_install = AsyncMock()
+
+        await loader.pre_install_requirements(
+            "# requires: herokutl\nfrom herokutl.types import Message\n",
+            "Doom",
+        )
+
+        loader._pip_install.assert_not_awaited()
+
     def test_hikkatl_importlib_aliases_to_telethon(self):
         """Test importlib imports of Telethon fork aliases work globally."""
         import importlib
@@ -1073,6 +1103,24 @@ class TestHikkaModuleConfigSchema:
         schema = config.schema
         assert len(schema) == 1
         assert schema[0]["secret"] is True
+
+    @pytest.mark.asyncio
+    async def test_hikka_module_config_has_from_dict_compat_alias(self):
+        """Fake heroku.loader ModuleConfig should support MCUB hydration name."""
+        from core.lib.loader.hikka_compat.fake_package import _ensure_fake_package
+
+        _ensure_fake_package()
+        import sys
+
+        loader_mod = sys.modules.get("heroku.loader")
+        assert loader_mod is not None
+
+        config = loader_mod.ModuleConfig(loader_mod.ConfigValue("enabled", True))
+
+        config.from_dict({"enabled": False, "__mcub_config__": True})
+
+        assert config["enabled"] is False
+        assert config.to_dict() == {"enabled": False, "__mcub_config__": True}
 
 
 class TestClassStyleModule:

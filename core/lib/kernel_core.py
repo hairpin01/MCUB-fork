@@ -100,9 +100,9 @@ except Exception as e:
     RepositoryManager = None
 
 try:
-    from ..lib.loader.security_chats import SecurityChats
+    from ..lib.loader.security import SecurityChats
 except Exception as e:
-    print(f"\033[93m⚠  Degraded: SecurityChats not loaded: {e}\033[0m")
+    print(f"\033[93m⚠  Degraded: Security not loaded: {e}\033[0m")
     SecurityChats = None
 
 try:
@@ -261,6 +261,7 @@ class KernelCoreMixin:
         self.log_chat_id = None
         self.log_bot_enabled = False
         self.inline_message_manager = None
+        self.security = None
         self.security_chats = None
         self.chat_security = None
 
@@ -331,9 +332,11 @@ class KernelCoreMixin:
         # Chat / user delivery security
         try:
             self.security_chats = SecurityChats(self) if SecurityChats else None
+            self.security = self.security_chats
             self.chat_security = self.security_chats
         except Exception as e:
-            self._warn("SecurityChats", e)
+            self._warn("Security", e)
+            self.security = None
             self.security_chats = None
             self.chat_security = None
 
@@ -614,7 +617,9 @@ class KernelCoreMixin:
     ) -> bool:
         """Return True if chat/user security allows delivery to a launcher."""
 
-        security = getattr(self, "security_chats", None)
+        security = getattr(self, "security", None) or getattr(
+            self, "security_chats", None
+        )
         checker = getattr(security, "can_process_event", None)
         if not callable(checker):
             return True
@@ -623,7 +628,7 @@ class KernelCoreMixin:
         except Exception as exc:
             if getattr(self, "logger", None):
                 self.logger.error(
-                    "[security_chats] fail-open action=%r module=%r error=%s",
+                    "[security] fail-open action=%r module=%r error=%s",
                     action,
                     module,
                     exc,
@@ -736,8 +741,13 @@ class KernelCoreMixin:
             and hasattr(live_cfg, "_values")
             and isinstance(config_data, dict)
         ):
-            live_cfg.from_dict(config_data)
-            config_data = live_cfg.to_dict()
+            load_from_dict = getattr(live_cfg, "from_dict", None)
+            if not callable(load_from_dict):
+                load_from_dict = getattr(live_cfg, "load_from_dict", None)
+
+            if callable(load_from_dict):
+                load_from_dict(config_data)
+                config_data = live_cfg.to_dict()
 
         self.logger.debug(
             f"[Kernel] save_module_config module={module_name} "
@@ -1122,7 +1132,10 @@ class KernelCoreMixin:
             if isinstance(source, str):
                 return telethon_html.unparse(source, [])
 
-            return telethon_html.message_to_html(source) or ""
+            return telethon_html.unparse(
+                getattr(source, "message", "") or "",
+                getattr(source, "entities", None) or [],
+            )
         except Exception as e:
             self.logger.error(f"raw_text error: {e}")
             return ""

@@ -505,6 +505,12 @@ class InlineHandlers:
         )
         return f"{getattr(event, 'sender_id', 0)}:{getattr(event, 'chat_instance', 0)}:{msg_id}:{data_str}"
 
+    def _should_deliver(self, event: Any, module: str | None, action: str) -> bool:
+        checker = getattr(self.kernel, "should_deliver_module_event", None)
+        if not callable(checker):
+            return True
+        return bool(checker(event, module=module, action=action))
+
     def _is_aiogram_event(self, event: Any) -> bool:
         """Detect whether event is from aiogram or Telethon.
 
@@ -632,6 +638,49 @@ class InlineHandlers:
                 thumb=thumb,
                 buttons=buttons,
             )
+
+    @staticmethod
+    def _media_mime_type(media_url: str, media_type: str) -> str:
+        media_type = (media_type or "photo").lower()
+        if media_type == "photo":
+            clean_url = media_url.split("?", 1)[0].split("#", 1)[0].lower()
+            if clean_url.endswith(".png"):
+                return "image/png"
+            if clean_url.endswith(".webp"):
+                return "image/webp"
+            if clean_url.endswith(".gif"):
+                return "image/gif"
+            return "image/jpeg"
+        if media_type in {"gif", "video"}:
+            return "video/mp4"
+        if media_type == "audio":
+            return "audio/mpeg"
+        return "application/octet-stream"
+
+    @classmethod
+    def _build_article_media_kwargs(
+        cls,
+        media: Any,
+        media_type: str,
+    ) -> dict[str, InputWebDocument]:
+        if not isinstance(media, str):
+            return {}
+
+        media_url = media.strip()
+        if not media_url.lower().startswith(("http://", "https://")):
+            return {}
+
+        document = InputWebDocument(
+            url=media_url,
+            size=0,
+            mime_type=cls._media_mime_type(media_url, media_type),
+            attributes=[],
+        )
+
+        result = {"content": document}
+        if (media_type or "photo").lower() == "photo":
+            result["thumb"] = document
+        return result
 
     async def _answer_inline_query(
         self,
@@ -1831,6 +1880,7 @@ class InlineHandlers:
                     rich_message = form_data.get("rich_message")
 
                     if rich_text is not None or rich_message is not None:
+                        media_kwargs = self._build_article_media_kwargs(media, mtype)
                         article_kwargs = {
                             "buttons": buttons,
                             "rich_text": rich_text,
@@ -1841,6 +1891,7 @@ class InlineHandlers:
                             "rich_noautolink": form_data.get("rich_noautolink"),
                             "rich_files": form_data.get("rich_files"),
                         }
+                        article_kwargs.update(media_kwargs)
                         try:
                             builder = event.builder.article(
                                 "Inline Form",
@@ -1849,12 +1900,21 @@ class InlineHandlers:
                         except TypeError:
                             # Older adapters/Bot API fall back to a normal
                             # formatted article instead of failing the form.
-                            builder = event.builder.article(
-                                "Inline Form",
-                                text=text,
-                                buttons=buttons,
-                                parse_mode=parse_mode,
-                            )
+                            try:
+                                builder = event.builder.article(
+                                    "Inline Form",
+                                    text=text,
+                                    buttons=buttons,
+                                    parse_mode=parse_mode,
+                                    **media_kwargs,
+                                )
+                            except TypeError:
+                                builder = event.builder.article(
+                                    "Inline Form",
+                                    text=text,
+                                    buttons=buttons,
+                                    parse_mode=parse_mode,
+                                )
                         await event.answer([builder])
                         return
 
@@ -1919,9 +1979,7 @@ class InlineHandlers:
             try:
                 await event.answer()
             except Exception as answer_error:
-                self.kernel.logger.debug(
-                    f"Inline query answer (empty) failed: {answer_error}"
-                )
+                await self.error_article(self, event, answer_error)
 
         except Exception as e:
             error_traceback = "".join(
@@ -1929,38 +1987,41 @@ class InlineHandlers:
             )
             self.kernel.logger.error(f"{self.lang['error']}: {e}")
             self.kernel.logger.error(f"Full traceback: {error_traceback}")
+            await self.error_article(self, event, e)
+
+    async def error_article(self, event, error) -> None:
+        e = error
+        error_traceback = "".join(
+            traceback.format_exception(type(e), e, e.__traceback__)
+        )
+        thumb = InputWebDocument(
+            url="https://kappa.lol/qNFKBT",
+            size=0,
+            mime_type="image/jpeg",
+            attributes=[],
+        )
+        try:
+            await event.answer(
+                [
+                    event.builder.article(
+                        "Error",
+                        text=f"🃏 {self.lang['error']}:\n <pre>{html.escape(error_traceback)}</pre>",
+                        description=f"{self.lang['error_description']}: {str(e)[:50]}",
+                        parse_mode="html",
+                        thumb=thumb,
+                    )
+                ]
+            )
+        except Exception as answer_error:
+            self.kernel.logger.error(
+                f"Inline query error answer failed: {answer_error}"
+            )
             if getattr(self.kernel, "handler_error", False):
                 await self.kernel.handle_error(
-                    e, message=self.lang["error"], event=event
+                    answer_error,
+                    message="Inline query error answer failed",
+                    event=event,
                 )
-            thumb = InputWebDocument(
-                url="https://kappa.lol/qNFKBT",
-                size=0,
-                mime_type="image/jpeg",
-                attributes=[],
-            )
-            try:
-                await event.answer(
-                    [
-                        event.builder.article(
-                            "Error",
-                            text=f"🃏 {self.lang['error']}:\n <pre>{html.escape(error_traceback)}</pre>",
-                            description=f"{self.lang['error_description']}: {str(e)[:50]}",
-                            parse_mode="html",
-                            thumb=thumb,
-                        )
-                    ]
-                )
-            except Exception as answer_error:
-                self.kernel.logger.error(
-                    f"Inline query error answer failed: {answer_error}"
-                )
-                if getattr(self.kernel, "handler_error", False):
-                    await self.kernel.handle_error(
-                        answer_error,
-                        message="Inline query error answer failed",
-                        event=event,
-                    )
 
     async def process_callback_query(self, event: Any) -> None:
         """Process a callback query event.
@@ -2242,6 +2303,8 @@ class InlineHandlers:
                 except (TypeError, ValueError):
                     sig = None
 
+            inline_proxy = None
+
             if is_hikka_handler:
                 from core.lib.loader.hikka_compat.inline_types import (
                     InlineQuery as _HikkaInlineQuery,
@@ -2259,9 +2322,7 @@ class InlineHandlers:
                 try:
                     result = handler(iq_obj)
                 except Exception as handler_error:
-                    self.kernel.logger.debug(
-                        f"[InlineHandlers] hikka handler error: {handler_error}"
-                    )
+                    await self.error_article(event, handler_error)
                     result = None
                 self.kernel.logger.debug(
                     f"[InlineHandlers] handler result type: {type(result)}"
@@ -2270,9 +2331,7 @@ class InlineHandlers:
                 try:
                     result = handler(event)
                 except Exception as handler_error:
-                    self.kernel.logger.debug(
-                        f"[InlineHandlers] handler error: {handler_error}"
-                    )
+                    await self.error_article(event, handler_error)
                     result = None
                 self.kernel.logger.debug(
                     f"[InlineHandlers] handler result type: {type(result)}"
@@ -2281,9 +2340,7 @@ class InlineHandlers:
                 try:
                     result = handler(event)
                 except Exception as handler_error:
-                    self.kernel.logger.debug(
-                        f"[InlineHandlers] handler error: {handler_error}"
-                    )
+                    await self.error_article(event, handler_error)
                     result = None
                 self.kernel.logger.debug(
                     f"[InlineHandlers] handler result type: {type(result)}"
@@ -2293,9 +2350,7 @@ class InlineHandlers:
                 try:
                     result = await result
                 except Exception as await_error:
-                    self.kernel.logger.debug(
-                        f"[InlineHandlers] await error: {await_error}"
-                    )
+                    await self.error_article(event, await_error)
                     result = None
                 self.kernel.logger.debug(
                     f"[InlineHandlers] awaited result: {type(result)}"
@@ -2306,30 +2361,66 @@ class InlineHandlers:
             if result:
                 from telethon.tl.types import InputWebDocument
 
-                if isinstance(result, dict):
-                    thumb_url = result.get("thumb_url") or result.get(
-                        "thumbnail_url", ""
+                def _result_thumb(item: dict):
+                    thumb_ref = (
+                        item.get("thumb")
+                        or item.get("thumb_url")
+                        or item.get("thumbnail_url", "")
                     )
-                    if thumb_url:
-                        try:
-                            thumb = InputWebDocument(
-                                url=thumb_url,
-                                size=0,
-                                mime_type="image/jpeg",
-                                attributes=[],
-                            )
-                        except Exception:
-                            thumb = None
-                    else:
-                        thumb = None
+                    if not thumb_ref:
+                        return None
+                    if not isinstance(thumb_ref, str):
+                        return thumb_ref
+                    try:
+                        return InputWebDocument(
+                            url=thumb_ref,
+                            size=0,
+                            mime_type="image/jpeg",
+                            attributes=[],
+                        )
+                    except Exception:
+                        return None
 
-                    result = await event.builder.article(
-                        title=result.get("title", ""),
-                        description=result.get("description", ""),
-                        text=result.get("message", result.get("text", "")),
-                        thumb=thumb,
-                    )
-                    result = [result]
+                def _result_buttons(item: dict):
+                    buttons = item.get("reply_markup")
+                    if buttons is None:
+                        buttons = item.get("buttons")
+                    if not buttons:
+                        return None
+
+                    converter = getattr(inline_proxy, "_to_telethon_buttons", None)
+                    if callable(converter):
+                        try:
+                            converted = converter(buttons)
+                            if converted:
+                                return converted
+                        except Exception as e:
+                            self.kernel.logger.debug(
+                                "[InlineHandlers] inline result buttons conversion failed: %s",
+                                e,
+                            )
+
+                    return buttons
+
+                async def _article_from_dict(item: dict):
+                    article_kwargs = {
+                        "title": item.get("title", ""),
+                        "description": item.get("description", ""),
+                        "text": item.get("message", item.get("text", "")),
+                    }
+                    thumb = _result_thumb(item)
+                    if thumb is not None:
+                        article_kwargs["thumb"] = thumb
+                    buttons = _result_buttons(item)
+                    if buttons:
+                        article_kwargs["buttons"] = buttons
+                    article = event.builder.article(**article_kwargs)
+                    if asyncio.iscoroutine(article):
+                        article = await article
+                    return article
+
+                if isinstance(result, dict):
+                    result = [await _article_from_dict(result)]
                 elif isinstance(result, list):
                     converted = []
                     for item in result:
@@ -2340,12 +2431,7 @@ class InlineHandlers:
                         elif hasattr(item, "id") and hasattr(item, "title"):
                             converted.append(item)
                         elif isinstance(item, dict):
-                            article = await event.builder.article(
-                                title=item.get("title", ""),
-                                description=item.get("description", ""),
-                                text=item.get("message", item.get("text", "")),
-                            )
-                            converted.append(article)
+                            converted.append(await _article_from_dict(item))
                         else:
                             converted.append(item)
                     result = converted
@@ -2355,9 +2441,7 @@ class InlineHandlers:
                 try:
                     await event.answer(result)
                 except Exception as answer_error:
-                    self.kernel.logger.debug(
-                        f"Inline handler event.answer failed: {answer_error}"
-                    )
+                    await self.error_article(event, answer_error)
                 return True
         except Exception:
             self.kernel.logger.error(

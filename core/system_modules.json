@@ -16,7 +16,7 @@
     },
     "config": {
       "path": "modules/config.py",
-      "sha256": "2dc86697375cdcc4e7e06efa455c9a4d4fe194056218eb3c8325133c5bc1b46e"
+      "sha256": "532b546367efd85eff021a322d0ec4d86cd5f85113cf42a4f31424d078bd61ff"
     },
     "evaluator": {
       "path": "modules/evaluator.py",

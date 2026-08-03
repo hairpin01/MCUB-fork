@@ -101,6 +101,33 @@ def _parse_saved_config(raw: Any) -> dict:
 _FAKE_PKG_NAME = "heroku"
 
 
+def _ensure_compat_module_spec(
+    module: types.ModuleType,
+    name: str,
+    *,
+    is_package: bool = False,
+) -> types.ModuleType:
+    """Give synthetic compatibility modules an importlib spec.
+
+    ``importlib.util.find_spec()`` raises ``ValueError`` when a module is
+    already present in ``sys.modules`` with ``__spec__ is None``.  The loader
+    checks ``# requires:`` declarations with ``find_spec()``, so fake modules
+    such as ``herokutl`` must look importlib-compatible.
+    """
+
+    if is_package and not hasattr(module, "__path__"):
+        module.__path__ = []
+    if not getattr(module, "__package__", None):
+        module.__package__ = name if is_package else name.rsplit(".", 1)[0]
+    if getattr(module, "__spec__", None) is None:
+        module.__spec__ = importlib.util.spec_from_loader(
+            name,
+            loader=None,
+            is_package=is_package,
+        )
+    return module
+
+
 def _ensure_fake_libraries_namespace(parent: types.ModuleType) -> types.ModuleType:
     libraries_name = f"{_FAKE_PKG_NAME}.libraries"
     libraries_mod = sys.modules.get(libraries_name)
@@ -738,8 +765,10 @@ def _create_herokutl_events_module() -> types.ModuleType:
 def _ensure_herokutl_stub() -> None:
     if "herokutl" in sys.modules:
         herokutl_mod = sys.modules["herokutl"]
+        _ensure_compat_module_spec(herokutl_mod, "herokutl", is_package=True)
         if not hasattr(herokutl_mod, "events"):
             events_mod = _create_herokutl_events_module()
+            _ensure_compat_module_spec(events_mod, "herokutl.events")
             herokutl_mod.events = events_mod
             sys.modules["herokutl.events"] = events_mod
         if (
@@ -747,6 +776,11 @@ def _ensure_herokutl_stub() -> None:
             and "herokutl.tl.functions" in sys.modules
         ):
             functions_mod = sys.modules["herokutl.tl.functions"]
+            _ensure_compat_module_spec(
+                functions_mod,
+                "herokutl.tl.functions",
+                is_package=hasattr(functions_mod, "__path__"),
+            )
             herokutl_mod.functions = functions_mod
             sys.modules["herokutl.functions"] = functions_mod
         return
@@ -995,6 +1029,37 @@ def _ensure_herokutl_stub() -> None:
     tl_mod.types = tl_types
     tl_mod.functions = tl_functions
     tl_mod.custom = tl_custom_mod
+
+    for _mod_name, _mod_obj, _is_package in (
+        ("herokutl", herokutl_mod, True),
+        ("herokutl.errors", errors_mod, True),
+        ("herokutl.events", events_mod, hasattr(events_mod, "__path__")),
+        ("herokutl.errors.common", errors_common_mod, False),
+        ("herokutl.errors.rpcerrorlist", errors_rpc_mod, False),
+        ("herokutl.extensions", extensions_mod, True),
+        ("herokutl.extensions.html", html_mod, False),
+        ("herokutl.hints", hints_mod, False),
+        ("herokutl.types", types_mod, False),
+        ("herokutl.utils", utils_mod, False),
+        ("herokutl.sessions", sessions_mod, False),
+        ("herokutl.tl", tl_mod, True),
+        ("herokutl.tl.types", tl_types, False),
+        ("herokutl.tl.functions", tl_functions, True),
+        ("herokutl.functions", tl_functions, True),
+        ("herokutl.tl.functions.channels", tl_func_channels, False),
+        ("herokutl.tl.functions.contacts", tl_func_contacts, False),
+        ("herokutl.tl.functions.messages", tl_func_messages, False),
+        ("herokutl.tl.functions.account", tl_func_account, False),
+        ("herokutl.tl.custom", tl_custom_mod, True),
+        ("herokutl.tl.custom.message", tl_custom_message_mod, False),
+        ("herokutl.tl.tlobject", tl_tlobject_mod, False),
+        ("herokutl.custom", custom_mod, False),
+    ):
+        _ensure_compat_module_spec(
+            _mod_obj,
+            _mod_name,
+            is_package=_is_package,
+        )
 
     sys.modules["herokutl"] = herokutl_mod
     sys.modules["herokutl.errors"] = errors_mod
@@ -1446,6 +1511,10 @@ def _ensure_fake_package() -> str:
                     if key not in self._config:
                         continue
                     self.set_no_raise(key, value, mark=False)
+
+            def from_dict(self, data: dict) -> None:
+                """Hydrate config using the MCUB ModuleConfig method name."""
+                self.load_from_dict(data)
 
             @property
             def schema(self) -> list[dict]:

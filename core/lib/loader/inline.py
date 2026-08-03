@@ -168,6 +168,64 @@ class InlineManager:
         return str(data)
 
     @staticmethod
+    def _safe_getattr(obj: Any, attr: str, default: Any = None) -> Any:
+        try:
+            return getattr(obj, attr, default)
+        except Exception:
+            return default
+
+    @classmethod
+    def _resolve_target_chat(cls, target: Any) -> tuple[Any, Any | None]:
+        """Resolve chat/entity from a userbot event or message-like object.
+
+        ``send_message`` and inline-result ``click`` accept chat IDs and peers
+        directly, so plain values are returned unchanged.  When a module passes
+        the whole event/message, prefer its ``chat_id`` and then ``peer_id``.
+        The original object is returned as the second item so callers may reuse
+        event helpers like ``edit()`` for status updates.
+        """
+
+        for source in (target, cls._safe_getattr(target, "message")):
+            if source is None:
+                continue
+
+            for attr in ("chat_id", "peer_id"):
+                value = cls._safe_getattr(source, attr)
+                if value is not None:
+                    return value, target
+
+        return target, None
+
+    @staticmethod
+    def _normalize_reply_to(reply_to: Any) -> int | None:
+        if reply_to is None or isinstance(reply_to, int):
+            return reply_to
+        if hasattr(reply_to, "reply_to_top_id") and reply_to.reply_to_top_id:
+            return reply_to.reply_to_top_id
+        if hasattr(reply_to, "reply_to_msg_id"):
+            return reply_to.reply_to_msg_id
+        return None
+
+    async def _edit_form_status(
+        self,
+        target_event: Any,
+        text: str,
+        *,
+        parse_mode: str,
+    ) -> Any | None:
+        edit = self._safe_getattr(target_event, "edit")
+        if not callable(edit):
+            return None
+
+        try:
+            edited = await edit(text, parse_mode=parse_mode)
+        except Exception as exc:
+            self.k.logger.debug("[inline] form status edit failed: %s", exc)
+            return None
+
+        return edited if edited is not None else target_event
+
+    @staticmethod
     def _gallery_session_key(gallery_uuid: str) -> str:
         return f"gallery:{gallery_uuid}"
 
@@ -706,7 +764,7 @@ class InlineManager:
 
     async def inline_query_and_click(
         self,
-        chat_id: int,
+        chat_id: Any,
         query: str,
         bot_username: str | None = None,
         result_index: int = 0,
@@ -731,15 +789,10 @@ class InlineManager:
             (success: bool, message | None)
         """
         k = self.k
+        chat_id, _target_event = self._resolve_target_chat(chat_id)
         # Normalize reply_to in case it's called directly with a
         # MessageReplyHeader from event.message.reply_to
-        if reply_to is not None and not isinstance(reply_to, int):
-            if hasattr(reply_to, "reply_to_top_id") and reply_to.reply_to_top_id:
-                reply_to = reply_to.reply_to_top_id
-            elif hasattr(reply_to, "reply_to_msg_id"):
-                reply_to = reply_to.reply_to_msg_id
-            else:
-                reply_to = None
+        reply_to = self._normalize_reply_to(reply_to)
         try:
             k.logger.debug(
                 "[inline] inline_query_and_click start chat_id=%s query=%s bot=%s",
@@ -805,7 +858,9 @@ class InlineManager:
                 else:
                     raise
             if form_sms:
-                await form_sms.delete()
+                delete = self._safe_getattr(form_sms, "delete")
+                if callable(delete):
+                    await delete()
 
             if message:
                 handlers = InlineHandlers(k, k.bot_client)
@@ -910,7 +965,7 @@ class InlineManager:
 
     async def inline_form(
         self,
-        chat_id: int,
+        chat_id: Any,
         title: str,
         fields=None,
         buttons=None,
@@ -931,7 +986,10 @@ class InlineManager:
         """Create and optionally send an inline form.
 
         Args:
-            chat_id: Target chat.
+            chat_id: Target chat, peer/entity, or an event/message with
+                     ``chat_id``/``peer_id``.  When an event with ``edit()`` is
+                     passed, the temporary "opening form" status is edited in
+                     that event instead of sending a separate message.
             title: Form title / first line.
             fields: Dict or list of field values appended below the title.
             buttons: Buttons in any supported format.
@@ -955,15 +1013,10 @@ class InlineManager:
         Returns:
             (success, message) when auto_send=True, else form_id str.
         """
+        chat_id, target_event = self._resolve_target_chat(chat_id)
         # Normalize reply_to: event.message.reply_to in newer Telegram API
         # gives MessageReplyHeader, not an int. Extract the actual ID.
-        if reply_to is not None and not isinstance(reply_to, int):
-            if hasattr(reply_to, "reply_to_top_id") and reply_to.reply_to_top_id:
-                reply_to = reply_to.reply_to_top_id
-            elif hasattr(reply_to, "reply_to_msg_id"):
-                reply_to = reply_to.reply_to_msg_id
-            else:
-                reply_to = None
+        reply_to = self._normalize_reply_to(reply_to)
         k = self.k
         form_sms = None
         try:
@@ -1016,15 +1069,29 @@ class InlineManager:
             )
 
             if auto_send:
+                status_text = (
+                    '<tg-emoji emoji-id="5204110240752110921">🕳️</tg-emoji> '
+                    f'{self.s("open_inline_form")}'
+                )
                 try:
+                    form_sms = (
+                        await self._edit_form_status(
+                            target_event,
+                            status_text,
+                            parse_mode=parse_mode,
+                        )
+                        if target_event is not None
+                        else None
+                    )
                     send_kwargs = {"parse_mode": parse_mode}
                     if reply_to is not None:
                         send_kwargs["reply_to"] = reply_to
-                    form_sms = await k.client.send_message(
-                        chat_id,
-                        f'<tg-emoji emoji-id="5204110240752110921">🕳️</tg-emoji> {self.s("open_inline_form")}',
-                        **send_kwargs,
-                    )
+                    if form_sms is None:
+                        form_sms = await k.client.send_message(
+                            chat_id,
+                            status_text,
+                            **send_kwargs,
+                        )
                 except Exception:
                     form_sms = None
                 return await self.inline_query_and_click(

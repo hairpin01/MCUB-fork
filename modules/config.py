@@ -651,6 +651,144 @@ def register(kernel):
         """Generate a short non-reused cache id for inline config controls."""
         return uuid.uuid4().hex[:12]
 
+    # ── shared button builders ──────────────────────────────────────────────
+
+    def _append_module_list_dict_buttons(buttons, module_name, key_id, value_type):
+        """Append list or dict operation switch-inline buttons for a module key."""
+        pfx = f"fcfg module {module_name}"
+        if value_type == "list":
+            buttons += [
+                [
+                    Button.switch_inline(
+                        text=t("btn_list_add"),
+                        query=f"{pfx} list add {key_id} ",
+                        same_peer=True,
+                        style="success",
+                    )
+                ],
+                [
+                    Button.switch_inline(
+                        text=t("btn_list_del"),
+                        query=f"{pfx} list del {key_id}",
+                        same_peer=True,
+                        style="danger",
+                    )
+                ],
+                [
+                    Button.switch_inline(
+                        text=t("btn_list_set"),
+                        query=f"{pfx} list set {key_id} ",
+                        same_peer=True,
+                        style="primary",
+                    )
+                ],
+            ]
+        elif value_type == "dict":
+            buttons += [
+                [
+                    Button.switch_inline(
+                        text=t("btn_dict_add"),
+                        query=f"{pfx} dict add {key_id} ",
+                        same_peer=True,
+                        style="success",
+                    )
+                ],
+                [
+                    Button.switch_inline(
+                        text=t("btn_dict_del"),
+                        query=f"{pfx} dict del {key_id}",
+                        same_peer=True,
+                        style="danger",
+                    )
+                ],
+                [
+                    Button.switch_inline(
+                        text=t("btn_dict_set"),
+                        query=f"{pfx} dict set {key_id} ",
+                        same_peer=True,
+                        style="primary",
+                    )
+                ],
+            ]
+
+    def _append_kernel_list_dict_buttons(buttons, key_id, value_type):
+        """Append list or dict operation switch-inline buttons for a kernel key."""
+        if value_type == "list":
+            buttons += [
+                [
+                    Button.switch_inline(
+                        text=t("btn_list_add"),
+                        query=f"fcfg list add {key_id} ",
+                        same_peer=True,
+                        style="success",
+                    )
+                ],
+                [
+                    Button.switch_inline(
+                        text=t("btn_list_del"),
+                        query=f"fcfg list del {key_id}",
+                        same_peer=True,
+                        style="danger",
+                    )
+                ],
+                [
+                    Button.switch_inline(
+                        text=t("btn_list_set"),
+                        query=f"fcfg list set {key_id} ",
+                        same_peer=True,
+                        style="primary",
+                    )
+                ],
+            ]
+        elif value_type == "dict":
+            buttons += [
+                [
+                    Button.switch_inline(
+                        text=t("btn_dict_add"),
+                        query=f"fcfg dict add {key_id} ",
+                        same_peer=True,
+                        style="success",
+                    )
+                ],
+                [
+                    Button.switch_inline(
+                        text=t("btn_dict_del"),
+                        query=f"fcfg dict del {key_id}",
+                        same_peer=True,
+                        style="danger",
+                    )
+                ],
+                [
+                    Button.switch_inline(
+                        text=t("btn_dict_set"),
+                        query=f"fcfg dict set {key_id} ",
+                        same_peer=True,
+                        style="primary",
+                    )
+                ],
+            ]
+
+    # ── shared page/nav builders ────────────────────────────────────────────
+
+    def _paginate(total: int, per_page: int, page: int):
+        """Return (total_pages, clamped_page, start_idx)."""
+        total_pages = max(1, (total + per_page - 1) // per_page)
+        page = max(0, min(page, total_pages - 1))
+        return total_pages, page, page * per_page
+
+    def _make_back_data(module_name: str, page: int, parent_group_key) -> bytes:
+        """Build back-button callback data for module config navigation."""
+        if parent_group_key:
+            nav_id = generate_key_id(
+                f"{module_name}__{parent_group_key}", page, "module_cfg"
+            )
+            gp = find_parent_group_key(module_name, parent_group_key)
+            cache_module_key_view(nav_id, module_name, parent_group_key, page, gp)
+            return f"module_cfg_view_{nav_id}".encode()
+        nav_id = generate_key_id(module_name, page, "module_nav")
+        kernel.cache.set(f"module_nav_{nav_id}", (module_name, page), ttl=86400)
+        return f"module_cfg_page_nav_{nav_id}".encode()
+
     def format_key_value(key, value, reveal=False):
         value_type = type(value).__name__
 
@@ -928,30 +1066,11 @@ def register(kernel):
         if row:
             buttons.append(row)
 
-        if parent_group_key:
-            back_nav_id = generate_key_id(
-                f"{module_name}__{parent_group_key}", page, "module_cfg"
-            )
-            grandparent_group_key = find_parent_group_key(module_name, parent_group_key)
-            cache_module_key_view(
-                back_nav_id,
-                module_name,
-                parent_group_key,
-                page,
-                grandparent_group_key,
-            )
-            back_data = f"module_cfg_view_{back_nav_id}".encode()
-        else:
-            back_nav_id = generate_key_id(module_name, page, "module_nav")
-            kernel.cache.set(
-                f"module_nav_{back_nav_id}", (module_name, page), ttl=86400
-            )
-            back_data = f"module_cfg_page_nav_{back_nav_id}".encode()
         buttons.append(
             [
                 Button.inline(
                     t("btn_back_simple"),
-                    data=back_data,
+                    data=_make_back_data(module_name, page, parent_group_key),
                 )
             ]
         )
@@ -993,30 +1112,11 @@ def register(kernel):
             )
 
         buttons = normalize_custom_buttons(item.get_buttons(owner))
-        if parent_group_key:
-            back_nav_id = generate_key_id(
-                f"{module_name}__{parent_group_key}", page, "module_cfg"
-            )
-            grandparent_group_key = find_parent_group_key(module_name, parent_group_key)
-            cache_module_key_view(
-                back_nav_id,
-                module_name,
-                parent_group_key,
-                page,
-                grandparent_group_key,
-            )
-            back_data = f"module_cfg_view_{back_nav_id}".encode()
-        else:
-            back_nav_id = generate_key_id(module_name, page, "module_nav")
-            kernel.cache.set(
-                f"module_nav_{back_nav_id}", (module_name, page), ttl=86400
-            )
-            back_data = f"module_cfg_page_nav_{back_nav_id}".encode()
         buttons.append(
             [
                 Button.inline(
                     t("btn_back_simple"),
-                    data=back_data,
+                    data=_make_back_data(module_name, page, parent_group_key),
                 )
             ]
         )
@@ -1038,28 +1138,13 @@ def register(kernel):
         return text, [[Button.inline("❌ Close", data=b"cfg_close", style="danger")]]
 
     def create_module_back_buttons(module_name, page, parent_group_key=None):
-        if parent_group_key:
-            back_nav_id = generate_key_id(
-                f"{module_name}__{parent_group_key}", page, "module_cfg"
-            )
-            grandparent_group_key = find_parent_group_key(module_name, parent_group_key)
-            cache_module_key_view(
-                back_nav_id,
-                module_name,
-                parent_group_key,
-                page,
-                grandparent_group_key,
-            )
-            back_data = f"module_cfg_view_{back_nav_id}".encode()
-        else:
-            back_nav_id = generate_key_id(module_name, page, "module_nav")
-            kernel.cache.set(
-                f"module_nav_{back_nav_id}", (module_name, page), ttl=86400
-            )
-            back_data = f"module_cfg_page_nav_{back_nav_id}".encode()
-
         return [
-            [Button.inline(t("btn_back_simple"), data=back_data)],
+            [
+                Button.inline(
+                    t("btn_back_simple"),
+                    data=_make_back_data(module_name, page, parent_group_key),
+                )
+            ],
             [Button.inline("❌ Close", data=b"cfg_close", style="danger")],
         ]
 
@@ -1130,6 +1215,58 @@ def register(kernel):
         )
         return text, buttons
 
+    async def _dispatch_ui_item(
+        module_name, key, ui_item, page, parent_group_key, event
+    ):
+        """Dispatch a UI-only config item. Returns payload tuple, NO_EDIT, or None."""
+        if ui_item is None:
+            return None
+        owner = get_live_module_owner(module_name)
+        if is_config_divider_like(ui_item):
+            if event is not None:
+                await event.answer(ui_item.get_button_text(owner), alert=False)
+            return NO_EDIT
+        if is_config_url_like(ui_item):
+            if event is not None:
+                await event.answer("URL", alert=False)
+            return NO_EDIT
+        if is_config_callback_like(ui_item):
+            if event is not None:
+                await ui_item.trigger_on_click(owner, event)
+            return NO_EDIT
+        if is_config_status_like(ui_item):
+            return build_config_status_payload(
+                module_name, ui_item, page, parent_group_key
+            )
+        if is_config_notice_like(ui_item):
+            if event is not None:
+                await event.answer(ui_item.get_text(owner), alert=ui_item.alert)
+                return NO_EDIT
+            return build_config_notice_payload(module_name, ui_item)
+        if is_config_answer_like(ui_item):
+            answer_text = (
+                ui_item.get_text(owner)
+                if hasattr(ui_item, "get_text")
+                else ui_item.text
+            )
+            if event is not None:
+                await event.answer(answer_text, alert=ui_item.alert)
+                return NO_EDIT
+            return build_config_answer_payload(module_name, ui_item)
+        if is_config_group_like(ui_item):
+            return await build_config_group_payload(
+                module_name, key, ui_item, page, parent_group_key, event=event
+            )
+        if is_config_buttons_like(ui_item):
+            return await build_config_buttons_payload(
+                module_name,
+                ui_item,
+                page,
+                event=event,
+                parent_group_key=parent_group_key,
+            )
+        return None
+
     async def config_menu_handler(event):
         await ensure_config_initialized()
         query = event.text.strip()
@@ -1178,68 +1315,8 @@ def register(kernel):
                             ]
                         )
 
-                if value_type == "list":
-                    buttons.append(
-                        [
-                            Button.switch_inline(
-                                text=t("btn_list_add"),
-                                query=f"fcfg list add {key_id} ",
-                                same_peer=True,
-                                style="success",
-                            )
-                        ]
-                    )
-                    buttons.append(
-                        [
-                            Button.switch_inline(
-                                text=t("btn_list_del"),
-                                query=f"fcfg list del {key_id}",
-                                same_peer=True,
-                                style="danger",
-                            )
-                        ]
-                    )
-                    buttons.append(
-                        [
-                            Button.switch_inline(
-                                text=t("btn_list_set"),
-                                query=f"fcfg list set {key_id} ",
-                                same_peer=True,
-                                style="primary",
-                            )
-                        ]
-                    )
-                elif value_type == "dict":
-                    buttons.append(
-                        [
-                            Button.switch_inline(
-                                text=t("btn_dict_add"),
-                                query=f"fcfg dict add {key_id} ",
-                                same_peer=True,
-                                style="success",
-                            )
-                        ]
-                    )
-                    buttons.append(
-                        [
-                            Button.switch_inline(
-                                text=t("btn_dict_del"),
-                                query=f"fcfg dict del {key_id}",
-                                same_peer=True,
-                                style="danger",
-                            )
-                        ]
-                    )
-                    buttons.append(
-                        [
-                            Button.switch_inline(
-                                text=t("btn_dict_set"),
-                                query=f"fcfg dict set {key_id} ",
-                                same_peer=True,
-                                style="primary",
-                            )
-                        ]
-                    )
+                if value_type in ("list", "dict"):
+                    _append_kernel_list_dict_buttons(buttons, key_id, value_type)
 
                 if key not in SENSITIVE_KEYS:
                     buttons.append(
@@ -1251,7 +1328,6 @@ def register(kernel):
                             )
                         ]
                     )
-
                 if is_key_hidden(key) and key not in SENSITIVE_KEYS:
                     buttons.append(
                         [
@@ -1262,7 +1338,6 @@ def register(kernel):
                             )
                         ]
                     )
-
                 buttons.append(
                     [Button.inline("❌ Close", data=b"cfg_close", style="danger")]
                 )
@@ -1386,37 +1461,14 @@ def register(kernel):
         )
         await event.answer([builder])
 
-    async def config_kernel_handler(event):
-        await ensure_config_initialized()
-        query = event.text.strip()
+    def _build_kernel_page_payload(page: int):
+        """Build (text, buttons) for a kernel-config page."""
         visible_keys = get_visible_keys()
         total_keys = len(visible_keys)
-        page = 0
-
-        if query.startswith("config_kernel_"):
-            try:
-                parts = query.split("_")
-                if len(parts) >= 4:
-                    page_str = parts[3]
-                    page = int(page_str)
-            except Exception:
-                page = 0
-
-        total_pages = (
-            (total_keys + config_settings.items_per_page - 1)
-            // config_settings.items_per_page
-            if total_keys > 0
-            else 1
+        total_pages, page, start = _paginate(
+            total_keys, config_settings.items_per_page, page
         )
-        if page < 0:
-            page = 0
-        if page >= total_pages:
-            page = total_pages - 1
-
-        start_idx = page * config_settings.items_per_page
-        end_idx = start_idx + config_settings.items_per_page
-        page_keys = visible_keys[start_idx:end_idx]
-
+        page_keys = visible_keys[start : start + config_settings.items_per_page]
         text = t(
             "kernel_config_title",
             pencil=emoji_provider["✏️"],
@@ -1425,8 +1477,43 @@ def register(kernel):
             total_pages=total_pages,
             total_keys=total_keys,
         )
+        return text, create_kernel_buttons_grid(page_keys, page, total_pages), page
 
-        buttons = create_kernel_buttons_grid(page_keys, page, total_pages)
+    async def _build_modules_page_payload(page: int, filter_val: str):
+        """Build (text, buttons) for a modules-list page."""
+        all_modules = _get_filtered_modules(filter_val)
+        total = len(all_modules)
+        total_pages, page, start = _paginate(
+            total, config_settings.modules_per_page, page
+        )
+        text = t(
+            "modules_config_title",
+            puzzle=emoji_provider["🧩"],
+            page_emoji=emoji_provider["📰"],
+            page=page + 1,
+            total_pages=total_pages,
+            total_modules=total,
+        )
+        buttons = create_modules_buttons_grid(
+            all_modules[start : start + config_settings.modules_per_page],
+            page,
+            total_pages,
+            filter_val,
+        )
+        return text, buttons
+
+    async def config_kernel_handler(event):
+        await ensure_config_initialized()
+        query = event.text.strip()
+        page = 0
+        if query.startswith("config_kernel_"):
+            try:
+                parts = query.split("_")
+                if len(parts) >= 4:
+                    page = int(parts[3])
+            except Exception:
+                page = 0
+        text, buttons, page = _build_kernel_page_payload(page)
         builder = event.builder.article(
             title=f"Kernel Config - {page + 1}",
             text=text,
@@ -1436,33 +1523,7 @@ def register(kernel):
         await event.answer([builder])
 
     async def config_kernel_page(event, page):
-        visible_keys = get_visible_keys()
-        total_keys = len(visible_keys)
-        total_pages = (
-            (total_keys + config_settings.items_per_page - 1)
-            // config_settings.items_per_page
-            if total_keys > 0
-            else 1
-        )
-        if page < 0:
-            page = 0
-        if page >= total_pages:
-            page = total_pages - 1
-
-        start_idx = page * config_settings.items_per_page
-        end_idx = start_idx + config_settings.items_per_page
-        page_keys = visible_keys[start_idx:end_idx]
-
-        text = t(
-            "kernel_config_title",
-            pencil=emoji_provider["✏️"],
-            page_emoji=emoji_provider["📰"],
-            page=page + 1,
-            total_pages=total_pages,
-            total_keys=total_keys,
-        )
-
-        buttons = create_kernel_buttons_grid(page_keys, page, total_pages)
+        text, buttons, _page = _build_kernel_page_payload(page)
         try:
             await event.edit(text, buttons=buttons, parse_mode="html")
         except Exception:
@@ -1472,52 +1533,21 @@ def register(kernel):
         await ensure_config_initialized()
         query = event.text.strip()
 
-        # Read current filter from config
         cfg_config = await kernel.get_module_config("config", None)
         filter_val = "all"
         if isinstance(cfg_config, dict):
             filter_val = cfg_config.get("module_filter", "all")
-
-        all_modules = _get_filtered_modules(filter_val)
 
         page = 0
         if query.startswith("config_modules_"):
             try:
                 parts = query.split("_")
                 if len(parts) >= 4:
-                    page_str = parts[3]
-                    page = int(page_str)
+                    page = int(parts[3])
             except Exception:
                 page = 0
 
-        total_modules = len(all_modules)
-        total_pages = (
-            (total_modules + config_settings.modules_per_page - 1)
-            // config_settings.modules_per_page
-            if total_modules > 0
-            else 1
-        )
-        if page < 0:
-            page = 0
-        if page >= total_pages:
-            page = total_pages - 1
-
-        start_idx = page * config_settings.modules_per_page
-        end_idx = start_idx + config_settings.modules_per_page
-        page_modules = all_modules[start_idx:end_idx]
-
-        text = t(
-            "modules_config_title",
-            puzzle=emoji_provider["🧩"],
-            page_emoji=emoji_provider["📰"],
-            page=page + 1,
-            total_pages=total_pages,
-            total_modules=total_modules,
-        )
-
-        buttons = create_modules_buttons_grid(
-            page_modules, page, total_pages, filter_val
-        )
+        text, buttons = await _build_modules_page_payload(page, filter_val)
         thumb = InputWebDocument(
             url="https://kappa.lol/GaFZ9I",
             size=0,
@@ -1645,54 +1675,11 @@ def register(kernel):
         live_cfg = get_live_module_config(module_name)
         if is_module_config_like(live_cfg) and hasattr(live_cfg, "get_ui_item"):
             ui_item = live_cfg.get_ui_item(key)
-            if is_config_divider_like(ui_item):
-                if event is not None:
-                    owner = get_live_module_owner(module_name)
-                    await event.answer(ui_item.get_button_text(owner), alert=False)
-                return NO_EDIT
-            if is_config_url_like(ui_item):
-                if event is not None:
-                    await event.answer("URL", alert=False)
-                return NO_EDIT
-            if is_config_callback_like(ui_item):
-                if event is not None:
-                    await ui_item.trigger_on_click(
-                        get_live_module_owner(module_name), event
-                    )
-                return NO_EDIT
-            if is_config_status_like(ui_item):
-                return build_config_status_payload(
-                    module_name, ui_item, page, parent_group_key
-                )
-            if is_config_notice_like(ui_item):
-                owner = get_live_module_owner(module_name)
-                if event is not None:
-                    await event.answer(ui_item.get_text(owner), alert=ui_item.alert)
-                    return NO_EDIT
-                return build_config_notice_payload(module_name, ui_item)
-            if is_config_answer_like(ui_item):
-                if event is not None:
-                    owner = get_live_module_owner(module_name)
-                    answer_text = (
-                        ui_item.get_text(owner)
-                        if hasattr(ui_item, "get_text")
-                        else ui_item.text
-                    )
-                    await event.answer(answer_text, alert=ui_item.alert)
-                    return NO_EDIT
-                return build_config_answer_payload(module_name, ui_item)
-            if is_config_group_like(ui_item):
-                return await build_config_group_payload(
-                    module_name, key, ui_item, page, parent_group_key, event=event
-                )
-            if is_config_buttons_like(ui_item):
-                return await build_config_buttons_payload(
-                    module_name,
-                    ui_item,
-                    page,
-                    event=event,
-                    parent_group_key=parent_group_key,
-                )
+            result = await _dispatch_ui_item(
+                module_name, key, ui_item, page, parent_group_key, event
+            )
+            if result is not None:
+                return result
 
         module_config = await kernel.get_module_config(module_name, {})
         if (
@@ -1713,54 +1700,11 @@ def register(kernel):
                 if hasattr(module_config, "get_ui_item")
                 else None
             )
-            if is_config_divider_like(ui_item):
-                if event is not None:
-                    owner = get_live_module_owner(module_name)
-                    await event.answer(ui_item.get_button_text(owner), alert=False)
-                return NO_EDIT
-            if is_config_url_like(ui_item):
-                if event is not None:
-                    await event.answer("URL", alert=False)
-                return NO_EDIT
-            if is_config_callback_like(ui_item):
-                if event is not None:
-                    await ui_item.trigger_on_click(
-                        get_live_module_owner(module_name), event
-                    )
-                return NO_EDIT
-            if is_config_status_like(ui_item):
-                return build_config_status_payload(
-                    module_name, ui_item, page, parent_group_key
-                )
-            if is_config_notice_like(ui_item):
-                owner = get_live_module_owner(module_name)
-                if event is not None:
-                    await event.answer(ui_item.get_text(owner), alert=ui_item.alert)
-                    return NO_EDIT
-                return build_config_notice_payload(module_name, ui_item)
-            if is_config_answer_like(ui_item):
-                if event is not None:
-                    owner = get_live_module_owner(module_name)
-                    answer_text = (
-                        ui_item.get_text(owner)
-                        if hasattr(ui_item, "get_text")
-                        else ui_item.text
-                    )
-                    await event.answer(answer_text, alert=ui_item.alert)
-                    return NO_EDIT
-                return build_config_answer_payload(module_name, ui_item)
-            if is_config_group_like(ui_item):
-                return await build_config_group_payload(
-                    module_name, key, ui_item, page, parent_group_key, event=event
-                )
-            if is_config_buttons_like(ui_item):
-                return await build_config_buttons_payload(
-                    module_name,
-                    ui_item,
-                    page,
-                    event=event,
-                    parent_group_key=parent_group_key,
-                )
+            result = await _dispatch_ui_item(
+                module_name, key, ui_item, page, parent_group_key, event
+            )
+            if result is not None:
+                return result
 
             if key not in module_config.keys():
                 return None
@@ -1998,82 +1942,16 @@ def register(kernel):
 
         # List/Dict operation buttons
         if (
-            value_type == "list"
-            and not is_hidden
+            not is_hidden
             and not is_secret
             and not is_multi_choice
+            and value_type in ("list", "dict")
         ):
             key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
             cache_module_key_view(
                 key_id, module_name, key, page, parent_group_key, event=event
             )
-
-            buttons.append(
-                [
-                    Button.switch_inline(
-                        text=t("btn_list_add"),
-                        query=f"fcfg module {module_name} list add {key_id} ",
-                        same_peer=True,
-                        style="success",
-                    )
-                ]
-            )
-            buttons.append(
-                [
-                    Button.switch_inline(
-                        text=t("btn_list_del"),
-                        query=f"fcfg module {module_name} list del {key_id}",
-                        same_peer=True,
-                        style="danger",
-                    )
-                ]
-            )
-            buttons.append(
-                [
-                    Button.switch_inline(
-                        text=t("btn_list_set"),
-                        query=f"fcfg module {module_name} list set {key_id} ",
-                        same_peer=True,
-                        style="primary",
-                    )
-                ]
-            )
-        elif value_type == "dict" and not is_hidden and not is_secret:
-            key_id = generate_key_id(f"{module_name}__{key}", page, "module_cfg")
-            cache_module_key_view(
-                key_id, module_name, key, page, parent_group_key, event=event
-            )
-
-            buttons.append(
-                [
-                    Button.switch_inline(
-                        text=t("btn_dict_add"),
-                        query=f"fcfg module {module_name} dict add {key_id} ",
-                        same_peer=True,
-                        style="success",
-                    )
-                ]
-            )
-            buttons.append(
-                [
-                    Button.switch_inline(
-                        text=t("btn_dict_del"),
-                        query=f"fcfg module {module_name} dict del {key_id}",
-                        same_peer=True,
-                        style="danger",
-                    )
-                ]
-            )
-            buttons.append(
-                [
-                    Button.switch_inline(
-                        text=t("btn_dict_set"),
-                        query=f"fcfg module {module_name} dict set {key_id} ",
-                        same_peer=True,
-                        style="primary",
-                    )
-                ]
-            )
+            _append_module_list_dict_buttons(buttons, module_name, key_id, value_type)
 
         # Reveal button for hidden/secret values
         if is_hidden or is_secret:
@@ -2136,39 +2014,16 @@ def register(kernel):
                 )
 
         # Navigation buttons
-        if parent_group_key:
-            back_nav_id = generate_key_id(
-                f"{module_name}__{parent_group_key}", page, "module_cfg"
-            )
-            grandparent_group_key = find_parent_group_key(module_name, parent_group_key)
-            cache_module_key_view(
-                back_nav_id,
-                module_name,
-                parent_group_key,
-                page,
-                grandparent_group_key,
-            )
-            back_data = f"module_cfg_view_{back_nav_id}".encode()
-        else:
-            back_nav_id = generate_key_id(module_name, page, "module_nav")
-            kernel.cache.set(
-                f"module_nav_{back_nav_id}", (module_name, page), ttl=86400
-            )
-            back_data = f"module_cfg_page_nav_{back_nav_id}".encode()
-        nav_buttons = [
-            Button.inline(
-                t("btn_back_simple"),
-                data=back_data,
-            ),
-            Button.inline(
-                "🔄",
-                data=f"module_cfg_view_{key_id}".encode(),
-            ),
-        ]
-        buttons.append(nav_buttons)
-
+        buttons.append(
+            [
+                Button.inline(
+                    t("btn_back_simple"),
+                    data=_make_back_data(module_name, page, parent_group_key),
+                ),
+                Button.inline("🔄", data=f"module_cfg_view_{key_id}".encode()),
+            ]
+        )
         buttons.append([Button.inline("❌ Close", data=b"cfg_close", style="danger")])
-
         return text, buttons
 
     async def show_module_key_view(
@@ -3356,30 +3211,7 @@ def register(kernel):
                 if isinstance(cfg, dict):
                     cfg["module_filter"] = filter_val
                     await kernel.save_module_config("config", cfg)
-                page = 0
-                all_modules = _get_filtered_modules(filter_val)
-                total_modules = len(all_modules)
-                total_pages = (
-                    (total_modules + config_settings.modules_per_page - 1)
-                    // config_settings.modules_per_page
-                    if total_modules > 0
-                    else 1
-                )
-                start_idx = page * config_settings.modules_per_page
-                end_idx = start_idx + config_settings.modules_per_page
-                page_modules = all_modules[start_idx:end_idx]
-
-                text = t(
-                    "modules_config_title",
-                    puzzle=emoji_provider["🧩"],
-                    page_emoji=emoji_provider["📰"],
-                    page=page + 1,
-                    total_pages=total_pages,
-                    total_modules=total_modules,
-                )
-                buttons = create_modules_buttons_grid(
-                    page_modules, page, total_pages, filter_val
-                )
+                text, buttons = await _build_modules_page_payload(0, filter_val)
                 await cb_event.edit(text, buttons=buttons, parse_mode="html")
             except Exception as e:
                 await cb_event.answer(str(e)[:50], alert=True)
@@ -3387,40 +3219,11 @@ def register(kernel):
         elif data.startswith("config_modules_page_"):
             try:
                 page = int(data.split("_")[3])
-                # Read current filter from config
                 cfg = await kernel.get_module_config("config", None)
                 filter_val = "all"
                 if isinstance(cfg, dict):
                     filter_val = cfg.get("module_filter", "all")
-                all_modules = _get_filtered_modules(filter_val)
-
-                total_modules = len(all_modules)
-                total_pages = (
-                    (total_modules + config_settings.modules_per_page - 1)
-                    // config_settings.modules_per_page
-                    if total_modules > 0
-                    else 1
-                )
-                if page < 0:
-                    page = 0
-                if page >= total_pages:
-                    page = total_pages - 1
-
-                start_idx = page * config_settings.modules_per_page
-                end_idx = start_idx + config_settings.modules_per_page
-                page_modules = all_modules[start_idx:end_idx]
-
-                text = t(
-                    "modules_config_title",
-                    puzzle=emoji_provider["🧩"],
-                    page_emoji=emoji_provider["📰"],
-                    page=page + 1,
-                    total_pages=total_pages,
-                    total_modules=total_modules,
-                )
-                buttons = create_modules_buttons_grid(
-                    page_modules, page, total_pages, filter_val
-                )
+                text, buttons = await _build_modules_page_payload(page, filter_val)
                 await cb_event.edit(text, buttons=buttons, parse_mode="html")
             except Exception as e:
                 await cb_event.answer(str(e)[:50], alert=True)
@@ -3601,102 +3404,36 @@ def register(kernel):
 
                 msg_manager.save_event(key_id, cb_event)
 
-                buttons = []
-
                 value = kernel.config.get(key)
                 value_type = type(value).__name__ if value is not None else "NoneType"
+                buttons = []
 
                 if value_type == "bool":
-                    toggle_text = t("toggle_false") if value else t("toggle_true")
-                    toggle_style = "danger" if value else "success"
                     toggle_style = "danger" if value else "success"
                     buttons.append(
                         [
                             Button.inline(
-                                toggle_text,
+                                t("toggle_false") if value else t("toggle_true"),
                                 data=f"cfg_bool_toggle_{key_id}".encode(),
                                 style=toggle_style,
                             )
                         ]
                     )
-                else:
-                    if value_type != "dict" and (
-                        not is_key_hidden(key) or key not in SENSITIVE_KEYS
-                    ):
-                        buttons.append(
-                            [
-                                Button.switch_inline(
-                                    text=t("btn_edit"),
-                                    query=f"fcfg set {key_id} ",
-                                    same_peer=True,
-                                    style="primary",
-                                )
-                            ]
-                        )
-
-                if value_type == "list":
+                elif value_type != "dict" and (
+                    not is_key_hidden(key) or key not in SENSITIVE_KEYS
+                ):
                     buttons.append(
                         [
                             Button.switch_inline(
-                                text=t("btn_list_add"),
-                                query=f"fcfg list add {key_id} ",
-                                same_peer=True,
-                                style="success",
-                            )
-                        ]
-                    )
-                    buttons.append(
-                        [
-                            Button.switch_inline(
-                                text=t("btn_list_del"),
-                                query=f"fcfg list del {key_id}",
-                                same_peer=True,
-                                style="danger",
-                            )
-                        ]
-                    )
-                    buttons.append(
-                        [
-                            Button.switch_inline(
-                                text=t("btn_list_set"),
-                                query=f"fcfg list set {key_id} ",
+                                text=t("btn_edit"),
+                                query=f"fcfg set {key_id} ",
                                 same_peer=True,
                                 style="primary",
                             )
                         ]
                     )
 
-                elif value_type == "dict":
-                    buttons.append(
-                        [
-                            Button.switch_inline(
-                                text=t("btn_dict_add"),
-                                query=f"fcfg dict add {key_id} ",
-                                same_peer=True,
-                                style="success",
-                            )
-                        ]
-                    )
-                    buttons.append(
-                        [
-                            Button.switch_inline(
-                                text=t("btn_dict_del"),
-                                query=f"fcfg dict del {key_id}",
-                                same_peer=True,
-                                style="danger",
-                            )
-                        ]
-                    )
-                    buttons.append(
-                        [
-                            Button.switch_inline(
-                                text=t("btn_dict_set"),
-                                query=f"fcfg dict set {key_id} ",
-                                same_peer=True,
-                                style="primary",
-                            )
-                        ]
-                    )
+                _append_kernel_list_dict_buttons(buttons, key_id, value_type)
 
                 if key not in SENSITIVE_KEYS:
                     buttons.append(
@@ -3708,7 +3445,6 @@ def register(kernel):
                             )
                         ]
                     )
-
                 if is_key_hidden(key) and key not in SENSITIVE_KEYS:
                     buttons.append(
                         [
@@ -3720,14 +3456,15 @@ def register(kernel):
                         ]
                     )
 
-                nav_buttons = [
-                    Button.inline(
-                        t("btn_back_simple"), data=f"config_kernel_page_{page}".encode()
-                    ),
-                    Button.inline("🔄", data=f"cfg_view_{key_id}".encode()),
-                ]
-                buttons.append(nav_buttons)
-
+                buttons.append(
+                    [
+                        Button.inline(
+                            t("btn_back_simple"),
+                            data=f"config_kernel_page_{page}".encode(),
+                        ),
+                        Button.inline("🔄", data=f"cfg_view_{key_id}".encode()),
+                    ]
+                )
                 buttons.append(
                     [Button.inline("❌ Close", data=b"cfg_close", style="danger")]
                 )
@@ -4055,104 +3792,23 @@ def register(kernel):
                     )
 
                 # List/Dict operation buttons
-                if value_type == "list":
-                    buttons.append(
-                        [
-                            Button.switch_inline(
-                                text=t("btn_list_add"),
-                                query=f"fcfg module {module_name} list add {key_id} ",
-                                same_peer=True,
-                                style="success",
-                            )
-                        ]
-                    )
-                    buttons.append(
-                        [
-                            Button.switch_inline(
-                                text=t("btn_list_del"),
-                                query=f"fcfg module {module_name} list del {key_id}",
-                                same_peer=True,
-                                style="danger",
-                            )
-                        ]
-                    )
-                    buttons.append(
-                        [
-                            Button.switch_inline(
-                                text=t("btn_list_set"),
-                                query=f"fcfg module {module_name} list set {key_id} ",
-                                same_peer=True,
-                                style="primary",
-                            )
-                        ]
-                    )
-                elif value_type == "dict":
-                    buttons.append(
-                        [
-                            Button.switch_inline(
-                                text=t("btn_dict_add"),
-                                query=f"fcfg module {module_name} dict add {key_id} ",
-                                same_peer=True,
-                                style="success",
-                            )
-                        ]
-                    )
-                    buttons.append(
-                        [
-                            Button.switch_inline(
-                                text=t("btn_dict_del"),
-                                query=f"fcfg module {module_name} dict del {key_id}",
-                                same_peer=True,
-                                style="danger",
-                            )
-                        ]
-                    )
-                    buttons.append(
-                        [
-                            Button.switch_inline(
-                                text=t("btn_dict_set"),
-                                query=f"fcfg module {module_name} dict set {key_id} ",
-                                same_peer=True,
-                                style="primary",
-                            )
-                        ]
+                if value_type in ("list", "dict"):
+                    _append_module_list_dict_buttons(
+                        buttons, module_name, key_id, value_type
                     )
 
                 # Navigation buttons
-                if parent_group_key:
-                    back_nav_id = generate_key_id(
-                        f"{module_name}__{parent_group_key}", page, "module_cfg"
-                    )
-                    grandparent_group_key = find_parent_group_key(
-                        module_name, parent_group_key
-                    )
-                    cache_module_key_view(
-                        back_nav_id,
-                        module_name,
-                        parent_group_key,
-                        page,
-                        grandparent_group_key,
-                    )
-                    back_data = f"module_cfg_view_{back_nav_id}".encode()
-                else:
-                    back_nav_id = generate_key_id(module_name, page, "module_nav")
-                    kernel.cache.set(
-                        f"module_nav_{back_nav_id}", (module_name, page), ttl=86400
-                    )
-                    back_data = f"module_cfg_page_nav_{back_nav_id}".encode()
-
-                nav_buttons = [
-                    Button.inline(
-                        t("btn_back_simple"),
-                        data=back_data,
-                    ),
-                    Button.inline(
-                        "🔄",
-                        data=f"cfg_module_reveal_{key_id}".encode(),
-                    ),
-                ]
-                buttons.append(nav_buttons)
-
+                buttons.append(
+                    [
+                        Button.inline(
+                            t("btn_back_simple"),
+                            data=_make_back_data(module_name, page, parent_group_key),
+                        ),
+                        Button.inline(
+                            "🔄", data=f"cfg_module_reveal_{key_id}".encode()
+                        ),
+                    ]
+                )
                 buttons.append(
                     [Button.inline("❌ Close", data=b"cfg_close", style="danger")]
                 )

@@ -23,6 +23,7 @@ from .fake_package import (
     _detect_module_type,
     _ensure_fake_package,
     _inject_module_alias,
+    _install_import_alias_hook,
     is_hikka_module,
     load_hikka_module,
     unload_hikka_module,
@@ -82,6 +83,8 @@ from .types import (
 )
 from .validators import validators
 
+_install_import_alias_hook()
+
 __all__ = [
     "VALID_BUTTON_STYLES",
     "BotInlineCall",
@@ -127,6 +130,7 @@ __all__ = [
     "_detect_module_type",
     "_ensure_fake_package",
     "_inject_module_alias",
+    "_install_import_alias_hook",
     "callback_handler",
     "command",
     "debug_method",

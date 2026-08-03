@@ -126,6 +126,21 @@ _MODULE_ALIASES: dict[str, str] = {
     "tgcalls": "telethon",
 }
 
+_FAKE_PACKAGE_ALIASES = {_FAKE_PKG_NAME, "hikka"}
+_TELETHON_IMPORT_ALIASES = frozenset(
+    alias for alias in _MODULE_ALIASES if alias not in _FAKE_PACKAGE_ALIASES
+)
+
+
+def _alias_top(name: str | None) -> str:
+    if not name:
+        return ""
+    return name.split(".", 1)[0]
+
+
+def _is_telethon_import_alias(name: str | None) -> bool:
+    return _alias_top(name) in _TELETHON_IMPORT_ALIASES
+
 
 def _detect_module_type(source_code: str) -> str:
     try:
@@ -326,6 +341,43 @@ _SUBMODULE_EXTRA_ATTRS: dict[str, dict] = {
 }
 
 
+def _install_alias_getattr(
+    alias_pkg: types.ModuleType,
+    alias_top: str,
+    real_top: str,
+    real_mod: types.ModuleType,
+) -> None:
+    if getattr(alias_pkg, "__alias_patched__", False):
+        return
+
+    def _alias_getattr(
+        attr: str,
+        _real=real_mod,
+        _alias_top=alias_top,
+        _real_top=real_top,
+    ):
+        try:
+            return getattr(_real, attr)
+        except AttributeError:
+            pass
+        full_real = f"{_real_top}.{attr}"
+        try:
+            sub = importlib.import_module(full_real)
+            sys.modules[f"{_alias_top}.{attr}"] = sub
+            _patch_aliased_submodule(f"{_alias_top}.{attr}")
+            return sub
+        except ImportError:
+            fake_sub = types.ModuleType(f"{_alias_top}.{attr}")
+            sys.modules[f"{_alias_top}.{attr}"] = fake_sub
+            return fake_sub
+
+    try:
+        alias_pkg.__getattr__ = _alias_getattr
+        alias_pkg.__alias_patched__ = True
+    except (AttributeError, TypeError):
+        pass
+
+
 def _patch_aliased_submodule(alias_full: str) -> None:
     extras = _SUBMODULE_EXTRA_ATTRS.get(alias_full)
     if not extras:
@@ -366,30 +418,8 @@ def _inject_module_alias(missing_top: str, missing_full: str) -> bool:
             _patch_aliased_submodule(alias_sub)
 
     alias_pkg = sys.modules[missing_top]
-    if not getattr(alias_pkg, "__alias_patched__", False):
-
-        def _alias_getattr(
-            attr: str, _real=real_mod, _alias_top=missing_top, _real_top=real_top
-        ):
-            try:
-                return getattr(_real, attr)
-            except AttributeError:
-                pass
-            full_real = f"{_real_top}.{attr}"
-            try:
-                sub = importlib.import_module(full_real)
-                sys.modules[f"{_alias_top}.{attr}"] = sub
-                return sub
-            except ImportError:
-                fake_sub = types.ModuleType(f"{_alias_top}.{attr}")
-                sys.modules[f"{_alias_top}.{attr}"] = fake_sub
-                return fake_sub
-
-        try:
-            alias_pkg.__getattr__ = _alias_getattr
-            alias_pkg.__alias_patched__ = True
-        except (AttributeError, TypeError):
-            pass
+    if alias_pkg is not real_mod:
+        _install_alias_getattr(alias_pkg, missing_top, real_top, real_mod)
 
     if missing_full and missing_full != missing_top and missing_full not in sys.modules:
         real_full = real_top + missing_full[len(missing_top) :]
@@ -415,6 +445,18 @@ def _inject_module_alias(missing_top: str, missing_full: str) -> bool:
     return True
 
 
+def _ensure_import_alias(alias_top: str, fullname: str | None = None) -> bool:
+    """Make an alternate Telethon package name importable."""
+
+    if alias_top not in _TELETHON_IMPORT_ALIASES:
+        return False
+
+    missing_full = fullname or alias_top
+    if alias_top == "herokutl":
+        _ensure_herokutl_stub()
+    return _inject_module_alias(alias_top, missing_full)
+
+
 class _HikkaCompatLoader:
     def __init__(self, mod: types.ModuleType) -> None:
         self._mod = mod
@@ -427,22 +469,37 @@ class _HikkaCompatLoader:
 
 
 class _HikkaCompatFinder:
+    @staticmethod
+    def _spec_for(fullname: str, mod: types.ModuleType):
+        spec = importlib.util.spec_from_loader(
+            fullname,
+            loader=_HikkaCompatLoader(mod),
+            origin="<hikka_compat>",
+        )
+        if hasattr(mod, "__path__"):
+            spec.submodule_search_locations = []
+        return spec
+
     @classmethod
     def find_spec(cls, fullname: str, path, target=None):
+        top = _alias_top(fullname)
+        if top in _TELETHON_IMPORT_ALIASES:
+            if not _ensure_import_alias(top, fullname):
+                return None
+            mod = sys.modules.get(fullname)
+            if mod is None and fullname == top:
+                mod = sys.modules.get(top)
+            if mod is None:
+                return None
+            return cls._spec_for(fullname, mod)
+
         if fullname != _FAKE_PKG_NAME and not fullname.startswith(_FAKE_PKG_NAME + "."):
             return None
 
         mod = sys.modules.get(fullname)
         if mod is None:
             return None
-
-        spec = importlib.util.spec_from_loader(
-            fullname,
-            loader=_HikkaCompatLoader(mod),
-            origin="<hikka_compat>",
-        )
-        spec.submodule_search_locations = []
-        return spec
+        return cls._spec_for(fullname, mod)
 
 
 async def _maybe_await(value):
@@ -716,7 +773,7 @@ def _ensure_herokutl_stub() -> None:
 
     errors_rpc_mod = types.ModuleType("herokutl.errors.rpcerrorlist")
     try:
-        import herokutl.errors.rpcerrorlist as _real_rpc
+        import telethon.errors.rpcerrorlist as _real_rpc
 
         _copy_module_attrs(_real_rpc, errors_rpc_mod)
     except ImportError:
@@ -766,6 +823,12 @@ def _ensure_herokutl_stub() -> None:
     hints_mod.EntityLike = Any
 
     types_mod = types.ModuleType("herokutl.types")
+    try:
+        import telethon.tl.types as _real_top_types
+
+        _copy_module_attrs(_real_top_types, types_mod)
+    except ImportError:
+        pass
 
     class InputMediaWebPage:
         def __init__(self, url: str | None = None, **kwargs):
@@ -958,6 +1021,46 @@ def _ensure_herokutl_stub() -> None:
     sys.modules["herokutl.custom"] = custom_mod
 
 
+def _install_import_alias_hook() -> None:
+    """Install process-wide import aliases for Telethon fork package names."""
+
+    if not any(isinstance(finder, _HikkaCompatFinder) for finder in sys.meta_path):
+        sys.meta_path.insert(0, _HikkaCompatFinder())
+
+    current_import = builtins.__import__
+    if getattr(current_import, "__hikka_compat_alias_hook__", False):
+        return
+
+    original_import = getattr(
+        current_import,
+        "__hikka_compat_original_import__",
+        current_import,
+    )
+
+    def _compat_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if level == 0 and _is_telethon_import_alias(name):
+            _ensure_import_alias(_alias_top(name), name)
+        try:
+            return original_import(name, globals, locals, fromlist, level)
+        except ModuleNotFoundError as exc:
+            if level != 0:
+                raise
+            missing_name = exc.name or name
+            missing_top = _alias_top(missing_name)
+            requested_top = _alias_top(name)
+            if (
+                missing_top in _TELETHON_IMPORT_ALIASES
+                and missing_top == requested_top
+                and _ensure_import_alias(missing_top, missing_name)
+            ):
+                return original_import(name, globals, locals, fromlist, level)
+            raise
+
+    _compat_import.__hikka_compat_alias_hook__ = True
+    _compat_import.__hikka_compat_original_import__ = original_import
+    builtins.__import__ = _compat_import
+
+
 def _create_compat_stub(
     parent_pkg_name: str,
 ) -> tuple[types.ModuleType, types.ModuleType]:
@@ -1033,8 +1136,7 @@ def _install_extended_submodules(
 
 def _ensure_fake_package() -> str:
     _ensure_herokutl_stub()
-    if not any(isinstance(f, _HikkaCompatFinder) for f in sys.meta_path):
-        sys.meta_path.insert(0, _HikkaCompatFinder())
+    _install_import_alias_hook()
 
     if _FAKE_PKG_NAME in sys.modules:
         parent_mod = sys.modules[_FAKE_PKG_NAME]
@@ -1875,7 +1977,11 @@ async def load_hikka_module(
     mod_obj = types.ModuleType(child_pkg)
     mod_obj.__file__ = file_path
     mod_obj.__package__ = child_pkg
-    mod_obj.__spec__ = importlib.util.spec_from_loader(child_pkg, loader=None)
+    mod_obj.__spec__ = importlib.util.spec_from_loader(
+        child_pkg,
+        loader=None,
+        is_package=True,
+    )
     mod_obj.__path__ = []
 
     sys.modules[child_pkg] = mod_obj
@@ -1911,14 +2017,22 @@ async def load_hikka_module(
 
     _real_import = builtins.__import__
 
-    def _hikka_import(name, *args, **kwargs):
-        if name in _DANGEROUS_MODULES or any(
-            name.startswith(m + ".") for m in _DANGEROUS_MODULES
-        ):
+    def _is_dangerous_import_name(import_name: str) -> bool:
+        top = _alias_top(import_name)
+        if top in _TELETHON_IMPORT_ALIASES:
+            import_name = _MODULE_ALIASES[top] + import_name[len(top) :]
+        return import_name in _DANGEROUS_MODULES or any(
+            import_name.startswith(m + ".") for m in _DANGEROUS_MODULES
+        )
+
+    def _hikka_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if _is_dangerous_import_name(name):
             raise ImportError(f"Import '{name}' is blocked for module security")
+        if level == 0 and _is_telethon_import_alias(name):
+            _ensure_import_alias(_alias_top(name), name)
         # Also block accessing parent that leads to dangerous children
         if name == "telethon":
-            mod = _real_import(name, *args, **kwargs)
+            mod = _real_import(name, globals, locals, fromlist, level)
             for _dn in _DANGEROUS_MODULES:
                 _parts = _dn.split(".")
                 _target = mod
@@ -1930,7 +2044,21 @@ async def load_hikka_module(
                     _last = _parts[-1]
                     object.__setattr__(_target, _last, _BLOCKED_STUB)
             return mod
-        return _real_import(name, *args, **kwargs)
+        try:
+            return _real_import(name, globals, locals, fromlist, level)
+        except ModuleNotFoundError as exc:
+            if level != 0:
+                raise
+            missing_name = exc.name or name
+            missing_top = _alias_top(missing_name)
+            requested_top = _alias_top(name)
+            if (
+                missing_top in _TELETHON_IMPORT_ALIASES
+                and missing_top == requested_top
+                and _ensure_import_alias(missing_top, missing_name)
+            ):
+                return _real_import(name, globals, locals, fromlist, level)
+            raise
 
     ns = mod_obj.__dict__
     ns["__builtins__"] = {**builtins.__dict__, "__import__": _hikka_import}

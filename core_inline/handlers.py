@@ -200,13 +200,14 @@ def _aiogram_inline_markup(buttons: Any) -> Any | None:
 class _TelethonInlineQueryAdapter:
     """Thin Telethon-compatible wrapper around aiogram InlineQuery."""
 
-    __slots__ = ("_api_bot", "_q", "sender_id", "text")
+    __slots__ = ("_api_bot", "_q", "chat_type", "sender_id", "text")
 
     def __init__(self, q: Any, api_bot: Any | None) -> None:
         self._q = q
         self._api_bot = api_bot
         self.text: str = getattr(q, "query", "") or ""
         self.sender_id: int = getattr(getattr(q, "from_user", None), "id", 0) or 0
+        self.chat_type: str | None = getattr(q, "chat_type", None)
 
     @property
     def query(self) -> Any:
@@ -1640,7 +1641,7 @@ class InlineHandlers:
         try:
             user_id = int(event.sender_id)
             if getattr(self, "_inline_manager", False):
-                result = await self._inline_manager.is_allowed(user_id)
+                result = await self._inline_manager.is_allowed(user_id, context=event)
             else:
                 result = False
 
@@ -2296,7 +2297,11 @@ class InlineHandlers:
             self.kernel.logger.debug("[InlineHandlers] cmd not in inline_handlers")
             return False
 
-        if not await self._inline_manager.is_allowed(event.sender_id, command=cmd):
+        if not await self._inline_manager.is_allowed(
+            event.sender_id,
+            command=cmd,
+            context=event,
+        ):
             no_access_text = (
                 f"{self.EMOJI_BLOCK} <b>{self.lang['no_access']}</b>\n"
                 f"<blockquote>{self.EMOJI_SHIELD} "

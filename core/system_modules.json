@@ -60,7 +60,7 @@
     },
     "trusted": {
       "path": "modules/trusted.py",
-      "sha256": "7a7510366e11059c11257af7a9be9e6ecf8cbf6761ab80d99bfd22fbecee28da"
+      "sha256": "915bac56f7bd0525626ab094388041dbe7de85dfd5babff56cd8ba7c39371d87"
     },
     "updates": {
       "path": "modules/updates.py",

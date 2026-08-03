@@ -109,6 +109,7 @@ ACCESS_CATEGORIES = {
             "trustlist",
             "trustcmd",
             "inlinesec",
+            "inlineforall",
             "sgroup",
             "watcher",
             "timedtrusted",
@@ -1093,7 +1094,7 @@ def register(kernel: Kernel_type) -> None:
             kernel, user_id, access, None, group_access, input_chat=event.input_chat
         )
 
-        await kernel.inline_form(
+        await kernel.inline.form(
             event.chat_id,
             text,
             buttons=buttons,
@@ -1354,7 +1355,7 @@ def register(kernel: Kernel_type) -> None:
                 ),
             ],
         ]
-        await kernel.inline_form(
+        await kernel.inline.form(
             event.chat_id,
             text,
             buttons=rows,
@@ -1622,6 +1623,112 @@ def register(kernel: Kernel_type) -> None:
             )
 
     @kernel.register.command(
+        "inlineforall",
+        alias=["inlineall", "allinline"],
+        doc_en="<on/off/status> - allow or deny inline bot mode for everyone",
+        doc_uk="<on/off/status> - дозволити або заборонити inline-режим бота всім",
+        doc_ru="<on/off/status> - paзpeшить или зaпpeтить inline-peжим бoтa вceм",
+    )
+    async def inlineforall_handler(event):
+        """Toggle global inline bot access for all users."""
+        if event.sender_id != kernel.ADMIN_ID:
+            await event.edit(s["not_owner"], parse_mode="html")
+            return
+
+        TTL = 600
+        labels = {
+            "groups": "👥 Тoлькo в гpyппax",
+            "pm": "💬 Тoлькo в ЛC",
+            "all": "🌐 Вeздe",
+        }
+
+        async def render_form():
+            mode = await inline_manager.get_everyone_mode()
+            if mode:
+                status = f"✅ <code>{labels.get(mode, mode)}</code>"
+                hint = "Ecли включeнo — нижe ecть кнoпкa зaпpeтить."
+            else:
+                status = "🚫 <code>Зaпpeщeнo</code>"
+                hint = "Выбepи, гдe paзpeшить inline-peжим бoтa для вcex."
+
+            text = "🌐 <b>Inline для вcex пoльзoвaтeлeй</b>\n"
+
+            rows = [
+                [
+                    make_cb_button(
+                        kernel,
+                        ("✅ " if mode == "groups" else "") + labels["groups"],
+                        on_set_mode,
+                        args=["groups"],
+                        ttl=TTL,
+                        style="primary",
+                    )
+                ],
+                [
+                    make_cb_button(
+                        kernel,
+                        ("✅ " if mode == "pm" else "") + labels["pm"],
+                        on_set_mode,
+                        args=["pm"],
+                        ttl=TTL,
+                        style="primary",
+                    )
+                ],
+                [
+                    make_cb_button(
+                        kernel,
+                        ("✅ " if mode == "all" else "") + labels["all"],
+                        on_set_mode,
+                        args=["all"],
+                        ttl=TTL,
+                        style="success",
+                    )
+                ],
+            ]
+            if mode:
+                rows.append(
+                    [
+                        make_cb_button(
+                            kernel,
+                            "🚫 Зaпpeтить",
+                            on_disable,
+                            args=[],
+                            ttl=TTL,
+                            style="danger",
+                        )
+                    ]
+                )
+            return text, rows
+
+        async def update_form(cb_event):
+            text, rows = await render_form()
+            await cb_event.edit(text, buttons=rows, parse_mode="html")
+
+        async def on_set_mode(cb_event, mode):
+            if cb_event.sender_id != kernel.ADMIN_ID:
+                await cb_event.answer()
+                return
+            await inline_manager.allow_everyone(mode)
+            await update_form(cb_event)
+
+        async def on_disable(cb_event):
+            if cb_event.sender_id != kernel.ADMIN_ID:
+                await cb_event.answer()
+                return
+            await inline_manager.deny_everyone()
+            await update_form(cb_event)
+
+        text, rows = await render_form()
+        await kernel.inline.form(
+            event.chat_id,
+            text,
+            buttons=rows,
+            ttl=TTL,
+            reply_to=getattr(event.message, "reply_to", None),
+        )
+        await event.delete()
+
+    @kernel.register.command(
         "nonickuser",
         doc_en="toggle NoNick mode for trusted user",
         doc_uk="увімкнути/вимкнути режим NoNick для довіреного",
@@ -1840,7 +1947,7 @@ def register(kernel: Kernel_type) -> None:
         if getattr(msg, "out", False):
             return
 
-        text = getattr(msg, "text", "") or ""
+        text = getattr(msg, "raw_text", "") or ""
         sender_id = getattr(event, "sender_id", None)
         incoming_prefix = kernel.get_prefix_for_sender(sender_id)
         owner_prefix = kernel.get_prefix_for_sender(getattr(kernel, "ADMIN_ID", None))
@@ -1953,7 +2060,7 @@ def register(kernel: Kernel_type) -> None:
             await cmd.edit(_strings["error"]("full_error", error=e, full_error=raw_tb))
 
     @kernel.register.loop(interval=30, autostart=True)
-    async def update_callback_permissions(_kernel):
+    async def update_callback_permissions(_kernel: Kernel_type):
         trusted = await get_trusted_list()
         for uid in trusted:
             access = await get_access(uid)
@@ -1963,7 +2070,7 @@ def register(kernel: Kernel_type) -> None:
                 _kernel.callback_permissions.prohibit(uid)
 
     @kernel.register.loop(interval=60, autostart=True)
-    async def check_expired_trusted(_kernel):
+    async def check_expired_trusted(_kernel: Kernel_type):
         """Remove expired temporary trusted users"""
         import time
 
@@ -1999,7 +2106,7 @@ def register(kernel: Kernel_type) -> None:
                     name = str(uid)
 
                 await _kernel.client.send_message(
-                    _kernel.ADMIN_ID,
+                    getattr(_kernel, "log_chat_id", _kernel.ADMIN_ID),
                     s["trust_expired"].format(user=name),
                     parse_mode="html",
                 )
@@ -2268,7 +2375,7 @@ def register(kernel: Kernel_type) -> None:
                 ]
             )
 
-            await kernel.inline_form(
+            await kernel.inline.form(
                 event.chat_id,
                 text,
                 buttons=rows,

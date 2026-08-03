@@ -7,6 +7,7 @@ Tests for module loader
 
 import inspect
 import os
+import sys
 import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -971,6 +972,48 @@ class TestHikkaModuleConfigSchema:
 
         assert functions is tl_functions
         assert functions.account.UpdateNotifySettingsRequest is not None
+
+    def test_herokutl_imports_work_without_manual_fake_package_init(self):
+        """Test herokutl aliases are available after importing hikka_compat."""
+        for mod_name in list(sys.modules):
+            if mod_name == "herokutl" or mod_name.startswith("herokutl."):
+                sys.modules.pop(mod_name, None)
+
+        from core.lib.loader import hikka_compat  # noqa: F401
+        from herokutl import TelegramClient, events, functions
+        from herokutl.tl.functions import account
+        from telethon import TelegramClient as TelethonClient
+        from telethon import events as telethon_events
+
+        assert TelegramClient is TelethonClient
+        assert events is telethon_events
+        assert functions.account is account
+        assert account.UpdateNotifySettingsRequest is not None
+
+    def test_hikkatl_importlib_aliases_to_telethon(self):
+        """Test importlib imports of Telethon fork aliases work globally."""
+        import importlib
+
+        for mod_name in list(sys.modules):
+            if mod_name == "hikkatl" or mod_name.startswith("hikkatl."):
+                sys.modules.pop(mod_name, None)
+
+        from core.lib.loader import hikka_compat  # noqa: F401
+
+        hikkatl_types = importlib.import_module("hikkatl.tl.types")
+        telethon_types = importlib.import_module("telethon.tl.types")
+
+        assert hikkatl_types is telethon_types
+
+    def test_herokutl_top_level_types_star_import_exposes_user(self):
+        """Test legacy from herokutl.types import * exposes TL types."""
+        from core.lib.loader import hikka_compat  # noqa: F401
+        from telethon.tl.types import User as TelethonUser
+
+        namespace = {}
+        exec("from herokutl.types import *\nresult = User", namespace)
+
+        assert namespace["result"] is TelethonUser
 
     @pytest.mark.asyncio
     async def test_hikka_module_config_stores_schema(self):

@@ -161,6 +161,34 @@ class TestConfigModule:
         assert "uuid.uuid4().hex[:12]" in source
         assert "hashlib.md5" not in source
 
+    def test_cfg_uses_callback_form_and_module_mode_by_default(self):
+        """cfg opens cached module/key callbacks through a self-clicked form."""
+        import inspect
+        import modules.config as config_module
+
+        source = inspect.getsource(config_module)
+
+        assert '"💤"' in source
+        assert 'Button.inline(" ", data=callback_data)' in source
+        assert "await message.click()" in source
+        assert "except DataInvalidError:" in source
+        assert 'event.chat_id,\n                    "cfg",' in source
+        assert 'command_args[0] in {"-k", "--kernel"}' in source
+        assert 'f"module_cfg_view_{key_id}".encode()' in source
+        assert 'f"cfg_view_{key_id}".encode()' in source
+
+    def test_fcfg_defaults_to_module_set_and_has_kernel_mode(self):
+        """fcfg accepts concise module and explicit kernel assignments."""
+        import inspect
+        import modules.config as config_module
+
+        source = inspect.getsource(config_module)
+
+        assert 'raw_args[0] in {"-k", "--kernel"}' in source
+        assert 'module_name, key, value = concise' in source
+        assert 'args = ["fcfg", "set", key, value]' in source
+        assert 'module_flag = parsed_args.get_kwarg("m")' not in source
+
     def test_config_multichoice_toggles_list_values(self):
         """MultiChoice UI must toggle list members, not save a scalar choice."""
         import inspect

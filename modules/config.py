@@ -16,12 +16,11 @@ import traceback
 import uuid
 
 from telethon import Button, events, types
-from telethon.errors.rpcerrorlist import MessageNotModifiedError
+from telethon.errors.rpcerrorlist import DataInvalidError, MessageNotModifiedError
 from telethon.tl.types import DocumentAttributeImageSize, InputWebDocument
 
 import utils
 from core.lib.loader.module_config import ModuleConfig, ValidationError
-from utils.arg_parser import parse_arguments
 from utils.strings import Strings
 
 
@@ -3832,105 +3831,101 @@ def register(kernel):
             except Exception:
                 pass
 
+    async def _open_config_callback(event, callback_data: bytes) -> bool:
+        """Open a tiny form and let the user account press its callback."""
+        success, message = await kernel.inline.form(
+            event.chat_id,
+            "💤",
+            buttons=[[Button.inline(" ", data=callback_data)]],
+            ttl=60,
+            reply_to=getattr(event.message, "reply_to", None),
+        )
+        if not success or message is None:
+            return False
+
+        try:
+            await message.click()
+        except DataInvalidError:
+            pass
+        await event.delete()
+        return True
+
+    async def _open_module_config(event, module_name: str, key: str = "") -> bool:
+        live_config = get_live_module_config(module_name)
+        stored_config = await kernel.get_module_config(module_name, None)
+        if live_config is None and not stored_config:
+            await event.edit(t("no_config"), parse_mode="html")
+            return False
+
+        module_config = (
+            await get_writable_module_config(module_name, key or None)
+            if key
+            else live_config or stored_config
+        )
+
+        if key:
+            keys = module_config.keys() if hasattr(module_config, "keys") else ()
+            if key not in keys:
+                await event.edit(
+                    t("not_found_in_module", cross=emoji_provider["❌"]),
+                    parse_mode="html",
+                )
+                return False
+            key_id = generate_key_id(f"{module_name}__{key}", 0, "module_cfg")
+            cache_module_key_view(key_id, module_name, key, 0)
+            callback_data = f"module_cfg_view_{key_id}".encode()
+        else:
+            key_id = generate_key_id(module_name, 0, "module")
+            kernel.cache.set(f"module_select_{key_id}", (module_name, 0), ttl=86400)
+            callback_data = f"module_select_{key_id}".encode()
+
+        return await _open_config_callback(event, callback_data)
+
     @kernel.register.command(
         "cfg",
-        doc_en="<subcommand> <key> - manage module configs",
-        doc_uk="<підкоманда> <ключ> - керування конфігами модулів",
-        doc_ru="<пoдкoмaндa> <ключ> - yпpaвлeниe кoнфигaми мoдyлeй",
+        doc_en="[module] [key] | -k/--kernel [key] - open config menu",
+        doc_uk="[модуль] [ключ] | -k/--kernel [ключ] - меню конфігурації",
+        doc_ru="[мoдyль] [ключ] | -k/--kernel [ключ] - мeню кoнфигypaции",
     )
     async def cfg_handler(event):
         await ensure_config_initialized()
         try:
             args = event.raw_text.split()
-            if len(args) == 1:
-                if hasattr(kernel, "bot_client"):
-                    try:
-                        success, _msg = await kernel.inline_query_and_click(
-                            event.chat_id,
-                            "cfg",
-                            reply_to=getattr(event.message, "reply_to", None),
-                        )
+            command_args = args[1:]
 
-                        if success:
-                            await event.delete()
-                    except Exception:
-                        await event.edit(
-                            t("cfg_usage", gear=emoji_provider["⚙️"]),
-                            parse_mode="html",
-                        )
-
-            else:
-                if args[1] == "module":
-                    if len(args) < 3:
-                        await event.edit(
-                            t("cfg_usage", gear=emoji_provider["⚙️"]),
-                            parse_mode="html",
-                        )
-                        return
-                    module_name = args[2].strip()
-                    module_key = args[3].strip() if len(args) > 3 else ""
-                    query = f"cfg module {module_name}" + (
-                        f" {module_key}" if module_key else ""
-                    )
-                    success, _msg = await kernel.inline_query_and_click(
-                        event.chat_id,
-                        query,
-                        reply_to=getattr(event.message, "reply_to", None),
-                    )
-                    if success:
-                        await event.delete()
-                    return
-
-                if args[1] == "key":
-                    if len(args) < 3:
-                        await event.edit(
-                            t("cfg_usage", gear=emoji_provider["⚙️"]),
-                            parse_mode="html",
-                        )
-                        return
-                    key = args[2].strip()
-                    success, _msg = await kernel.inline_query_and_click(
-                        event.chat_id,
-                        f"cfg key {key}",
-                        reply_to=getattr(event.message, "reply_to", None),
-                    )
-                    if success:
-                        await event.delete()
-                    return
-
-                if args[1] == "-m":
-                    if len(args) < 3:
-                        await event.edit(
-                            t("cfg_usage", gear=emoji_provider["⚙️"]),
-                            parse_mode="html",
-                        )
-                        return
-                    module_name = args[2].strip()
-                    module_key = args[3].strip() if len(args) > 3 else ""
-                    query = f"cfg module {module_name}" + (
-                        f" {module_key}" if module_key else ""
-                    )
-                    success, _msg = await kernel.inline_query_and_click(
-                        event.chat_id,
-                        query,
-                        reply_to=getattr(event.message, "reply_to", None),
-                    )
-                    if success:
-                        await event.delete()
-                    return
-
-                key = args[1].strip()
-                if key == "key" and len(args) > 2:
-                    key = args[2].strip()
-                query = f"cfg key {key}"
-                success, _msg = await kernel.inline_query_and_click(
+            if not command_args:
+                success, _message = await kernel.inline_query_and_click(
                     event.chat_id,
-                    query,
+                    "cfg",
                     reply_to=getattr(event.message, "reply_to", None),
                 )
                 if success:
                     await event.delete()
                 return
+
+            if command_args[0] in {"-k", "--kernel"}:
+                if len(command_args) == 1:
+                    await _open_config_callback(event, b"config_kernel_page_0")
+                    return
+
+                key = command_args[1].strip()
+                if key not in kernel.config:
+                    await event.edit(
+                        t("key_not_found", ballot=emoji_provider["🗳"], key=key),
+                        parse_mode="html",
+                    )
+                    return
+
+                key_id = generate_key_id(key, 0, "kernel")
+                kernel.cache.set(
+                    f"cfg_view_{key_id}", (key, 0, "kernel"), ttl=86400
+                )
+                await _open_config_callback(event, f"cfg_view_{key_id}".encode())
+                return
+
+            module_name = command_args[0].strip()
+            module_key = command_args[1].strip() if len(command_args) > 1 else ""
+            await _open_module_config(event, module_name, module_key)
         except Exception as e:
             await kernel.handle_error(e, message="Config command error", event=event)
 
@@ -3943,86 +3938,71 @@ def register(kernel):
     async def config_handler(event):
         parts = event.raw_text.split(maxsplit=1)
         rest = parts[1].strip() if len(parts) > 1 else ""
-        if not rest:
-            _set_event_command_text(event, "cfg")
-        else:
-            args = rest.split()
-            head = args[0].lower() if args else ""
-            if head in {"module", "key", "-m"}:
-                _set_event_command_text(event, "cfg", rest)
-            else:
-                _set_event_command_text(event, "cfg", f"module {rest}")
+        _set_event_command_text(event, "cfg", rest)
         await cfg_handler(event)
 
     @kernel.register.command(
         "fcfg",
-        doc_en="<list/dict/set/add> <key> - manage flat config",
-        doc_uk="<list/dict/set/add> <ключ> - керування плоскою конфігурацією",
-        doc_ru="<list/dict/set/add> <ключ> - yпpaвлeниe плocкoй кoнфигypaциeй",
+        doc_en="<module> <key> <value> | -k/--kernel <key> <value>",
+        doc_uk="<модуль> <ключ> <значення> | -k/--kernel <ключ> <значення>",
+        doc_ru="<мoдyль> <ключ> <знaчeниe> | -k/--kernel <ключ> <знaчeниe>",
     )
     async def fcfg_handler(event):
         await ensure_config_initialized()
         try:
-            parsed_args = None
-            try:
-                parsed_args = parse_arguments(
-                    event.raw_text, getattr(kernel, "custom_prefix", ".")
-                )
-                args = [parsed_args.command, *map(str, parsed_args.args)]
-            except Exception:
-                args = event.text.split()
-
-            if len(args) < 2:
+            command_parts = event.raw_text.split(maxsplit=1)
+            rest = command_parts[1].strip() if len(command_parts) > 1 else ""
+            if not rest:
                 await event.edit(
                     t("fcfg_usage", gear=emoji_provider["⚙️"]),
                     parse_mode="html",
                 )
                 return
 
-            action = args[1].lower()
-
             module_mode = False
             module_name = None
+            legacy_actions = {"set", "delete", "del", "add", "list", "dict"}
+            raw_args = rest.split()
 
-            module_flag = None
-            if parsed_args is not None:
-                module_flag = parsed_args.get_kwarg("m") or parsed_args.get_kwarg(
-                    "module"
-                )
-
-            # Support for "fcfg module <module_name> <action>" format
-            if action == "module":
-                if len(args) < 4:
+            if raw_args[0] in {"-k", "--kernel"}:
+                concise = rest.split(None, 1)
+                kernel_args = concise[1].strip() if len(concise) > 1 else ""
+                key_value = kernel_args.split(None, 1)
+                if len(key_value) < 2:
+                    await event.edit(
+                        t("not_enough_args", cross=emoji_provider["❌"]),
+                        parse_mode="html",
+                    )
+                    return
+                key, value = key_value
+                args = ["fcfg", "set", key, value]
+                _set_event_command_text(event, "fcfg", f"set {key} {value}")
+            elif raw_args[0] == "module":
+                if len(raw_args) < 4:
                     await event.edit(
                         t("fcfg_module_usage", cross=emoji_provider["❌"]),
                         parse_mode="html",
                     )
                     return
                 module_mode = True
-                module_name = args[2]
-                # Shift args: module <module_name> set key val -> set key val
-                args = [args[0], *args[3:]]
-                action = args[1].lower() if len(args) > 1 else ""
-
-            # Support for "-m module_name" parsed by utils.arg_parser.
-            # The parser removes the flag from positional args, so this must
-            # happen before the legacy token-removal fallback below.
-            if module_flag is not None and not module_mode:
-                module_mode = True
-                module_name = str(module_flag)
-
-            # Support for "-m module_name" flag (old format)
-            if "-m" in args:
-                module_mode = True
-                m_index = args.index("-m")
-                if len(args) <= m_index + 1:
+                module_name = raw_args[1]
+                args = ["fcfg", *raw_args[2:]]
+            elif raw_args[0].lower() in legacy_actions:
+                args = ["fcfg", *raw_args]
+            else:
+                concise = rest.split(None, 2)
+                if len(concise) < 3:
                     await event.edit(
-                        t("specify_module", cross=emoji_provider["❌"]),
+                        t("not_enough_args", cross=emoji_provider["❌"]),
                         parse_mode="html",
                     )
                     return
-                module_name = args[m_index + 1]
-                args = args[:m_index] + args[m_index + 2 :]
+                module_mode = True
+                module_name, key, value = concise
+                args = ["fcfg", "set", key, value]
+                _set_event_command_text(event, "fcfg", f"set {key} {value}")
+
+            action = args[1].lower()
 
             def get_value_str_from_raw(key, n_prefix_args):
                 """Пoлyчить value_str из иcxoднoгo тeкcтa cooбщeния coxpaняя пepeнocы cтpoк"""
@@ -4494,22 +4474,7 @@ def register(kernel):
     async def fconfig_handler(event):
         parts = event.raw_text.split(maxsplit=1)
         rest = parts[1].strip() if len(parts) > 1 else ""
-        if not rest:
-            _set_event_command_text(event, "fcfg")
-        else:
-            args = rest.split(maxsplit=3)
-            head = args[0].lower() if args else ""
-            if head in {"module", "set", "add", "del", "dict", "list", "-m"}:
-                _set_event_command_text(event, "fcfg", rest)
-            elif len(args) >= 3:
-                module_name, key, value = args[0], args[1], args[2]
-                _set_event_command_text(
-                    event,
-                    "fcfg",
-                    f"module {module_name} set {key} {value}",
-                )
-            else:
-                _set_event_command_text(event, "fcfg", rest)
+        _set_event_command_text(event, "fcfg", rest)
         await fcfg_handler(event)
 
     kernel.register_inline_handler("cfg", config_menu_handler)

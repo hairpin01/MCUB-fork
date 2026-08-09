@@ -3894,7 +3894,7 @@ def register(kernel):
             command_args = args[1:]
 
             if not command_args:
-                success, _message = await kernel.inline_query_and_click(
+                success, _message = await kernel.inline.query(
                     event.chat_id,
                     "cfg",
                     reply_to=getattr(event.message, "reply_to", None),
@@ -3917,9 +3917,7 @@ def register(kernel):
                     return
 
                 key_id = generate_key_id(key, 0, "kernel")
-                kernel.cache.set(
-                    f"cfg_view_{key_id}", (key, 0, "kernel"), ttl=86400
-                )
+                kernel.cache.set(f"cfg_view_{key_id}", (key, 0, "kernel"), ttl=86400)
                 await _open_config_callback(event, f"cfg_view_{key_id}".encode())
                 return
 

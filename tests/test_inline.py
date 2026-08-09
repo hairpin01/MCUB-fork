@@ -286,6 +286,74 @@ class TestInlineManagerEdgeCases:
         assert result_global is False
 
     @pytest.mark.asyncio
+    async def test_allow_everyone_allows_unknown_user_everywhere(
+        self, inline_manager, mock_kernel
+    ):
+        """Test global everyone mode allows any non-admin user."""
+        storage = {"global": []}
+
+        async def db_get(_module, _key):
+            return json.dumps(storage)
+
+        async def db_set(_module, _key, value):
+            storage.clear()
+            storage.update(json.loads(value))
+            return True
+
+        mock_kernel.db_get = AsyncMock(side_effect=db_get)
+        mock_kernel.db_set = AsyncMock(side_effect=db_set)
+
+        assert await inline_manager.allow_everyone("all") is True
+        assert await inline_manager.get_everyone_mode() == "all"
+        assert await inline_manager.is_allowed(999, context="private") is True
+        assert await inline_manager.is_allowed(999, context="groups") is True
+
+    @pytest.mark.asyncio
+    async def test_allow_everyone_groups_respects_context(
+        self, inline_manager, mock_kernel
+    ):
+        """Test groups-only everyone mode does not allow private inline queries."""
+        mock_kernel.db_get = AsyncMock(
+            return_value=json.dumps({"global": [], "everyone": "groups"})
+        )
+
+        assert await inline_manager.is_allowed(999, context="groups") is True
+        assert await inline_manager.is_allowed(999, context="private") is False
+        assert await inline_manager.is_allowed(999) is False
+
+    @pytest.mark.asyncio
+    async def test_allow_everyone_pm_respects_context(
+        self, inline_manager, mock_kernel
+    ):
+        """Test PM-only everyone mode does not allow group inline queries."""
+        mock_kernel.db_get = AsyncMock(
+            return_value=json.dumps({"global": [], "everyone": "pm"})
+        )
+
+        assert await inline_manager.is_allowed(999, context="private") is True
+        assert await inline_manager.is_allowed(999, context="groups") is False
+
+    @pytest.mark.asyncio
+    async def test_deny_everyone_removes_global_flag(self, inline_manager, mock_kernel):
+        """Test disabling everyone mode preserves regular user lists."""
+        storage = {"global": [123], "everyone": "all"}
+
+        async def db_get(_module, _key):
+            return json.dumps(storage)
+
+        async def db_set(_module, _key, value):
+            storage.clear()
+            storage.update(json.loads(value))
+            return True
+
+        mock_kernel.db_get = AsyncMock(side_effect=db_get)
+        mock_kernel.db_set = AsyncMock(side_effect=db_set)
+
+        assert await inline_manager.deny_everyone() is True
+        assert "everyone" not in storage
+        assert storage["global"] == [123]
+
+    @pytest.mark.asyncio
     async def test_corrupted_json_handled(self, inline_manager, mock_kernel):
         """Test corrupted JSON data is handled gracefully"""
         mock_kernel.db_get = AsyncMock(return_value="not valid json {{{")

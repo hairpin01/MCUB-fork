@@ -4,14 +4,6 @@
 
 Telethon-MCUB extends `telethon.extensions.html` for received rich messages.
 
-## Convert a message to HTML
-
-```python
-from telethon.extensions import html
-
-html_text = html.message_to_html(message)
-```
-
 `message_to_html(...)` prefers `message.rich_message` when it contains blocks.
 If there is no rich message, it falls back to normal:
 

@@ -4,7 +4,7 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from core.lib.loader.security_chats import SecurityChats
+from core.lib.loader.security import SecurityChats
 
 
 def _event(chat_id=100, sender_id=42, text="hello", message_id=7):
@@ -32,7 +32,7 @@ def test_blacklisted_user_blocks_and_logs_warning():
         action="watcher",
     )
     logger.warning.assert_called_once_with(
-        "[security_chats] blocked blacklisted user user_id=%s chat_id=%s text=%r",
+        "[security] blocked blacklisted user user_id=%s chat_id=%s text=%r",
         42,
         100,
         ".ping",

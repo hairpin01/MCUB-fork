@@ -432,6 +432,9 @@ class ModuleBase(ABC):
             success, raw = result
             from core.lib.types import InlineMessage
 
+            if isinstance(raw, InlineMessage):
+                return (success, raw)
+
             ws_form_id = getattr(raw, "form_id", None)
             if ws_form_id:
                 from core_inline.handlers import InlineHandlers

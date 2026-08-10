@@ -802,7 +802,7 @@ class InlineManager:
             reply_to: Reply-to message ID.
 
         Returns:
-            (success: bool, message | None)
+            (success: bool, InlineMessage | None)
         """
         k = self.k
         chat_id, _target_event = self._resolve_target_chat(chat_id)
@@ -917,7 +917,9 @@ class InlineManager:
                 reply_to,
             )
             message.form_id = query
-            return True, message
+            from core.lib.types import InlineMessage as NativeInlineMessage
+
+            return True, NativeInlineMessage(message, unit_id=query, kernel=k)
 
         except ChatSendInlineForbiddenError:
             if form_sms:
@@ -1027,7 +1029,7 @@ class InlineManager:
             rich_files: Optional InputRichFile references used by rich_text.
 
         Returns:
-            (success, message) when auto_send=True, else form_id str.
+            (success, InlineMessage) when auto_send=True, else form_id str.
         """
         chat_id, target_event = self._resolve_target_chat(chat_id)
         # Normalize reply_to: event.message.reply_to in newer Telegram API

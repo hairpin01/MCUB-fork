@@ -1,16 +1,23 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлькa | @hairpin01
+# author: @Hairpin00
+# version: 1.4.0
+# description: bootloader
 from __future__ import annotations
 
 import os
-
-# author: @Hairpin00
-# version: 1.4.0
-# description: Entry point
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+
+def _log(message, boot=False, flush=False):
+    if boot:
+        print(f" [booting]: {message}", flush=flush)
+        return None
+    print(f" [root]: {message}", flush=flush)
+
 
 try:
     from core.lib.utils.colors import Colors as _C
@@ -52,22 +59,20 @@ def _get_default_core() -> str | None:
 def _set_default_core(core: str) -> None:
     """Persist *core* as the default for future launches."""
     _DEFAULT_CORE_FILE.write_text(core)
-    print(
+    _log(
         f"{_C.BRIGHT_GREEN}{_C.BOLD}✓  Default core set to:{_C.RESET} {_C.BRIGHT_WHITE}{core!r}{_C.RESET}",
         flush=True,
     )
-    print(f"{_C.MUTED}   (saved to -> {_DEFAULT_CORE_FILE}){_C.RESET}", flush=True)
+    _log(f"{_C.MUTED}   (saved to -> {_DEFAULT_CORE_FILE}){_C.RESET}", flush=True)
 
 
 def _clear_default_core() -> None:
     """Remove the saved default core."""
     if _DEFAULT_CORE_FILE.exists():
         _DEFAULT_CORE_FILE.unlink()
-        print(
-            f"{_C.BRIGHT_GREEN}{_C.BOLD}✓  Default core cleared{_C.RESET}", flush=True
-        )
+        _log(f"{_C.BRIGHT_GREEN}{_C.BOLD}✓  Default core cleared{_C.RESET}", flush=True)
     else:
-        print(f"{_C.MUTED}  No default core was set{_C.RESET}", flush=True)
+        _log(f"{_C.MUTED}  No default core was set{_C.RESET}", flush=True)
 
 
 def _parse_args():
@@ -134,27 +139,30 @@ async def _main() -> None:
     if args.set_default_core:
         core = args.set_default_core
         if not available_cores:
-            print(
+            _log(
                 f"{_C.BRIGHT_RED}{_C.BOLD}Error:{_C.RESET}{_C.BRIGHT_RED} No kernel cores found!{_C.RESET}",
                 flush=True,
+                boot=True,
             )
             sys.exit(1)
         if core not in available_cores:
-            print(
+            _log(
                 f"{_C.BRIGHT_RED}{_C.BOLD}Error:{_C.RESET}{_C.BRIGHT_RED} Core '{core}' not found.{_C.RESET}",
                 flush=True,
+                boot=True,
             )
-            print(
+            _log(
                 f"{_C.MUTED}Available: {_C.RESET}"
                 + _C.paint(", ".join(available_cores), _C.CYAN),
                 flush=True,
+                boot=True,
             )
             sys.exit(1)
         _set_default_core(core)
         sys.exit(0)
 
     if not available_cores:
-        print("Error: No kernel cores found!", flush=True)
+        _log("Error: No kernel cores found!", flush=True, boot=True)
         sys.exit(1)
 
     # priority: --core flag  >  saved default  >  standard  >  single core
@@ -166,13 +174,16 @@ async def _main() -> None:
         elif len(available_cores) == 1:
             selected_core = available_cores[0]
         else:
-            print(
+            _log(
                 f"{_C.MUTED}Available cores: {_C.RESET}"
                 + _C.paint(", ".join(available_cores), _C.CYAN),
                 flush=True,
+                boot=True,
             )
-            print(
-                "Tip: --set-default-core <n> to skip this prompt next time", flush=True
+            _log(
+                "Tip: --set-default-core <n> to skip this prompt next time",
+                flush=True,
+                boot=True,
             )
             saved = _get_default_core()
             hint = f" [{saved}]" if saved else f" [{available_cores[0]}]"
@@ -180,20 +191,23 @@ async def _main() -> None:
             selected_core = answer or saved or available_cores[0]
 
     if selected_core not in available_cores:
-        print(
+        _log(
             f"{_C.BRIGHT_RED}{_C.BOLD}Error:{_C.RESET}{_C.BRIGHT_RED} Kernel: '{selected_core}' not found!{_C.RESET}",
             flush=True,
+            boot=True,
         )
-        print(
+        _log(
             f"{_C.MUTED}Available: {_C.RESET}"
             + _C.paint(", ".join(available_cores), _C.CYAN),
             flush=True,
+            boot=True,
         )
         sys.exit(1)
 
-    print(
-        f"\n{_C.MUTED}=>{_C.RESET} Kernel Load: {_C.BRIGHT_WHITE}{_C.BOLD}kernel.{selected_core}(){_C.RESET}\n",
+    _log(
+        f"{_C.MUTED}=>{_C.RESET} Kernel Load: {_C.BRIGHT_WHITE}{_C.BOLD}kernel.{selected_core}(){_C.RESET}\n",
         flush=True,
+        boot=True,
     )
 
     from importlib import import_module
@@ -201,11 +215,13 @@ async def _main() -> None:
     Kernel = import_module(f"core.kernel.{selected_core}").Kernel
 
     kernel = Kernel()
+    _log(f"Kernel: {kernel}", boot=True)
     kernel.CORE_NAME = selected_core
     kernel.web_enabled = web_enabled
     kernel.web_host = args.host
     kernel.web_port = args.port
     kernel.proxy_web = args.proxy_web
+    _log(f"Booting with args: {args}", boot=True)
     try:
         await kernel.run()
     except (KeyboardInterrupt, asyncio.CancelledError):
@@ -218,7 +234,9 @@ if __name__ == "__main__":
     try:
         asyncio.run(_main())
     except KeyboardInterrupt:
-        print(f"\n{_C.MUTED}-> exit kernel…{_C.RESET}", flush=True)
+        pass
+
+    _log("Bye!")
 
 
 def main() -> None:
@@ -228,4 +246,6 @@ def main() -> None:
     try:
         asyncio.run(_main())
     except KeyboardInterrupt:
-        print(f"\n{_C.MUTED}-> exit kernel…{_C.RESET}", flush=True)
+        pass
+
+    _log("Bye!")

@@ -7,6 +7,7 @@ Tests for real modules in the modules/ directory
 
 import os
 import sys
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
@@ -71,6 +72,31 @@ class TestLoaderModule:
         assert hasattr(loader_module, "ModuleConfig")
         assert hasattr(loader_module, "ConfigValue")
         assert hasattr(loader_module, "Boolean")
+
+    def test_loader_moves_uploaded_alias_to_canonical_path(self, tmp_path):
+        """An uploaded alias remains loadable when updating a named module."""
+        import modules.loader as loader_module
+
+        uploaded_path = tmp_path / "test-custom-cfg.py"
+        canonical_path = tmp_path / "test-custom-config.py"
+        uploaded_path.write_text("module code", encoding="utf-8")
+
+        loader = object.__new__(loader_module.Loader)
+        loader.kernel = SimpleNamespace(
+            _loader=SimpleNamespace(
+                get_user_module_install_path=lambda _name: str(canonical_path)
+            )
+        )
+        install_log = []
+
+        result = loader._move_module_to_install_path(
+            str(uploaded_path), "test-custom-config", install_log.append
+        )
+
+        assert result == str(canonical_path)
+        assert not uploaded_path.exists()
+        assert canonical_path.read_text(encoding="utf-8") == "module code"
+        assert "'test-custom-cfg.py' → 'test-custom-config.py'" in install_log[0]
 
 
 class TestCommandModule:
@@ -185,7 +211,7 @@ class TestConfigModule:
         source = inspect.getsource(config_module)
 
         assert 'raw_args[0] in {"-k", "--kernel"}' in source
-        assert 'module_name, key, value = concise' in source
+        assert "module_name, key, value = concise" in source
         assert 'args = ["fcfg", "set", key, value]' in source
         assert 'module_flag = parsed_args.get_kwarg("m")' not in source
 

@@ -28,7 +28,7 @@
     },
     "loader": {
       "path": "modules/loader.py",
-      "sha256": "c6da0cebcb3f74a9ebee5c72d02470790cc12be9da6a9450b41102f847f2927e"
+      "sha256": "6177d4a65f3b72bb3857c89c7b8e2eb0154dd5e381feb7dc7519c98139ce97e0"
     },
     "log_bot": {
       "path": "modules/log_bot.py",

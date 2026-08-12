@@ -280,6 +280,22 @@ class Loader(ModuleBase):
                 logger.error(f"[loader] Failed to restore backup: {e}")
                 add_log_fn(f"=X Failed to restore backup: {e}")
 
+    def _move_module_to_install_path(
+        self,
+        file_path: str,
+        module_name: str,
+        add_log_fn: Callable | None = None,
+    ) -> str:
+        target_path = self.kernel._loader.get_user_module_install_path(module_name)
+        if file_path != target_path and os.path.exists(file_path):
+            os.replace(file_path, target_path)
+            if add_log_fn is not None:
+                add_log_fn(
+                    f"[iload] moved file: {os.path.basename(file_path)!r}"
+                    f" → {os.path.basename(target_path)!r}"
+                )
+        return target_path
+
     async def _restore_module_after_failed_update(
         self,
         module_name: str,
@@ -2302,8 +2318,8 @@ class Loader(ModuleBase):
                         target_name = (
                             new_class_name or class_display_name or module_name
                         )
-                        file_path = self.kernel._loader.get_user_module_install_path(
-                            target_name
+                        file_path = self._move_module_to_install_path(
+                            file_path, target_name, add_log
                         )
                         self.kernel.logger.info(
                             f"[loader] Using path {file_path} for class module {target_name}"
@@ -2388,17 +2404,9 @@ class Loader(ModuleBase):
 
                 old_downloaded_path = file_path
                 module_name = canonical
-                file_path = self.kernel._loader.get_user_module_install_path(
-                    module_name
+                file_path = self._move_module_to_install_path(
+                    old_downloaded_path, module_name, add_log
                 )
-                if old_downloaded_path != file_path and os.path.exists(
-                    old_downloaded_path
-                ):
-                    os.replace(old_downloaded_path, file_path)
-                    add_log(
-                        f"[iload] moved file: {os.path.basename(old_downloaded_path)!r}"
-                        f" → {os.path.basename(file_path)!r}"
-                    )
 
             # Function-style modules: cross-check the ``# name:`` header.
             # The uploaded filename may differ from the module's real name.
@@ -2427,16 +2435,9 @@ class Loader(ModuleBase):
                     # move it to the canonical destination before load.
                     old_downloaded_path = file_path
                     module_name = canonical
-                    file_path = self.kernel._loader.get_user_module_install_path(
-                        module_name
+                    file_path = self._move_module_to_install_path(
+                        old_downloaded_path, module_name, add_log
                     )
-                    if old_downloaded_path != file_path:
-                        if os.path.exists(old_downloaded_path):
-                            os.replace(old_downloaded_path, file_path)
-                            add_log(
-                                f"[iload] moved file: {os.path.basename(old_downloaded_path)!r}"
-                                f" → {os.path.basename(file_path)!r}"
-                            )
 
             if is_update:
                 new_version = metadata["version"]

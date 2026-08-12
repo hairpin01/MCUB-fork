@@ -4,7 +4,7 @@
 # author: @Hairpin00
 # description: kernel core - main Kernel class
 # --- meta data end ---------------------------------
-# 🌐 fork MCUBFB: https://github.com/Mitrichdfklwhcluio/MCUBFB
+# 🌐 MCUBFB: https://github.com/Mitrichdfklwhcluio/MCUBFB
 # 🌐 github MCUB-fork: https://github.com/hairpin01/MCUB-fork
 # [🌐 https://github.com/hairpin01, 🌐 https://github.com/Mitrichdfklwhcluio, 🌐 https://t.me/HenerTLG]
 # ----------------------- end -----------------------

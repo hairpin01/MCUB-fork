@@ -1209,6 +1209,7 @@ class TestInlineRichForm:
     @pytest.mark.asyncio
     async def test_inline_form_accepts_event_and_edits_status_message(self):
         from core.lib.loader.inline import InlineManager
+        from core.lib.types import InlineMessage
 
         class Cache:
             def __init__(self):
@@ -1259,15 +1260,43 @@ class TestInlineRichForm:
         )
 
         assert success is True
+        assert isinstance(message, InlineMessage)
         assert message.inline_message_id == "inline-id"
+        assert manager.k.cache.get(message.unit_id) is not None
         event.edit.assert_awaited_once()
         manager.k.client.send_message.assert_not_called()
         assert result.chat_id == 456
         status_message.delete.assert_awaited_once()
 
     @pytest.mark.asyncio
+    async def test_module_base_inline_does_not_wrap_inline_message_twice(self):
+        from core.lib.loader.base import ModuleBase
+        from core.lib.types import InlineMessage
+
+        kernel = SimpleNamespace()
+        raw_message = SimpleNamespace(
+            inline_message_id="inline-id",
+            chat_id=123,
+            id=1,
+        )
+        inline_message = InlineMessage(
+            raw_message,
+            unit_id="form-id",
+            kernel=kernel,
+        )
+        kernel.inline_form = AsyncMock(return_value=(True, inline_message))
+        module = ModuleBase.__new__(ModuleBase)
+        module.kernel = kernel
+
+        success, result = await ModuleBase.inline(module, 123, "Form")
+
+        assert success is True
+        assert result is inline_message
+
+    @pytest.mark.asyncio
     async def test_inline_query_and_click_strips_form_only_media_kwargs(self):
         from core.lib.loader.inline import InlineManager
+        from core.lib.types import InlineMessage
 
         class Result:
             def __init__(self):
@@ -1300,6 +1329,8 @@ class TestInlineRichForm:
         )
 
         assert success is True
+        assert isinstance(message, InlineMessage)
+        assert message.unit_id == "form_1"
         assert message.inline_message_id == "inline-id"
         assert result.kwargs == {"silent": True}
 

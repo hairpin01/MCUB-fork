@@ -7,7 +7,7 @@ from __future__ import annotations
 # author: @Hairpin00
 # description: bot kernel
 # --- meta data end ---------------------------------
-# 🌐 fork MCUBFB: https://github.com/Mitrichdfklwhcluio/MCUBFB
+# 🌐 MCUBFB: https://github.com/Mitrichdfklwhcluio/MCUBFB
 # 🌐 github MCUB-fork: https://github.com/hairpin01/MCUB-fork
 import asyncio
 import hashlib

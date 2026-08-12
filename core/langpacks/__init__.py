@@ -5,6 +5,9 @@
 
 from __future__ import annotations
 
+import html
+import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -19,11 +22,18 @@ __all__ = [
 ]
 
 _LANGPACKS_DIR = Path(__file__).parent
+_ICONS_DIR = _LANGPACKS_DIR / "icons"
 
 LANGPACKS: dict[str, dict[str, Any]] = {}
 _GLOBAL_MODULE = "__global__"
 _GLOBAL_MARKER = "__global__"
+_PREMIUM_EMOJI_MARKER = "__premium_emoji__"
 _GROUP_VALUE = "__value__"
+_PREMIUM_EMOJI_RE = re.compile(r"\[(\d+)\]\(([^()]*)\)")
+_UNQUOTED_PREMIUM_EMOJI_RE = re.compile(
+    r"^(?P<prefix>\s*(?:[\w.-]+|'[^']+'|\"[^\"]+\")\s*:\s*)"
+    r"(?P<value>(?:\[\d+\]\([^()\r\n]*\))+)(?P<suffix>\s*(?:#.*)?)$"
+)
 
 
 def clear_langpacks_cache() -> None:
@@ -48,14 +58,87 @@ def get_available_locales() -> list[str]:
     )
 
 
-def _load_yaml(file_path: Path) -> dict[str, Any]:
+def _quote_unquoted_premium_emoji(text: str) -> str:
+    """Make the compact ``[id](alt)`` notation valid YAML when unquoted."""
+    lines = []
+    for line in text.splitlines(keepends=True):
+        newline = "\n" if line.endswith("\n") else ""
+        content = line[:-1] if newline else line
+        match = _UNQUOTED_PREMIUM_EMOJI_RE.fullmatch(content)
+        if match:
+            content = (
+                f"{match['prefix']}{json.dumps(match['value'], ensure_ascii=False)}"
+                f"{match['suffix']}"
+            )
+        lines.append(content + newline)
+    return "".join(lines)
+
+
+def _load_yaml(file_path: Path, *, icon_syntax: bool = False) -> dict[str, Any]:
     try:
         import yaml
 
-        with open(file_path, encoding="utf-8") as f:
-            return yaml.safe_load(f) or {}
+        text = file_path.read_text(encoding="utf-8")
+        if icon_syntax:
+            text = _quote_unquoted_premium_emoji(text)
+        data = yaml.safe_load(text) or {}
+        return data if isinstance(data, dict) else {}
     except ImportError:
         return {}
+
+
+def _render_premium_emoji(value: Any) -> Any:
+    if isinstance(value, str):
+        return _PREMIUM_EMOJI_RE.sub(
+            lambda match: (
+                f'<tg-emoji emoji-id="{match.group(1)}">'
+                f"{html.escape(match.group(2))}</tg-emoji>"
+            ),
+            value,
+        )
+    if isinstance(value, dict):
+        return {key: _render_premium_emoji(item) for key, item in value.items()}
+    return value
+
+
+def _merge_pack_data(locale_data: dict[str, Any], data: dict[str, Any]) -> None:
+    """Merge one locale or icon-pack mapping into normalized locale data."""
+    for module_name, strings in data.items():
+        if isinstance(strings, dict):
+            premium_emoji = _is_global_marker(strings.get(_PREMIUM_EMOJI_MARKER))
+            normalized = {
+                key: _render_premium_emoji(value) if premium_emoji else value
+                for key, value in strings.items()
+                if key != _PREMIUM_EMOJI_MARKER
+            }
+
+            if _is_global_marker(normalized.get(_GLOBAL_MARKER)):
+                normalized.pop(_GLOBAL_MARKER, None)
+                global_groups = locale_data.setdefault(_GLOBAL_MODULE, {})
+                current = global_groups.setdefault(module_name, {})
+                if isinstance(current, dict):
+                    current.update(normalized)
+                else:
+                    global_groups[module_name] = normalized
+                continue
+
+            module_strings = locale_data.setdefault(module_name, {})
+            if not isinstance(module_strings, dict):
+                module_strings = {}
+                locale_data[module_name] = module_strings
+            for key, value in normalized.items():
+                if isinstance(value, (str, dict)):
+                    module_strings[key] = value
+        elif isinstance(strings, str):
+            # Top-level string metadata, e.g. "lang: ru".
+            locale_data[module_name] = strings
+
+
+def _load_icon_packs() -> list[dict[str, Any]]:
+    if not _ICONS_DIR.is_dir():
+        return []
+    files = sorted(_ICONS_DIR.glob("*.yaml")) + sorted(_ICONS_DIR.glob("*.yml"))
+    return [_load_yaml(file_path, icon_syntax=True) for file_path in files]
 
 
 def get_langpacks(locale: str | None = None) -> dict[str, dict[str, Any]]:
@@ -64,35 +147,17 @@ def get_langpacks(locale: str | None = None) -> dict[str, dict[str, Any]]:
             return {locale: LANGPACKS[locale]}
         return LANGPACKS
 
+    icon_packs = _load_icon_packs()
     for yaml_file in sorted(_LANGPACKS_DIR.glob("*.yaml")) + sorted(
         _LANGPACKS_DIR.glob("*.yml")
     ):
         locale_name = yaml_file.stem
         data = _load_yaml(yaml_file)
 
-        if locale_name not in LANGPACKS:
-            LANGPACKS[locale_name] = {}
-
-        for module_name, strings in data.items():
-            if isinstance(strings, dict):
-                if _is_global_marker(strings.get(_GLOBAL_MARKER)):
-                    LANGPACKS[locale_name].setdefault(_GLOBAL_MODULE, {})[
-                        module_name
-                    ] = {
-                        key: value
-                        for key, value in strings.items()
-                        if key != _GLOBAL_MARKER
-                    }
-                    continue
-
-                for key, value in strings.items():
-                    if isinstance(value, (str, dict)):
-                        LANGPACKS[locale_name].setdefault(module_name, {})[key] = value
-            elif isinstance(strings, str):
-                # Top-level string metadata, e.g. "lang: ru" - base language for fallback.
-                # Stored directly on the locale dict so get_module_strings and
-                # get_module_commands can resolve the correct fallback chain.
-                LANGPACKS[locale_name][module_name] = strings  # type: ignore[assignment]
+        locale_data = LANGPACKS.setdefault(locale_name, {})
+        for icon_pack in icon_packs:
+            _merge_pack_data(locale_data, icon_pack)
+        _merge_pack_data(locale_data, data)
 
     if locale and locale in LANGPACKS:
         return {locale: LANGPACKS[locale]}

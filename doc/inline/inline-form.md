@@ -8,7 +8,7 @@
 
 > Full rich-message guide: [Telethon-MCUB Rich Messages](../telethon/rich.md).
 
-## `kernel.inline.form()` (alias) /  `kernel.inline_form` (old)
+## `kernel.inline.form()` (alias) / `self.subinline.form` /  `kernel.inline_form` (old)
 
 Sends an inline message with formatted fields and buttons.
 

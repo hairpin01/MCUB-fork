@@ -17,10 +17,11 @@
 async def keyword_handler(event):
     await event.reply("Keyword detected")
 
-# Raw Telethon - use only outside of modules
+# Raw Telethon - Bad pattern
 @kernel.client.on(events.NewMessage(pattern='keyword'))
 async def keyword_handler(event):
     await event.reply("Keyword detected")
+# ❌ core.lib.utils.exceptions.CallInsecure: Module 'keywordmod' attempted insecure access to 'on'
 ```
 
 ## Callback Query Events

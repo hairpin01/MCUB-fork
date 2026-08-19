@@ -9,9 +9,10 @@ Using these types instead of `Any` gives you **IDE autocompletion**, **static ty
 ```python
 from core.lib.types import Kernel, Event
 
-@kernel.register.command("hello")
-async def hello_handler(event: Event, kernel: Kernel) -> None:
-    await event.edit("Hello!")
+def register(kernel: Kernel):
+    @kernel.register.command("hello")
+    async def hello_handler(event: Event) -> None:
+        await event.edit("Hello!")
 ```
 
 ---

@@ -126,9 +126,7 @@ Send a paginated inline text message. Splits long text into pages with [\<] [\>]
 long_text = "Very long text..." * 100
 success, msg = await kernel.inline_manager.text(
     event.chat_id,
-    "Long Document",
     long_text,
-    buttons=[{"text": "Close", "type": "callback", "data": "close"}],
 )
 ```
 

@@ -139,8 +139,10 @@ def _aiogram_button_from_dict(button: dict[str, Any]) -> Any | None:
 
 
 def _aiogram_button_from_telethon(button: Any) -> Any | None:
-    text = str(getattr(button, "text", ""))
-    payload = {"text": text}
+    payload = build_inline_button(button)
+    if payload is None:
+        return None
+    payload = dict(payload)
 
     style = getattr(button, "style", None)
     if style is not None:
@@ -152,18 +154,7 @@ def _aiogram_button_from_telethon(button: Any) -> Any | None:
             payload["style"] = "success"
         elif getattr(style, "bg_danger", None):
             payload["style"] = "danger"
-
-    if hasattr(button, "url"):
-        payload["url"] = button.url
-    elif hasattr(button, "copy_text"):
-        payload["copy_text"] = _copy_text_payload(button.copy_text)
-    elif hasattr(button, "data"):
-        data = button.data
-        payload["callback_data"] = data.decode() if isinstance(data, bytes) else data
-    else:
-        return None
-
-    return InlineKeyboardButton(**payload)
+    return _aiogram_button_from_dict(payload)
 
 
 def _aiogram_inline_button(button: Any) -> Any | None:

@@ -9,9 +9,18 @@ import logging
 import time
 import uuid
 from abc import ABC
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any
 
+from core.lib.rich_buttons import (
+    RichButtonRow,
+    RichCallbackButton,
+    RichPageButton,
+    render_rich_button,
+    render_rich_page_button,
+    validate_rich_button,
+    validate_rich_page_button,
+)
 from core.lib.types.event import Event
 
 try:
@@ -885,6 +894,7 @@ class ModuleBase(ABC):
         auto_answer: bool | None = None,
         style: Any = None,
         icon: int | None = None,
+        _return_token: bool = False,
         **button_kwargs,
     ) -> Any:
         """Internal method to create callback button."""
@@ -935,6 +945,8 @@ class ModuleBase(ABC):
             if allow_user == "all" and is_kernel_proxy and callable(store_callback):
                 store_callback(tok, callback_data)
 
+        if _return_token:
+            return tok
         return Button.inline(
             text, tok.encode(), style=style, icon=icon, **button_kwargs
         )
@@ -959,6 +971,13 @@ class ModuleBase(ABC):
             self._outer = outer
             self._telethon_button = __import__("telethon", fromlist=["Button"]).Button
             self._strings_base = Strings(self._outer.kernel, {"name": "null"})
+
+        @property
+        def rich(self) -> ModuleBase.RichButtonFactory:
+            """Create callback specifications for ``InlineManager.rich_form``."""
+            if not hasattr(self, "_rich_button_factory"):
+                self._rich_button_factory = ModuleBase.RichButtonFactory(self._outer)
+            return self._rich_button_factory
 
         def inline(
             self,
@@ -1283,6 +1302,226 @@ class ModuleBase(ABC):
                 self.log.error(
                     f"@on_install error in {type(self).__name__}.{func.__name__}: {e}"
                 )
+
+    class RichButtonFactory:
+        """Factory for callback buttons embedded in Telegram rich pages."""
+
+        _STYLES = frozenset({"primary", "danger", "success", "link"})
+        _ALIGNMENTS = frozenset({"left", "center", "right"})
+
+        def __init__(self, outer: Any) -> None:
+            self._outer = outer
+
+        def inline(
+            self,
+            text: str,
+            handler: Callable,
+            *,
+            args: tuple | list = (),
+            kwargs: Mapping[str, Any] | None = None,
+            ttl: int = 900,
+            allow_user: int | list[int] | str | None = None,
+            allow_ttl: int = 100,
+            data: Any | None = None,
+            pass_event: bool = True,
+            auto_answer: bool | None = None,
+            icon: int | None = None,
+            style: str | None = None,
+            html_tag: bool = False,
+            **button_kwargs: Any,
+        ) -> RichCallbackButton | str:
+            """Register a reusable rich-page callback and return its spec.
+
+            The callback uses the normal MCUB inline callback map, so it keeps
+            normal permissions, TTL expiry and module-unload cleanup semantics.
+            Rich callbacks are reusable until their TTL expires.
+            """
+            if not isinstance(text, str) or not text:
+                raise ValueError("rich button text must be a non-empty string")
+            if not callable(handler):
+                raise TypeError("handler must be callable")
+            if not isinstance(args, (tuple, list)):
+                raise TypeError("args must be a tuple or list")
+            if kwargs is not None and not isinstance(kwargs, Mapping):
+                raise TypeError("kwargs must be a mapping or None")
+            if not isinstance(html_tag, bool):
+                raise TypeError("html_tag must be a bool")
+            validate_rich_button(text, "x", style)
+            if icon is not None:
+                raise ValueError("rich page buttons do not support icon")
+
+            token = self._outer._make_callback_button(
+                text,
+                handler,
+                ttl=ttl,
+                allow_user=allow_user,
+                allow_ttl=allow_ttl,
+                args=args,
+                kwargs=dict(kwargs) if kwargs is not None else None,
+                data=data,
+                pass_event=pass_event,
+                auto_answer=auto_answer,
+                style=style,
+                icon=icon,
+                _return_token=True,
+                **button_kwargs,
+            )
+            if not isinstance(token, str):
+                raise TypeError("registered callback button has no callback token")
+            validate_rich_button(text, token, style)
+            spec = RichCallbackButton(text=text, token=token, style=style)
+            return render_rich_button(spec) if html_tag else spec
+
+        def row(
+            self, *buttons: RichCallbackButton | RichPageButton, align: str = "center"
+        ) -> RichButtonRow:
+            """Group rich callback specs into an aligned rich-page row."""
+            if align not in self._ALIGNMENTS:
+                raise ValueError("rich button row align must be left, center or right")
+            if not buttons:
+                raise ValueError("rich button row cannot be empty")
+            if len(buttons) > 8:
+                raise ValueError("rich button rows support at most 8 buttons")
+            if not all(
+                isinstance(button, (RichCallbackButton, RichPageButton))
+                for button in buttons
+            ):
+                raise TypeError("rich button rows accept only Button.rich.inline specs")
+            return RichButtonRow(tuple(buttons), align=align)
+
+        @staticmethod
+        def _page(text: str, type_: str, attrs=None, style=None, html_tag=False):
+            if not isinstance(html_tag, bool):
+                raise TypeError("html_tag must be a bool")
+            button = RichPageButton(text, type_, attrs, style)
+            validate_rich_page_button(button)
+            return render_rich_page_button(button) if html_tag else button
+
+        def url(self, text, url, *, style=None, html_tag=False):
+            return self._page(text, "url", {"url": url}, style, html_tag)
+
+        def text(
+            self, text, *, resize=True, selective=False, style=None, html_tag=False
+        ):
+            if resize is not True or selective is not False:
+                raise ValueError(
+                    "rich text buttons are display-only; use normal buttons= for resize/selective"
+                )
+            return self._page(text, "disabled", None, style, html_tag)
+
+        def switch(self, text, query="", *, same_peer=True, style=None, html_tag=False):
+            type_ = (
+                "switch_inline_query_current_chat"
+                if same_peer
+                else "switch_inline_query"
+            )
+            return self._page(text, type_, {"query": str(query)}, style, html_tag)
+
+        def copy(self, text="Copy", copy_text=None, *, style=None, html_tag=False):
+            return self._page(
+                text,
+                "copy_text",
+                {"text": text if copy_text is None else str(copy_text)},
+                style,
+                html_tag,
+            )
+
+        def game(self, text="Play Game", *, style=None, html_tag=False):
+            return self._page(text, "game", None, style, html_tag)
+
+        def unknown(self, text="Unsupported", *, style=None, html_tag=False):
+            return self._page(text, "disabled", None, style, html_tag)
+
+        def input(
+            self,
+            text,
+            handler,
+            *,
+            placeholder="",
+            ttl=900,
+            allow_user=None,
+            allow_ttl=100,
+            article=None,
+            data=None,
+            style=None,
+            html_tag=False,
+        ):
+            button = ModuleBase.ButtonFactory(self._outer).input(
+                text,
+                handler,
+                placeholder=placeholder,
+                ttl=ttl,
+                allow_user=allow_user,
+                allow_ttl=allow_ttl,
+                article=article,
+                data=data,
+                style=style,
+            )
+            payload = button.type
+            return self.switch(
+                text,
+                payload.query,
+                same_peer=payload.same_peer,
+                style=style,
+                html_tag=html_tag,
+            )
+
+        def close(
+            self,
+            event,
+            text=None,
+            handler=None,
+            *,
+            style=None,
+            allow_user=None,
+            allow_ttl=100,
+            html_tag=False,
+        ):
+            async def default(call):
+                delete = getattr(call, "delete", None)
+                if callable(delete):
+                    return await delete()
+
+            label = text or "Close"
+            return self.inline(
+                label,
+                handler or default,
+                style=style,
+                allow_user=allow_user,
+                allow_ttl=allow_ttl,
+                html_tag=html_tag,
+            )
+
+        def request_phone(self, *args, **kwargs):
+            raise NotImplementedError(
+                "Rich PageButtons cannot request phone; use normal buttons=[self.Button.request_phone(...)]"
+            )
+
+        def request_location(self, *args, **kwargs):
+            raise NotImplementedError(
+                "Rich PageButtons cannot request location; use normal buttons=[self.Button.request_location(...)]"
+            )
+
+        def request_poll(self, *args, **kwargs):
+            raise NotImplementedError(
+                "Rich PageButtons cannot request polls; use normal buttons=[self.Button.request_poll(...)]"
+            )
+
+        def with_icon(self, *args, **kwargs):
+            raise NotImplementedError("Rich PageButtons do not support icons")
+
+        def style(self, button, style):
+            if isinstance(button, RichCallbackButton):
+                result = RichCallbackButton(button.text, button.token, style)
+                validate_rich_button(result.text, result.token, result.style)
+                return result
+            if isinstance(button, RichPageButton):
+                result = RichPageButton(button.text, button.type, button.attrs, style)
+                validate_rich_page_button(result)
+                return result
+            raise TypeError(
+                "style accepts a rich button spec, not HTML or another object"
+            )
 
     async def on_reload(self) -> None:
         """Called after the module is reloaded via the loader flow."""

@@ -5,6 +5,10 @@
 This page documents the rich-message features added on top of Telethon-MCUB and
 how MCUB modules should use them.
 
+The documented baseline is Telethon-MCUB `1.44.3` and Telegram Layer `229`.
+For inline forms, see [Inline Rich Forms](rich-inline.md), including
+`rich_buttons` and `self.Button.rich.inline`.
+
 Rich messages are Telegram messages backed by `InputRichMessage` instead of a
 plain text string with normal `MessageEntity` formatting. They support structured
 blocks, richer HTML/Markdown sources, and media references inside the rich text.
@@ -50,6 +54,7 @@ edit the already-opened inline form with rich formatting:
 async def on_menu(self, call, data=None) -> None:
     await call.edit_rich(
         "<h1>menu</h1>",
+        rich_buttons=[self.Button.rich.inline("Refresh", handler=self.on_menu)],
         fallback=False,  # keep real Telegram errors visible while debugging
     )
 

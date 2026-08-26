@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 import sys
 import time
@@ -11,12 +12,14 @@ import traceback
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from html import escape as html_escape
 from typing import TYPE_CHECKING, Any
+
+from core.lib.rich_buttons import append_rich_buttons
 
 _RICH_MEDIA_REF_RE = re.compile(
     r'tg://(photo|document|video|audio|media)\?id=([^"\'<>\s&]+)'
 )
+_RICH_THINKING_TAG_RE = re.compile(r"<\s*tg-thinking\b", re.IGNORECASE)
 
 try:
     from telethon import Button, events
@@ -91,6 +94,30 @@ _INLINE_FORM_ONLY_KWARGS = {
 class _Session:
     expires_at: float
     data: dict[str, Any]
+
+
+def _validate_prebuilt_rich_blocks(rich_message: Any) -> None:
+    """Reject rich page blocks that cannot be sent in an inline result."""
+    seen: set[int] = set()
+
+    def visit(value: Any) -> None:
+        if value is None or id(value) in seen:
+            return
+        seen.add(id(value))
+        if type(value).__name__ in {"PageBlockThinking", "PageBlockUnsupported"}:
+            raise ValueError(
+                f"{type(value).__name__} is unsupported in inline rich results"
+            )
+        if isinstance(value, Mapping):
+            for item in value.values():
+                visit(item)
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                visit(item)
+        else:
+            visit(getattr(value, "blocks", None))
+
+    visit(getattr(rich_message, "blocks", None))
 
 
 class InlineManager:
@@ -1140,6 +1167,7 @@ class InlineManager:
         rich_text: str | None = None,
         *,
         buttons=None,
+        rich_buttons=None,
         auto_send: bool = True,
         ttl: int = 200,
         reply_to: int | None = None,
@@ -1158,18 +1186,37 @@ class InlineManager:
         ``rich_text`` is sent as Telegram ``rich_message`` content when the
         inline bot is answered through Telethon-MCUB. ``text`` is an optional
         fallback shown by clients/adapters that do not support rich messages.
+        ``buttons`` remains normal reply markup; ``rich_buttons`` appends
+        callback page-button rows to HTML rich text.
         """
 
         if rich_text is None and rich_message is None:
             raise ValueError("Either rich_text or rich_message must be provided")
 
+        mode = rich_parse_mode.lower() if isinstance(rich_parse_mode, str) else "html"
+        if (
+            mode == "html"
+            and isinstance(rich_text, str)
+            and _RICH_THINKING_TAG_RE.search(rich_text)
+        ):
+            raise ValueError(
+                "<tg-thinking> is draft-only and unsupported in inline results"
+            )
+        if rich_message is not None:
+            _validate_prebuilt_rich_blocks(rich_message)
+        if rich_buttons is not None:
+            if rich_message is not None:
+                raise ValueError(
+                    "rich_buttons require HTML rich_text, not rich_message"
+                )
+            if mode != "html":
+                raise ValueError("rich_buttons require rich_parse_mode='html'")
+            rich_text = append_rich_buttons(rich_text, rich_buttons)
+
         if text is None:
             text = rich_text or ""
 
         if parse_mode is None:
-            mode = (
-                rich_parse_mode.lower() if isinstance(rich_parse_mode, str) else "html"
-            )
             parse_mode = "markdown" if mode in {"markdown", "md"} else "html"
 
         rich_text, rich_files = await self._normalize_rich_media_for_form(
@@ -1361,12 +1408,37 @@ class InlineManager:
         if spec.get("document") is not None:
             media = spec["document"]
 
-        media_type = spec.get("type") or referenced_type
+        media_type = referenced_type or spec.get("type")
         if isinstance(media, str) and re.match(r"https?://", media):
             resolved_type = self._infer_url_rich_media_type(media, media_type)
             return (
                 await self._upload_url_as_rich_file(
                     str(media_id), media, resolved_type
+                ),
+                resolved_type,
+            )
+
+        local_source = None
+        if isinstance(media, os.PathLike):
+            local_source = media
+            if not os.path.exists(local_source):
+                raise FileNotFoundError(
+                    f"rich_media path does not exist: {local_source}"
+                )
+        elif isinstance(media, str) and os.path.exists(media):
+            local_source = media
+
+        if local_source is not None:
+            if os.path.isdir(local_source):
+                raise IsADirectoryError(
+                    f"rich_media path is a directory: {local_source}"
+                )
+            resolved_type = self._infer_url_rich_media_type(
+                os.fspath(local_source), media_type
+            )
+            return (
+                await self._upload_source_as_rich_file(
+                    str(media_id), local_source, resolved_type
                 ),
                 resolved_type,
             )
@@ -1395,11 +1467,17 @@ class InlineManager:
     async def _upload_url_as_rich_file(
         self, media_id: str, url: str, media_type: str
     ) -> Any:
+        """Upload a remote URL as a rich file (kept for public/test callers)."""
+        return await self._upload_source_as_rich_file(media_id, url, media_type)
+
+    async def _upload_source_as_rich_file(
+        self, media_id: str, source: str | os.PathLike[str], media_type: str
+    ) -> Any:
         if tg_types is None or tg_functions is None or tg_utils is None:
             raise RuntimeError("Telethon rich media helpers are not available")
 
         _file_handle, media, _as_image = await self.k.client._file_to_media(
-            url,
+            source,
             force_document=media_type != "photo",
             supports_streaming=media_type == "video",
         )
@@ -1408,10 +1486,14 @@ class InlineManager:
         )
 
         if media_type == "photo":
+            if getattr(uploaded, "photo", None) is None:
+                raise ValueError("rich_media photo upload did not return a photo")
             return tg_types.InputRichFilePhoto(
                 media_id, tg_utils.get_input_photo(uploaded.photo)
             )
 
+        if getattr(uploaded, "document", None) is None:
+            raise ValueError("rich_media upload did not return a document")
         return tg_types.InputRichFileDocument(
             media_id,
             tg_utils.get_input_document(uploaded.document),

@@ -46,6 +46,27 @@ rich_media=[
 rich_media=[("hero", media)]
 ```
 
+Existing local files may be supplied as `str` paths or `pathlib.Path` objects.
+MCUB uploads them through Telegram without reading the whole file into module
+memory. The referenced `tg://...` type takes priority, so use a photo link for
+an image and a document/video/audio link for other files:
+
+```python
+from pathlib import Path
+
+hero = Path("assets") / "hero image.jpg"
+await self.subinline.rich_form(
+    m.chat_id,
+    '<a href="tg://photo?id=hero">Open local photo</a>',
+    rich_media={"hero": hero},
+)
+```
+
+The path must exist and must be a file, not a directory. Image extensions
+(`.jpg`, `.jpeg`, `.png`, `.webp`, `.gif`) infer `photo` when no `tg://` type
+or explicit media type is supplied; video and audio uploads are documents with
+the corresponding rich reference type.
+
 ## URL media
 
 For remote URLs, use the generic alias `tg://media?id=...`:

@@ -12,11 +12,37 @@
 
 Sends an inline message with formatted fields and buttons.
 
-## `self.subinline.rich_form()` / `kernel.rich_form()`
+## `kernel.inline.rich_form()` / `self.subinline.rich_form()`
 
 Sends an inline form whose selected inline result uses Telegram
 `rich_message` formatting when Telethon-MCUB can answer the inline query
 natively.
+
+Pass `rich_text` or a prebuilt `rich_message`; at least one is required.
+`rich_parse_mode` accepts `html`, `markdown`, or `md`. `text` is the normal
+fallback and defaults to `rich_text`; `parse_mode` controls that fallback.
+`auto_send` defaults to `True`, `ttl` to 200, and `reply_to`, `rtl`,
+`noautolink`, `files`, and `rich_media` are supported options.
+
+`buttons` is normal reply markup. `rich_buttons` embeds PageButtons in the
+Rich message; both may coexist. Rich buttons require an HTML string in
+`rich_text` and cannot accompany `rich_message`:
+
+```python
+await self.kernel.inline.rich_form(
+    m.chat_id,
+    r"""<h1>Confirm</h1><p>Choose an action</p>""",
+    rich_buttons=[
+        self.Button.rich.inline(
+            "Run", handler=self.on_run, args=(1, 2, 3),
+            kwargs={"foo": "bar"}, ttl=900, style="success",
+        )
+    ],
+)
+```
+
+The handler receives the MCUB `InlineMessage` or callback event according to
+`pass_event`, followed by `args` and `kwargs`.
 
 ```python
 await self.subinline.rich_form(
@@ -48,6 +74,19 @@ await self.subinline.rich_form(
 )
 ```
 
+`rich_media` also accepts an existing local file path (`str` or `pathlib.Path`):
+
+```python
+await self.subinline.rich_form(
+    event.chat_id,
+    '<a href="tg://photo?id=hero">Open local photo</a>',
+    rich_media={"hero": "assets/hero.jpg"},
+)
+```
+
+The path must exist and be a file. The `tg://photo`, `tg://video`,
+`tg://audio`, or `tg://document` reference determines the upload type.
+
 For remote URLs you can use the `tg://media?id=...` alias. MCUB will upload
 the URL through Telegram, infer the media type from the extension, and rewrite
 the link to `tg://video`, `tg://photo`, `tg://audio` or `tg://document`:
@@ -72,6 +111,16 @@ await self.subinline.rich_form(
 
 If the current inline adapter cannot send Telegram rich messages, MCUB falls
 back to a normal formatted inline article using the same text.
+
+Use `rich_buttons=` with `rich_form()` to add validated callback page-button
+rows while keeping `buttons=` as normal reply markup. `CodeInline.rich_form()`
+and `InlineMessage.edit_rich()` accept the same `rich_buttons=` argument.
+For manual HTML rows, `Button.rich.inline(..., html_tag=True)` returns one
+escaped `<tg-button>` tag; wrap it in `<tg-button-row>` yourself.
+
+Rich rows also support URL, copy, switch-inline, game, and display-only
+buttons through `self.Button.rich`. Phone, location, and poll request buttons
+require normal reply markup and are intentionally unsupported in rich rows.
 
 ## Inline Form Flow
 
@@ -158,7 +207,9 @@ How it works:
 Notes:
 - If you provide `data` without `callback`, the legacy scheme still applies (prefix bytes + `register_callback_handler`).
 - Expired tokens are cleaned automatically when creating forms and on any button press.
-- Telethon `Button.inline(...)` continues to work with explicit `data`; callable callbacks are only available via the dict format above.
+- For normal reply markup, use `self.Button.inline(text, callback_func, args=..., kwargs=...)`.
+  For a Rich page button, use `self.Button.rich.inline(text, handler=..., args=..., kwargs=...)`.
+  Dict buttons and the lower-level `make_cb_button` API are also supported.
 
 **Readable CodeInline facade:**
 ```python

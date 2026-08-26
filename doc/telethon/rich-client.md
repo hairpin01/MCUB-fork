@@ -62,3 +62,10 @@ await client.send_rich_message(
     fallback_parse_mode="html",
 )
 ```
+
+The current `send_rich_message` options include HTML, Markdown, or a prebuilt
+`rich_message`, normal `message` fallback text, fallback controls, buttons,
+reply/topic and send options, `rtl`, `noautolink`, and `files`.
+`edit_rich_message` and `Message.edit_rich` provide the corresponding edit
+path. See [Rich HTML Rendering](rich-html.md) for parser versus renderer
+behavior.

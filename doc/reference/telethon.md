@@ -12,6 +12,8 @@ Detailed Telethon-MCUB pages:
 - [Events and Reactions](../telethon/events-reactions.md)
 - [Uploads, Payments and Message Helpers](../telethon/uploads-payments.md)
 - [Compatibility Notes](../telethon/compat.md)
+- [Inline Rich Forms and `Button.rich`](../telethon/rich-inline.md)
+- [Rich Client Helpers](../telethon/rich-client.md)
 
 ## Payments
 

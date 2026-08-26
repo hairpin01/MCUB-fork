@@ -110,18 +110,36 @@ keyboard = build_inline_keyboard(buttons)
 ### `build_inline_button(btn) -> dict | None`
 
 Convert a single Telethon Button to JSON dict. Supports:
-- `KeyboardButtonCallback` → `{"text": "...", "callback_data": "..."}`
-- `KeyboardButtonUrl` → `{"text": "...", "url": "..."}`
-- `KeyboardButtonSwitchInline` → `{"text": "...", "switch_inline_query": "..."}`
-- `KeyboardButtonRequestPhone` → `{"text": "...", "request_contact": true}`
-- `KeyboardButtonRequestGeoLocation` → `{"text": "...", "request_location": true}`
-- `KeyboardButtonGame` → `{"text": "...", "game": true}`
+- `KeyboardInlineButton.type` variants `InlineButtonTypeCallback`,
+  `InlineButtonTypeUrl`, `InlineButtonTypeSwitchInline`, `InlineButtonTypeGame`,
+  `InlineButtonTypeCopy`, and `InlineButtonTypeWebView` map to inline-button
+  output such as `{"text": "...", "callback_data": "..."}` and
+  `{"text": "...", "url": "..."}`.
+- `KeyboardButton.type` variants include `ButtonTypeDefault`,
+  `ButtonTypeRequestPhone`, `ButtonTypeRequestGeoLocation`,
+  `ButtonTypeRequestPeer`, `ButtonTypeRequestPoll`, and
+  `ButtonTypeSimpleWebView`; for example, phone and location map to
+  `{"text": "...", "request_contact": true}` and
+  `{"text": "...", "request_location": true}`.
+
+This is the current Layer-229 unified model. Users should use public
+`Button.*` helpers rather than constructing these TL objects manually.
 
 Emoji icons are extracted from button styles when available.
 
 ---
 
 ## Callback Token Helpers
+
+`InlineBuilder.article(...)` accepts `rich_text`, `rich_parse_mode` (`html`,
+`markdown`, or `md`), `rich_message`, `rich_rtl`, `rich_noautolink`,
+`rich_files`, and `rich_media`. `InlineBuilder.rich_article(...)` is the
+shorter rich wrapper. These are regular keyword arguments, not a
+special dictionary-only feature.
+
+`InlineQuery.Event.answer_rich(title, rich_text=None, **kwargs)` aliases
+`answer_article` with rich text. `answer_text` and `answer_media` are also
+available aliases.
 
 ### `make_cb_button(kernel, text, callback, args=None, kwargs=None, ttl=900, icon=None, style="primary", token=None) -> dict`
 

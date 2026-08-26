@@ -74,7 +74,22 @@ inline_mgr = InlineManager(kernel)
 
 ### Auto-generated inline callbacks (token → handler)
 
-You can pass a callable `callback` directly in the button dict. The inline manager generates `callback_data` tokens and stores the mapping in `kernel.inline_callback_map` for the lifetime of the form (TTL). Expired tokens are cleaned automatically when forms are created and on every press.
+Rich and normal MCUB callback buttons can register a callable directly. MCUB
+stores the callable and its `args`/`kwargs` in `kernel.inline_callback_map`
+and sends only a UUID token to Telegram. The existing guarded CallbackQuery
+watcher handles it; no extra watcher is installed. Tokens are reusable until
+TTL expiry, not one-shot. Expired tokens are cleaned during form creation and
+button presses, module unload removes module callbacks, and restart loses all
+tokens. `allow_user` and `allow_ttl` apply to callback permissions.
+
+`self.Button.rich.inline(..., html_tag=True)` returns one escaped rich HTML
+`<tg-button>` tag for a manually written `<tg-button-row>`. It still uses this
+same token registry exactly once. For normal forms and edits, prefer passing
+rich specs through `rich_buttons=` so MCUB validates and renders rows.
+
+Rich callbacks can use `await event.edit_rich(...)` or
+`await message.edit_rich(...)` when available. Unknown and expired tokens are
+rejected by the existing handler.
 
 ### Usage
 

@@ -427,11 +427,15 @@ class KernelHandlersMixin:
         self,
         chat_id: int,
         rich_text: str | None = None,
+        *,
+        rich_buttons=None,
         **kwargs,
     ):
         """Create and optionally send a rich inline form."""
 
-        return await self._inline.rich_form(chat_id, rich_text, **kwargs)
+        return await self._inline.rich_form(
+            chat_id, rich_text, rich_buttons=rich_buttons, **kwargs
+        )
 
     def add_event_middleware(self, middleware_func: Callable):
         """Register an event middleware and bind it to the Telethon client."""

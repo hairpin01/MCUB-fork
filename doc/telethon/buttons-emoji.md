@@ -31,6 +31,20 @@ Supported helpers include:
 - `Button.buy(...)`
 - `Button.game(...)`
 
+## Unified buttons and rich page buttons
+
+Layer 229 uses the unified button schema internally. Use the public helpers:
+
+```python
+Button.copy("Copy", copy_text="secret")
+Button.inline("Run", b"run", style="success")
+```
+
+`Button.inline` is normal reply markup. In an MCUB rich form,
+`self.Button.rich.inline` embeds a callback button in the Rich page. Rich
+styles are only `primary`, `danger`, `success`, and `link`; rich page buttons
+don't support `icon`.
+
 ## Dict-style inline buttons in MCUB
 
 MCUB also accepts simplified dict buttons in inline forms:

@@ -32,6 +32,7 @@ name = kernel.resolve_pip_name("sklearn")
 ```
 
 Has built-in mappings for common packages:
+
 | Import name | Pip package |
 |-------------|-------------|
 | `PIL` | `Pillow` |

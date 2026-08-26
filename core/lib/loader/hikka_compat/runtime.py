@@ -2145,19 +2145,11 @@ class InlineProxy:
                         copy_value = button.get("copy_text")
                     if isinstance(copy_value, dict):
                         copy_value = copy_value.get("text", "")
-                    style = button.get("style")
-                    style_obj = None
-                    if style == "primary":
-                        style_obj = tl_types.KeyboardButtonStyle(bg_primary=True)
-                    elif style == "success":
-                        style_obj = tl_types.KeyboardButtonStyle(bg_success=True)
-                    elif style == "danger":
-                        style_obj = tl_types.KeyboardButtonStyle(bg_danger=True)
                     out_row.append(
-                        tl_types.KeyboardButtonCopy(
-                            text=text,
-                            copy_text=str(copy_value or ""),
-                            style=style_obj,
+                        Button.copy(
+                            text,
+                            str(copy_value or ""),
+                            style=button.get("style"),
                         )
                     )
                 elif "web_app" in button:
@@ -2166,9 +2158,8 @@ class InlineProxy:
                         web_url = web_url.get("url")
                     if web_url:
                         out_row.append(
-                            tl_types.KeyboardButtonWebView(
-                                text=text,
-                                url=str(web_url),
+                            tl_types.KeyboardInlineButton(
+                                text, tl_types.InlineButtonTypeWebView(str(web_url))
                             )
                         )
                 elif "input" in button:

@@ -25,6 +25,20 @@ Inline helpers preserve compatibility with dict-style buttons used by MCUB:
 buttons = [{"text": "Run", "type": "callback", "data": "run"}]
 ```
 
+## Layer 229 button schema
+
+The current schema uses `KeyboardInlineButton` with `InlineButtonType*`, and
+`KeyboardButton` with `ButtonType*`. This is an implementation and
+compatibility note, not a requirement to construct TL objects. Continue to
+use the public `Button.*` helpers. They validate safe URL schemes, and the
+fork restores phone and location request click behavior.
+
+`Button.copy` creates a copy-to-clipboard button:
+
+```python
+Button.copy("Copy", copy_text="value")
+```
+
 ## `invert_media` and media aliases
 
 The fork preserves MCUB compatibility changes around media send/edit flows,
@@ -35,6 +49,12 @@ including `invert_media` forwarding and reply media aliases.
 Rich helpers can fall back to regular parsed text when a peer rejects native
 `rich_message`. This keeps modules usable across chats where Telegram rich
 messages are not accepted.
+
+## Community peers
+
+`Community` and `CommunityForbidden` are treated as channel-like for peer
+IDs, input peers, and entity-cache handling. Keep using normal client entity
+APIs. Modules should not manually cast these entities to channels.
 
 See also:
 

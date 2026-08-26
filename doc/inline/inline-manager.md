@@ -150,3 +150,7 @@ Register an inline query handler. See [Event Handlers](../api/events.md).
 ## `kernel.inline_manager.register_callback_handler(pattern, handler)`
 
 Register a callback query handler. See [Inline Callbacks](callbacks.md).
+
+The modern rich-form entry point is `kernel.inline.rich_form(...)`; the
+manager's `form(...)` method is the normal inline form API. Rich forms are
+documented in [Inline Rich Forms](../telethon/rich-inline.md).

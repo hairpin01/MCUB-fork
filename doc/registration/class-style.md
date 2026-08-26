@@ -8,6 +8,11 @@
 
 Class-style modules provide an object-oriented approach to module development. Instead of using function-based registration, you inherit from `ModuleBase` and define handlers as class methods.
 
+Rich callbacks can be supplied as `rich_buttons=[self.Button.rich.inline(...)]`
+to `self.subinline.rich_form()` or `call.edit_rich()`. For a manual
+`<tg-button-row>`, `self.Button.rich.inline(..., html_tag=True)` returns one
+escaped `<tg-button>` tag; automatic `rich_buttons` rendering is recommended.
+
 ## Quick Start
 
 ```python
@@ -135,7 +140,7 @@ Full rich-message examples are documented in [Telethon-MCUB Rich Messages](../te
 
 `self.subinline.form(chat_id, title, fields=None, buttons=None, auto_send=True, ttl=200, reply_to=None, **kwargs)` - Send an inline form (wraps `kernel.inline_form()`).
 
-`self.subinline.rich_form(chat_id, rich_text, buttons=None, auto_send=True, ttl=200, reply_to=None, rich_parse_mode="html", **kwargs)` - Send an inline form with Telegram `rich_message` formatting.
+`self.subinline.rich_form(chat_id, rich_text=None, *, buttons=None, rich_buttons=None, auto_send=True, ttl=200, reply_to=None, rich_parse_mode="html", rich_message=None, text=None, parse_mode=None, rtl=None, noautolink=None, files=None, rich_media=None, **kwargs)` - Send an inline form with Telegram `rich_message` formatting.
 
 > [!NOTE]
 >  `self.subinline` this is `self.kernel.inline`!
@@ -220,7 +225,7 @@ Callback handlers receive an **`InlineMessage`** object (with `edit()`, `answer(
 | `self.Button.url(text, url, *, icon=None, style=None)` | URL button |
 | `self.Button.text(text, *, resize=True, ...)` | Reply keyboard text button |
 | `self.Button.switch(text, query="", *, same_peer=True, ...)` | Switch-inline button |
-| `self.Button.copy(text="Copy", *, payload=None, ...)` | Copy text button |
+| `self.Button.copy(text="Copy", copy_text=None, ...)` | Copy text button |
 | `self.Button.request_phone(text="Share Phone", ...)` | Request phone number |
 | `self.Button.request_location(text="Share Location", ...)` | Request location |
 | `self.Button.request_poll(text="Poll", *, quiz=False, ...)` | Poll button |
@@ -928,7 +933,9 @@ async def on_language_change(self, new_lang: str) -> None:
 
 ### `self.Button` - Button Factory
 
-Class-style modules provide a `Button` factory accessed via `self.Button`. This factory creates various button types with optional `icon` and `style` parameters.
+Class-style modules provide a `Button` factory accessed via `self.Button`.
+Icon and style support depends on each helper signature. Rich page buttons are
+under `self.Button.rich`.
 
 ```python
 from telethon import events
@@ -949,7 +956,7 @@ class MyModule(ModuleBase):
 
 ### Button Types
 
-All buttons support `icon` (int) and `style` parameters:
+Common button helpers:
 
 | Method | Description |
 |--------|-------------|
@@ -958,7 +965,7 @@ All buttons support `icon` (int) and `style` parameters:
 | `Button.url(text, url, *, new_tab=False, icon=None)` | URL link button |
 | `Button.text(text, *, resize=True, selective=False, icon=None)` | Text button |
 | `Button.switch(text, query="", *, same_peer=True, icon=None)` | Inline query switch |
-| `Button.copy(text="Copy", *, payload=None, icon=None)` | Copy to clipboard |
+| `Button.copy(text="Copy", copy_text=None, *, style=None, icon=None)` | Copy to clipboard |
 | `Button.input(text, handler, *, placeholder="", ttl=900, allow_user=None, data=None, icon=None)` | Input button - opens inline mode, delivers typed text to handler |
 | `Button.request_phone(text="Share Phone", *, request_title=None, icon=None)` | Request phone |
 | `Button.request_location(text="Share Location", *, request_title=None, live_period=None, icon=None)` | Request location |
@@ -972,6 +979,15 @@ All buttons support `icon` (int) and `style` parameters:
 | Method | Description |
 |--------|-------------|
 | `Button.with_icon(btn, icon)` | Add icon to existing button |
+
+### Rich page buttons
+
+`self.Button.rich.inline(text, handler, *, args=(), kwargs=None, ttl=900,
+allow_user=None, allow_ttl=100, data=None, pass_event=True, auto_answer=None,
+style=None)` returns an embedded Rich page callback button. `style` may be
+`primary`, `danger`, `success`, or `link`. `self.Button.rich.row(*buttons,
+align="left" | "center" | "right")` creates an aligned row; rows may be
+nested. Rich page buttons do not support icons.
 | `Button.style(btn, style)` | Apply style to button |
 
 ### Callback Buttons with Data
@@ -1117,7 +1133,8 @@ class MyModule(loader.ModuleBase):
 ```
 
 How it works:
-1. Creates a `KeyboardButtonSwitchInline` with a unique temp UUID as query prefix.
+1. Creates a `KeyboardInlineButton` whose nested type is
+   `InlineButtonTypeSwitchInline`, with a unique temporary UUID as query prefix.
 2. Registers `handler` via `kernel.register.inline_temp()`.
 3. User taps button → inline mode opens → user types text → sends inline result.
 4. Bot receives `UpdateBotInlineSend` → cache lookup → calls `handler(event, text, data)`.

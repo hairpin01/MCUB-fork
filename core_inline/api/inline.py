@@ -217,13 +217,27 @@ class CodeInline:
         ttl = kwargs.pop("ttl", self.ttl)
         return await self.kernel.inline_form(chat_id, title, ttl=ttl, **kwargs)
 
-    async def rich_form(self, chat_id: int, rich_text: str | None = None, **kwargs):
+    async def rich_form(
+        self, chat_id: int, rich_text: str | None = None, *, rich_buttons=None, **kwargs
+    ):
         """Send an inline form backed by Telegram rich_message formatting."""
 
         ttl = kwargs.pop("ttl", self.ttl)
         rich_form = getattr(self.kernel, "rich_form", None)
         if rich_form is not None:
-            return await rich_form(chat_id, rich_text, ttl=ttl, **kwargs)
+            return await rich_form(
+                chat_id, rich_text, ttl=ttl, rich_buttons=rich_buttons, **kwargs
+            )
+
+        if rich_buttons is not None:
+            from core.lib.rich_buttons import append_rich_buttons
+
+            mode = str(kwargs.get("rich_parse_mode", "html")).lower()
+            if mode != "html":
+                raise ValueError("rich_buttons require rich_parse_mode='html'")
+            if not isinstance(rich_text, str):
+                raise TypeError("rich_text must be a string when rich_buttons are used")
+            rich_text = append_rich_buttons(rich_text, rich_buttons)
 
         return await self.kernel.inline_form(
             chat_id,
@@ -265,15 +279,7 @@ def build_inline_keyboard(
 
 
 def build_inline_button(btn: Any) -> dict[str, Any] | None:
-    from telethon.tl.types import (
-        KeyboardButtonCallback,
-        KeyboardButtonCopy,
-        KeyboardButtonGame,
-        KeyboardButtonRequestGeoLocation,
-        KeyboardButtonRequestPhone,
-        KeyboardButtonSwitchInline,
-        KeyboardButtonUrl,
-    )
+    from telethon.tl import types as tl_types
 
     if isinstance(btn, InlineButton):
         return btn.to_dict()
@@ -282,30 +288,73 @@ def build_inline_button(btn: Any) -> dict[str, Any] | None:
 
     emoji = get_button_emoji(btn)
 
-    if isinstance(btn, KeyboardButtonCallback):
+    def is_type(value: Any, name: str) -> bool:
+        type_class = getattr(tl_types, name, None)
+        return type_class is not None and isinstance(value, type_class)
+
+    def button_dict(data: dict[str, Any]) -> dict[str, Any]:
+        return _with_emoji(data, emoji)
+
+    if is_type(btn, "KeyboardInlineButton"):
+        button_type = getattr(btn, "type", None)
+        if is_type(button_type, "InlineButtonTypeCallback"):
+            data = button_type.data
+            callback_data = data.decode() if isinstance(data, bytes) else str(data)
+            return button_dict({"text": btn.text, "callback_data": callback_data})
+        if is_type(button_type, "InlineButtonTypeUrl"):
+            return button_dict({"text": btn.text, "url": button_type.url})
+        if is_type(button_type, "InlineButtonTypeCopy"):
+            return button_dict(
+                {"text": btn.text, "copy_text": {"text": button_type.copy_text}}
+            )
+        if is_type(button_type, "InlineButtonTypeSwitchInline"):
+            key = (
+                "switch_inline_query_current_chat"
+                if button_type.same_peer
+                else "switch_inline_query"
+            )
+            return button_dict({"text": btn.text, key: button_type.query or ""})
+        if is_type(button_type, "InlineButtonTypeGame"):
+            return button_dict({"text": btn.text, "callback_game": {}})
+        if is_type(button_type, "InlineButtonTypeWebView"):
+            return button_dict({"text": btn.text, "web_app": {"url": button_type.url}})
+        if is_type(button_type, "InlineButtonTypeUrlAuth"):
+            return button_dict(
+                {"text": btn.text, "login_url": {"url": button_type.url}}
+            )
+        return None
+
+    if is_type(btn, "KeyboardButton"):
+        button_type = getattr(btn, "type", None)
+        if is_type(button_type, "ButtonTypeRequestPhone"):
+            return button_dict({"text": btn.text, "request_contact": True})
+        if is_type(button_type, "ButtonTypeRequestGeoLocation"):
+            return button_dict({"text": btn.text, "request_location": True})
+        if is_type(button_type, "ButtonTypeRequestPoll"):
+            poll: dict[str, str] = {}
+            if button_type.quiz is not None:
+                poll["type"] = "quiz" if button_type.quiz else "regular"
+            return button_dict({"text": btn.text, "request_poll": poll})
+        if is_type(button_type, "ButtonTypeSimpleWebView"):
+            return button_dict({"text": btn.text, "web_app": {"url": button_type.url}})
+        if is_type(button_type, "ButtonTypeDefault"):
+            return button_dict({"text": btn.text})
+        return None
+
+    # Older Telethon layers exposed a separate class for each button type.
+    # Keep reading those objects when present without importing removed names.
+    if is_type(btn, "KeyboardButtonCallback"):
         data = btn.data
         callback_data = data.decode() if isinstance(data, bytes) else str(data)
-        return _with_emoji(
-            {
-                "text": btn.text,
-                "callback_data": callback_data,
-            },
-            emoji,
-        )
+        return button_dict({"text": btn.text, "callback_data": callback_data})
 
-    elif isinstance(btn, KeyboardButtonUrl):
-        return _with_emoji({"text": btn.text, "url": btn.url}, emoji)
+    if is_type(btn, "KeyboardButtonUrl"):
+        return button_dict({"text": btn.text, "url": btn.url})
 
-    elif isinstance(btn, KeyboardButtonCopy):
-        return _with_emoji(
-            {
-                "text": btn.text,
-                "copy_text": {"text": btn.copy_text},
-            },
-            emoji,
-        )
+    if is_type(btn, "KeyboardButtonCopy"):
+        return button_dict({"text": btn.text, "copy_text": {"text": btn.copy_text}})
 
-    elif isinstance(btn, KeyboardButtonSwitchInline):
+    if is_type(btn, "KeyboardButtonSwitchInline"):
         query = btn.query or ""
         if getattr(btn, "same_peer", False):
             btn_dict = {
@@ -317,34 +366,16 @@ def build_inline_button(btn: Any) -> dict[str, Any] | None:
                 "text": btn.text,
                 "switch_inline_query": query,
             }
-        return _with_emoji(btn_dict, emoji)
+        return button_dict(btn_dict)
 
-    elif isinstance(btn, KeyboardButtonRequestPhone):
-        return _with_emoji(
-            {
-                "text": btn.text,
-                "request_contact": True,
-            },
-            emoji,
-        )
+    if is_type(btn, "KeyboardButtonRequestPhone"):
+        return button_dict({"text": btn.text, "request_contact": True})
 
-    elif isinstance(btn, KeyboardButtonRequestGeoLocation):
-        return _with_emoji(
-            {
-                "text": btn.text,
-                "request_location": True,
-            },
-            emoji,
-        )
+    if is_type(btn, "KeyboardButtonRequestGeoLocation"):
+        return button_dict({"text": btn.text, "request_location": True})
 
-    elif isinstance(btn, KeyboardButtonGame):
-        return _with_emoji(
-            {
-                "text": btn.text,
-                "callback_game": {},
-            },
-            emoji,
-        )
+    if is_type(btn, "KeyboardButtonGame"):
+        return button_dict({"text": btn.text, "callback_game": {}})
 
     return None
 

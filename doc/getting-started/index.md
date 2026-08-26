@@ -11,15 +11,15 @@
 ## Features
 
 - **Modules** - create module in `modules_loaded/`
-- **Commands** - register commands with `@kernel.register.command()` [Docs](api/commands.md)
-- **Watchers** - track messages with `@kernel.register.watcher()` [Docs](registration/watchers.md)
-- **Events** - handle events with `@kernel.register.event()` [Docs](api/events.md)
-- **Inline bots** - create inline forms and buttons `kernel.inline.form()` [Docs](inline/inline-form.md)
-- **Scheduler** - schedule tasks with `kernel.scheduler` [Docs](api/scheduler.md)
+- **Commands** - register commands with `@kernel.register.command()` [Docs](../api/commands.md)
+- **Watchers** - track messages with `@kernel.register.watcher()` [Docs](../registration/watchers.md)
+- **Events** - handle events with `@kernel.register.event()` [Docs](../api/events.md)
+- **Inline bots** - create inline forms and buttons `kernel.inline.form()` [Docs](../inline/inline-form.md)
+- **Scheduler** - schedule tasks with `kernel.scheduler` [Docs](../api/scheduler.md)
 
 > [!TIP]
 > Try a new type of modules! Class-style Modules!
-> -> [Docs](registration/class-style.md) <-
+> -> [Docs](../registration/class-style.md) <-
 
 > [!TIP]
 > You can also try [CubKit](../guides/cubkit.md) for creating MCUB modules from
@@ -58,7 +58,7 @@ Use `.hello` in any chat.
 
 ## Learn More
 
-- [Module Structure](../module-structure.md) - module structure, headers, directives
+- [Module Structure](../guides/module-structure.md) - module structure, headers, directives
 - [Command Registration](../api/commands.md) - command registration
 - [Best Practices](../guides/best-practices.md) - recommended patterns
-- [Class style](../registration/class-style) - New registration method
+- [Class style](../registration/class-style.md) - New registration method

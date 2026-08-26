@@ -2,7 +2,7 @@
 
 # MCUB Module API Documentation
 
-> **Version:** 1.3.3
+> **Version:** MCUB API · Telethon-MCUB 1.44.3 · Layer 229
 
 > [!IMPORTANT]
 > Recent Telethon-MCUB changes: [CHANGELOG.md](https://github.com/hairpin01/Telethon-MCUB/blob/v1/CHANGELOG.md)
@@ -126,7 +126,7 @@
 | [InlineManager API](doc/inline/inline-manager.md) | Gallery, list, paginated text, query-and-click |
 | [Inline Result Builders](doc/inline/inline-results.md) | Build inline query results (text, photo, video, document) |
 | [Callbacks](doc/inline/callbacks.md) | Callback permission management |
-| [Rich Messages](doc/telethon/rich.md) | Telethon-MCUB rich messages, inline rich forms, media refs |
+| [Rich Messages](doc/telethon/rich.md) | Telethon-MCUB rich messages, media refs, and rendering |
 
 ---
 
@@ -137,7 +137,7 @@
 | [Premium Emoji](doc/reference/emoji.md) | Custom emoji usage |
 | [Telethon-MCUB](doc/reference/telethon.md) | Additional Telethon methods |
 | [Telethon-MCUB Extensions](doc/telethon/index.md) | Full fork additions: rich, buttons, hooks, reactions, uploads, compatibility |
-| [Telethon-MCUB Rich Messages](doc/telethon/rich.md) | Rich message helpers and MCUB examples |
+| [Inline Rich Forms and Rich Buttons](doc/telethon/rich-inline.md) | `rich_buttons`, `Button.rich.inline`, rich callback lifecycle |
 | [AntiScam](doc/reference/antiscam.md) | Account protection |
 | [xlib](doc/lib/xlib.md) | Extended helpers and compatibility utilities |
 

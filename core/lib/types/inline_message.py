@@ -294,6 +294,7 @@ class InlineMessage:
         html: str | None = None,
         buttons: Any = None,
         *,
+        rich_buttons=None,
         rich_message: Any = None,
         markdown: str | None = None,
         text: str = "",
@@ -312,6 +313,17 @@ class InlineMessage:
         Telegram error. Pass ``fallback=True`` to fall back to regular
         ``edit()`` when Telegram rejects rich messages for the current peer.
         """
+        if rich_buttons is not None:
+            if not isinstance(html, str):
+                raise TypeError("html must be a string when rich_buttons are used")
+            if markdown is not None or rich_message is not None:
+                raise ValueError(
+                    "rich_buttons require HTML, not markdown or rich_message"
+                )
+            from core.lib.rich_buttons import append_rich_buttons
+
+            html = append_rich_buttons(html, rich_buttons)
+
         input_rich_message = _build_input_rich_message(
             html=html,
             markdown=markdown,

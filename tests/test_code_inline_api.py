@@ -1,5 +1,6 @@
 import time
 
+import pytest
 from telethon import Button
 from telethon.tl import types
 
@@ -85,6 +86,56 @@ def test_build_inline_button_accepts_telethon_copy_button():
         "text": "Copy",
         "copy_text": {"text": "secret"},
     }
+
+
+def test_build_inline_button_accepts_layer_229_button_wrappers():
+    cases = [
+        (
+            types.KeyboardInlineButton(
+                "Callback", types.InlineButtonTypeCallback(b"callback")
+            ),
+            {"text": "Callback", "callback_data": "callback"},
+        ),
+        (
+            types.KeyboardInlineButton("URL", types.InlineButtonTypeUrl("https://x")),
+            {"text": "URL", "url": "https://x"},
+        ),
+        (
+            types.KeyboardInlineButton(
+                "Switch", types.InlineButtonTypeSwitchInline("query", True)
+            ),
+            {"text": "Switch", "switch_inline_query_current_chat": "query"},
+        ),
+        (
+            types.KeyboardInlineButton("Game", types.InlineButtonTypeGame()),
+            {"text": "Game", "callback_game": {}},
+        ),
+        (
+            types.KeyboardInlineButton(
+                "Web", types.InlineButtonTypeWebView("https://web.example")
+            ),
+            {"text": "Web", "web_app": {"url": "https://web.example"}},
+        ),
+        (
+            types.KeyboardButton("Phone", types.ButtonTypeRequestPhone()),
+            {"text": "Phone", "request_contact": True},
+        ),
+        (
+            types.KeyboardButton("Location", types.ButtonTypeRequestGeoLocation()),
+            {"text": "Location", "request_location": True},
+        ),
+        (
+            types.KeyboardButton("Poll", types.ButtonTypeRequestPoll(True)),
+            {"text": "Poll", "request_poll": {"type": "quiz"}},
+        ),
+        (
+            types.KeyboardButton("Text", types.ButtonTypeDefault()),
+            {"text": "Text"},
+        ),
+    ]
+
+    for button, expected in cases:
+        assert build_inline_button(button) == expected
 
 
 def test_build_inline_button_does_not_emit_text_only_button():
@@ -192,6 +243,11 @@ def test_inline_handlers_normalize_buttons_accepts_single_level_objects():
 
 
 def test_aiogram_inline_markup_accepts_copy_buttons():
+    from core_inline import handlers
+
+    if handlers.InlineKeyboardMarkup is None:
+        pytest.skip("aiogram is unavailable or incompatible in this environment")
+
     markup = _aiogram_inline_markup(
         [[Button.copy("Copy", "secret")], [{"text": "Dict", "copy": "value"}]]
     )

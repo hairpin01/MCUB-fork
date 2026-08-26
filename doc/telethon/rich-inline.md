@@ -81,6 +81,41 @@ row. Each row must contain 1 to 8 buttons. Rich-page styles are `primary`,
 data is limited to 1 to 64 UTF-8 bytes. The whole rich block tree has a
 recursive limit of 100 blocks.
 
+### Disabled rich buttons and row position
+
+Use `self.Button.rich.text(...)` for a display-only, disabled rich-page button.
+It renders as `type="disabled"` and cannot be clicked. `style` is optional:
+
+```python
+await self.subinline.rich_form(
+    m.chat_id,
+    "<p>Choose an action</p>",
+    rich_buttons=[
+        self.Button.rich.row(
+            self.Button.rich.text("Temporarily unavailable", style="danger"),
+            align="right",
+        ),
+    ],
+)
+```
+
+The row's `align` controls the horizontal position of the whole row. Supported
+values are `left`, `center` (the default), and `right`:
+
+```python
+rich_buttons = [
+    self.Button.rich.row(
+        self.Button.rich.inline("Back", handler=self.on_back),
+        self.Button.rich.inline("Next", handler=self.on_next),
+        align="left",
+    ),
+]
+```
+
+For hand-written HTML, the equivalent markup is
+`<tg-button-row align="right">...</tg-button-row>`. Alignment does not move
+individual buttons independently; it positions their containing row.
+
 `buttons` is normal reply markup. `rich_buttons` is `PageButtons` content
 inside the rich message, and both may be supplied. `rich_buttons` require an
 HTML string in `rich_text`, and cannot be combined with a prebuilt

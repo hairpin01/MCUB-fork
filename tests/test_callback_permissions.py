@@ -271,6 +271,7 @@ class TestInlineButtonFactory:
 
         button = ModuleBase.ButtonFactory(module).copy("Copy", "secret")
 
-        assert isinstance(button, types.KeyboardButtonCopy)
+        assert isinstance(button, types.KeyboardInlineButton)
+        assert isinstance(button.type, types.InlineButtonTypeCopy)
         assert button.text == "Copy"
-        assert button.copy_text == "secret"
+        assert button.type.copy_text == "secret"

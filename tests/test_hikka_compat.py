@@ -1787,7 +1787,7 @@ class TestInlineProxyFormGalleryList:
         assert captured["kwargs"]["ttl"] == 60
 
         telethon_buttons = proxy._to_telethon_buttons(prepared)
-        assert telethon_buttons[0][0].query == "input-token "
+        assert telethon_buttons[0][0].type.query == "input-token "
 
         event = types.SimpleNamespace(msg_id=None, user_id=12345)
         asyncio.run(captured["handler"](event, "typed text"))

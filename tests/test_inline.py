@@ -6,6 +6,7 @@ Tests for inline features
 """
 
 import json
+import threading
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -1171,6 +1172,250 @@ class TestInlineRichForm:
         assert calls[0]["ttl"] == 60
 
     @pytest.mark.asyncio
+    async def test_rich_form_appends_escaped_callback_page_buttons(self):
+        from core.lib.loader.base import RichButtonRow, RichCallbackButton
+        from core.lib.loader.inline import InlineManager
+
+        manager = InlineManager.__new__(InlineManager)
+        calls = []
+
+        async def fake_inline_form(**kwargs):
+            calls.append(kwargs)
+            return True, object()
+
+        manager.inline_form = fake_inline_form
+        result = await InlineManager.rich_form(
+            manager,
+            123,
+            "<p>Choose</p>",
+            buttons=[[{"text": "Normal", "type": "callback", "data": "normal"}]],
+            rich_buttons=[
+                [RichCallbackButton("Run <now>", 'run"token', "success")],
+                RichButtonRow(
+                    (RichCallbackButton("Stop", "stop-token", "danger"),), "right"
+                ),
+            ],
+        )
+
+        assert result[0] is True
+        assert calls[0]["buttons"] == [
+            [{"text": "Normal", "type": "callback", "data": "normal"}]
+        ]
+        assert calls[0]["rich_text"] == (
+            "<p>Choose</p>\n"
+            '<tg-button-row align="center"><tg-button type="callback_data" '
+            'data="run&quot;token" style="success">Run &lt;now&gt;</tg-button>'
+            "</tg-button-row>\n"
+            '<tg-button-row align="right"><tg-button type="callback_data" '
+            'data="stop-token" style="danger">Stop</tg-button></tg-button-row>'
+        )
+
+        try:
+            from telethon.extensions.richparser import BlockButtonRow, parse_rich_html
+        except ImportError:
+            pytest.skip("Telethon-MCUB richparser is unavailable")
+        blocks = parse_rich_html(calls[0]["rich_text"])
+        rows = [block for block in blocks if isinstance(block, BlockButtonRow)]
+        assert len(rows) == 2
+        assert rows[0].buttons[0].attrs["data"] == 'run"token'
+
+    @pytest.mark.asyncio
+    async def test_rich_public_facades_forward_or_render_rich_buttons_once(self):
+        from core.lib.kernel_handlers import KernelHandlersMixin
+        from core.lib.loader.base import RichCallbackButton
+        from core_inline.api import CodeInline
+
+        spec = RichCallbackButton("Run", "run-token", "success")
+        inline = SimpleNamespace(rich_form=AsyncMock(return_value="form"))
+        handlers = object.__new__(KernelHandlersMixin)
+        handlers._inline = inline
+
+        assert await handlers.rich_form(1, "<p>x</p>", rich_buttons=[spec]) == "form"
+        inline.rich_form.assert_awaited_once_with(1, "<p>x</p>", rich_buttons=[spec])
+
+        kernel = SimpleNamespace(rich_form=AsyncMock(return_value="kernel-form"))
+        facade = CodeInline(kernel, ttl=77)
+        assert (
+            await facade.rich_form(2, "<p>x</p>", rich_buttons=[spec]) == "kernel-form"
+        )
+        kernel.rich_form.assert_awaited_once_with(
+            2, "<p>x</p>", ttl=77, rich_buttons=[spec]
+        )
+
+        fallback_kernel = SimpleNamespace(
+            inline_form=AsyncMock(return_value="fallback")
+        )
+        fallback = CodeInline(fallback_kernel, ttl=88)
+        assert (
+            await fallback.rich_form(
+                3, "<p>x</p>", text="fallback text", rich_buttons=[spec]
+            )
+            == "fallback"
+        )
+        fallback_kernel.inline_form.assert_awaited_once()
+        kwargs = fallback_kernel.inline_form.await_args.kwargs
+        assert kwargs["ttl"] == 88
+        assert kwargs["rich_text"].count("<tg-button-row") == 1
+        assert "rich_buttons" not in kwargs
+        assert fallback_kernel.inline_form.await_args.args == (3, "fallback text")
+
+    @pytest.mark.asyncio
+    async def test_inline_message_edit_rich_renders_buttons_once_and_rejects_invalid_sources(
+        self,
+    ):
+        from core.lib.loader.base import RichCallbackButton
+        from core.lib.types.inline_message import InlineMessage
+
+        event = _inline_event()
+        event.edit_rich = AsyncMock()
+        message = InlineMessage(event)
+        specs = [
+            RichCallbackButton("One", "one-token"),
+            RichCallbackButton("Two", "two-token", "success"),
+        ]
+        reply_buttons = [[{"text": "Normal", "type": "callback", "data": "normal"}]]
+
+        await message.edit_rich("<p>x</p>", buttons=reply_buttons, rich_buttons=specs)
+
+        event.edit_rich.assert_awaited_once()
+        call = event.edit_rich.await_args
+        assert call.args[0].count("<tg-button-row") == 1
+        assert call.kwargs["buttons"] == reply_buttons
+        rich = call.kwargs["rich_message"]
+        assert rich.html == call.args[0]
+        from telethon.extensions.richparser import BlockButtonRow, parse_rich_html
+
+        rows = [
+            block
+            for block in parse_rich_html(rich.html)
+            if isinstance(block, BlockButtonRow)
+        ]
+        assert len(rows) == 1
+        assert len(rows[0].buttons) == 2
+
+        with pytest.raises(ValueError, match="markdown"):
+            await message.edit_rich("<p>x</p>", markdown="x", rich_buttons=specs)
+        with pytest.raises(ValueError, match="rich_message"):
+            await message.edit_rich(
+                "<p>x</p>", rich_message=object(), rich_buttons=specs
+            )
+        with pytest.raises(TypeError, match="html"):
+            await message.edit_rich(markdown="x", rich_buttons=specs)
+
+    @pytest.mark.asyncio
+    async def test_rich_form_rejects_invalid_buttons_and_draft_blocks(self):
+        from core.lib.loader.base import RichCallbackButton
+        from core.lib.loader.inline import InlineManager
+
+        manager = InlineManager.__new__(InlineManager)
+
+        async def fake_inline_form(**_kwargs):
+            return True, object()
+
+        manager.inline_form = fake_inline_form
+        valid = RichCallbackButton("Run", "run-token")
+        with pytest.raises(ValueError, match="cannot be empty"):
+            await InlineManager.rich_form(manager, 1, "<p>x</p>", rich_buttons=[])
+        with pytest.raises(ValueError, match="at most 8"):
+            await InlineManager.rich_form(
+                manager, 1, "<p>x</p>", rich_buttons=[valid] * 9
+            )
+        with pytest.raises(TypeError, match=r"only Button\.rich\.inline"):
+            await InlineManager.rich_form(manager, 1, "<p>x</p>", rich_buttons=[{}])
+        with pytest.raises(ValueError, match="draft-only"):
+            await InlineManager.rich_form(
+                manager, 1, '<TG-THINKING \n data-x="1">draft</TG-THINKING>'
+            )
+
+        thinking = type("PageBlockThinking", (), {"blocks": []})()
+        rich_message = SimpleNamespace(blocks=[SimpleNamespace(blocks=[thinking])])
+        with pytest.raises(ValueError, match="PageBlockThinking"):
+            await InlineManager.rich_form(manager, 1, rich_message=rich_message)
+        unsupported = type("PageBlockUnsupported", (), {"blocks": []})()
+        with pytest.raises(ValueError, match="PageBlockUnsupported"):
+            await InlineManager.rich_form(
+                manager, 1, rich_message=SimpleNamespace(blocks=[unsupported])
+            )
+
+    @pytest.mark.asyncio
+    async def test_rich_callback_dispatch_uses_existing_inline_handler(self):
+        from core.lib.loader.base import ModuleBase
+        from core_inline.handlers import InlineHandlers
+
+        class RichButtonsMod(ModuleBase):
+            name = "RichDispatchMod"
+            strings = {"en": {"name": "Rich dispatch"}}
+
+            async def on_run(self, event, *args, **kwargs):
+                seen["event"] = event
+                seen["args"] = args
+                seen["kwargs"] = kwargs
+
+        kernel = SimpleNamespace(
+            logger=MagicMock(),
+            config={"language": "en"},
+            inline=None,
+            inline_callback_map={},
+            _inline_cb_lock=threading.Lock(),
+            callback_handlers={},
+        )
+        module = RichButtonsMod(kernel, MagicMock(), MagicMock())
+        button = module.Button.rich.inline(
+            "Run", handler=module.on_run, args=(1, 2), kwargs={"foo": "bar"}
+        )
+        seen = {}
+        handlers = object.__new__(InlineHandlers)
+        handlers.kernel = kernel
+        handlers._api_bot = None
+        handlers._cb_lock = kernel._inline_cb_lock
+        handlers._cleanup_inline_callback_map = lambda: None
+        handlers._wrap_aiogram_callback_query = lambda event: event
+        handlers._dedup_runtime_event = lambda *_args: False
+        handlers._callback_dedup_key = lambda *_args: "callback"
+        handlers._should_deliver = lambda *_args: True
+        handlers.check_admin = AsyncMock(return_value=True)
+        handlers.lang = {
+            "no_access": "NO",
+            "form_expired": "EXPIRED",
+            "critical_error": "ERROR",
+        }
+        event = _inline_event()
+        event.data = button.token.encode()
+        event.sender_id = 1
+
+        await handlers.process_callback_query(event)
+
+        assert seen["args"] == (1, 2)
+        assert seen["kwargs"] == {"foo": "bar"}
+        assert seen["event"].data == button.token.encode()
+
+    @pytest.mark.asyncio
+    async def test_inline_handler_watcher_registration_is_guarded_once(self):
+        from core_inline.handlers import InlineHandlers
+
+        class Client:
+            def __init__(self):
+                self._mcub_inline_handlers_registered = False
+                self.callbacks = []
+
+            def on(self, event):
+                def decorator(handler):
+                    self.callbacks.append((event, handler))
+                    return handler
+
+                return decorator
+
+        handlers = object.__new__(InlineHandlers)
+        handlers.bot_client = Client()
+        handlers.kernel = SimpleNamespace(logger=MagicMock())
+        handlers._start_cleanup_task = AsyncMock()
+
+        await handlers.register_handlers()
+        await handlers.register_handlers()
+
+        assert len(handlers.bot_client.callbacks) == 2
+
+    @pytest.mark.asyncio
     async def test_inline_form_consumes_photo_alias_as_media(self):
         from core.lib.loader.inline import InlineManager
 
@@ -1496,6 +1741,105 @@ class TestInlineRichForm:
         assert rich_text == '<a href="tg://photo?id=hero">Фото</a>'
         assert uploaded == [("hero", "https://example.com/photo.jpg", "photo")]
         assert isinstance(rich_files[0], types.InputRichFilePhoto)
+
+    @pytest.mark.asyncio
+    async def test_rich_form_uploads_local_paths_with_referenced_type(self, tmp_path):
+        from telethon.tl import types
+
+        from core.lib.loader.inline import InlineManager
+
+        photo_path = tmp_path / "люблю-члены.jpg"
+        video_path = tmp_path / "clip.mp4"
+        photo_path.write_bytes(b"not decoded locally")
+        video_path.write_bytes(b"not decoded locally")
+        calls = []
+
+        class Client:
+            async def _file_to_media(self, source, **kwargs):
+                calls.append((source, kwargs))
+                return None, object(), False
+
+            async def __call__(self, _request):
+                _source, flags = calls[-1]
+                if flags["force_document"]:
+                    return SimpleNamespace(document=types.InputDocument(1, 2, b"ref"))
+                return SimpleNamespace(photo=types.InputPhoto(1, 2, b"ref"))
+
+        manager = InlineManager.__new__(InlineManager)
+        manager.k = SimpleNamespace(client=Client())
+
+        photo, photo_type = await manager._make_input_rich_file_for_form(
+            {"id": "hero", "media": photo_path}, referenced_type="photo"
+        )
+        video, video_type = await manager._make_input_rich_file_for_form(
+            {"id": "clip", "media": str(video_path)}, referenced_type="video"
+        )
+
+        assert isinstance(photo, types.InputRichFilePhoto)
+        assert photo.id == "hero"
+        assert photo_type == "photo"
+        assert isinstance(video, types.InputRichFileDocument)
+        assert video.id == "clip"
+        assert video_type == "video"
+        assert calls == [
+            (photo_path, {"force_document": False, "supports_streaming": False}),
+            (str(video_path), {"force_document": True, "supports_streaming": True}),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_rich_form_rejects_invalid_local_paths_and_photo_upload_mismatch(
+        self, tmp_path
+    ):
+        from core.lib.loader.inline import InlineManager
+
+        manager = InlineManager.__new__(InlineManager)
+        missing = tmp_path / "missing.jpg"
+        with pytest.raises(FileNotFoundError, match="does not exist"):
+            await manager._make_input_rich_file_for_form({"id": "x", "media": missing})
+        with pytest.raises(IsADirectoryError, match="directory"):
+            await manager._make_input_rich_file_for_form({"id": "x", "media": tmp_path})
+
+        class MismatchClient:
+            async def _file_to_media(self, *_args, **_kwargs):
+                return None, object(), False
+
+            async def __call__(self, _request):
+                return SimpleNamespace(document=object())
+
+        manager.k = SimpleNamespace(client=MismatchClient())
+        photo_path = tmp_path / "photo.jpg"
+        photo_path.write_bytes(b"x")
+        with pytest.raises(ValueError, match="did not return a photo"):
+            await manager._make_input_rich_file_for_form(
+                {"id": "hero", "media": photo_path}, referenced_type="photo"
+            )
+
+    @pytest.mark.asyncio
+    async def test_rich_form_normalizes_local_asset_path_for_photo_reference(
+        self, tmp_path
+    ):
+        from telethon.tl import types
+
+        from core.lib.loader.inline import InlineManager
+
+        photo_path = tmp_path / "люблю-члены.jpg"
+        photo_path.write_bytes(b"x")
+        manager = InlineManager.__new__(InlineManager)
+        uploaded = []
+
+        async def fake_upload(media_id, source, media_type):
+            uploaded.append((media_id, source, media_type))
+            return types.InputRichFilePhoto(media_id, types.InputPhoto(1, 2, b"ref"))
+
+        manager._upload_source_as_rich_file = fake_upload
+        rich_text, files = await manager._normalize_rich_media_for_form(
+            {"hero": photo_path},
+            rich_text='<a href="tg://photo?id=hero">Open local photo</a>',
+        )
+
+        assert rich_text == '<a href="tg://photo?id=hero">Open local photo</a>'
+        assert uploaded == [("hero", photo_path, "photo")]
+        assert isinstance(files[0], types.InputRichFilePhoto)
 
     def test_rich_form_normalizes_rich_media_specs_and_preserves_files(self):
         from telethon.tl import types

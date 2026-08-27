@@ -46,6 +46,9 @@ langbutton:
 
 core_inline:
   no_access: I'm sorry, but you don't have access!
+  no_access_why: Why?
+  no_access_reason: This inline request was rejected because you don't have permission to use the bot in inline mode.
+  no_access_reason_trusted: You are a trusted user, but the command <code>{cmd}</code> is disabled for you by your trust access settings.
   no_access_id: 'ID'
   mcub_bot_title: MCUB Bot
   version: Version

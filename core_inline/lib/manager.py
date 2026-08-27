@@ -22,6 +22,19 @@ class InlineManager:
         except (ValueError, TypeError):
             return False
 
+    async def is_trusted(self, user_id: int) -> bool:
+        """Return whether the user is present in the trusted users list."""
+        try:
+            data = await self.kernel.db_get("trusted", "users")
+            if not data:
+                return False
+            trusted = (
+                json.loads(data) if isinstance(data, str) else json.loads(str(data))
+            )
+            return user_id in trusted
+        except Exception:
+            return False
+
     async def is_allowed(
         self,
         user_id: int,
@@ -53,16 +66,8 @@ class InlineManager:
             pass
 
         # Also check trusted users list (from modules/trusted.py)
-        try:
-            data = await self.kernel.db_get("trusted", "users")
-            if data:
-                trusted = (
-                    json.loads(data) if isinstance(data, str) else json.loads(str(data))
-                )
-                if user_id in trusted:
-                    return True
-        except Exception:
-            pass
+        if await self.is_trusted(user_id):
+            return True
 
         return False
 

@@ -46,6 +46,9 @@ langbutton:
 
 core_inline:
   no_access: "I'm sorry, but you don't have access!"
+  no_access_why: "why(1)?"
+  no_access_reason: "inline query rejected: permission denied for inline mode"
+  no_access_reason_trusted: "trusted user: command <code>{cmd}</code>: denied by trust access ACL"
   no_access_id: 'ID'
   mcub_bot_title: mcubd
   version: uname -r

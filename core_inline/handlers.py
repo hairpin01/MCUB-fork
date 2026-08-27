@@ -28,6 +28,8 @@ from telethon.tl.types import (
     UpdateInlineBotCallbackQuery,
 )
 
+from core.lib.time.cache import TTLCache
+
 from .api import (
     InlineButton,
     add_inline_keyboard_to_result,
@@ -235,12 +237,20 @@ class _TelethonInlineQueryAdapter:
 
     builder = _Builder()
 
-    async def answer(self, results: list[Any], cache_time: int = 300) -> None:
+    async def answer(
+        self,
+        results: list[Any],
+        cache_time: int = 300,
+        is_personal: bool = False,
+        next_offset: str | None = None,
+    ) -> None:
         if self._api_bot is not None:
             await self._api_bot.answer_inline(
                 inline_query_id=self._q.id,
                 results=results,
                 cache_time=cache_time,
+                is_personal=is_personal,
+                next_offset=next_offset,
             )
 
 
@@ -312,6 +322,21 @@ class _TelethonCallbackAdapter:
     ) -> None:
         msg = self.message
         if msg is None:
+            inline_message_id = getattr(self._q, "inline_message_id", None)
+            if self._api_bot is None or not inline_message_id:
+                return
+            kb = _aiogram_inline_markup(buttons)
+            try:
+                await self._api_bot.edit_message_text(
+                    text=text,
+                    inline_message_id=inline_message_id,
+                    parse_mode=parse_mode,
+                    reply_markup=kb,
+                )
+            except Exception as e:
+                self._kernel.logger.warning(
+                    "[InlineHandlers] aiogram edit_inline_message failed: %s", e
+                )
             return
         kb = _aiogram_inline_markup(buttons)
 
@@ -424,6 +449,8 @@ class _RawCallbackUpdateAdapter:
 
 class InlineHandlers:
     BTN_URL_PREFIX = "tg://btn/"
+    INLINE_DENIAL_CALLBACK_PREFIX = "why_inline:"
+    INLINE_DENIAL_TTL = 300
     EMOJI_TELESCOPE = '<tg-emoji emoji-id="5429283852684124412">🔭</tg-emoji>'
     EMOJI_BLOCK = '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji>'
     EMOJI_CRYSTAL = '<tg-emoji emoji-id="5361837567463399422">🔮</tg-emoji>'
@@ -451,6 +478,7 @@ class InlineHandlers:
         self._cleanup_task: asyncio.Task | None = None
         self._cleanup_interval = 300.0
         self._form_counter = 0
+        self._denial_cache = TTLCache(max_size=256, ttl=self.INLINE_DENIAL_TTL)
 
     def _dedup_runtime_event(self, kind: str, key: str, ttl: float = 2.0) -> bool:
         """Return True when the same inline event was processed recently."""
@@ -692,7 +720,20 @@ class InlineHandlers:
             next_offset: Offset for pagination.
         """
 
-        if self._is_aiogram_event(event):
+        if isinstance(event, _TelethonInlineQueryAdapter):
+            try:
+                await event.answer(
+                    results,
+                    cache_time=cache_time,
+                    is_personal=is_personal,
+                    next_offset=next_offset,
+                )
+            except Exception as e:
+                self.kernel.logger.error(
+                    "[InlineHandlers] aiogram answer_inline_query failed: %s",
+                    e,
+                )
+        elif self._is_aiogram_event(event):
             try:
                 await event.answer(
                     results=results,
@@ -707,7 +748,12 @@ class InlineHandlers:
                 )
         else:
             try:
-                await event.answer(results)
+                await event.answer(
+                    results,
+                    cache_time=cache_time,
+                    private=is_personal,
+                    next_offset=next_offset,
+                )
             except Exception as e:
                 self.kernel.logger.error(
                     "[InlineHandlers] Telethon answer failed: %s",
@@ -1575,6 +1621,69 @@ class InlineHandlers:
             return sender_id in allow_user
         return False
 
+    def _cache_inline_denial(
+        self,
+        sender_id: int,
+        query: str,
+        *,
+        command: str | None = None,
+        trusted: bool = False,
+    ) -> bytes | None:
+        """Cache an inline denial and return compact callback data."""
+        cache = getattr(self, "_denial_cache", None)
+        if cache is None:
+            cache = TTLCache(max_size=256, ttl=self.INLINE_DENIAL_TTL)
+            self._denial_cache = cache
+
+        token = uuid.uuid4().hex
+        cache.set(
+            f"inline:denial:{token}",
+            {
+                "sender_id": sender_id,
+                "query": query,
+                "command": command,
+                "trusted": trusted,
+            },
+            ttl=self.INLINE_DENIAL_TTL,
+        )
+        return f"{self.INLINE_DENIAL_CALLBACK_PREFIX}{token}".encode()
+
+    def _get_inline_denial(self, data_str: str, sender_id: int) -> dict | None:
+        """Resolve cached denial data only for the user who made the query."""
+        if not data_str.startswith(self.INLINE_DENIAL_CALLBACK_PREFIX):
+            return None
+        token = data_str.removeprefix(self.INLINE_DENIAL_CALLBACK_PREFIX)
+        if len(token) != 32 or not token.isascii() or not token.isalnum():
+            return None
+
+        cache = getattr(self, "_denial_cache", None)
+        entry = cache.get(f"inline:denial:{token}") if cache is not None else None
+        if not isinstance(entry, dict) or entry.get("sender_id") != sender_id:
+            return None
+        return entry
+
+    async def _handle_inline_denial_reason(self, event: Any, data_str: str) -> None:
+        entry = self._get_inline_denial(data_str, event.sender_id)
+        if entry is None:
+            await event.answer(self.lang["form_expired"], alert=True)
+            return
+
+        command = entry.get("command")
+        if entry.get("trusted") and command:
+            reason = self.lang(
+                "no_access_reason_trusted", cmd=html.escape(str(command))
+            )
+        else:
+            reason = self.lang["no_access_reason"]
+
+        await event.edit(
+            f"{self.EMOJI_BLOCK} <b>{reason}</b>\n"
+            f"<blockquote>{self.EMOJI_SHIELD} "
+            f"{self.lang['no_access_id']}: {event.sender_id}</blockquote>",
+            parse_mode="html",
+            buttons=[[Button.inline(" ", b"null", style="success")]],
+        )
+
     async def _save_inline_temp_data(
         self, temp_uuid: str, query_args: str, entry: dict
     ) -> None:
@@ -1688,7 +1797,25 @@ class InlineHandlers:
                 return
 
             if not await self.check_admin(event):
-                await event.answer(
+                denial_callback = self._cache_inline_denial(
+                    event.sender_id,
+                    query,
+                )
+                denial_buttons = (
+                    [
+                        [
+                            Button.inline(
+                                self.lang["no_access_why"],
+                                denial_callback,
+                                style="danger",
+                            )
+                        ]
+                    ]
+                    if denial_callback is not None
+                    else None
+                )
+                await self._answer_inline_query(
+                    event,
                     [
                         event.builder.article(
                             self.lang["no_access"],
@@ -1697,8 +1824,11 @@ class InlineHandlers:
                                 f"<blockquote>{self.EMOJI_SHIELD} {self.lang['no_access_id']}: {event.sender_id}</blockquote>"
                             ),
                             parse_mode="html",
+                            buttons=denial_buttons,
                         )
-                    ]
+                    ],
+                    cache_time=0,
+                    is_personal=True,
                 )
                 return
 
@@ -2063,6 +2193,10 @@ class InlineHandlers:
                 self.kernel.logger.debug("[InlineHandlers] duplicate callback ignored")
                 return
 
+            if data_str.startswith(self.INLINE_DENIAL_CALLBACK_PREFIX):
+                await self._handle_inline_denial_reason(event, data_str)
+                return
+
             # Check auto-generated callback tokens first for allow_all
             self._cleanup_inline_callback_map()
             with self._cb_lock:
@@ -2293,10 +2427,30 @@ class InlineHandlers:
             command=cmd,
             context=event,
         ):
+            trusted = await self._inline_manager.is_trusted(event.sender_id)
+            denial_callback = self._cache_inline_denial(
+                event.sender_id,
+                raw_query,
+                command=cmd,
+                trusted=trusted,
+            )
+            denial_buttons = (
+                [
+                    [
+                        Button.inline(
+                            self.lang["no_access_why"],
+                            denial_callback,
+                            style="danger",
+                        )
+                    ]
+                ]
+                if denial_callback is not None
+                else None
+            )
             no_access_text = (
                 f"{self.EMOJI_BLOCK} <b>{self.lang['no_access']}</b>\n"
                 f"<blockquote>{self.EMOJI_SHIELD} "
-                f"{self.lang('inline_command_no_access', cmd=html.escape(cmd))}</blockquote>"
+                f"<b>{self.lang('inline_command_no_access', cmd=html.escape(cmd))}</b></blockquote>"
             )
             await self._answer_inline_query(
                 event,
@@ -2305,6 +2459,7 @@ class InlineHandlers:
                         event,
                         self.lang["no_access"],
                         no_access_text,
+                        buttons=denial_buttons,
                     )
                 ],
                 cache_time=0,
@@ -2314,6 +2469,24 @@ class InlineHandlers:
         handler = self.kernel.inline_handlers[cmd]
         module_name = getattr(self.kernel, "inline_handlers_owners", {}).get(cmd)
         if not self._should_deliver(event, module_name, "inline"):
+            denial_callback = self._cache_inline_denial(
+                event.sender_id,
+                raw_query,
+                command=cmd,
+            )
+            denial_buttons = (
+                [
+                    [
+                        Button.inline(
+                            self.lang["no_access_why"],
+                            denial_callback,
+                            style="danger",
+                        )
+                    ]
+                ]
+                if denial_callback is not None
+                else None
+            )
             no_access_text = f"{self.EMOJI_BLOCK} <b>{self.lang['no_access']}</b>"
             await self._answer_inline_query(
                 event,
@@ -2322,6 +2495,7 @@ class InlineHandlers:
                         event,
                         self.lang["no_access"],
                         no_access_text,
+                        buttons=denial_buttons,
                     )
                 ],
                 cache_time=0,

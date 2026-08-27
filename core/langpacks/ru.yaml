@@ -46,6 +46,9 @@ langbutton:
 
 core_inline:
   no_access: Простите, но у вас нету доступа!
+  no_access_why: Почему?
+  no_access_reason: Этот inline-запрос отклонён, потому что у вас нет разрешения на использование бота в inline-режиме.
+  no_access_reason_trusted: Вы доверенный пользователь, но команда <code>{cmd}</code> запрещена для вас настройками trust access.
   no_access_id: 'ID'
   mcub_bot_title: MCUB Bot
   version: Version

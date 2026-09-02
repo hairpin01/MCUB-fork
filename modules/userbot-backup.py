@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлькa | @hairpin01
 
-# requires: cryptography
 
 from __future__ import annotations
 

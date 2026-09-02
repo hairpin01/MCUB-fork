@@ -68,7 +68,7 @@
     },
     "userbot-backup": {
       "path": "modules/userbot-backup.py",
-      "sha256": "71688058408b5350c1c22549b588e20d4bd130ed204573f00e81f482efa6cf23"
+      "sha256": "3bf4768175f50fcb4a0d1aa1e5bfb0850baae17c5e4c1d2cef089df5e0f9a9cd"
     },
     "switch_inline": {
       "path": "modules/switch_inline.py",

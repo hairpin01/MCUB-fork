@@ -10,6 +10,7 @@ import hashlib
 import io
 import json
 import os
+import platform
 import re
 import shutil
 import tarfile
@@ -230,6 +231,15 @@ class Backup(ModuleBase):
 
     async def on_load(self) -> None:
         await super().on_load()
+        architecture = platform.machine().lower()
+        is_x86 = (
+            architecture in {"amd64", "x86", "x86_64"}
+            or bool(re.fullmatch(r"i[3-6]86", architecture))
+        )
+        if is_x86:
+            await self.kernel.install_dependencies_batch(
+                ["cryptography"], self.name
+            )
         self._backup_task: asyncio.Task | None = None
         self._delayed_tasks: list[asyncio.Task] = []
 

@@ -8,7 +8,7 @@
     },
     "api_protection": {
       "path": "modules/api_protection.py",
-      "sha256": "e2c88b54bbd0b8d8c934acf6b628e7eeef1e1e73a7ccd2bc57a10c31302f526c"
+      "sha256": "6b0d595630450d0a6fc701039989ff25313257e55260287a79e37a7043b176e8"
     },
     "command": {
       "path": "modules/command.py",
@@ -68,7 +68,7 @@
     },
     "userbot-backup": {
       "path": "modules/userbot-backup.py",
-      "sha256": "3bf4768175f50fcb4a0d1aa1e5bfb0850baae17c5e4c1d2cef089df5e0f9a9cd"
+      "sha256": "e7a65e0bb6ec976c741db8ba8112f9159e33342216300496e967537a28cb1f7e"
     },
     "switch_inline": {
       "path": "modules/switch_inline.py",

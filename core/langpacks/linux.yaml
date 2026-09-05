@@ -553,6 +553,14 @@ translations:
   lang_changed: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> locale-gen: locale set to: {lang}'
   select_language: '<tg-emoji emoji-id="5472164874886846699">✨</tg-emoji> locale-gen: select locale'
   reloadlang_done: 'locale-gen: reloaded from disk'
+  other_languages: '🌐 other locales'
+  select_other_language: '🌐 locale-gen: select another locale'
+  no_other_languages: 'locale-gen: no additional locales installed'
+  install_language: '➕ locale-gen from URL'
+  back_to_languages: '🔙 main locales'
+  install_language_success: '✅ locale <code>{lang}</code> installed: <code>{path}</code>'
+  install_language_error: '❌ locale-gen failed: <code>{error}</code>'
+  use_installed_language: '✅ export LANG={lang}'
   settings_inline_title: ⚙️ /etc/mcubd.conf
   piped_usage: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Usage: {prefix}piped [on/off]'
   piped_on: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Pipeline <b>enabled</b>

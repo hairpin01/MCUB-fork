@@ -56,7 +56,7 @@
     },
     "translations": {
       "path": "modules/translations.py",
-      "sha256": "1738b9b04cd3a3988b728b4fe144ae34bf7420a543cc49186b474735e179b129"
+      "sha256": "cb05be52ba8fadd2315fa8c0d3b43b8ce9cc41386df9e24bbd5f56ffb0f58cfc"
     },
     "trusted": {
       "path": "modules/trusted.py",

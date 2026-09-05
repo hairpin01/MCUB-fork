@@ -53,6 +53,31 @@ def test_langpacks_loader_can_load_all_yaml_files():
         clear_langpacks_cache()
 
 
+def test_custom_langpacks_are_discovered_and_loaded(tmp_path, monkeypatch):
+    """User-installed packs in ``langpacks/custom`` are regular locales."""
+    from core import langpacks
+
+    langpacks_dir = tmp_path / "langpacks"
+    custom_dir = langpacks_dir / "custom"
+    custom_dir.mkdir(parents=True)
+    (langpacks_dir / "en.yaml").write_text(
+        "lang: en\nprobe:\n  hello: Hello\n", encoding="utf-8"
+    )
+    (custom_dir / "es.yaml").write_text(
+        "lang: en\nprobe:\n  hello: Hola\n", encoding="utf-8"
+    )
+
+    monkeypatch.setattr(langpacks, "_LANGPACKS_DIR", langpacks_dir)
+    monkeypatch.setattr(langpacks, "_ICONS_DIR", langpacks_dir / "icons")
+    monkeypatch.setattr(langpacks, "CUSTOM_LANGPACKS_DIR", custom_dir)
+    langpacks.clear_langpacks_cache()
+    try:
+        assert langpacks.get_available_locales() == ["en", "es"]
+        assert langpacks.get_langpacks()["es"]["probe"]["hello"] == "Hola"
+    finally:
+        langpacks.clear_langpacks_cache()
+
+
 def test_icons_directory_contains_yaml_files():
     assert ICON_PACK_FILES, f"No icon pack YAML files found in {ICONS_DIR}"
 

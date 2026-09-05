@@ -437,6 +437,14 @@ translations:
   lang_changed: '<tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> Мову змінено на: {lang}'
   select_language: <tg-emoji emoji-id="5472164874886846699">✨</tg-emoji> Select language
   reloadlang_done: 'Мовні пакети перезавантажено з диску'
+  other_languages: '🌐 Інші мови'
+  select_other_language: '🌐 Виберіть іншу мову'
+  no_other_languages: 'Додаткові мови ще не встановлені'
+  install_language: '➕ Встановити мову за URL'
+  back_to_languages: '🔙 Основні мови'
+  install_language_success: '✅ Мову <code>{lang}</code> встановлено: <code>{path}</code>'
+  install_language_error: '❌ Не вдалося встановити мовний пакет: <code>{error}</code>'
+  use_installed_language: '✅ Використовувати {lang}'
 
 settings:
   prefix_usage: '❌ Використання: {prefix}setprefix [символ] [id/@username/reply]'

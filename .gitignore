@@ -31,6 +31,7 @@ __pycache__/
 
 config.json
 modules_loaded/
+core/langpacks/custom/
 *.egg-*/
 */script/*
 *script*

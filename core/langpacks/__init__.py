@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 __all__ = [
+    "CUSTOM_LANGPACKS_DIR",
     "LANGPACKS",
     "clear_langpacks_cache",
     "get_all_module_strings",
@@ -23,6 +24,7 @@ __all__ = [
 
 _LANGPACKS_DIR = Path(__file__).parent
 _ICONS_DIR = _LANGPACKS_DIR / "icons"
+CUSTOM_LANGPACKS_DIR = _LANGPACKS_DIR / "custom"
 
 LANGPACKS: dict[str, dict[str, Any]] = {}
 _GLOBAL_MODULE = "__global__"
@@ -49,13 +51,18 @@ def _is_global_marker(value: Any) -> bool:
     return value == 1
 
 
+def _iter_langpack_files() -> list[Path]:
+    """Return bundled packs followed by user-installed custom packs."""
+    files = sorted(_LANGPACKS_DIR.glob("*.yaml")) + sorted(_LANGPACKS_DIR.glob("*.yml"))
+    if CUSTOM_LANGPACKS_DIR.is_dir():
+        files.extend(sorted(CUSTOM_LANGPACKS_DIR.glob("*.yaml")))
+        files.extend(sorted(CUSTOM_LANGPACKS_DIR.glob("*.yml")))
+    return files
+
+
 def get_available_locales() -> list[str]:
-    """Returns list of available locales from langpacks files."""
-    return sorted(
-        f.stem
-        for f in _LANGPACKS_DIR.iterdir()
-        if f.is_file() and f.suffix in (".yaml", ".yml")
-    )
+    """Return locale names from bundled and user-installed langpacks."""
+    return sorted({file_path.stem for file_path in _iter_langpack_files()})
 
 
 def _quote_unquoted_premium_emoji(text: str) -> str:
@@ -148,9 +155,7 @@ def get_langpacks(locale: str | None = None) -> dict[str, dict[str, Any]]:
         return LANGPACKS
 
     icon_packs = _load_icon_packs()
-    for yaml_file in sorted(_LANGPACKS_DIR.glob("*.yaml")) + sorted(
-        _LANGPACKS_DIR.glob("*.yml")
-    ):
+    for yaml_file in _iter_langpack_files():
         locale_name = yaml_file.stem
         data = _load_yaml(yaml_file)
 

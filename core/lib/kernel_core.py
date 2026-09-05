@@ -963,6 +963,23 @@ class KernelCoreMixin:
         self.current_loading_module = None
         self.current_loading_module_type = None
 
+    async def install_dependencies_batch(
+        self,
+        requirements: list[str],
+        module_name: str = "module",
+        log_fn: Any = None,
+    ) -> None:
+        """Install dependencies through the configured module loader."""
+        loader = self._loader
+        if loader is None:
+            raise RuntimeError("Module loader is not available")
+
+        await loader.install_dependencies_batch(
+            requirements,
+            module_name=module_name,
+            log_fn=log_fn,
+        )
+
     async def detected_module_type(self, module: Any) -> str:
         """Detect the registration pattern of a module."""
         return await self._loader.detect_module_type(module)

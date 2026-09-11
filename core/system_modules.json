@@ -40,7 +40,7 @@
     },
     "settings": {
       "path": "modules/settings.py",
-      "sha256": "5a90270f5b36f99777e27b1a89d8d94e06e8ea8e9294dda03d94e8230e645d96"
+      "sha256": "2fb9f065d15e49e97779f11c47d7bb9bf8ba08f5ce5772f0fad7556763875338"
     },
     "terminal": {
       "path": "modules/terminal.py",

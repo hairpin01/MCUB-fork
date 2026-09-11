@@ -8,7 +8,11 @@ import os
 import shutil
 
 import aiohttp
-from telethon import __version__, events
+from telethon import (
+  __version__ as version_telethon,
+  __path__ as path_telethon,
+  events,
+)
 from telethon.tl.types import InputMediaWebPage
 
 from core.lib.loader.module_base import ModuleBase, callback, command
@@ -38,17 +42,6 @@ class SettingsModule(ModuleBase):
     )
 
     async def on_load(self) -> None:
-        config_dict = await self.kernel.get_module_config(
-            self.name,
-            {"settings_any_prefix": False},
-        )
-        self.config.from_dict(config_dict)
-        config_dict_clean = {
-            k: v for k, v in self.config.to_dict().items() if v is not None
-        }
-        if config_dict_clean:
-            await self.kernel.save_module_config(self.name, config_dict_clean)
-
         self.user_emojis = {
             6020965582: "5469888215802482605",
             2037125547: "5467932472379480411",
@@ -56,7 +49,6 @@ class SettingsModule(ModuleBase):
             8405520863: "5470170528297817805",
             855890735: "5470063433288290290",
         }
-        self.kernel.store_module_config_schema(self.name, self.config)
 
     def _s(self, key: str, **kwargs) -> str:
         """Get localized string."""
@@ -616,7 +608,6 @@ class SettingsModule(ModuleBase):
     @command("mcub", doc_ru="Инфo o MCUB", doc_en="Info MCUB", doc_uk="Інфо про MCUB")
     async def cmd_mcub(self, event: events.NewMessage.Event) -> None:
         version_kernel = self.kernel.VERSION
-        version_telethon = __version__
         branch = await self.kernel.version_manager.detect_branch()
         commit_sha = await self.kernel.version_manager.get_commit_sha()
         commit_url = await self.kernel.version_manager.get_github_commit_url()
@@ -629,14 +620,13 @@ class SettingsModule(ModuleBase):
         )
 
         text = f"""<blockquote>{mcub_emoji} <code>{version_kernel}</code> #<a href="{commit_url}">{commit_sha}</a></blockquote>
-
 <blockquote><tg-emoji emoji-id="5397575638146110953">🌎</tg-emoji> <strong>Telethon-MCUB</strong>: <code>{version_telethon}</code>
+<tg-emoji emoji-id="5471950641918121951">☃️</tg-emoji> <strong>Path to Telethon-MCUB:</strong> <code>{' '.join(path_telethon)}</code></blockquote>
 
-<tg-emoji emoji-id="5449918202718985124">🌳</tg-emoji> Branch <strong>{branch}</strong>!</blockquote>"""
+<blockquote><tg-emoji eemoji-id="5449918202718985124">🌳</tg-emoji> Branch <strong>{branch}</strong>!</blockquote>"""
         banner_url = "https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/info.jpg"
 
-        await event.edit(
-            text,
+        await event.ed(            ttext,
             file=InputMediaWebPage(banner_url, optional=True),
             parse_mode="html",
             invert_media=True,

@@ -626,7 +626,8 @@ class SettingsModule(ModuleBase):
 <blockquote><tg-emoji eemoji-id="5449918202718985124">🌳</tg-emoji> Branch <strong>{branch}</strong>!</blockquote>"""
         banner_url = "https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/info.jpg"
 
-        await event.ed(            ttext,
+        await event.edit(            
+            text,
             file=InputMediaWebPage(banner_url, optional=True),
             parse_mode="html",
             invert_media=True,

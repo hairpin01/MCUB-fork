@@ -1083,7 +1083,9 @@ trusted:
   ownerprefix_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Використання: <code>.ownerprefix</code> [id/@username] або реплай'
   ownerprefix_list_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Власники та їх префікси:</b>'
   ownerprefix_list_item: '• {user} (<code>{user_id}</code>) - <code>{prefix}</code> <em>({source})</em>'
-  ownerprefix_one: '🔎 <b>Префікс власника:</b> {user} (<code>{user_id}</code>)\n• <b>Префікс:</b> <code>{prefix}</code>\n• <b>Джерело:</b> <em>{source}</em>'
+  ownerprefix_one: '🔎 <b>Префікс власника:</b> {user} (<code>{user_id}</code>)
+  • <b>Префікс:</b> <code>{prefix}</code>
+  • <b>Джерело:</b> <em>{source}</em>'
   ownerprefix_source_personal: персональний
   ownerprefix_source_fallback: fallback від адміна
   btn_cancel: Скасувати

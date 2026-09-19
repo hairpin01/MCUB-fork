@@ -623,7 +623,7 @@ class SettingsModule(ModuleBase):
 <blockquote><tg-emoji emoji-id="5397575638146110953">🌎</tg-emoji> <strong>Telethon-MCUB</strong>: <code>{version_telethon}</code>
 <tg-emoji emoji-id="5471950641918121951">☃️</tg-emoji> <strong>Path to Telethon-MCUB:</strong> <code>{' '.join(path_telethon)}</code></blockquote>
 
-<blockquote><tg-emoji eemoji-id="5449918202718985124">🌳</tg-emoji> Branch <strong>{branch}</strong>!</blockquote>"""
+<blockquote><tg-emoji emoji-id="5449918202718985124">🌳</tg-emoji> Branch <strong>{branch}</strong>!</blockquote>"""
         banner_url = "https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/info.jpg"
 
         await event.edit(            

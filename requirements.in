@@ -1,4 +1,4 @@
-telethon-MCUB==1.44.2
+telethon-MCUB
 psutil
 aiohttp
 pysocks

@@ -8,6 +8,7 @@ import asyncio
 import shutil
 import subprocess
 import time
+from packaging.version import parse, InvalidVersion
 
 import aiohttp
 
@@ -223,7 +224,7 @@ class VersionManager:
                     if not parts[0].startswith("v"):
                         continue
                     spec = parts[0][1:]
-                    if spec == "[__lastest__]":
+                    if spec in ("[__lastest__]", "[__latest__]"):
                         if latest_version is None:
                             latest_version = await self.get_latest_kernel_version()
                         if self.compare_versions(current_version, latest_version) != 0:
@@ -259,3 +260,42 @@ class VersionManager:
                     return False, "Module requires ffmpeg to be installed on the system"
 
         return True, ""
+
+    @staticmethod
+    async def is_update_package(
+        package: str, version: str, session: aiohttp.ClientSession | None = None
+    ) -> tuple[bool, str | Exception]:
+        url = f"https://pypi.org/pypi/{package}/json"
+        if not session:
+            session = aiohttp.ClientSession()
+            own_session = True
+
+        try:
+            timeout = aiohttp.ClientTimeout(total=5)
+            async with session.get(url, timeout=timeout) as response:
+                response.raise_for_status()
+                data = await response.json()
+
+            latest_version_str = data["info"]["version"]
+            current = parse(version)
+            latest = parse(latest_version_str)
+
+            if current < latest:
+                return True, latest
+
+            return (
+                False,
+                None,
+            )
+
+        except InvalidVersion as e:
+            raise e
+        except (aiohttp.ClientError, TimeoutError) as e:
+            return False, e
+        except Exception as e:
+            return False, e
+        finally:
+            if own_session:
+                await session.close()
+
+        return False, None

@@ -490,13 +490,14 @@ class KernelCoreMixin:
         import threading
 
         _REQUIREMENTS = [
-            ("telethon", "telethon"),
+            ("telethon-mcub", "telethon"),
             ("aiohttp", "aiohttp"),
             ("aiohttp-jinja2", "aiohttp_jinja2"),
             ("jinja2", "jinja2"),
             ("psutil", "psutil"),
             ("aiosqlite", "aiosqlite"),
             ("PySocks", "socks"),
+            ("packaging", "packaging"),
         ]
 
         def _can_import(mod: str) -> bool:

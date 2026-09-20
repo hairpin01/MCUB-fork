@@ -64,7 +64,7 @@
     },
     "updates": {
       "path": "modules/updates.py",
-      "sha256": "419447714b277dcefa7df2956e177067fb7bbb6c8a566a8b4fa29760a348e885"
+      "sha256": "4555758945035cced1fa4741743e8756f41540089bddb2608ac1336b46dc1bd0"
     },
     "userbot-backup": {
       "path": "modules/userbot-backup.py",

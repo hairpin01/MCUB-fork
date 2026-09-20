@@ -186,7 +186,7 @@ class UpdatesMod(loader.ModuleBase):
             state.failures += 1
             backoff = min(_CHECK_INTERVAL * (2**state.failures), _MAX_BACKOFF)
             state.next_check_at = time.monotonic() + backoff
-            self.log.warning(
+            self.log.debug(
                 f"updates: {mod_name}: check failed "
                 f"(#{state.failures}, retry in {backoff:.0f}s): {exc}"
             )

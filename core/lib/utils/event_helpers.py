@@ -42,7 +42,11 @@ def make_simple_event(kernel: Any, msg: Any, text: str, chat_id: int) -> Any:
                 return None
 
         async def edit(
-            self, new_text: str, *args: Any, parse_mode: str | None = None, **kwargs: Any
+            self,
+            new_text: str,
+            *args: Any,
+            parse_mode: str | None = None,
+            **kwargs: Any,
         ) -> Any:
             try:
                 return await self._client.edit_message(

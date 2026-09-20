@@ -11,9 +11,9 @@ import importlib.util
 import os
 import sys
 import time
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
-from pathlib import Path
 
 from core.lib.types.event import Event
 
@@ -958,8 +958,8 @@ class KernelCoreMixin:
         url = f"{repo_url}/{module_name if module_name.endswith('.py') else f'{module_name}.py'}"
 
         if result is not None and result[0] and url:
-          self._module_sources[module_name] = {"url": url}
-          await self.save_module_sources()
+            self._module_sources[module_name] = {"url": url}
+            await self.save_module_sources()
 
         return result
 
@@ -1029,18 +1029,20 @@ class KernelCoreMixin:
     async def install_from_url(
         self, url: str, module_name: str | None = None, auto_dependencies: bool = True
     ) -> tuple:
-      """Download and install a module from a URL."""
-      result = await self._loader.install_from_url(url, module_name, auto_dependencies)
-      
-      key = module_name
-      if not module_name:
-          key = Path(urlparse(url).path).name or None
-  
-      if result[0] and key:
-          self._module_sources[key] = {"url": url}
-          await self.save_module_sources()
-  
-      return result
+        """Download and install a module from a URL."""
+        result = await self._loader.install_from_url(
+            url, module_name, auto_dependencies
+        )
+
+        key = module_name
+        if not module_name:
+            key = Path(urlparse(url).path).name or None
+
+        if result[0] and key:
+            self._module_sources[key] = {"url": url}
+            await self.save_module_sources()
+
+        return result
 
     async def load_system_modules(self) -> None:
         """Load all modules from the system modules directory."""

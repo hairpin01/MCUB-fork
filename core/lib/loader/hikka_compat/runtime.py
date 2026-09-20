@@ -159,7 +159,7 @@ CompatKernelProxy = _make_compat_kernel_proxy()
 class _HikkaClientProxy:
     """Small Hikka-only facade that adds client.tg_id to MCUB ClientProxy."""
 
-    __slots__ = ("_proxy", "tg_id", "_tg_id")
+    __slots__ = ("_proxy", "_tg_id", "tg_id")
 
     def __init__(self, proxy, tg_id: int | None):
         self._proxy = proxy
@@ -624,7 +624,7 @@ class _NamedTupleMiddlewareDict:
 
 
 class _ModuleDbBucket(dict):
-    def __init__(self, facade: "_KernelDbFacade", owner: str, initial=None):
+    def __init__(self, facade: _KernelDbFacade, owner: str, initial=None):
         self._facade = facade
         self._owner = owner
         super().__init__(initial or {})
@@ -2983,11 +2983,12 @@ class InlineProxy:
             inline_id = inline_message_id or unit.get("inline_message_id")
             if inline_id:
                 try:
-                    from core.lib.types.inline_message import (
-                        _normalize_inline_message_id,
-                    )
                     from telethon.tl.functions.messages import (
                         EditInlineBotMessageRequest,
+                    )
+
+                    from core.lib.types.inline_message import (
+                        _normalize_inline_message_id,
                     )
 
                     request_kwargs = {"id": _normalize_inline_message_id(inline_id)}
@@ -3266,7 +3267,6 @@ def _get_members(
 
 class _AllModulesStub:
     def __init__(self, kernel):
-        from ..kernel_proxy import ClientProxy
 
         _remember_raw_kernel(self, kernel)
         self._kernel = CompatKernelProxy(kernel, module_name="allmodules")
@@ -3608,7 +3608,6 @@ class Module:
     def _mcub_bind(
         self, kernel, module_type: str = "native", *, module_name: str | None = None
     ) -> None:
-        from ..kernel_proxy import ClientProxy
 
         module_key = module_name or type(self).__name__
         _remember_raw_kernel(self, kernel)

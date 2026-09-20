@@ -8,7 +8,6 @@ import time
 
 from .types import StopLoop
 
-
 logger = logging.getLogger(__name__)
 
 

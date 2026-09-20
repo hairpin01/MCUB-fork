@@ -696,11 +696,11 @@ class InlineManager:
                 "callback",
             )
             try:
-                setattr(handler, "__mcub_module_name__", module_name)
+                handler.__mcub_module_name__ = module_name
             except AttributeError:
                 handler_func = getattr(handler, "__func__", None)
                 if handler_func is not None:
-                    setattr(handler_func, "__mcub_module_name__", module_name)
+                    handler_func.__mcub_module_name__ = module_name
             k.callback_handlers[pattern_bytes] = handler
             k.logger.debug(
                 f"[InlineManager] register_callback_handler added total={len(k.callback_handlers)}"

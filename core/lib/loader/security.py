@@ -75,7 +75,7 @@ def _sec(func: SecurityHandler, flags: int) -> SecurityHandler:
     """Attach Heroku/Hikka-style security flags to *func*."""
 
     prev = getattr(func, "security", 0)
-    setattr(func, "security", prev | OWNER | flags)
+    func.security = prev | OWNER | flags
     return func
 
 
@@ -699,7 +699,6 @@ __all__ = [
     "BITMAP",
     "DEFAULT_PERMISSIONS",
     "EVERYONE",
-    "EventSecurityMeta",
     "GROUP_ADMIN",
     "GROUP_ADMIN_ADD_ADMINS",
     "GROUP_ADMIN_ANY",
@@ -713,15 +712,16 @@ __all__ = [
     "OWNER",
     "PM",
     "PUBLIC_PERMISSIONS",
-    "SUPPORT",
     "SUDO",
+    "SUPPORT",
+    "VALID_PERMISSIONS",
+    "EventSecurityMeta",
     "Security",
     "SecurityChatDecision",
     "SecurityChatRules",
     "SecurityChats",
     "SecurityGroup",
     "SecurityManager",
-    "VALID_PERMISSIONS",
     "group_admin",
     "group_admin_add_admins",
     "group_admin_ban_users",

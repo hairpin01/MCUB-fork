@@ -4,7 +4,6 @@
 import re
 import site
 
-from .dependencies import VALID_PIP_PACKAGES
 from .config import ConfigValue, LibraryConfig, ModuleConfig
 from .decorators import (
     InfiniteLoop,
@@ -20,6 +19,7 @@ from .decorators import (
     tds,
     watcher,
 )
+from .dependencies import VALID_PIP_PACKAGES
 from .runtime import Library, Module
 from .types import (
     CoreOverwriteError,

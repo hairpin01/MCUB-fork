@@ -8,7 +8,7 @@
     },
     "api_protection": {
       "path": "modules/api_protection.py",
-      "sha256": "6b0d595630450d0a6fc701039989ff25313257e55260287a79e37a7043b176e8"
+      "sha256": "74bb69c737877d508b85f541cbf9bb62167268c43fcf2bcf7dbd4fb31dfe606d"
     },
     "command": {
       "path": "modules/command.py",
@@ -40,7 +40,7 @@
     },
     "settings": {
       "path": "modules/settings.py",
-      "sha256": "ccf14160220bee5cab4a5f0250d90c55272842da2d478ed5143f5174759e22f1"
+      "sha256": "7fcbc62601f40d11720430ee7736784ce782c89bafae72f809b90c30b0816fc0"
     },
     "terminal": {
       "path": "modules/terminal.py",
@@ -64,7 +64,7 @@
     },
     "updates": {
       "path": "modules/updates.py",
-      "sha256": "4555758945035cced1fa4741743e8756f41540089bddb2608ac1336b46dc1bd0"
+      "sha256": "9e55ed1130dea7b780d675f6fd7fd43afd56424fa4bb300f94c3bd5be410c4fb"
     },
     "userbot-backup": {
       "path": "modules/userbot-backup.py",

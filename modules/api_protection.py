@@ -646,7 +646,6 @@ def register(kernel):
                         UpdateStatusRequest,
                         UpdateUsernameRequest,
                     )
-                    from telethon.tl.functions.messages import EditChatCreatorRequest
                     from telethon.tl.functions.channels import (
                         CreateChannelRequest,
                         DeleteChannelRequest,
@@ -672,6 +671,7 @@ def register(kernel):
                         DeleteMessagesRequest,
                         DeleteScheduledMessagesRequest,
                         EditChatAboutRequest,
+                        EditChatCreatorRequest,
                         ImportChatInviteRequest,
                         SaveDraftRequest,
                         UpdateDialogFilterRequest,

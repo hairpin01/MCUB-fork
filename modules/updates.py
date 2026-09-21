@@ -15,13 +15,9 @@ import aiohttp
 from telethon.tl.types import InputMediaWebPage
 
 import core.lib.loader.module_base as loader
-from core.lib.loader.module_config import (
-    ModuleConfig,
-    ConfigValue,
-    Boolean
-)
-from utils import restart_kernel, Strings
+from core.lib.loader.module_config import Boolean, ConfigValue, ModuleConfig
 from core.lib.types import Event, InlineMessage
+from utils import Strings, restart_kernel
 
 _VERSION_ATTR_RE = re.compile(
     r"^\s*version\s*=\s*['\"]([^'\"]+)['\"]",

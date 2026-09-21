@@ -9,15 +9,19 @@ import shutil
 
 import aiohttp
 from telethon import (
-  __version__ as version_telethon,
-  __path__ as path_telethon,
-  events,
+    __path__ as path_telethon,
+)
+from telethon import (
+    __version__ as version_telethon,
+)
+from telethon import (
+    events,
 )
 from telethon.tl.types import InputMediaWebPage
 
 from core.lib.loader.module_base import ModuleBase, callback, command
 from core.lib.loader.module_config import Boolean, ConfigValue, ModuleConfig
-from utils import answer, Strings
+from utils import Strings, answer
 
 
 class SettingsModule(ModuleBase):
@@ -626,7 +630,7 @@ class SettingsModule(ModuleBase):
 <blockquote><tg-emoji emoji-id="5449918202718985124">🌳</tg-emoji> Branch <strong>{branch}</strong>!</blockquote>"""
         banner_url = "https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/info.jpg"
 
-        await event.edit(            
+        await event.edit(
             text,
             file=InputMediaWebPage(banner_url, optional=True),
             parse_mode="html",

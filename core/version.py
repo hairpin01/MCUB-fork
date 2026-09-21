@@ -8,9 +8,9 @@ import asyncio
 import shutil
 import subprocess
 import time
-from packaging.version import parse, InvalidVersion
 
 import aiohttp
+from packaging.version import InvalidVersion, parse
 
 # version kernel MCUB
 __version__ = "1.4.7"

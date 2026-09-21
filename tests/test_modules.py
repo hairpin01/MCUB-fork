@@ -150,6 +150,7 @@ class TestConfigModule:
     def test_config_result_handler_handles_validation_error_in_form(self):
         """ValidationError in inline config result must edit form, not global error."""
         import inspect
+
         import modules.config as config_module
 
         source = inspect.getsource(config_module)
@@ -162,6 +163,7 @@ class TestConfigModule:
     def test_config_group_back_keeps_parent_group_context(self):
         """Grouped module config keys must return Back to their group submenu."""
         import inspect
+
         import modules.config as config_module
 
         source = inspect.getsource(config_module)
@@ -180,6 +182,7 @@ class TestConfigModule:
     def test_config_ids_are_nonce_based_to_avoid_stale_key_mapping(self):
         """Inline config ids must not be deterministic key/page hashes."""
         import inspect
+
         import modules.config as config_module
 
         source = inspect.getsource(config_module)
@@ -190,6 +193,7 @@ class TestConfigModule:
     def test_cfg_uses_callback_form_and_module_mode_by_default(self):
         """cfg opens cached module/key callbacks through a self-clicked form."""
         import inspect
+
         import modules.config as config_module
 
         source = inspect.getsource(config_module)
@@ -206,6 +210,7 @@ class TestConfigModule:
     def test_fcfg_defaults_to_module_set_and_has_kernel_mode(self):
         """fcfg accepts concise module and explicit kernel assignments."""
         import inspect
+
         import modules.config as config_module
 
         source = inspect.getsource(config_module)
@@ -218,6 +223,7 @@ class TestConfigModule:
     def test_config_multichoice_toggles_list_values(self):
         """MultiChoice UI must toggle list members, not save a scalar choice."""
         import inspect
+
         import modules.config as config_module
 
         source = inspect.getsource(config_module)
@@ -232,6 +238,7 @@ class TestConfigModule:
     def test_config_module_select_uses_custom_handler_before_standard_ui(self):
         """Module list button should allow custom ModuleConfig handler override."""
         import inspect
+
         import modules.config as config_module
 
         source = inspect.getsource(config_module)

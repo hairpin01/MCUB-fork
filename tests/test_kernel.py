@@ -33,8 +33,9 @@ class TestKernelCore:
         monkeypatch,
     ):
         """Telethon-MCUB renders regular message entities through html.unparse."""
-        from core.lib.kernel_core import KernelCoreMixin
         from telethon.extensions import html as telethon_html
+
+        from core.lib.kernel_core import KernelCoreMixin
 
         monkeypatch.delattr(telethon_html, "message_to_html", raising=False)
 

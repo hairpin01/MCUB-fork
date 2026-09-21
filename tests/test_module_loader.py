@@ -979,11 +979,12 @@ class TestHikkaModuleConfigSchema:
             if mod_name == "herokutl" or mod_name.startswith("herokutl."):
                 sys.modules.pop(mod_name, None)
 
-        from core.lib.loader import hikka_compat  # noqa: F401
         from herokutl import TelegramClient, events, functions
         from herokutl.tl.functions import account
         from telethon import TelegramClient as TelethonClient
         from telethon import events as telethon_events
+
+        from core.lib.loader import hikka_compat  # noqa: F401
 
         assert TelegramClient is TelethonClient
         assert events is telethon_events
@@ -1037,8 +1038,9 @@ class TestHikkaModuleConfigSchema:
 
     def test_herokutl_top_level_types_star_import_exposes_user(self):
         """Test legacy from herokutl.types import * exposes TL types."""
-        from core.lib.loader import hikka_compat  # noqa: F401
         from telethon.tl.types import User as TelethonUser
+
+        from core.lib.loader import hikka_compat  # noqa: F401
 
         namespace = {}
         exec("from herokutl.types import *\nresult = User", namespace)

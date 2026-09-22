@@ -559,7 +559,8 @@ settings:
   settings_title: '⚙️ Налаштування юзербота'
   settings_inline_title: '⚙️ Налаштування'
   piped_usage: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Використання: {prefix}piped [on/off]'
-loader:
+
+installation:
   choose: |-
     <b>{mcub_emoji} installation</b>
 
@@ -629,6 +630,8 @@ loader:
     VDS
   source: |-
     Вихідний код можна прочитати <a href='https://github.com/hairpin01/MCUB-fork'>тут</a>
+
+loader:
   wait: '{wait} <b>Будь ласка, зачекайте...</b>'
   reply_to_py: '{warning} <b>Дайте відповідь на .py файл</b>'
   not_py_file: '{warning} <b>Це не .py файл</b>'
@@ -792,6 +795,7 @@ loader:
   log_deleting_due_conflict: => Видаляю файл модуля через конфлікт
   log_deleting_due_error: => Видаляю файл модуля через помилку
   um_usage: '{warning} <b>Використання:</b> <code>{prefix}um назва_модуля</code>'
+  module_protection_unlm: '{warning} <b>Цей модуль </b>"<code>{module}</code>"<b> не можна просто завантажити як файл </b>'
   module_not_found_um: '{warning} <b>Модуль {module_name} не знайдено</b>'
   module_unloaded: '{success} <b>Модуль {module_name} видалено</b>'
   um_not_found: '<code>{module_name}</code> - не знайдено'

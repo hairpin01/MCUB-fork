@@ -24,11 +24,11 @@
     },
     "installation": {
       "path": "modules/installation.py",
-      "sha256": "6d0e9bdfb4cd685895dff205d21a2e4f1cb9c045c46b07ee01a10964a1da6cfa"
+      "sha256": "a01608bef57d61e7a12e989cacd6edee30465ee391850a44dbb4c87a4fe48f78"
     },
     "loader": {
       "path": "modules/loader.py",
-      "sha256": "6177d4a65f3b72bb3857c89c7b8e2eb0154dd5e381feb7dc7519c98139ce97e0"
+      "sha256": "42d33a52cafe66fda7a75cfee8e5d8e99fa034a07d58b2649072874001c25ca8"
     },
     "log_bot": {
       "path": "modules/log_bot.py",

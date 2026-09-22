@@ -3030,6 +3030,23 @@ class Loader(ModuleBase):
 
         module_name = actual_name
         file_path = self.kernel._loader.get_module_path(module_name)
+        from core.lib.mixin.module_utils import has_scop_flag
+        
+        try:
+            with open(file_path, encoding="utf-8") as f:
+                code = f.read()
+            if has_scop_flag(code, "no_unlm") or has_scop_flag(code, "no_ml"):
+                await self.edit(
+                    event,
+                    self.strings(
+                        "module_protection_unlm",
+                        warning=CUSTOM_EMOJI["warning"],
+                        module=module_name,
+                    ),
+                )
+                return
+        except OSError:
+            pass
 
         if not os.path.exists(file_path):
             await self._edit_with_emoji(

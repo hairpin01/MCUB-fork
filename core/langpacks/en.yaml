@@ -689,7 +689,7 @@ settings:
 
     <tg-emoji emoji-id="5229113891081956317">➖</tg-emoji> <b>Risk to main account</b> - it is recommended to use a separate account for
     the userbot</blockquote>'
-loader:
+installation:
   choose: |-
     <b>{mcub_emoji} installation</b>
 
@@ -722,7 +722,7 @@ loader:
     cd MCUB-fork
     pip install -r requirements.txt
     python3 -m core --set-default-core standard
-    python3 -m core --no-web</pre>
+    python3 -m core --no-web</pre
     {emoji_venv}<b> When installing MCUB inside <u><code>proot-distro</code></u> or <u><code>WSL</code></u> it is recommended to create a <u>venv</u>:</b>
     <pre><code class="language-shell">python3 -m venv .venv
     source .venv/bin/activate # Bash
@@ -759,6 +759,7 @@ loader:
     VDS
   source: |-
     The source code can be read <a href='https://github.com/hairpin01/MCUB-fork'>here</a>
+loader:
   wait: '{wait} <b>Please wait...</b>'
   reply_to_py: '{warning} <b>Reply to a .py file</b>'
   not_py_file: '{warning} <b>This is not a .py file</b>'
@@ -937,6 +938,7 @@ loader:
   log_deleting_due_conflict: => Deleting module file due to conflict
   log_deleting_due_error: => Deleting module file due to error
   um_usage: '{warning} <b>Usage:</b> <code>{prefix}um module_name</code>'
+  module_protection_unlm: '{warning} <b>A module </b>"<code>{module}</code>"<b> cannot simply be uploaded as a file</b>'
   module_not_found_um: '{warning} <b>Module {module_name} not found</b>'
   module_unloaded: '{success} <b>Module {module_name} unloaded</b>'
   um_not_found: '<code>{module_name}</code> - not found'

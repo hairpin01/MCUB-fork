@@ -21,7 +21,7 @@ class Installation(ModuleBase):
         "rofl": "Гaйд пo ycтaнoвкe paткo MCUB-fork",
     }
 
-    strings: utils.Strings = {"name": "loader"}
+    strings: utils.Strings = {"name": name}
 
     config = ModuleConfig(
         ConfigValue(
@@ -64,14 +64,6 @@ class Installation(ModuleBase):
             validator=String(),
         ),
     )
-
-    _OWNER_EMOJI: dict[int, str] = {
-        6020965582: "5469888215802482605",
-        2037125547: "5467932472379480411",
-        779572293: "5470163024989952512",
-        8405520863: "5470170528297817805",
-        855890735: "5470063433288290290",
-    }
 
     async def on_load(self) -> None:
         await super().on_load()

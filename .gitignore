@@ -41,3 +41,5 @@ base16-opencode/*
 *answer.*
 */.obsidian/*
 */*/.obsidian/*
+core/kernel/XKer*
+patches/*

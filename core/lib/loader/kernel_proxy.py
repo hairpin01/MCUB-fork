@@ -39,7 +39,6 @@ PROTECTED_KERNEL_NAMES = frozenset(
         "bot_command_handlers",
         "command_owners",
         "bot_command_owners",
-        "aliases",
         "command_metadata",
         "command_docs",
         "inline_handlers",

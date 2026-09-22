@@ -222,7 +222,7 @@ class LogBot(ModuleBase):
         update_image_url = "https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/update.png"
 
         try:
-            sender_send_message = None
+            sender = None
             if getattr(self.kerne, 'bot_client', False):
                 
                 if (
@@ -232,7 +232,7 @@ class LogBot(ModuleBase):
                     sender_send_message = self.kernel.inline.bot.send_rich_message
                 else:
                     self.kernel.client.send_message
-            )
+            
             _message_load = await sender.send_message(
                 self.kernel.log_chat_id,
                 self.strings("banner_load"),

@@ -32,7 +32,7 @@
     },
     "log_bot": {
       "path": "modules/log_bot.py",
-      "sha256": "10eb2457dba6411150e0afe3533c5fd8aa63edd60e9b2c04c9197905265be19c"
+      "sha256": "e21809d1f1cab8fca8ba0b6da97ca6bc2f174e6054ab18d1c9670482cb85ed82"
     },
     "man": {
       "path": "modules/man.py",

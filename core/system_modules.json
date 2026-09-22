@@ -32,7 +32,7 @@
     },
     "log_bot": {
       "path": "modules/log_bot.py",
-      "sha256": "27d433ec1fbfa24001fcc6b5d734bfb9125b8fd8166a5a8fc877359ef43915ed"
+      "sha256": "10eb2457dba6411150e0afe3533c5fd8aa63edd60e9b2c04c9197905265be19c"
     },
     "man": {
       "path": "modules/man.py",
@@ -64,7 +64,7 @@
     },
     "updates": {
       "path": "modules/updates.py",
-      "sha256": "9e55ed1130dea7b780d675f6fd7fd43afd56424fa4bb300f94c3bd5be410c4fb"
+      "sha256": "d041671e63d181e877ee7bc2b3dfa17de430a061da2b0a02b68bb787835b9c30"
     },
     "userbot-backup": {
       "path": "modules/userbot-backup.py",

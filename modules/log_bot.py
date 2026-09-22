@@ -204,8 +204,8 @@ class LogBot(ModuleBase):
         commit_lines = []
         for sha, subject, author, time_str in commits[:MAX_COMMITS]:
             commit_lines.append(
-                f"<blockquote expandable><code>{sha}</code> {html.escape(subject)} | "
-                f"{html.escape(author)} | {time_str}</blockquote>"
+                f"<blockquote><code>{sha}</code> {html.escape(subject)} | "
+                f"{time_str} | By {html.escape(author)}</blockquote>"
             )
 
         remaining = len(commits) - MAX_COMMITS
@@ -222,13 +222,16 @@ class LogBot(ModuleBase):
         update_image_url = "https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/update.png"
 
         try:
-            sender = (
-                self.kernel.bot_client
+            sender_send_message = None
+            if getattr(self.kerne, 'bot_client', False):
+                
                 if (
                     self.kernel.bot_client
                     and await self.kernel.bot_client.is_user_authorized()
-                )
-                else self.kernel.client
+                ):
+                    sender_send_message = self.kernel.inline.bot.send_rich_message
+                else:
+                    self.kernel.client.send_message
             )
             _message_load = await sender.send_message(
                 self.kernel.log_chat_id,

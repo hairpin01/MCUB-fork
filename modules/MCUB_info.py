@@ -146,11 +146,14 @@ class MCUBInfoMod(ModuleBase):
               {
                   "hero": "https://url/for/photo.jpg"
               }
-              and:
+            and:
               <a href="tg://photo?id=hero">Photo</a>
               see doc/telethon/rich-media.md
+
+            your banner from info_banner_url:
+              <a href="tg://photo?id=banner_url">Photo</a> # or media
             """,
-            validator=DictType(),
+            validador=DictType(),
         ),
         ConfigValue(
             "info_rich_mode",
@@ -391,6 +394,9 @@ class MCUBInfoMod(ModuleBase):
                         banner_url = default_banner
                         has_banner = True
 
+            if is_url and banner_url:
+                rich_files["banner_url"] = banner_url
+
             if rich_mode:
                 try:
                     if me.premium:
@@ -408,6 +414,7 @@ class MCUBInfoMod(ModuleBase):
                             rich_media=rich_files,
                             reply_to=getattr(event, "reply_to", None),
                         )
+                    return
                 except Exception as e:
                     import traceback
 

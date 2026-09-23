@@ -394,15 +394,17 @@ class MCUBInfoMod(ModuleBase):
                         banner_url = default_banner
                         has_banner = True
 
-            if is_url and banner_url:
-                rich_files["banner_url"] = banner_url
+            #if is_url and banner_url:
+            #   rich_files["banner_url"] = banner_url
+            # когда telethon доделаю нормально сука
+            # тагда сделаю rich_files
 
             if rich_mode:
                 try:
                     await self.subinline.rich_form(
                         msg,
                         info_text,
-                        rich_media=rich_files,
+                        #rich_media=rich_files,
                         reply_to=getattr(event, "reply_to", None),
                     )
                     return

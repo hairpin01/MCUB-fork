@@ -2,6 +2,7 @@
 # Copyright (c) 2026 Шмэлькa | @hairpin01
 
 from __future__ import annotations
+from logging.config import valid_ident
 
 import asyncio
 import getpass
@@ -25,6 +26,7 @@ from core.lib.loader.module_config import (
     ModuleConfig,
     Placeholders,
     String,
+    DictType,
 )
 from utils.strings import Strings
 
@@ -81,27 +83,8 @@ class MCUBInfoMod(ModuleBase):
     author = "@hairpin01"
 
     async def on_load(self) -> None:
-        branch = self._get_branch()
-        config_dict = await self.kernel.get_module_config(
-            self.name,
-            {
-                "info_quote_media": False,
-                "info_invert_media": False,
-                "info_custom_text": "",
-                "placeholders": "",
-                "info_start_emoji": CUSTOM_EMOJI["load"],
-                "info_banner_url": f"https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/{branch}/img/info.jpg",
-            },
-        )
-        utils.register_decorated_placeholders(self.name, self)
-        config_dict["placeholders"] = utils.format_placeholders(self.name)
-        self.config.from_dict(config_dict)
-        config_dict_clean = {
-            k: v for k, v in self.config.to_dict().items() if v is not None
-        }
-        if config_dict_clean:
-            await self.kernel.save_module_config(self.name, config_dict_clean)
-        self.kernel.store_module_config_schema(self.name, self.config)
+        await super().on_load()
+        
         self.user_emojis = None
 
     async def on_unload(self) -> None:
@@ -150,17 +133,31 @@ class MCUBInfoMod(ModuleBase):
             validator=Placeholders(placeholder_scope="any"),
         ),
         ConfigValue(
-            "placeholders",
-            "",
-            description="Available placeholders (auto-generated, read-only)",
-            validator=String(),
-        ),
-        ConfigValue(
             "info_start_emoji",
             CUSTOM_EMOJI["load"],
             description="Start emoji",
             validator=String(),
         ),
+        ConfigValue(
+            "info_rich_files",
+            {},
+            description="""Rich files for <a href="tg://photo?id=hero">Photo</a>
+            example:
+              {
+                  "hero": "https://url/for/photo.jpg"
+              }
+              and:
+              <a href="tg://photo?id=hero">Photo</a>
+              see doc/telethon/rich-media.md
+            """,
+            validador=DictType(),
+        ),
+        ConfigValue(
+            "info_rich_mode",
+            False,
+            description="enabled Rich Formatting\nSee doc/telethon/rich-html.md",
+            validator=Boolean()
+        )
     )
 
     strings: dict[str, dict[str, str]] | Strings = {"name": "mcub_info"}
@@ -348,6 +345,7 @@ class MCUBInfoMod(ModuleBase):
     @command("info", doc_ru="пoкaзaть инфo", doc_en="show info", doc_uk="показати інфо")
     async def cmd_info(self, event: Any) -> None:
         try:
+            rich_mode = bool(self.config.get("info_rich_mode"))
             start_time = time.time()
             msg = await event.edit(
                 self._resolve_info_start_emoji(),
@@ -372,6 +370,12 @@ class MCUBInfoMod(ModuleBase):
             banner_url = self.config.get("info_banner_url") or ""
             quote_media = bool(self.config.get("info_quote_media"))
             invert_media = bool(self.config.get("info_invert_media"))
+            
+            rich_files = dict(self.config.get("info_rich_files"))
+            me = self.cache.get("info:me")
+            if me is None:
+                me = await self.kernel.client.get_me()
+                self.cache.set("info:me", me, ttl=3600)
 
             has_banner = False
             is_url = False
@@ -386,6 +390,24 @@ class MCUBInfoMod(ModuleBase):
                     if os.path.exists(default_banner):
                         banner_url = default_banner
                         has_banner = True
+
+            if rich_mode:
+                try:
+                    if me.premium:
+                        await self.client.send_rich_message(
+                            event.chat_id,
+                            info_text,
+                            rich_media=rich_files,
+                            reply_to=getattr(event, "reply_to", None),
+                        )
+                        await event.delete()
+                    else:
+                        await self.subinline.rich_form(
+                            msg,
+                            info_text,
+                            rich_media=rich_files,
+                            reply_to=getattr(event, "reply_to", None),
+                        )
 
             if has_banner and banner_url:
                 try:

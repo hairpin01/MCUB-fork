@@ -4,7 +4,7 @@
   "modules": {
     "MCUB_info": {
       "path": "modules/MCUB_info.py",
-      "sha256": "1426905ea55d52337d6563fcd4b6f7515dd9e1b74e4265812ce11a61d4f62754"
+      "sha256": "0982541ac818330724889f21100552f6d8b1e8990adc85e14a50088e9d03bb4d"
     },
     "api_protection": {
       "path": "modules/api_protection.py",
@@ -32,7 +32,7 @@
     },
     "log_bot": {
       "path": "modules/log_bot.py",
-      "sha256": "e21809d1f1cab8fca8ba0b6da97ca6bc2f174e6054ab18d1c9670482cb85ed82"
+      "sha256": "011f00d2716159b8e315a7603f7a082e36822a10c11fa3e6c5833ed53d3660cc"
     },
     "man": {
       "path": "modules/man.py",

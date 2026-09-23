@@ -223,15 +223,15 @@ class LogBot(ModuleBase):
 
         try:
             sender = None
-            if getattr(self.kerne, 'bot_client', False):
+            if getattr(self.kernel, 'bot_client', False):
                 
                 if (
                     self.kernel.bot_client
                     and await self.kernel.bot_client.is_user_authorized()
                 ):
-                    sender_send_message = self.kernel.inline.bot.send_rich_message
+                    sender = self.kernel.inline.bot
                 else:
-                    self.kernel.client.send_message
+                    sender = self.kernel.client
             
             _message_load = await sender.send_message(
                 self.kernel.log_chat_id,

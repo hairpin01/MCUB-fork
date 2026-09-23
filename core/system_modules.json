@@ -4,7 +4,7 @@
   "modules": {
     "MCUB_info": {
       "path": "modules/MCUB_info.py",
-      "sha256": "0982541ac818330724889f21100552f6d8b1e8990adc85e14a50088e9d03bb4d"
+      "sha256": "3c86e1607e2489e6901f78e45f14433ef6524012d9a2c58402827fb078433bcb"
     },
     "api_protection": {
       "path": "modules/api_protection.py",

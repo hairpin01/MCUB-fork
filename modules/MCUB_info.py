@@ -150,7 +150,7 @@ class MCUBInfoMod(ModuleBase):
               <a href="tg://photo?id=hero">Photo</a>
               see doc/telethon/rich-media.md
             """,
-            validador=DictType(),
+            validator=DictType(),
         ),
         ConfigValue(
             "info_rich_mode",

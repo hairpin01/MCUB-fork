@@ -399,21 +399,12 @@ class MCUBInfoMod(ModuleBase):
 
             if rich_mode:
                 try:
-                    if me.premium:
-                        await self.client.send_rich_message(
-                            event.chat_id,
-                            info_text,
-                            rich_media=rich_files,
-                            reply_to=getattr(event, "reply_to", None),
-                        )
-                        await event.delete()
-                    else:
-                        await self.subinline.rich_form(
-                            msg,
-                            info_text,
-                            rich_media=rich_files,
-                            reply_to=getattr(event, "reply_to", None),
-                        )
+                    await self.subinline.rich_form(
+                        msg,
+                        info_text,
+                        rich_media=rich_files,
+                        reply_to=getattr(event, "reply_to", None),
+                    )
                     return
                 except Exception as e:
                     import traceback

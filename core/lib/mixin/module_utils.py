@@ -13,6 +13,15 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     pass
 
+def has_scop_flag(code: str, flag: str) -> bool:
+    """Check if module source declares a specific # scop: flag."""
+    for line in code.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("# scop:"):
+            parts = stripped[len("# scop:"):].strip().split()
+            if flag in parts:
+                return True
+    return False
 
 def is_archive_url(url: str) -> bool:
     """Check if URL points to an archive file."""

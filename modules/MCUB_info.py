@@ -408,7 +408,19 @@ class MCUBInfoMod(ModuleBase):
                             rich_media=rich_files,
                             reply_to=getattr(event, "reply_to", None),
                         )
+                except Exception as e:
+                    import traceback
 
+                    self.log.error(f"Info error: {traceback.format_exc()}")
+                    try:
+                        await event.edit(
+                            self.strings("error_see_logs", warning=CUSTOM_EMOJI["⚠️"]),
+                            parse_mode="html",
+                        )
+                    except Exception:
+                        pass
+
+                
             if has_banner and banner_url:
                 try:
                     if is_url:

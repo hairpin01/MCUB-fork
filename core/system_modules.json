@@ -12,7 +12,7 @@
     },
     "command": {
       "path": "modules/command.py",
-      "sha256": "b25749710384dac8bedbb552f5c916f6af2d1e9036a31c6f4b846cc8c4b43eca"
+      "sha256": "150425ae37d7dcd346655454758f656e8cb1468e0021e4df4b4b644306a8b504"
     },
     "config": {
       "path": "modules/config.py",

@@ -153,7 +153,7 @@ class MCUBInfoMod(ModuleBase):
             your banner from info_banner_url:
               <a href="tg://photo?id=banner_url">Photo</a> # or media
             """,
-            validador=DictType(),
+            validator=DictType(),
         ),
         ConfigValue(
             "info_rich_mode",

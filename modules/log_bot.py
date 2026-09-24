@@ -34,6 +34,7 @@ from core.lib.loader.module_config import (
     String,
 )
 from core.lib.types import Event, InlineMessage
+from utils import git_verify
 from utils.strings import Strings
 
 
@@ -311,6 +312,64 @@ class LogBot(ModuleBase):
         except Exception as e:
             self.log.error(f"update_check_loop error: {e}")
 
+    async def _apply_update(self, call: InlineMessage, target: str) -> None:
+        """Fast-forward to the exact commit ``target``, report, restart."""
+        repo_path = os.path.dirname(os.path.abspath(__file__))
+        rc, out, err = await git_verify.merge_commit(
+            repo_path, target, ff_only=True, timeout=30
+        )
+        if rc != 0:
+            raise Exception(f"git merge failed (code {rc}): {err or out}")
+
+        proc2 = await asyncio.create_subprocess_exec(
+            "git",
+            "rev-parse",
+            "--short",
+            "HEAD",
+            cwd=repo_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout2, _ = await proc2.communicate()
+        sha = stdout2.decode().strip() or "?"
+
+        self.kernel.cache.set("log_bot:last_notified_sha", sha)
+
+        await self.edit(
+            call,
+            self.lang["update_done"].format(sha=sha),
+            as_html=True,
+            buttons=None,
+        )
+        restart_cmd = await self.kernel.client.send_message(
+            self.kernel.log_chat_id, f"{self.kernel.custom_prefix}restart"
+        )
+        await self.kernel.process_command(restart_cmd)
+
+    async def _prompt_mismatch(
+        self,
+        call: InlineMessage,
+        result: git_verify.VerifyResult,
+        branch: str,
+    ) -> None:
+        """Show the warning with [force] / [skip] instead of updating."""
+        text = self.strings(
+            "sig_mismatch", sha=result.short, branch=html.escape(branch)
+        )
+        force_btn = self.Button.inline(
+            self.strings("sig_btn_force"),
+            self.on_force_update_callback,
+            args=(result.sha,),
+            style="danger",
+        )
+        skip_btn = self.Button.inline(
+            self.strings("sig_btn_skip"),
+            self.on_skip_update_callback,
+            args=(result.sha,),
+            style="primary",
+        )
+        await self.edit(call, text, buttons=[[force_btn, skip_btn]], as_html=True)
+
     @callback()
     async def on_update_callback(self, call: InlineMessage, data=None):
         await call.answer()
@@ -323,49 +382,22 @@ class LogBot(ModuleBase):
         try:
             repo_path = os.path.dirname(os.path.abspath(__file__))
             branch = await self.kernel.version_manager.detect_branch()
-            proc = await asyncio.create_subprocess_exec(
-                "git",
-                "pull",
-                "--ff-only",
-                "origin",
-                branch,
-                cwd=repo_path,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout_pull, stderr_pull = await asyncio.wait_for(
-                proc.communicate(), timeout=30
-            )
-            if proc.returncode != 0:
-                error_msg = stderr_pull.decode().strip() or stdout_pull.decode().strip()
-                raise Exception(
-                    f"git pull failed (code {proc.returncode}): {error_msg}"
-                )
 
-            proc2 = await asyncio.create_subprocess_exec(
-                "git",
-                "rev-parse",
-                "--short",
-                "HEAD",
-                cwd=repo_path,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout2, _ = await proc2.communicate()
-            sha = stdout2.decode().strip() or "?"
+            # Resolve the exact commit first: what we verify is what we merge.
+            # With auto_update this click is automatic, but a commit that fails
+            # verification is never applied here: it stops at the prompt below
+            # and waits for a human to press the "continue" button.
+            target = await git_verify.fetch_target(repo_path, branch, timeout=30)
 
-            self.kernel.cache.set("log_bot:last_notified_sha", sha)
+            if not await git_verify.is_up_to_date(repo_path, target):
+                result = await git_verify.check_commit(repo_path, target)
+                if not result.ok:
+                    self.log.error(git_verify.WARNING)
+                    self.log.error(f"log_bot: {result.describe()}")
+                    await self._prompt_mismatch(call, result, branch)
+                    return
 
-            await self.edit(
-                call,
-                self.lang["update_done"].format(sha=sha),
-                as_html=True,
-                buttons=None,
-            )
-            restart_cmd = await self.kernel.client.send_message(
-                self.kernel.log_chat_id, f"{self.kernel.custom_prefix}restart"
-            )
-            await self.kernel.process_command(restart_cmd)
+            await self._apply_update(call, target)
         except Exception as e:
             await self.edit(
                 call,
@@ -373,6 +405,40 @@ class LogBot(ModuleBase):
                 as_html=True,
                 buttons=None,
             )
+
+    @callback()
+    async def on_force_update_callback(self, call: InlineMessage, sha: str):
+        await call.answer()
+        self.log.warning(
+            f"log_bot: forced update to commit {sha[:12]} "
+            "that failed signature verification"
+        )
+        try:
+            await self.edit(
+                call,
+                self.strings("sig_forcing", sha=sha[:12]),
+                buttons=None,
+                as_html=True,
+            )
+            await self._apply_update(call, sha)
+        except Exception as e:
+            await self.edit(
+                call,
+                self.lang["update_error"].format(error=html.escape(str(e))),
+                as_html=True,
+                buttons=None,
+            )
+
+    @callback()
+    async def on_skip_update_callback(self, call: InlineMessage, sha: str):
+        await call.answer()
+        self.log.info(f"log_bot: commit {sha[:12]} skipped, not merged")
+        await self.edit(
+            call,
+            self.strings("sig_skipped", sha=sha[:12]),
+            buttons=None,
+            as_html=True,
+        )
 
     async def setup_log_chat(self):
 

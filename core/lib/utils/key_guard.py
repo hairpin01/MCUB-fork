@@ -1,33 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2026 Шмэлькa | @hairpin01
-
-"""Integrity guard for the pinned trust key ``mcub.pub``.
-
-``mcub.pub`` is the trust anchor for commit-signature verification during
-updates (see ``utils.git_verify``). If that file is damaged or swapped, every
-signature check built on it is meaningless, so MCUB refuses to start.
-
-Two independent pins must both match:
-
-* SHA-256 of the raw file bytes  (``sha256sum mcub.pub``)
-* SSH key fingerprint            (``ssh-keygen -l -f mcub.pub``)
-
-The fingerprint is computed here in pure Python, so the guard needs neither
-``ssh-keygen`` nor any third-party package and runs before the rest of the
-project is imported.
-
-Rotating the key
-----------------
-Replace ``mcub.pub`` and update ``EXPECTED_SHA256`` / ``EXPECTED_FINGERPRINT``
-below in the same commit (sign it with the *old* key so installed copies accept
-it). The two values come from the commands quoted above.
-
-Limits
-------
-The pins live in the repository next to the code that checks them, so this
-detects corruption and a swapped key file; it cannot defend against someone who
-can rewrite the source tree itself.
-"""
+# Copyright (c) 2026 rich_beluga | @rich_beluga
 
 from __future__ import annotations
 
@@ -188,11 +160,10 @@ def _report(check: KeyCheck, stream: TextIO) -> None:
         print(f" [security]: {text}", file=stream)
 
     name = check.path.name
-    line(f"{red}ОШИБКА: ключ {name} повреждён или подменён.{end}")
     line(
         f"{red}ERROR: {name} is corrupted or has been replaced (integrity check failed).{end}"
     )
-    line(f"  файл / file: {check.path}")
+    line(f"  file: {check.path}")
     for problem in check.problems:
         line(f"  - {problem}")
     line(f"  sha256:      expected {check.pin.sha256}")
@@ -200,9 +171,6 @@ def _report(check: KeyCheck, stream: TextIO) -> None:
     line(f"  fingerprint: expected {check.pin.fingerprint}")
     line(f"               actual   {check.actual_fingerprint or 'unavailable'}")
     line()
-    line(
-        f"{red}Несоответствие ключа может быть небезопасным для хоста. Запуск отменён.{end}"
-    )
     line(f"{red}A key mismatch may be unsafe for the host. Startup aborted.{end}")
     stream.flush()
 

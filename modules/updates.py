@@ -409,10 +409,6 @@ class UpdatesMod(loader.ModuleBase):
             thread_id=thread_id,
         )
 
-    # ------------------------------------------------------------------ #
-    #  git update with mandatory commit-signature verification            #
-    # ------------------------------------------------------------------ #
-
     @staticmethod
     def _repo_path() -> str:
         return os.path.dirname(os.path.abspath(__file__))

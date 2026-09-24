@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлькa | @hairpin01
-# author: @Hairpin00
+# author: @Hairpin00, @rich_beluga
 # version: 1.5.0
 # description: bootloader
 from __future__ import annotations
@@ -48,9 +48,7 @@ def _verify_trust_key() -> None:
         from core.lib.utils.key_guard import enforce_or_exit
     except Exception as exc:
         for text in (
-            f"ОШИБКА: модуль проверки ключа не загружается ({exc!r}).",
             f"ERROR: the key integrity guard cannot be loaded ({exc!r}).",
-            "Несоответствие ключа может быть небезопасным для хоста. Запуск отменён.",
             "A key mismatch may be unsafe for the host. Startup aborted.",
         ):
             print(f" [security]: {text}", file=sys.stderr, flush=True)

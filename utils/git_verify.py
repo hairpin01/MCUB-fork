@@ -5,7 +5,7 @@
 
 Trust model
 -----------
-Only commits signed with the OpenSSH key(s) listed in ``rich-git.pub`` (repo
+Only commits signed with the OpenSSH key(s) listed in ``mcub.pub`` (repo
 root) are accepted. Everything else - unsigned commits, signatures made by any
 other key, tampered commits - is a mismatch.
 
@@ -16,6 +16,9 @@ other key, tampered commits - is a mismatch.
 * The allowed-signers list is generated from that file and handed to git with
   ``-c gpg.ssh.allowedSignersFile=...``. The host's own git/gpg configuration
   cannot widen the trust.
+* The key file itself must match the pinned SHA-256 and SSH fingerprint kept in
+  ``core.lib.utils.key_guard`` - the same check that gates startup - so a key
+  swapped while the process is already running is rejected as well.
 * Verification can never be skipped silently: a missing/invalid key file or a
   missing ``ssh-keygen`` is reported like a mismatch (fail closed).
 
@@ -45,6 +48,8 @@ import tempfile
 from dataclasses import dataclass
 from enum import StrEnum
 
+from core.lib.utils import key_guard
+
 __all__ = [
     "TRUSTED_KEY_FILE",
     "WARNING",
@@ -61,7 +66,7 @@ __all__ = [
 WARNING = (
     "The commit signature does not match, " "installing this update may harm the host."
 )
-TRUSTED_KEY_FILE = "mcub.pub"
+TRUSTED_KEY_FILE = key_guard.KEY_FILE_NAME
 
 _PRINCIPAL = "mcub-trusted-signer"
 _SHA_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
@@ -230,9 +235,13 @@ async def check_commit(
     sha: str,
     *,
     key_file: str = TRUSTED_KEY_FILE,
+    pin: key_guard.KeyPin | None = key_guard.DEFAULT_PIN,
     timeout: float = 30,
 ) -> VerifyResult:
     """Verify that ``sha`` is signed by a key listed in ``key_file``.
+
+    ``pin`` is the SHA-256/fingerprint the key file must match before it is
+    trusted (``None`` disables the pin - meant for tests only).
 
     Never raises for a verification failure - inspect ``result.ok``. Raises
     ``GitError`` only for invalid input or when git itself cannot be run.
@@ -242,6 +251,15 @@ async def check_commit(
     rc, root, err = await _git(repo, "rev-parse", "--show-toplevel", timeout=15)
     if rc != 0:
         raise GitError(f"not a git repository: {err or root}")
+
+    if pin is not None:
+        integrity = key_guard.check_key(os.path.join(root, key_file), pin)
+        if not integrity.ok:
+            return VerifyResult(
+                sha,
+                SigState.NO_KEY,
+                f"key integrity check failed: {'; '.join(integrity.problems)}",
+            )
 
     try:
         keys = load_trusted_keys(root, key_file)

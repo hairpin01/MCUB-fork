@@ -38,6 +38,26 @@ except ImportError:
             return t
 
 
+def _verify_trust_key() -> None:
+    """Refuse to start when the pinned key ``mcub.pub`` is damaged or replaced.
+
+    Runs before the rest of the project is imported. If the guard itself cannot
+    be loaded that is also a refusal - otherwise deleting it would disable it.
+    """
+    try:
+        from core.lib.utils.key_guard import enforce_or_exit
+    except Exception as exc:
+        for text in (
+            f"ОШИБКА: модуль проверки ключа не загружается ({exc!r}).",
+            f"ERROR: the key integrity guard cannot be loaded ({exc!r}).",
+            "Несоответствие ключа может быть небезопасным для хоста. Запуск отменён.",
+            "A key mismatch may be unsafe for the host. Startup aborted.",
+        ):
+            print(f" [security]: {text}", file=sys.stderr, flush=True)
+        sys.exit(1)
+    enforce_or_exit()
+
+
 @dataclass
 class KernelMeta:
     """
@@ -303,6 +323,7 @@ def _parse_args():
 
 async def _main() -> None:
     args = _parse_args()
+    _verify_trust_key()
     web_enabled = not args.no_web
     available = _get_available_cores()  # dict[name → KernelEntry]
     core_names = list(available.keys())

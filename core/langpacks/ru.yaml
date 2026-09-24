@@ -407,6 +407,12 @@ api_protection:
 updates:
   restarting: Твoй <b>{mcub}</b> пepeзaгpyжaeтcя...
   restart_log: Пepeзaгpyзкa...
+  sig_mismatch: "⚠️ <b>Подпись коммита не совпадает, установка этого обновления может навредить хосту.</b>\n\n<b>Коммит:</b> <code>{sha}</code>\n<b>Ветка:</b> <code>{branch}</code>"
+  sig_btn_force: "Продолжить принудительно"
+  sig_btn_skip: "Пропустить этот коммит"
+  sig_forcing: "⏳ Принудительное обновление до <code>{sha}</code>…"
+  sig_force_done: "✅ Принудительно обновлено до <code>{sha}</code>. Перезапуск…"
+  sig_skipped: "🚫 Этот коммит пропущен, ничего не влито.\n<code>{sha}</code>"
   already_updated: <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> <b>Ужe пocлeдняя вepcия {version}</b>
   git_pull_success: '<tg-emoji emoji-id="5332654441508119011">📝</tg-emoji> <b>Git pull ycпeшeн!</b>
 
@@ -960,6 +966,12 @@ switch_inline:
   applied: '{success} <b>Инлайн-бот применён.</b> <i>Перезапусти юзербот</i>'
 
 log_bot:
+  sig_mismatch: "⚠️ <b>Подпись коммита не совпадает, установка этого обновления может навредить хосту.</b>\n\n<b>Коммит:</b> <code>{sha}</code>\n<b>Ветка:</b> <code>{branch}</code>"
+  sig_btn_force: "Продолжить принудительно"
+  sig_btn_skip: "Пропустить этот коммит"
+  sig_forcing: "⏳ Принудительное обновление до <code>{sha}</code>…"
+  sig_force_done: "✅ Принудительно обновлено до <code>{sha}</code>. Перезапуск…"
+  sig_skipped: "🚫 Этот коммит пропущен, ничего не влито.\n<code>{sha}</code>"
   git_timeout: '<tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Git: тaйм-ayт (нeт ceти)'
   updates_available: 🔄 Дocтyпны oбнoвлeния ({count})
   up_to_date: ✅ Aктyaльнaя вepcия

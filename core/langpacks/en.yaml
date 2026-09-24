@@ -455,6 +455,12 @@ api_protection:
 updates:
   restarting: 'Your <b>{mcub}</b> is restarting...'
   restart_log: Restarting...
+  sig_mismatch: "⚠️ <b>The commit signature does not match, installing this update may harm the host.</b>\n\n<b>Commit:</b> <code>{sha}</code>\n<b>Branch:</b> <code>{branch}</code>"
+  sig_btn_force: "Continue anyway"
+  sig_btn_skip: "Skip this commit"
+  sig_forcing: "⏳ Force updating to <code>{sha}</code>…"
+  sig_force_done: "✅ Force updated to <code>{sha}</code>. Restarting…"
+  sig_skipped: "🚫 This commit was skipped, nothing was merged.\n<code>{sha}</code>"
   already_updated: <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> <b>Already
     latest version {version}</b>
   git_pull_success: '<tg-emoji emoji-id="5332654441508119011">📝</tg-emoji> <b>Git
@@ -1054,6 +1060,12 @@ switch_inline:
   applied: '{success} <b>Inline bot applied.</b> <i>Restart the userbot</i>'
 
 log_bot:
+  sig_mismatch: "⚠️ <b>The commit signature does not match, installing this update may harm the host.</b>\n\n<b>Commit:</b> <code>{sha}</code>\n<b>Branch:</b> <code>{branch}</code>"
+  sig_btn_force: "Continue anyway"
+  sig_btn_skip: "Skip this commit"
+  sig_forcing: "⏳ Force updating to <code>{sha}</code>…"
+  sig_force_done: "✅ Force updated to <code>{sha}</code>. Restarting…"
+  sig_skipped: "🚫 This commit was skipped, nothing was merged.\n<code>{sha}</code>"
   git_timeout: '<tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Git: timeout (no network)'
   updates_available: 🔄 Updates available ({count})
   up_to_date: ✅ Up to date

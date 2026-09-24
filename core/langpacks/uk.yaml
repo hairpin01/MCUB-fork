@@ -353,12 +353,12 @@ api_protection:
 updates:
   restarting: Твій <b>{mcub}</b> перезавантажується...
   restart_log: Перезавантаження...
-  sig_mismatch: "⚠️ <b>Підпис коміту не збігається, встановлення цього оновлення може зашкодити хосту.</b>\n\n<b>Коміт:</b> <code>{sha}</code>\n<b>Гілка:</b> <code>{branch}</code>"
+  sig_mismatch: '<tg-emoji emoji-id="5253864872780769235">❗️</tg-emoji> <b>Підпис коміту не збігається, встановлення цього оновлення може зашкодити хосту.</b>\n\n<b>Коміт:</b> <code>{sha}</code>\n<b>Гілка:</b> <code>{branch}</code>'
   sig_btn_force: "Продовжити примусово"
   sig_btn_skip: "Пропустити цей коміт"
-  sig_forcing: "⏳ Примусове оновлення до <code>{sha}</code>…"
-  sig_force_done: "✅ Примусово оновлено до <code>{sha}</code>. Перезапуск…"
-  sig_skipped: "🚫 Цей коміт пропущено, нічого не злито.\n<code>{sha}</code>"
+  sig_forcing: '<tg-emoji emoji-id="5253464392850221514">🔃</tg-emoji> Примусове оновлення до <code>{sha}</code>…'
+  sig_force_done: '<tg-emoji emoji-id="5255813619702049821">✅</tg-emoji> Примусово оновлено до <code>{sha}</code>. Перезапуск…'
+  sig_skipped: '<tg-emoji emoji-id="5253864872780769235">❗️</tg-emoji> Цей коміт пропущено, нічого не злито.\n<code>{sha}</code>'
   already_updated: <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> <b>Вже остання версія {version}</b>
   git_pull_success: '<tg-emoji emoji-id="5332654441508119011">📝</tg-emoji> <b>Git pull успішний!</b>
 
@@ -914,12 +914,12 @@ switch_inline:
   applied: '{success} <b>Інлайн-бот застосовано.</b> <i>Перезапусти юзербот</i>'
 
 log_bot:
-  sig_mismatch: "⚠️ <b>Підпис коміту не збігається, встановлення цього оновлення може зашкодити хосту.</b>\n\n<b>Коміт:</b> <code>{sha}</code>\n<b>Гілка:</b> <code>{branch}</code>"
+  sig_mismatch: '<tg-emoji emoji-id="5253864872780769235">❗️</tg-emoji> <b>Підпис коміту не збігається, встановлення цього оновлення може зашкодити хосту.</b>\n\n<b>Коміт:</b> <code>{sha}</code>\n<b>Гілка:</b> <code>{branch}</code>'
   sig_btn_force: "Продовжити примусово"
   sig_btn_skip: "Пропустити цей коміт"
-  sig_forcing: "⏳ Примусове оновлення до <code>{sha}</code>…"
-  sig_force_done: "✅ Примусово оновлено до <code>{sha}</code>. Перезапуск…"
-  sig_skipped: "🚫 Цей коміт пропущено, нічого не злито.\n<code>{sha}</code>"
+  sig_forcing: '<tg-emoji emoji-id="5253464392850221514">🔃</tg-emoji> Примусове оновлення до <code>{sha}</code>…'
+  sig_force_done: '<tg-emoji emoji-id="5255813619702049821">✅</tg-emoji> Примусово оновлено до <code>{sha}</code>. Перезапуск…'
+  sig_skipped: '<tg-emoji emoji-id="5253864872780769235">❗️</tg-emoji> Цей коміт пропущено, нічого не злито.\n<code>{sha}</code>'
   git_timeout: '<tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Git: таймаут (немає мережі)'
   updates_available: 🔄 Доступні оновлення ({count})
   up_to_date: ✅ Актуальна версія

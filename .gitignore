@@ -29,7 +29,7 @@ __pycache__/
 *.tmp
 *.kate-*
 
-config.json
+config.json*
 modules_loaded/
 core/langpacks/custom/
 *.egg-*/
@@ -43,3 +43,4 @@ base16-opencode/*
 */*/.obsidian/*
 core/kernel/XKer*
 patches/*
+*_backup_*

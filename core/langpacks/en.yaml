@@ -455,6 +455,12 @@ api_protection:
 updates:
   restarting: 'Your <b>{mcub}</b> is restarting...'
   restart_log: Restarting...
+  sig_mismatch: '<tg-emoji emoji-id="5253864872780769235">❗️</tg-emoji> <b>The commit signature does not match, installing this update may harm the host.</b>\n\n<b>Commit:</b> <code>{sha}</code>\n<b>Branch:</b> <code>{branch}</code>'
+  sig_btn_force: "Continue anyway"
+  sig_btn_skip: "Skip this commit"
+  sig_forcing: '<tg-emoji emoji-id="5253464392850221514">🔃</tg-emoji> Force updating to <code>{sha}</code>…'
+  sig_force_done: '<tg-emoji emoji-id="5255813619702049821">✅</tg-emoji> Force updated to <code>{sha}</code>. Restarting…'
+  sig_skipped: '<tg-emoji emoji-id="5253864872780769235">❗️</tg-emoji> This commit was skipped, nothing was merged.\n<code>{sha}</code>'
   already_updated: <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> <b>Already
     latest version {version}</b>
   git_pull_success: '<tg-emoji emoji-id="5332654441508119011">📝</tg-emoji> <b>Git
@@ -689,7 +695,7 @@ settings:
 
     <tg-emoji emoji-id="5229113891081956317">➖</tg-emoji> <b>Risk to main account</b> - it is recommended to use a separate account for
     the userbot</blockquote>'
-loader:
+installation:
   choose: |-
     <b>{mcub_emoji} installation</b>
 
@@ -722,7 +728,7 @@ loader:
     cd MCUB-fork
     pip install -r requirements.txt
     python3 -m core --set-default-core standard
-    python3 -m core --no-web</pre>
+    python3 -m core --no-web</pre
     {emoji_venv}<b> When installing MCUB inside <u><code>proot-distro</code></u> or <u><code>WSL</code></u> it is recommended to create a <u>venv</u>:</b>
     <pre><code class="language-shell">python3 -m venv .venv
     source .venv/bin/activate # Bash
@@ -759,6 +765,7 @@ loader:
     VDS
   source: |-
     The source code can be read <a href='https://github.com/hairpin01/MCUB-fork'>here</a>
+loader:
   wait: '{wait} <b>Please wait...</b>'
   reply_to_py: '{warning} <b>Reply to a .py file</b>'
   not_py_file: '{warning} <b>This is not a .py file</b>'
@@ -937,6 +944,7 @@ loader:
   log_deleting_due_conflict: => Deleting module file due to conflict
   log_deleting_due_error: => Deleting module file due to error
   um_usage: '{warning} <b>Usage:</b> <code>{prefix}um module_name</code>'
+  module_protection_unlm: '{warning} <b>A module </b>"<code>{module}</code>"<b> cannot simply be uploaded as a file</b>'
   module_not_found_um: '{warning} <b>Module {module_name} not found</b>'
   module_unloaded: '{success} <b>Module {module_name} unloaded</b>'
   um_not_found: '<code>{module_name}</code> - not found'
@@ -1052,6 +1060,12 @@ switch_inline:
   applied: '{success} <b>Inline bot applied.</b> <i>Restart the userbot</i>'
 
 log_bot:
+  sig_mismatch: '<tg-emoji emoji-id="5253864872780769235">❗️</tg-emoji> <b>The commit signature does not match, installing this update may harm the host.</b>\n\n<b>Commit:</b> <code>{sha}</code>\n<b>Branch:</b> <code>{branch}</code>'
+  sig_btn_force: "Continue anyway"
+  sig_btn_skip: "Skip this commit"
+  sig_forcing: '<tg-emoji emoji-id="5253464392850221514">🔃</tg-emoji> Force updating to <code>{sha}</code>…'
+  sig_force_done: '<tg-emoji emoji-id="5255813619702049821">✅</tg-emoji> Force updated to <code>{sha}</code>. Restarting…'
+  sig_skipped: '<tg-emoji emoji-id="5253864872780769235">❗️</tg-emoji> This commit was skipped, nothing was merged.\n<code>{sha}</code>'
   git_timeout: '<tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Git: timeout (no network)'
   updates_available: 🔄 Updates available ({count})
   up_to_date: ✅ Up to date

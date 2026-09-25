@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлькa | @hairpin01
+# scop: no_unlm
+# scop: inline
 
 from __future__ import annotations
 

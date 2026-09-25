@@ -139,6 +139,26 @@ python -m core
 
 </details>
 
+### Signed core updates
+
+MCUB accepts core updates only when the commit is signed by an OpenSSH public key
+listed in `mcub.pub`. Updates therefore require both `git` and `ssh-keygen`
+(`openssh-client` on Debian/Ubuntu). Every listed key has full authority to sign
+MCUB updates; private keys must never be added to the repository.
+
+Configure Git to use an Ed25519 signing key:
+
+```bash
+git config --global gpg.format ssh
+git config --global user.signingkey /absolute/path/to/signing-key.pub
+git config --global commit.gpgsign true
+```
+
+A commit that adds, removes, or replaces a trusted key must be signed by a key
+that is already trusted. The new key can sign subsequent updates only after that
+migration update has been installed. You can inspect the published anchor with
+`ssh-keygen -l -f mcub.pub` and `sha256sum mcub.pub`.
+
 ### Configuration
 
 1. Get `API_ID` and `API_HASH` from https://my.telegram.org

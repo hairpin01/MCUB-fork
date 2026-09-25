@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Шмэлькa | @hairpin01
-# author: @Hairpin00
+# author: @Hairpin00, @rich_beluga
 # version: 1.5.0
 # description: bootloader
 from __future__ import annotations
@@ -36,6 +36,24 @@ except ImportError:
         @staticmethod
         def paint(t, *_):
             return t
+
+
+def _verify_trust_key() -> None:
+    """Refuse to start when the pinned keys in ``mcub.pub`` are damaged or replaced.
+
+    Runs before the rest of the project is imported. If the guard itself cannot
+    be loaded that is also a refusal - otherwise deleting it would disable it.
+    """
+    try:
+        from core.lib.utils.key_guard import enforce_or_exit
+    except Exception as exc:
+        for text in (
+            f"ERROR: the key integrity guard cannot be loaded ({exc!r}).",
+            "A key mismatch may be unsafe for the host. Startup aborted.",
+        ):
+            print(f" [security]: {text}", file=sys.stderr, flush=True)
+        sys.exit(1)
+    enforce_or_exit()
 
 
 @dataclass
@@ -303,6 +321,7 @@ def _parse_args():
 
 async def _main() -> None:
     args = _parse_args()
+    _verify_trust_key()
     web_enabled = not args.no_web
     available = _get_available_cores()  # dict[name → KernelEntry]
     core_names = list(available.keys())

@@ -2,8 +2,10 @@
 # Copyright (c) 2026 Шмэлькa | @hairpin01
 
 from __future__ import annotations
+import modulefinder
 
 import asyncio
+import html
 import os
 import re
 import secrets
@@ -15,9 +17,13 @@ import aiohttp
 from telethon.tl.types import InputMediaWebPage
 
 import core.lib.loader.module_base as loader
-from core.lib.loader.module_config import Boolean, ConfigValue, ModuleConfig
+from core.lib.loader.module_config import (
+    ModuleConfig,
+    ConfigValue,
+    Boolean
+)
+from utils import git_verify, restart_kernel, Strings
 from core.lib.types import Event, InlineMessage
-from utils import Strings, restart_kernel
 
 _VERSION_ATTR_RE = re.compile(
     r"^\s*version\s*=\s*['\"]([^'\"]+)['\"]",
@@ -231,7 +237,17 @@ class UpdatesMod(loader.ModuleBase):
                 local_ver = "0.0.0"
 
         if not author:
-            author = meta['author']
+            author = meta['author'] or "???"
+        try:
+            if isinstance(module_obj.description, str):
+                description = module_obj.description
+            else:
+                description = self.kernel._loader.pick_localized_text(module_obj.description, self.strings.locale) or None
+        except Exception:
+            description = None
+            
+        if not description:
+            description: str = meta["description"] 
 
         vm = self.kernel.version_manager
         try:
@@ -251,7 +267,14 @@ class UpdatesMod(loader.ModuleBase):
                 return
             state.notified_version = remote_ver
             self.log.info(f"updates: {mod_name} {local_ver} → {remote_ver}")
-            await self._notify(mod_name, local_ver, remote_ver, url)
+            await self._notify(
+                mod_name,
+                local_ver,
+                remote_ver,
+                url,
+                author,
+                description,
+            )
         else:
             state.notified_version = None
 
@@ -261,6 +284,8 @@ class UpdatesMod(loader.ModuleBase):
         local_ver: str,
         remote_ver: str,
         url: str,
+        author: str,
+        description: str,
         telethon: bool = False,
     ) -> None:
         if telethon:
@@ -276,6 +301,8 @@ class UpdatesMod(loader.ModuleBase):
   <tr>
     <td align="center" valign="middle"><code>{local_ver}</code> <b>→</b> <mark>{remote_ver}</mark></td>
   </tr></table><hr/>\n"""
+            f"<aside>{description}</aside><hr/>\n"
+            f"<aside>{author}</aside><hr/>\n"
             f"<aside>{self.PREMIUM_EMOJI['telescope']} {url if not telethon else 'https://github.com/hairpin01/Tehethon-MCUB.git'}<cite>URL</cite></aside><hr/>",
             buttons=[
                 [
@@ -304,6 +331,8 @@ class UpdatesMod(loader.ModuleBase):
                 __version__,
                 result,
                 "pip install -U Telethon-MCUB",
+                "@Hairpin01",
+                "Telethon-MCUB is fork original Telethon",
                 telethon=True,
             )
         else:
@@ -380,6 +409,77 @@ class UpdatesMod(loader.ModuleBase):
             thread_id=thread_id,
         )
 
+    @staticmethod
+    def _repo_path() -> str:
+        return os.path.dirname(os.path.abspath(__file__))
+
+    async def _prompt_mismatch(
+        self,
+        msg: Any,
+        result: git_verify.VerifyResult,
+        branch: str,
+        chat_id: int,
+        thread_id: int | None,
+    ) -> None:
+        """Show the warning with [force] / [skip] instead of merging."""
+        text = self._s("sig_mismatch", sha=result.short, branch=html.escape(branch))
+        force_btn = self.Button.inline(
+            self._s("sig_btn_force"),
+            self.cb_force_update,
+            args=(result.sha, chat_id, thread_id),
+            style="danger",
+        )
+        skip_btn = self.Button.inline(
+            self._s("sig_btn_skip"),
+            self.cb_skip_update,
+            args=(result.sha,),
+            style="primary",
+        )
+        await msg.edit(text, parse_mode="html", buttons=[[force_btn, skip_btn]])
+
+    @loader.callback()
+    async def cb_force_update(
+        self,
+        call: InlineMessage,
+        sha: str,
+        chat_id: int,
+        thread_id: int | None = None,
+    ) -> None:
+        """Merge the exact commit that failed verification, then restart."""
+        self.log.warning(
+            f"updates: forced update to commit {sha[:12]} "
+            "that failed signature verification"
+        )
+        await self.edit(
+            call, self._s("sig_forcing", sha=sha[:12]), buttons=None, as_html=True
+        )
+        try:
+            rc, out, err = await git_verify.merge_commit(self._repo_path(), sha)
+            if rc != 0:
+                raise git_verify.GitError(f"git merge failed (code {rc}): {err or out}")
+        except Exception as exc:
+            self.log.error(f"updates: forced update failed: {exc}")
+            await self.edit(
+                call,
+                self._s("error").format(error=html.escape(str(exc))),
+                buttons=None,
+                as_html=True,
+            )
+            return
+
+        await self.edit(
+            call, self._s("sig_force_done", sha=sha[:12]), buttons=None, as_html=True
+        )
+        await asyncio.sleep(2)
+        await self.invoke("restart", chat_id=chat_id, reply_to=thread_id)
+
+    @loader.callback()
+    async def cb_skip_update(self, call: InlineMessage, sha: str) -> None:
+        self.log.info(f"updates: commit {sha[:12]} skipped, not merged")
+        await self.edit(
+            call, self._s("sig_skipped", sha=sha[:12]), buttons=None, as_html=True
+        )
+
     @loader.command(
         "update",
         doc_en="update MCUB-fork from git",
@@ -398,67 +498,64 @@ class UpdatesMod(loader.ModuleBase):
             )
 
         try:
-            repo_path = os.path.dirname(os.path.abspath(__file__))
-            proc = await asyncio.create_subprocess_exec(
-                "git",
-                "pull",
-                "origin",
-                branch,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=repo_path,
-            )
-            try:
-                stdout_b, stderr_b = await asyncio.wait_for(
-                    proc.communicate(), timeout=60
-                )
-            except TimeoutError:
-                proc.kill()
-                await proc.communicate()
+            repo_path = self._repo_path()
+
+            # Resolve the exact commit first: what we verify is what we merge.
+            target = await git_verify.fetch_target(repo_path, branch, timeout=60)
+
+            if await git_verify.is_up_to_date(repo_path, target):
                 await msg.edit(
-                    self._s("error").format(error="git pull timed out (60s)"),
+                    self._s("already_updated").format(version=self.kernel.VERSION),
                     parse_mode="html",
                 )
+                self.log.info("Already up to date")
                 return
 
-            stdout = stdout_b.decode(errors="replace")
-
-            if proc.returncode == 0:
-                if "Already up to date" in stdout:
-                    await msg.edit(
-                        self._s("already_updated").format(version=self.kernel.VERSION),
-                        parse_mode="html",
-                    )
-                    self.log.info("Already up to date")
-                    return
-
-                await msg.edit(
-                    self._s("git_pull_success").format(output=stdout[:200]),
-                    parse_mode="html",
+            result = await git_verify.check_commit(repo_path, target)
+            if not result.ok:
+                self.log.error(git_verify.WARNING)
+                self.log.error(f"updates: {result.describe()}")
+                await self._prompt_mismatch(
+                    msg, result, branch, event.chat_id, thread_id
                 )
-                self.log.info("git pull succeeded")
-                await asyncio.sleep(2)
+                return
+            self.log.info(f"updates: commit {result.short} signature verified")
 
-                await msg.edit(
-                    self._s("update_success").format(emoji=secrets.choice(self.emojis)),
-                    parse_mode="html",
-                    file=InputMediaWebPage(
-                        "https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/update.png",
-                        optional=True,
-                    ),
-                    invert_media=True,
+            rc, stdout, stderr = await git_verify.merge_commit(
+                repo_path, target, timeout=60
+            )
+            if rc != 0:
+                raise git_verify.GitError(
+                    f"git merge failed (code {rc}): {stderr or stdout}"
                 )
-                self.log.info("Restarting…")
-                await asyncio.sleep(2)
-                await restart_kernel(
-                    self.kernel,
-                    chat_id=event.chat_id,
-                    message_id=msg.id,
-                    thread_id=thread_id,
-                )
+
+            await msg.edit(
+                self._s("git_pull_success").format(output=stdout[:200]),
+                parse_mode="html",
+            )
+            self.log.info("git pull succeeded")
+            await asyncio.sleep(2)
+
+            await msg.edit(
+                self._s("update_success").format(emoji=secrets.choice(self.emojis)),
+                parse_mode="html",
+                file=InputMediaWebPage(
+                    "https://raw.githubusercontent.com/hairpin01/MCUB-fork/refs/heads/main/img/update.png",
+                    optional=True,
+                ),
+                invert_media=True,
+            )
+            self.log.info("Restarting…")
+            await asyncio.sleep(2)
+            await restart_kernel(
+                self.kernel,
+                chat_id=event.chat_id,
+                message_id=msg.id,
+                thread_id=thread_id,
+            )
         except Exception as exc:
             await msg.edit(
-                self._s("error").format(error=str(exc)),
+                self._s("error").format(error=html.escape(str(exc))),
                 parse_mode="html",
             )
 

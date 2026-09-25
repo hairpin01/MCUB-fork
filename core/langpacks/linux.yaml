@@ -626,7 +626,7 @@ translations:
 
     <tg-emoji emoji-id="5229113891081956317">➖</tg-emoji> <b>Risk to main account</b> - it is recommended to use a separate account for the userbot</blockquote>'
 
-loader:
+installation:
   choose: |-
     <b>{mcub_emoji} install</b>
 
@@ -694,6 +694,8 @@ loader:
     VDS
   source: |-
     The source code can be read <a href='https://github.com/hairpin01/MCUB-fork''>here</a>
+
+loader:
   wait: '{wait} <b>[ .... ] Please wait...</b>'
   reply_to_py: '{warning} <b>EINVAL: Reply to a .py file</b>'
   not_py_file: '{warning} <b>EINVAL: Not a .py file</b>'
@@ -857,6 +859,7 @@ loader:
   log_deleting_due_conflict: "=> rm: removing package file (conflict)"
   log_deleting_due_error: "=> rm: removing package file (error)"
   um_usage: '{warning} <b>Usage:</b> <code>{prefix}um module_name</code>'
+  module_protection_unlm: '{warning} <b>A module </b>"<code>{module}</code>"<b> cannot simply be uploaded as a file</b>'
   module_not_found_um: '{warning} <b>ENOENT: {module_name} not found</b>'
   module_unloaded: '{success} <b>rmmod: {module_name} - done</b>'
   um_not_found: '<code>{module_name}</code> - ENOENT'

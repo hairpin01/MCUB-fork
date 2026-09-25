@@ -4,7 +4,7 @@
   "modules": {
     "MCUB_info": {
       "path": "modules/MCUB_info.py",
-      "sha256": "1426905ea55d52337d6563fcd4b6f7515dd9e1b74e4265812ce11a61d4f62754"
+      "sha256": "f298c7b1ab686342dcf1a6205a488bb984fc4a141bc596efa2414db610d866a3"
     },
     "api_protection": {
       "path": "modules/api_protection.py",
@@ -12,7 +12,7 @@
     },
     "command": {
       "path": "modules/command.py",
-      "sha256": "b25749710384dac8bedbb552f5c916f6af2d1e9036a31c6f4b846cc8c4b43eca"
+      "sha256": "150425ae37d7dcd346655454758f656e8cb1468e0021e4df4b4b644306a8b504"
     },
     "config": {
       "path": "modules/config.py",
@@ -24,15 +24,15 @@
     },
     "installation": {
       "path": "modules/installation.py",
-      "sha256": "6d0e9bdfb4cd685895dff205d21a2e4f1cb9c045c46b07ee01a10964a1da6cfa"
+      "sha256": "a01608bef57d61e7a12e989cacd6edee30465ee391850a44dbb4c87a4fe48f78"
     },
     "loader": {
       "path": "modules/loader.py",
-      "sha256": "6177d4a65f3b72bb3857c89c7b8e2eb0154dd5e381feb7dc7519c98139ce97e0"
+      "sha256": "42d33a52cafe66fda7a75cfee8e5d8e99fa034a07d58b2649072874001c25ca8"
     },
     "log_bot": {
       "path": "modules/log_bot.py",
-      "sha256": "27d433ec1fbfa24001fcc6b5d734bfb9125b8fd8166a5a8fc877359ef43915ed"
+      "sha256": "ca83f7fca5821bd4ce42762d29856e4d116281b4e1f6523fbe218f3570fc1774"
     },
     "man": {
       "path": "modules/man.py",
@@ -64,7 +64,7 @@
     },
     "updates": {
       "path": "modules/updates.py",
-      "sha256": "9e55ed1130dea7b780d675f6fd7fd43afd56424fa4bb300f94c3bd5be410c4fb"
+      "sha256": "87e9156084faebe3a5d946c34c948a29acc2b22f503d62ff15b75a22a7015ea7"
     },
     "userbot-backup": {
       "path": "modules/userbot-backup.py",

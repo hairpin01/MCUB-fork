@@ -353,6 +353,12 @@ api_protection:
 updates:
   restarting: Твій <b>{mcub}</b> перезавантажується...
   restart_log: Перезавантаження...
+  sig_mismatch: '<tg-emoji emoji-id="5253864872780769235">❗️</tg-emoji> <b>Підпис коміту не збігається, встановлення цього оновлення може зашкодити хосту.</b>\n\n<b>Коміт:</b> <code>{sha}</code>\n<b>Гілка:</b> <code>{branch}</code>'
+  sig_btn_force: "Продовжити примусово"
+  sig_btn_skip: "Пропустити цей коміт"
+  sig_forcing: '<tg-emoji emoji-id="5253464392850221514">🔃</tg-emoji> Примусове оновлення до <code>{sha}</code>…'
+  sig_force_done: '<tg-emoji emoji-id="5255813619702049821">✅</tg-emoji> Примусово оновлено до <code>{sha}</code>. Перезапуск…'
+  sig_skipped: '<tg-emoji emoji-id="5253864872780769235">❗️</tg-emoji> Цей коміт пропущено, нічого не злито.\n<code>{sha}</code>'
   already_updated: <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> <b>Вже остання версія {version}</b>
   git_pull_success: '<tg-emoji emoji-id="5332654441508119011">📝</tg-emoji> <b>Git pull успішний!</b>
 
@@ -559,7 +565,8 @@ settings:
   settings_title: '⚙️ Налаштування юзербота'
   settings_inline_title: '⚙️ Налаштування'
   piped_usage: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> Використання: {prefix}piped [on/off]'
-loader:
+
+installation:
   choose: |-
     <b>{mcub_emoji} installation</b>
 
@@ -629,6 +636,8 @@ loader:
     VDS
   source: |-
     Вихідний код можна прочитати <a href='https://github.com/hairpin01/MCUB-fork'>тут</a>
+
+loader:
   wait: '{wait} <b>Будь ласка, зачекайте...</b>'
   reply_to_py: '{warning} <b>Дайте відповідь на .py файл</b>'
   not_py_file: '{warning} <b>Це не .py файл</b>'
@@ -792,6 +801,7 @@ loader:
   log_deleting_due_conflict: => Видаляю файл модуля через конфлікт
   log_deleting_due_error: => Видаляю файл модуля через помилку
   um_usage: '{warning} <b>Використання:</b> <code>{prefix}um назва_модуля</code>'
+  module_protection_unlm: '{warning} <b>Цей модуль </b>"<code>{module}</code>"<b> не можна просто завантажити як файл </b>'
   module_not_found_um: '{warning} <b>Модуль {module_name} не знайдено</b>'
   module_unloaded: '{success} <b>Модуль {module_name} видалено</b>'
   um_not_found: '<code>{module_name}</code> - не знайдено'
@@ -904,6 +914,12 @@ switch_inline:
   applied: '{success} <b>Інлайн-бот застосовано.</b> <i>Перезапусти юзербот</i>'
 
 log_bot:
+  sig_mismatch: '<tg-emoji emoji-id="5253864872780769235">❗️</tg-emoji> <b>Підпис коміту не збігається, встановлення цього оновлення може зашкодити хосту.</b>\n\n<b>Коміт:</b> <code>{sha}</code>\n<b>Гілка:</b> <code>{branch}</code>'
+  sig_btn_force: "Продовжити примусово"
+  sig_btn_skip: "Пропустити цей коміт"
+  sig_forcing: '<tg-emoji emoji-id="5253464392850221514">🔃</tg-emoji> Примусове оновлення до <code>{sha}</code>…'
+  sig_force_done: '<tg-emoji emoji-id="5255813619702049821">✅</tg-emoji> Примусово оновлено до <code>{sha}</code>. Перезапуск…'
+  sig_skipped: '<tg-emoji emoji-id="5253864872780769235">❗️</tg-emoji> Цей коміт пропущено, нічого не злито.\n<code>{sha}</code>'
   git_timeout: '<tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Git: таймаут (немає мережі)'
   updates_available: 🔄 Доступні оновлення ({count})
   up_to_date: ✅ Актуальна версія

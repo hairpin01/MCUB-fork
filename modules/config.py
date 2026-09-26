@@ -3941,9 +3941,9 @@ def register(kernel):
 
     @kernel.register.command(
         "fcfg",
-        doc_en="<module> <key> <value> | -k/--kernel <key> <value>",
-        doc_uk="<модуль> <ключ> <значення> | -k/--kernel <ключ> <значення>",
-        doc_ru="<мoдyль> <ключ> <знaчeниe> | -k/--kernel <ключ> <знaчeниe>",
+        doc_en="<module> <key> <value> | -m/--module <module> <key> <value> | -k/--kernel <key> <value>",
+        doc_uk="<модуль> <ключ> <значення> | -m/--module <модуль> <ключ> <значення> | -k/--kernel <ключ> <значення>",
+        doc_ru="<мoдyль> <ключ> <знaчeниe> | -m/--module <мoдyль> <ключ> <знaчeниe> | -k/--kernel <ключ> <знaчeниe>",
     )
     async def fcfg_handler(event):
         await ensure_config_initialized()
@@ -3961,7 +3961,7 @@ def register(kernel):
             module_name = None
             legacy_actions = {"set", "delete", "del", "add", "list", "dict"}
             raw_args = rest.split()
-
+            
             if raw_args[0] in {"-k", "--kernel"}:
                 concise = rest.split(None, 1)
                 kernel_args = concise[1].strip() if len(concise) > 1 else ""
@@ -3975,19 +3975,48 @@ def register(kernel):
                 key, value = key_value
                 args = ["fcfg", "set", key, value]
                 _set_event_command_text(event, "fcfg", f"set {key} {value}")
-            elif raw_args[0] == "module":
-                if len(raw_args) < 4:
+            
+            
+            elif raw_args[0] in {"-m", "--module", "module"}:
+                concise = rest.split(None, 2)
+                if len(concise) < 3:
                     await event.edit(
                         t("fcfg_module_usage", cross=emoji_provider["❌"]),
                         parse_mode="html",
                     )
                     return
                 module_mode = True
-                module_name = raw_args[1]
-                args = ["fcfg", *raw_args[2:]]
+                module_name = concise[1]
+                sub_rest = concise[2].strip()
+                sub_args = sub_rest.split()
+            
+                
+                if sub_args and sub_args[0].lower() in legacy_actions:
+                    args = ["fcfg", *sub_args]
+                    _set_event_command_text(
+                        event, "fcfg", f"module {module_name} {sub_rest}"
+                    )
+                
+                else:
+                    key_value = sub_rest.split(None, 1)
+                    if len(key_value) < 2:
+                        await event.edit(
+                            t("not_enough_args", cross=emoji_provider["❌"]),
+                            parse_mode="html",
+                        )
+                        return
+                    key, value = key_value
+                    args = ["fcfg", "set", key, value]
+                    _set_event_command_text(
+                        event, "fcfg",
+                        f"module {module_name} set {key} {value}",
+                    )
+            
             elif raw_args[0].lower() in legacy_actions:
                 args = ["fcfg", *raw_args]
+            
             else:
+                
                 concise = rest.split(None, 2)
                 if len(concise) < 3:
                     await event.edit(
@@ -3998,7 +4027,11 @@ def register(kernel):
                 module_mode = True
                 module_name, key, value = concise
                 args = ["fcfg", "set", key, value]
-                _set_event_command_text(event, "fcfg", f"set {key} {value}")
+                
+                _set_event_command_text(
+                    event, "fcfg",
+                    f"module {module_name} set {key} {value}",
+                )
 
             action = args[1].lower()
 

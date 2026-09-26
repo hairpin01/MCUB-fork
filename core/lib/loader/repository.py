@@ -183,35 +183,36 @@ class RepositoryManager:
             self._session = None
 
     async def _fetch_text(
-        self,
-        url: str,
-        *,
-        max_size: int = MAX_RESPONSE_SIZE,
+      self, 
+      url: str, 
+      *, 
+      max_size: int = MAX_RESPONSE_SIZE
     ) -> str | None:
-        """GET *url*, returning decoded text or None on any failure"""
         session = await self._get_session()
         try:
             async with session.get(url) as resp:
                 if resp.status != 200:
                     return None
-                ct = resp.headers.get("Content-Type", "")
-                if ct and "text" not in ct and "octet-stream" not in ct:
-                    self.k.logger.warning(
-                        f"[RepoManager] Unexpected Content-Type {ct!r} for {url}"
-                    )
-                    return None
+    
                 cl = resp.content_length
                 if cl is not None and cl > max_size:
-                    self.k.logger.warning(
-                        f"[RepoManager] Response too large ({cl} B) for {url}"
-                    )
+                    self.k.logger.warning(f"[RepoManager] Response too large ({cl} B) for {url}")
                     return None
-                data = await resp.content.read(max_size + 1)
-                if len(data) > max_size:
-                    self.k.logger.warning(
-                        f"[RepoManager] Response exceeded {max_size} B for {url}"
-                    )
-                    return None
+    
+                if cl is not None:
+                    data = await resp.content.readexactly(cl)
+                    if len(data) != cl:
+                        self.k.logger.warning(f"[RepoManager] Incomplete response for {url}: got {len(data)} of {cl} B")
+                        return None
+                else:
+                    data = await resp.content.read(max_size + 1)
+                    if len(data) > max_size:
+                        self.k.logger.warning(f"[RepoManager] Response exceeded {max_size} B for {url}")
+                        return None
+                    if not resp.content.at_eof():
+                        self.k.logger.warning(f"[RepoManager] Incomplete chunked response for {url}")
+                        return None
+    
                 return data.decode(errors="replace")
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
             self.k.logger.debug(f"[RepoManager] _fetch_text error {url}: {e}")

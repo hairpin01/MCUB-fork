@@ -189,7 +189,7 @@ class EvalModule(loader.ModuleBase):
             event.pipe_output = _tb_raw or result_text
             return
 
-        if len(result_text) > 4000:
+        if len(result_text) > 4600:
             file_content = _tb_raw or result_text
             result_file = io.BytesIO(file_content.encode("utf-8", errors="replace"))
             result_file.name = "eval_result.txt"

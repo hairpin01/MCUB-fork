@@ -133,7 +133,9 @@ terminal:
   config_show_pid: "ps --pid $PID"
   config_compact_mode: "silent exec; verbose exit"
   config_min_edit_interval: "rate-limit interval (seconds)"
-  config_edit_on_newline_only: "block-buffered; flush on \\n"
+  config_edit_on_newline_only: "block-buffered; flush on \
+
+"
   config_update_interval: "stdout flush interval (sec, 1-30). Also triggered on SIGIO."
 
 command:
@@ -470,7 +472,9 @@ man:
   system_modules: System packages
   user_modules_page: "User packages (pg {page} | count<code> {count}</code>)"
   close: exit 0
-  inline_bot_not_configured: "ENOENT: inline bot not configured\nSet inline_bot_token in /etc/mcub.conf"
+  inline_bot_not_configured: "ENOENT: inline bot not configured
+
+Set inline_bot_token in /etc/mcub.conf"
   no_inline_results: '<tg-emoji emoji-id="5767151002666929821">🚫</tg-emoji> "grep: no inline results"'
   error: "[STDERR]"
   module_manager: 'apt - Package Manager
@@ -751,7 +755,11 @@ loader:
 
     <blockquote>{source_link}</blockquote>'
   placeholders_title: Custom placeholders
-  placeholders_block: "\n<blockquote expandable>🧩 <b>{title}:</b>\n<i>{placeholders}</i></blockquote>"
+  placeholders_block: "
+
+<blockquote expandable>🧩 <b>{title}:</b>
+  
+  <i>{placeholders}</i></blockquote>"
   no_cmd_desc: '{no_cmd} "(no manpage for this cmd)"'
   command_line: '{crystal} <code>{prefix}{cmd}</code> - <b>{desc}</b>'
   aliases_text: ' (alias: {alias_text})'
@@ -1124,16 +1132,27 @@ tester:
   logs_level_invalid: "<b>EINVAL: Available levels:</b> <code>debug</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code>, <code>all</code>"
   logs_choose_level: "{paper} <b>journalctl -p: choose log level</b>"
   logs_choose_desc: "Send only selected records from <code>/var/log/kernel.log</code>."
-  logs_level_warning: "{snowflake} <b>⚠️ Warning</b>\n<blockquote>Logs with level <code>{level}</code> may contain tokens, UIDs, message text, and other sensitive data.</blockquote>\n<b>pipe anyway?</b>"
+  logs_level_warning: "{snowflake} <b>⚠️ Warning</b>
+  
+  <blockquote>Logs with level <code>{level}</code> may contain tokens, UIDs, message text, and other sensitive data.</blockquote>
+  
+  <b>pipe anyway?</b>"
   logs_send_cancelled: "{snowflake} <b>^C - log pipe cancelled</b>"
 
   teaser_recording: "🎥 [ .... ] strace -e <code>{cmd}</code>..."
   teaser_done: "✅ <b>[ OK ]</b> <code>{cmd}</code> execution logged in /var/log/teaser"
   teaser_no_cmd: "❌ <b>EINVAL: specify command</b>, e.g.: <code>{{prefix}}teaser ping</code>"
   teaser_cmd_not_found: "❌ <b>ENOENT: command</b> <code>{cmd}</code> <b>not found in PATH</b>"
-  teaser_report_header: "<b>📊 Teaser Report:</b> <code>{cmd}</code>\n\n"
-  teaser_event_log: "<b>📋 strace:</b>\n<blockquote expandable>{log}</blockquote>"
-  teaser_kernel_log: "<b>📝 dmesg:</b>\n<blockquote expandable>{log}</blockquote>"
+  teaser_report_header: "<b>📊 Teaser Report:</b> <code>{cmd}</code>
+  
+  
+  
+  "
+  teaser_event_log: "<b>📋 strace:</b>
+  <blockquote expandable>{log}</blockquote>"
+  teaser_kernel_log: "<b>📝 dmesg:</b>
+
+<blockquote expandable>{log}</blockquote>"
   teaser_empty_log: "<b>ENODATA: /var/log/kernel.log is empty</b>"
   teaser_recording_event: "⏺️ [ .... ] ptrace(TRACE_ME)..."
   teaser_recording_kernel: "⏺️ [ .... ] tail -f /var/log/kernel.log..."
@@ -1168,8 +1187,12 @@ trusted:
   ownerprefix_source_fallback: root fallback
   btn_cancel: "^C Cancel"
   nonick_step_title: '<tg-emoji emoji-id="5332723564711804828">✨</tg-emoji> <b>Enable NoNick for {name}?</b>'
-  nonick_step_desc: "With <b>NoNick</b> enabled, the user will be able to exec commands like <code>{prefix}command</code>.\nWithout it: <code>{prefix}command@{alias}</code>."
-  nonick_step_desc_no_alias: "With <b>NoNick</b> enabled the user can exec commands without suffix.\nWithout it they must include the owner's <code>@username</code> suffix."
+  nonick_step_desc: "With <b>NoNick</b> enabled, the user will be able to exec commands like <code>{prefix}command</code>.
+
+Without it: <code>{prefix}command@{alias}</code>."
+  nonick_step_desc_no_alias: "With <b>NoNick</b> enabled the user can exec commands without suffix.
+
+Without it they must include the owner's <code>@username</code> suffix."
   btn_nonick_yes: "--nonick"
   btn_nonick_no: "--no-nonick"
   nonick_toggled_on: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> "--nonick enabled" for {name}.'
@@ -1194,7 +1217,19 @@ trusted:
   access_allowed: "allowed"
   access_denied: "denied"
   access_allowed_group: "allowed (group ACL)"
-  trustcmd_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>visudo: per-command ACL for sudoers</b>\n\n<code>.trustcmd @username +py</code> - chmod +x py\n<code>.trustcmd @username -py</code> - chmod -x py\n<code>.trustcmd @username list</code> - show ACL\n\n<i>Requires user to be in /etc/sudoers</i>'
+  trustcmd_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>visudo: per-command ACL for sudoers</b>
+
+
+
+<code>.trustcmd @username +py</code> - chmod +x py
+
+<code>.trustcmd @username -py</code> - chmod -x py
+
+<code>.trustcmd @username list</code> - show ACL
+
+
+
+<i>Requires user to be in /etc/sudoers</i>'
   trustcmd_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> "chmod +x <code>{cmd}</code> for {user} - done."'
   trustcmd_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> "chmod -x <code>{cmd}</code> for {user} - done."'
   trustcmd_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "ENOENT: cmd <code>{cmd}</code> not found."'
@@ -1221,7 +1256,29 @@ trusted:
   timed_trusted_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>cron: temporary sudoers:</b>'
   timed_trusted_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "cron: no temporary sudoers."'
   trust_expiring: " (TTL: {time})"
-  sgroup_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>groupadd: security groups (ACL groups)</b>\n\n<b>cmds:</b>\n<code>.sgroup create mygroup</code> - groupadd mygroup\n<code>.sgroup delete mygroup</code> - groupdel mygroup\n<code>.sgroup add mygroup @user</code> - usermod -aG mygroup\n<code>.sgroup remove mygroup @user</code> - deluser from mygroup\n<code>.sgroup access mygroup</code> - edit group ACL (inline)\n<code>.sgroup list</code> - cat /etc/group\n<code>.sgroup info mygroup</code> - getent group mygroup\n\n<i>Groups allow managing ACL for multiple UIDs at once</i>'
+  sgroup_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>groupadd: security groups (ACL groups)</b>
+
+
+
+<b>cmds:</b>
+
+<code>.sgroup create mygroup</code> - groupadd mygroup
+
+<code>.sgroup delete mygroup</code> - groupdel mygroup
+
+<code>.sgroup add mygroup @user</code> - usermod -aG mygroup
+
+<code>.sgroup remove mygroup @user</code> - deluser from mygroup
+
+<code>.sgroup access mygroup</code> - edit group ACL (inline)
+
+<code>.sgroup list</code> - cat /etc/group
+
+<code>.sgroup info mygroup</code> - getent group mygroup
+
+
+
+<i>Groups allow managing ACL for multiple UIDs at once</i>'
   sgroup_created: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> "groupadd {name} - done."'
   sgroup_deleted: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> "groupdel {name} - done."'
   sgroup_already_exists: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "EEXIST: group <b>{name}</b> already exists."'
@@ -1283,13 +1340,23 @@ presets:
     label: 🛡 sudo
 
 config:
-  config_menu_text: "{menu_emoji} <b>vim /etc/mcubd.conf</b>\nChoose section:"
+  config_menu_text: "{menu_emoji} <b>vim /etc/mcubd.conf</b>
+
+Choose section:"
   btn_kernel_config: 🪄 Kernel Config
   btn_modules_config: 🚂 Packages Config
-  kernel_config_title: "{pencil} <b>Kernel Config</b>\n{page_emoji} pg <b>{page}/{total_pages}</b> ({total_keys} keys)"
-  modules_config_title: "{puzzle} <b>Packages Config</b>\n{page_emoji} pg <b>{page}/{total_pages}</b> ({total_modules} packages)"
-  module_config_title: "{puzzle} <b>Package:</b> <code>{module_name}</code>\n{page_emoji} pg <b>{page}/{total_pages}</b> ({total_items} keys)"
-  key_view: "{note} <b>{key}</b> ({type_emoji} {value_type})\n{display_value}"
+  kernel_config_title: "{pencil} <b>Kernel Config</b>
+
+{page_emoji} pg <b>{page}/{total_pages}</b> ({total_keys} keys)"
+  modules_config_title: "{puzzle} <b>Packages Config</b>
+
+{page_emoji} pg <b>{page}/{total_pages}</b> ({total_modules} packages)"
+  module_config_title: "{puzzle} <b>Package:</b> <code>{module_name}</code>
+
+{page_emoji} pg <b>{page}/{total_pages}</b> ({total_items} keys)"
+  key_view: "{note} <b>{key}</b> ({type_emoji} {value_type})
+
+{display_value}"
   btn_back: "⬅️"
   btn_next: "➡️"
   filter_all: "❌ all"
@@ -1362,7 +1429,11 @@ config:
   fcfg_confirm_title: "✅ Confirm value"
   fcfg_confirm_text: "Value will be piped to /etc/mcubd.conf"
   fcfg_confirm_success: "✅ sysctl {key}={value} - done"
-  fcfg_module_update: "✏️ sysctl <code>{key}</code> for <code>{module}</code> updated!\n<blockquote><i>Was: {old}</i>\n<b>Now:</b> <code>{new}</code></blockquote>"
+  fcfg_module_update: "✏️ sysctl <code>{key}</code> for <code>{module}</code> updated!
+
+<blockquote><i>Was: {old}</i>
+
+<b>Now:</b> <code>{new}</code></blockquote>"
   fcfg_confirm_error: "❌ [STDERR]: error updating config: {error}"
   fcfg_confirm_expired: "❌ ETIMEDOUT: Confirmation expired or already used"
   key_deleted: "🗑️ unset - done"

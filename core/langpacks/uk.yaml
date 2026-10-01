@@ -346,19 +346,31 @@ api_protection:
   mcub_mode_set: <tg-emoji emoji-id="5253671358734281000">🛡</tg-emoji> <b>Режим захисту MCUB:</b> <code>{mode}</code><i>{dry}</i>
   mcub_mode_dry: "<i>(dry-run: порушення логуються, не блокуються)</i>"
   mcub_mode_usage: <tg-emoji emoji-id="5332654441508119011">⚙️</tg-emoji> <b>Використання:</b> <code>.api_mode [off|safe|strict|custom] [dry]</code>
-  mcub_violation: "<tg-emoji emoji-id=\"5767151002666929821\">🚫</tg-emoji> <b>MCUB заблокував запит</b>\n<blockquote>• <b>Метод:</b> <code>{method}</code> • <b>Режим:</b> <code>{mode}</code> • <b>Причина:</b> <i>{reason}</i></blockquote>"
-  mcub_status: "<tg-emoji emoji-id=\"5253671358734281000\">🛡</tg-emoji> <b>MCUB захист</b>\n<blockquote>• <b>Режим:</b> <code>{mode}</code> • <b>Dry-run:</b> <i>{dry}</i> • <b>Allowlist:</b> <code>{allowlist}</code></blockquote>"
+  mcub_violation: "<tg-emoji emoji-id=\"5767151002666929821\">🚫</tg-emoji> <b>MCUB заблокував запит</b>
+
+<blockquote>• <b>Метод:</b> <code>{method}</code> • <b>Режим:</b> <code>{mode}</code> • <b>Причина:</b> <i>{reason}</i></blockquote>"
+  mcub_status: "<tg-emoji emoji-id=\"5253671358734281000\">🛡</tg-emoji> <b>MCUB захист</b>
+
+<blockquote>• <b>Режим:</b> <code>{mode}</code> • <b>Dry-run:</b> <i>{dry}</i> • <b>Allowlist:</b> <code>{allowlist}</code></blockquote>"
   mcub_choose_mode: <tg-emoji emoji-id="5253671358734281000">🛡</tg-emoji> <b>Обери режим захисту MCUB:</b>
   mcub_mode_default: 👾 За замовчуванням ({mode})
 updates:
   restarting: Твій <b>{mcub}</b> перезавантажується...
   restart_log: Перезавантаження...
-  sig_mismatch: '<tg-emoji emoji-id="5253864872780769235">❗️</tg-emoji> <b>Підпис коміту не збігається, встановлення цього оновлення може зашкодити хосту.</b>\n\n<b>Коміт:</b> <code>{sha}</code>\n<b>Гілка:</b> <code>{branch}</code>'
+  sig_mismatch: '<tg-emoji emoji-id="5253864872780769235">❗️</tg-emoji> <b>Підпис коміту не збігається, встановлення цього оновлення може зашкодити хосту.</b>
+
+
+
+<b>Коміт:</b> <code>{sha}</code>
+
+<b>Гілка:</b> <code>{branch}</code>'
   sig_btn_force: "Продовжити примусово"
   sig_btn_skip: "Пропустити цей коміт"
   sig_forcing: '<tg-emoji emoji-id="5253464392850221514">🔃</tg-emoji> Примусове оновлення до <code>{sha}</code>…'
   sig_force_done: '<tg-emoji emoji-id="5255813619702049821">✅</tg-emoji> Примусово оновлено до <code>{sha}</code>. Перезапуск…'
-  sig_skipped: '<tg-emoji emoji-id="5253864872780769235">❗️</tg-emoji> Цей коміт пропущено, нічого не злито.\n<code>{sha}</code>'
+  sig_skipped: '<tg-emoji emoji-id="5253864872780769235">❗️</tg-emoji> Цей коміт пропущено, нічого не злито.
+
+<code>{sha}</code>'
   already_updated: <tg-emoji emoji-id="5902002809573740949">✅</tg-emoji> <b>Вже остання версія {version}</b>
   git_pull_success: '<tg-emoji emoji-id="5332654441508119011">📝</tg-emoji> <b>Git pull успішний!</b>
 
@@ -693,7 +705,11 @@ loader:
 
     {source_link}'
   placeholders_title: Кастомні плейсхолдери
-  placeholders_block: "\n<blockquote expandable>🧩 <b>{title}:</b>\n<i>{placeholders}</i></blockquote>"
+  placeholders_block: "
+
+<blockquote expandable>🧩 <b>{title}:</b>
+
+<i>{placeholders}</i></blockquote>"
   no_cmd_desc: '{no_cmd} У команди немає опису'
   command_line: '{crystal} <code>{prefix}{cmd}</code> - <b>{desc}</b>'
   aliases_text: ' (Aliases: {alias_text})'
@@ -914,12 +930,20 @@ switch_inline:
   applied: '{success} <b>Інлайн-бот застосовано.</b> <i>Перезапусти юзербот</i>'
 
 log_bot:
-  sig_mismatch: '<tg-emoji emoji-id="5253864872780769235">❗️</tg-emoji> <b>Підпис коміту не збігається, встановлення цього оновлення може зашкодити хосту.</b>\n\n<b>Коміт:</b> <code>{sha}</code>\n<b>Гілка:</b> <code>{branch}</code>'
+  sig_mismatch: '<tg-emoji emoji-id="5253864872780769235">❗️</tg-emoji> <b>Підпис коміту не збігається, встановлення цього оновлення може зашкодити хосту.</b>
+
+
+
+<b>Коміт:</b> <code>{sha}</code>
+
+<b>Гілка:</b> <code>{branch}</code>'
   sig_btn_force: "Продовжити примусово"
   sig_btn_skip: "Пропустити цей коміт"
   sig_forcing: '<tg-emoji emoji-id="5253464392850221514">🔃</tg-emoji> Примусове оновлення до <code>{sha}</code>…'
   sig_force_done: '<tg-emoji emoji-id="5255813619702049821">✅</tg-emoji> Примусово оновлено до <code>{sha}</code>. Перезапуск…'
-  sig_skipped: '<tg-emoji emoji-id="5253864872780769235">❗️</tg-emoji> Цей коміт пропущено, нічого не злито.\n<code>{sha}</code>'
+  sig_skipped: '<tg-emoji emoji-id="5253864872780769235">❗️</tg-emoji> Цей коміт пропущено, нічого не злито.
+
+<code>{sha}</code>'
   git_timeout: '<tg-emoji emoji-id="5411225658393134885">🗿</tg-emoji> Git: таймаут (немає мережі)'
   updates_available: 🔄 Доступні оновлення ({count})
   up_to_date: ✅ Актуальна версія
@@ -1064,16 +1088,28 @@ tester:
   logs_level_invalid: "<b>Доступні рівні:</b> <code>debug</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code>, <code>all</code>"
   logs_choose_level: "{paper} <b>Обери рівень логів</b>"
   logs_choose_desc: "Надішлю тільки записи обраного рівня з <code>kernel.log</code>."
-  logs_level_warning: "{snowflake} <b>Попередження</b>\n<blockquote>Логи рівня <code>{level}</code> можуть містити особисту інформацію, токени, chat id, текст повідомлень та інші чутливі дані.</blockquote>\n<b>Все одно надіслати?</b>"
+  logs_level_warning: "{snowflake} <b>Попередження</b>
+
+<blockquote>Логи рівня <code>{level}</code> можуть містити особисту інформацію, токени, chat id, текст повідомлень та інші чутливі дані.</blockquote>
+
+<b>Все одно надіслати?</b>"
   logs_send_cancelled: "{snowflake} <b>Відправку логів скасовано</b>"
 
   teaser_recording: "🎥 Записую виконання <code>{cmd}</code>..."
   teaser_done: "✅ <b>Готово!</b> Виконання <code>{cmd}</code> записано"
   teaser_no_cmd: "❌ <b>Вкажіть команду для тесту</b>, приклад: <code>{{prefix}}teaser ping</code>"
   teaser_cmd_not_found: "❌ <b>Команду</b> <code>{cmd}</code> <b>не знайдено</b>"
-  teaser_report_header: "<b>📊 Teaser Звіт:</b> <code>{cmd}</code>\n\n"
-  teaser_event_log: "<b>📋 Виклики Event:</b>\n<blockquote expandable>{log}</blockquote>"
-  teaser_kernel_log: "<b>📝 Логи Kernel:</b>\n<blockquote expandable>{log}</blockquote>"
+  teaser_report_header: "<b>📊 Teaser Звіт:</b> <code>{cmd}</code>
+
+
+
+"
+  teaser_event_log: "<b>📋 Виклики Event:</b>
+
+<blockquote expandable>{log}</blockquote>"
+  teaser_kernel_log: "<b>📝 Логи Kernel:</b>
+
+<blockquote expandable>{log}</blockquote>"
   teaser_empty_log: "<b>Записів у kernel.log не знайдено</b>"
   teaser_recording_event: "⏺️ Записую виклики event..."
   teaser_recording_kernel: "⏺️ Записую логи kernel..."
@@ -1330,7 +1366,11 @@ config:
   fcfg_confirm_title: "✅ Підтвердіть значення"
   fcfg_confirm_text: Значення буде передано до конфіга
   fcfg_confirm_success: "✅ Конфіг ключ {key} оновлено до {value}"
-  fcfg_module_update: "<tg-emoji emoji-id=\"5238156910363950406\">✏️</tg-emoji> Ключ <code>{key}</code> модуля <code>{module}</code> <b>оновлено!</b>\n<blockquote><i>Був: {old}</i>\n<b>Став:</b> <code>{new}</code></blockquote>"
+  fcfg_module_update: "<tg-emoji emoji-id=\"5238156910363950406\">✏️</tg-emoji> Ключ <code>{key}</code> модуля <code>{module}</code> <b>оновлено!</b>
+
+<blockquote><i>Був: {old}</i>
+
+<b>Став:</b> <code>{new}</code></blockquote>"
   fcfg_confirm_error: "❌ Помилка оновлення конфіга: {error}"
   fcfg_confirm_expired: "❌ Підтвердження прострочено або вже використано"
   key_deleted: "🗑️ Ключ видалено"

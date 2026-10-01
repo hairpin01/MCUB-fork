@@ -455,7 +455,12 @@ api_protection:
 updates:
   restarting: 'Your <b>{mcub}</b> is restarting...'
   restart_log: Restarting...
-  sig_mismatch: '<tg-emoji emoji-id="5253864872780769235">❗️</tg-emoji> <b>The commit signature does not match, installing this update may harm the host.</b>\n\n<b>Commit:</b> <code>{sha}</code>\n<b>Branch:</b> <code>{branch}</code>'
+  sig_mismatch: '<tg-emoji emoji-id="5253864872780769235">❗️</tg-emoji> <b>The commit signature does not match, installing this update may harm the host.</b>
+  <blockquote>
+  <b>Commit:</b> <code>{sha}</code>
+  
+  <b>Branch:</b> <code>{branch}</code>
+  </blockquote>'
   sig_btn_force: "Continue anyway"
   sig_btn_skip: "Skip this commit"
   sig_forcing: '<tg-emoji emoji-id="5253464392850221514">🔃</tg-emoji> Force updating to <code>{sha}</code>…'

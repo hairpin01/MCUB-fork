@@ -181,7 +181,7 @@ class RepositoryManager:
         if self._session and not self._session.closed:
             await self._session.close()
             self._session = None
-
+    
     async def _fetch_text(
         self,
         url: str,
@@ -194,7 +194,6 @@ class RepositoryManager:
                 if resp.status != 200:
                     return None
     
-                # юзаем read() с явным лимитом вместо content_length.
                 cl = resp.content_length
                 if cl is not None and cl > max_size:
                     self.k.logger.warning(
@@ -202,14 +201,19 @@ class RepositoryManager:
                     )
                     return None
     
-                data = await resp.content.read(max_size + 1)
-                if len(data) > max_size:
-                    self.k.logger.warning(
-                        f"[RepoManager] Response exceeded {max_size} B for {url}"
-                    )
-                    return None
+                # read() возвращает лишь часть буфера, поэтому читаем чанками до EOF
+                chunks: list[bytes] = []
+                total = 0
+                async for chunk in resp.content.iter_chunked(64 * 1024):
+                    total += len(chunk)
+                    if total > max_size:
+                        self.k.logger.warning(
+                            f"[RepoManager] Response exceeded {max_size} B for {url}"
+                        )
+                        return None
+                    chunks.append(chunk)
     
-                return data.decode(errors="replace")
+                return b"".join(chunks).decode(errors="replace")
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
             self.k.logger.debug(f"[RepoManager] _fetch_text error {url}: {e}")
             return None

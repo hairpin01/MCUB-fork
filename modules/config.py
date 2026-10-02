@@ -1747,7 +1747,7 @@ def register(kernel):
         type_emoji = get_type_emoji(value_type)
 
         if is_hidden or is_secret:
-            display_value = "<code>••••••••</code>"
+            display_value = f"<code>{'•' * len(key) if len(key) > 0 else '•••'}</code>"
         elif isinstance(value, (dict, list)):
             formatted_value = json.dumps(value, ensure_ascii=False, indent=2)
             display_value = f"<pre>{html.escape(formatted_value)}</pre>"
@@ -1762,7 +1762,7 @@ def register(kernel):
             else:
                 display_value = "<code>null</code>"
         elif isinstance(value, bool):
-            display_value = "✔️ <code>true</code>" if value else "✖️ <code>false</code>"
+            display_value = "✔️ <code>True</code>" if value else "✖️ <code>False</code>"
         elif isinstance(value, str):
             escaped_value = html.escape(value)
             display_value = f"<code>{escaped_value}</code>"
@@ -1775,7 +1775,7 @@ def register(kernel):
         text = t(
             "key_view",
             note=emoji_provider["📝"],
-            key=key,
+            key=f"{module_name}.{key}",
             type_emoji=type_emoji,
             value_type=value_type,
             display_value=display_value,

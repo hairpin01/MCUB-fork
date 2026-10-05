@@ -47,30 +47,31 @@ def _decode_bot_api_inline_message_id(value: str) -> Any | None:
     Returns ``None`` when the string is not in this format (for example when it
     is MCUB's own ``"dc_id:id:access_hash"`` form).
     """
-    import base64
-    import binascii
-    import struct
+    from telethon import utils as telethon_utils
 
-    try:
-        raw = base64.urlsafe_b64decode(value + "=" * (len(value) % 4))
-        dc_id, msg_id, peer_id, access_hash = struct.unpack("<iiiq", raw)
-    except (binascii.Error, struct.error, ValueError, TypeError):
+    message_id, peer, dc_id, access_hash = (
+        telethon_utils.resolve_inline_message_id(value)
+    )
+    if peer is None or message_id is None:
         return None
 
     from telethon.tl import types
 
+    owner_id = (
+        peer.channel_id if isinstance(peer, types.PeerChannel) else peer.user_id
+    )
     id64 = getattr(types, "InputBotInlineMessageID64", None)
     if id64 is None:  # pragma: no cover - very old Telethon
         return types.InputBotInlineMessageID(
             dc_id=dc_id,
-            id=msg_id,
+            id=message_id,
             access_hash=access_hash,
         )
 
     return id64(
         dc_id=dc_id,
-        owner_id=abs(peer_id),
-        id=msg_id,
+        owner_id=owner_id,
+        id=message_id,
         access_hash=access_hash,
     )
 

@@ -13,7 +13,7 @@ import aiohttp
 from packaging.version import InvalidVersion, parse
 
 # version kernel MCUB
-__version__ = "1.4.7.1"
+__version__ = "1.4.7.2"
 VERSION = __version__
 
 

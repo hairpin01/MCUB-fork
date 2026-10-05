@@ -143,7 +143,7 @@ async def wait_inline_id(
 
     fut = register_inline_id_waiter(kernel, form_id)
     try:
-        await asyncio.wait_for(fut, timeout)
+        await asyncio.wait_for(asyncio.shield(fut), timeout)
     except (asyncio.TimeoutError, asyncio.CancelledError):
         return _cached()
     finally:
@@ -997,9 +997,20 @@ class InlineHandlers:
                     self.kernel.logger.debug(
                         f"[InlineHandlers] UpdateBotInlineSend: form_id={event.id} inline_msg_id={inline_msg_id_str}"
                     )
-                    resolve_inline_id_waiter(
-                        self.kernel, str(event.id), inline_msg_id_str
+                else:
+                    # The update arrived, so stop anyone waiting on this form -
+                    # but msg_id is absent and will not turn up in a later
+                    # update. Telegram omits it when the result was sent from
+                    # the same account that answered the query, which is the
+                    # usual case for MCUB's own subinline.form().
+                    self.kernel.logger.debug(
+                        "[InlineHandlers] UpdateBotInlineSend without msg_id "
+                        "form_id=%s: message is not inline-editable",
+                        event.id,
                     )
+                    resolve_inline_id_waiter(self.kernel, str(event.id), None)
+
+                if inline_msg_id_str:
                     if temp_data:
                         # Store it for inline_temp too, otherwise a message sent
                         # through a temporary handler stays uneditable.

@@ -34,6 +34,47 @@ def is_inline_message_id(value: Any) -> bool:
     return isinstance(value, _inline_id_types())
 
 
+def _decode_bot_api_inline_message_id(value: str) -> Any | None:
+    """Decode a Bot API ``inline_message_id`` into an MTProto input id.
+
+    The Bot API hands out ``inline_message_id`` as urlsafe-base64 wrapping
+    ``struct.pack("<iiiq", dc_id, message_id, peer_id, access_hash)``. The
+    third field is negative for channels and equals the owner user id for
+    private chats, which is exactly the ``owner_id`` required by
+    ``inputBotInlineMessageID64`` - so a Bot API id is always reconstructed as
+    the 64-bit variant.
+
+    Returns ``None`` when the string is not in this format (for example when it
+    is MCUB's own ``"dc_id:id:access_hash"`` form).
+    """
+    import base64
+    import binascii
+    import struct
+
+    try:
+        raw = base64.urlsafe_b64decode(value + "=" * (len(value) % 4))
+        dc_id, msg_id, peer_id, access_hash = struct.unpack("<iiiq", raw)
+    except (binascii.Error, struct.error, ValueError, TypeError):
+        return None
+
+    from telethon.tl import types
+
+    id64 = getattr(types, "InputBotInlineMessageID64", None)
+    if id64 is None:  # pragma: no cover - very old Telethon
+        return types.InputBotInlineMessageID(
+            dc_id=dc_id,
+            id=msg_id,
+            access_hash=access_hash,
+        )
+
+    return id64(
+        dc_id=dc_id,
+        owner_id=abs(peer_id),
+        id=msg_id,
+        access_hash=access_hash,
+    )
+
+
 def _normalize_inline_message_id(value: Any) -> Any:
     """Return a Telethon InputBotInlineMessageID-like object when possible.
 
@@ -58,11 +99,13 @@ def _normalize_inline_message_id(value: Any) -> Any:
 
     parts = value.split(":")
     if len(parts) not in (3, 4):
-        return value
+        # Not MCUB's positional form - try the Bot API base64 format, which is
+        # what aiogram delivers as CallbackQuery.inline_message_id.
+        return _decode_bot_api_inline_message_id(value) or value
     try:
         numbers = [int(part) for part in parts]
     except (TypeError, ValueError):
-        return value
+        return _decode_bot_api_inline_message_id(value) or value
 
     from telethon.tl import types
 
@@ -463,12 +506,18 @@ class InlineMessage:
             # chat-edit permissions for the bot: EditMessageRequest fails with
             # CHAT_WRITE_FORBIDDEN or INLINE_BOT_REQUIRED. It is only editable
             # through EditInlineBotMessageRequest, which needs the
-            # inline_message_id - and that arrives asynchronously with
-            # UpdateBotInlineSend. Fail loudly instead of firing a doomed RPC.
+            # inline_message_id from UpdateBotInlineSend.msg_id.
+            #
+            # Telegram sends that field as None when the inline result was sent
+            # from the same account that answered the query - which is what
+            # subinline.form() does. The id is then never delivered, so this is
+            # permanent rather than a race: say so instead of implying that
+            # waiting will help.
             raise RuntimeError(
-                "Cannot edit this inline message yet: inline_message_id is "
-                "unknown. It arrives with UpdateBotInlineSend after the user "
-                "sends the inline result."
+                "Cannot edit this inline message: Telegram did not provide an "
+                "inline_message_id for it (UpdateBotInlineSend.msg_id is None, "
+                "which happens when the result is sent from the account that "
+                "answered the query). Delete and resend the message instead."
             )
 
         kwargs.setdefault("parse_mode", parse_mode)

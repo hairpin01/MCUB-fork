@@ -216,6 +216,7 @@ class _TelethonInlineQueryAdapter:
             parse_mode: str = "html",
             thumb: Any = None,
             buttons: Any = None,
+            id: str | None = None,
         ) -> Any:
             if (
                 InlineQueryResultArticle is not None
@@ -224,7 +225,9 @@ class _TelethonInlineQueryAdapter:
                 kb = _aiogram_inline_markup(buttons)
 
                 return InlineQueryResultArticle(
-                    id=str(uuid.uuid4()),
+                    # Keep an explicit id so UpdateBotInlineSend.id matches the
+                    # cached form id and inline_message_id can be stored.
+                    id=id or str(uuid.uuid4()),
                     title=title,
                     description=description or "",
                     input_message_content=InputTextMessageContent(
@@ -2024,6 +2027,7 @@ class InlineHandlers:
                     if rich_text is not None or rich_message is not None:
                         media_kwargs = self._build_article_media_kwargs(media, mtype)
                         article_kwargs = {
+                            "id": query,
                             "buttons": buttons,
                             "rich_text": rich_text,
                             "rich_parse_mode": form_data.get("rich_parse_mode")
@@ -2045,6 +2049,7 @@ class InlineHandlers:
                             try:
                                 builder = event.builder.article(
                                     "Inline Form",
+                                    id=query,
                                     text=text,
                                     buttons=buttons,
                                     parse_mode=parse_mode,
@@ -2053,6 +2058,7 @@ class InlineHandlers:
                             except TypeError:
                                 builder = event.builder.article(
                                     "Inline Form",
+                                    id=query,
                                     text=text,
                                     buttons=buttons,
                                     parse_mode=parse_mode,
@@ -2065,6 +2071,7 @@ class InlineHandlers:
                     if not _bot_token:
                         builder = event.builder.article(
                             "Inline Form",
+                            id=query,
                             text=text,
                             buttons=buttons,
                             parse_mode=parse_mode,
@@ -2517,13 +2524,6 @@ class InlineHandlers:
                 or getattr(handler_func, "is_inline_handler", False)
             )
 
-            sig = None
-            if not is_hikka_handler:
-                try:
-                    sig = inspect.signature(handler)
-                except (TypeError, ValueError):
-                    sig = None
-
             inline_proxy = None
 
             if is_hikka_handler:
@@ -2542,15 +2542,6 @@ class InlineHandlers:
                 )
                 try:
                     result = handler(iq_obj)
-                except Exception as handler_error:
-                    await self.error_article(event, handler_error)
-                    result = None
-                self.kernel.logger.debug(
-                    f"[InlineHandlers] handler result type: {type(result)}"
-                )
-            elif sig and len(sig.parameters) == 1:
-                try:
-                    result = handler(event)
                 except Exception as handler_error:
                     await self.error_article(event, handler_error)
                     result = None

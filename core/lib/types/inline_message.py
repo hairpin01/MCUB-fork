@@ -119,7 +119,13 @@ async def _parse_inline_text(
     parser so ``parse_mode=()`` (auto-detect) and HTML emoji conversion behave
     exactly as they do in ``client.edit_message()``.
     """
-    parser = getattr(client, "_parse_message_text", None)
+    try:
+        parser = getattr(client, "_parse_message_text", None)
+    except Exception:
+        # ClientProxy raises CallInsecure for any "_"-prefixed attribute, and
+        # getattr(..., default) does not suppress that.
+        parser = None
+
     if callable(parser):
         try:
             return await parser(text, parse_mode)
@@ -211,7 +217,12 @@ def _inline_buttons(client: Any, buttons: Any) -> Any:
         else rows
     )
 
-    builder = getattr(client, "build_reply_markup", None)
+    try:
+        builder = getattr(client, "build_reply_markup", None)
+    except Exception:
+        # ClientProxy blocks underscore-prefixed attributes only; this one is
+        # public, but stay defensive since it raises rather than returning None.
+        builder = None
     return builder(buttons) if callable(builder) else None
 
 
@@ -333,6 +344,20 @@ class InlineMessage:
         """
         await self._event.answer(text, alert=alert)
 
+    def _is_via_bot_message(self) -> bool:
+        """Return True if the underlying event is a message sent via an inline bot.
+
+        Such messages are only editable through
+        ``messages.editInlineBotMessage``; ``messages.editMessage`` rejects them
+        with ``INLINE_BOT_REQUIRED``. Knowing this lets ``edit()`` report a
+        missing inline_message_id instead of failing deep in the request path.
+        """
+        event = self._event
+        if getattr(event, "via_bot_id", None):
+            return True
+        via_bot = getattr(event, "via_bot", None)
+        return bool(via_bot is not None and getattr(via_bot, "id", None))
+
     def _form_data(self) -> dict[str, Any] | None:
         """Read the cached form record for this message, if any.
 
@@ -392,7 +417,9 @@ class InlineMessage:
             if bot_client is not None:
                 edit_kw = {"parse_mode": parse_mode}
                 if buttons is not None:
-                    edit_kw["buttons"] = _inline_buttons(bot_client, buttons)
+                    # edit_message(buttons=...) runs build_reply_markup itself,
+                    # so pass the raw rows rather than a pre-built markup.
+                    edit_kw["buttons"] = buttons
                 edit_kw.update(kwargs)
                 try:
                     await bot_client.edit_message(
@@ -403,7 +430,15 @@ class InlineMessage:
                     )
                     return self
                 except Exception:
-                    pass
+                    if self._is_via_bot_message():
+                        raise
+
+        if self._is_via_bot_message():
+            raise RuntimeError(
+                "Cannot edit this inline message: inline_message_id is not "
+                "known yet. It arrives with UpdateBotInlineSend after the user "
+                "sends the inline result."
+            )
 
         kwargs.setdefault("parse_mode", parse_mode)
         if text is not None:
@@ -550,15 +585,14 @@ class InlineMessage:
 
     async def delete(self) -> None:
         """Delete the inline message."""
-        try:
-            await self._event.delete()
-            return
-        except Exception:
-            pass
-
         inline_message_id = self._resolve_inline_message_id()
         client = _inline_client(self._kernel)
+
         if inline_message_id and client is not None:
+            # An inline message cannot be deleted through the chat API - the
+            # only way to remove it is editing its text to empty. Prefer this
+            # over _event.delete(), which would remove a different (regular)
+            # message from the chat instead of the inline result.
             try:
                 from telethon.tl.functions.messages import (
                     EditInlineBotMessageRequest,
@@ -570,8 +604,14 @@ class InlineMessage:
                         message="",
                     )
                 )
+                return
             except Exception:
                 pass
+
+        try:
+            await self._event.delete()
+        except Exception:
+            pass
 
     @classmethod
     def from_event(cls, event: Any, kernel: Any = None) -> InlineMessage:

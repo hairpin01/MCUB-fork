@@ -906,30 +906,36 @@ class InlineManager:
                     await delete()
 
             if message:
-                handlers = InlineHandlers(k, k.bot_client)
+                from core.lib.types.inline_message import (
+                    _serialize_inline_message_id,
+                )
+
+                cache = getattr(k, "cache", None)
+                form_data = (
+                    (cache.get(query) if cache is not None else None) or {}
+                )
                 inline_msg_id = getattr(message, "inline_message_id", None) or getattr(
                     message, "_inline_msg_id", None
                 )
                 if inline_msg_id:
-                    form_data = handlers.get_inline_form(query)
                     if form_data:
-                        if (
-                            hasattr(inline_msg_id, "dc_id")
-                            and hasattr(inline_msg_id, "id")
-                            and hasattr(inline_msg_id, "access_hash")
-                        ):
-                            form_data["inline_message_id"] = (
-                                f"{inline_msg_id.dc_id}:{inline_msg_id.id}:{inline_msg_id.access_hash}"
-                            )
-                        else:
-                            form_data["inline_message_id"] = str(inline_msg_id)
-                        cache = getattr(k, "cache", None)
+                        # _serialize_inline_message_id keeps owner_id for the
+                        # 64-bit inline message id variant; a manual
+                        # "dc_id:id:access_hash" f-string would lose it and
+                        # produce MESSAGE_ID_INVALID.
+                        form_data["inline_message_id"] = (
+                            _serialize_inline_message_id(inline_msg_id)
+                        )
                         if cache:
-                            cache.set(query, form_data, ttl=form_data.get("_ttl", 3600))
+                            cache.set(
+                                query, form_data, ttl=form_data.get("_ttl", 3600)
+                            )
                 else:
+                    # UpdateBotInlineSend arrives asynchronously after the user
+                    # sends the result, so poll briefly for the inline id.
                     for _ in range(25):
                         await asyncio.sleep(0.2)
-                        form_data = handlers.get_inline_form(query)
+                        form_data = cache.get(query) if cache is not None else None
                         if form_data and form_data.get("inline_message_id"):
                             inline_msg_id = form_data.get("inline_message_id")
                             message.inline_message_id = inline_msg_id
@@ -1824,23 +1830,22 @@ class InlineMessage:
         return None
 
     def _load_form_data(self) -> bool:
-        """Load form data from cache."""
-        from core_inline.handlers import InlineHandlers
+        """Load form data from cache.
 
-        handlers = InlineHandlers(self._kernel, self._kernel.bot_client)
+        Reads ``kernel.cache`` directly: constructing ``InlineHandlers`` just to
+        call ``get_inline_form`` would open an aiohttp session and rebuild the
+        inline manager on every access.
+        """
+        cache = getattr(self._kernel, "cache", None)
+        if cache is None:
+            return False
 
-        form_data = handlers.get_inline_form(self.unit_id)
-        if form_data:
-            self._form_data = form_data
-            return True
+        form_data = cache.get(self.unit_id) or cache.get(f"msg_{self.unit_id}")
+        if not form_data:
+            return False
 
-        form_id = f"msg_{self.unit_id}"
-        form_data = handlers.get_inline_form(form_id)
-        if form_data:
-            self._form_data = form_data
-            return True
-
-        return False
+        self._form_data = form_data
+        return True
 
     @property
     def text(self) -> str:

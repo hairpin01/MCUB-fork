@@ -349,14 +349,38 @@ class InlineMessage:
 
         Such messages are only editable through
         ``messages.editInlineBotMessage``; ``messages.editMessage`` rejects them
-        with ``INLINE_BOT_REQUIRED``. Knowing this lets ``edit()`` report a
-        missing inline_message_id instead of failing deep in the request path.
+        with ``INLINE_BOT_REQUIRED`` or ``CHAT_WRITE_FORBIDDEN``. Knowing this
+        lets ``edit()`` fail fast instead of issuing a doomed chat edit.
+
+        Detection covers the plain Telethon ``Message``, the aiogram adapters
+        (which nest the payload under ``.message``) and a sender-id match
+        against the configured inline bot.
         """
         event = self._event
-        if getattr(event, "via_bot_id", None):
-            return True
-        via_bot = getattr(event, "via_bot", None)
-        return bool(via_bot is not None and getattr(via_bot, "id", None))
+        for candidate in (event, getattr(event, "message", None)):
+            if candidate is None:
+                continue
+            if getattr(candidate, "via_bot_id", None):
+                return True
+            via_bot = getattr(candidate, "via_bot", None)
+            if via_bot is not None and getattr(via_bot, "id", None):
+                return True
+
+        bot_id = getattr(self._kernel, "inline_bot_user_id", None)
+        if bot_id is not None:
+            for candidate in (event, getattr(event, "message", None)):
+                sender = getattr(candidate, "sender_id", None) or getattr(
+                    candidate, "from_id", None
+                )
+                if sender is None:
+                    continue
+                try:
+                    if int(sender) == int(bot_id):
+                        return True
+                except (TypeError, ValueError):
+                    continue
+
+        return False
 
     def _form_data(self) -> dict[str, Any] | None:
         """Read the cached form record for this message, if any.
@@ -412,7 +436,9 @@ class InlineMessage:
                     await client(request)
                 return self
 
-        if k is not None and self.chat_id and self.message_id:
+        via_bot = self._is_via_bot_message()
+
+        if k is not None and self.chat_id and self.message_id and not via_bot:
             bot_client = getattr(k, "bot_client", None)
             if bot_client is not None:
                 edit_kw = {"parse_mode": parse_mode}
@@ -430,13 +456,18 @@ class InlineMessage:
                     )
                     return self
                 except Exception:
-                    if self._is_via_bot_message():
-                        raise
+                    pass
 
-        if self._is_via_bot_message():
+        if via_bot:
+            # A message that reached the chat through an inline result has no
+            # chat-edit permissions for the bot: EditMessageRequest fails with
+            # CHAT_WRITE_FORBIDDEN or INLINE_BOT_REQUIRED. It is only editable
+            # through EditInlineBotMessageRequest, which needs the
+            # inline_message_id - and that arrives asynchronously with
+            # UpdateBotInlineSend. Fail loudly instead of firing a doomed RPC.
             raise RuntimeError(
-                "Cannot edit this inline message: inline_message_id is not "
-                "known yet. It arrives with UpdateBotInlineSend after the user "
+                "Cannot edit this inline message yet: inline_message_id is "
+                "unknown. It arrives with UpdateBotInlineSend after the user "
                 "sends the inline result."
             )
 

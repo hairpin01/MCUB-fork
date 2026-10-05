@@ -95,6 +95,65 @@ def _button_rows(buttons: Any) -> list[list[Any]]:
     return rows
 
 
+def register_inline_id_waiter(kernel: Any, form_id: str) -> asyncio.Future:
+    """Create a future that resolves once ``form_id``'s inline id is known.
+
+    State lives on the kernel, not on ``InlineHandlers``: that object is
+    rebuilt on every inline call, so per-instance state would never be seen by
+    the handler that resolves it.
+    """
+    loop = asyncio.get_event_loop()
+    waiters = getattr(kernel, "_inline_id_waiters", None)
+    if not isinstance(waiters, dict):
+        waiters = {}
+        kernel._inline_id_waiters = waiters
+    waiters[form_id] = fut = loop.create_future()
+    return fut
+
+
+def resolve_inline_id_waiter(kernel: Any, form_id: str, inline_id: str) -> None:
+    """Wake up whoever is waiting for this form's inline message id."""
+    waiters = getattr(kernel, "_inline_id_waiters", None)
+    if not isinstance(waiters, dict):
+        return
+    fut = waiters.pop(form_id, None)
+    if fut is not None and not fut.done():
+        fut.set_result(inline_id)
+
+
+async def wait_inline_id(
+    kernel: Any, form_id: str, timeout: float = 10.0
+) -> str | None:
+    """Wait for the ``inline_message_id`` of an already-sent inline result.
+
+    ``messages.sendInlineBotResult`` returns before Telegram notifies the bot
+    with ``UpdateBotInlineSend``, so the id is not available the moment the
+    result is clicked. Returns the cached id immediately when it is already
+    there, otherwise waits for the update and re-reads the cache.
+    """
+    cache = getattr(kernel, "cache", None)
+
+    def _cached() -> str | None:
+        data = cache.get(form_id) if cache is not None else None
+        return data.get("inline_message_id") if data else None
+
+    known = _cached()
+    if known:
+        return known
+
+    fut = register_inline_id_waiter(kernel, form_id)
+    try:
+        await asyncio.wait_for(fut, timeout)
+    except (asyncio.TimeoutError, asyncio.CancelledError):
+        return _cached()
+    finally:
+        waiters = getattr(kernel, "_inline_id_waiters", None)
+        if isinstance(waiters, dict):
+            waiters.pop(form_id, None)
+
+    return _cached()
+
+
 def _copy_text_payload(value: Any) -> Any:
     if isinstance(value, dict):
         value = value.get("text", "")
@@ -937,6 +996,9 @@ class InlineHandlers:
                 if inline_msg_id_str:
                     self.kernel.logger.debug(
                         f"[InlineHandlers] UpdateBotInlineSend: form_id={event.id} inline_msg_id={inline_msg_id_str}"
+                    )
+                    resolve_inline_id_waiter(
+                        self.kernel, str(event.id), inline_msg_id_str
                     )
                     if temp_data:
                         # Store it for inline_temp too, otherwise a message sent

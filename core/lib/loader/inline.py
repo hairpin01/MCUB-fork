@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import os
 import re
 import sys
@@ -906,6 +905,8 @@ class InlineManager:
                     await delete()
 
             if message:
+                from core_inline.handlers import wait_inline_id
+
                 from core.lib.types.inline_message import (
                     _serialize_inline_message_id,
                 )
@@ -918,29 +919,20 @@ class InlineManager:
                     message, "_inline_msg_id", None
                 )
                 if inline_msg_id:
-                    if form_data:
-                        # _serialize_inline_message_id keeps owner_id for the
-                        # 64-bit inline message id variant; a manual
-                        # "dc_id:id:access_hash" f-string would lose it and
-                        # produce MESSAGE_ID_INVALID.
-                        form_data["inline_message_id"] = (
-                            _serialize_inline_message_id(inline_msg_id)
-                        )
-                        if cache:
-                            cache.set(
-                                query, form_data, ttl=form_data.get("_ttl", 3600)
-                            )
+                    form_data["inline_message_id"] = _serialize_inline_message_id(
+                        inline_msg_id
+                    )
+                    if cache:
+                        cache.set(query, form_data, ttl=form_data.get("_ttl", 3600))
                 else:
-                    # UpdateBotInlineSend arrives asynchronously after the user
-                    # sends the result, so poll briefly for the inline id.
-                    for _ in range(25):
-                        await asyncio.sleep(0.2)
-                        form_data = cache.get(query) if cache is not None else None
-                        if form_data and form_data.get("inline_message_id"):
-                            inline_msg_id = form_data.get("inline_message_id")
-                            message.inline_message_id = inline_msg_id
-                            message._inline_msg_id = inline_msg_id
-                            break
+                    # Telethon's click() only sees the inline id when it is part
+                    # of sendInlineBotResult's response updates, which is the
+                    # bot's feedback and often has msg_id unset. Wait for the
+                    # real UpdateBotInlineSend so the message can be edited.
+                    inline_msg_id = await wait_inline_id(k, query)
+                    if inline_msg_id:
+                        message.inline_message_id = inline_msg_id
+                        message._inline_msg_id = inline_msg_id
 
             k.logger.debug(
                 "[inline] clicked index=%d chat_id=%s silent=%s reply_to=%s",

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 # requires:
 # author: @Hairpin00
-# version: 3.0.0
+# version: 3.0.1
 # description: en: Terminal commands with real-time output streaming, parallel slots and stdin input / ru: Терминальные команды с потоковым выводом в реальном времени, параллельными слотами и вводом stdin / uk: Термінальні команди з потоковим виведенням у реальному часі, паралельними слотами та введенням stdin
 import asyncio
 import html
@@ -682,8 +682,23 @@ def register(kernel):
             - on timeout (update_interval from config).
             Edits are throttled to avoid Telegram API flood.
             Only edits when the formatted message actually changed.
+
+            The command's raw stdout/stderr are compared separately from the
+            rendered message text: the rendered footer also carries a live
+            elapsed-time counter that ticks on every poll even when the
+            command is silent. Comparing rendered text alone would therefore
+            never actually skip an edit (the timer always differs), so a
+            quiet long-running command would get its message re-edited every
+            `update_interval` seconds for no visible reason - exactly the
+            kind of edit flood (-> FloodWait) this check exists to prevent.
+            stdout/stderr only ever grow (bytes are appended, never
+            rewritten), so comparing their lengths against the lengths as of
+            the last actual edit is an exact, O(1) way to tell whether the
+            command produced anything new since then.
             """
             last_edit = 0.0
+            last_edit_stdout_len = 0
+            last_edit_stderr_len = 0
 
             while key in self.running_commands:
                 cmd_data = self.running_commands[key]
@@ -708,6 +723,15 @@ def register(kernel):
                 if cmd_data["completed"]:
                     break
 
+                # Command output unchanged since the last edit: there is
+                # nothing new to show, so don't even bother with the rest of
+                # the pipeline (newline check, throttle sleep, rendering).
+                if (
+                    len(cmd_data["stdout"]) == last_edit_stdout_len
+                    and len(cmd_data["stderr"]) == last_edit_stderr_len
+                ):
+                    continue
+
                 cfg = _get_config()
 
                 # edit_on_newline_only: skip if no newline in new data
@@ -728,11 +752,23 @@ def register(kernel):
                     except asyncio.CancelledError:
                         break
 
-                # Build message and compare - skip if identical
+                # Re-measure right before rendering: more output may have
+                # arrived while we were asleep above, and this is what the
+                # upcoming message will actually reflect.
+                stdout_len = len(cmd_data["stdout"])
+                stderr_len = len(cmd_data["stderr"])
+
+                # Build message and compare - skip if identical (output
+                # filters can make visually-identical text even though the
+                # raw byte count above grew, e.g. an ANSI-only chunk).
                 new_text = self._build_message(cmd_data)
                 if new_text == cmd_data.get("_last_sent_text"):
+                    last_edit_stdout_len = stdout_len
+                    last_edit_stderr_len = stderr_len
                     continue
                 cmd_data["_last_sent_text"] = new_text
+                last_edit_stdout_len = stdout_len
+                last_edit_stderr_len = stderr_len
 
                 chat_id = key[0]
                 try:

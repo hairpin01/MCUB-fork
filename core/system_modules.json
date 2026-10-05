@@ -44,7 +44,7 @@
     },
     "terminal": {
       "path": "modules/terminal.py",
-      "sha256": "22101e9e21b2101c3116cf96fc5f12fe2f74bdb2bfdc77694ecc5052040616dd"
+      "sha256": "d4b7d24f2fa64955f333fcae436106a7b0ed8b1933d12403c87e6d0e068856a9"
     },
     "tester": {
       "path": "modules/tester.py",

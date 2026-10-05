@@ -2983,26 +2983,24 @@ class InlineProxy:
             inline_id = inline_message_id or unit.get("inline_message_id")
             if inline_id:
                 try:
-                    from telethon.tl.functions.messages import (
-                        EditInlineBotMessageRequest,
-                    )
-
                     from core.lib.types.inline_message import (
-                        _normalize_inline_message_id,
+                        build_inline_edit_request,
                     )
 
-                    request_kwargs = {"id": _normalize_inline_message_id(inline_id)}
-                    if text is not None:
-                        request_kwargs["message"] = text
                     buttons = self._to_telethon_buttons(unit.get("buttons"))
-                    if buttons:
-                        request_kwargs["reply_markup"] = buttons
-                    if request_kwargs.keys() != {"id"}:
+                    if text is not None or buttons:
                         client = getattr(self._kernel, "bot_client", None) or getattr(
                             self._kernel, "client", None
                         )
                         if client is not None:
-                            await client(EditInlineBotMessageRequest(**request_kwargs))
+                            request = await build_inline_edit_request(
+                                client,
+                                inline_id,
+                                text=text,
+                                buttons=buttons,
+                            )
+                            if request is not None:
+                                await client(request)
                 except Exception as e:
                     self._kernel.logger.debug(
                         f"[hikka_compat] _edit_unit inline edit failed: {e}"

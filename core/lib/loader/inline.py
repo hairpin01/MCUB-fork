@@ -1878,16 +1878,12 @@ class InlineMessage:
             await msg.edit("New text", buttons=[[Button.callback("Click", "data")]])
             ```
         """
-        from telethon.tl.functions.messages import EditInlineBotMessageRequest
-        from telethon.tl.types import InputBotInlineMessageID
+        from core.lib.types.inline_message import build_inline_edit_request
 
-        from core_inline.handlers import InlineHandlers
-
-        handlers = InlineHandlers(self._kernel, self._kernel.bot_client)
-        form_data = handlers.get_inline_form(self.unit_id)
-        if not form_data:
-            alt_id = f"msg_{self.unit_id}"
-            form_data = handlers.get_inline_form(alt_id)
+        cache = getattr(self._kernel, "cache", None)
+        form_data = None
+        if cache is not None:
+            form_data = cache.get(self.unit_id) or cache.get(f"msg_{self.unit_id}")
         if not form_data:
             return self
 
@@ -1897,7 +1893,6 @@ class InlineMessage:
         if buttons is not None:
             update_data["buttons"] = self._normalize_buttons(buttons)
 
-        cache = getattr(self._kernel, "cache", None)
         if cache:
             cache.set(self.unit_id, update_data, ttl=3600)
 
@@ -1908,41 +1903,17 @@ class InlineMessage:
             return self
 
         inline_msg_id = form_data.get("inline_message_id")
-        if inline_msg_id:
+        if inline_msg_id and bot_client:
             try:
-                msg_id = None
-                if isinstance(inline_msg_id, InputBotInlineMessageID):
-                    msg_id = inline_msg_id
-                elif isinstance(inline_msg_id, str):
-                    if ":" in inline_msg_id:
-                        parts = inline_msg_id.split(":")
-                        if len(parts) == 3:
-                            msg_id = InputBotInlineMessageID(
-                                dc_id=int(parts[0]),
-                                id=int(parts[1]),
-                                access_hash=int(parts[2]),
-                            )
-                        elif len(parts) == 2:
-                            msg_id = InputBotInlineMessageID(
-                                dc_id=0,
-                                id=int(parts[0]),
-                                access_hash=int(parts[1]),
-                            )
-
-                if msg_id and bot_client:
-                    reply_markup = None
-                    if buttons:
-                        reply_markup = bot_client.build_reply_markup(
-                            self._to_telethon_buttons(buttons)
-                        )
-                    await bot_client(
-                        EditInlineBotMessageRequest(
-                            id=msg_id,
-                            message=text or form_data.get("text", ""),
-                            reply_markup=reply_markup,
-                            parse_mode="html",
-                        )
-                    )
+                request = await build_inline_edit_request(
+                    bot_client,
+                    inline_msg_id,
+                    text=text if text is not None else form_data.get("text", ""),
+                    buttons=self._to_telethon_buttons(buttons) if buttons else None,
+                    parse_mode="html",
+                )
+                if request is not None:
+                    await bot_client(request)
             except Exception as e:
                 self._kernel.logger.debug(f"InlineMessage.edit inline error: {e}")
 
@@ -1980,26 +1951,31 @@ class InlineMessage:
         """
         from telethon.tl.functions.messages import DeleteBotCallbackMessage
 
-        from core_inline.handlers import InlineHandlers
-
         bot_client = getattr(self._kernel, "bot_client", None)
         user_client = getattr(self._kernel, "client", None)
         client = bot_client or user_client
         if client is None:
             return False
 
-        handlers = InlineHandlers(self._kernel, bot_client)
-        form_data = handlers.get_inline_form(self.unit_id)
-        if not form_data:
-            alt_id = f"msg_{self.unit_id}"
-            form_data = handlers.get_inline_form(alt_id)
+        cache = getattr(self._kernel, "cache", None)
+        form_data = None
+        if cache is not None:
+            form_data = cache.get(self.unit_id) or cache.get(f"msg_{self.unit_id}")
         if not form_data:
             return False
 
         inline_msg_id = form_data.get("inline_message_id")
         if inline_msg_id and bot_client:
             try:
-                await bot_client(DeleteBotCallbackMessage(inline_msg_id))
+                from core.lib.types.inline_message import (
+                    _normalize_inline_message_id,
+                )
+
+                await bot_client(
+                    DeleteBotCallbackMessage(
+                        _normalize_inline_message_id(inline_msg_id)
+                    )
+                )
             except Exception as e:
                 self._kernel.logger.debug(f"InlineMessage.delete inline error: {e}")
 

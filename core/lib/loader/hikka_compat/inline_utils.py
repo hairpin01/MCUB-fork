@@ -352,10 +352,10 @@ def _register_input_button(
 
     from .inline_types import InlineCall
 
-    try:
-        from telethon.tl.types import InputBotInlineMessageID
-    except ImportError:  # pragma: no cover - telethon always available
-        InputBotInlineMessageID = None
+    from core.lib.types.inline_message import (
+        _serialize_inline_message_id,
+        is_inline_message_id,
+    )
 
     args = button.get("args", ())
     kwargs = button.get("kwargs", {})
@@ -364,10 +364,8 @@ def _register_input_button(
     async def _hikka_input_wrapper(event, query_args, _data=None):
         msg_id = getattr(event, "msg_id", None)
         inline_message_id = None
-        if InputBotInlineMessageID is not None and isinstance(
-            msg_id, InputBotInlineMessageID
-        ):
-            inline_message_id = f"{msg_id.dc_id}:{msg_id.id}:{msg_id.access_hash}"
+        if is_inline_message_id(msg_id):
+            inline_message_id = _serialize_inline_message_id(msg_id)
         elif msg_id is not None:
             inline_message_id = str(msg_id)
 

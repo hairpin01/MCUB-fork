@@ -15,12 +15,8 @@ from typing import Any
 
 import aiohttp
 from telethon import Button, events
-from telethon.tl.functions.messages import (
-    EditInlineBotMessageRequest,
-    SetBotCallbackAnswerRequest,
-)
+from telethon.tl.functions.messages import SetBotCallbackAnswerRequest
 from telethon.tl.types import (
-    InputBotInlineMessageID,
     InputWebDocument,
     MessageEntityTextUrl,
     UpdateBotCallbackQuery,
@@ -29,6 +25,11 @@ from telethon.tl.types import (
 )
 
 from core.lib.time.cache import TTLCache
+from core.lib.types.inline_message import (
+    _serialize_inline_message_id,
+    build_inline_edit_request,
+    is_inline_message_id,
+)
 
 from .api import (
     InlineButton,
@@ -427,14 +428,17 @@ class _RawCallbackUpdateAdapter:
             return
 
         if isinstance(self._q, UpdateInlineBotCallbackQuery):
-            reply_markup = client.build_reply_markup(buttons) if buttons else None
-            await client(
-                EditInlineBotMessageRequest(
-                    id=self.msg_id,
-                    message=text,
-                    reply_markup=reply_markup,
-                )
+            # message= is plain text; formatting must be passed as entities,
+            # otherwise HTML tags are delivered to the user verbatim.
+            request = await build_inline_edit_request(
+                client,
+                self.msg_id,
+                text=text,
+                buttons=buttons,
+                parse_mode=parse_mode,
             )
+            if request is not None:
+                await client(request)
             return
 
         peer = getattr(self._q, "peer", None)
@@ -896,7 +900,7 @@ class InlineHandlers:
             return
         self.bot_client._mcub_inline_send_handler_registered = True
 
-        @on(events.Raw)
+        @on(events.Raw(types=UpdateBotInlineSend))
         async def inline_send_handler(event):
 
             self.kernel.logger.debug(
@@ -913,19 +917,11 @@ class InlineHandlers:
                     getattr(event, "query", "?"),
                 )
                 msg_id = event.msg_id
-                if isinstance(msg_id, InputBotInlineMessageID):
-                    inline_msg_id_str = (
-                        f"{msg_id.dc_id}:{msg_id.id}:{msg_id.access_hash}"
-                    )
-                    self.kernel.logger.debug(
-                        f"[InlineHandlers] UpdateBotInlineSend: form_id={event.id} inline_msg_id={inline_msg_id_str}"
-                    )
-                    form_data = self.kernel.cache.get(event.id)
-                    if form_data:
-                        form_data["inline_message_id"] = inline_msg_id_str
-                        self.kernel.cache.set(
-                            event.id, form_data, ttl=form_data.get("_ttl", 3600)
-                        )
+                inline_msg_id_str = (
+                    _serialize_inline_message_id(msg_id)
+                    if is_inline_message_id(msg_id)
+                    else None
+                )
 
                 temp_uuid = str(event.id)
                 cache_key = f"inline_temp_{temp_uuid}"
@@ -934,6 +930,26 @@ class InlineHandlers:
                     if hasattr(self.kernel, "cache")
                     else None
                 )
+
+                if inline_msg_id_str:
+                    self.kernel.logger.debug(
+                        f"[InlineHandlers] UpdateBotInlineSend: form_id={event.id} inline_msg_id={inline_msg_id_str}"
+                    )
+                    if temp_data:
+                        # Store it for inline_temp too, otherwise a message sent
+                        # through a temporary handler stays uneditable.
+                        temp_data["inline_message_id"] = inline_msg_id_str
+                        self.kernel.cache.set(
+                            cache_key,
+                            temp_data,
+                            ttl=temp_data.get("_ttl", 3600),
+                        )
+                    form_data = self.kernel.cache.get(event.id)
+                    if form_data:
+                        form_data["inline_message_id"] = inline_msg_id_str
+                        self.kernel.cache.set(
+                            event.id, form_data, ttl=form_data.get("_ttl", 3600)
+                        )
 
                 self.kernel.logger.debug(
                     "[InlineHandlers] inline_temp cache lookup: "
@@ -977,33 +993,17 @@ class InlineHandlers:
                     )
 
                     if handler:
+                        # inline_temp handlers may take (event,),
+                        # (event, args) or (event, args, data). A bound wrapper
+                        # already has `self` bound, so inspect.signature() reports
+                        # only the arguments that still have to be supplied.
                         try:
-                            is_bound = (
-                                hasattr(handler, "__bound_instance__")
-                                and handler.__bound_instance__ is not None
-                            )
-
-                            if is_bound:
-                                await handler(event, query_args, data)
-                            else:
-                                sig = None
-                                try:
-                                    sig = inspect.signature(handler)
-                                except (TypeError, ValueError):
-                                    pass
-
-                                if is_bound and sig and len(sig.parameters) >= 3:
-                                    await handler(event, query_args, data)
-                                elif is_bound and sig and len(sig.parameters) >= 2:
-                                    await handler(event, query_args)
-                                elif is_bound:
-                                    await handler(event)
-                                elif sig and len(sig.parameters) >= 3:
-                                    await handler(event, query_args, data)
-                                elif sig and len(sig.parameters) >= 2:
-                                    await handler(event, query_args)
-                                else:
-                                    await handler(event)
+                            arity = len(inspect.signature(handler).parameters)
+                        except (TypeError, ValueError):
+                            arity = 3
+                        args = (event, query_args, data)[: max(1, min(arity, 3))]
+                        try:
+                            await handler(*args)
                         except Exception as e:
                             self.kernel.logger.error(f"inline_temp handler error: {e}")
                             if hasattr(event, "answer"):

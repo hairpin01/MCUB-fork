@@ -14,6 +14,7 @@ This section documents MCUB-facing features added by the Telethon-MCUB fork.
 | [Buttons and Premium Emoji](buttons-emoji.md) | Unified Layer 229 buttons, `Button.*`, `Button.rich`, `Button.copy`, emoji icons |
 | [Parse Mode and Message Hooks](parser-hooks.md) | auto parse mode, HTML parser tags, native message hooks |
 | [Events and Reactions](events-reactions.md) | `events.JoinRequest`, reaction helpers |
+| [Guest Mode for Bots](guest-mod.md) | `events.GuestMessage`, `reply()`/`rich_reply()` for guest bots |
 | [Uploads, Payments and Message Helpers](uploads-payments.md) | `upload_files`, `translate`, star gift helpers |
 | [Compatibility Notes](compat.md) | topic replies, dict buttons, media compatibility, fallback behavior |
 | [Helper API Pack](helpers.md) | RichBuilder, inline aliases, message/client/topic shortcuts |
@@ -25,12 +26,13 @@ This section documents MCUB-facing features added by the Telethon-MCUB fork.
 - Working directly with Telethon client methods? See [Rich Client Helpers](rich-client.md).
 - Converting received rich messages back to HTML? See [Rich HTML Rendering](rich-html.md).
 - Need non-rich additions? See [Buttons and Premium Emoji](buttons-emoji.md),
-  [Parse Mode and Message Hooks](parser-hooks.md), and
-  [Events and Reactions](events-reactions.md).
+  [Parse Mode and Message Hooks](parser-hooks.md),
+  [Events and Reactions](events-reactions.md), and
+  [Guest Mode for Bots](guest-mod.md).
 
 ## Current fork
 
-These pages target Telethon-MCUB `1.44.3`, Telegram Layer `229`. The public
+These pages target Telethon-MCUB `1.44.4`, Telegram Layer `229`. The public
 `Button.*` helpers remain the supported API. Rich page buttons are documented
 in [Inline Rich Forms](rich-inline.md), and compatibility details are in
 [Compatibility Notes](compat.md).

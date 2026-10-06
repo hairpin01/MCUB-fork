@@ -397,6 +397,45 @@ def bot_command(
     return decorator
 
 
+def guest_command(
+    pattern: str,
+    *,
+    alias: str | list[str] | None = None,
+    doc: dict | None = None,
+    doc_ru: str | None = None,
+    doc_en: str | None = None,
+    **doc_kwargs: Any,
+) -> Callable:
+    """
+    Class-level decorator for registering guest-mode commands.
+
+    The dispatcher catches a guest query (``@bot_username cmd args``),
+    strips the bot username from the arguments and calls the handler of the
+    first word, if it is registered. Registered like a regular command.
+
+    Usage::
+
+        from core.lib.loader.module_base import ModuleBase, guest_command
+
+        class MyModule(ModuleBase):
+            @guest_command("hello", doc_ru="пpивeт", doc_en="hello")
+            async def guest_hello(self, event):
+                await event.reply("Hello from guest mode!")
+    """
+
+    extra_docs = _validate_doc_kwargs(doc_kwargs)
+    command_meta = {"alias": alias, "doc": doc, "doc_ru": doc_ru, "doc_en": doc_en}
+    command_meta.update(extra_docs)
+
+    def decorator(func: Callable) -> Callable:
+        if not hasattr(func, "_mcub_guest_commands"):
+            func._mcub_guest_commands = []
+        func._mcub_guest_commands.append((pattern, command_meta))
+        return func
+
+    return decorator
+
+
 def owner_only(func: Callable | None = None, *, only_admin: bool = False) -> Callable:
     """
     Class-level decorator to restrict command to owner/admins.

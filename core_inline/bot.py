@@ -934,6 +934,10 @@ class InlineBot:
             self.kernel.bot_client = self.bot_client
             await self._register_module_commands()
 
+            dispatcher = getattr(self.kernel, "dispatcher", None)
+            if dispatcher is not None and hasattr(dispatcher, "register_guest"):
+                dispatcher.register_guest(self.bot_client)
+
             self.logger.info(
                 "[InlineBot] runtime client started username=@%s", self.username
             )

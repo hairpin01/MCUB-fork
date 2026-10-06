@@ -74,6 +74,7 @@ class ModuleBase(ABC):
     _on_install_registry: list = []
     _uninstall_registry: list = []
     _bot_cmd_registry: list = []
+    _guest_cmd_registry: list = []
     _owner_registry: list = []
     _permission_registry: list = []
     _error_handler_registry: list = []
@@ -104,6 +105,7 @@ class ModuleBase(ABC):
         cls._on_install_registry = []
         cls._uninstall_registry = []
         cls._bot_cmd_registry = []
+        cls._guest_cmd_registry = []
         cls._owner_registry = []
         cls._permission_registry = []
         cls._error_handler_registry = []
@@ -168,6 +170,9 @@ class ModuleBase(ABC):
             if hasattr(attr, "_mcub_bot_commands"):
                 for cmd_info in attr._mcub_bot_commands:
                     cls._bot_cmd_registry.append((attr, cmd_info))
+            if hasattr(attr, "_mcub_guest_commands"):
+                for pattern, kwargs_cmd in attr._mcub_guest_commands:
+                    cls._guest_cmd_registry.append((pattern, attr, kwargs_cmd))
             if hasattr(attr, "_mcub_owner"):
                 for owner_info in attr._mcub_owner:
                     cls._owner_registry.append((attr, owner_info))
@@ -794,6 +799,31 @@ class ModuleBase(ABC):
                 self._register.command(pattern, **kwargs_cmd)(owner_wrapper)
             else:
                 self._register.command(pattern, **kwargs_cmd)(wrapper)
+
+        # Guest-mode commands: registered exactly like regular commands,
+        # but into ``kernel.guest_handler`` (see Register.guest_command).
+        for pattern, func, kwargs_cmd in type(self)._guest_cmd_registry:
+            method_name = func.__name__
+
+            async def guest_wrapper(
+                event: Event,
+                f=func,
+                instance=self,
+                permission_tags=permission_map.get(method_name),
+                error_handler=error_handler_map.get(method_name),
+            ) -> None:
+                if permission_tags and not instance._passes_permission_tags(
+                    event, permission_tags
+                ):
+                    return
+                if error_handler:
+                    return await instance._run_with_error_handler(
+                        f, instance, event, error_handler
+                    )
+                return await f(instance, event)
+
+            guest_wrapper.__original__ = func
+            self._register.guest_command(pattern, **kwargs_cmd)(guest_wrapper)
 
         for pattern, func in type(self)._inline_registry:
 

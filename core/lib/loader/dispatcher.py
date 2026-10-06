@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import html
 import logging
+import re
 import traceback
 from typing import TYPE_CHECKING, Any
 
@@ -106,6 +107,9 @@ class CommandDispatcher:
             self.logger.error("[dispatcher] cannot register - kernel.client is None")
             return
 
+        # Guest-mode queries arrive on the bot account (``kernel.bot_client``).
+        self.register_guest()
+
         builders = getattr(client, "_event_builders", []) or []
 
         has_new = any(
@@ -138,6 +142,163 @@ class CommandDispatcher:
             not has_new,
             not has_edit,
         )
+
+    def register_guest(self, client: Any = None) -> bool:
+        """
+        Bind ``guest_message_handler`` to *client* (default: ``kernel.bot_client``).
+
+        Guest bots are queried by ``@username`` and receive
+        ``updateBotGuestChatQuery``, so the handler has to live on the bot
+        client.  Idempotent; returns ``True`` only when a handler was added.
+        Safe to call before the bot client exists (does nothing then) and
+        with a Telethon build without ``events.GuestMessage``.
+        """
+        guest_event = getattr(events, "GuestMessage", None) if events else None
+        if guest_event is None:
+            self.logger.debug(
+                "[dispatcher] events.GuestMessage unavailable - guest mode off"
+            )
+            return False
+
+        if client is None:
+            client = getattr(self.kernel, "bot_client", None)
+        if client is None:
+            self.logger.debug("[dispatcher] no bot client yet - guest handler skipped")
+            return False
+
+        builders = getattr(client, "_event_builders", []) or []
+        if any(cb == self.guest_message_handler for _ev, cb in builders):
+            return False
+
+        client.add_event_handler(self.guest_message_handler, guest_event())
+        self.logger.debug("[dispatcher] registered guest_message handler")
+        return True
+
+    async def _guest_bot_username(self, event: Any) -> str | None:
+        """Username (without ``@``) of the bot that received the guest query."""
+        cached = getattr(self, "_guest_username", None)
+        if cached:
+            return cached
+
+        username = None
+        config = getattr(self.kernel, "config", None)
+        if hasattr(config, "get"):
+            try:
+                username = config.get("inline_bot_username")
+            except Exception:
+                username = None
+
+        if not username:
+            client = getattr(event, "_client", None) or getattr(
+                self.kernel, "bot_client", None
+            )
+            try:
+                me = await client.get_me() if client is not None else None
+                username = getattr(me, "username", None)
+            except Exception:
+                username = None
+
+        if isinstance(username, str) and username:
+            self._guest_username = username.lstrip("@")
+            return self._guest_username
+        return None
+
+    @staticmethod
+    def _strip_guest_mention(text: str, username: str | None) -> str:
+        """Remove the bot ``@username`` from the guest query text."""
+        if username:
+            text = re.sub(rf"(?<!\w)@{re.escape(username)}(?!\w)", "", text, flags=re.I)
+        else:
+            # Username unknown: the query always starts with the mention.
+            text = re.sub(r"^\s*@\w+", "", text, count=1)
+        return text.strip()
+
+    def _guest_owner_alive(self, owner: str | None) -> bool:
+        loaded = getattr(self.kernel, "loaded_modules", None) or {}
+        system = getattr(self.kernel, "system_modules", None) or {}
+        return owner in loaded or owner in system
+
+    async def guest_message_handler(self, event: Any) -> None:
+        """
+        Guest-mode dispatcher.
+
+        Catches a guest query, removes the bot ``@username`` from the
+        arguments, takes the first argument as the command name and, when it
+        is registered in ``kernel.guest_handler``, runs its handler.
+
+        Messages *posted* by a guest bot (what a userbot sees) are not
+        queries and are ignored here.
+        """
+        if not getattr(event, "is_query", False):
+            return
+
+        handlers = getattr(self.kernel, "guest_handler", None)
+        if not isinstance(handlers, dict) or not handlers:
+            return
+
+        raw = self._event_text(event)
+        username = await self._guest_bot_username(event)
+        text = self._strip_guest_mention(raw, username)
+        if not text:
+            return
+
+        parts = text.split(None, 1)
+        cmd = parts[0]
+        args = parts[1] if len(parts) > 1 else ""
+
+        prefix = getattr(self.kernel, "custom_prefix", "") or ""
+        if prefix and cmd.startswith(prefix) and len(cmd) > len(prefix):
+            cmd = cmd[len(prefix) :]
+
+        handler = handlers.get(cmd)
+        if handler is None:
+            cmd = cmd.lower()
+            handler = handlers.get(cmd)
+        if handler is None:
+            self.logger.debug(
+                "[guest] miss cmd=%r known=%r", cmd, sorted(handlers.keys())
+            )
+            return
+
+        owners = getattr(self.kernel, "guest_handler_owners", {}) or {}
+        owner = owners.get(cmd, "unknown")
+
+        # Module was unloaded / failed to load: drop the stale entry.
+        if not self._guest_owner_alive(owner):
+            self.logger.debug("[guest] stale cmd=%r owner=%r - removed", cmd, owner)
+            handlers.pop(cmd, None)
+            owners.pop(cmd, None)
+            return
+
+        if not callable(handler):
+            self.logger.warning("Guest handler for '%s' is not callable, skipping", cmd)
+            return
+
+        if not self._should_deliver(event, owner, "command"):
+            self.logger.debug("[guest] blocked-security cmd=%r owner=%r", cmd, owner)
+            return
+
+        # Handler sees the query without the mention: "<cmd> <args>".
+        self.kernel._set_event_text(event, f"{cmd} {args}".strip())
+        for attr_name, value in (
+            ("guest_command", cmd),
+            ("guest_args", args),
+            ("guest_argv", args.split()),
+        ):
+            try:
+                setattr(event, attr_name, value)
+            except Exception:
+                pass
+
+        self.logger.debug("[guest] dispatch cmd=%r owner=%r args=%r", cmd, owner, args)
+        try:
+            await handler(wrap_event_for_module(event, owner, self.kernel))
+        except RPCError as e:
+            self.logger.error("[guest] RPC error in %r: %s", cmd, e)
+        except Exception as e:
+            await self.kernel.handle_error(
+                e, message=f"Guest handler error: {cmd}", event=event
+            )
 
     async def watcher_message_handler(self, event: Event) -> None:
         """

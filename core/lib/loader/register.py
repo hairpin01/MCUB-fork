@@ -709,6 +709,111 @@ class Register:
 
         return decorator
 
+    def _guest_store(self) -> tuple[dict, dict, dict]:
+        """Return ``(guest_handler, guest_handler_owners, guest_handler_docs)``.
+
+        The dicts live on the kernel and are created lazily, so kernels that
+        predate guest mode keep working.
+        """
+        k = self.kernel
+        for attr in ("guest_handler", "guest_handler_owners", "guest_handler_docs"):
+            if not isinstance(getattr(k, attr, None), dict):
+                setattr(k, attr, {})
+        return k.guest_handler, k.guest_handler_owners, k.guest_handler_docs
+
+    def guest_command(self, pattern: str, **kwargs: Any) -> Callable:
+        """
+        Register a guest-mode command (``@bot_username <cmd> args``).
+
+        Works like :meth:`command`, but the handler is stored in
+        ``kernel.guest_handler``.  The dispatcher catches a guest query,
+        removes the bot ``@username`` from the arguments, takes the first
+        argument as the command name and calls its handler.
+
+        Args:
+            pattern: Command name. Regex anchors and the prefix are
+                     stripped automatically.
+            alias:   str or list[str] - alternative trigger names.
+            doc_*:   Command docs, same as for :meth:`command`.
+
+        Example:
+            >>> @kernel.register.guest_command("hello", alias=["hi"])
+            >>> async def hello(event):
+            >>>     await event.reply("Hello!")
+        """
+
+        def decorator(func: Callable) -> Callable:
+            import re
+
+            handlers, owners, docs_store = self._guest_store()
+
+            escaped_prefix = re.escape(self.kernel.custom_prefix)
+            cmd = re.sub(rf"^(\^|\\)?{escaped_prefix}", "", pattern)
+            if cmd.endswith("$"):
+                cmd = cmd[:-1]
+            cmd = cmd.strip()
+
+            owner = self.kernel.current_loading_module
+            if owner is None:
+                raise ValueError(
+                    "No current module set for guest command registration. "
+                    "Guest commands must be registered from within a module."
+                )
+            if not cmd:
+                raise ValueError("Guest command name must not be empty")
+
+            self.kernel.logger.debug(
+                "[register.guest_command] pattern=%r normalized=%r module=%r aliases=%r",
+                pattern,
+                cmd,
+                owner,
+                kwargs.get("alias"),
+            )
+
+            alias = kwargs.get("alias")
+            if not alias:
+                aliases: list[str] = []
+            elif isinstance(alias, str):
+                aliases = [alias]
+            else:
+                aliases = list(alias)
+
+            for name in (cmd, *aliases):
+                if name in handlers:
+                    prev = owners.get(name)
+                    kind = "system" if prev in self.kernel.system_modules else "user"
+                    raise CommandConflictError(
+                        f"Guest command '{name}' already registered by '{prev}'",
+                        conflict_type=kind if name == cmd else "alias",
+                        command=name,
+                    )
+
+            handlers[cmd] = func
+            owners[cmd] = owner
+            for name in aliases:
+                handlers[name] = func
+                owners[name] = owner
+
+            docs = _collect_command_docs(kwargs)
+            if not docs:
+                raw_doc = (getattr(func, "__doc__", None) or "").strip()
+                if raw_doc:
+                    first_line = raw_doc.splitlines()[0].strip()
+                    if first_line:
+                        docs = {"ru": first_line, "en": first_line}
+            if docs:
+                docs_store[cmd] = docs
+
+            self.kernel.logger.debug(
+                "[register.guest_command] registered cmd=%r owner=%r total=%d",
+                cmd,
+                owner,
+                len(handlers),
+            )
+            return func
+
+        return decorator
+
     def watcher(
         self,
         func: Callable | None = None,
@@ -1307,6 +1412,36 @@ class Register:
             self.kernel.bot_command_owners.pop(cmd, None)
             return True
         return False
+
+    def get_guest_commands(self) -> dict[str, Callable]:
+        """Return a copy of all registered guest-mode commands (incl. aliases)."""
+        handlers, _, _ = self._guest_store()
+        return handlers.copy()
+
+    def unregister_guest_command(self, cmd: str) -> bool:
+        """
+        Unregister a guest-mode command (or alias) by name.
+
+        Returns:
+            True if the command was removed, False if not found.
+        """
+        handlers, owners, docs_store = self._guest_store()
+        if cmd not in handlers:
+            return False
+        handlers.pop(cmd, None)
+        owners.pop(cmd, None)
+        docs_store.pop(cmd, None)
+        return True
+
+    def unregister_module_guest_commands(self, module_name: str) -> list[str]:
+        """Remove every guest command (and alias) owned by *module_name*."""
+        handlers, owners, docs_store = self._guest_store()
+        removed = [c for c, o in owners.items() if o == module_name]
+        for cmd in removed:
+            handlers.pop(cmd, None)
+            owners.pop(cmd, None)
+            docs_store.pop(cmd, None)
+        return removed
 
     def get_all_aliases(self) -> dict[str, str]:
         """

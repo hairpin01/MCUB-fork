@@ -112,6 +112,7 @@ CUSTOM_EMOJI = {
     "no_cmd": '<tg-emoji emoji-id="5429428837895141860">🫨</tg-emoji>',
     "author": '<tg-emoji emoji-id="5332630862137685609">💖</tg-emoji>',
     "lib": '<tg-emoji emoji-id="5359785904535774578">💼</tg-emoji>',
+    "bot": '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>',
     "wait": '<tg-emoji emoji-id="5326015457155620929">🧳</tg-emoji>',
     "link": '<tg-emoji emoji-id="5411527152212411235">🔗</tg-emoji>',
 }
@@ -1680,6 +1681,19 @@ class Loader(ModuleBase):
                 )
             self.kernel._module_sources.pop(module_name, None)
 
+    def _get_guest_commands_list(self, module_name: str) -> list[tuple[str, str, list[str]]]:
+        """Return guest commands (``@bot <cmd>``) registered by a module."""
+        register = getattr(self.kernel, "register", None)
+        getter = getattr(register, "get_module_guest_commands", None)
+        if not callable(getter):
+            return []
+        try:
+            lang = self.kernel.config.get("language", "ru")
+            return list(getter(module_name, lang) or [])
+        except Exception as e:
+            self.log.debug(f"guest commands lookup failed for {module_name}: {e}")
+            return []
+
     def _build_commands_list(
         self,
         module_name: str,
@@ -1690,46 +1704,67 @@ class Loader(ModuleBase):
         add_log: Callable,
     ) -> str:
         commands_list = ""
-        if not commands:
+        guest_commands = self._get_guest_commands_list(module_name)
+
+        if not commands and not guest_commands:
             return commands_list
 
-        add_log(self.strings("log_commands_found", count=len(commands)))
+        if commands:
+            add_log(self.strings("log_commands_found", count=len(commands)))
 
-        for cmd in commands:
-            cmd_desc = (
-                descriptions.get(cmd)
-                or (metadata or {}).get("commands", {}).get(cmd)
-                or self.strings("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
-            )
-            command_line = self.strings(
-                "command_line",
-                crystal=CUSTOM_EMOJI["crystal"],
-                prefix=self.get_prefix(),
-                cmd=cmd,
-                desc=cmd_desc,
-            )
+            for cmd in commands:
+                cmd_desc = (
+                    descriptions.get(cmd)
+                    or (metadata or {}).get("commands", {}).get(cmd)
+                    or self.strings("no_cmd_desc", no_cmd=CUSTOM_EMOJI["no_cmd"])
+                )
+                command_line = self.strings(
+                    "command_line",
+                    crystal=CUSTOM_EMOJI["crystal"],
+                    prefix=self.get_prefix(),
+                    cmd=cmd,
+                    desc=cmd_desc,
+                )
 
-            if cmd in aliases_info:
-                aliases = aliases_info[cmd]
-                if isinstance(aliases, str):
-                    aliases = [aliases]
+                if cmd in aliases_info:
+                    aliases = aliases_info[cmd]
+                    if isinstance(aliases, str):
+                        aliases = [aliases]
+                    if aliases:
+                        alias_text = ", ".join(
+                            [f"<code>{self.get_prefix()}{a}</code>" for a in aliases]
+                        )
+                        command_line += self.strings(
+                            "aliases_text", alias_text=alias_text
+                        )
+                        add_log(
+                            self.strings(
+                                "log_aliases_found", cmd=cmd, aliases=", ".join(aliases)
+                            )
+                        )
+
+                commands_list += command_line + "\n"
+
+        # Guest commands (`@bot cmd`)
+        if guest_commands:
+            guest_emoji = CUSTOM_EMOJI.get("bot") or "🤖"
+            bot_username = self.kernel.config.get("inline_bot_username") or "bot"
+            add_log(self.strings("log_guest_commands_found", count=len(guest_commands)))
+            for cmd, desc, aliases in guest_commands:
+                line = f"{guest_emoji} <code>@{bot_username} {cmd}</code>"
+                if desc:
+                    line += f" - <b>{desc}</b>"
                 if aliases:
                     alias_text = ", ".join(
-                        [f"<code>{self.get_prefix()}{a}</code>" for a in aliases]
+                        f"<code>@{bot_username} {a}</code>" for a in aliases
                     )
-                    command_line += self.strings("aliases_text", alias_text=alias_text)
-                    add_log(
-                        self.strings(
-                            "log_aliases_found", cmd=cmd, aliases=", ".join(aliases)
-                        )
-                    )
-
-            commands_list += command_line + "\n"
+                    line += self.strings("aliases_text", alias_text=alias_text)
+                commands_list += line + "\n"
 
         # Inline commands
         inline_commands = self.kernel.get_module_inline_commands(module_name)
         if inline_commands:
-            inline_emoji = '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>'
+            inline_emoji = CUSTOM_EMOJI["bot"]
             bot_username = self.kernel.config.get("inline_bot_username", "bot")
             for cmd, desc in inline_commands:
                 if desc:

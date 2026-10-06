@@ -38,6 +38,27 @@ async def start_handler(event):
     await event.respond("Hello from bot!")
 ```
 
+## Guest Commands
+
+`@kernel.register.guest_command(...)` registers a command for [guest mode](../telethon/guest-mod.md): the bot is invoked by `@username` from any chat it was called in, so the trigger is `@My_Bot example` instead of `.example`.
+
+It takes the same `pattern`, `alias` and `doc_<locale>` arguments as `@kernel.register.command(...)`, but the handler is stored in a separate guest registry (`kernel.guest_handler`) and receives the query without the `@username` mention. Use `event.guest_args` / `event.guest_argv` for the arguments and `event.reply()` to answer.
+
+```python
+@kernel.register.guest_command('ping', alias=['p'], doc_en='Ping')
+async def ping_handler(event):
+    await event.reply(f"Pong! {event.guest_args}")
+```
+
+Guest commands are only dispatched for the kernel admin: anyone can invoke a guest bot, so queries from other users are skipped. They are removed automatically when the module is unloaded, and are listed by `.man <module>` and in the loader message after installation.
+
+| Method | Description |
+| --- | --- |
+| `get_guest_commands()` | Copy of all guest commands, aliases included |
+| `unregister_guest_command(cmd)` | Remove one guest command or alias |
+| `unregister_module_guest_commands(module)` | Remove every guest command owned by a module |
+| `get_module_guest_commands(module, lang)` | `(command, description, aliases)` for a module |
+
 ## Multiple Commands
 
 ```python

@@ -813,6 +813,7 @@ loader:
   log_loading_module: =- Loading module {module_name}...
   log_module_loaded: => Module loaded successfully
   log_commands_found: '=> Commands found: {count}'
+  log_guest_commands_found: '=> Guest commands found: {count}'
   module_loaded: '{success} <b>Module</b> <code>{module_name}</code> <b>loaded!</b>
     (<code>{version}</code>) {emoji}
 

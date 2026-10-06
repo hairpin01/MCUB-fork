@@ -106,13 +106,29 @@ like a `Message`.
 | `rich_respond(html=..., **kwargs)` | Same as `rich_reply` | Sends rich message without `reply_to` |
 | `answer(result=None, **kwargs)` | Posts a ready `InputBotInlineResult` | Raises `RuntimeError` |
 
+For queries these methods return the posted message, so it can be edited right
+away — see [Editing the posted message](#editing-the-posted-message).
+
 A query can only be answered once: further `reply`/`rich_reply`/`answer` calls
 return `None` instead of failing.
 
 `reply()` accepts `text`, `parse_mode`, `buttons`, `link_preview` and `title`
-for queries, or any `client.send_message` argument for posted messages. The
-`title` defaults to `None`, because guest bots normally post only the message
-body.
+for queries, or any `client.send_message` argument for posted messages.
+
+Telegram rejects guest results with an empty title (`ArticleTitleEmptyError`),
+so when `title` is not given it is derived from the message text: HTML tags are
+stripped, whitespace is collapsed and the result is trimmed to 64 characters,
+falling back to `Guest message` when there is no text at all.
+
+```python
+@bot.on(events.GuestMessage)
+async def handler(event):
+    # title = "Hello!" (derived), message body = "Hello!"
+    await event.reply("Hello!")
+
+    # or set it explicitly
+    await event.reply("Hello!", title="Greeting")
+```
 
 ## Rich messages
 
@@ -154,7 +170,8 @@ for the rich message and media reference details.
 ```python
 @bot.on(events.GuestMessage)
 async def handler(event):
-    await event.answer(event.builder.photo("photo.jpg", caption="Answer"))
+    message = await event.answer(event.builder.photo("photo.jpg", caption="Answer"))
+    await message.edit("Answer (edited)")
 ```
 
 Coroutines are awaited automatically, so `event.builder.article(...)` and
@@ -162,6 +179,32 @@ Coroutines are awaited automatically, so `event.builder.article(...)` and
 `answer` is forwarded to `InlineBuilder.article`, which is useful for
 `description`, `url`, `thumb`, `content`, `period`, `geo` and `contact`
 results.
+
+## Editing the posted message
+
+`reply()`, `rich_reply()` and `answer()` return the posted message as a
+`Message`, built from the `InputBotInlineMessageID` Telegram returns. It keeps
+its inline id, so it can be edited or deleted immediately, without waiting for
+the message to arrive as a normal update:
+
+```python
+@bot.on(events.GuestMessage)
+async def handler(event):
+    message = await event.reply("Hello!")
+    await message.edit("Hello, updated!")        # plain text edit
+    await message.edit_rich("<h1>Rich update</h1>")  # rich edit
+    await message.rich_edit("<h1>Same as edit_rich</h1>")  # alias
+    await message.delete()
+```
+
+Notes:
+
+- the message is filled with the text that was posted, plus a `reply_to` header
+  pointing at the message that triggered the query;
+- media results are not resolved locally, Telegram sends the real media in a
+  follow-up update;
+- rich results keep the rich body on the server, so use `edit_rich()` /
+  `rich_edit()` to change them, not `edit()` with plain text.
 
 ## Reference messages
 

@@ -738,6 +738,7 @@ loader:
   log_loading_module: "=- dlopen({module_name})..."
   log_module_loaded: "=> dlopen: exit 0"
   log_commands_found: '=> cmds found: {count}'
+  log_guest_commands_found: '=> guest cmds found: {count}'
   module_loaded: '{success} <b>apt-get install</b> <code>{module_name}</code> <b>- done</b> (<code>{version}</code>) {emoji}
 
     <blockquote expandable>{idea} <b>Description:</b> {description}</blockquote>

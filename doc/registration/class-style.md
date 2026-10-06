@@ -282,6 +282,49 @@ metadata and conflict rules are the same as function-style registration.
 See [Command Registration](../api/commands.md) for the canonical command
 reference and examples.
 
+### `@guest_command(pattern, **kwargs)`
+
+Registers a [guest mode](../telethon/guest-mod.md) command: instead of a
+`.command` in your own chat, the bot is invoked by `@username` from any chat
+(`@My_Bot <pattern> <args>`). Arguments are the same as for `@command`, and
+the handler is stored in `kernel.guest_handler` instead of the regular command
+registry.
+
+```python
+from core.lib.loader.module_base import ModuleBase, guest_command
+
+
+class Guest(ModuleBase):
+    @guest_command("ping", alias=["p"], doc_en="Ping the guest bot")
+    async def cmd_guest_ping(self, event):
+        await event.reply(f"Pong! {event.guest_args}")
+```
+
+**Parameters:** same as `@command` - `pattern` (name, regex anchors and prefix
+are stripped), `alias` (`str` or `list[str]`), and `doc=<dict>` /
+`doc_<locale>=<text>` documentation.
+
+**Handler event members:**
+
+| Attribute | Meaning |
+| --- | --- |
+| `event.guest_command` | Matched guest command name |
+| `event.guest_args` | Arguments as a single string |
+| `event.guest_argv` | Arguments split into a list |
+| `event.text` | Query text without the `@username` mention |
+
+Answer with `event.reply()`, which posts into the chat where the bot was
+invoked.
+
+> [!NOTE]
+> Guest commands are dispatched only for the kernel admin - queries from other
+> users are skipped, because anyone can invoke a guest bot in any chat.
+
+> [!NOTE]
+> Guest commands and their aliases are removed automatically when the module is
+> unloaded, reloaded or uninstalled, and are listed by `.man <module>` and in
+> the loader message after installation.
+
 ### `@permissions(*, log_level="error", **tags)` / `@permission(...)`
 
 Decorator for applying event filters to handlers, similar to `@watcher`. Can be stacked on commands, bot commands, watchers, and events. `permission` is a backward-compatible alias for `permissions`.

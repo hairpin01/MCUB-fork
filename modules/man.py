@@ -501,6 +501,25 @@ class ManModule(ModuleBase):
 
         return bot_commands
 
+    def _get_module_guest_commands(
+        self, module_name: str
+    ) -> list[tuple[str, str, list[str]]]:
+        """Return ``(command, description, aliases)`` for a module's guest commands."""
+        if self._find_hikka_library(module_name) is not None:
+            return []
+
+        getter = getattr(getattr(self.kernel, "register", None), "get_module_guest_commands", None)
+        if not callable(getter):
+            return []
+        try:
+            lang = self.kernel.config.get("language", "ru")
+            return list(getter(module_name, lang) or [])
+        except Exception as e:
+            self.kernel.logger.debug(
+                "[man] guest commands lookup failed for %r: %s", module_name, e
+            )
+            return []
+
     def _iter_hikka_libraries(self) -> list[Any]:
         libraries = getattr(self.kernel, "_hikka_compat_libraries", []) or []
         return list(libraries) if isinstance(libraries, (list, tuple, set)) else []
@@ -780,6 +799,29 @@ class ManModule(ModuleBase):
                     )
                 bot_lines.append(line)
             msg += "<blockquote expandable>" + "\n".join(bot_lines) + "\n</blockquote>"
+
+        guest_commands = self._get_module_guest_commands(name)
+        if guest_commands:
+            guest_emoji = self.config.get("man_emoji_bot") or CUSTOM_EMOJI["bot"]
+            bot_username = self.kernel.config.get("inline_bot_username", "bot")
+            guest_lines = []
+            for cmd, desc, aliases in guest_commands:
+                line = f"{guest_emoji} <code>@{bot_username} {cmd}</code>"
+                if desc:
+                    line += f" - <b>{escape(desc)}</b>"
+                else:
+                    line += (
+                        f" - <b>{CUSTOM_EMOJI['confused']} {s['no_description']}</b>"
+                    )
+                if aliases:
+                    alias_text = ", ".join(
+                        f"<code>@{bot_username} {a}</code>" for a in aliases
+                    )
+                    line += f" | {s['aliases']}: {alias_text}"
+                guest_lines.append(line)
+            msg += (
+                "<blockquote expandable>" + "\n".join(guest_lines) + "\n</blockquote>"
+            )
 
         inline_commands = self.kernel.get_module_inline_commands(name)
         if inline_commands:

@@ -84,6 +84,50 @@ class TestGuestRegister:
         assert sorted(reg.unregister_module_guest_commands("mod")) == ["a", "b"]
         assert kernel.guest_handler == {}
 
+    def test_aliases_are_tracked(self):
+        kernel = _kernel()
+        reg = Register(kernel)
+        reg.guest_command("hello", alias=["hi", "hey"])(AsyncMock())
+        assert kernel.guest_handler_aliases == {"hi": "hello", "hey": "hello"}
+
+    def test_unregister_clears_alias_index(self):
+        kernel = _kernel()
+        reg = Register(kernel)
+        reg.guest_command("hello", alias="hi")(AsyncMock())
+        assert reg.unregister_guest_command("hello") is True
+        assert kernel.guest_handler_aliases == {}
+        assert reg.unregister_guest_command("hello") is False
+
+    def test_get_module_guest_commands_folds_aliases(self):
+        kernel = _kernel()
+        reg = Register(kernel)
+        reg.guest_command("hello", alias=["hi"], doc_ru="Привет", doc_en="Say hello")(
+            AsyncMock()
+        )
+        reg.guest_command("bye", doc_en="Bye")(AsyncMock())
+
+        assert reg.get_module_guest_commands("mod", "ru") == [
+            ("bye", "Bye", []),
+            ("hello", "Привет", ["hi"]),
+        ]
+        assert reg.get_module_guest_commands("mod", "en")[1][1] == "Say hello"
+        assert reg.get_module_guest_commands("other") == []
+
+    def test_loader_unregister_removes_guest_commands(self):
+        from core.lib.mixin.module_unloader_mixin import ModuleUnloaderMixin
+
+        kernel = _kernel()
+        register = Register(kernel)
+        kernel.register = register
+        register.guest_command("hello", alias="hi")(AsyncMock())
+
+        assert ModuleUnloaderMixin._unregister_guest_commands(kernel, "mod") == [
+            "hello",
+            "hi",
+        ]
+        assert kernel.guest_handler == {}
+        assert kernel.guest_handler_aliases == {}
+
 
 class TestGuestDispatch:
     @pytest.mark.asyncio
@@ -146,6 +190,36 @@ class TestGuestDispatch:
         await CommandDispatcher(kernel).guest_message_handler(_event("@my_bot hello"))
         handler.assert_not_awaited()
         assert "hello" not in kernel.guest_handler
+
+    @pytest.mark.asyncio
+    async def test_non_admin_is_skipped(self):
+        kernel = _kernel()
+        kernel.is_admin.return_value = False
+        handler = AsyncMock()
+        kernel.guest_handler["hello"] = handler
+        kernel.guest_handler_owners["hello"] = "mod"
+        await CommandDispatcher(kernel).guest_message_handler(_event("@my_bot hello"))
+        handler.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_admin_is_dispatched(self):
+        kernel = _kernel()
+        kernel.is_admin.return_value = True
+        handler = AsyncMock()
+        kernel.guest_handler["hello"] = handler
+        kernel.guest_handler_owners["hello"] = "mod"
+        await CommandDispatcher(kernel).guest_message_handler(_event("@my_bot hello"))
+        handler.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_kernel_without_is_admin_is_allowed(self):
+        kernel = _kernel()
+        del kernel.is_admin
+        handler = AsyncMock()
+        kernel.guest_handler["hello"] = handler
+        kernel.guest_handler_owners["hello"] = "mod"
+        await CommandDispatcher(kernel).guest_message_handler(_event("@my_bot hello"))
+        handler.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_security_block(self):

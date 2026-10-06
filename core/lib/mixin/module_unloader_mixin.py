@@ -220,6 +220,15 @@ class ModuleUnloaderMixin:
                     del k.bot_command_owners[cmd]
                 k.logger.debug(f"Unregistered bot command: {cmd}")
 
+        # Unregister guest commands (`@bot <cmd>`) owned by the module
+        guest_to_remove = self._unregister_guest_commands(k, module_name)
+        if guest_to_remove:
+            k.logger.debug(
+                "[loader.unregister] guest-removal module=%r removed=%r",
+                module_name,
+                guest_to_remove,
+            )
+
         if not to_remove:
             k.logger.debug(
                 "[loader.unregister] nothing-to-remove module=%r",
@@ -233,6 +242,23 @@ class ModuleUnloaderMixin:
             list(k.command_handlers.keys()),
             dict(k.aliases),
         )
+
+    @staticmethod
+    def _unregister_guest_commands(k, module_name: str) -> list[str]:
+        """Drop every guest command (and alias) owned by *module_name*.
+
+        Guest commands live in their own ``kernel.guest_handler`` store, so
+        they are not covered by the regular command cleanup above.
+        """
+        register = getattr(k, "register", None)
+        unregister = getattr(register, "unregister_module_guest_commands", None)
+        if not callable(unregister):
+            return []
+        try:
+            return list(unregister(module_name) or [])
+        except Exception as e:
+            k.logger.error(f"Error removing guest commands in {module_name}: {e}")
+            return []
 
     def remove_module_aliases(
         self, module_name: str, commands_removed: list[str] | None = None

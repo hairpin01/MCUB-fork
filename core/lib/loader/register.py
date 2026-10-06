@@ -709,17 +709,29 @@ class Register:
 
         return decorator
 
-    def _guest_store(self) -> tuple[dict, dict, dict]:
-        """Return ``(guest_handler, guest_handler_owners, guest_handler_docs)``.
+    def _guest_store(self) -> tuple[dict, dict, dict, dict]:
+        """Return ``(guest_handler, guest_handler_owners, guest_handler_docs,
+        guest_handler_aliases)``.
 
         The dicts live on the kernel and are created lazily, so kernels that
-        predate guest mode keep working.
+        predate guest mode keep working.  ``guest_handler_aliases`` maps an
+        alias to its primary guest command.
         """
         k = self.kernel
-        for attr in ("guest_handler", "guest_handler_owners", "guest_handler_docs"):
+        for attr in (
+            "guest_handler",
+            "guest_handler_owners",
+            "guest_handler_docs",
+            "guest_handler_aliases",
+        ):
             if not isinstance(getattr(k, attr, None), dict):
                 setattr(k, attr, {})
-        return k.guest_handler, k.guest_handler_owners, k.guest_handler_docs
+        return (
+            k.guest_handler,
+            k.guest_handler_owners,
+            k.guest_handler_docs,
+            k.guest_handler_aliases,
+        )
 
     def guest_command(self, pattern: str, **kwargs: Any) -> Callable:
         """
@@ -745,7 +757,7 @@ class Register:
         def decorator(func: Callable) -> Callable:
             import re
 
-            handlers, owners, docs_store = self._guest_store()
+            handlers, owners, docs_store, alias_map = self._guest_store()
 
             escaped_prefix = re.escape(self.kernel.custom_prefix)
             cmd = re.sub(rf"^(\^|\\)?{escaped_prefix}", "", pattern)
@@ -790,9 +802,11 @@ class Register:
 
             handlers[cmd] = func
             owners[cmd] = owner
+            alias_map.pop(cmd, None)
             for name in aliases:
                 handlers[name] = func
                 owners[name] = owner
+                alias_map[name] = cmd
 
             docs = _collect_command_docs(kwargs)
             if not docs:
@@ -1415,7 +1429,7 @@ class Register:
 
     def get_guest_commands(self) -> dict[str, Callable]:
         """Return a copy of all registered guest-mode commands (incl. aliases)."""
-        handlers, _, _ = self._guest_store()
+        handlers, _, _, _ = self._guest_store()
         return handlers.copy()
 
     def unregister_guest_command(self, cmd: str) -> bool:
@@ -1425,23 +1439,87 @@ class Register:
         Returns:
             True if the command was removed, False if not found.
         """
-        handlers, owners, docs_store = self._guest_store()
+        handlers, owners, docs_store, alias_map = self._guest_store()
         if cmd not in handlers:
             return False
         handlers.pop(cmd, None)
         owners.pop(cmd, None)
         docs_store.pop(cmd, None)
+        for alias, target in list(alias_map.items()):
+            if alias == cmd or target == cmd:
+                alias_map.pop(alias, None)
         return True
 
     def unregister_module_guest_commands(self, module_name: str) -> list[str]:
         """Remove every guest command (and alias) owned by *module_name*."""
-        handlers, owners, docs_store = self._guest_store()
+        handlers, owners, docs_store, alias_map = self._guest_store()
         removed = [c for c, o in owners.items() if o == module_name]
         for cmd in removed:
             handlers.pop(cmd, None)
             owners.pop(cmd, None)
             docs_store.pop(cmd, None)
+            for alias, target in list(alias_map.items()):
+                if alias == cmd or target == cmd:
+                    alias_map.pop(alias, None)
         return removed
+
+    def get_module_guest_commands(
+        self, module_name: str, lang: str | None = None
+    ) -> list[tuple[str, str, list[str]]]:
+        """
+        Return ``(command, description, aliases)`` for a module's guest commands.
+
+        Aliases are folded into their primary command instead of being listed
+        as separate entries.  Only primary commands are returned, so a module
+        with aliases is listed once.
+        """
+        handlers, owners, docs_store, alias_map = self._guest_store()
+        wanted = str(module_name).lower()
+        docs_for: list[tuple[str, str]] = []
+
+        for cmd, handler in handlers.items():
+            owner = owners.get(cmd)
+            owner_name = getattr(owner, "name", owner)
+            if str(owner_name).lower() != wanted:
+                continue
+            if alias_map.get(cmd) and alias_map.get(cmd) != cmd:
+                continue
+            del handler  # only the name/owner are needed
+            docs = docs_store.get(cmd)
+            if isinstance(docs, str):
+                docs_for.append((cmd, docs.strip()))
+            elif isinstance(docs, dict):
+                docs_for.append((cmd, self._pick_guest_doc(docs, lang)))
+            else:
+                docs_for.append((cmd, ""))
+
+        result: list[tuple[str, str, list[str]]] = []
+        for cmd, desc in docs_for:
+            aliases = sorted(a for a, target in alias_map.items() if target == cmd)
+            result.append((cmd, desc, aliases))
+        result.sort(key=lambda item: item[0])
+        return result
+
+    @staticmethod
+    def _pick_guest_doc(docs: dict[str, str], lang: str | None) -> str:
+        """Pick a localized guest-command doc, mirroring ``get_module_commands``."""
+        wanted = str(lang or "en").lower()
+        locales = [wanted]
+        base = wanted.replace("-", "_").split("_", 1)[0]
+        if base and base not in locales:
+            locales.append(base)
+        for fallback in ("ru", "en"):
+            if fallback not in locales:
+                locales.append(fallback)
+
+        for locale in locales:
+            value = docs.get(locale)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        for value in docs.values():
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return ""
 
     def get_all_aliases(self) -> dict[str, str]:
         """

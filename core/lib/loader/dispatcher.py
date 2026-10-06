@@ -218,6 +218,31 @@ class CommandDispatcher:
         system = getattr(self.kernel, "system_modules", None) or {}
         return owner in loaded or owner in system
 
+    def _guest_sender_allowed(self, event: Any) -> bool:
+        """Guest queries are answered for the kernel admin only.
+
+        Anyone can invoke a guest bot in any chat, so without this check the
+        guest commands would be a public entry point.  Kernels without
+        ``is_admin`` (or without a known sender) are allowed through.
+        """
+        checker = getattr(self.kernel, "is_admin", None)
+        if not callable(checker):
+            return True
+
+        sender_id = getattr(event, "sender_id", None)
+        if sender_id is None:
+            sender_id = getattr(getattr(event, "query", None), "sender_id", None)
+        if sender_id is None:
+            return True
+
+        try:
+            return bool(checker(sender_id))
+        except Exception as e:
+            self.logger.error(
+                "[guest] is_admin check failed sender=%r error=%s", sender_id, e
+            )
+            return False
+
     async def guest_message_handler(self, event: Any) -> None:
         """
         Guest-mode dispatcher.
@@ -226,10 +251,19 @@ class CommandDispatcher:
         arguments, takes the first argument as the command name and, when it
         is registered in ``kernel.guest_handler``, runs its handler.
 
+        Only queries from the kernel admin are dispatched - anyone can invoke
+        a guest bot, so everybody else is skipped.
+
         Messages *posted* by a guest bot (what a userbot sees) are not
         queries and are ignored here.
         """
         if not getattr(event, "is_query", False):
+            return
+
+        if not self._guest_sender_allowed(event):
+            self.logger.debug(
+                "[guest] skip-nonadmin sender=%r", getattr(event, "sender_id", None)
+            )
             return
 
         handlers = getattr(self.kernel, "guest_handler", None)

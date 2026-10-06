@@ -507,6 +507,17 @@ class UserLoaderMixin:
                     if bot_owners.get(cmd) == module_name:
                         bot_handlers.pop(cmd, None)
                         bot_owners.pop(cmd, None)
+            register = getattr(k, "register", None)
+            unregister_guest = getattr(
+                register, "unregister_module_guest_commands", None
+            )
+            if callable(unregister_guest):
+                for cmd in unregister_guest(module_name) or []:
+                    k.logger.debug(
+                        "[rollback] removed orphan guest command %r from %r",
+                        cmd,
+                        module_name,
+                    )
         except Exception as e:
             k.handle_error(
                 e,

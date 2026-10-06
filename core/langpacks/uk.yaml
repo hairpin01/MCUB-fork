@@ -688,6 +688,7 @@ loader:
   log_loading_module: =- Завантажую модуль {module_name}...
   log_module_loaded: => Модуль успішно завантажено
   log_commands_found: '=> Знайдено команд: {count}'
+  log_guest_commands_found: '=> Знайдено гостьових команд: {count}'
   module_loaded: '{success} <b>Модуль</b> <code>{module_name}</code> <b>завантажено!</b> (<code>{version}</code>) {emoji}
 
     <blockquote expandable>{idea} <b>Опис:</b> {description}</blockquote>

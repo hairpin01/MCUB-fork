@@ -44,6 +44,7 @@ PROTECTED_KERNEL_NAMES = frozenset(
         "guest_handler",
         "guest_handler_owners",
         "guest_handler_docs",
+        "guest_handler_aliases",
         "inline_handlers",
         "inline_handlers_owners",
         "callback_handlers",

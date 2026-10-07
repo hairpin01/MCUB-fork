@@ -361,7 +361,7 @@ def register(kernel):
             return [
                 [
                     Button.switch_inline(
-                        f"{CUSTOM_EMOJI['✏️']} {lang['input_button']}",
+                        f"✏️ {lang['input_button']}",
                         query=f"{self.input_form_id} {key} ",
                         same_peer=True,
                     )

@@ -339,7 +339,7 @@ def register(kernel):
                     return await event.edit(text, **kwargs)
                 except Exception as e:
                     logger.debug(f"terminal: event edit failed ({e}), using message id")
-            return await client.edit_message(chat_id, message_id, text, **kwargs)
+            return await kernel.bot_client.edit_message(chat_id, message_id, text, **kwargs)
 
         def _input_buttons(self, chat_id, slot: str = "1"):
             """Build the "send stdin" row shown under every terminal message.

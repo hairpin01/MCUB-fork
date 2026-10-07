@@ -971,6 +971,19 @@ def register(kernel):
         else:
             await terminal.run_command(event.chat_id, cmd, event.id, slot=slot)
 
+    @kernel.register.guest_command(
+        "t",
+        doc_en="[@N] [command] execute shell command (optional slot @1-@N)",
+        doc_uk="[@N] [команда] виконати shell-команду (необов’язковий слот @1-@N)",
+        doc_ru="[@N] [кoмaндa] выпoлнить shell кoмaндy (cлoт @1-@N нeoбязaтeлeн)",
+    )
+    async def guest_cmd_t(event):
+        message = await event.reply("🤔")
+        message.raw_text = event.text
+        message.text = event.text
+        await terminal_handler(message)
+
+
     @kernel.register.command(
         "tkill",
         doc_en="[@N|@all] stop running terminal command(s)",

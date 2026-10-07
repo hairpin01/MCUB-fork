@@ -28,7 +28,7 @@
     },
     "loader": {
       "path": "modules/loader.py",
-      "sha256": "3260cb3036d9421f164a4db3171bcaec95e9a9f4d01e5bb3bf0896617595c8ad"
+      "sha256": "2285c3402b32c33c01afb70935f324251176a2f7397d9dc63ad261d626e07297"
     },
     "log_bot": {
       "path": "modules/log_bot.py",
@@ -36,7 +36,7 @@
     },
     "man": {
       "path": "modules/man.py",
-      "sha256": "40103b201fa789ba7c93edca9a5935565800fc4a50b1f136ef8a0a62d0e29f53"
+      "sha256": "0f42f2bd010c31d21ae65dd29d2c1a0398bb5ed36681e2bc958d4af69e70a388"
     },
     "settings": {
       "path": "modules/settings.py",
@@ -44,7 +44,7 @@
     },
     "terminal": {
       "path": "modules/terminal.py",
-      "sha256": "d4b7d24f2fa64955f333fcae436106a7b0ed8b1933d12403c87e6d0e068856a9"
+      "sha256": "19dbb3a6eb1f817043ab35b4cb54ad3fc4ee6045e09a7ca99a92d91c78809c74"
     },
     "tester": {
       "path": "modules/tester.py",

@@ -1050,46 +1050,15 @@ def register(kernel):
 
     @kernel.register.guest_command(
         "t",
-        alias=["terminal"],
-        doc_en="[@N] [command] execute shell command via bot in any chat",
-        doc_uk="[@N] [команда] виконати shell-команду через бота в будь-якому чаті",
-        doc_ru="[@N] [кoмaндa] выпoлнить shell кoмaндy чeрeз бoта в любoм чaтe",
+        doc_en="[@N] [command] execute shell command (optional slot @1-@N)",
+        doc_uk="[@N] [команда] виконати shell-команду (необов’язковий слот @1-@N)",
+        doc_ru="[@N] [кoмaндa] выпoлнить shell кoмaндy (cлoт @1-@N нeoбязaтeлeн)",
     )
-    async def terminal_guest_handler(event):
-        """Guest mode: the bot answers first, then TerminalModule edits that message."""
-        slot, cmd = _parse_slot((getattr(event, "guest_args", "") or "").strip())
-        quiet = False
-        if cmd.startswith("-q "):
-            quiet = True
-            cmd = cmd[3:]
-
-        if not cmd.strip():
-            await event.reply(
-                f"{CUSTOM_EMOJI['🗯']} <i>{lang['command_not_specified']}</i>",
-                parse_mode="html",
-            )
-            return
-
-        chat_id = getattr(event, "chat_id", None)
-        if chat_id is None:
-            await event.reply(
-                f"{CUSTOM_EMOJI['🗯']} <i>{lang['command_not_specified']}</i>",
-                parse_mode="html",
-            )
-            return
-
-        # The guest query can be answered only once: post a placeholder as the
-        # bot and hand its message over to the terminal, which edits it from
-        # there on. If the bot could not answer, the terminal posts its own.
-        message_id = None
-        if not quiet:
-            posted = await event.reply(
-                f"{CUSTOM_EMOJI['loading']} <i>{lang['executing']}</i>",
-                parse_mode="html",
-            )
-            message_id = getattr(posted, "id", None)
-
-        await terminal.run_command(chat_id, cmd, message_id, slot=slot)
+    async def guest_cmd_t(event):
+        message = await event.reply("🤔")
+        message.raw_text = event.text
+        message.text = event.text
+        await terminal_handler(message)
 
     @kernel.register.command(
         "tkill",

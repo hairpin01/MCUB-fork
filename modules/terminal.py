@@ -15,6 +15,7 @@ import shlex
 import signal
 import time
 import uuid
+from typing import Any
 
 from telethon import Button
 
@@ -315,6 +316,30 @@ def register(kernel):
             self.running_commands: dict = {}
             self.update_tasks: dict = {}
             self.input_form_id: str | None = None
+            # Message events of running slots, so edits go through the event
+            # itself (guest/inline messages are not editable by id).
+            self.events: dict[str, Any] = {}
+
+        @staticmethod
+        def _slot_key(chat_id, slot: str = "1") -> str:
+            return f"{chat_id}:{slot}"
+
+        async def _edit_message(
+            self,
+            chat_id,
+            slot: str,
+            message_id,
+            text: str,
+            **kwargs: Any,
+        ) -> Any:
+            """Edit a slot's message through its event, falling back to its id."""
+            event = self.events.get(self._slot_key(chat_id, slot))
+            if event is not None:
+                try:
+                    return await event.edit(text, **kwargs)
+                except Exception as e:
+                    logger.debug(f"terminal: event edit failed ({e}), using message id")
+            return await client.edit_message(chat_id, message_id, text, **kwargs)
 
         def _input_buttons(self, chat_id, slot: str = "1"):
             """Build the "send stdin" row shown under every terminal message.
@@ -508,8 +533,11 @@ def register(kernel):
             command,
             message_id=None,
             slot: str = "1",
+            event=None,
         ):
             """Launch a shell command in the given slot with live streaming output."""
+            if event is not None:
+                self.events[self._slot_key(chat_id, slot)] = event
             key = (chat_id, slot)
             if key in self.running_commands:
                 slot_label = f" (@{slot})" if slot != "1" else ""
@@ -568,8 +596,9 @@ def register(kernel):
 
                 if message_id:
                     cmd_data["message_id"] = message_id
-                    await client.edit_message(
+                    await self._edit_message(
                         chat_id,
+                        slot,
                         message_id,
                         self._build_message(cmd_data),
                         parse_mode="html",
@@ -588,6 +617,7 @@ def register(kernel):
                         buttons=self._input_buttons(chat_id, slot),
                     )
                     cmd_data["message_id"] = msg.id
+                    self.events.setdefault(self._slot_key(chat_id, slot), msg)
 
                 update_task = asyncio.create_task(self._update_loop(key))
                 read_task = asyncio.create_task(self._read_output(key))
@@ -838,8 +868,9 @@ def register(kernel):
 
                 chat_id = key[0]
                 try:
-                    await client.edit_message(
+                    await self._edit_message(
                         chat_id,
+                        cmd_data.get("slot", "1"),
                         cmd_data["message_id"],
                         new_text,
                         parse_mode="html",
@@ -873,8 +904,9 @@ def register(kernel):
                         stdout,
                     )
                 else:
-                    await client.edit_message(
+                    await self._edit_message(
                         chat_id,
+                        slot,
                         cmd_data["message_id"],
                         self._build_message(cmd_data, final=True),
                         parse_mode="html",
@@ -995,6 +1027,9 @@ def register(kernel):
                 else:
                     await client.send_message(chat_id, error_msg, parse_mode="html")
                 await kernel.handle_error(e, message="Terminal kill command failed")
+            finally:
+                # The slot is gone: drop its event so the map does not grow.
+                self.events.pop(self._slot_key(chat_id, slot), None)
 
     terminal = TerminalModule()
     # One long-lived inline form backs the "input" button on every message:
@@ -1046,7 +1081,9 @@ def register(kernel):
             )
             await event.edit(output if output else "done")
         else:
-            await terminal.run_command(event.chat_id, cmd, event.id, slot=slot)
+            await terminal.run_command(
+                event.chat_id, cmd, event.id, slot=slot, event=event
+            )
 
     @kernel.register.guest_command(
         "t",
@@ -1055,6 +1092,8 @@ def register(kernel):
         doc_ru="[@N] [кoмaндa] выпoлнить shell кoмaндy (cлoт @1-@N нeoбязaтeлeн)",
     )
     async def guest_cmd_t(event):
+        # The bot's own reply becomes the terminal message: it is our message,
+        # so the terminal can edit it in place.
         message = await event.reply("🤔")
         message.raw_text = event.text
         message.text = event.text

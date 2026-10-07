@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import html
+import json
 import logging
 import re
 import traceback
@@ -55,6 +56,12 @@ class CommandDispatcher:
         self.dispatcher.register()
     """
 
+    # Matches the literal ``$args`` placeholder inside an alias target, e.g.
+    # ``py await c.send_message(m.chat_id, "$args")``. The trailing ``\b``
+    # stops it from also matching a longer, unrelated token that merely
+    # starts with "args" (``$argslist``).
+    _ALIAS_ARGS_PATTERN = re.compile(r"\$args\b")
+
     def __init__(self, kernel: Kernel) -> None:
         self.kernel = kernel
         self.logger = logging.getLogger(getattr(kernel, "logger_name", __name__))
@@ -62,6 +69,27 @@ class CommandDispatcher:
             self.strings = None
         else:
             self.strings = Strings(kernel, {"name": "kernel"})
+
+    @staticmethod
+    def _escape_alias_args(value: str) -> str:
+        """
+        Escape ``value`` so it is safe to substitute into an alias target in
+        place of the ``$args`` placeholder.
+
+        Aliases commonly embed ``$args`` inside a quoted Python string
+        literal for ``.py``, e.g. ``py await c.send_message(m.chat_id,
+        "$args")``. Without escaping, a user-supplied ``"`` or ``\\`` in the
+        argument text would close that string literal early and let
+        arbitrary Python code run through ``.py``.
+
+        ``json.dumps`` already implements exactly the escaping a double-quoted
+        Python string literal needs (``\\``, ``"``, and control characters
+        such as newlines); stripping its surrounding quotes leaves just the
+        escaped inner content. ``ensure_ascii=False`` keeps non-ASCII text
+        (e.g. Cyrillic) readable instead of turning it into ``\\uXXXX``
+        escapes.
+        """
+        return json.dumps(value, ensure_ascii=False)[1:-1]
 
     @staticmethod
     def _event_text(event: Any) -> str:
@@ -587,7 +615,19 @@ class CommandDispatcher:
                 return False
 
             args = text[len(active_prefix) + len(cmd) :]
-            new_text = active_prefix + alias_target + args
+            if self._ALIAS_ARGS_PATTERN.search(alias_target):
+                # args without the single separating space the raw tail
+                # keeps for the plain-append case below, e.g. "$args" in
+                # ".test_alias argument" should become "argument", not
+                # " argument".
+                args_value = args[1:] if args.startswith(" ") else args
+                escaped = self._escape_alias_args(args_value)
+                resolved_target = self._ALIAS_ARGS_PATTERN.sub(
+                    lambda _m: escaped, alias_target
+                )
+                new_text = active_prefix + resolved_target
+            else:
+                new_text = active_prefix + alias_target + args
             self.kernel._set_event_text(event, new_text)
             return await self.process_command(event, depth + 1)
 

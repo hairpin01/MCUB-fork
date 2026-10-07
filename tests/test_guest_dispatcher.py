@@ -251,8 +251,8 @@ class TestGuestRegisterHandler:
         kernel = _kernel()
         client = MagicMock()
         client._event_builders = []
-        client.add_event_handler.side_effect = lambda cb, ev: client._event_builders.append(
-            (ev, cb)
+        client.add_event_handler.side_effect = (
+            lambda cb, ev: client._event_builders.append((ev, cb))
         )
         d = CommandDispatcher(kernel)
 

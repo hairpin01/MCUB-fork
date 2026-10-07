@@ -1681,7 +1681,9 @@ class Loader(ModuleBase):
                 )
             self.kernel._module_sources.pop(module_name, None)
 
-    def _get_guest_commands_list(self, module_name: str) -> list[tuple[str, str, list[str]]]:
+    def _get_guest_commands_list(
+        self, module_name: str
+    ) -> list[tuple[str, str, list[str]]]:
         """Return guest commands (``@bot <cmd>``) registered by a module."""
         register = getattr(self.kernel, "register", None)
         getter = getattr(register, "get_module_guest_commands", None)
@@ -1747,7 +1749,7 @@ class Loader(ModuleBase):
 
         # Guest commands (`@bot cmd`)
         if guest_commands:
-            guest_emoji = CUSTOM_EMOJI.get("bot") or "🤖"
+            guest_emoji = CUSTOM_EMOJI["bot"]
             bot_username = self.kernel.config.get("inline_bot_username") or "bot"
             add_log(self.strings("log_guest_commands_found", count=len(guest_commands)))
             for cmd, desc, aliases in guest_commands:

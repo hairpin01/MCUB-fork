@@ -508,7 +508,9 @@ class ManModule(ModuleBase):
         if self._find_hikka_library(module_name) is not None:
             return []
 
-        getter = getattr(getattr(self.kernel, "register", None), "get_module_guest_commands", None)
+        getter = getattr(
+            getattr(self.kernel, "register", None), "get_module_guest_commands", None
+        )
         if not callable(getter):
             return []
         try:
@@ -687,12 +689,17 @@ class ManModule(ModuleBase):
                     seen.add(name)
             else:
                 commands, _, _ = self._get_module_commands(name)
-                for cmd in commands:
-                    if search_term_clean in cmd.lower():
-                        if name not in seen:
-                            similar_modules.append((name, typ, module))
-                            seen.add(name)
-                        break
+                if any(search_term_clean in cmd.lower() for cmd in commands):
+                    if name not in seen:
+                        similar_modules.append((name, typ, module))
+                        seen.add(name)
+                elif any(
+                    search_term_clean in cmd.lower()
+                    for cmd, _desc, _aliases in self._get_module_guest_commands(name)
+                ):
+                    if name not in seen:
+                        similar_modules.append((name, typ, module))
+                        seen.add(name)
 
         if len(similar_modules) == 1:
             return await self._build_module_detail(similar_modules[0])
@@ -1571,6 +1578,24 @@ class ManModule(ModuleBase):
                     cmd_match = True
                     break
             if cmd_match:
+                continue
+
+            guest_score = 0
+            for cmd, _desc, _aliases in self._get_module_guest_commands(name):
+                cmd_lower = cmd.lower()
+                if cmd_lower == search_term:
+                    guest_score = 900
+                    break
+                if guest_score:
+                    continue
+                if cmd_lower.startswith(search_term):
+                    guest_score = 600
+                elif concatenated in cmd_lower or underscored in cmd_lower:
+                    guest_score = 520
+                elif search_term in cmd_lower:
+                    guest_score = 400
+            if guest_score > 0:
+                scored_modules.append((guest_score, (name, typ, module)))
                 continue
 
             metadata = await self._load_module_metadata(name, typ)

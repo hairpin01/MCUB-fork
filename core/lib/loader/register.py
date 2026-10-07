@@ -1477,14 +1477,13 @@ class Register:
         wanted = str(module_name).lower()
         docs_for: list[tuple[str, str]] = []
 
-        for cmd, handler in handlers.items():
+        for cmd in handlers:
             owner = owners.get(cmd)
             owner_name = getattr(owner, "name", owner)
             if str(owner_name).lower() != wanted:
                 continue
-            if alias_map.get(cmd) and alias_map.get(cmd) != cmd:
-                continue
-            del handler  # only the name/owner are needed
+            if alias_map.get(cmd):
+                continue  # alias, listed under its primary command
             docs = docs_store.get(cmd)
             if isinstance(docs, str):
                 docs_for.append((cmd, docs.strip()))

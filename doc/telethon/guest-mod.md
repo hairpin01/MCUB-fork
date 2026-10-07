@@ -103,6 +103,7 @@ like a `Message`.
 | `reply(text, **kwargs)` | Posts `text` into the chat via `setBotGuestChatResult` | Normal reply to the message |
 | `respond(text, **kwargs)` | Same as `reply` | Sends to the chat without `reply_to` |
 | `rich_reply(html=..., **kwargs)` | Posts an `InputBotInlineMessageRichMessage` | Normal reply via `client.send_rich_message` |
+| `reply_rich(html=..., **kwargs)` | Alias of `rich_reply` | Alias of `rich_reply` |
 | `rich_respond(html=..., **kwargs)` | Same as `rich_reply` | Sends rich message without `reply_to` |
 | `answer(result=None, **kwargs)` | Posts a ready `InputBotInlineResult` | Raises `RuntimeError` |
 

@@ -117,6 +117,7 @@ terminal:
   stdout: 'stdout ▶'
   stderr: 'stderr ▶'
   command_not_specified: "bash: $1: unbound variable"
+  input_button: stdin
   config_filter_proxychains: "grep -v '[proxychains]' from stdout/stderr"
   config_custom_shell: "custom shell binary (used when shell=custom)"
   config_args: "shell argv[1] (default: -c)"

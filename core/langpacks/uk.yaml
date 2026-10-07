@@ -116,6 +116,7 @@ terminal:
   stdout: 'stdout:'
   stderr: 'stderr:'
   command_not_specified: Команду не вказано
+  input_button: stdin
   config_filter_proxychains: Прибирати рядки [proxychains] з виводу (stdout/stderr)
   config_custom_shell: Шлях до кастомної оболонки (використовується при shell=custom)
   config_args: "Аргументи оболонки (за замовчуванням: -c)"

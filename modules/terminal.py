@@ -14,6 +14,9 @@ import re
 import shlex
 import signal
 import time
+import uuid
+
+from telethon import Button
 
 from core.lib.loader.module_config import (
     Boolean,
@@ -57,6 +60,9 @@ CUSTOM_EMOJI = {
 }
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*[mABCDEFGHJKSTfhilmnprsu]")
+
+# How long (seconds) an "input" button keeps pointing at its terminal slot.
+_INPUT_KEY_TTL = 3600
 
 
 def _filter_proxychains_output(text: str) -> str:
@@ -308,6 +314,64 @@ def register(kernel):
             # slot is a string, default "1".
             self.running_commands: dict = {}
             self.update_tasks: dict = {}
+            self.input_form_id: str | None = None
+
+        def _input_buttons(self, chat_id, slot: str = "1"):
+            """Build the "send stdin" row shown under every terminal message.
+
+            The button opens the bot's inline mode in the same chat; what the
+            user types is delivered to :meth:`send_stdin` of that slot. The
+            inline update carries no chat id, so the target slot is looked up
+            in the cache by the key embedded in the inline query.
+            """
+            if not self.input_form_id:
+                return None
+
+            key = f"terminal_input_{uuid.uuid4().hex[:12]}"
+            kernel.cache.set(
+                key,
+                {"chat_id": chat_id, "slot": slot},
+                ttl=_INPUT_KEY_TTL,
+            )
+            return [
+                [
+                    Button.switch_inline(
+                        f"{CUSTOM_EMOJI['✏️']} {lang['input_button']}",
+                        query=f"{self.input_form_id} {key} ",
+                        same_peer=True,
+                    )
+                ]
+            ]
+
+        async def _handle_input(self, event, args: str) -> None:
+            """inline_temp handler: write the typed text to the slot's stdin.
+
+            ``UpdateBotInlineSend`` has no ``answer()`` and the message must not
+            be spammed back into the chat, so the result only goes to the log.
+            """
+            key, _, text = (args or "").partition(" ")
+            if not key or not text:
+                logger.debug("terminal: empty stdin input")
+                return
+
+            target = kernel.cache.get(key)
+            if not target:
+                logger.debug(f"terminal: expired stdin input key {key}")
+                return
+
+            if not kernel.is_admin(getattr(event, "user_id", None)):
+                logger.warning(
+                    f"terminal: stdin input denied for {getattr(event, 'user_id', None)}"
+                )
+                return
+
+            ok, err = await self.send_stdin(target["chat_id"], target["slot"], text)
+            if ok:
+                logger.debug(f"terminal: stdin <- {text!r} (slot {target['slot']})")
+            else:
+                logger.warning(
+                    f"terminal: stdin write failed (slot {target['slot']}): {err}"
+                )
 
         def _format_output(self, text: str, max_length: int = 2000) -> str:
             """Escape and truncate output. Shows tail - it's more recent."""
@@ -509,6 +573,7 @@ def register(kernel):
                         message_id,
                         self._build_message(cmd_data),
                         parse_mode="html",
+                        buttons=self._input_buttons(chat_id, slot),
                     )
                 else:
                     slot_label = (
@@ -520,6 +585,7 @@ def register(kernel):
                         f"<blockquote><code>{html.escape(command)}</code></blockquote>\n"
                         f"{CUSTOM_EMOJI['❄️']} <i>{lang['executing']}</i>",
                         parse_mode="html",
+                        buttons=self._input_buttons(chat_id, slot),
                     )
                     cmd_data["message_id"] = msg.id
 
@@ -777,6 +843,7 @@ def register(kernel):
                         cmd_data["message_id"],
                         new_text,
                         parse_mode="html",
+                        buttons=self._input_buttons(chat_id, cmd_data.get("slot", "1")),
                     )
                     last_edit = time.time()
                 except asyncio.CancelledError:
@@ -793,6 +860,8 @@ def register(kernel):
             chat_id = key[0]
 
             piped = cmd_data.get("piped", False)
+            slot = cmd_data.get("slot", "1")
+            buttons = self._input_buttons(chat_id, slot)
 
             try:
                 if piped:
@@ -809,6 +878,7 @@ def register(kernel):
                         cmd_data["message_id"],
                         self._build_message(cmd_data, final=True),
                         parse_mode="html",
+                        buttons=buttons,
                     )
             except Exception as e:
                 logger.error(f"terminal: final edit error: {e}")
@@ -910,6 +980,7 @@ def register(kernel):
                         message_id,
                         f"{CUSTOM_EMOJI['☑️']} <i>{lang['command_stopped']}</i>",
                         parse_mode="html",
+                        buttons=self._input_buttons(chat_id, slot),
                     )
 
             except Exception as e:
@@ -926,6 +997,12 @@ def register(kernel):
                 await kernel.handle_error(e, message="Terminal kill command failed")
 
     terminal = TerminalModule()
+    # One long-lived inline form backs the "input" button on every message:
+    # the slot it writes to travels in the inline query, not in the event.
+    terminal.input_form_id = kernel.register.inline_temp(
+        terminal._handle_input,
+        ttl=_INPUT_KEY_TTL,
+    )
 
     @kernel.register.command(
         "t",
@@ -970,6 +1047,49 @@ def register(kernel):
             await event.edit(output if output else "done")
         else:
             await terminal.run_command(event.chat_id, cmd, event.id, slot=slot)
+
+    @kernel.register.guest_command(
+        "t",
+        alias=["terminal"],
+        doc_en="[@N] [command] execute shell command via bot in any chat",
+        doc_uk="[@N] [команда] виконати shell-команду через бота в будь-якому чаті",
+        doc_ru="[@N] [кoмaндa] выпoлнить shell кoмaндy чeрeз бoта в любoм чaтe",
+    )
+    async def terminal_guest_handler(event):
+        """Guest mode: the bot answers first, then TerminalModule edits that message."""
+        slot, cmd = _parse_slot((getattr(event, "guest_args", "") or "").strip())
+        quiet = False
+        if cmd.startswith("-q "):
+            quiet = True
+            cmd = cmd[3:]
+
+        if not cmd.strip():
+            await event.reply(
+                f"{CUSTOM_EMOJI['🗯']} <i>{lang['command_not_specified']}</i>",
+                parse_mode="html",
+            )
+            return
+
+        chat_id = getattr(event, "chat_id", None)
+        if chat_id is None:
+            await event.reply(
+                f"{CUSTOM_EMOJI['🗯']} <i>{lang['command_not_specified']}</i>",
+                parse_mode="html",
+            )
+            return
+
+        # The guest query can be answered only once: post a placeholder as the
+        # bot and hand its message over to the terminal, which edits it from
+        # there on. If the bot could not answer, the terminal posts its own.
+        message_id = None
+        if not quiet:
+            posted = await event.reply(
+                f"{CUSTOM_EMOJI['loading']} <i>{lang['executing']}</i>",
+                parse_mode="html",
+            )
+            message_id = getattr(posted, "id", None)
+
+        await terminal.run_command(chat_id, cmd, message_id, slot=slot)
 
     @kernel.register.command(
         "tkill",

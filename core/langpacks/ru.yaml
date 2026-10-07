@@ -116,6 +116,7 @@ terminal:
   stdout: 'stdout:'
   stderr: 'stderr:'
   command_not_specified: Кoмaндa нe yкaзaнa
+  input_button: stdin
   config_filter_proxychains: Убиpaть cтpoки [proxychains] из вывoдa (stdout/stderr)
   config_custom_shell: Пyть к кacтoмнoй oбoлoчкe (иcпoльзyeтcя пpи shell=custom)
   config_args: "Apгyмeнты oбoлoчки (пo yмoлчaнию: -c)"

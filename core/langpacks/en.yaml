@@ -116,6 +116,7 @@ terminal:
   stdout: 'stdout:'
   stderr: 'stderr:'
   command_not_specified: Command not specified
+  input_button: stdin
   config_update_interval: Terminal output update interval (sec, 1-30). Update also
     happens when new data arrives.
   config_filter_proxychains: Filter [proxychains] noise from stdout/stderr output

@@ -3962,7 +3962,7 @@ def register(kernel):
             legacy_actions = {"set", "delete", "del", "add", "list", "dict"}
             raw_args = rest.split()
             
-            if raw_args[0] in {"-k", "--kernel"}:
+            if raw_args[0].lower() in {"-k", "--kernel"}:
                 concise = rest.split(None, 1)
                 kernel_args = concise[1].strip() if len(concise) > 1 else ""
                 key_value = kernel_args.split(None, 1)
@@ -3977,7 +3977,7 @@ def register(kernel):
                 _set_event_command_text(event, "fcfg", f"set {key} {value}")
             
             
-            elif raw_args[0] in {"-m", "--module", "module"}:
+            elif raw_args[0].lower() in {"-m", "--module", "module"}:
                 concise = rest.split(None, 2)
                 if len(concise) < 3:
                     await event.edit(

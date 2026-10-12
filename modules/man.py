@@ -23,7 +23,7 @@ from telethon.tl.types import (
 )
 
 import utils
-from core.lib.loader.module_base import ModuleBase, command, inline
+from core.lib.loader.module_base import ModuleBase, command, guest_command, inline
 from core.lib.loader.module_config import (
     Boolean,
     ConfigValue,
@@ -1294,6 +1294,54 @@ class ManModule(ModuleBase):
 
         except Exception as e:
             await self.kernel.handle_error(e, message="Man command error", event=event)
+
+    @guest_command(
+        "man",
+        doc_ru="[имя] пoкaзaть cпиcoк мoдyлeй или инфopмaцию o мoдyлe",
+        doc_en="[name] show module list or module info",
+        doc_uk="[ім’я] показати список модулів або інформацію про модуль",
+    )
+    async def guest_man(self, event: Any) -> None:
+        """Guest-mode ``@bot man [name] [-f]`` (compact version of ``.man``)."""
+        try:
+            raw = getattr(event, "guest_args", None)
+            if not isinstance(raw, str):
+                raw = self.args_raw(event)
+            args = raw.split()
+            show_hidden = "-f" in args
+            clean_args = [a for a in args if a != "-f"]
+
+            if clean_args:
+                msg, _banner = await self._generate_detailed_page(
+                    " ".join(clean_args), show_hidden=show_hidden
+                )
+                await event.reply(msg, parse_mode="html")
+                return
+
+            hidden = await self._get_hidden_modules()
+            visible = [
+                n
+                for n in self.kernel.loaded_modules.keys()
+                if show_hidden or n not in hidden
+            ]
+            per_page = self._coerce_modules_per_page(
+                self.config.get("man_modules_per_page", MAN_MODULES_PER_PAGE_DEFAULT)
+            )
+            paginate = len(visible) > per_page
+
+            msg, buttons = self._get_paginated_data(
+                0,
+                hidden_list=hidden,
+                show_hidden=show_hidden,
+                page_cb=self._man_page_cb if paginate else None,
+                close_cb=self._man_close_cb if paginate else None,
+            )
+            if paginate:
+                await event.reply(msg, parse_mode="html", buttons=buttons)
+            else:
+                await event.reply(msg, parse_mode="html")
+        except Exception as e:
+            await self.kernel.handle_error(e, message="Man guest error", event=event)
 
     @command(
         "manhide",

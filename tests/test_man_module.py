@@ -322,3 +322,66 @@ async def test_build_module_detail_includes_bot_commands_with_descriptions(
     _ASSERT.assertIn("<code>/start</code> - <b>Пoкaзaть cтapтoвoe мeню</b>", text)
     _ASSERT.assertIn("<code>/help</code> - <b>Show help</b>", text)
     _ASSERT.assertNotIn("/skip", text)
+
+
+class _GuestEvent:
+    def __init__(self, args=""):
+        self.guest_args = args
+        self.reply = AsyncMock()
+
+
+def _guest_man_instance(n_modules=2, per_page=10):
+    inst = man.ManModule.__new__(man.ManModule)
+    inst.kernel = SimpleNamespace(
+        loaded_modules={f"m{i}": object() for i in range(n_modules)},
+        handle_error=AsyncMock(),
+    )
+    inst.config = {"man_modules_per_page": per_page}
+    inst._get_hidden_modules = AsyncMock(return_value=[])
+    inst._get_paginated_data = lambda page, **kw: ("LIST", ["btn"])
+    inst._generate_detailed_page = AsyncMock(return_value=("DETAIL", None))
+    inst._man_page_cb = object()
+    inst._man_close_cb = object()
+    return inst
+
+
+def test_man_registers_guest_command():
+    from core.lib.loader.module_base import ModuleBase  # noqa: F401
+
+    names = [p for p, _f, _m in man.ManModule._guest_cmd_registry]
+    _ASSERT.assertEqual(names, ["man"])
+    # regular .man is untouched
+    _ASSERT.assertIn("man", [p for p, _f, _k in man.ManModule._cmd_registry])
+
+
+@pytest.mark.asyncio
+async def test_guest_man_list_single_page_has_no_buttons():
+    inst = _guest_man_instance(n_modules=2, per_page=10)
+    event = _GuestEvent("")
+    await inst.guest_man(event)
+    event.reply.assert_awaited_once_with("LIST", parse_mode="html")
+
+
+@pytest.mark.asyncio
+async def test_guest_man_list_paginates_with_buttons():
+    inst = _guest_man_instance(n_modules=5, per_page=2)
+    event = _GuestEvent("")
+    await inst.guest_man(event)
+    event.reply.assert_awaited_once_with("LIST", parse_mode="html", buttons=["btn"])
+
+
+@pytest.mark.asyncio
+async def test_guest_man_detail_by_name():
+    inst = _guest_man_instance()
+    event = _GuestEvent("terminal -f")
+    await inst.guest_man(event)
+    inst._generate_detailed_page.assert_awaited_once_with("terminal", show_hidden=True)
+    event.reply.assert_awaited_once_with("DETAIL", parse_mode="html")
+
+
+@pytest.mark.asyncio
+async def test_guest_man_errors_go_to_kernel():
+    inst = _guest_man_instance()
+    inst._get_hidden_modules = AsyncMock(side_effect=RuntimeError("x"))
+    await inst.guest_man(_GuestEvent(""))
+    inst.kernel.handle_error.assert_awaited_once()

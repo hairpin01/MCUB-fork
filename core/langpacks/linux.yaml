@@ -117,6 +117,7 @@ terminal:
   stdout: 'stdout ▶'
   stderr: 'stderr ▶'
   command_not_specified: "bash: $1: unbound variable"
+  iterm_no_bot: "systemctl status inline-bot: not-found (inline_bot_username). export inline_bot_token first"
   input_button: stdin
   config_filter_proxychains: "grep -v '[proxychains]' from stdout/stderr"
   config_custom_shell: "custom shell binary (used when shell=custom)"

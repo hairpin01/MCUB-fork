@@ -8,6 +8,7 @@ from __future__ import annotations
 # version: 3.0.1
 # description: en: Terminal commands with real-time output streaming, parallel slots and stdin input / ru: Терминальные команды с потоковым выводом в реальном времени, параллельными слотами и вводом stdin / uk: Термінальні команди з потоковим виведенням у реальному часі, паралельними слотами та введенням stdin
 import asyncio
+import contextlib
 import html
 import os
 import re
@@ -1098,6 +1099,50 @@ def register(kernel):
         message.raw_text = event.text
         message.text = event.text
         await terminal_handler(message)
+
+    @kernel.register.command(
+        "iterm",
+        alias="it",
+        doc_en="[...] invoke `@bot t ...` in guest mode (runs via the inline bot)",
+        doc_uk="[...] викликати `@bot t ...` у guest-режимі (виконує inline-бот)",
+        doc_ru="[...] вызвaть `@bot t ...` в guest-peжимe (выпoлняeт inline-бoт)",
+    )
+    async def iterm_handler(event):
+        """Invoke the terminal through guest mode: sends `@bot t ...`.
+
+        The message triggers ``updateBotGuestChatQuery`` on the bot client,
+        so execution (and its output) comes from the bot, exactly like a
+        manually sent ``@bot t <command>``. The command message itself is
+        deleted to keep the chat clean.
+        """
+        bot_username = (kernel.config.get("inline_bot_username") or "").lstrip("@")
+        if not bot_username:
+            await event.edit(
+                f"{CUSTOM_EMOJI['🗯']} <i>{lang['iterm_no_bot']}</i>",
+                parse_mode="html",
+            )
+            return
+
+        parts = event.raw_text.split(maxsplit=1)
+        rest = parts[1] if len(parts) > 1 else ""
+        guest_text = f"@{bot_username} t {rest}".strip()
+
+        try:
+            await client.send_message(
+                event.chat_id,
+                guest_text,
+                reply_to=getattr(event, "reply_to_msg_id", None),
+            )
+        except Exception as e:
+            await kernel.handle_error(e, message="iterm guest invoke failed")
+            await event.edit(
+                f"{CUSTOM_EMOJI['🗯']} <i>{lang['iterm_no_bot']}</i>",
+                parse_mode="html",
+            )
+            return
+
+        with contextlib.suppress(Exception):
+            await event.delete()
 
     @kernel.register.command(
         "tkill",

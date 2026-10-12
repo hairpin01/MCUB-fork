@@ -1295,6 +1295,52 @@ class ManModule(ModuleBase):
         except Exception as e:
             await self.kernel.handle_error(e, message="Man command error", event=event)
 
+    @command(
+        "iman",
+        doc_ru="<имя/None> вызвaть `@bot man` в guest-peжимe (oтвeчaeт inline-бoт)",
+        doc_en="<name/None> invoke `@bot man` in guest mode (answered by the inline bot)",
+        doc_uk="<ім’я/None> викликати `@bot man` у guest-режимі (відповідає inline-бот)",
+    )
+    async def cmd_iman(self, event: events.NewMessage.Event) -> None:
+        """Owner shortcut that invokes ``@bot man`` in guest mode.
+
+        Sends ``@bot_username man [args]`` into the chat, which triggers
+        ``updateBotGuestChatQuery`` on the bot client, so the answer comes
+        from the bot - exactly like a manually sent ``@bot man``.
+        The command message itself is deleted to keep the chat clean.
+        """
+        try:
+            bot_username = (
+                self.kernel.config.get("inline_bot_username") or ""
+            ).lstrip("@")
+            if not bot_username:
+                await self.edit(
+                    event,
+                    self.strings["inline_bot_not_configured"],
+                    parse_mode="html",
+                )
+                return
+
+            raw = self.args_raw(event)
+            guest_text = f"@{bot_username} man {raw}".strip()
+
+            try:
+                await self.client.send_message(
+                    event.chat_id,
+                    guest_text,
+                    reply_to=getattr(event, "reply_to_msg_id", None),
+                )
+            except Exception as e:
+                await self.kernel.handle_error(
+                    e, message="iman guest invoke failed", event=event
+                )
+                return
+
+            with contextlib.suppress(Exception):
+                await event.delete()
+        except Exception as e:
+            await self.kernel.handle_error(e, message="iman command error", event=event)
+
     @guest_command(
         "man",
         doc_ru="[имя] пoкaзaть cпиcoк мoдyлeй или инфopмaцию o мoдyлe",

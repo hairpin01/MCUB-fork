@@ -36,7 +36,7 @@
     },
     "man": {
       "path": "modules/man.py",
-      "sha256": "8e593e7bde42ee509074489be5d754b689b1943a11c135984079c96f788fd06b"
+      "sha256": "54d69e9780ac4939483e89bedfdfed40476836f25c1e1aef1d39eec7834827ed"
     },
     "settings": {
       "path": "modules/settings.py",
@@ -44,7 +44,7 @@
     },
     "terminal": {
       "path": "modules/terminal.py",
-      "sha256": "b4f6fb7820e07e1630846c532e157bef23574fb3ac5ca41d35a03b01d814c3ca"
+      "sha256": "a69443826a7d3190ac277809248bbcf3e03f093ac418abb5f2a96301d620fee2"
     },
     "tester": {
       "path": "modules/tester.py",

@@ -30,6 +30,7 @@ from core.lib.loader.module_config import (
     String,
 )
 from utils.strings import Strings
+from utils.tg_emoji import account_has_premium, tg_emoji_to_link
 
 CUSTOM_EMOJI = {
     "💻": '<tg-emoji emoji-id="5472111548572900003">💻</tg-emoji>',
@@ -478,13 +479,18 @@ def register(kernel):
                     )
                     footer = f"<blockquote>{' | '.join(footer_parts)}</blockquote>"
 
-            return (
+            text = (
                 f"{final_emoji} {'<b>' if final else '<i>'}{lang['system_command']}{'</b>' if final else '</i>'} {slot_label}"
                 f" <blockquote><code>{cmd_escaped}</code></blockquote>\n"
                 f"{extra}"
                 f"{stdout_block}{stderr_block}"
                 f"{footer}"
             )
+            # Guest mode on accounts without Premium cannot render
+            # <tg-emoji> tags - rewrite them as tg://emoji links.
+            if cmd_data.get("downgrade_emoji"):
+                text = tg_emoji_to_link(text)
+            return text
 
         async def _build_process(
             self,
@@ -537,14 +543,27 @@ def register(kernel):
             event=None,
         ):
             """Launch a shell command in the given slot with live streaming output."""
+            # Guest-mode commands are answered by the bot; on accounts
+            # without Premium their <tg-emoji> tags must be downgraded to
+            # tg://emoji links. Resolved once per command (one get_me call).
+            via_guest = bool(getattr(event, "guest_mode", False))
+            downgrade_emoji = False
+            if via_guest:
+                downgrade_emoji = not await account_has_premium(client)
+
             if event is not None:
                 self.events[self._slot_key(chat_id, slot)] = event
             key = (chat_id, slot)
             if key in self.running_commands:
                 slot_label = f" (@{slot})" if slot != "1" else ""
+                busy_text = (
+                    f"{CUSTOM_EMOJI['🗯']} <i>{lang['command_already_running']}{slot_label}</i>"
+                )
+                if downgrade_emoji:
+                    busy_text = tg_emoji_to_link(busy_text)
                 await client.send_message(
                     chat_id,
-                    f"{CUSTOM_EMOJI['🗯']} <i>{lang['command_already_running']}{slot_label}</i>",
+                    busy_text,
                     parse_mode="html",
                 )
                 return
@@ -566,6 +585,7 @@ def register(kernel):
                     "data_event": data_event,
                     "piped": piped,
                     "timeout_task": None,
+                    "downgrade_emoji": downgrade_emoji,
                 }
 
                 cfg_shell = _get_config()
@@ -609,11 +629,16 @@ def register(kernel):
                     slot_label = (
                         f" <code>@{html.escape(slot)}</code>" if slot != "1" else ""
                     )
-                    msg = await client.send_message(
-                        chat_id,
+                    initial_text = (
                         f"{CUSTOM_EMOJI['loading']} <i>{lang['system_command']}</i>{slot_label} "
                         f"<blockquote><code>{html.escape(command)}</code></blockquote>\n"
-                        f"{CUSTOM_EMOJI['❄️']} <i>{lang['executing']}</i>",
+                        f"{CUSTOM_EMOJI['❄️']} <i>{lang['executing']}</i>"
+                    )
+                    if downgrade_emoji:
+                        initial_text = tg_emoji_to_link(initial_text)
+                    msg = await client.send_message(
+                        chat_id,
+                        initial_text,
                         parse_mode="html",
                         buttons=self._input_buttons(chat_id, slot),
                     )
@@ -629,6 +654,8 @@ def register(kernel):
                     f"{CUSTOM_EMOJI['🗯']} <i>{lang['launch_error']}</i> "
                     f"<code>{html.escape(str(e))}</code>"
                 )
+                if downgrade_emoji:
+                    error_msg = tg_emoji_to_link(error_msg)
                 if message_id:
                     await client.edit_message(
                         chat_id, message_id, error_msg, parse_mode="html"
@@ -1098,6 +1125,9 @@ def register(kernel):
         message = await event.reply("🤔")
         message.raw_text = event.text
         message.text = event.text
+        # Marks the guest origin so run_command downgrades <tg-emoji>
+        # tags when the account has no Premium.
+        message.guest_mode = True
         await terminal_handler(message)
 
     @kernel.register.command(

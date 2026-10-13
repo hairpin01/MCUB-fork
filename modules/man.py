@@ -33,6 +33,7 @@ from core.lib.loader.module_config import (
 )
 from core.lib.types import InlineMessage
 from utils.strings import Strings
+from utils.tg_emoji import downgrade_tg_emoji
 
 CUSTOM_EMOJI = {
     "crystal": '<tg-emoji emoji-id="5332762073388578651">🎮</tg-emoji>',
@@ -1356,11 +1357,16 @@ class ManModule(ModuleBase):
             args = raw.split()
             show_hidden = "-f" in args
             clean_args = [a for a in args if a != "-f"]
+            # getattr: unit-test instances may not run __init__.
+            client = getattr(self, "client", None)
 
             if clean_args:
                 msg, _banner = await self._generate_detailed_page(
                     " ".join(clean_args), show_hidden=show_hidden
                 )
+                # Accounts without Premium cannot render <tg-emoji> tags -
+                # rewrite them as tg://emoji links.
+                msg = await downgrade_tg_emoji(msg, client)
                 await event.reply(msg, parse_mode="html")
                 return
 
@@ -1383,8 +1389,10 @@ class ManModule(ModuleBase):
                 close_cb=self._man_close_cb if paginate else None,
             )
             if paginate:
+                msg = await downgrade_tg_emoji(msg, client)
                 await event.reply(msg, parse_mode="html", buttons=buttons)
             else:
+                msg = await downgrade_tg_emoji(msg, client)
                 await event.reply(msg, parse_mode="html")
         except Exception as e:
             await self.kernel.handle_error(e, message="Man guest error", event=event)

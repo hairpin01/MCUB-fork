@@ -14,6 +14,14 @@ __all__ = ["Strings", "get_available_locales", "reload_packs"]
 
 _FALLBACK = "en"
 _GROUP_VALUE = "__value__"
+_ESCAPED_NEWLINE = "\\n"
+
+
+def _unescape(value: Any) -> Any:
+    """Replace literal '\\n' escapes with real newlines in string values."""
+    if isinstance(value, str):
+        return value.replace(_ESCAPED_NEWLINE, "\n")
+    return value
 
 _LANGPACKS_CACHE: dict[str, dict[str, Any]] | None = None
 
@@ -118,7 +126,7 @@ class StringsGroup:
         return result
 
     def __call__(self, key: str, **kwargs) -> Any:
-        result = self._lookup(key)
+        result = _unescape(self._lookup(key))
         if kwargs and isinstance(result, str):
             escaped = {
                 k: str(v).replace("{", "{{").replace("}", "}}")
@@ -128,7 +136,7 @@ class StringsGroup:
         return result
 
     def get(self, key: str, default: Any = None) -> Any:
-        return self._data.get(key, default)
+        return _unescape(self._data.get(key, default))
 
     def keys(self) -> set[str]:
         return set(self._data.keys())
@@ -285,7 +293,7 @@ class Strings:
         return result
 
     def __call__(self, key: str, **kwargs) -> Any:
-        result = self._lookup(key)
+        result = _unescape(self._lookup(key))
         if kwargs and isinstance(result, str):
             return result.format(**kwargs)
         return result
@@ -295,12 +303,12 @@ class Strings:
         if value is not None:
             if isinstance(value, dict):
                 return _wrap_group_value(key, value, strict=self._strict)
-            return value
+            return _unescape(value)
         fallback_dict = self._data.get(self._fallback, {})
         value = fallback_dict.get(key, default)
         if isinstance(value, dict):
             return _wrap_group_value(key, value, strict=self._strict)
-        return value
+        return _unescape(value)
 
     def fmt(self, key: str, **kwargs) -> Any:
         return self(key, **kwargs)

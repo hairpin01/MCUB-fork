@@ -23,7 +23,7 @@ from telethon.tl.types import (
 )
 
 import utils
-from core.lib.loader.module_base import ModuleBase, command, inline
+from core.lib.loader.module_base import ModuleBase, command, guest_command, inline
 from core.lib.loader.module_config import (
     Boolean,
     ConfigValue,
@@ -33,6 +33,7 @@ from core.lib.loader.module_config import (
 )
 from core.lib.types import InlineMessage
 from utils.strings import Strings
+from utils.tg_emoji import downgrade_tg_emoji
 
 CUSTOM_EMOJI = {
     "crystal": '<tg-emoji emoji-id="5332762073388578651">🎮</tg-emoji>',
@@ -1294,6 +1295,107 @@ class ManModule(ModuleBase):
 
         except Exception as e:
             await self.kernel.handle_error(e, message="Man command error", event=event)
+
+    @command(
+        "iman",
+        doc_ru="<имя/None> вызвaть `@bot man` в guest-peжимe (oтвeчaeт inline-бoт)",
+        doc_en="<name/None> invoke `@bot man` in guest mode (answered by the inline bot)",
+        doc_uk="<ім’я/None> викликати `@bot man` у guest-режимі (відповідає inline-бот)",
+    )
+    async def cmd_iman(self, event: events.NewMessage.Event) -> None:
+        """Owner shortcut that invokes ``@bot man`` in guest mode.
+
+        Sends ``@bot_username man [args]`` into the chat, which triggers
+        ``updateBotGuestChatQuery`` on the bot client, so the answer comes
+        from the bot - exactly like a manually sent ``@bot man``.
+        The command message itself is deleted to keep the chat clean.
+        """
+        try:
+            bot_username = (
+                self.kernel.config.get("inline_bot_username") or ""
+            ).lstrip("@")
+            if not bot_username:
+                await self.edit(
+                    event,
+                    self.strings["inline_bot_not_configured"],
+                    parse_mode="html",
+                )
+                return
+
+            raw = self.args_raw(event)
+            guest_text = f"@{bot_username} man {raw}".strip()
+
+            try:
+                await self.client.send_message(
+                    event.chat_id,
+                    guest_text,
+                    reply_to=getattr(event, "reply_to_msg_id", None),
+                )
+            except Exception as e:
+                await self.kernel.handle_error(
+                    e, message="iman guest invoke failed", event=event
+                )
+                return
+
+            with contextlib.suppress(Exception):
+                await event.delete()
+        except Exception as e:
+            await self.kernel.handle_error(e, message="iman command error", event=event)
+
+    @guest_command(
+        "man",
+        doc_ru="[имя] пoкaзaть cпиcoк мoдyлeй или инфopмaцию o мoдyлe",
+        doc_en="[name] show module list or module info",
+        doc_uk="[ім’я] показати список модулів або інформацію про модуль",
+    )
+    async def guest_man(self, event: Any) -> None:
+        """Guest-mode ``@bot man [name] [-f]`` (compact version of ``.man``)."""
+        try:
+            raw = getattr(event, "guest_args", None)
+            if not isinstance(raw, str):
+                raw = self.args_raw(event)
+            args = raw.split()
+            show_hidden = "-f" in args
+            clean_args = [a for a in args if a != "-f"]
+            # getattr: unit-test instances may not run __init__.
+            client = getattr(self, "client", None)
+
+            if clean_args:
+                msg, _banner = await self._generate_detailed_page(
+                    " ".join(clean_args), show_hidden=show_hidden
+                )
+                # Accounts without Premium cannot render <tg-emoji> tags -
+                # rewrite them as tg://emoji links.
+                msg = await downgrade_tg_emoji(msg, client)
+                await event.reply(msg, parse_mode="html")
+                return
+
+            hidden = await self._get_hidden_modules()
+            visible = [
+                n
+                for n in self.kernel.loaded_modules.keys()
+                if show_hidden or n not in hidden
+            ]
+            per_page = self._coerce_modules_per_page(
+                self.config.get("man_modules_per_page", MAN_MODULES_PER_PAGE_DEFAULT)
+            )
+            paginate = len(visible) > per_page
+
+            msg, buttons = self._get_paginated_data(
+                0,
+                hidden_list=hidden,
+                show_hidden=show_hidden,
+                page_cb=self._man_page_cb if paginate else None,
+                close_cb=self._man_close_cb if paginate else None,
+            )
+            if paginate:
+                msg = await downgrade_tg_emoji(msg, client)
+                await event.reply(msg, parse_mode="html", buttons=buttons)
+            else:
+                msg = await downgrade_tg_emoji(msg, client)
+                await event.reply(msg, parse_mode="html")
+        except Exception as e:
+            await self.kernel.handle_error(e, message="Man guest error", event=event)
 
     @command(
         "manhide",

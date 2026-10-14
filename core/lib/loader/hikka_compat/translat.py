@@ -11,6 +11,13 @@ def _fmt(text: str, kwargs: dict) -> str:
     return text
 
 
+def _unescape(value: Any) -> Any:
+    """Replace literal '\\n' escapes with real newlines in string values."""
+    if isinstance(value, str):
+        return value.replace("\\n", "\n")
+    return value
+
+
 class _TranslatorStub:
     def __init__(self, lang: str = "en"):
         self._lang = lang
@@ -20,7 +27,7 @@ class _TranslatorStub:
         return self._data.get(key, False)
 
     def gettext(self, text: str) -> str:
-        return self._data.get(text, text)
+        return _unescape(self._data.get(text, text))
 
     def get(self, key: str, lang: str = "en") -> str:
         return self._data.get(key, key)
@@ -36,7 +43,7 @@ class _TranslatorStub:
 
 class _CallableStringsDict(dict):
     def __call__(self, key: str, _=None) -> str:
-        return self.get(key, key)
+        return _unescape(self.get(key, key))
 
 
 class _StringsShim:
@@ -106,7 +113,7 @@ class _StringsShim:
     def __getitem__(self, key: str) -> str:
         value = self._raw_value(key)
         if isinstance(value, str):
-            return value
+            return _unescape(value)
         if isinstance(value, dict):
             lang = (
                 getattr(self._translator, "_lang", "en") if self._translator else "en"
@@ -118,16 +125,16 @@ class _StringsShim:
             for candidate in preferred:
                 v = value.get(candidate)
                 if isinstance(v, str) and v:
-                    return v
+                    return _unescape(v)
             for v in value.values():
                 if isinstance(v, str) and v:
-                    return v
+                    return _unescape(v)
         return f"Unknown strings: {key}"
 
     def __call__(self, key: str, _=None):
         value = self._raw_value(key)
         if value is not None:
-            return value
+            return _unescape(value)
         grouped = self._group_value(key)
         if grouped is not None:
             return grouped

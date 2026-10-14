@@ -8,12 +8,17 @@ from __future__ import annotations
 # version: 3.0.1
 # description: en: Terminal commands with real-time output streaming, parallel slots and stdin input / ru: Терминальные команды с потоковым выводом в реальном времени, параллельными слотами и вводом stdin / uk: Термінальні команди з потоковим виведенням у реальному часі, паралельними слотами та введенням stdin
 import asyncio
+import contextlib
 import html
 import os
 import re
 import shlex
 import signal
 import time
+import uuid
+from typing import Any
+
+from telethon import Button
 
 from core.lib.loader.module_config import (
     Boolean,
@@ -25,6 +30,7 @@ from core.lib.loader.module_config import (
     String,
 )
 from utils.strings import Strings
+from utils.tg_emoji import account_has_premium, tg_emoji_to_link
 
 CUSTOM_EMOJI = {
     "💻": '<tg-emoji emoji-id="5472111548572900003">💻</tg-emoji>',
@@ -57,6 +63,9 @@ CUSTOM_EMOJI = {
 }
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*[mABCDEFGHJKSTfhilmnprsu]")
+
+# How long (seconds) an "input" button keeps pointing at its terminal slot.
+_INPUT_KEY_TTL = 3600
 
 
 def _filter_proxychains_output(text: str) -> str:
@@ -308,6 +317,88 @@ def register(kernel):
             # slot is a string, default "1".
             self.running_commands: dict = {}
             self.update_tasks: dict = {}
+            self.input_form_id: str | None = None
+            # Message events of running slots, so edits go through the event
+            # itself (guest/inline messages are not editable by id).
+            self.events: dict[str, Any] = {}
+
+        @staticmethod
+        def _slot_key(chat_id, slot: str = "1") -> str:
+            return f"{chat_id}:{slot}"
+
+        async def _edit_message(
+            self,
+            chat_id,
+            slot: str,
+            message_id,
+            text: str,
+            **kwargs: Any,
+        ) -> Any:
+            """Edit a slot's message through its event, falling back to its id."""
+            event = self.events.get(self._slot_key(chat_id, slot))
+            if event is not None:
+                try:
+                    return await event.edit(text, **kwargs)
+                except Exception as e:
+                    logger.debug(f"terminal: event edit failed ({e}), using message id")
+            return await kernel.bot_client.edit_message(chat_id, message_id, text, **kwargs)
+
+        def _input_buttons(self, chat_id, slot: str = "1"):
+            """Build the "send stdin" row shown under every terminal message.
+
+            The button opens the bot's inline mode in the same chat; what the
+            user types is delivered to :meth:`send_stdin` of that slot. The
+            inline update carries no chat id, so the target slot is looked up
+            in the cache by the key embedded in the inline query.
+            """
+            if not self.input_form_id:
+                return None
+
+            key = f"terminal_input_{uuid.uuid4().hex[:12]}"
+            kernel.cache.set(
+                key,
+                {"chat_id": chat_id, "slot": slot},
+                ttl=_INPUT_KEY_TTL,
+            )
+            return [
+                [
+                    Button.switch_inline(
+                        f"✏️ {lang['input_button']}",
+                        query=f"{self.input_form_id} {key} ",
+                        same_peer=True,
+                    )
+                ]
+            ]
+
+        async def _handle_input(self, event, args: str) -> None:
+            """inline_temp handler: write the typed text to the slot's stdin.
+
+            ``UpdateBotInlineSend`` has no ``answer()`` and the message must not
+            be spammed back into the chat, so the result only goes to the log.
+            """
+            key, _, text = (args or "").partition(" ")
+            if not key or not text:
+                logger.debug("terminal: empty stdin input")
+                return
+
+            target = kernel.cache.get(key)
+            if not target:
+                logger.debug(f"terminal: expired stdin input key {key}")
+                return
+
+            if not kernel.is_admin(getattr(event, "user_id", None)):
+                logger.warning(
+                    f"terminal: stdin input denied for {getattr(event, 'user_id', None)}"
+                )
+                return
+
+            ok, err = await self.send_stdin(target["chat_id"], target["slot"], text)
+            if ok:
+                logger.debug(f"terminal: stdin <- {text!r} (slot {target['slot']})")
+            else:
+                logger.warning(
+                    f"terminal: stdin write failed (slot {target['slot']}): {err}"
+                )
 
         def _format_output(self, text: str, max_length: int = 2000) -> str:
             """Escape and truncate output. Shows tail - it's more recent."""
@@ -388,13 +479,18 @@ def register(kernel):
                     )
                     footer = f"<blockquote>{' | '.join(footer_parts)}</blockquote>"
 
-            return (
+            text = (
                 f"{final_emoji} {'<b>' if final else '<i>'}{lang['system_command']}{'</b>' if final else '</i>'} {slot_label}"
                 f" <blockquote><code>{cmd_escaped}</code></blockquote>\n"
                 f"{extra}"
                 f"{stdout_block}{stderr_block}"
                 f"{footer}"
             )
+            # Guest mode on accounts without Premium cannot render
+            # <tg-emoji> tags - rewrite them as tg://emoji links.
+            if cmd_data.get("downgrade_emoji"):
+                text = tg_emoji_to_link(text)
+            return text
 
         async def _build_process(
             self,
@@ -444,14 +540,30 @@ def register(kernel):
             command,
             message_id=None,
             slot: str = "1",
+            event=None,
         ):
             """Launch a shell command in the given slot with live streaming output."""
+            # Guest-mode commands are answered by the bot; on accounts
+            # without Premium their <tg-emoji> tags must be downgraded to
+            # tg://emoji links. Resolved once per command (one get_me call).
+            via_guest = bool(getattr(event, "guest_mode", False))
+            downgrade_emoji = False
+            if via_guest:
+                downgrade_emoji = not await account_has_premium(client)
+
+            if event is not None:
+                self.events[self._slot_key(chat_id, slot)] = event
             key = (chat_id, slot)
             if key in self.running_commands:
                 slot_label = f" (@{slot})" if slot != "1" else ""
+                busy_text = (
+                    f"{CUSTOM_EMOJI['🗯']} <i>{lang['command_already_running']}{slot_label}</i>"
+                )
+                if downgrade_emoji:
+                    busy_text = tg_emoji_to_link(busy_text)
                 await client.send_message(
                     chat_id,
-                    f"{CUSTOM_EMOJI['🗯']} <i>{lang['command_already_running']}{slot_label}</i>",
+                    busy_text,
                     parse_mode="html",
                 )
                 return
@@ -473,6 +585,7 @@ def register(kernel):
                     "data_event": data_event,
                     "piped": piped,
                     "timeout_task": None,
+                    "downgrade_emoji": downgrade_emoji,
                 }
 
                 cfg_shell = _get_config()
@@ -504,24 +617,33 @@ def register(kernel):
 
                 if message_id:
                     cmd_data["message_id"] = message_id
-                    await client.edit_message(
+                    await self._edit_message(
                         chat_id,
+                        slot,
                         message_id,
                         self._build_message(cmd_data),
                         parse_mode="html",
+                        buttons=self._input_buttons(chat_id, slot),
                     )
                 else:
                     slot_label = (
                         f" <code>@{html.escape(slot)}</code>" if slot != "1" else ""
                     )
-                    msg = await client.send_message(
-                        chat_id,
+                    initial_text = (
                         f"{CUSTOM_EMOJI['loading']} <i>{lang['system_command']}</i>{slot_label} "
                         f"<blockquote><code>{html.escape(command)}</code></blockquote>\n"
-                        f"{CUSTOM_EMOJI['❄️']} <i>{lang['executing']}</i>",
+                        f"{CUSTOM_EMOJI['❄️']} <i>{lang['executing']}</i>"
+                    )
+                    if downgrade_emoji:
+                        initial_text = tg_emoji_to_link(initial_text)
+                    msg = await client.send_message(
+                        chat_id,
+                        initial_text,
                         parse_mode="html",
+                        buttons=self._input_buttons(chat_id, slot),
                     )
                     cmd_data["message_id"] = msg.id
+                    self.events.setdefault(self._slot_key(chat_id, slot), msg)
 
                 update_task = asyncio.create_task(self._update_loop(key))
                 read_task = asyncio.create_task(self._read_output(key))
@@ -532,6 +654,8 @@ def register(kernel):
                     f"{CUSTOM_EMOJI['🗯']} <i>{lang['launch_error']}</i> "
                     f"<code>{html.escape(str(e))}</code>"
                 )
+                if downgrade_emoji:
+                    error_msg = tg_emoji_to_link(error_msg)
                 if message_id:
                     await client.edit_message(
                         chat_id, message_id, error_msg, parse_mode="html"
@@ -772,11 +896,13 @@ def register(kernel):
 
                 chat_id = key[0]
                 try:
-                    await client.edit_message(
+                    await self._edit_message(
                         chat_id,
+                        cmd_data.get("slot", "1"),
                         cmd_data["message_id"],
                         new_text,
                         parse_mode="html",
+                        buttons=self._input_buttons(chat_id, cmd_data.get("slot", "1")),
                     )
                     last_edit = time.time()
                 except asyncio.CancelledError:
@@ -793,6 +919,8 @@ def register(kernel):
             chat_id = key[0]
 
             piped = cmd_data.get("piped", False)
+            slot = cmd_data.get("slot", "1")
+            buttons = self._input_buttons(chat_id, slot)
 
             try:
                 if piped:
@@ -804,11 +932,13 @@ def register(kernel):
                         stdout,
                     )
                 else:
-                    await client.edit_message(
+                    await self._edit_message(
                         chat_id,
+                        slot,
                         cmd_data["message_id"],
                         self._build_message(cmd_data, final=True),
                         parse_mode="html",
+                        buttons=buttons,
                     )
             except Exception as e:
                 logger.error(f"terminal: final edit error: {e}")
@@ -910,6 +1040,7 @@ def register(kernel):
                         message_id,
                         f"{CUSTOM_EMOJI['☑️']} <i>{lang['command_stopped']}</i>",
                         parse_mode="html",
+                        buttons=self._input_buttons(chat_id, slot),
                     )
 
             except Exception as e:
@@ -924,8 +1055,17 @@ def register(kernel):
                 else:
                     await client.send_message(chat_id, error_msg, parse_mode="html")
                 await kernel.handle_error(e, message="Terminal kill command failed")
+            finally:
+                # The slot is gone: drop its event so the map does not grow.
+                self.events.pop(self._slot_key(chat_id, slot), None)
 
     terminal = TerminalModule()
+    # One long-lived inline form backs the "input" button on every message:
+    # the slot it writes to travels in the inline query, not in the event.
+    terminal.input_form_id = kernel.register.inline_temp(
+        terminal._handle_input,
+        ttl=_INPUT_KEY_TTL,
+    )
 
     @kernel.register.command(
         "t",
@@ -969,7 +1109,70 @@ def register(kernel):
             )
             await event.edit(output if output else "done")
         else:
-            await terminal.run_command(event.chat_id, cmd, event.id, slot=slot)
+            await terminal.run_command(
+                event.chat_id, cmd, event.id, slot=slot, event=event
+            )
+
+    @kernel.register.guest_command(
+        "t",
+        doc_en="[@N] [command] execute shell command (optional slot @1-@N)",
+        doc_uk="[@N] [команда] виконати shell-команду (необов’язковий слот @1-@N)",
+        doc_ru="[@N] [кoмaндa] выпoлнить shell кoмaндy (cлoт @1-@N нeoбязaтeлeн)",
+    )
+    async def guest_cmd_t(event):
+        # The bot's own reply becomes the terminal message: it is our message,
+        # so the terminal can edit it in place.
+        message = await event.reply("🤔")
+        message.raw_text = event.text
+        message.text = event.text
+        # Marks the guest origin so run_command downgrades <tg-emoji>
+        # tags when the account has no Premium.
+        message.guest_mode = True
+        await terminal_handler(message)
+
+    @kernel.register.command(
+        "iterm",
+        alias="it",
+        doc_en="[...] invoke `@bot t ...` in guest mode (runs via the inline bot)",
+        doc_uk="[...] викликати `@bot t ...` у guest-режимі (виконує inline-бот)",
+        doc_ru="[...] вызвaть `@bot t ...` в guest-peжимe (выпoлняeт inline-бoт)",
+    )
+    async def iterm_handler(event):
+        """Invoke the terminal through guest mode: sends `@bot t ...`.
+
+        The message triggers ``updateBotGuestChatQuery`` on the bot client,
+        so execution (and its output) comes from the bot, exactly like a
+        manually sent ``@bot t <command>``. The command message itself is
+        deleted to keep the chat clean.
+        """
+        bot_username = (kernel.config.get("inline_bot_username") or "").lstrip("@")
+        if not bot_username:
+            await event.edit(
+                f"{CUSTOM_EMOJI['🗯']} <i>{lang['iterm_no_bot']}</i>",
+                parse_mode="html",
+            )
+            return
+
+        parts = event.raw_text.split(maxsplit=1)
+        rest = parts[1] if len(parts) > 1 else ""
+        guest_text = f"@{bot_username} t {rest}".strip()
+
+        try:
+            await client.send_message(
+                event.chat_id,
+                guest_text,
+                reply_to=getattr(event, "reply_to_msg_id", None),
+            )
+        except Exception as e:
+            await kernel.handle_error(e, message="iterm guest invoke failed")
+            await event.edit(
+                f"{CUSTOM_EMOJI['🗯']} <i>{lang['iterm_no_bot']}</i>",
+                parse_mode="html",
+            )
+            return
+
+        with contextlib.suppress(Exception):
+            await event.delete()
 
     @kernel.register.command(
         "tkill",

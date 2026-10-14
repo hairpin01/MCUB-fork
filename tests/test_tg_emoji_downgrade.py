@@ -5,6 +5,7 @@
 """Tests for <tg-emoji> -> tg://emoji downgrade (non-Premium accounts)."""
 
 from types import SimpleNamespace
+from unittest import TestCase
 from unittest.mock import AsyncMock
 
 import pytest
@@ -17,39 +18,45 @@ from utils.tg_emoji import (
     tg_emoji_to_link,
 )
 
+_ASSERT = TestCase()
+
 SRC = '<tg-emoji emoji-id="5346022209389372742">🤔</tg-emoji>'
 DST = '<a href="tg://emoji?id=5346022209389372742">🤔</a>'
 
 
 def test_converts_single_tag():
-    assert tg_emoji_to_link(SRC) == DST
+    _ASSERT.assertEqual(tg_emoji_to_link(SRC), DST)
 
 
 def test_converts_multiple_tags():
     text = f"a {SRC} b " + '<tg-emoji emoji-id="1">👍</tg-emoji>'
-    assert tg_emoji_to_link(text) == f'a {DST} b <a href="tg://emoji?id=1">👍</a>'
+    _ASSERT.assertEqual(
+        tg_emoji_to_link(text), f'a {DST} b <a href="tg://emoji?id=1">👍</a>'
+    )
 
 
 def test_leaves_plain_text_untouched():
-    assert tg_emoji_to_link("hello <b>world</b>") == "hello <b>world</b>"
+    _ASSERT.assertEqual(
+        tg_emoji_to_link("hello <b>world</b>"), "hello <b>world</b>"
+    )
 
 
 def test_accepts_single_quotes_and_case_variants():
-    assert (
-        tg_emoji_to_link("<TG-EMOJI EMOJI-ID='42'>x</TG-EMOJI>")
-        == '<a href="tg://emoji?id=42">x</a>'
+    _ASSERT.assertEqual(
+        tg_emoji_to_link("<TG-EMOJI EMOJI-ID='42'>x</TG-EMOJI>"),
+        '<a href="tg://emoji?id=42">x</a>',
     )
 
 
 def test_leaves_non_numeric_id_untouched():
     text = "<tg-emoji emoji-id=\"abc\">x</tg-emoji>"
-    assert tg_emoji_to_link(text) == text
+    _ASSERT.assertEqual(tg_emoji_to_link(text), text)
 
 
 def test_has_tg_emoji():
-    assert has_tg_emoji(SRC) is True
-    assert has_tg_emoji("plain") is False
-    assert has_tg_emoji(None) is False
+    _ASSERT.assertTrue(has_tg_emoji(SRC))
+    _ASSERT.assertFalse(has_tg_emoji("plain"))
+    _ASSERT.assertFalse(has_tg_emoji(None))
 
 
 def _client(premium=True, fail=False):
@@ -66,29 +73,27 @@ def _client(premium=True, fail=False):
 
 @pytest.mark.asyncio
 async def test_premium_account_keeps_tags():
-    assert await account_has_premium(_client(premium=True)) is True
-    assert (
-        await downgrade_tg_emoji(SRC, _client(premium=True)) == SRC
-    )
+    _ASSERT.assertTrue(await account_has_premium(_client(premium=True)))
+    _ASSERT.assertEqual(await downgrade_tg_emoji(SRC, _client(premium=True)), SRC)
 
 
 @pytest.mark.asyncio
 async def test_non_premium_account_converts():
-    assert await account_has_premium(_client(premium=False)) is False
-    assert await downgrade_tg_emoji(SRC, _client(premium=False)) == DST
+    _ASSERT.assertFalse(await account_has_premium(_client(premium=False)))
+    _ASSERT.assertEqual(await downgrade_tg_emoji(SRC, _client(premium=False)), DST)
 
 
 @pytest.mark.asyncio
 async def test_get_me_failure_keeps_original():
-    assert await account_has_premium(_client(fail=True)) is True
-    assert await account_has_premium(None) is True
-    assert await downgrade_tg_emoji(SRC, _client(fail=True)) == SRC
+    _ASSERT.assertTrue(await account_has_premium(_client(fail=True)))
+    _ASSERT.assertTrue(await account_has_premium(None))
+    _ASSERT.assertEqual(await downgrade_tg_emoji(SRC, _client(fail=True)), SRC)
 
 
 @pytest.mark.asyncio
 async def test_text_without_tags_skips_get_me():
     client = SimpleNamespace(get_me=AsyncMock())
-    assert await downgrade_tg_emoji("plain", client) == "plain"
+    _ASSERT.assertEqual(await downgrade_tg_emoji("plain", client), "plain")
     client.get_me.assert_not_called()
 
 
@@ -120,9 +125,9 @@ async def test_guest_man_converts_without_premium():
     event = _guest_event("")
     await inst.guest_man(event)
     (text,), kwargs = event.reply.call_args
-    assert DST in text
-    assert SRC not in text
-    assert kwargs["parse_mode"] == "html"
+    _ASSERT.assertIn(DST, text)
+    _ASSERT.assertNotIn(SRC, text)
+    _ASSERT.assertEqual(kwargs["parse_mode"], "html")
 
 
 @pytest.mark.asyncio
@@ -131,8 +136,8 @@ async def test_guest_man_detail_converts_without_premium():
     event = _guest_event("terminal")
     await inst.guest_man(event)
     (text,), _kwargs = event.reply.call_args
-    assert DST in text
-    assert SRC not in text
+    _ASSERT.assertIn(DST, text)
+    _ASSERT.assertNotIn(SRC, text)
 
 
 @pytest.mark.asyncio
@@ -141,4 +146,4 @@ async def test_guest_man_keeps_tags_with_premium():
     event = _guest_event("")
     await inst.guest_man(event)
     (text,), _kwargs = event.reply.call_args
-    assert SRC in text
+    _ASSERT.assertIn(SRC, text)

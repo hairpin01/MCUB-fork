@@ -5,7 +5,7 @@ from __future__ import annotations
 
 # requires:
 # author: @Hairpin00
-# version: 3.0.1
+# version: 3.1.0
 # description: en: Terminal commands with real-time output streaming, parallel slots and stdin input / ru: Терминальные команды с потоковым выводом в реальном времени, параллельными слотами и вводом stdin / uk: Термінальні команди з потоковим виведенням у реальному часі, паралельними слотами та введенням stdin
 import asyncio
 import contextlib
@@ -20,6 +20,7 @@ from typing import Any
 
 from telethon import Button
 
+from core_inline.api.inline import make_cb_button
 from core.lib.loader.module_config import (
     Boolean,
     Choice,
@@ -318,9 +319,16 @@ def register(kernel):
             self.running_commands: dict = {}
             self.update_tasks: dict = {}
             self.input_form_id: str | None = None
+            # Inline forms behind the "exit" and "next command" buttons.
+            self.exit_form_id: str | None = None
+            self.next_form_id: str | None = None
             # Message events of running slots, so edits go through the event
             # itself (guest/inline messages are not editable by id).
             self.events: dict[str, Any] = {}
+            # Cache keys of the buttons of the last message of a slot, so
+            # every edit of a running command reuses the same keys instead of
+            # filling the shared kernel cache with one entry per edit.
+            self.button_keys: dict[str, dict] = {}
 
         @staticmethod
         def _slot_key(chat_id, slot: str = "1") -> str:
@@ -336,6 +344,10 @@ def register(kernel):
         ) -> Any:
             """Edit a slot's message through its event, falling back to its id."""
             event = self.events.get(self._slot_key(chat_id, slot))
+            if event is not None and getattr(event, "id", None) != message_id:
+                # The slot moved on to another message (old "next command"
+                # button): that event would edit somebody else's message.
+                event = None
             if event is not None:
                 try:
                     return await event.edit(text, **kwargs)
@@ -343,32 +355,118 @@ def register(kernel):
                     logger.debug(f"terminal: event edit failed ({e}), using message id")
             return await kernel.bot_client.edit_message(chat_id, message_id, text, **kwargs)
 
-        def _input_buttons(self, chat_id, slot: str = "1"):
-            """Build the "send stdin" row shown under every terminal message.
+        def _event_for(self, chat_id, slot: str, message_id):
+            """Return the slot's event, but only if it is *message_id*.
 
-            The button opens the bot's inline mode in the same chat; what the
-            user types is delivered to :meth:`send_stdin` of that slot. The
-            inline update carries no chat id, so the target slot is looked up
-            in the cache by the key embedded in the inline query.
+            Guest/inline messages cannot be edited by id, so the message
+            event is what makes them editable. A stale button must never
+            borrow the event of a message that replaced it.
             """
-            if not self.input_form_id:
+            event = self.events.get(self._slot_key(chat_id, slot))
+            if event is None or getattr(event, "id", None) != message_id:
+                return None
+            return event
+
+        def _buttons(self, chat_id, slot: str = "1", *, running: bool, message_id=None):
+            """Build the button row shown under every terminal message.
+
+            ``[stdin] [exit | next command]``
+
+            * stdin - opens the bot's inline mode in the same chat, what the
+              user types is written to the slot's stdin.
+            * next command - the same inline input, but the typed text is
+              executed as a new command in this very message, so a chat keeps
+              one scrolling terminal instead of a message per command. Shown
+              instead of exit once the command has stopped.
+            * exit - a callback button that stops the slot, i.e. ``tkill``
+              without the arguments. The pressed data is only a token from
+              ``kernel.inline_callback_map``, the slot travels in the args.
+
+            Switch-inline buttons take the chat id and slot from a cache
+            entry keyed by the uuid embedded in the query, because an inline
+            update carries no chat id.
+            """
+            if not (self.input_form_id and self.next_form_id):
                 return None
 
-            key = f"terminal_input_{uuid.uuid4().hex[:12]}"
-            kernel.cache.set(
-                key,
-                {"chat_id": chat_id, "slot": slot},
-                ttl=_INPUT_KEY_TTL,
+            slot_key = self._slot_key(chat_id, slot)
+            state = self.button_keys.get(slot_key)
+            if state is None or (
+                message_id is not None and state.get("message_id") != message_id
+            ):
+                state = {
+                    "message_id": message_id,
+                    "stdin": f"terminal_stdin_{uuid.uuid4().hex[:12]}",
+                    "next": f"terminal_next_{uuid.uuid4().hex[:12]}",
+                    "exit": uuid.uuid4().hex,
+                }
+                self.button_keys[slot_key] = state
+
+            target = {"chat_id": chat_id, "slot": slot, "message_id": message_id}
+            kernel.cache.set(state["stdin"], target, ttl=_INPUT_KEY_TTL)
+            kernel.cache.set(state["next"], target, ttl=_INPUT_KEY_TTL)
+
+            action = (
+                # The token is reused on every edit of the same message and
+                # only refreshed in place, otherwise a streaming command would
+                # register one callback token per edit.
+                make_cb_button(
+                    kernel,
+                    f"🛑 {lang['stop_button']}",
+                    self._on_exit_button,
+                    args=[chat_id, slot],
+                    ttl=_INPUT_KEY_TTL,
+                    token=state["exit"],
+                )
+                if running
+                else Button.switch_inline(
+                    f"⏭ {lang['next_command_button']}",
+                    query=f"{self.next_form_id} {state['next']} ",
+                    same_peer=True,
+                )
             )
             return [
                 [
                     Button.switch_inline(
                         f"✏️ {lang['input_button']}",
-                        query=f"{self.input_form_id} {key} ",
+                        query=f"{self.input_form_id} {state['stdin']} ",
                         same_peer=True,
-                    )
+                    ),
+                    action,
                 ]
             ]
+
+        def _button_target(self, event, key: str) -> dict | None:
+            """Resolve a cached button target, or None if it must be ignored.
+
+            Inline buttons are as privileged as the commands behind them, so
+            only the admin may press them.
+            """
+            if not key:
+                logger.debug("terminal: empty button key")
+                return None
+
+            target = kernel.cache.get(key)
+            if not target:
+                logger.debug(f"terminal: expired button key {key}")
+                return None
+
+            user_id = getattr(event, "user_id", None)
+            if not kernel.is_admin(user_id):
+                logger.warning(f"terminal: button denied for {user_id}")
+                return None
+
+            return target
+
+        async def _on_exit_button(self, call, chat_id, slot: str = "1") -> None:
+            """Callback behind the "exit" button: ``tkill`` in button form."""
+            try:
+                await call.answer(
+                    f"{CUSTOM_EMOJI['☑️']} <i>{lang['command_stopped']}</i>",
+                )
+            except Exception as e:
+                logger.debug(f"terminal: exit button answer failed ({e})")
+            await self.kill_command(chat_id, slot=slot)
 
         async def _handle_input(self, event, args: str) -> None:
             """inline_temp handler: write the typed text to the slot's stdin.
@@ -377,19 +475,8 @@ def register(kernel):
             be spammed back into the chat, so the result only goes to the log.
             """
             key, _, text = (args or "").partition(" ")
-            if not key or not text:
-                logger.debug("terminal: empty stdin input")
-                return
-
-            target = kernel.cache.get(key)
-            if not target:
-                logger.debug(f"terminal: expired stdin input key {key}")
-                return
-
-            if not kernel.is_admin(getattr(event, "user_id", None)):
-                logger.warning(
-                    f"terminal: stdin input denied for {getattr(event, 'user_id', None)}"
-                )
+            target = self._button_target(event, key)
+            if not target or not text:
                 return
 
             ok, err = await self.send_stdin(target["chat_id"], target["slot"], text)
@@ -399,6 +486,31 @@ def register(kernel):
                 logger.warning(
                     f"terminal: stdin write failed (slot {target['slot']}): {err}"
                 )
+
+        async def _handle_next(self, event, args: str) -> None:
+            """inline_temp handler: run the typed text in the button's message.
+
+            The command reuses the message the button lives in, so the chat
+            keeps a single terminal message instead of one per command. The
+            message event is handed over as well: guest/inline messages can
+            only be edited through it.
+            """
+            key, _, text = (args or "").partition(" ")
+            command = text.strip()
+            target = self._button_target(event, key)
+            if not target or not command:
+                return
+
+            chat_id = target["chat_id"]
+            slot = target["slot"]
+            message_id = target.get("message_id")
+            await self.run_command(
+                chat_id,
+                command,
+                message_id,
+                slot=slot,
+                event=self._event_for(chat_id, slot, message_id),
+            )
 
         def _format_output(self, text: str, max_length: int = 2000) -> str:
             """Escape and truncate output. Shows tail - it's more recent."""
@@ -623,7 +735,9 @@ def register(kernel):
                         message_id,
                         self._build_message(cmd_data),
                         parse_mode="html",
-                        buttons=self._input_buttons(chat_id, slot),
+                        buttons=self._buttons(
+                            chat_id, slot, running=True, message_id=message_id
+                        ),
                     )
                 else:
                     slot_label = (
@@ -640,10 +754,12 @@ def register(kernel):
                         chat_id,
                         initial_text,
                         parse_mode="html",
-                        buttons=self._input_buttons(chat_id, slot),
+                        buttons=self._buttons(chat_id, slot, running=True),
                     )
                     cmd_data["message_id"] = msg.id
-                    self.events.setdefault(self._slot_key(chat_id, slot), msg)
+                    # Not setdefault: this message replaces whatever the slot
+                    # was showing, so edits must not follow the old one.
+                    self.events[self._slot_key(chat_id, slot)] = msg
 
                 update_task = asyncio.create_task(self._update_loop(key))
                 read_task = asyncio.create_task(self._read_output(key))
@@ -902,7 +1018,12 @@ def register(kernel):
                         cmd_data["message_id"],
                         new_text,
                         parse_mode="html",
-                        buttons=self._input_buttons(chat_id, cmd_data.get("slot", "1")),
+                        buttons=self._buttons(
+                            chat_id,
+                            cmd_data.get("slot", "1"),
+                            running=True,
+                            message_id=cmd_data["message_id"],
+                        ),
                     )
                     last_edit = time.time()
                 except asyncio.CancelledError:
@@ -920,7 +1041,13 @@ def register(kernel):
 
             piped = cmd_data.get("piped", False)
             slot = cmd_data.get("slot", "1")
-            buttons = self._input_buttons(chat_id, slot)
+            # The command has stopped: exit is pointless, offer the next one.
+            buttons = self._buttons(
+                chat_id,
+                slot,
+                running=False,
+                message_id=cmd_data["message_id"],
+            )
 
             try:
                 if piped:
@@ -1035,12 +1162,15 @@ def register(kernel):
                         pass
 
                 if message_id:
-                    await client.edit_message(
+                    await self._edit_message(
                         chat_id,
+                        slot,
                         message_id,
                         f"{CUSTOM_EMOJI['☑️']} <i>{lang['command_stopped']}</i>",
                         parse_mode="html",
-                        buttons=self._input_buttons(chat_id, slot),
+                        buttons=self._buttons(
+                            chat_id, slot, running=False, message_id=message_id
+                        ),
                     )
 
             except Exception as e:
@@ -1055,15 +1185,17 @@ def register(kernel):
                 else:
                     await client.send_message(chat_id, error_msg, parse_mode="html")
                 await kernel.handle_error(e, message="Terminal kill command failed")
-            finally:
-                # The slot is gone: drop its event so the map does not grow.
-                self.events.pop(self._slot_key(chat_id, slot), None)
 
     terminal = TerminalModule()
-    # One long-lived inline form backs the "input" button on every message:
-    # the slot it writes to travels in the inline query, not in the event.
+    # Long-lived inline forms back the "stdin" and "next command" buttons on
+    # every message: the slot and message they act on travel in the inline
+    # query, not in the event. "exit" needs no form - it is a token callback.
     terminal.input_form_id = kernel.register.inline_temp(
         terminal._handle_input,
+        ttl=_INPUT_KEY_TTL,
+    )
+    terminal.next_form_id = kernel.register.inline_temp(
+        terminal._handle_next,
         ttl=_INPUT_KEY_TTL,
     )
 

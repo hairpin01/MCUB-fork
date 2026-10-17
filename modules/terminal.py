@@ -461,9 +461,8 @@ def register(kernel):
         async def _on_exit_button(self, call, chat_id, slot: str = "1") -> None:
             """Callback behind the "exit" button: ``tkill`` in button form."""
             try:
-                await call.answer(
-                    f"{CUSTOM_EMOJI['☑️']} <i>{lang['command_stopped']}</i>",
-                )
+                # Toast answers are plain text: no HTML, no <tg-emoji>.
+                await call.answer(f"☑️ {lang['command_stopped']}")
             except Exception as e:
                 logger.debug(f"terminal: exit button answer failed ({e})")
             await self.kill_command(chat_id, slot=slot)

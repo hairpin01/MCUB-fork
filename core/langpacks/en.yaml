@@ -118,6 +118,8 @@ terminal:
   command_not_specified: Command not specified
   iterm_no_bot: 'Inline bot is not configured (inline_bot_username). Set inline_bot_token in config'
   input_button: stdin
+  stop_button: exit
+  next_command_button: next command
   config_update_interval: Terminal output update interval (sec, 1-30). Update also
     happens when new data arrives.
   config_filter_proxychains: Filter [proxychains] noise from stdout/stderr output

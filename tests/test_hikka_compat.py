@@ -1581,6 +1581,42 @@ class TestInlineProxyFormGalleryList:
         assert token in proxy._custom_map
         assert kernel.inline_callback_map[token]["unit_id"] in proxy._units
 
+    def test_form_preserves_html_text(self, proxy, kernel):
+        """form() must pass the module's HTML through to the inline backend.
+
+        Regression: the form text is sanitised before it reaches
+        ``kernel._inline.inline_form``; valid Telegram HTML must survive that
+        step untouched (including ``<tg-emoji>`` and closing ``>``).
+        """
+        import asyncio
+
+        html_text = (
+            "<tg-emoji emoji-id=5370869711888194012>👾</tg-emoji> App: hui\n"
+            "<tg-emoji emoji-id=5409008750893734809>🏆</tg-emoji> Top apps:\n"
+            "<blockquote expandable>1. "
+            '<a href="https://example.com/app">Hui Car Share</a> — ⭐ 4.36\n'
+            "   <i>Travel &amp; Local</i> • 50,000+\n"
+            "</blockquote>"
+        )
+        captured = {}
+
+        async def inline_form(**kwargs):
+            captured.update(kwargs)
+            return True, types.SimpleNamespace(id=777, inline_message_id="1:2:3")
+
+        kernel._inline = types.SimpleNamespace(inline_form=inline_form)
+
+        asyncio.run(
+            proxy.form(
+                text=html_text,
+                message=types.SimpleNamespace(chat_id=100, sender_id=12345),
+                ttl=60,
+            )
+        )
+
+        assert captured, "form() did not reach kernel._inline.inline_form"
+        assert captured["title"] == html_text
+
     def test_raw_inline_bot_callback_query_dispatches_hikka_token(self, proxy, kernel):
         import asyncio
         import threading

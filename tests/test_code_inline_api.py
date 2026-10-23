@@ -205,6 +205,33 @@ def test_inline_handlers_reuse_core_inline_callback_registry():
     assert kernel.inline_callback_map["handler-token"]["args"] == [42]
 
 
+def test_inline_handlers_dict_to_button_honours_canonical_switch_keys():
+    handler = object.__new__(InlineHandlers)
+    handler.kernel = FakeKernel()
+    handler.lang = {"btn_default": "Button"}
+
+    current = handler._dict_to_button(
+        {"text": "Ask", "switch_inline_query_current_chat": "token Type"}
+    )
+    assert current.type.query == "token Type"
+    assert current.type.same_peer is True
+
+    global_switch = handler._dict_to_button(
+        {"text": "Search", "switch_inline_query": "query"}
+    )
+    assert global_switch.type.query == "query"
+    assert global_switch.type.same_peer is False
+
+
+def test_build_inline_button_accepts_canonical_switch_dicts():
+    assert build_inline_button(
+        {"text": "Ask", "switch_inline_query_current_chat": "token Type"}
+    ) == {"text": "Ask", "switch_inline_query_current_chat": "token Type"}
+    assert build_inline_button(
+        {"text": "Search", "switch_inline_query": "query"}
+    ) == {"text": "Search", "switch_inline_query": "query"}
+
+
 def test_inline_handlers_build_buttons_dict_accepts_new_button_objects():
     handler = object.__new__(InlineHandlers)
 

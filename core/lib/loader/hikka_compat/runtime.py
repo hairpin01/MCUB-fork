@@ -1981,7 +1981,9 @@ class InlineProxy:
                 if ("switch" in btn or "input" in btn) and "callback" not in btn:
                     # Hikka "input" buttons use the "handler" key (not "callback").
                     # Register via inline_temp so ::inline_send_handler dispatches
-                    # the user's typed text back to handler(call, text, *args).
+                    # the user's typed text back to handler(call, text, *args),
+                    # then rewrite the hikka spec into MCUB's canonical switch
+                    # dict (same token format as ModuleBase.Button.input()).
                     if "input" in btn and "handler" in btn:
                         try:
                             from .inline_utils import _register_input_button
@@ -1993,8 +1995,15 @@ class InlineProxy:
                                 unit_id=unit_id,
                                 ttl=_ttl,
                             )
-                            btn["_switch_query"] = switch_query
-                            btn["switch_inline_query_current_chat"] = f"{switch_query} "
+                            if switch_query:
+                                hint = str(btn.get("input") or "").strip()
+                                for key in ("input", "handler", "args", "kwargs"):
+                                    btn.pop(key, None)
+                                btn["switch_inline_query_current_chat"] = (
+                                    f"{switch_query} {hint}"
+                                    if hint
+                                    else f"{switch_query} "
+                                )
                         except Exception:
                             pass  # fallback: button visually works, no dispatch
                     prepared_row.append(btn)
@@ -2061,12 +2070,16 @@ class InlineProxy:
                                 btn,
                                 inline_proxy=self,
                                 unit_id=unit_id,
-                                ttl=ttl,
+                                ttl=getattr(self, "_current_form_ttl", 3600),
                             )
                         except Exception:
                             _input_q = None
-                    btn["_switch_query"] = _input_q or _rand_token(10)
-                    btn["switch_inline_query_current_chat"] = f"{btn['_switch_query']} "
+                    hint = str(btn.get("input") or "").strip()
+                    _input_q = _input_q or _rand_token(10)
+                    btn["_switch_query"] = _input_q
+                    btn["switch_inline_query_current_chat"] = (
+                        f"{_input_q} {hint}" if hint else f"{_input_q} "
+                    )
 
                 if "copy" in btn and "copy_text" not in btn:
                     btn["copy_text"] = {"text": str(btn.get("copy", ""))}
@@ -2186,12 +2199,14 @@ class InlineProxy:
                                 button["_switch_query"] = _switch_q
                         except Exception:
                             _switch_q = None
-                    query = str(
-                        button.get(
-                            "switch_inline_query_current_chat",
-                            f"{_switch_q or ''} ",
+                    hint = str(button.get("input") or "").strip()
+                    query = str(button.get("switch_inline_query_current_chat") or "")
+                    if not query:
+                        query = (
+                            f"{_switch_q} {hint}"
+                            if _switch_q and hint
+                            else f"{_switch_q or ''} "
                         )
-                    )
                     out_row.append(Button.switch_inline(text, query, same_peer=True))
                 elif "switch_inline_query_current_chat" in button:
                     query = str(button.get("switch_inline_query_current_chat", ""))

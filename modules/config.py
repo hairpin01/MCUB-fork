@@ -14,6 +14,7 @@ import re
 import time
 import traceback
 import uuid
+import sys
 
 from telethon import Button, events, types
 from telethon.errors.rpcerrorlist import DataInvalidError, MessageNotModifiedError
@@ -165,7 +166,6 @@ TYPE_EMOJIS = {
     "NoneType": "🗳",
     "hidden": "🔒",
 }
-
 
 class InlineMessageManager:
 
@@ -1562,51 +1562,6 @@ def register(kernel):
         )
         await event.answer([builder])
 
-    async def show_module_config_view(event, module_name, page=0):
-        try:
-            module_config = await kernel.get_module_config(module_name, None)
-            if module_config is None:
-                await event.answer(t("no_config"), alert=True)
-                return
-
-            items = get_module_config_items(module_name, module_config)
-
-            layout_items = len(items)
-            total_items = count_module_config_items(items)
-            total_pages = (
-                (layout_items + config_settings.items_per_page - 1)
-                // config_settings.items_per_page
-                if layout_items > 0
-                else 1
-            )
-
-            if page < 0:
-                page = 0
-            if page >= total_pages:
-                page = total_pages - 1
-
-            start_idx = page * config_settings.items_per_page
-            end_idx = start_idx + config_settings.items_per_page
-            page_keys = items[start_idx:end_idx]
-
-            text = t(
-                "module_config_title",
-                puzzle=emoji_provider["🧩"],
-                module_name=module_name,
-                page_emoji=emoji_provider["📰"],
-                page=page + 1,
-                total_pages=total_pages,
-                total_items=total_items,
-            )
-
-            buttons = create_module_config_buttons(
-                module_name, page_keys, page, total_pages
-            )
-            await event.edit(text, buttons=buttons, parse_mode="html")
-
-        except Exception as e:
-            await event.answer(t("error", error=str(e)[:50]), alert=True)
-
     def build_custom_config_handler_data(module_name, modules_page=0):
         standard_nav_id = generate_key_id(module_name, 0, "module_nav")
         kernel.cache.set(f"module_nav_{standard_nav_id}", (module_name, 0), ttl=86400)
@@ -2024,6 +1979,60 @@ def register(kernel):
         )
         buttons.append([Button.inline("❌ Close", data=b"cfg_close", style="danger")])
         return text, buttons
+
+    async def show_module_config_view(event, module_name, page=0):
+        try:
+            module_config = await kernel.get_module_config(module_name, None)
+            if module_config is None:
+                await event.answer(t("no_config"), alert=True)
+                return
+
+            items = get_module_config_items(module_name, module_config)
+
+            layout_items = len(items)
+            total_items = count_module_config_items(items)
+            total_pages = (
+                (layout_items + config_settings.items_per_page - 1)
+                // config_settings.items_per_page
+                if layout_items > 0
+                else 1
+            )
+
+            if page < 0:
+                page = 0
+            if page >= total_pages:
+                page = total_pages - 1
+
+            start_idx = page * config_settings.items_per_page
+            end_idx = start_idx + config_settings.items_per_page
+            page_keys = items[start_idx:end_idx]
+
+            text = t(
+                "module_config_title",
+                puzzle=emoji_provider["🧩"],
+                module_name=module_name,
+                page_emoji=emoji_provider["📰"],
+                page=page + 1,
+                total_pages=total_pages,
+                total_items=total_items,
+            )
+
+            buttons = create_module_config_buttons(
+                module_name, page_keys, page, total_pages
+            )
+            await event.edit(text, buttons=buttons, parse_mode="html")
+
+        except Exception as e:
+            await event.answer(t("error", error=str(e)[:50]), alert=True)
+
+    class Api:
+
+        async def open_module_config(self, event, module_name, page=0):
+            await show_module_config_view(event, module_name, page=0)
+
+    api = Api()
+
+    sys.modules["config_api"] = api
 
     async def show_module_key_view(
         event, module_name, key, page, parent_group_key=None

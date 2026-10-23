@@ -1579,7 +1579,12 @@ class InlineHandlers:
         ):
             if "url" in btn_dict:
                 b_type = "url"
-            elif "switch" in btn_dict or "input" in btn_dict:
+            elif (
+                "switch" in btn_dict
+                or "input" in btn_dict
+                or "switch_inline_query" in btn_dict
+                or "switch_inline_query_current_chat" in btn_dict
+            ):
                 b_type = "switch"
             elif "phone" in btn_dict:
                 b_type = "phone"
@@ -1614,11 +1619,29 @@ class InlineHandlers:
             url = btn_dict.get("url", btn_dict.get("data", ""))
             return Button.url(text, url, icon=icon, style=style)
         if b_type == "switch":
-            query = btn_dict.get("query", "")
-            hint = btn_dict.get("hint", "")
-            same_peer = bool(btn_dict.get("same_peer", False)) or bool(hint)
+            # Canonical MCUB dictionaries (produced by InlineButton.switch and
+            # hikka_compat) carry the ready switch query directly. Honour it
+            # before falling back to hikka-style query/hint/input fields.
+            if "switch_inline_query_current_chat" in btn_dict:
+                query = str(btn_dict.get("switch_inline_query_current_chat") or "")
+                same_peer = True
+            elif "switch_inline_query" in btn_dict:
+                query = str(btn_dict.get("switch_inline_query") or "")
+                same_peer = False
+            else:
+                switch_value = btn_dict.get("switch")
+                query = str(
+                    btn_dict.get("hint")
+                    or btn_dict.get("query")
+                    or (switch_value if isinstance(switch_value, str) else "")
+                    or btn_dict.get("input")
+                    or ""
+                )
+                same_peer = bool(btn_dict.get("same_peer", False)) or bool(
+                    btn_dict.get("hint") or btn_dict.get("input")
+                )
             return Button.switch_inline(
-                text, hint or query, same_peer=same_peer, icon=icon, style=style
+                text, query, same_peer=same_peer, icon=icon, style=style
             )
         if b_type == "phone":
             return Button.request_phone(text, icon=icon, style=style)

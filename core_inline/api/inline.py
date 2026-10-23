@@ -393,16 +393,44 @@ def _build_button_from_dict(btn: dict[str, Any]) -> dict[str, Any] | None:
             copy_value = copy_value.get("text", "")
         return build_button_copy(text, str(copy_value or ""), emoji)
 
+    # Canonical switch dictionaries store the ready query in the Telegram
+    # field name; consume it directly instead of falling through to callback.
+    if "switch_inline_query_current_chat" in btn:
+        return _with_emoji(
+            {
+                "text": text,
+                "switch_inline_query_current_chat": str(
+                    btn.get("switch_inline_query_current_chat") or ""
+                ),
+            },
+            emoji,
+        )
+    if "switch_inline_query" in btn:
+        return _with_emoji(
+            {
+                "text": text,
+                "switch_inline_query": str(btn.get("switch_inline_query") or ""),
+            },
+            emoji,
+        )
+
     if b_type == "callback":
         callback_data = btn.get("callback_data", btn.get("data", ""))
         return build_button_callback(text, str(callback_data), emoji)
     if b_type == "url":
         return build_button_url(text, str(btn.get("url", "")), emoji)
     if b_type == "switch":
+        switch_value = btn.get("switch")
+        hint = str(
+            btn.get("hint")
+            or (switch_value if isinstance(switch_value, str) else "")
+            or btn.get("input")
+            or ""
+        )
         return build_button_switch(
             text,
             str(btn.get("query", "")),
-            str(btn.get("hint", "")),
+            hint,
             emoji,
             same_peer=bool(btn.get("same_peer", False)),
         )

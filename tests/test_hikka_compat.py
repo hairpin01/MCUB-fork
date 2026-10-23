@@ -1790,7 +1790,7 @@ class TestInlineProxyFormGalleryList:
 
         assert seen == {"data": token, "value": "ok"}
 
-    def test_input_button_registers_inline_temp_and_preserves_query_space(
+    def test_input_button_registers_inline_temp_and_builds_switch_dict(
         self, proxy, kernel
     ):
         import asyncio
@@ -1817,13 +1817,18 @@ class TestInlineProxyFormGalleryList:
             unit_id="unit-1",
         )
 
+        # Hikka's "input" spec is rewritten into MCUB's canonical switch dict
+        # with the same token query format as ModuleBase.Button.input().
         button = prepared[0][0]
-        assert button["_switch_query"] == "input-token"
-        assert button["switch_inline_query_current_chat"] == "input-token "
+        assert button == {
+            "text": "Ask",
+            "switch_inline_query_current_chat": "input-token Type",
+        }
         assert captured["kwargs"]["ttl"] == 60
 
         telethon_buttons = proxy._to_telethon_buttons(prepared)
-        assert telethon_buttons[0][0].type.query == "input-token "
+        assert telethon_buttons[0][0].type.query == "input-token Type"
+        assert telethon_buttons[0][0].type.same_peer is True
 
         event = types.SimpleNamespace(msg_id=None, user_id=12345)
         asyncio.run(captured["handler"](event, "typed text"))

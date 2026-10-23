@@ -379,16 +379,9 @@ def _register_input_button(
         )
         return await handler(call_obj, query_args, *args, **kwargs)
 
-    def _article(event):
-        return event.builder.article(
-            title=placeholder,
-            text=placeholder,
-        )
-
     return kernel.register.inline_temp(
         _hikka_input_wrapper,
         ttl=ttl,
-        article=_article,
         allow_user=button.get("allow_user"),
         allow_ttl=int(button.get("allow_ttl", 100)),
     )
@@ -487,13 +480,15 @@ def _build_button(button: dict) -> dict | None:
         result["callback_data"] = str(button.get("callback_data", ""))
     elif "data" in button:
         result["callback_data"] = str(button.get("data", ""))
-    elif "input" in button:
-        result["switch_inline_query_current_chat"] = (
-            button.get("_switch_query", "") + " "
-        )
     elif "switch_inline_query_current_chat" in button:
         result["switch_inline_query_current_chat"] = str(
             button.get("switch_inline_query_current_chat", "")
+        )
+    elif "input" in button:
+        hint = str(button.get("input") or "").strip()
+        token = str(button.get("_switch_query") or "")
+        result["switch_inline_query_current_chat"] = (
+            f"{token} {hint}" if token and hint else f"{token} "
         )
     elif "switch_inline_query" in button:
         result["switch_inline_query"] = str(button.get("switch_inline_query", ""))

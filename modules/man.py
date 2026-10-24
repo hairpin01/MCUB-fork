@@ -1243,7 +1243,7 @@ class ManModule(ModuleBase):
                     cmds = cmds_by_mod[mod_name]
                     lines.append(f"{mod_name} ({', '.join(cmds)})")
 
-                result_text = "<br>".join(lines) if lines else "Heт мoдyлeй c кoмaндaми"
+                result_text = "\n".join(lines) if lines else "Heт мoдyлeй c кoмaндaми"
                 await self.edit(event, result_text)
                 return
 
@@ -1313,11 +1313,11 @@ class ManModule(ModuleBase):
                     return
 
                 try:
-                    # убрать
-                    success, sent = await self.kernel.inline_query_and_click(
-                        chat_id=event.chat_id,
-                        query="man",
-                        reply_to=event.reply_to_msg_id,
+                    
+                    success, sent = await self.subinline.rich_form(
+                        event,
+                        page_msg,
+                        buttons=btn
                     )
                     if not success:
                         await self.edit(
@@ -1556,26 +1556,3 @@ class ManModule(ModuleBase):
     )
     async def cmd_help(self, event: events.NewMessage.Event) -> None:
         await self.cmd_man(event)
-
-    # удалить inline команду
-    @inline("man")
-    async def inline_man(self, event) -> None:
-        query = event.text.strip()
-        s = self.strings
-
-        if query == "man":
-            thumb1 = self._make_thumb("https://kappa.lol/6plQLz")
-            hidden = await self._get_hidden_modules()
-            msg1, buttons = self._get_paginated_data(
-                0,
-                hidden_list=hidden,
-                page_cb=self._man_page_cb,
-                close_cb=self._man_close_cb,
-            )
-            article1 = event.builder.rich_article(
-                "Module Manager",
-                self._add_inline_banner_preview(msg1),
-                description="Browse all modules",
-                buttons=buttons,
-                thumb=thumb1,
-            )

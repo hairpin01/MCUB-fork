@@ -1437,7 +1437,7 @@ config:
                        {puzzle} <b>Module:</b> <code>{module_name}</code>
                        {page_emoji} Page <b>{page}/{total_pages}</b> ({total_items} keys)
   key_view: |-
-            {note} <b>{key}</b> ({type_emoji} {value_type})
+            <p>{note} <b>{key}</b> ({type_emoji} {value_type})</p>
             {display_value}
   btn_back: "⬅️"
   btn_next: "➡️"

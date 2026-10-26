@@ -1331,7 +1331,7 @@ config:
     {puzzle} <b>Moдyль:</b> <code>{module_name}</code>
     {page_emoji} Cтpaницa <b>{page}/{total_pages}</b> ({total_items} ключeй)
   key_view: |-
-    {note} <b>{key}</b> ({type_emoji} {value_type})
+    <p>{note} <b>{key}</b> ({type_emoji} {value_type})</p>
     {display_value}
   btn_back: "⬅️"
   btn_next: "➡️"

@@ -1359,7 +1359,7 @@ Choose section:"
   module_config_title: "{puzzle} <b>Package:</b> <code>{module_name}</code>
 
 {page_emoji} pg <b>{page}/{total_pages}</b> ({total_items} keys)"
-  key_view: "{note} <b>{key}</b> ({type_emoji} {value_type})
+  key_view: "<p>{note} <b>{key}</b> ({type_emoji} {value_type})</p>
 
 {display_value}"
   btn_back: "⬅️"

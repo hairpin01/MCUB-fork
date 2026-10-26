@@ -767,8 +767,6 @@ def register(kernel):
                 ],
             ]
 
-    # ── shared page/nav builders ────────────────────────────────────────────
-
     def _paginate(total: int, per_page: int, page: int):
         """Return (total_pages, clamped_page, start_idx)."""
         total_pages = max(1, (total + per_page - 1) // per_page)
@@ -2047,7 +2045,7 @@ def register(kernel):
             if payload is NO_EDIT:
                 return
             text, buttons = payload
-            await event.edit(text, buttons=buttons, parse_mode="html")
+            await event.edit_rich(text, buttons=buttons)
         except MessageNotModifiedError:
             return
         except Exception as e:
@@ -3477,7 +3475,7 @@ def register(kernel):
                     [Button.inline("❌ Close", data=b"cfg_close", style="danger")]
                 )
 
-                await cb_event.edit(text, buttons=buttons, parse_mode="html")
+                await cb_event.edit_rich(text, buttons=buttons)
             except Exception as e:
                 await cb_event.answer(str(e)[:50], alert=True)
 

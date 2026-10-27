@@ -1352,7 +1352,7 @@ class ManModule(ModuleBase):
                             #file=media,
                             #parse_mode="html",
                             #invert_media=True
-                            buttons=self._build_buttons()
+                            buttons=self._build_buttons(),
                             reply_to=getattr(event, "reply_to", None)
                         )
                     except Exception as e:

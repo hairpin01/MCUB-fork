@@ -1309,9 +1309,9 @@ class ManModule(ModuleBase):
                                 #),
                             )
                         else:
-                            await self.subinline.rich_form(event, page_msg, buttons=btn)
+                            await self.subinline.rich_form(event, page_msg, buttons=btn, reply_to=getattr(event, "reply_to", None))
                     except TypeError:
-                        await self.subinline.rich_form(event, page_msg, buttons=btn)
+                        await self.subinline.rich_form(event, page_msg, buttons=btn, reply_to=getattr(event, "reply_to", None))
                     return
 
                 try:
@@ -1319,7 +1319,7 @@ class ManModule(ModuleBase):
                     success, sent = await self.subinline.rich_form(
                         event,
                         page_msg,
-                        buttons=btn
+                        buttons=btn,
                         reply_to=getattr(event, "reply_to", None)
                     )
                     if not success:

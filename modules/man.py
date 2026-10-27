@@ -1282,6 +1282,7 @@ class ManModule(ModuleBase):
                                     event,
                                     page_msg,
                                     buttons=btn,
+                                    reply_to=getattr(event, "reply_to", None)
                                     #file=InputMediaWebPage(
                                     #   banner_url,
                                     #   optional=True,
@@ -1293,12 +1294,13 @@ class ManModule(ModuleBase):
                                     #),
                                 )
                             else:
-                                await self.subinline.rich_form(event, page_msg, buttons=btn)
+                                await self.subinline.rich_form(event, page_msg, buttons=btn, reply_to=getattr(event, "reply_to", None))
                         elif raw_banner_url:
                             await self.subinline.rich_form(
                                 event,
                                 page_msg,
                                 buttons=btn,
+                                reply_to=getattr(event, "reply_to", None)
                                 #file=raw_banner_url,
                                 #parse_mode="html",
                                 #invert_media=self.config.get(
@@ -1318,6 +1320,7 @@ class ManModule(ModuleBase):
                         event,
                         page_msg,
                         buttons=btn
+                        reply_to=getattr(event, "reply_to", None)
                     )
                     if not success:
                         await self.edit(
@@ -1350,12 +1353,13 @@ class ManModule(ModuleBase):
                             #parse_mode="html",
                             #invert_media=True
                             buttons=self._build_buttons()
+                            reply_to=getattr(event, "reply_to", None)
                         )
                     except Exception as e:
                         await self.kernel.handle_error(e, message="Man banner error")
                         await self.edit(event, msg, parse_mode="html")
                 else:
-                    await self.subinline.rich_form(event, msg, buttons=self._build_buttons()
+                    await self.subinline.rich_form(event, msg, buttons=self._build_buttons(), reply_to=getattr(event, "reply_to", None)
                         #parse_mode="html"
                     )
 

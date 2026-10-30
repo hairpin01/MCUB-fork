@@ -346,8 +346,6 @@ def _guest_man_instance(n_modules=2, per_page=10):
 
 
 def test_man_registers_guest_command():
-    from core.lib.loader.module_base import ModuleBase  # noqa: F401
-
     names = [p for p, _f, _m in man.ManModule._guest_cmd_registry]
     _ASSERT.assertEqual(names, ["man"])
     # regular .man is untouched

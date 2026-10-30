@@ -7,6 +7,7 @@ import asyncio
 import importlib.util
 import re
 import sys
+import traceback
 from typing import TYPE_CHECKING, Any
 
 from .module_utils import parse_requires
@@ -430,6 +431,19 @@ class DependencyManagerMixin:
 
         raise ImportError(f"Failed to install '{pip_name}' for module '{module_name}'")
 
+    async def _report_load_error(
+        self, error: Exception, module_name: str, message: str
+    ) -> None:
+        """Forward a module load error to the kernel error reporter."""
+        k = self.k
+        report = getattr(k, "handle_error", None)
+        if report is None:
+            return
+        try:
+            await report(error, source=module_name, message=message)
+        except Exception as report_error:
+            k.logger.debug(f"[{module_name}] handle_error failed: {report_error}")
+
     async def exec_with_auto_deps(
         self,
         spec,
@@ -458,6 +472,9 @@ class DependencyManagerMixin:
             if missing_module is None or missing_module in _tried:
                 raise
 
+            original_tb = "".join(
+                traceback.format_exception(type(e), e, e.__traceback__)
+            )
             pip_name = self.resolve_pip_name(missing_module)
             k.logger.info(f"[{module_name}] Auto-installing: {pip_name}")
 
@@ -465,7 +482,14 @@ class DependencyManagerMixin:
                 await self._pip_install(pip_name, module_name)
             except Exception as install_error:
                 k.logger.error(
-                    f"[{module_name}] Could not install '{pip_name}': {install_error}"
+                    f"[{module_name}] Could not install '{pip_name}': "
+                    f"{install_error}\nOriginal error:\n{original_tb}"
+                )
+                await self._report_load_error(
+                    e,
+                    module_name,
+                    f"Failed to install '{pip_name}' for module "
+                    f"'{module_name}': {install_error}",
                 )
                 raise
 

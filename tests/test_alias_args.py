@@ -22,11 +22,14 @@ Behavior under test:
 
 import ast
 from types import SimpleNamespace
+from unittest import TestCase
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from core.lib.loader.dispatcher import CommandDispatcher
+
+_ASSERT = TestCase()
 
 
 def make_kernel(aliases: dict, command_handlers: dict | None = None):
@@ -85,10 +88,11 @@ class TestArgsSubstitution:
 
         handled = await dispatcher.process_command(event)
 
-        assert handled is True
-        assert captured_handler.calls == [
-            '.py await c.send_message(m.chat_id, "argument")'
-        ]
+        _ASSERT.assertTrue(handled)
+        _ASSERT.assertEqual(
+            captured_handler.calls,
+            ['.py await c.send_message(m.chat_id, "argument")'],
+        )
 
     async def test_no_placeholder_keeps_old_append_behavior(self, captured_handler):
         """An alias with no $args must behave exactly as it did before."""
@@ -101,7 +105,7 @@ class TestArgsSubstitution:
 
         await dispatcher.process_command(event)
 
-        assert captured_handler.calls == [".t ls -la /tmp"]
+        _ASSERT.assertEqual(captured_handler.calls, [".t ls -la /tmp"])
 
     async def test_no_args_supplied_substitutes_empty_string(self, captured_handler):
         kernel = make_kernel(
@@ -113,7 +117,7 @@ class TestArgsSubstitution:
 
         await dispatcher.process_command(event)
 
-        assert captured_handler.calls == ['.py print("hello ")']
+        _ASSERT.assertEqual(captured_handler.calls, ['.py print("hello ")'])
 
     async def test_multiple_occurrences_are_all_substituted(self, captured_handler):
         kernel = make_kernel(
@@ -127,7 +131,7 @@ class TestArgsSubstitution:
 
         await dispatcher.process_command(event)
 
-        assert captured_handler.calls == ['.py print("hi" + "hi")']
+        _ASSERT.assertEqual(captured_handler.calls, ['.py print("hi" + "hi")'])
 
     async def test_lookalike_token_is_not_substituted(self, captured_handler):
         """`$argslist` is a different token and must not match `$args`."""
@@ -140,7 +144,7 @@ class TestArgsSubstitution:
 
         await dispatcher.process_command(event)
 
-        assert captured_handler.calls == [".py print($argslist) x"]
+        _ASSERT.assertEqual(captured_handler.calls, [".py print($argslist) x"])
 
     async def test_chained_aliases_each_substitute_their_own_tail(
         self, captured_handler
@@ -157,7 +161,7 @@ class TestArgsSubstitution:
 
         await dispatcher.process_command(event)
 
-        assert captured_handler.calls == ['.py print("wrapped(value)")']
+        _ASSERT.assertEqual(captured_handler.calls, ['.py print("wrapped(value)")'])
 
 
 @pytest.mark.asyncio
@@ -181,12 +185,12 @@ class TestArgsEscaping:
         # if the quote had broken out, this would parse as multiple
         # statements/expressions instead of a single Expr(Await(Call(...))).
         tree = ast.parse(code, mode="exec")
-        assert len(tree.body) == 1
+        _ASSERT.assertEqual(len(tree.body), 1)
         call = tree.body[0].value.value  # Expr -> Await -> Call
-        assert isinstance(call, ast.Call)
+        _ASSERT.assertIsInstance(call, ast.Call)
         literal = call.args[1]
-        assert isinstance(literal, ast.Constant)
-        assert literal.value == payload
+        _ASSERT.assertIsInstance(literal, ast.Constant)
+        _ASSERT.assertEqual(literal.value, payload)
 
     async def test_backslash_is_escaped(self, captured_handler):
         kernel = make_kernel(
@@ -201,7 +205,7 @@ class TestArgsEscaping:
         resolved = captured_handler.calls[0]
         code = resolved[len(".py ") :]
         value = ast.literal_eval(code[len("print(") : -1])
-        assert value == r"C:\Users\test"
+        _ASSERT.assertEqual(value, r"C:\Users\test")
 
     async def test_newline_is_escaped_not_literal(self, captured_handler):
         kernel = make_kernel(
@@ -214,10 +218,12 @@ class TestArgsEscaping:
         await dispatcher.process_command(event)
 
         resolved = captured_handler.calls[0]
-        assert "\n" not in resolved[len(".py print(") :]  # no raw newline in the source
+        _ASSERT.assertNotIn(
+            "\n", resolved[len(".py print(") :]
+        )  # no raw newline in the source
         code = resolved[len(".py ") :]
         value = ast.literal_eval(code[len("print(") : -1])
-        assert value == "line1\nline2"
+        _ASSERT.assertEqual(value, "line1\nline2")
 
     async def test_unicode_is_preserved_readably(self, captured_handler):
         kernel = make_kernel(
@@ -230,10 +236,10 @@ class TestArgsEscaping:
         await dispatcher.process_command(event)
 
         resolved = captured_handler.calls[0]
-        assert "Привет, мир!" in resolved  # not turned into \u escapes
+        _ASSERT.assertIn("Привет, мир!", resolved)  # not turned into \u escapes
         code = resolved[len(".py ") :]
         value = ast.literal_eval(code[len("print(") : -1])
-        assert value == "Привет, мир!"
+        _ASSERT.assertEqual(value, "Привет, мир!")
 
     async def test_combined_adversarial_payload_round_trips_safely(
         self, captured_handler
@@ -251,9 +257,9 @@ class TestArgsEscaping:
         resolved = captured_handler.calls[0]
         code = resolved[len(".py ") :]
         tree = ast.parse(code, mode="exec")
-        assert len(tree.body) == 1
+        _ASSERT.assertEqual(len(tree.body), 1)
         call = tree.body[0].value
-        assert isinstance(call, ast.Call)
+        _ASSERT.assertIsInstance(call, ast.Call)
         literal = call.args[0]
-        assert isinstance(literal, ast.Constant)
-        assert literal.value == payload
+        _ASSERT.assertIsInstance(literal, ast.Constant)
+        _ASSERT.assertEqual(literal.value, payload)

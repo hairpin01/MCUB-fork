@@ -119,6 +119,65 @@ def _paginate(items: list, page: int, page_size: int) -> dict:
     }
 
 
+def _as_dict(value: Any) -> dict:
+    return value if isinstance(value, dict) else {}
+
+
+def _collect_docs(value: Any) -> dict[str, str]:
+    """Normalize command docs to a ``{locale: text}`` mapping."""
+    if not isinstance(value, dict):
+        return {}
+    docs: dict[str, str] = {}
+    for locale, text in value.items():
+        if not isinstance(locale, str) or not isinstance(text, str):
+            continue
+        locale = locale.strip().lower()
+        text = text.strip()
+        if locale and text:
+            docs[locale] = text
+    return docs
+
+
+def _command_payload(kernel: Kernel, command: str) -> dict:
+    """Build a rich command description while keeping plain strings supported."""
+    raw_docs = _as_dict(getattr(kernel, "command_docs", {})).get(command)
+    metadata = _as_dict(getattr(kernel, "command_metadata", {})).get(command)
+
+    description = ""
+    docs: dict[str, str] = {}
+
+    if isinstance(raw_docs, str):
+        description = raw_docs.strip()
+    else:
+        docs = _collect_docs(raw_docs)
+
+    if isinstance(metadata, dict):
+        if not description:
+            meta_description = metadata.get("description")
+            if isinstance(meta_description, str):
+                description = meta_description.strip()
+            else:
+                extra_docs = _collect_docs(meta_description)
+                if extra_docs and not docs:
+                    docs = extra_docs
+
+        if not docs:
+            docs = _collect_docs(metadata.get("doc"))
+
+    aliases = sorted(
+        str(alias)
+        for alias, target in _as_dict(getattr(kernel, "aliases", {})).items()
+        if str(target).split()[0] == command
+    )
+
+    return {
+        "name": command,
+        "description": description,
+        "docs": docs,
+        "aliases": aliases,
+    }
+
+
 @require_auth
 async def api_health(request: web.Request) -> web.Response:
     kernel, err = _kernel_ready(request.app)
@@ -153,6 +212,18 @@ async def api_meta(request: web.Request) -> web.Response:
 
 
 @require_auth
+async def api_locale(request: web.Request) -> web.Response:
+    kernel, err = _kernel_ready(request.app)
+    if err:
+        return err
+
+    config = _as_dict(getattr(kernel, "config", {}))
+    locale = str(config.get("language") or "ru").strip() or "ru"
+
+    return _json_success({"locale": locale})
+
+
+@require_auth
 async def api_commands(request: web.Request) -> web.Response:
     kernel, err = _kernel_ready(request.app)
     if err:
@@ -160,11 +231,26 @@ async def api_commands(request: web.Request) -> web.Response:
 
     prefix = getattr(kernel, "custom_prefix", ".")
     commands = sorted((getattr(kernel, "command_handlers", {}) or {}).keys())
-    page, page_size = _get_pagination_params(request)
-    result = _paginate(commands, page, page_size)
-    result["prefix"] = prefix
 
-    return _json_success(result["items"], meta=result["meta"])
+    detailed = str(request.query.get("detailed", "")).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    items = (
+        [_command_payload(kernel, command) for command in commands]
+        if detailed
+        else commands
+    )
+
+    page, page_size = _get_pagination_params(request)
+    result = _paginate(items, page, page_size)
+    meta = dict(result["meta"])
+    meta["prefix"] = prefix
+    meta["detailed"] = detailed
+
+    return _json_success(result["items"], meta=meta)
 
 
 @require_auth
@@ -286,7 +372,15 @@ async def api_prefix_get(request: web.Request) -> web.Response:
     if err:
         return err
 
-    return _json_success({"prefix": getattr(kernel, "custom_prefix", ".")})
+    raw_user_id = request.query.get("user_id", "")
+    user_id = raw_user_id.strip() if isinstance(raw_user_id, str) else ""
+
+    prefix = getattr(kernel, "custom_prefix", ".")
+    resolver = getattr(kernel, "get_prefix_for_sender", None)
+    if user_id and callable(resolver):
+        prefix = resolver(user_id)
+
+    return _json_success({"prefix": prefix})
 
 
 @require_auth
@@ -414,6 +508,7 @@ async def api_routes(request: web.Request) -> web.Response:
 def _register_routes(app: web.Application, prefix: str) -> None:
     app.router.add_get(f"{prefix}/health", api_health)
     app.router.add_get(f"{prefix}/meta", api_meta)
+    app.router.add_get(f"{prefix}/locale", api_locale)
     app.router.add_get(f"{prefix}/routes", api_routes)
     app.router.add_get(f"{prefix}/commands", api_commands)
     app.router.add_get(f"{prefix}/modules", api_modules)

@@ -5,6 +5,7 @@
 Tests for core.web.plugins.api_extender
 """
 
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -27,6 +28,7 @@ from core.web.plugins.api_extender import (
     api_config_get,
     api_config_set,
     api_health,
+    api_locale,
     api_meta,
     api_modules,
     api_prefix_get,
@@ -256,6 +258,46 @@ class TestApiMeta:
         assert response.status == 200
 
 
+class TestApiLocale:
+    """Test api_locale endpoint"""
+
+    @pytest.mark.asyncio
+    async def test_success(self):
+        """Test locale from kernel config"""
+        kernel = MagicMock()
+        kernel.config = {"language": "uk"}
+
+        app = web.Application()
+        app[app_keys.KERNEL] = kernel
+
+        request = MagicMock()
+        request.app = app
+
+        response = await api_locale(request)
+        assert response.status == 200
+
+        body = json.loads(response.body)
+        assert body["data"] == {"locale": "uk"}
+
+    @pytest.mark.asyncio
+    async def test_fallback(self):
+        """Test fallback when language is missing"""
+        kernel = MagicMock()
+        kernel.config = {}
+
+        app = web.Application()
+        app[app_keys.KERNEL] = kernel
+
+        request = MagicMock()
+        request.app = app
+
+        response = await api_locale(request)
+        assert response.status == 200
+
+        body = json.loads(response.body)
+        assert body["data"] == {"locale": "ru"}
+
+
 class TestApiCommands:
     """Test api_commands endpoint"""
 
@@ -276,6 +318,9 @@ class TestApiCommands:
         response = await api_commands(request)
         assert response.status == 200
 
+        body = json.loads(response.body)
+        assert body["meta"]["prefix"] == "."
+
     @pytest.mark.asyncio
     async def test_with_pagination(self):
         """Test commands with pagination"""
@@ -292,6 +337,78 @@ class TestApiCommands:
 
         response = await api_commands(request)
         assert response.status == 200
+
+    @pytest.mark.asyncio
+    async def test_detailed_with_i18n_docs_and_aliases(self):
+        """Test detailed commands include localized docs and aliases"""
+        kernel = MagicMock()
+        kernel.custom_prefix = "."
+        kernel.command_handlers = {"man": MagicMock(), "reload": MagicMock()}
+        kernel.command_docs = {
+            "man": {"ru": "показать модуль", "en": "show module"},
+        }
+        kernel.command_metadata = {
+            "reload": {"description": "reload modules"},
+        }
+        kernel.aliases = {"m": "man", "rl": "reload"}
+
+        app = web.Application()
+        app[app_keys.KERNEL] = kernel
+
+        request = MagicMock()
+        request.app = app
+        request.query = {"detailed": "1", "pageSize": "100"}
+
+        response = await api_commands(request)
+        assert response.status == 200
+
+        body = json.loads(response.body)
+        assert body["meta"]["detailed"] is True
+        assert body["meta"]["prefix"] == "."
+        assert body["data"] == [
+            {
+                "name": "man",
+                "description": "",
+                "docs": {"ru": "показать модуль", "en": "show module"},
+                "aliases": ["m"],
+            },
+            {
+                "name": "reload",
+                "description": "reload modules",
+                "docs": {},
+                "aliases": ["rl"],
+            },
+        ]
+
+    @pytest.mark.asyncio
+    async def test_detailed_with_plain_string_docs(self):
+        """Test detailed commands accept plain string docs"""
+        kernel = MagicMock()
+        kernel.custom_prefix = "."
+        kernel.command_handlers = {"help": MagicMock()}
+        kernel.command_docs = {"help": "show help"}
+        kernel.command_metadata = {}
+        kernel.aliases = {}
+
+        app = web.Application()
+        app[app_keys.KERNEL] = kernel
+
+        request = MagicMock()
+        request.app = app
+        request.query = {"detailed": "true"}
+
+        response = await api_commands(request)
+        assert response.status == 200
+
+        body = json.loads(response.body)
+        assert body["data"] == [
+            {
+                "name": "help",
+                "description": "show help",
+                "docs": {},
+                "aliases": [],
+            }
+        ]
 
 
 class TestApiModules:
@@ -471,6 +588,25 @@ class TestApiPrefixGet:
 
         response = await api_prefix_get(request)
         assert response.status == 200
+
+    @pytest.mark.asyncio
+    async def test_user_prefix(self):
+        """Test per-user prefix resolution"""
+        kernel = MagicMock()
+        kernel.custom_prefix = "."
+        kernel.get_prefix_for_sender = MagicMock(return_value="q")
+
+        app = web.Application()
+        app[app_keys.KERNEL] = kernel
+
+        request = MagicMock()
+        request.app = app
+        request.query = {"user_id": "12345"}
+
+        response = await api_prefix_get(request)
+        assert response.status == 200
+        assert json.loads(response.body)["data"]["prefix"] == "q"
+        kernel.get_prefix_for_sender.assert_called_once_with("12345")
 
 
 class TestApiPrefixSet:

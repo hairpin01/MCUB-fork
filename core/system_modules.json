@@ -3,75 +3,75 @@
   "description": "Trusted MCUB system modules loaded with system privileges.",
   "modules": {
     "MCUB_info": {
-      "path": "modules/MCUB_info.py",
+      "path": "core/modules/MCUB_info.py",
       "sha256": "f298c7b1ab686342dcf1a6205a488bb984fc4a141bc596efa2414db610d866a3"
     },
     "api_protection": {
-      "path": "modules/api_protection.py",
+      "path": "core/modules/api_protection.py",
       "sha256": "74bb69c737877d508b85f541cbf9bb62167268c43fcf2bcf7dbd4fb31dfe606d"
     },
     "command": {
-      "path": "modules/command.py",
+      "path": "core/modules/command.py",
       "sha256": "150425ae37d7dcd346655454758f656e8cb1468e0021e4df4b4b644306a8b504"
     },
     "config": {
-      "path": "modules/config.py",
-      "sha256": "d3377feaae3f172d07c6379d293719364c4b3be42eb23c5c6dae751f7249490c"
+      "path": "core/modules/config.py",
+      "sha256": "db3f85b35ac7dccdf6226e675d7326166b439e44190b908866ba34b97300ed59"
     },
     "evaluator": {
-      "path": "modules/evaluator.py",
+      "path": "core/modules/evaluator.py",
       "sha256": "3aa5bdf57bc3ccabb5b0b2cc5d170f06edee4d1400e79c1c1f2afbc5c086866f"
     },
     "installation": {
-      "path": "modules/installation.py",
+      "path": "core/modules/installation.py",
       "sha256": "a01608bef57d61e7a12e989cacd6edee30465ee391850a44dbb4c87a4fe48f78"
     },
     "loader": {
-      "path": "modules/loader.py",
+      "path": "core/modules/loader.py",
       "sha256": "2285c3402b32c33c01afb70935f324251176a2f7397d9dc63ad261d626e07297"
     },
     "log_bot": {
-      "path": "modules/log_bot.py",
+      "path": "core/modules/log_bot.py",
       "sha256": "ca83f7fca5821bd4ce42762d29856e4d116281b4e1f6523fbe218f3570fc1774"
     },
     "man": {
-      "path": "modules/man.py",
-      "sha256": "54d69e9780ac4939483e89bedfdfed40476836f25c1e1aef1d39eec7834827ed"
+      "path": "core/modules/man.py",
+      "sha256": "085bee6a2ff8dbc705380876638c37cedc0ca7b801b799be2017e3c4833a1c82"
     },
     "settings": {
-      "path": "modules/settings.py",
+      "path": "core/modules/settings.py",
       "sha256": "7fcbc62601f40d11720430ee7736784ce782c89bafae72f809b90c30b0816fc0"
     },
     "terminal": {
-      "path": "modules/terminal.py",
-      "sha256": "a69443826a7d3190ac277809248bbcf3e03f093ac418abb5f2a96301d620fee2"
+      "path": "core/modules/terminal.py",
+      "sha256": "ff7599545e6680fc4d9a7cc82185549c1da67015f268118cafe97c64cbe11db4"
     },
     "tester": {
-      "path": "modules/tester.py",
+      "path": "core/modules/tester.py",
       "sha256": "77920cd3b688a5d6bcc3333524a4613c0a7ebe0647fedf68b7eb48b770b3f7ef"
     },
     "tr": {
-      "path": "modules/tr.py",
+      "path": "core/modules/tr.py",
       "sha256": "5e3bf6b2ad638d209eac299385f18da0ab52212f8ded7d61ad4eeba1630c47d5"
     },
     "translations": {
-      "path": "modules/translations.py",
+      "path": "core/modules/translations.py",
       "sha256": "cb05be52ba8fadd2315fa8c0d3b43b8ce9cc41386df9e24bbd5f56ffb0f58cfc"
     },
     "trusted": {
-      "path": "modules/trusted.py",
+      "path": "core/modules/trusted.py",
       "sha256": "915bac56f7bd0525626ab094388041dbe7de85dfd5babff56cd8ba7c39371d87"
     },
     "updates": {
-      "path": "modules/updates.py",
+      "path": "core/modules/updates.py",
       "sha256": "b4b86ccc7515964c238dfc6f8f2d99b01dd2ae058235db70577c9fda1b3ba4f5"
     },
     "userbot-backup": {
-      "path": "modules/userbot-backup.py",
+      "path": "core/modules/userbot-backup.py",
       "sha256": "e7a65e0bb6ec976c741db8ba8112f9159e33342216300496e967537a28cb1f7e"
     },
     "switch_inline": {
-      "path": "modules/switch_inline.py",
+      "path": "core/modules/switch_inline.py",
       "sha256": "65daea82535d3200a3a0fbffd4eebdc3f622d2cbec539c8a6594ce4330e48dc3"
     }
   }

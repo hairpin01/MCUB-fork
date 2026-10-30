@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import ast
+import re
 import asyncio
 import contextlib
 import inspect
@@ -154,6 +155,13 @@ class ManModule(ModuleBase):
             validator=String(),
         ),
     )
+
+# для icon= у self.Button.*(icon=self.emoji_id(self.CUSTOM_EMOJI['dna']))
+    @staticmethod
+    def emoji_id(text: str) -> int:
+        clean = re.sub(r'<[^>]+>', '', text)
+        clean = clean.encode("ascii", "ignore").decode()
+        return int(clean)
 
     @staticmethod
     def _is_webpage_url_invalid_error(error: BaseException) -> bool:
@@ -708,7 +716,7 @@ class ManModule(ModuleBase):
         main_emoji = self.config.get("man_emoji") or CUSTOM_EMOJI["crystal"]
         error_emoji = self.config.get("man_emoji_error") or CUSTOM_EMOJI["blocked"]
         if similar_modules:
-            msg = f"{main_emoji} <b>{s['found_modules']}:</b>\n<blockquote expandable>"
+            msg = f"<p>{main_emoji} <tg-pill style='danger'>{s['found_modules']}:</tg-pill></p>\n<blockquote expandable>"
             for name, typ, module in similar_modules[:5]:
                 commands, _, _ = self._get_module_commands(name)
                 hidden_mark = f" {CUSTOM_EMOJI['eye_off']}" if name in hidden else ""
@@ -717,15 +725,16 @@ class ManModule(ModuleBase):
                         f"<code>{self.kernel.custom_prefix}{cmd}</code>"
                         for cmd in commands[:2]
                     )
-                    msg += f"<b>{name}</b>{hidden_mark}: {cmd_text}\n"
+                    msg += f"<p>{self.Button.rich.inline('Open', self.cb_open_about_mod, data=name, style='danger', html_tag=True)} <tg-pill style='success'>{name}</tg-pill>{hidden_mark} - {cmd_text}</p>\n"
             msg += "</blockquote>"
             if len(similar_modules) > 5:
-                msg += f"... {s['and_more'].format(count=len(similar_modules) - 5)} {CUSTOM_EMOJI['tot']}\n"
+                msg += f"<p>... {s['and_more'].format(count=len(similar_modules) - 5)} {CUSTOM_EMOJI['tot']}</p>\n"
             msg += f"\n<blockquote><i>{s['no_exact_match']}</i> {CUSTOM_EMOJI['map']}</blockquote>"
         else:
             msg = f"<blockquote expandable>{error_emoji} {s['module_not_found']}</blockquote>"
         return msg, None
 
+    # доделать рич
     async def _build_module_detail(
         self, match_tuple: tuple[str, str, Any]
     ) -> tuple[str, str | None]:
@@ -750,9 +759,9 @@ class ManModule(ModuleBase):
 
         module_emoji = self.config.get("man_emoji") or CUSTOM_EMOJI["dna"]
         author_emoji = self.config.get("man_emoji_author") or CUSTOM_EMOJI["alembic"]
-        msg = f"<blockquote>{module_emoji} <b>{display_name}</b> <i>(v{metadata.get('version', '1.0.0')})</i></blockquote>\n"
+        msg = f"<p>{module_emoji} <tg-pill style='success'>{display_name}</tg-pill> <tg-pill style='danger'>v{metadata.get('version', '1.0.0')}</tg-pill></p>\n"
         msg += (
-            f"<blockquote expandable>{author_emoji} <i>{description}</i></blockquote>\n"
+            f"<blockquote expandable>{author_emoji} <i>{description}</i><cite>{self.strings('description')}</cite></blockquote>\n"
         )
         module_type_text = self._build_module_type_text(name, typ, _module)
         if module_type_text:
@@ -761,7 +770,7 @@ class ManModule(ModuleBase):
         if module_config_text:
             msg += f"<blockquote>{CUSTOM_EMOJI['tot']} <i>{escape(module_config_text)}</i></blockquote>\n"
         msg += "\n"
-        msg += "<blockquote expandable>"
+        msg += f"<details><summary>{self.strings('command')}</summary>"
         if commands:
             # Use list + join for O(n) instead of O(n²) string concatenation
             cmd_lines = []
@@ -771,7 +780,7 @@ class ManModule(ModuleBase):
                     or metadata.get("commands", {}).get(cmd)
                     or f"{CUSTOM_EMOJI['confused']} {s['no_description']}"
                 )
-                line = f"{self.config.get('man_emoji_system_list', CUSTOM_EMOJI['tot']) if is_system else self.config.get('man_emoji_user_list', CUSTOM_EMOJI['tot'])} <code>{self.kernel.custom_prefix}{cmd}</code> - <b>{cmd_desc}</b>"
+                line = f"{self.config.get('man_emoji_system_list', CUSTOM_EMOJI['tot']) if is_system else self.config.get('man_emoji_user_list', CUSTOM_EMOJI['tot'])} <tg-pill style='success'>{self.kernel.custom_prefix}{cmd}</tg-pill> - <b>{cmd_desc}</b> <tg-button type='copy_text' style='primary' text='{self.kernel.custom_prefix}{cmd}'>🎭</tg-button>"
 
                 if cmd in aliases_info:
                     aliases = aliases_info[cmd]
@@ -784,13 +793,13 @@ class ManModule(ModuleBase):
                         )
                         line += f" | {s['aliases']}: {alias_text}"
                 cmd_lines.append(line)
-            msg += "\n".join(cmd_lines) + "\n"
+            msg += "<br>".join(cmd_lines) + "\n"
         else:
             no_command_emoji = (
                 self.config.get("man_emoji_no_command") or CUSTOM_EMOJI["snowflake"]
             )
             msg += f"{no_command_emoji} {s['no_commands']}\n"
-        msg += "</blockquote>"
+        msg += "</details>"
 
         bot_commands = self._get_module_bot_commands(name)
         if bot_commands:
@@ -806,7 +815,7 @@ class ManModule(ModuleBase):
                         f" - <b>{CUSTOM_EMOJI['confused']} {s['no_description']}</b>"
                     )
                 bot_lines.append(line)
-            msg += "<blockquote expandable>" + "\n".join(bot_lines) + "\n</blockquote>"
+            msg += f"<details><summary>{self.strings('bot_commands')}</summary>" + "<br>".join(bot_lines) + "\n</details>"
 
         guest_commands = self._get_module_guest_commands(name)
         if guest_commands:
@@ -828,7 +837,7 @@ class ManModule(ModuleBase):
                     line += f" | {s['aliases']}: {alias_text}"
                 guest_lines.append(line)
             msg += (
-                "<blockquote expandable>" + "\n".join(guest_lines) + "\n</blockquote>"
+                f"<details><summary>Guest command</summary>" + "<br>".join(guest_lines) + "\n</details>"
             )
 
         inline_commands = self.kernel.get_module_inline_commands(name)
@@ -846,7 +855,7 @@ class ManModule(ModuleBase):
                         f"{inline_emoji} <code>@{self.kernel.config.get('inline_bot_username', 'bot')} {cmd}</code>"
                     )
             msg += (
-                "<blockquote expandable>" + "\n".join(inline_lines) + "\n</blockquote>"
+                "<details><summary>Inline command</summary>" + "<br>".join(inline_lines) + "\n</details>"
             )
 
         author_emoji = self.config.get("man_emoji_author") or CUSTOM_EMOJI["alembic"]
@@ -859,15 +868,15 @@ class ManModule(ModuleBase):
             )
         if is_system:
             msg += (
-                "\n<blockquote>"
+                "\n<footer><mark>"
                 + self.strings(
                     "system_module_note",
                     blocked=self.config.get("man_emoji_error")
                     or CUSTOM_EMOJI["blocked"],
                 )
-                + "</blockquote>"
+                + "</footer></mark>"
             )
-        return msg, metadata.get("banner_url")
+        return msg, metadata.get("banner_url") # баннер через tl, через мкуб не работает
 
     async def _man_close_cb(self, cb_event: InlineMessage) -> None:
         try:
@@ -903,15 +912,15 @@ class ManModule(ModuleBase):
                 page_cb=self._man_page_cb,
                 close_cb=self._man_close_cb,
             )
-            invert_media = (
-                self.config.get("man_invert_media", False) if self.config else False
-            )
+            #invert_media = (
+            #    self.config.get("man_invert_media", False) if self.config else False
+            #)
             try:
-                await cb_event.edit(
+                await cb_event.edit_rich(
                     self._add_inline_banner_preview(msg),
                     buttons=buttons,
-                    parse_mode="html",
-                    invert_media=invert_media,
+                    #parse_mode="html",
+                    #invert_media=invert_media,
                 )
             except TypeError:
                 await cb_event.edit(
@@ -922,6 +931,83 @@ class ManModule(ModuleBase):
         except Exception as e:
             await cb_event.answer(
                 f"{self.strings['page_error']}: {str(e)[:50]}", alert=True
+            )
+
+    def _build_buttons(self):
+        back_button = self.Button.inline(
+            self.strings.get("buttons")("back"),
+            self._man_page_cb,
+            args=[0],
+            ttl=900,
+        )
+        close_button = self.Button.inline(
+            self.strings["close"],
+            self._man_close_cb,
+            ttl=900,
+        )
+        return [[back_button, close_button]]
+
+    async def cb_open_about_mod(self, cb_event: InlineMessage, data: str) -> None:
+        """Render the detail page for a module chosen from the module list."""
+        try:
+            wanted = str(data or "").strip()
+            if not wanted:
+                await cb_event.answer(
+                    self.strings.get("module_not_found"),
+                    alert=True,
+                )
+                return
+
+            hidden = await self._get_hidden_modules()
+            all_modules = self._gather_all_modules(True, hidden)
+            wanted_lower = wanted.lower()
+            match: tuple[str, str, Any] | None = None
+
+            if wanted in all_modules:
+                typ, module = all_modules[wanted]
+                match = (wanted, typ, module)
+            else:
+                for name, (typ, module) in all_modules.items():
+                    if name.lower() == wanted_lower:
+                        match = (name, typ, module)
+                        break
+
+                if match is None:
+                    for name, (typ, module) in all_modules.items():
+                        class_instance = getattr(module, "_class_instance", None)
+                        target = class_instance or module
+                        candidates = {
+                            str(getattr(target, "name", "") or "").lower(),
+                            type(target).__name__.lower(),
+                        }
+                        if wanted_lower in candidates:
+                            match = (name, typ, module)
+                            break
+
+            if match is None:
+                error_emoji = (
+                    self.config.get("man_emoji_error") or CUSTOM_EMOJI["blocked"]
+                )
+                await cb_event.answer(
+                    f"{self.strings.get('module_not_found')}",
+                    alert=True,
+                )
+                return
+
+            msg, _banner = await self._build_module_detail(match)
+            content = self._add_inline_banner_preview(msg)
+
+
+            invert_media = bool(self.config.get("man_invert_media", False))
+
+            await cb_event.edit_rich(content, buttons=self._build_buttons())
+
+        except Exception as e:
+            self.kernel.logger.error(
+                "cb_open_about_mod failed:\n%s", traceback.format_exc()
+            )
+            await self.kernel.handle_error(
+                e, message="cb_open_about_mod failed", event=cb_event
             )
 
     def _get_paginated_data(
@@ -992,15 +1078,15 @@ class ManModule(ModuleBase):
                 if inline_commands:
                     cmd_text += f" {self._format_inline_cmds(inline_commands)}"
 
-                return f"{emoji} <code>{display_name}</code>{hidden_mark}: {cmd_text}\n"
+                return f"<p>{emoji} {self.Button.rich.inline('Open', self.cb_open_about_mod, style='success', data=display_name, html_tag=True)} <tg-button type='copy_text' text='{display_name}' style='danger'>{display_name}</tg-button>{hidden_mark}: {cmd_text}</p>\n"
             elif inline_commands:
                 inline_cmds = self._format_inline_cmds(inline_commands)
-                return f"<code>{display_name}</code>{hidden_mark}: {inline_cmds}\n"
+                return f"<p>{emoji} {self.Button.rich.inline('Open', self.cb_open_about_mod, style='success', data=display_name, html_tag=True)} <tg-button type='copy_text' text='{display_name}' style='danger'>{display_name}</tg-button>{hidden_mark}: {inline_cmds}</p>\n"
             else:
                 no_cmd_emoji = (
                     cfg.get("man_emoji_no_command") or CUSTOM_EMOJI["snowflake"]
                 )
-                return f"{no_cmd_emoji} <code>{display_name}</code>{hidden_mark}: <i>{s.get('no_commands', 'no commands')}</i>\n"
+                return f"<p>{no_cmd_emoji} {self.Button.rich.inline('Open', self.cb_open_about_mod, style='success', data=display_name, html_tag=True)} <tg-button type='copy_text' text='{display_name}' style='danger'>{display_name}</tg-button>{hidden_mark}: <i>{s.get('no_commands', 'no commands')}</i></p>\n"
 
         def get_modules_per_page() -> int:
             try:
@@ -1018,29 +1104,30 @@ class ManModule(ModuleBase):
         page = max(0, min(page, total_pages - 1))
 
         if page == 0:
-            msg = f"{emoji_man} <b>{s['system_modules']}:</b> <code>{len(sys_modules)}</code> | <code>{len(usr_modules)}</code>"
+            msg = f"<p>{emoji_man}  {self.Button.rich.text(s['system_modules'], html_tag=True, style='danger')}: <code>{len(sys_modules)}</code> | <code>{len(usr_modules)}</code></p>"
             if sys_modules:
-                msg += "<blockquote expandable>"
+                # <blockquote expandable> поменять на <details><summary></...>/</...> (везде, blockquote без expandable не менять)
+                msg += "<details><summary>System</summary>"
                 for name in sys_modules:
                     msg += render_module_line(name)
-                msg += "</blockquote>"
+                msg += "</details>"
             if usr_chunks:
-                msg += "<blockquote expandable>"
+                msg += "<details><summary>User</summary>"
                 for name in usr_chunks[0]:
                     msg += render_module_line(name)
 
                 if len(usr_chunks) > 1:
                     remaining = sum(len(c) for c in usr_chunks[1:])
-                    msg += f"<i>... +{remaining}</i>"
-                msg += "</blockquote>"
+                    msg += f"<p><i>... <mark>+{remaining}</mark></i></p>"
+                msg += "</details>"
 
         else:
             current_chunk = usr_chunks[page] if page < len(usr_chunks) else []
-            msg = f"{emoji_man} <b>{s['user_modules_page'].format(page=page + 1, count=len(usr_modules))}:</b>"
-            msg += "<blockquote expandable>"
+            msg = f"<p>{emoji_man}  {self.Button.rich.text(s['user_modules_page'].format(page=page + 1, count=len(usr_modules), style='success'), html_tag=True)} </p>"
+            msg += "<details><summary>User</summary>"
             for name in current_chunk:
                 msg += render_module_line(name)
-            msg += "</blockquote>"
+            msg += "</details>"
 
         buttons = []
         page_buttons = []
@@ -1125,7 +1212,7 @@ class ManModule(ModuleBase):
 
         if self.kernel.load_kernel:
             if self.kernel.load_kernel != "full":
-                msg += f"<blockquote>{self.strings('kernel_not_full_loaded', status=self.kernel.load_kernel)}</blockquote>"
+                msg += f"<footer><i>{self.strings('kernel_not_full_loaded', status=self.kernel.load_kernel)}</i></footer>"
 
         return msg, buttons
 
@@ -1181,7 +1268,7 @@ class ManModule(ModuleBase):
                 _total_pages = max(1, len(_chunks))
 
                 if _total_pages == 1:
-                    page_msg, _ = self._get_paginated_data(
+                    page_msg, btn = self._get_paginated_data(
                         0,
                         hidden_list=hidden,
                         show_hidden=show_hidden,
@@ -1191,43 +1278,49 @@ class ManModule(ModuleBase):
                         banner_url = self._normalize_http_url(raw_banner_url)
                         if self.config.get("man_quote_media", False):
                             if banner_url:
-                                await self._edit_with_banner_retry(
+                                await self.subinline.rich_form(
                                     event,
                                     page_msg,
-                                    file=InputMediaWebPage(
-                                        banner_url,
-                                        optional=True,
-                                    ),
-                                    parse_mode="html",
-                                    invert_media=self.config.get(
-                                        "man_invert_media",
-                                        False,
-                                    ),
+                                    buttons=btn,
+                                    reply_to=getattr(event, "reply_to", None)
+                                    #file=InputMediaWebPage(
+                                    #   banner_url,
+                                    #   optional=True,
+                                    #),
+                                    #parse_mode="html",
+                                    #invert_media=self.config.get(
+                                    #    "man_invert_media",
+                                    #    False,
+                                    #),
                                 )
                             else:
-                                await self.edit(event, page_msg, parse_mode="html")
+                                await self.subinline.rich_form(event, page_msg, buttons=btn, reply_to=getattr(event, "reply_to", None))
                         elif raw_banner_url:
-                            await self._edit_with_banner_retry(
+                            await self.subinline.rich_form(
                                 event,
                                 page_msg,
-                                file=raw_banner_url,
-                                parse_mode="html",
-                                invert_media=self.config.get(
-                                    "man_invert_media",
-                                    False,
-                                ),
+                                buttons=btn,
+                                reply_to=getattr(event, "reply_to", None)
+                                #file=raw_banner_url,
+                                #parse_mode="html",
+                                #invert_media=self.config.get(
+                                #    "man_invert_media",
+                                #    False,
+                                #),
                             )
                         else:
-                            await self.edit(event, page_msg, parse_mode="html")
+                            await self.subinline.rich_form(event, page_msg, buttons=btn, reply_to=getattr(event, "reply_to", None))
                     except TypeError:
-                        await self.edit(event, page_msg, parse_mode="html")
+                        await self.subinline.rich_form(event, page_msg, buttons=btn, reply_to=getattr(event, "reply_to", None))
                     return
 
                 try:
-                    success, sent = await self.kernel.inline_query_and_click(
-                        chat_id=event.chat_id,
-                        query="man",
-                        reply_to=event.reply_to_msg_id,
+                    
+                    success, sent = await self.subinline.rich_form(
+                        event,
+                        page_msg,
+                        buttons=btn,
+                        reply_to=getattr(event, "reply_to", None)
                     )
                     if not success:
                         await self.edit(
@@ -1235,38 +1328,7 @@ class ManModule(ModuleBase):
                         )
                         return
                     else:
-                        await self.client.delete_messages(event.chat_id, [event.id])
-                        if self._normalize_http_url(
-                            self.config.get("man_banner_url")
-                        ) and self.config.get("man_quote_media", False):
-                            await sent.click(1)
-
-                    if self.config.get("man_invert_media", False):
-                        try:
-                            page_msg, page_buttons = self._get_paginated_data(
-                                0,
-                                hidden_list=hidden,
-                                show_hidden=show_hidden,
-                                page_cb=self._man_page_cb,
-                                close_cb=self._man_close_cb,
-                            )
-                            page_msg = self._add_inline_banner_preview(page_msg)
-                            sent_id = (
-                                sent[0].id
-                                if isinstance(sent, list) and sent
-                                else getattr(sent, "id", None)
-                            )
-                            if sent_id:
-                                await self.client.edit_message(
-                                    event.chat_id,
-                                    sent_id,
-                                    page_msg,
-                                    buttons=page_buttons,
-                                    parse_mode="html",
-                                    invert_media=True,
-                                )
-                        except Exception:
-                            pass
+                        await event.delete()
 
                 except Exception as e:
                     await self.kernel.handle_error(
@@ -1283,15 +1345,23 @@ class ManModule(ModuleBase):
                 banner_url = self._normalize_http_url(banner_url)
                 if banner_url:
                     try:
-                        media = InputMediaWebPage(banner_url, optional=True)
-                        await self._edit_with_banner_retry(
-                            event, msg, file=media, parse_mode="html", invert_media=True
+                        # сделать через rich отправку
+                        #media = InputMediaWebPage(banner_url, optional=True)
+                        await self.subinline.rich_form(
+                            event, msg,
+                            #file=media,
+                            #parse_mode="html",
+                            #invert_media=True
+                            buttons=self._build_buttons(),
+                            reply_to=getattr(event, "reply_to", None)
                         )
                     except Exception as e:
                         await self.kernel.handle_error(e, message="Man banner error")
                         await self.edit(event, msg, parse_mode="html")
                 else:
-                    await self.edit(event, msg, parse_mode="html")
+                    await self.subinline.rich_form(event, msg, buttons=self._build_buttons(), reply_to=getattr(event, "reply_to", None)
+                        #parse_mode="html"
+                    )
 
         except Exception as e:
             await self.kernel.handle_error(e, message="Man command error", event=event)
@@ -1389,11 +1459,12 @@ class ManModule(ModuleBase):
                 close_cb=self._man_close_cb if paginate else None,
             )
             if paginate:
+                # через рич
                 msg = await downgrade_tg_emoji(msg, client)
-                await event.reply(msg, parse_mode="html", buttons=buttons)
+                await event.rich_reply(msg, parse_mode="html", buttons=buttons)
             else:
                 msg = await downgrade_tg_emoji(msg, client)
-                await event.reply(msg, parse_mode="html")
+                await event.rich_reply(msg, parse_mode="html")
         except Exception as e:
             await self.kernel.handle_error(e, message="Man guest error", event=event)
 
@@ -1489,291 +1560,3 @@ class ManModule(ModuleBase):
     )
     async def cmd_help(self, event: events.NewMessage.Event) -> None:
         await self.cmd_man(event)
-
-    @inline("man")
-    async def inline_man(self, event) -> None:
-        query = event.text.strip()
-        s = self.strings
-
-        if query == "man":
-            thumb1 = self._make_thumb("https://kappa.lol/6plQLz")
-            hidden = await self._get_hidden_modules()
-            msg1, buttons = self._get_paginated_data(
-                0,
-                hidden_list=hidden,
-                page_cb=self._man_page_cb,
-                close_cb=self._man_close_cb,
-            )
-            article1 = event.builder.article(
-                title="Module Manager",
-                description="Browse all modules",
-                text=self._add_inline_banner_preview(msg1),
-                buttons=buttons,
-                parse_mode="html",
-                thumb=thumb1,
-            )
-
-            thumb2 = self._make_thumb("https://kappa.lol/wujauv")
-            article2 = event.builder.article(
-                title="Search Modules",
-                description="Type 'man [name]' to search",
-                text=f"<b>{s['search_hint']}</b>",
-                parse_mode="html",
-                thumb=thumb2,
-            )
-
-            await event.answer([article1, article2])
-            return
-
-        if query.startswith("man "):
-            search_term = query[4:].strip()
-            if search_term:
-                try:
-                    (
-                        exact_matches,
-                        similar_modules,
-                    ) = await self._search_modules_for_inline(search_term)
-                    articles = []
-
-                    if exact_matches or similar_modules:
-                        thumb_search = self._make_thumb("https://kappa.lol/LOuqBO")
-
-                        result_count = len(exact_matches) + len(similar_modules)
-                        search_header = event.builder.article(
-                            title=f"Search: {search_term}",
-                            description=f"Found {result_count} modules",
-                            text=f'<b>🔍 {s["search_results"]}: "{search_term}"</b>\n'
-                            f"<i>Haйдeнo {result_count} мoдyлeй</i>\n\n",
-                            parse_mode="html",
-                            thumb=thumb_search,
-                        )
-                        articles.append(search_header)
-
-                        for module_info in exact_matches[:10]:
-                            name, typ, _ = module_info
-                            msg = await self._generate_module_article(module_info)
-                            thumb_module = self._make_thumb("https://kappa.lol/POFDmQ")
-                            article = event.builder.article(
-                                title=f"📦 {name}",
-                                description="Exact match",
-                                text=msg,
-                                parse_mode="html",
-                                thumb=thumb_module,
-                            )
-                            articles.append(article)
-
-                        for module_info in similar_modules[:10]:
-                            name, _typ, _ = module_info
-                            msg = await self._generate_module_article(module_info)
-                            thumb_module = self._make_thumb("https://kappa.lol/POFDmQ")
-                            article = event.builder.article(
-                                title=f"🔍 {name}",
-                                description="Similar match",
-                                text=msg,
-                                parse_mode="html",
-                                thumb=thumb_module,
-                            )
-                            articles.append(article)
-
-                    else:
-                        thumb_not_found = self._make_thumb("https://kappa.lol/N5jMQR")
-                        error_emoji = (
-                            self.config.get("man_emoji_error")
-                            or CUSTOM_EMOJI["blocked"]
-                        )
-                        not_found_article = event.builder.article(
-                            title="Module not found",
-                            description=f"No results for '{search_term}'",
-                            text=f"<b>{error_emoji} {s['module_not_found']}</b>\n\n"
-                            f'<i>Пo зaпpocy "{search_term}" ничeгo нe нaйдeнo.</i>\n'
-                            f"{s['not_found_hint']}",
-                            parse_mode="html",
-                            thumb=thumb_not_found,
-                        )
-                        articles.append(not_found_article)
-
-                    await event.answer(articles[:50])
-                    return
-
-                except Exception as e:
-                    thumb_error = self._make_thumb("https://kappa.lol/N5jMQR")
-                    error_emoji = (
-                        self.config.get("man_emoji_error") or CUSTOM_EMOJI["blocked"]
-                    )
-                    error_article = event.builder.article(
-                        title=s["search_error"],
-                        description=s["search_error_desc"],
-                        text=f"<b>{error_emoji} {s['error']}</b>\n\n"
-                        f"<code>{str(e)[:200]}</code>",
-                        parse_mode="html",
-                        thumb=thumb_error,
-                    )
-                    await event.answer([error_article])
-                    return
-
-        builder = event.builder.article(
-            title="Module Manager",
-            description="Type 'man' or 'man [module]'",
-            text=f"{self.config.get('man_emoji') or CUSTOM_EMOJI['crystal']} <b>{s['module_manager']}</b>",
-            parse_mode="html",
-        )
-        await event.answer([builder])
-
-    async def _search_modules_for_inline(
-        self, search_term: str, show_hidden: bool = False
-    ) -> tuple[list, list]:
-        search_term = search_term.lower().strip()
-        hidden = await self._get_hidden_modules()
-        all_modules = self._gather_all_modules(show_hidden, hidden)
-
-        search_words = search_term.split()
-        concatenated = "".join(search_words)
-        underscored = "_".join(search_words)
-        camel_cased = "".join(w.capitalize() for w in search_words)
-
-        scored_modules: list[tuple[int, tuple]] = []
-
-        for name, (typ, module) in all_modules.items():
-            name_lower = name.lower()
-            score = 0
-
-            if name_lower == search_term:
-                scored_modules.append((1000, (name, typ, module)))
-                continue
-
-            if name_lower.startswith(search_term):
-                score += 500
-            elif search_term in name_lower:
-                score += 300
-            elif concatenated in name_lower:
-                score += 250
-            elif underscored in name_lower or camel_cased.lower() in name_lower:
-                score += 220
-            else:
-                words = search_words
-                if all(w in name_lower for w in words):
-                    score += 200
-
-            if score > 0:
-                scored_modules.append((score, (name, typ, module)))
-                continue
-
-            commands, _, _descriptions = self._get_module_commands(name)
-            cmd_match = False
-            for cmd in commands:
-                cmd_lower = cmd.lower()
-                if cmd_lower == search_term:
-                    scored_modules.append((900, (name, typ, module)))
-                    cmd_match = True
-                    break
-                elif cmd_lower.startswith(search_term):
-                    score = 600
-                elif concatenated in cmd_lower:
-                    score = 550
-                elif underscored in cmd_lower or camel_cased.lower() in cmd_lower:
-                    score = 520
-                elif search_term in cmd_lower:
-                    score = 400
-
-                if score > 0:
-                    scored_modules.append((score, (name, typ, module)))
-                    cmd_match = True
-                    break
-            if cmd_match:
-                continue
-
-            guest_score = 0
-            for cmd, _desc, _aliases in self._get_module_guest_commands(name):
-                cmd_lower = cmd.lower()
-                if cmd_lower == search_term:
-                    guest_score = 900
-                    break
-                if guest_score:
-                    continue
-                if cmd_lower.startswith(search_term):
-                    guest_score = 600
-                elif concatenated in cmd_lower or underscored in cmd_lower:
-                    guest_score = 520
-                elif search_term in cmd_lower:
-                    guest_score = 400
-            if guest_score > 0:
-                scored_modules.append((guest_score, (name, typ, module)))
-                continue
-
-            metadata = await self._load_module_metadata(name, typ)
-
-            desc = metadata.get("description", "").lower()
-            if desc and search_term in desc:
-                scored_modules.append((100, (name, typ, module)))
-                continue
-
-            for cmd, cmd_desc in metadata.get("commands", {}).items():
-                if (
-                    cmd_desc
-                    and isinstance(cmd_desc, str)
-                    and search_term in cmd_desc.lower()
-                ):
-                    scored_modules.append((50, (name, typ, module)))
-                    break
-
-        scored_modules.sort(key=lambda x: -x[0])
-        seen = set()
-        exact_matches = []
-        similar_modules = []
-        for score, (name, typ, module) in scored_modules:
-            if name in seen:
-                continue
-            seen.add(name)
-            if score >= 900:
-                exact_matches.append((name, typ, module))
-            else:
-                similar_modules.append((name, typ, module))
-
-        return exact_matches, similar_modules
-
-    async def _generate_module_article(self, module_info: tuple) -> str:
-        name, typ, _module = module_info
-        s = self.strings
-        commands, _aliases_info, descriptions = self._get_module_commands(name)
-        metadata = await self._load_module_metadata(name, typ)
-
-        module_emoji = self.config.get("man_emoji") or CUSTOM_EMOJI["dna"]
-        author_emoji = self.config.get("man_emoji_author") or CUSTOM_EMOJI["alembic"]
-        no_command_emoji = (
-            self.config.get("man_emoji_no_command") or CUSTOM_EMOJI["snowflake"]
-        )
-
-        msg = f"<blockquote>{module_emoji} <b>{s['module']}</b> <code>{name}</code></blockquote>\n"
-        msg += f"<blockquote expandable>{author_emoji} <b>{s['description']}:</b> <i>{metadata.get('description', s['no_description'])}</i>\n</blockquote>"
-
-        if commands:
-            msg += f"\n<b>{s['command']}:</b>\n"
-            msg += "<blockquote expandable>"
-            for cmd in commands[:5]:
-                cmd_desc = (
-                    descriptions.get(cmd)
-                    or metadata.get("commands", {}).get(cmd)
-                    or f"{CUSTOM_EMOJI['confused']} {s['no_description']}"
-                )
-                msg += f"• <code>{self.kernel.custom_prefix}{cmd}</code> - {cmd_desc}\n"
-            if len(commands) > 5:
-                msg += f"... {s['and_more_commands'].format(count=len(commands) - 5)}\n"
-        else:
-            msg += f"\n{no_command_emoji} {s['no_commands']}\n"
-        msg += "</blockquote>"
-
-        msg += f"\n<blockquote>{CUSTOM_EMOJI['snowflake']} <b>{s['version']}:</b> <code>{metadata.get('version', '1.0.0')}</code>"
-        msg += f"\n{author_emoji} <b>{s['author']}:</b> <i>{metadata.get('author', s['unknown'])}</i></blockquote>"
-
-        if typ == "system":
-            msg += (
-                "\n<blockquote>"
-                + self.strings(
-                    "system_module_note",
-                    blocked=self.config.get("man_emoji_error")
-                    or CUSTOM_EMOJI["blocked"],
-                )
-                + "</blockquote>"
-            )
-
-        return msg

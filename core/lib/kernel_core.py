@@ -17,7 +17,7 @@ from urllib.parse import urlparse
 
 from core.lib.types.event import Event
 
-# McubTelethonError (graceful fallback)───────
+# McubTelethonError (graceful fallback)
 try:
     from core.lib.utils.exceptions import McubTelethonError
 except Exception:
@@ -276,7 +276,7 @@ class KernelCoreMixin:
 
     def _init_paths(self) -> None:
         """Initialize file and directory paths."""
-        self.MODULES_DIR = "modules"
+        self.MODULES_DIR = "core/modules"
         self.MODULES_LOADED_DIR = "modules_loaded"
         self.IMG_DIR = "img"
         self.LOGS_DIR = "logs"

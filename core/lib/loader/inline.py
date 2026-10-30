@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import io
+import mimetypes
 import os
 import re
 import sys
@@ -226,10 +228,18 @@ class InlineManager:
     def _normalize_reply_to(reply_to: Any) -> int | None:
         if reply_to is None or isinstance(reply_to, int):
             return reply_to
+        if hasattr(reply_to, "reply_to_msg_id") and reply_to.reply_to_msg_id:
+            return reply_to.reply_to_msg_id
         if hasattr(reply_to, "reply_to_top_id") and reply_to.reply_to_top_id:
             return reply_to.reply_to_top_id
-        if hasattr(reply_to, "reply_to_msg_id"):
-            return reply_to.reply_to_msg_id
+        return None
+
+    @staticmethod
+    def _extract_top_msg_id(reply_to: Any) -> int | None:
+        if reply_to is None or isinstance(reply_to, int):
+            return None
+        if hasattr(reply_to, "reply_to_top_id") and reply_to.reply_to_top_id:
+            return reply_to.reply_to_top_id
         return None
 
     async def _edit_form_status(
@@ -832,6 +842,9 @@ class InlineManager:
         """
         k = self.k
         chat_id, _target_event = self._resolve_target_chat(chat_id)
+        top_msg_id = kwargs.pop("top_msg_id", None) or self._extract_top_msg_id(
+            reply_to
+        )
         # Normalize reply_to in case it's called directly with a
         # MessageReplyHeader from event.message.reply_to
         reply_to = self._normalize_reply_to(reply_to)
@@ -891,7 +904,24 @@ class InlineManager:
             try:
                 message = await results[result_index].click(chat_id, **click_kwargs)
             except BadRequestError as e:
-                if reply_to and "TOPIC_CLOSED" in str(e).upper():
+                err_upper = str(e).upper()
+                if (
+                    reply_to
+                    and top_msg_id
+                    and top_msg_id != reply_to
+                    and any(
+                        code in err_upper
+                        for code in ("MESSAGE_ID_INVALID", "REPLY_MESSAGE_ID_INVALID")
+                    )
+                ):
+                    click_kwargs["reply_to"] = top_msg_id
+                    k.logger.warning(
+                        "[inline] target message %s invalid, falling back to topic %s",
+                        reply_to,
+                        top_msg_id,
+                    )
+                    message = await results[result_index].click(chat_id, **click_kwargs)
+                elif reply_to and "TOPIC_CLOSED" in err_upper:
                     click_kwargs.pop("reply_to", None)
                     k.logger.warning(
                         "[inline] target topic is closed, retrying inline result without reply_to"
@@ -1057,6 +1087,9 @@ class InlineManager:
             (success, InlineMessage) when auto_send=True, else form_id str.
         """
         chat_id, target_event = self._resolve_target_chat(chat_id)
+        top_msg_id = kwargs.pop("top_msg_id", None) or self._extract_top_msg_id(
+            reply_to
+        )
         # Normalize reply_to: event.message.reply_to in newer Telegram API
         # gives MessageReplyHeader, not an int. Extract the actual ID.
         reply_to = self._normalize_reply_to(reply_to)
@@ -1130,11 +1163,22 @@ class InlineManager:
                     if reply_to is not None:
                         send_kwargs["reply_to"] = reply_to
                     if form_sms is None:
-                        form_sms = await k.client.send_message(
-                            chat_id,
-                            status_text,
-                            **send_kwargs,
-                        )
+                        try:
+                            form_sms = await k.client.send_message(
+                                chat_id,
+                                status_text,
+                                **send_kwargs,
+                            )
+                        except BadRequestError:
+                            if top_msg_id and top_msg_id != reply_to:
+                                send_kwargs["reply_to"] = top_msg_id
+                                form_sms = await k.client.send_message(
+                                    chat_id,
+                                    status_text,
+                                    **send_kwargs,
+                                )
+                            else:
+                                raise
                 except Exception:
                     form_sms = None
                 return await self.inline_query_and_click(
@@ -1142,6 +1186,7 @@ class InlineManager:
                     query=form_id,
                     form_sms=form_sms,
                     reply_to=reply_to,
+                    top_msg_id=top_msg_id,
                     **kwargs,
                 )
             return form_id
@@ -1468,18 +1513,52 @@ class InlineManager:
         """Upload a remote URL as a rich file (kept for public/test callers)."""
         return await self._upload_source_as_rich_file(media_id, url, media_type)
 
+    @staticmethod
+    async def _download_url_bytes(url: str) -> io.BytesIO:
+        """Download a remote URL locally so Telegram gets an uploaded file
+        instead of an *External media reference it has to fetch itself
+        (which fails with MediaInvalid on hosts that block Telegram)."""
+        import aiohttp
+
+        clean = url.split("?", 1)[0].split("#", 1)[0]
+        name = os.path.basename(clean) or "media"
+        async with aiohttp.ClientSession(
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=aiohttp.ClientTimeout(total=30),
+        ) as session:
+            async with session.get(url, allow_redirects=True) as resp:
+                resp.raise_for_status()
+                data = await resp.read()
+                content_type = (resp.content_type or "").lower()
+
+        if not os.path.splitext(name)[1]:
+            ext = mimetypes.guess_extension(content_type) if content_type else None
+            name += ext or ""
+        buf = io.BytesIO(data)
+        buf.name = name
+        return buf
+
     async def _upload_source_as_rich_file(
         self, media_id: str, source: str | os.PathLike[str], media_type: str
     ) -> Any:
         if tg_types is None or tg_functions is None or tg_utils is None:
             raise RuntimeError("Telethon rich media helpers are not available")
 
-        _file_handle, media, _as_image = await self.k.client._file_to_media(
+        if isinstance(source, str) and re.match(r"https?://", source, re.I):
+            source = await self._download_url_bytes(source)
+
+        # InputPhoto/InputDocument (access_hash + file_reference) are bound to the
+        # account that uploaded them. The inline result is answered by the bot, so
+        # the media must be uploaded by the bot client, not by the userbot,
+        # otherwise SetInlineBotResults fails with RICH_MESSAGE_PHOTO_INVALID.
+        client = getattr(self.k, "bot_client", None) or self.k.client
+
+        _file_handle, media, _as_image = await client._file_to_media(
             source,
             force_document=media_type != "photo",
             supports_streaming=media_type == "video",
         )
-        uploaded = await self.k.client(
+        uploaded = await client(
             tg_functions.messages.UploadMediaRequest(tg_types.InputPeerSelf(), media)
         )
 

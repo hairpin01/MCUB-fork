@@ -41,7 +41,7 @@ The `Kernel` class exposes the following core variables that can be accessed in 
 
 | Variable | Type | Description |
 |----------|------|-------------|
-| `kernel.MODULES_DIR` | `str` | Path to user modules directory (default: `"modules"`). |
+| `kernel.MODULES_DIR` | `str` | Path to user modules directory (default: `"core/modules"`). |
 | `kernel.MODULES_LOADED_DIR` | `str` | Path to loaded modules directory (default: `"modules_loaded"`). |
 | `kernel.IMG_DIR` | `str` | Path to images directory (default: `"img"`). |
 | `kernel.LOGS_DIR` | `str` | Path to logs directory (default: `"logs"`). |

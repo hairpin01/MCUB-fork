@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from modules import terminal as terminal_module
+from core.modules import terminal as terminal_module
 
 _ASSERT = TestCase()
 

@@ -1,6 +1,6 @@
 import pytest
 
-from modules.evaluator import (
+from core.modules.evaluator import (
     _NO_RETURN,
     _compile_eval_function,
     _format_eval_value,

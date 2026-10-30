@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from modules import man
+from core.modules import man
 from utils.tg_emoji import (
     account_has_premium,
     downgrade_tg_emoji,

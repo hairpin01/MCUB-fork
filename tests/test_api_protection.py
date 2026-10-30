@@ -4,7 +4,7 @@
 import time
 from collections import deque
 
-from modules.api_protection import (
+from core.modules.api_protection import (
     DEFAULT_CONFIG,
     LIMIT_PROFILES,
     RequestAnalyzer,

@@ -262,7 +262,7 @@ class TestEvalModule:
     """Tests for modules/eval.py"""
 
     def test_import_eval_module(self):
-        from modules.evaluator import EvalModule as eval_module
+        from core.modules.evaluator import EvalModule as eval_module
 
         assert eval_module is not None
 

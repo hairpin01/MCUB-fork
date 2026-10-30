@@ -667,7 +667,7 @@ class TestInlineFeatures:
 
     def test_loader_catalog_inline_owner_is_loader(self):
         """catalog must stay attached to loader even if loading context is stale."""
-        from modules.loader import Loader
+        from core.modules.loader import Loader
 
         callbacks = {}
         kernel = SimpleNamespace(

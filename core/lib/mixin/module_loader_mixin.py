@@ -10,6 +10,7 @@ import os
 import re
 import sys
 import tempfile
+import traceback
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
@@ -1305,11 +1306,22 @@ class ModuleLoaderMixin:
         pip_name = self.resolve_pip_name(missing_module)
         k.logger.info(f"[{module_name}] Auto-installing: {pip_name}")
 
+        original_tb = "".join(
+            traceback.format_exception(type(error), error, error.__traceback__)
+        )
+
         try:
             await self._pip_install(pip_name, module_name)
         except Exception as install_error:
             k.logger.error(
-                f"[{module_name}] Could not install '{pip_name}': {install_error}"
+                f"[{module_name}] Could not install '{pip_name}': "
+                f"{install_error}\nOriginal error:\n{original_tb}"
+            )
+            await self._report_load_error(
+                error,
+                module_name,
+                f"Failed to install '{pip_name}' for module "
+                f"'{module_name}': {install_error}",
             )
             raise
 

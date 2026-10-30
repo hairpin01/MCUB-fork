@@ -78,6 +78,7 @@ class CommandModule(ModuleBase):
         user = event.sender
         first_name = user.first_name or ""
         last_name = user.last_name or ""
+        rank = event.message.from_rank
         profile_message = (
             f"<b>{s['profile']}</b>\n"
             f"<b>{s['name']}</b> {first_name} {last_name}\n"

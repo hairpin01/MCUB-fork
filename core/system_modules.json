@@ -12,7 +12,7 @@
     },
     "command": {
       "path": "core/modules/command.py",
-      "sha256": "150425ae37d7dcd346655454758f656e8cb1468e0021e4df4b4b644306a8b504"
+      "sha256": "b2a47ccd388740969af567455b37dd05949636a7c15db12595c535ac6d10b7cf"
     },
     "config": {
       "path": "core/modules/config.py",
@@ -36,7 +36,7 @@
     },
     "man": {
       "path": "core/modules/man.py",
-      "sha256": "085bee6a2ff8dbc705380876638c37cedc0ca7b801b799be2017e3c4833a1c82"
+      "sha256": "47fb165ba2bbad809830596dbce714bec59f385c8c664e854b8f80b893cbfa58"
     },
     "settings": {
       "path": "core/modules/settings.py",

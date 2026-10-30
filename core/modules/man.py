@@ -1314,8 +1314,20 @@ class ManModule(ModuleBase):
                         await self.subinline.rich_form(event, page_msg, buttons=btn, reply_to=getattr(event, "reply_to", None))
                     return
 
+                # More than one page: build the first page with navigation
+                # and close callbacks. (page_msg/btn used to be defined only
+                # in the single-page branch above, so this path raised
+                # UnboundLocalError.)
+                page_msg, btn = self._get_paginated_data(
+                    0,
+                    hidden_list=hidden,
+                    show_hidden=show_hidden,
+                    page_cb=self._man_page_cb,
+                    close_cb=self._man_close_cb,
+                )
+                page_msg = self._add_inline_banner_preview(page_msg)
+
                 try:
-                    
                     success, sent = await self.subinline.rich_form(
                         event,
                         page_msg,

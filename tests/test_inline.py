@@ -933,7 +933,7 @@ class TestCoreInlineMessageRichEdit:
     @pytest.mark.asyncio
     async def test_edit_rich_uses_inline_rich_message_request(self):
         from telethon.tl.functions.messages import EditInlineBotMessageRequest
-        from telethon.tl.types import InputRichMessageHTML
+        from telethon.tl.types import InputRichMessage
 
         from core.lib.types import InlineMessage
 
@@ -948,8 +948,25 @@ class TestCoreInlineMessageRichEdit:
         request = client.requests[0]
         assert isinstance(request, EditInlineBotMessageRequest)
         assert request.message == "plain"
-        assert isinstance(request.rich_message, InputRichMessageHTML)
-        assert request.rich_message.html == "<b>hello</b>"
+        # Parsed client-side so MCUB-only tags (<tg-pill>) survive
+        assert isinstance(request.rich_message, InputRichMessage)
+        assert request.rich_message.blocks
+
+    @pytest.mark.asyncio
+    async def test_edit_rich_keeps_tg_pill(self):
+        from telethon.tl.types import InputRichMessage
+
+        from core.lib.types import InlineMessage
+
+        client = _RichInlineClient()
+        kernel = SimpleNamespace(client=client, bot_client=None)
+        message = InlineMessage(_inline_event(), kernel=kernel)
+
+        await message.edit_rich("<p><tg-pill style='success'>ok</tg-pill></p>")
+
+        rich = client.requests[0].rich_message
+        assert isinstance(rich, InputRichMessage)
+        assert "InlineButtonTypeDisabled" in str(rich.to_dict())
 
     @pytest.mark.asyncio
     async def test_edit_rich_prefers_event_edit_rich(self):
@@ -1282,16 +1299,18 @@ class TestInlineRichForm:
         assert call.args[0].count("<tg-button-row") == 1
         assert call.kwargs["buttons"] == reply_buttons
         rich = call.kwargs["rich_message"]
-        assert rich.html == call.args[0]
+        # html is parsed on the client, so the TL blocks are inspected
         from telethon.extensions.richparser import BlockButtonRow, parse_rich_html
 
+        assert rich.blocks
         rows = [
             block
-            for block in parse_rich_html(rich.html)
+            for block in parse_rich_html(call.args[0])
             if isinstance(block, BlockButtonRow)
         ]
         assert len(rows) == 1
         assert len(rows[0].buttons) == 2
+        assert str(rich.to_dict()).count("PageBlockButtonRow") == 1
 
         with pytest.raises(ValueError, match="markdown"):
             await message.edit_rich("<p>x</p>", markdown="x", rich_buttons=specs)

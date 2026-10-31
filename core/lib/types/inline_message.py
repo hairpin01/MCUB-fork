@@ -291,6 +291,18 @@ def _build_input_rich_message(
     from telethon.tl import types
 
     if html is not None:
+        if files is None:
+            # Parse on the client, exactly like TelegramClient.send_rich_message
+            # and edit_rich_message do. InputRichMessageHTML would hand the raw
+            # markup to Telegram, whose parser does not know the MCUB-only
+            # <tg-pill>/<tg-badge> aliases and silently drops them.
+            from telethon.extensions import richparser
+
+            return richparser.html_to_input_rich_message(
+                html,
+                rtl=rtl,
+                noautolink=noautolink,
+            )
         return types.InputRichMessageHTML(
             html=html,
             rtl=rtl,

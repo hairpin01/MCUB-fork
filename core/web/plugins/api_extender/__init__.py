@@ -491,6 +491,195 @@ async def api_config_set(request: web.Request) -> web.Response:
 
 
 @require_auth
+async def api_module_config_get(request: web.Request) -> web.Response:
+    kernel, err = _kernel_ready(request.app)
+    if err:
+        return err
+
+    module = request.query.get("module", "").strip()
+    if not module:
+        return _json_error(
+            "Query param 'module' is required",
+            code=ErrorCode.MISSING_FIELD,
+            status=400,
+        )
+
+    config = await kernel.get_module_config(module)
+    if config is None:
+        return _json_error(
+            f"Module config '{module}' not found",
+            code=ErrorCode.CONFIG_KEY_NOT_FOUND,
+            status=404,
+        )
+
+    return _json_success({"module": module, "config": config})
+
+
+@require_auth
+async def api_module_config_set(request: web.Request) -> web.Response:
+    kernel, err = _kernel_ready(request.app)
+    if err:
+        return err
+
+    try:
+        data = await request.json()
+    except Exception:
+        return _json_error(
+            "Invalid JSON body",
+            code=ErrorCode.INVALID_JSON,
+            status=400,
+        )
+
+    module = str(data.get("module", "")).strip()
+    if not module:
+        return _json_error(
+            "Field 'module' is required",
+            code=ErrorCode.MISSING_FIELD,
+            status=400,
+        )
+
+    config_data = data.get("config")
+    updates = data.get("updates")
+
+    if updates is not None:
+        if not isinstance(updates, dict):
+            return _json_error(
+                "Field 'updates' must be a dict",
+                code=ErrorCode.INVALID_JSON,
+                status=400,
+            )
+        result = await kernel.update_module_config(module, updates)
+    elif config_data is not None:
+        if not isinstance(config_data, dict):
+            return _json_error(
+                "Field 'config' must be a dict",
+                code=ErrorCode.INVALID_JSON,
+                status=400,
+            )
+        result = await kernel.save_module_config(module, config_data)
+    else:
+        return _json_error(
+            "Field 'config' or 'updates' is required",
+            code=ErrorCode.MISSING_FIELD,
+            status=400,
+        )
+
+    return _json_success({"module": module, "ok": bool(result)})
+
+
+@require_auth
+async def api_module_config_delete(request: web.Request) -> web.Response:
+    kernel, err = _kernel_ready(request.app)
+    if err:
+        return err
+
+    module = request.query.get("module", "").strip()
+    if not module:
+        return _json_error(
+            "Query param 'module' is required",
+            code=ErrorCode.MISSING_FIELD,
+            status=400,
+        )
+
+    result = await kernel.delete_module_config(module)
+    return _json_success({"module": module, "ok": bool(result)})
+
+
+@require_auth
+async def api_module_config_key_get(request: web.Request) -> web.Response:
+    kernel, err = _kernel_ready(request.app)
+    if err:
+        return err
+
+    module = request.query.get("module", "").strip()
+    key = request.query.get("key", "").strip()
+
+    if not module or not key:
+        return _json_error(
+            "Query params 'module' and 'key' are required",
+            code=ErrorCode.MISSING_FIELD,
+            status=400,
+        )
+
+    value = await kernel.get_module_config_key(module, key)
+    if value is None:
+        return _json_error(
+            f"Key '{key}' not found in module config '{module}'",
+            code=ErrorCode.CONFIG_KEY_NOT_FOUND,
+            status=404,
+        )
+
+    return _json_success({"module": module, "key": key, "value": value})
+
+
+@require_auth
+async def api_module_config_key_set(request: web.Request) -> web.Response:
+    kernel, err = _kernel_ready(request.app)
+    if err:
+        return err
+
+    try:
+        data = await request.json()
+    except Exception:
+        return _json_error(
+            "Invalid JSON body",
+            code=ErrorCode.INVALID_JSON,
+            status=400,
+        )
+
+    module = str(data.get("module", "")).strip()
+    key = str(data.get("key", "")).strip()
+
+    if not module or not key:
+        return _json_error(
+            "Fields 'module' and 'key' are required",
+            code=ErrorCode.MISSING_FIELD,
+            status=400,
+        )
+
+    if "value" not in data:
+        return _json_error(
+            "Field 'value' is required",
+            code=ErrorCode.MISSING_FIELD,
+            status=400,
+        )
+
+    value = data["value"]
+    result = await kernel.set_module_config_key(module, key, value)
+    return _json_success({"module": module, "key": key, "value": value, "ok": bool(result)})
+
+
+@require_auth
+async def api_module_config_key_delete(request: web.Request) -> web.Response:
+    kernel, err = _kernel_ready(request.app)
+    if err:
+        return err
+
+    module = request.query.get("module", "").strip()
+    key = request.query.get("key", "").strip()
+
+    if not module or not key:
+        return _json_error(
+            "Query params 'module' and 'key' are required",
+            code=ErrorCode.MISSING_FIELD,
+            status=400,
+        )
+
+    result = await kernel.delete_module_config_key(module, key)
+    return _json_success({"module": module, "key": key, "ok": bool(result)})
+
+
+@require_auth
+async def api_module_configs_list(request: web.Request) -> web.Response:
+    kernel, err = _kernel_ready(request.app)
+    if err:
+        return err
+
+    modules = await kernel.get_all_module_names_with_config()
+    return _json_success({"modules": modules})
+
+
+@require_auth
 async def api_routes(request: web.Request) -> web.Response:
     routes = []
     for route in request.app.router.routes():
@@ -519,6 +708,13 @@ def _register_routes(app: web.Application, prefix: str) -> None:
     app.router.add_post(f"{prefix}/prefix", api_prefix_set)
     app.router.add_get(f"{prefix}/config", api_config_get)
     app.router.add_post(f"{prefix}/config", api_config_set)
+    app.router.add_get(f"{prefix}/module_configs", api_module_configs_list)
+    app.router.add_get(f"{prefix}/module_config", api_module_config_get)
+    app.router.add_post(f"{prefix}/module_config", api_module_config_set)
+    app.router.add_delete(f"{prefix}/module_config", api_module_config_delete)
+    app.router.add_get(f"{prefix}/module_config/key", api_module_config_key_get)
+    app.router.add_post(f"{prefix}/module_config/key", api_module_config_key_set)
+    app.router.add_delete(f"{prefix}/module_config/key", api_module_config_key_delete)
 
 
 def setup(app: web.Application, kernel: Kernel) -> None:

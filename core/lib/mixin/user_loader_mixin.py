@@ -261,6 +261,12 @@ class UserLoaderMixin:
 
             inject_kernel = "def register(kernel):" in code
 
+            # Single-file bundles can register their own submodules.
+            prefix = f"{module_name}."
+            for name in tuple(sys.modules):
+                if name.startswith(prefix):
+                    sys.modules.pop(name, None)
+
             spec = importlib.util.spec_from_file_location(module_name, file_path)
             module = importlib.util.module_from_spec(spec)
 

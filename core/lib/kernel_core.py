@@ -1248,6 +1248,9 @@ class KernelCoreMixin:
     async def db_query(self, query: str, parameters: Any) -> Any:
         return await self.db_manager.db_query(query, parameters)
 
+    async def db_get_config_modules(self) -> list[str]:
+        return await self.db_manager.db_get_config_modules()
+
     async def get_latest_kernel_version(self) -> str:
         return await self.version_manager.get_latest_kernel_version()
 

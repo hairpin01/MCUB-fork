@@ -183,7 +183,7 @@ class SecurityChats:
     DB_KEY_GROUPS = "groups"
     DB_KEY_PERSONAL = "personal_rules"
     DB_KEY_EVERYONE = "everyone_rules"
-    DB_MOD = "security_v2"
+    DB_MOD = "security"
 
     def __init__(self, kernel: Any | None = None) -> None:
         self.kernel = kernel

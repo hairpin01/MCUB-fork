@@ -1173,14 +1173,20 @@ mcub_info:
   custom_text_error: "<b>[STDERR] custom text format: {error}</b>"
   error_see_logs: "{warning} <b>[STDERR] - tail -f /var/log/mcub.log</b>"
 
-trusted:
+security_chats:
   not_owner: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "EPERM: root only"'
   usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.trust</code> / <code>.untrust</code> (reply, @username or UID)'
+  sec_user_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>usermod -aG sudoers - done.</b>'
   trust_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>usermod -aG sudoers - done.</b>'
+  sec_user_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>deluser from sudoers - done.</b>'
   trust_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>deluser from sudoers - done.</b>'
+  sec_user_already: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> <i>"EEXIST: User is already in sudoers."</i>'
   trust_already: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> <i>"EEXIST: User is already in sudoers."</i>'
+  sec_user_not_in_list: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "ENOENT: User is not in sudoers."'
   trust_not_in_list: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "ENOENT: User is not in sudoers."'
+  sec_list_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "cat /etc/sudoers: empty"'
   trustlist_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "cat /etc/sudoers: empty"'
+  sec_list_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>cat /etc/sudoers:</b>'
   trustlist_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>cat /etc/sudoers:</b>'
   ownerprefix_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.ownerprefix</code> [uid/@username] or reply'
   ownerprefix_list_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>sudoers prefix map:</b>'
@@ -1213,8 +1219,11 @@ Without it they must include the owner's <code>@username</code> suffix."
   watcher_disabled: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>inotifywait: disabled:</b> <code>{module}.{watcher}</code>'
   watcher_enabled: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>inotifywait: enabled:</b> <code>{module}.{watcher}</code>'
   watcher_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "ENOENT: watcher not found: <code>{module}.{watcher}</code>"'
+  sec_access_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.trustaccess</code> (reply or @username or UID)'
   trustaccess_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.trustaccess</code> (reply or @username or UID)'
+  sec_access_footer: "<em>If access is off, mcubd will pipe the command to /dev/null.</em>"
   trustaccess_footer: "<em>If access is off, mcubd will pipe the command to /dev/null.</em>"
+  sec_access_title: "🔐 <b>ACL for {user}</b>"
   trustaccess_title: "🔐 <b>ACL for {user}</b>"
   btn_close: 🙈 exit 0
   btn_allow_all: "chmod +x all"
@@ -1222,6 +1231,19 @@ Without it they must include the owner's <code>@username</code> suffix."
   access_allowed: "allowed"
   access_denied: "denied"
   access_allowed_group: "allowed (group ACL)"
+  sec_cmd_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>visudo: per-command ACL for sudoers</b>
+
+
+
+<code>.trustcmd @username +py</code> - chmod +x py
+
+<code>.trustcmd @username -py</code> - chmod -x py
+
+<code>.trustcmd @username list</code> - show ACL
+
+
+
+<i>Requires user to be in /etc/sudoers</i>'
   trustcmd_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>visudo: per-command ACL for sudoers</b>
 
 
@@ -1235,10 +1257,15 @@ Without it they must include the owner's <code>@username</code> suffix."
 
 
 <i>Requires user to be in /etc/sudoers</i>'
+  sec_cmd_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> "chmod +x <code>{cmd}</code> for {user} - done."'
   trustcmd_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> "chmod +x <code>{cmd}</code> for {user} - done."'
+  sec_cmd_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> "chmod -x <code>{cmd}</code> for {user} - done."'
   trustcmd_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> "chmod -x <code>{cmd}</code> for {user} - done."'
+  sec_cmd_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "ENOENT: cmd <code>{cmd}</code> not found."'
   trustcmd_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "ENOENT: cmd <code>{cmd}</code> not found."'
+  sec_cmd_list_title: "🔐 <b>ACL for {user}:</b>"
   trustcmd_list_title: "🔐 <b>ACL for {user}:</b>"
+  sec_cmd_list_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "visudo: no specific ACL set."'
   trustcmd_list_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "visudo: no specific ACL set."'
   percmd_title: "🔐 <b>ACL cmds for {user}</b>"
   percmd_back: "← cd .."
@@ -1250,16 +1277,23 @@ Without it they must include the owner's <code>@username</code> suffix."
   inlinesec_not_found: 'inline command <code>{cmd}</code>: ENOENT'
   inlinesec_allowed: '✅ chmod +x <code>{cmd}</code> for {user}'
   inlinesec_denied: '🚫 chmod -x <code>{cmd}</code> for {user}'
+  sec_time_title: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Add user with TTL?</b>'
   trust_time_title: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Add user with TTL?</b>'
+  sec_time_desc: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> "cron: deluser from sudoers after {time}."'
   trust_time_desc: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> "cron: deluser from sudoers after {time}."'
   btn_1h: 1h
   btn_24h: 24h
   btn_7d: 7d
   btn_permanent: "--permanent"
+  sec_added_timed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>"cron: user added to sudoers for {time}."</b>'
   trust_added_timed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>"cron: user added to sudoers for {time}."</b>'
+  sec_expired: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "cron: TTL expired for <b>{user}</b>."'
   trust_expired: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "cron: TTL expired for <b>{user}</b>."'
+  sec_timed_list_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>cron: temporary sudoers:</b>'
   timed_trusted_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>cron: temporary sudoers:</b>'
+  sec_timed_list_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "cron: no temporary sudoers."'
   timed_trusted_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "cron: no temporary sudoers."'
+  sec_expiring: " (TTL: {time})"
   trust_expiring: " (TTL: {time})"
   sgroup_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>groupadd: security groups (ACL groups)</b>
 
@@ -1304,6 +1338,27 @@ Without it they must include the owner's <code>@username</code> suffix."
   sgroup_confirm_delete: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> "groupdel <b>{name}</b>? [y/N]"'
   btn_confirm_delete: "-y delete"
 
+  btn_confirm: '✅ sudo confirm'
+  confirm_sudo_title: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> <b>Add {user} to /etc/sudoers (ALL=(ALL) NOPASSWD: ALL)?</b>'
+  confirm_unsudo_title: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> <b>deluser {user} sudo?</b>'
+  confirm_sadmin_title: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> <b>usermod -aG wheel {user}?</b>'
+  confirm_unsadmin_title: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> <b>gpasswd -d {user} wheel?</b>'
+  action_cancelled: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> <i>SIGINT: Operation aborted.</i>'
+  sudo_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>{user} added to sudoers.</b>'
+  sudo_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>{user} removed from sudoers.</b>'
+  admin_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>{user} joined wheel group.</b>'
+  admin_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>{user} left wheel group.</b>'
+  usage_sudo: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.addsudo</code>'
+  usage_unsudo: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.unsudo</code>'
+  usage_sadmin: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.addadmin</code>'
+  usage_unsadmin: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.unadmin</code>'
+  user_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> User not found.'
+  sec_panel_desc: '<i>Kernel DAC/RBAC enforcement: ACTIVE</i>'
+  sec_panel_root: '👑 <b>UID 0 (root):</b> <code>{owner}</code>'
+  sec_panel_sudo_count: '⚡ <b>sudoers:</b> {count}'
+  sec_panel_admin_count: '🛡 <b>wheel group:</b> {count}'
+  sec_panel_groups_count: '👥 <b>User groups:</b> {count}'
+  sec_panel_everyone_count: '🌐 <b>World permissions (o+rwx):</b> {count}'
 access_categories:
   modules:
     label: Packages

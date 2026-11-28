@@ -14,6 +14,8 @@ class InlineManager:
         self.kernel = kernel
 
     async def is_admin(self, user_id: int) -> bool:
+        if hasattr(self.kernel, "is_admin_async"):
+            return await self.kernel.is_admin_async(user_id)
         admin_id = getattr(self.kernel, "ADMIN_ID", None)
         if admin_id is None:
             return False
@@ -23,17 +25,10 @@ class InlineManager:
             return False
 
     async def is_trusted(self, user_id: int) -> bool:
-        """Return whether the user is present in the trusted users list."""
-        try:
-            data = await self.kernel.db_get("trusted", "users")
-            if not data:
-                return False
-            trusted = (
-                json.loads(data) if isinstance(data, str) else json.loads(str(data))
-            )
-            return user_id in trusted
-        except Exception:
-            return False
+        """Return whether the user is authorized (via security_v2)."""
+        if hasattr(self.kernel, "is_admin_async"):
+            return await self.kernel.is_admin_async(user_id)
+        return await self.is_admin(user_id)
 
     async def is_allowed(
         self,
@@ -43,6 +38,12 @@ class InlineManager:
     ) -> bool:
         if await self.is_admin(user_id):
             return True
+
+        if hasattr(self.kernel, "is_allow"):
+            call_target = f"inline:{command}" if command else "inline:*"
+            return await self.kernel.is_allow(
+                "command", call_target, user_id, context=context
+            )
 
         # Check inline_permissions module
         try:

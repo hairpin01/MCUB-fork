@@ -246,30 +246,26 @@ class CommandDispatcher:
         system = getattr(self.kernel, "system_modules", None) or {}
         return owner in loaded or owner in system
 
-    def _guest_sender_allowed(self, event: Any) -> bool:
-        """Guest queries are answered for the kernel admin only.
-
-        Anyone can invoke a guest bot in any chat, so without this check the
-        guest commands would be a public entry point.  Kernels without
-        ``is_admin`` (or without a known sender) are allowed through.
-        """
-        checker = getattr(self.kernel, "is_admin", None)
-        if not callable(checker):
-            return True
-
+    async def _guest_sender_allowed(self, event: Any, cmd: str) -> bool:
+        """Guest queries permission check using unified is_allow API."""
         sender_id = getattr(event, "sender_id", None)
         if sender_id is None:
             sender_id = getattr(getattr(event, "query", None), "sender_id", None)
         if sender_id is None:
             return True
 
-        try:
-            return bool(checker(sender_id))
-        except Exception as e:
-            self.logger.error(
-                "[guest] is_admin check failed sender=%r error=%s", sender_id, e
+        if hasattr(self.kernel, "is_allow"):
+            return await self.kernel.is_allow(
+                "command", f"guest:{cmd}", sender_id, context=event
             )
-            return False
+
+        checker = getattr(self.kernel, "is_admin", None)
+        if callable(checker):
+            try:
+                return bool(checker(sender_id))
+            except Exception:
+                return False
+        return True
 
     async def guest_message_handler(self, event: Any) -> None:
         """
@@ -340,6 +336,14 @@ class CommandDispatcher:
             self.logger.debug("[guest] blocked-security cmd=%r owner=%r", cmd, owner)
             return
 
+        if not await self._guest_sender_allowed(event, cmd):
+            self.logger.debug(
+                "[guest] sender not allowed sender=%r cmd=%r",
+                getattr(event, "sender_id", None),
+                cmd,
+            )
+            return
+
         # Handler sees the query without the mention: "<cmd> <args>".
         self.kernel._set_event_text(event, f"{cmd} {args}".strip())
         for attr_name, value in (
@@ -379,17 +383,21 @@ class CommandDispatcher:
             if getattr(msg, "via_bot", None) is not None:
                 return
 
-        if not self.kernel.should_process_command_event(event):
-            self.logger.debug(
-                "[dispatcher] skip-nonoutgoing handler=watcher_message "
-                "text=%r sender=%r chat=%r out=%r admin=%r",
-                getattr(msg, "raw_text", None),
-                getattr(event, "sender_id", None),
-                getattr(event, "chat_id", None),
-                getattr(msg, "out", False),
-                self.kernel.is_admin(getattr(event, "sender_id", None)),
-            )
-            return
+        is_admin_user = self.kernel.is_admin(getattr(event, "sender_id", None))
+        if not getattr(msg, "out", False) and not is_admin_user:
+            # Check if sender has any permission in security_v2
+            sec = getattr(self.kernel, "security", None)
+            if not sec or not hasattr(sec, "is_allow"):
+                self.logger.debug(
+                    "[dispatcher] skip-nonoutgoing handler=watcher_message "
+                    "text=%r sender=%r chat=%r out=%r admin=%r",
+                    getattr(msg, "raw_text", None),
+                    getattr(event, "sender_id", None),
+                    getattr(event, "chat_id", None),
+                    getattr(msg, "out", False),
+                    is_admin_user,
+                )
+                return
 
         if not self._should_deliver(event, None, "command_discovery"):
             self.logger.debug(
@@ -656,6 +664,23 @@ class CommandDispatcher:
                     _mod,
                 )
                 return True
+
+            # Unified security_v2 permission check for userbot command
+            sender_id = getattr(event, "sender_id", None)
+            is_allowed = True
+            if hasattr(self.kernel, "is_allow"):
+                is_allowed = await self.kernel.is_allow(
+                    "command", f"userbot:{cmd}", sender_id, context=event
+                )
+            elif not getattr(getattr(event, "message", event), "out", False):
+                is_allowed = self.kernel.is_admin(sender_id)
+
+            if not is_allowed:
+                self.logger.debug(
+                    "[process_command] permission-denied cmd=%r sender=%r", cmd, sender_id
+                )
+                return True
+
             await handler(wrap_event_for_module(event, _mod, self.kernel))
             return True
 

@@ -2314,16 +2314,22 @@ class InlineHandlers:
                     is_allowed = True
 
             if not is_allowed:
-                if not await self.check_admin(event) and (
-                    not hasattr(self.kernel, "callback_permissions")
-                    or not self.kernel.callback_permissions.is_allowed(
-                        event.sender_id, data_str
+                allow_user_tag = entry.get("allow_user") if entry else None
+                if hasattr(self.kernel, "is_allow"):
+                    is_allowed = await self.kernel.is_allow(
+                        "button", "callback", event.sender_id, context=event, allow_user=allow_user_tag
                     )
-                ):
-                    if entry is None:
-                        return await event.answer(self.lang["no_access"], alert=False)
-                    elif not self._callback_entry_allows_user(entry, event.sender_id):
-                        return await event.answer(self.lang["no_access"], alert=False)
+                if not is_allowed:
+                    if not await self.check_admin(event) and (
+                        not hasattr(self.kernel, "callback_permissions")
+                        or not self.kernel.callback_permissions.is_allowed(
+                            event.sender_id, data_str
+                        )
+                    ):
+                        if entry is None:
+                            return await event.answer(self.lang["no_access"], alert=False)
+                        elif not self._callback_entry_allows_user(entry, event.sender_id):
+                            return await event.answer(self.lang["no_access"], alert=False)
 
             # 1. Built-in service callbacks
             if data_str.startswith("show_tb:"):

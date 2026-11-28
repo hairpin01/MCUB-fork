@@ -1128,14 +1128,20 @@ tester:
 mcub_info:
   custom_text_error: "<b>Помилка у форматуванні:</b> {error}"
   error_see_logs: "{warning} <b>Помилка, дивись логи</b>"
-trusted:
+security_chats:
   not_owner: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Тільки власник може використовувати цю команду.'
   usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Використання: <code>.trust</code> / <code>.untrust</code> (реплай, @username або ID)'
+  sec_user_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Користувача додано до списку довірених.</b>'
   trust_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Користувача додано до списку довірених.</b>'
+  sec_user_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Користувача видалено зі списку довірених.</b>'
   trust_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Користувача видалено зі списку довірених.</b>'
+  sec_user_already: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> <i>Користувач вже у списку довірених.</i>'
   trust_already: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> <i>Користувач вже у списку довірених.</i>'
+  sec_user_not_in_list: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Користувача немає у списку довірених.'
   trust_not_in_list: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Користувача немає у списку довірених.'
+  sec_list_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Список довірених порожній.'
   trustlist_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Список довірених порожній.'
+  sec_list_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Довірені користувачі:</b>'
   trustlist_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Довірені користувачі:</b>'
   ownerprefix_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Використання: <code>.ownerprefix</code> [id/@username] або реплай'
   ownerprefix_list_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Власники та їх префікси:</b>'
@@ -1168,8 +1174,11 @@ trusted:
   watcher_disabled: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Watcher вимкнено:</b> <code>{module}.{watcher}</code>'
   watcher_enabled: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Watcher увімкнено:</b> <code>{module}.{watcher}</code>'
   watcher_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Watcher не знайдено: <code>{module}.{watcher}</code>'
+  sec_access_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Використання: <code>.trustaccess</code> (реплай, @username або ID)'
   trustaccess_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Використання: <code>.trustaccess</code> (реплай, @username або ID)'
+  sec_access_footer: "<em>Якщо доступ вимкнено, бот просто проігнорує відповідні команди.</em>"
   trustaccess_footer: "<em>Якщо доступ вимкнено, бот просто проігнорує відповідні команди.</em>"
+  sec_access_title: "🔐 <b>Доступ owner для {user}</b>"
   trustaccess_title: "🔐 <b>Доступ owner для {user}</b>"
   btn_close: 🙈 Закрити це меню
   btn_allow_all: Дозволити все
@@ -1177,6 +1186,14 @@ trusted:
   access_allowed: дозволено
   access_denied: заборонено
   access_allowed_group: дозволено (група)
+  sec_cmd_usage: |-
+    <tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Управління доступом до команд для довірених</b>
+
+    <code>.trustcmd @username +py</code> - дозволити команду py
+    <code>.trustcmd @username -py</code> - заборонити команду py
+    <code>.trustcmd @username list</code> - показати права на команди
+
+    <i>Потребує щоб користувач був у списку довірених</i>
   trustcmd_usage: |-
     <tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Управління доступом до команд для довірених</b>
 
@@ -1185,10 +1202,15 @@ trusted:
     <code>.trustcmd @username list</code> - показати права на команди
 
     <i>Потребує щоб користувач був у списку довірених</i>
+  sec_cmd_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Доступ до <code>{cmd}</code> <b>дозволено</b> для {user}.'
   trustcmd_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Доступ до <code>{cmd}</code> <b>дозволено</b> для {user}.'
+  sec_cmd_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Доступ до <code>{cmd}</code> <b>заборонено</b> для {user}.'
   trustcmd_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Доступ до <code>{cmd}</code> <b>заборонено</b> для {user}.'
+  sec_cmd_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Команду <code>{cmd}</code> не знайдено.'
   trustcmd_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Команду <code>{cmd}</code> не знайдено.'
+  sec_cmd_list_title: "🔐 <b>Доступ до команд для {user}:</b>"
   trustcmd_list_title: "🔐 <b>Доступ до команд для {user}:</b>"
+  sec_cmd_list_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Немає специфічних дозволів на команди.'
   trustcmd_list_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Немає специфічних дозволів на команди.'
   percmd_title: "🔐 <b>Команди для {user}</b>"
   percmd_back: "← Назад"
@@ -1200,16 +1222,23 @@ trusted:
   inlinesec_not_found: 'Інлайн-команду <code>{cmd}</code> не знайдено.'
   inlinesec_allowed: '✅ <code>{cmd}</code> дозволено для {user}'
   inlinesec_denied: '🚫 <code>{cmd}</code> заборонено для {user}'
+  sec_time_title: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Додати користувача на обмежений час?</b>'
   trust_time_title: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Додати користувача на обмежений час?</b>'
+  sec_time_desc: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> Користувача буде видалено з довірених через {time}.'
   trust_time_desc: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> Користувача буде видалено з довірених через {time}.'
   btn_1h: 1 година
   btn_24h: 24 години
   btn_7d: 7 днів
   btn_permanent: Назавжди
+  sec_added_timed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Користувача додано до довірених на {time}.</b>'
   trust_added_timed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Користувача додано до довірених на {time}.</b>'
+  sec_expired: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Довіру для <b>{user}</b> вичерпано.'
   trust_expired: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Довіру для <b>{user}</b> вичерпано.'
+  sec_timed_list_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Тимчасові довірені:</b>'
   timed_trusted_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Тимчасові довірені:</b>'
+  sec_timed_list_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Немає тимчасових довірених.'
   timed_trusted_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Немає тимчасових довірених.'
+  sec_expiring: " (закінчується через {time})"
   trust_expiring: " (закінчується через {time})"
   sgroup_usage: |-
     <tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Групи доступу</b>
@@ -1243,6 +1272,27 @@ trusted:
   sgroup_btn_delete: Видалити групу
   sgroup_confirm_delete: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> Видалити групу <b>{name}</b>?'
   btn_confirm_delete: Видалити
+  btn_confirm: '✅ Підтвердити'
+  confirm_sudo_title: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> <b>Надати повні права SUDO користувачу {user}?</b>'
+  confirm_unsudo_title: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> <b>Забрати права SUDO у користувача {user}?</b>'
+  confirm_sadmin_title: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> <b>Призначити користувача {user} адміністратором (ADMIN)?</b>'
+  confirm_unsadmin_title: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> <b>Розжалувати адміністратора {user}?</b>'
+  action_cancelled: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> <i>Дію скасовано.</i>'
+  sudo_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Користувача {user} додано до групи SUDO.</b>'
+  sudo_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Користувача {user} видалено з групи SUDO.</b>'
+  admin_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Користувача {user} призначено адміністратором (ADMIN).</b>'
+  admin_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Користувача {user} видалено з адміністраторів (ADMIN).</b>'
+  usage_sudo: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Використання: <code>.addsudo</code> (відповідь, @username або ID)'
+  usage_unsudo: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Використання: <code>.unsudo</code> (відповідь, @username або ID)'
+  usage_sadmin: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Використання: <code>.addadmin</code> (відповідь, @username або ID)'
+  usage_unsadmin: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Використання: <code>.unadmin</code> (відповідь, @username або ID)'
+  user_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Не вдалося визначити користувача.'
+  sec_panel_desc: '<i>Усі права перевіряються ядром у реальному часі.</i>'
+  sec_panel_root: '👑 <b>Root Owner:</b> <code>{owner}</code>'
+  sec_panel_sudo_count: '⚡ <b>SUDO Users:</b> {count}'
+  sec_panel_admin_count: '🛡 <b>ADMIN Users:</b> {count}'
+  sec_panel_groups_count: '👥 <b>Кастомні групи:</b> {count}'
+  sec_panel_everyone_count: '🌐 <b>Глобальні правила (everyone):</b> {count}'
 access_categories:
   modules:
     label: Модулі

@@ -599,10 +599,43 @@ class KernelCoreMixin:
         print(f"{color}{text}{Colors.RESET}")
 
     def is_admin(self, user_id: int) -> bool:
-        """Return True if user_id matches the authorized admin."""
-        result = hasattr(self, "ADMIN_ID") and user_id == self.ADMIN_ID
-        self.logger.debug(f"[Kernel] is_admin user_id={user_id} result={result}")
-        return result
+        """Return True if user_id matches the authorized admin or belongs to sudo/admin groups."""
+        if hasattr(self, "ADMIN_ID") and user_id == self.ADMIN_ID:
+            return True
+        sec = getattr(self, "security", None)
+        if sec and hasattr(sec, "_admin_cache") and sec._admin_cache and user_id in sec._admin_cache:
+            return True
+        if sec and hasattr(sec, "_sudo_cache") and sec._sudo_cache and user_id in sec._sudo_cache:
+            return True
+        return False
+
+    async def is_admin_async(self, user_id: int) -> bool:
+        sec = getattr(self, "security", None)
+        if sec and hasattr(sec, "is_admin"):
+            return await sec.is_admin(user_id)
+        return self.is_admin(user_id)
+
+    async def is_sudo(self, user_id: int) -> bool:
+        sec = getattr(self, "security", None)
+        if sec and hasattr(sec, "is_sudo"):
+            return await sec.is_sudo(user_id)
+        return hasattr(self, "ADMIN_ID") and user_id == self.ADMIN_ID
+
+    async def is_allow(
+        self,
+        call_type: str,
+        call_target: str,
+        user_id: int | None,
+        context: Any = None,
+        *,
+        allow_user: Any = None,
+    ) -> bool:
+        sec = getattr(self, "security", None)
+        if sec and hasattr(sec, "is_allow"):
+            return await sec.is_allow(
+                call_type, call_target, user_id, context=context, allow_user=allow_user
+            )
+        return self.is_admin(user_id)
 
     def should_process_command_event(self, event: Event) -> bool:
         """Accept own command messages even when Telethon loses the out flag."""

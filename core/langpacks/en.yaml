@@ -1270,14 +1270,20 @@ tester:
 mcub_info:
   custom_text_error: "<b>Error in custom text format:</b> {error}"
   error_see_logs: "{warning} <b>Error, see logs</b>"
-trusted:
+security_chats:
   not_owner: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Only the owner can use this command.'
   usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.trust</code> / <code>.untrust</code> (reply, @username or ID)'
+  sec_user_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>User added to trusted list.</b>'
   trust_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>User added to trusted list.</b>'
+  sec_user_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>User removed from trusted list.</b>'
   trust_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>User removed from trusted list.</b>'
+  sec_user_already: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> <i>User is already trusted.</i>'
   trust_already: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> <i>User is already trusted.</i>'
+  sec_user_not_in_list: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> User is not in trusted list.'
   trust_not_in_list: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> User is not in trusted list.'
+  sec_list_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Trusted list is empty.'
   trustlist_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Trusted list is empty.'
+  sec_list_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Trusted users:</b>'
   trustlist_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Trusted users:</b>'
   ownerprefix_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.ownerprefix</code> [id/@username] or reply'
   ownerprefix_list_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Owners and prefixes:</b>'
@@ -1308,8 +1314,11 @@ trusted:
   watcher_disabled: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Watcher disabled:</b> <code>{module}.{watcher}</code>'
   watcher_enabled: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>Watcher enabled:</b> <code>{module}.{watcher}</code>'
   watcher_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Watcher not found: <code>{module}.{watcher}</code>'
+  sec_access_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.trustaccess</code> (reply or @username or ID)'
   trustaccess_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.trustaccess</code> (reply or @username or ID)'
+  sec_access_footer: "<em>If access is off, the bot will simply ignore the corresponding commands.</em>"
   trustaccess_footer: "<em>If access is off, the bot will simply ignore the corresponding commands.</em>"
+  sec_access_title: "🔐 <b>Owner access for {user}</b>"
   trustaccess_title: "🔐 <b>Owner access for {user}</b>"
   btn_close: 🙈 Close this menu
   btn_allow_all: Allow all
@@ -1317,6 +1326,14 @@ trusted:
   access_allowed: allowed
   access_denied: denied
   access_allowed_group: allowed (group)
+  sec_cmd_usage: |-
+                  <tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Manage per-command access for trusted users</b>
+
+                  <code>.trustcmd @username +py</code> - allow command py
+                  <code>.trustcmd @username -py</code> - deny command py
+                  <code>.trustcmd @username list</code> - show all command permissions
+
+                  <i>Requires user to be in trusted list</i>
   trustcmd_usage: |-
                   <tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Manage per-command access for trusted users</b>
 
@@ -1325,10 +1342,15 @@ trusted:
                   <code>.trustcmd @username list</code> - show all command permissions
 
                   <i>Requires user to be in trusted list</i>
+  sec_cmd_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access to <code>{cmd}</code> <b>granted</b> for {user}.'
   trustcmd_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access to <code>{cmd}</code> <b>granted</b> for {user}.'
+  sec_cmd_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access to <code>{cmd}</code> <b>revoked</b> for {user}.'
   trustcmd_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access to <code>{cmd}</code> <b>revoked</b> for {user}.'
+  sec_cmd_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Command <code>{cmd}</code> not found.'
   trustcmd_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Command <code>{cmd}</code> not found.'
+  sec_cmd_list_title: "🔐 <b>Command access for {user}:</b>"
   trustcmd_list_title: "🔐 <b>Command access for {user}:</b>"
+  sec_cmd_list_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No specific command permissions set.'
   trustcmd_list_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No specific command permissions set.'
   percmd_title: "🔐 <b>Commands for {user}</b>"
   percmd_back: "← Back"
@@ -1340,16 +1362,23 @@ trusted:
   inlinesec_not_found: 'Inline command <code>{cmd}</code> not found.'
   inlinesec_allowed: '✅ <code>{cmd}</code> allowed for {user}'
   inlinesec_denied: '🚫 <code>{cmd}</code> denied for {user}'
+  sec_time_title: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Add user for a limited time?</b>'
   trust_time_title: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Add user for a limited time?</b>'
+  sec_time_desc: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> User will be removed from trusted after {time}.'
   trust_time_desc: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> User will be removed from trusted after {time}.'
   btn_1h: 1 hour
   btn_24h: 24 hours
   btn_7d: 7 days
   btn_permanent: Permanent
+  sec_added_timed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>User added to trusted list for {time}.</b>'
   trust_added_timed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>User added to trusted list for {time}.</b>'
+  sec_expired: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Trust for <b>{user}</b> has expired.'
   trust_expired: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Trust for <b>{user}</b> has expired.'
+  sec_timed_list_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Temporary trusted users:</b>'
   timed_trusted_title: '<tg-emoji emoji-id="5332771595331077100">💙</tg-emoji> <b>Temporary trusted users:</b>'
+  sec_timed_list_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No temporary trusted users.'
   timed_trusted_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> No temporary trusted users.'
+  sec_expiring: " (expires in {time})"
   trust_expiring: " (expires in {time})"
   sgroup_usage: |-
                 <tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Security groups (access groups)</b>
@@ -1383,6 +1412,27 @@ trusted:
   sgroup_btn_delete: Delete Group
   sgroup_confirm_delete: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> Delete group <b>{name}</b>?'
   btn_confirm_delete: Delete
+  btn_confirm: '✅ Confirm'
+  confirm_sudo_title: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> <b>Grant full SUDO access to {user}?</b>'
+  confirm_unsudo_title: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> <b>Revoke SUDO access from {user}?</b>'
+  confirm_sadmin_title: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> <b>Promote {user} to ADMIN?</b>'
+  confirm_unsadmin_title: '<tg-emoji emoji-id="5116275208906343429">‼️</tg-emoji> <b>Demote ADMIN {user}?</b>'
+  action_cancelled: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> <i>Action cancelled.</i>'
+  sudo_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>User {user} added to SUDO group.</b>'
+  sudo_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>User {user} removed from SUDO group.</b>'
+  admin_added: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>User {user} appointed as ADMIN.</b>'
+  admin_removed: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> <b>User {user} removed from ADMIN.</b>'
+  usage_sudo: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.addsudo</code> (reply, @username or ID)'
+  usage_unsudo: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.unsudo</code> (reply, @username or ID)'
+  usage_sadmin: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.addadmin</code> (reply, @username or ID)'
+  usage_unsadmin: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> Usage: <code>.unadmin</code> (reply, @username or ID)'
+  user_not_found: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Failed to resolve user.'
+  sec_panel_desc: '<i>All permissions are checked by kernel in real time.</i>'
+  sec_panel_root: '👑 <b>Root Owner:</b> <code>{owner}</code>'
+  sec_panel_sudo_count: '⚡ <b>SUDO Users:</b> {count}'
+  sec_panel_admin_count: '🛡 <b>ADMIN Users:</b> {count}'
+  sec_panel_groups_count: '👥 <b>Custom Groups:</b> {count}'
+  sec_panel_everyone_count: '🌐 <b>Global Rules (everyone):</b> {count}'
 access_categories:
   modules:
     label: Modules

@@ -58,10 +58,6 @@
       "path": "core/modules/translations.py",
       "sha256": "cb05be52ba8fadd2315fa8c0d3b43b8ce9cc41386df9e24bbd5f56ffb0f58cfc"
     },
-    "trusted": {
-      "path": "core/modules/trusted.py",
-      "sha256": "915bac56f7bd0525626ab094388041dbe7de85dfd5babff56cd8ba7c39371d87"
-    },
     "updates": {
       "path": "core/modules/updates.py",
       "sha256": "b4b86ccc7515964c238dfc6f8f2d99b01dd2ae058235db70577c9fda1b3ba4f5"
@@ -73,6 +69,10 @@
     "switch_inline": {
       "path": "core/modules/switch_inline.py",
       "sha256": "65daea82535d3200a3a0fbffd4eebdc3f622d2cbec539c8a6594ce4330e48dc3"
+    },
+    "security_module": {
+      "path": "core/modules/security_module.py",
+      "sha256": "db768398b45b2f2ad54adfac1f06a9a3e75a977c09919ef066dcdd61572e5862"
     }
   }
 }

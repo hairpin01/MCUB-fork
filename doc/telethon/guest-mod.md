@@ -156,7 +156,7 @@ embed media:
 @bot.on(events.GuestMessage)
 async def handler(event):
     await event.rich_reply(
-        '<p><a href="tg://photo?id=hero">Photo</a></p>',
+        '<img src="tg://photo?id=hero"/>',
         rich_media={"id": "hero", "media": "https://example.com/photo.jpg"},
     )
 ```

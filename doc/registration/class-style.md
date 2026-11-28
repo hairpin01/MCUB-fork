@@ -175,7 +175,7 @@ With rich media, no Telethon TL imports are needed in the module:
 reply = await event.get_reply_message()
 ok, msg = await self.subinline.rich_form(
     event.chat_id,
-    '<a href="tg://photo?id=hero">Photo</a>',
+    '<img src="tg://photo?id=hero"/>',
     rich_media={"hero": reply},
 )
 ```

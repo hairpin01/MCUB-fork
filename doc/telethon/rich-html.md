@@ -111,7 +111,7 @@ The renderer supports rich text nodes and common page blocks:
 - unsupported placeholders;
 - semantic button rows: `<tg-button-row>` and `<tg-button>`;
 
-Media blocks render as rich HTML links:
+When rendering **received** messages, media blocks are shown as links. This is display output, not markup for sending a photo; use an `img` tag and `rich_media` when [sending](rich-media.md).
 
 ```html
 <a href="tg://photo?id=123">[photo]</a>

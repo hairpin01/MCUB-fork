@@ -3,9 +3,15 @@
 from __future__ import annotations
 
 import json
+import re
+import shlex
+import time
+from html import escape
 from typing import Any
 
 # MCUB sdk
+from telethon.tl.types import User
+from utils.helpers import get_args_raw
 from core.lib.types import (
     Event,
     InlineMessage,
@@ -72,6 +78,8 @@ class SecurityModule(ModuleBase):
 
     @callback
     async def _on_confirm_sudo(self, call: InlineMessage, user_id: int) -> None:
+        if not await self.kernel.is_sudo(call.sender_id):
+            await call.answer()
         sudo_users: list[int] = await self._db_get_json(self.DB_KEY_SUDO, [])
         if user_id not in sudo_users:
             sudo_users.append(user_id)
@@ -80,6 +88,8 @@ class SecurityModule(ModuleBase):
 
     @callback
     async def _on_confirm_unsudo(self, call: InlineMessage, user_id: int) -> None:
+        if not await self.kernel.is_sudo(call.sender_id):
+            await call.answer()
         sudo_users: list[int] = await self._db_get_json(self.DB_KEY_SUDO, [])
         if user_id in sudo_users:
             sudo_users.remove(user_id)
@@ -88,6 +98,8 @@ class SecurityModule(ModuleBase):
 
     @callback
     async def _on_confirm_sadmin(self, call: InlineMessage, user_id: int) -> None:
+        if not await self.kernel.is_sudo(call.sender_id):
+            await call.answer()
         admin_users: list[int] = await self._db_get_json(self.DB_KEY_ADMIN, [])
         if user_id not in admin_users:
             admin_users.append(user_id)
@@ -96,6 +108,8 @@ class SecurityModule(ModuleBase):
 
     @callback
     async def _on_confirm_unsadmin(self, call: InlineMessage, user_id: int) -> None:
+        if not await self.kernel.is_sudo(call.sender_id):
+            await call.answer()
         admin_users: list[int] = await self._db_get_json(self.DB_KEY_ADMIN, [])
         if user_id in admin_users:
             admin_users.remove(user_id)
@@ -104,6 +118,8 @@ class SecurityModule(ModuleBase):
 
     @callback
     async def _on_confirm_delete_group(self, call: InlineMessage, name: str) -> None:
+        if not await self.kernel.is_sudo(call.sender_id):
+            await call.answer()
         groups: dict[str, Any] = await self._db_get_json(self.DB_KEY_GROUPS, {})
         if name in groups:
             del groups[name]
@@ -115,6 +131,8 @@ class SecurityModule(ModuleBase):
 
     @callback
     async def _on_cancel(self, call: InlineMessage) -> None:
+        if not await self.kernel.is_sudo(call.sender_id):
+            await call.answer()
         await call.edit(self.strings["action_cancelled"], parse_mode="html")
 
     @command("addsudo", doc_ru="Добавить пользователя в SUDO", doc_en="Add user to SUDO")
@@ -221,6 +239,97 @@ class SecurityModule(ModuleBase):
         ]
         await self.inline(event.chat_id, confirm_text, buttons=buttons)
 
+    @staticmethod
+    def _grant_rule(tokens, *, legacy=False):
+        if not tokens:
+            raise ValueError
+        target, *options = tokens
+        explicit_command = target.startswith("command:")
+        if explicit_command:
+            target = target[len("command:"):]
+        prefix, sep, name = target.partition(":")
+        if sep:
+            if prefix not in {"inline", "userbot", "guest", "bot", "callback", "input"} or not name:
+                raise ValueError
+        elif explicit_command or not legacy or not target or target.startswith("-"):
+            raise ValueError
+        elif target != "*":
+            target = f"userbot:{target}"
+        kind = "button" if sep and prefix in {"callback", "input"} else "command"
+        if explicit_command and kind != "command":
+            raise ValueError
+        rule = {"type": kind, "target": target, "allow": "all"}
+        scope = None
+        if legacy and options and options[0] in {"all", "*", "chat", "pm", "group", "groups", "chats", "private", "personal messages"}:
+            scope = options.pop(0)
+        while options:
+            flag = options.pop(0)
+            if flag in {"--chat", "--pm"} and scope is None:
+                scope = flag[2:]
+            elif flag == "--temp" and "temp" not in rule:
+                units = {}
+                while options and not options[0].startswith("--"):
+                    match = re.fullmatch(r"([hms])([0-9]{1,9})", options.pop(0))
+                    if not match or match[1] in units:
+                        raise ValueError
+                    units[match[1]] = int(match[2])
+                seconds = sum(units.get(k, 0) * n for k, n in (("h", 3600), ("m", 60), ("s", 1)))
+                if not seconds:
+                    raise ValueError
+                rule["temp"] = int(time.time()) + seconds
+            else:
+                raise ValueError
+        rule["allow"] = scope or "all"
+        return rule
+
+    @command("tsec", doc_ru="Выдать право пользователю или всем", doc_en="Grant a permission to a user or everyone")
+    async def cmd_tsec(self, event: Event) -> None:
+        if not await self.kernel.is_admin_async(event.sender_id):
+            await self.answer(event, self.strings["not_owner"], as_html=True)
+            return
+        try:
+            tokens = shlex.split(get_args_raw(event))
+            recipient = None
+            if tokens and ":" not in tokens[0]:
+                recipient = tokens.pop(0)
+            if recipient is None and not event.is_reply:
+                raise ValueError
+            rule = self._grant_rule(tokens)
+        except ValueError:
+            await self.answer(event, self.strings["tsec_usage"], as_html=True)
+            return
+        if recipient == "all":
+            key = self.DB_KEY_EVERYONE
+            data = bucket = await self._db_get_json(key, [])
+        else:
+            uid = None
+            if recipient is None:
+                reply = await event.get_reply_message()
+                uid = getattr(reply, "sender_id", None)
+            elif recipient.isascii() and recipient.isdecimal():
+                uid = int(recipient) if len(recipient) <= 19 else None
+            elif re.fullmatch(r"@?[A-Za-z][A-Za-z0-9_]*", recipient):
+                try:
+                    entity = await self.client.get_entity(recipient)
+                except ValueError:
+                    entity = None
+                if isinstance(entity, User):
+                    uid = entity.id
+            if not uid or uid <= 0:
+                await self.answer(event, self.strings["user_not_found"], as_html=True)
+                return
+            recipient = str(uid)
+            key = self.DB_KEY_PERSONAL
+            data = await self._db_get_json(key, {})
+            if not isinstance(data, dict):
+                await self.answer(event, self.strings["tsec_usage"], as_html=True)
+                return
+            bucket = data.setdefault(recipient, [])
+        if rule not in bucket:
+            bucket.append(rule)
+            await self._db_set_json(key, data)
+        await self.answer(event, f"<code>{recipient}</code>: <code>{escape(rule['target'])}</code> ({rule['allow']})", as_html=True)
+
     @command("sgroup", doc_ru="Управление группами безопасности", doc_en="Security group management")
     async def cmd_sgroup(self, event: Event) -> None:
         sender_id = getattr(event, "sender_id", None)
@@ -309,14 +418,17 @@ class SecurityModule(ModuleBase):
 
         elif action == "grant" and len(raw_args) > 2:
             name = raw_args[1].lower()
-            target = raw_args[2]
-            allow = raw_args[3] if len(raw_args) > 3 else "all"
             if name not in groups:
                 await self.answer(event, self.strings("sgroup_not_found", name=name), as_html=True)
                 return
-            rule = {"type": "command", "target": target, "allow": allow}
-            groups[name]["permissions"].append(rule)
-            await self._db_set_json(self.DB_KEY_GROUPS, groups)
-            await self.answer(event, f"✅ <code>{name}</code>: <code>{target}</code> (allow={allow})", as_html=True)
+            try:
+                rule = self._grant_rule(shlex.split(get_args_raw(event))[2:], legacy=True)
+            except ValueError:
+                await self.answer(event, self.strings["sgroup_usage"], as_html=True)
+                return
+            if rule not in groups[name]["permissions"]:
+                groups[name]["permissions"].append(rule)
+                await self._db_set_json(self.DB_KEY_GROUPS, groups)
+            await self.answer(event, f"<code>{escape(name)}</code>: <code>{escape(rule['target'])}</code> ({rule['allow']})", as_html=True)
         else:
             await self.answer(event, self.strings["sgroup_usage"], as_html=True)

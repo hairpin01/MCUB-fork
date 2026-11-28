@@ -1240,10 +1240,12 @@ security_chats:
   timed_trusted_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Немає тимчасових довірених.'
   sec_expiring: " (закінчується через {time})"
   trust_expiring: " (закінчується через {time})"
+  tsec_usage: "<code>.tsec [all|ID|@username] inline:whisper [--chat|--pm] [--temp h0 m5 s0]</code>"
   sgroup_usage: |-
     <tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Групи доступу</b>
 
     <b>Команди:</b>
+                <code>.sgroup grant mygroup inline:whisper [--chat|--pm] [--temp h0 m5 s0]</code>
     <code>.sgroup create mygroup</code> - створити групу
     <code>.sgroup delete mygroup</code> - видалити групу
     <code>.sgroup add mygroup @user</code> - додати користувача

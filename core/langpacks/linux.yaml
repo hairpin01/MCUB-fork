@@ -1295,12 +1295,14 @@ Without it they must include the owner's <code>@username</code> suffix."
   timed_trusted_empty: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "cron: no temporary sudoers."'
   sec_expiring: " (TTL: {time})"
   trust_expiring: " (TTL: {time})"
+  tsec_usage: "<code>.tsec [all|ID|@username] inline:whisper [--chat|--pm] [--temp h0 m5 s0]</code>"
   sgroup_usage: '<tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>groupadd: security groups (ACL groups)</b>
 
 
 
 <b>cmds:</b>
 
+                <code>.sgroup grant mygroup inline:whisper [--chat|--pm] [--temp h0 m5 s0]</code>
 <code>.sgroup create mygroup</code> - groupadd mygroup
 
 <code>.sgroup delete mygroup</code> - groupdel mygroup

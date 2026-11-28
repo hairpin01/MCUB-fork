@@ -305,7 +305,7 @@ class SecurityChats:
             return True
 
         if context is None:
-            return True
+            return False
 
         is_private = False
         is_group = False
@@ -314,17 +314,25 @@ class SecurityChats:
             is_private = any(w in c_lower for w in ("pm", "private", "personal"))
             is_group = any(w in c_lower for w in ("chat", "group", "supergroup", "channel"))
         else:
-            if getattr(context, "is_private", None) is True:
-                is_private = True
-            elif getattr(context, "is_group", None) is True or getattr(context, "is_channel", None) is True:
-                is_group = True
+            query = getattr(context, "query", None)
+            peer = getattr(query, "peer_type", None)
+            chat_type = getattr(context, "chat_type", None)
+            kind = getattr(chat_type, "value", chat_type)
+            if kind in {"private", "sender"} or type(peer).__name__ in {"InlineQueryPeerTypePM", "InlineQueryPeerTypeSameBotPM", "InlineQueryPeerTypeBotPM"}:
+                is_private, is_group = True, False
+            elif kind in {"group", "supergroup", "channel"} or type(peer).__name__ in {"InlineQueryPeerTypeChat", "InlineQueryPeerTypeMegagroup", "InlineQueryPeerTypeBroadcast"}:
+                is_private, is_group = False, True
+            elif chat_type is not None or peer is not None:
+                return False
             else:
-                meta = self.event_meta(context)
-                if meta.chat_id is not None and meta.chat_id == meta.user_id:
-                    is_private = True
-                elif meta.chat_id is not None:
-                    is_group = True
-
+                is_private = getattr(context, "is_private", None) is True
+                is_group = getattr(context, "is_group", None) is True or getattr(context, "is_channel", None) is True
+                if not is_private and not is_group:
+                    meta = self.event_meta(context)
+                    if meta.chat_id is not None and meta.chat_id == meta.user_id:
+                        is_private = True
+                    elif meta.chat_id is not None:
+                        is_group = True
         if allow_scope in ("personal messages", "pm", "private"):
             return is_private
         if allow_scope in ("chat", "group", "chats", "groups"):
@@ -377,6 +385,7 @@ class SecurityChats:
                 "userbot:sadmin",
                 "userbot:unsadmin",
                 "userbot:sgroup",
+                "userbot:tsec",
                 "userbot:security",
                 "userbot:sec",
             ):
@@ -400,8 +409,14 @@ class SecurityChats:
             for _gname, gdata in self._groups_cache.items():
                 if user_id in gdata.get("users", []):
                     for r in gdata.get("permissions", []):
+                        pattern = r.get("target")
+                        if not isinstance(pattern, str) or not pattern:
+                            continue
+                        # Older group grants stored bare userbot command names.
+                        if call_type == "command" and ":" not in pattern and pattern != "*":
+                            pattern = f"userbot:{pattern}"
                         if r.get("type", "command") == call_type and self._matches_target(
-                            r.get("target", ""), call_target
+                            pattern, call_target
                         ):
                             if self._matches_context(r, context):
                                 return True

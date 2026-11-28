@@ -253,7 +253,7 @@ def _aiogram_inline_markup(buttons: Any) -> Any | None:
 class _TelethonInlineQueryAdapter:
     """Thin Telethon-compatible wrapper around aiogram InlineQuery."""
 
-    __slots__ = ("_api_bot", "_q", "chat_type", "sender_id", "text")
+    __slots__ = ("_api_bot", "_q", "chat_type", "sender_id", "text", "is_private", "is_group")
 
     def __init__(self, q: Any, api_bot: Any | None) -> None:
         self._q = q
@@ -261,6 +261,10 @@ class _TelethonInlineQueryAdapter:
         self.text: str = getattr(q, "query", "") or ""
         self.sender_id: int = getattr(getattr(q, "from_user", None), "id", 0) or 0
         self.chat_type: str | None = getattr(q, "chat_type", None)
+        peer = getattr(q, "chat_type", None)
+        kind = getattr(peer, "value", peer)
+        self.is_private = kind in {"private", "sender"}
+        self.is_group = kind in {"group", "supergroup", "channel"}
 
     @property
     def query(self) -> Any:
@@ -1896,6 +1900,12 @@ class InlineHandlers:
                 return
 
             if not await self.check_admin(event):
+                # A named command grant does not imply access to the inline menu.
+                parts = query.split(maxsplit=1)
+                cmd = parts[0].lower() if parts else ""
+                if cmd in self.kernel.inline_handlers and cmd not in (getattr(self.kernel, "_inline_temp_map", None) or {}):
+                    await self._dispatch_inline_handler(cmd, query, event)
+                    return
                 denial_callback = self._cache_inline_denial(
                     event.sender_id,
                     query,

@@ -219,10 +219,10 @@ class ClientManager:
             catch_up=False,
             auto_reconnect=True,
         )
-        k.client.set_protection_mode("off")
 
         try:
             k.logger.debug("Starting Telegram client authorization phone=%r", k.PHONE)
+            k.client.set_protection_mode("off")
             await k.client.start(phone=k.PHONE, max_attempts=3)
 
             session_file = f"{session_path}.session"

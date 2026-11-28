@@ -72,7 +72,7 @@
     },
     "security_module": {
       "path": "core/modules/security_module.py",
-      "sha256": "db768398b45b2f2ad54adfac1f06a9a3e75a977c09919ef066dcdd61572e5862"
+      "sha256": "54deed8e88abd8be0cfea14438c965a6cdb2596d0a8cf2b4975100add6e8c224"
     }
   }
 }

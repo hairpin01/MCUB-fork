@@ -1,0 +1,21 @@
+[1mdiff --git a/core/lib/loader/dispatcher.py b/core/lib/loader/dispatcher.py[m
+[1mindex 6b35005..5a868bf 100644[m
+[1m--- a/core/lib/loader/dispatcher.py[m
+[1m+++ b/core/lib/loader/dispatcher.py[m
+[36m@@ -681,6 +681,16 @@[m [mclass CommandDispatcher:[m
+                 )[m
+                 return True[m
+ [m
+[32m+[m[32m            if not getattr(getattr(event, "message", event), "out", False):[m
+[32m+[m[32m                await self.kernel.register.invoke([m
+[32m+[m[32m                    cmd,[m
+[32m+[m[32m                    args=text[len(active_prefix) + len(cmd) :].lstrip(),[m
+[32m+[m[32m                    chat_id=event.chat_id,[m
+[32m+[m[32m                    reply_to=getattr(event, "reply_to_msg_id", None),[m
+[32m+[m[32m                    prefix=self.kernel.get_prefix_for_sender(self.kernel.ADMIN_ID),[m
+[32m+[m[32m                    original_event=event,[m
+[32m+[m[32m                )[m
+[32m+[m[32m                return True[m
+             await handler(wrap_event_for_module(event, _mod, self.kernel))[m
+             return True[m
+ [m

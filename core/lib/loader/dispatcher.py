@@ -681,6 +681,16 @@ class CommandDispatcher:
                 )
                 return True
 
+            if not getattr(getattr(event, "message", event), "out", False):
+                await self.kernel.register.invoke(
+                    cmd,
+                    args=text[len(active_prefix) + len(cmd) :].lstrip(),
+                    chat_id=event.chat_id,
+                    reply_to=getattr(event, "reply_to_msg_id", None),
+                    prefix=self.kernel.get_prefix_for_sender(self.kernel.ADMIN_ID),
+                    original_event=event,
+                )
+                return True
             await handler(wrap_event_for_module(event, _mod, self.kernel))
             return True
 

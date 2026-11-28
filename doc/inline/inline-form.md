@@ -62,15 +62,15 @@ await self.subinline.rich_form(
 ```
 
 Media can be referenced from rich HTML without importing Telethon TL types in
-your module. Use `rich_media` and reference the same id in `tg://...` links:
+your module. Use `rich_media` and use the same id in the `tg://...` reference. For a photo block, put it in `img src`:
 
 ```python
 reply = await event.get_reply_message()
 
 await self.subinline.rich_form(
     event.chat_id,
-    '<h1>Photo</h1><a href="tg://photo?id=hero">Open photo</a>',
-    rich_media={"hero": reply},  # Message/Photo/Document/InputPhoto/InputDocument
+    '<h1>Photo</h1><img src="tg://photo?id=hero"/>',
+    rich_media={"hero": reply},  # Message containing a photo, Photo or InputPhoto
 )
 ```
 
@@ -79,7 +79,7 @@ await self.subinline.rich_form(
 ```python
 await self.subinline.rich_form(
     event.chat_id,
-    '<a href="tg://photo?id=hero">Open local photo</a>',
+    '<img src="tg://photo?id=hero"/>',
     rich_media={"hero": "assets/hero.jpg"},
 )
 ```
@@ -162,7 +162,7 @@ flowchart LR
 - `files` (list, optional): `InputRichFile` references used by rich content.
 - `rich_media` (dict | list, optional): Convenient media specs converted by
   MCUB into `InputRichFilePhoto`/`InputRichFileDocument`. The key is the same
-  string id used in `tg://photo?id=...` or `tg://document?id=...` links.
+  string id used in the `img` source or document link.
 
 ### Button Configuration
 

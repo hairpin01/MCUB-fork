@@ -141,17 +141,17 @@ class MCUBInfoMod(ModuleBase):
         ConfigValue(
             "info_rich_files",
             {},
-            description="""Rich files for <a href="tg://photo?id=hero">Photo</a>
+            description="""Rich files for <img src="tg://photo?id=hero"/>
             example:
               {
                   "hero": "https://url/for/photo.jpg"
               }
             and:
-              <a href="tg://photo?id=hero">Photo</a>
+              <img src="tg://photo?id=hero"/>
               see doc/telethon/rich-media.md
 
             your banner from info_banner_url:
-              <a href="tg://photo?id=banner_url">Photo</a> # or media
+              <img src="tg://photo?id=banner_url"/>
             """,
             validator=DictType(),
         ),
@@ -394,8 +394,8 @@ class MCUBInfoMod(ModuleBase):
                         banner_url = default_banner
                         has_banner = True
 
-            #if is_url and banner_url:
-            #   rich_files["banner_url"] = banner_url
+            if banner_url:
+                rich_files["banner_url"] = banner_url
             # когда telethon доделаю нормально сука
             # тагда сделаю rich_files
 
@@ -404,7 +404,7 @@ class MCUBInfoMod(ModuleBase):
                     await self.subinline.rich_form(
                         msg,
                         info_text,
-                        #rich_media=rich_files,
+                        rich_media=rich_files,
                         reply_to=getattr(event, "reply_to", None),
                     )
                     return

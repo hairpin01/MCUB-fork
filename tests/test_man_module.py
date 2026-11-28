@@ -171,6 +171,8 @@ def _make_man_instance(**kernel_overrides):
     module_instance.strings = CallableStrings(
         {
             "no_description": "нeт",
+            "description": "Описание",
+            "command": "Команды",
             "unknown": "?",
             "no_commands": "нeт кoмaнд",
             "bot_commands": "Бoт-кoмaнды",
@@ -318,10 +320,44 @@ async def test_build_module_detail_includes_bot_commands_with_descriptions(
     )
 
     _ASSERT.assertIsNone(banner)
-    _ASSERT.assertNotIn("Бoт-кoмaнды", text)
+    _ASSERT.assertIn("<summary>Бoт-кoмaнды</summary>", text)
     _ASSERT.assertIn("<code>/start</code> - <b>Пoкaзaть cтapтoвoe мeню</b>", text)
     _ASSERT.assertIn("<code>/help</code> - <b>Show help</b>", text)
     _ASSERT.assertNotIn("/skip", text)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("invert, index", [(False, 0), (True, -1)])
+async def test_man_banner_photo_on_callback(invert, index):
+    from telethon.tl import types
+
+    photo = types.InputPhoto(101, 202, b"ref")
+    upload = AsyncMock(return_value=types.InputRichFilePhoto("man_banner", photo))
+    inst = _make_man_instance(bot_client=object(), inline=SimpleNamespace(_upload_url_as_rich_file=upload))
+    inst.config = {"man_banner_url": "https://example.com/default.png", "man_invert_media": invert}
+    event = SimpleNamespace(edit_rich=AsyncMock())
+    buttons = [["Back"]]
+    await inst._edit_man_page(event, "<h1>Module</h1>", buttons, "https://example.com/module.png")
+    upload.assert_awaited_once_with("man_banner", "https://example.com/module.png", "photo")
+    kwargs = event.edit_rich.await_args.kwargs
+    assert kwargs["buttons"] is buttons
+    rich = kwargs["rich_message"]
+    assert isinstance(rich.blocks[index], types.PageBlockPhoto)
+    assert rich.blocks[index].photo_id == rich.photos[0].id == photo.id
+    assert any(isinstance(block, types.PageBlockHeading1) for block in rich.blocks)
+
+
+@pytest.mark.asyncio
+async def test_man_banner_disabled_or_unavailable_keeps_text():
+    upload = AsyncMock(side_effect=OSError("unavailable"))
+    inst = _make_man_instance(bot_client=object(), inline=SimpleNamespace(_upload_url_as_rich_file=upload))
+    inst.config = {"man_banner_url": "https://example.com/default.png", "man_quote_media": False}
+    inst.log = SimpleNamespace(warning=lambda *args: None)
+    assert await inst._banner_message("<p>test</p>") is None
+    upload.assert_not_awaited()
+    inst.config["man_quote_media"] = True
+    assert await inst._banner_message("<p>test</p>") is None
+    upload.assert_awaited_once_with("man_banner", "https://example.com/default.png", "photo")
 
 
 class _GuestEvent:

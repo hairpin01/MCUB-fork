@@ -1689,7 +1689,7 @@ class TestInlineRichForm:
                 "file1": document,
             },
             rich_text=(
-                '<a href="tg://photo?id=hero">Photo</a>'
+                '<img src="tg://photo?id=hero"/>'
                 '<a href="tg://document?id=file1">File</a>'
             ),
         )
@@ -1707,7 +1707,7 @@ class TestInlineRichForm:
         with pytest.raises(ValueError, match="referenced as photo"):
             InlineManager._normalize_rich_media(
                 {"hero": document},
-                rich_text='<a href="tg://photo?id=hero">Photo</a>',
+                rich_text='<img src="tg://photo?id=hero"/>',
             )
 
     @pytest.mark.asyncio
@@ -1754,10 +1754,10 @@ class TestInlineRichForm:
 
         rich_text, rich_files = await manager._normalize_rich_media_for_form(
             {"hero": "https://example.com/photo.jpg"},
-            rich_text='<a href="tg://media?id=hero">Фото</a>',
+            rich_text='<img src="tg://media?id=hero"/>',
         )
 
-        assert rich_text == '<a href="tg://photo?id=hero">Фото</a>'
+        assert rich_text == '<img src="tg://photo?id=hero"/>'
         assert uploaded == [("hero", "https://example.com/photo.jpg", "photo")]
         assert isinstance(rich_files[0], types.InputRichFilePhoto)
 
@@ -1853,10 +1853,10 @@ class TestInlineRichForm:
         manager._upload_source_as_rich_file = fake_upload
         rich_text, files = await manager._normalize_rich_media_for_form(
             {"hero": photo_path},
-            rich_text='<a href="tg://photo?id=hero">Open local photo</a>',
+            rich_text='<img src="tg://photo?id=hero"/>',
         )
 
-        assert rich_text == '<a href="tg://photo?id=hero">Open local photo</a>'
+        assert rich_text == '<img src="tg://photo?id=hero"/>'
         assert uploaded == [("hero", photo_path, "photo")]
         assert isinstance(files[0], types.InputRichFilePhoto)
 

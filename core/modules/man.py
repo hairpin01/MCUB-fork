@@ -16,10 +16,11 @@ from typing import Any
 from urllib.parse import urlparse
 
 from telethon import Button, events
+from telethon.extensions import richparser
+from telethon.tl import types
 from telethon.errors import BadRequestError
 from telethon.tl.types import (
     DocumentAttributeImageSize,
-    InputMediaWebPage,
     InputWebDocument,
 )
 
@@ -50,7 +51,6 @@ CUSTOM_EMOJI = {
     "bot": '<tg-emoji emoji-id="5372981976804366741">🤖</tg-emoji>',
 }
 
-ZERO_WIDTH_CHAR = "\u2060"
 MAN_MODULES_PER_PAGE_DEFAULT = 10
 MAN_MODULES_PER_PAGE_MIN = 1
 MAN_MODULES_PER_PAGE_MAX = 50
@@ -88,19 +88,19 @@ class ManModule(ModuleBase):
         ConfigValue(
             "man_quote_media",
             True,
-            description="Send media in quotes",
+            description="Show rich photo banners in man",
             validator=Boolean(),
         ),
         ConfigValue(
             "man_banner_url",
             "",
-            description="Banner image URL for inline preview",
+            description="Default HTTP(S) banner image; a module banner takes priority",
             validator=String(),
         ),
         ConfigValue(
             "man_invert_media",
             False,
-            description="Invert media colors",
+            description="Place the rich banner below the text instead of above it",
             validator=Boolean(),
         ),
         ConfigValue(
@@ -180,7 +180,10 @@ class ManModule(ModuleBase):
         if not url:
             return ""
 
-        parsed = urlparse(url)
+        try:
+            parsed = urlparse(url)
+        except ValueError:
+            return ""
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             return ""
 
@@ -315,13 +318,54 @@ class ManModule(ModuleBase):
             text += f" (+{len(inline_commands) - 3})"
         return text
 
-    def _add_inline_banner_preview(self, message_html: str) -> str:
-        cfg = self.config
-        banner_url = self._normalize_http_url(cfg.get("man_banner_url") if cfg else "")
-        quote_media = cfg.get("man_quote_media", False) if cfg else False
-        if not (quote_media and banner_url):
-            return message_html
-        return f'<a href="{escape(banner_url, quote=True)}">{ZERO_WIDTH_CHAR}</a>{message_html}'
+    async def _banner_message(self, html: str, module_banner: str | None = None):
+        """Keep man buttons and pills locally parsed; add a native photo block."""
+        if not self.config.get("man_quote_media", True):
+            return None
+        url = self._normalize_http_url(module_banner) or self._normalize_http_url(
+            self.config.get("man_banner_url")
+        )
+        if not url:
+            return None
+
+        cache = getattr(self, "cache", None)
+        key = ("man:banner", id(self.kernel.bot_client), url)
+        photo = cache.get(key) if cache is not None else None
+        if photo is None:
+            try:
+                # Upload as the inline bot: a userbot file reference is not interchangeable.
+                file = await self.kernel.inline._upload_url_as_rich_file(
+                    "man_banner", url, "photo"
+                )
+            except Exception as exc:
+                self.log.warning("Skipping unavailable man banner (%s)", type(exc).__name__)
+                return None
+            photo = file.photo
+            if cache is not None:
+                cache.set(key, photo, ttl=300)
+
+        rich = richparser.html_to_input_rich_message(html, photos=[photo])
+        banner = types.PageBlockPhoto(
+            photo.id, types.PageCaption(types.TextEmpty(), types.TextEmpty())
+        )
+        if self.config.get("man_invert_media", False):
+            rich.blocks.append(banner)
+        else:
+            rich.blocks.insert(0, banner)
+        return rich
+
+    async def _send_man_form(self, event, html, buttons, module_banner=None):
+        rich = await self._banner_message(html, module_banner)
+        content = {"rich_message": rich, "text": html} if rich is not None else {"rich_text": html}
+        return await self.subinline.rich_form(
+            event, buttons=buttons, reply_to=getattr(event, "reply_to", None), **content
+        )
+
+    async def _edit_man_page(self, event, html, buttons, module_banner=None):
+        rich = await self._banner_message(html, module_banner)
+        if rich is None:
+            return await event.edit_rich(html, buttons=buttons)
+        return await event.edit_rich(rich_message=rich, buttons=buttons)
 
     async def _get_hidden_modules(self) -> list[str]:
         data = await self.kernel.db_get("man", "hidden_modules")
@@ -874,9 +918,9 @@ class ManModule(ModuleBase):
                     blocked=self.config.get("man_emoji_error")
                     or CUSTOM_EMOJI["blocked"],
                 )
-                + "</footer></mark>"
+                + "</mark></footer>"
             )
-        return msg, metadata.get("banner_url") # баннер через tl, через мкуб не работает
+        return msg, metadata.get("banner_url")
 
     async def _man_close_cb(self, cb_event: InlineMessage) -> None:
         try:
@@ -912,22 +956,10 @@ class ManModule(ModuleBase):
                 page_cb=self._man_page_cb,
                 close_cb=self._man_close_cb,
             )
-            #invert_media = (
-            #    self.config.get("man_invert_media", False) if self.config else False
-            #)
-            try:
-                await cb_event.edit_rich(
-                    self._add_inline_banner_preview(msg),
-                    buttons=buttons,
-                    #parse_mode="html",
-                    #invert_media=invert_media,
-                )
-            except TypeError:
-                await cb_event.edit(
-                    self._add_inline_banner_preview(msg),
-                    buttons=buttons,
-                    parse_mode="html",
-                )
+            if hasattr(cb_event, "edit_rich"):
+                await self._edit_man_page(cb_event, msg, buttons)
+            else:
+                await cb_event.edit(msg, buttons=buttons, parse_mode="html")
         except Exception as e:
             await cb_event.answer(
                 f"{self.strings['page_error']}: {str(e)[:50]}", alert=True
@@ -994,13 +1026,8 @@ class ManModule(ModuleBase):
                 )
                 return
 
-            msg, _banner = await self._build_module_detail(match)
-            content = self._add_inline_banner_preview(msg)
-
-
-            invert_media = bool(self.config.get("man_invert_media", False))
-
-            await cb_event.edit_rich(content, buttons=self._build_buttons())
+            msg, banner = await self._build_module_detail(match)
+            await self._edit_man_page(cb_event, msg, self._build_buttons(), banner)
 
         except Exception as e:
             self.kernel.logger.error(
@@ -1249,132 +1276,20 @@ class ManModule(ModuleBase):
 
             if not clean_args:
                 hidden = await self._get_hidden_modules()
-                _usr = sorted(
-                    n
-                    for n in self.kernel.loaded_modules.keys()
-                    if show_hidden or n not in hidden
+                msg, buttons = self._get_paginated_data(
+                    0, hidden_list=hidden, show_hidden=show_hidden,
+                    page_cb=self._man_page_cb, close_cb=self._man_close_cb,
                 )
-                try:
-                    _per_page = max(
-                        1, min(50, int(self.config.get("man_modules_per_page", 10)))
-                    )
-                except (TypeError, ValueError):
-                    _per_page = 10
-                _chunks = (
-                    [_usr[i : i + _per_page] for i in range(0, len(_usr), _per_page)]
-                    if _usr
-                    else [[]]
-                )
-                _total_pages = max(1, len(_chunks))
-
-                if _total_pages == 1:
-                    page_msg, btn = self._get_paginated_data(
-                        0,
-                        hidden_list=hidden,
-                        show_hidden=show_hidden,
-                    )
-                    try:
-                        raw_banner_url = self.config.get("man_banner_url") or ""
-                        banner_url = self._normalize_http_url(raw_banner_url)
-                        if self.config.get("man_quote_media", False):
-                            if banner_url:
-                                await self.subinline.rich_form(
-                                    event,
-                                    page_msg,
-                                    buttons=btn,
-                                    reply_to=getattr(event, "reply_to", None)
-                                    #file=InputMediaWebPage(
-                                    #   banner_url,
-                                    #   optional=True,
-                                    #),
-                                    #parse_mode="html",
-                                    #invert_media=self.config.get(
-                                    #    "man_invert_media",
-                                    #    False,
-                                    #),
-                                )
-                            else:
-                                await self.subinline.rich_form(event, page_msg, buttons=btn, reply_to=getattr(event, "reply_to", None))
-                        elif raw_banner_url:
-                            await self.subinline.rich_form(
-                                event,
-                                page_msg,
-                                buttons=btn,
-                                reply_to=getattr(event, "reply_to", None)
-                                #file=raw_banner_url,
-                                #parse_mode="html",
-                                #invert_media=self.config.get(
-                                #    "man_invert_media",
-                                #    False,
-                                #),
-                            )
-                        else:
-                            await self.subinline.rich_form(event, page_msg, buttons=btn, reply_to=getattr(event, "reply_to", None))
-                    except TypeError:
-                        await self.subinline.rich_form(event, page_msg, buttons=btn, reply_to=getattr(event, "reply_to", None))
-                    return
-
-                # More than one page: build the first page with navigation
-                # and close callbacks. (page_msg/btn used to be defined only
-                # in the single-page branch above, so this path raised
-                # UnboundLocalError.)
-                page_msg, btn = self._get_paginated_data(
-                    0,
-                    hidden_list=hidden,
-                    show_hidden=show_hidden,
-                    page_cb=self._man_page_cb,
-                    close_cb=self._man_close_cb,
-                )
-                page_msg = self._add_inline_banner_preview(page_msg)
-
-                try:
-                    success, sent = await self.subinline.rich_form(
-                        event,
-                        page_msg,
-                        buttons=btn,
-                        reply_to=getattr(event, "reply_to", None)
-                    )
-                    if not success:
-                        await self.edit(
-                            event, self.strings["no_inline_results"], as_html=True
-                        )
-                        return
-                    else:
-                        await event.delete()
-
-                except Exception as e:
-                    await self.kernel.handle_error(
-                        e, message="Man inline error", event=event
-                    )
-                    await self.edit(
-                        event, f"{self.strings['error']}: {str(e)[:100]}", as_html=True
-                    )
+                banner = None
             else:
-                search_term = " ".join(clean_args)
-                msg, banner_url = await self._generate_detailed_page(
-                    search_term, show_hidden=show_hidden
+                msg, banner = await self._generate_detailed_page(
+                    " ".join(clean_args), show_hidden=show_hidden
                 )
-                banner_url = self._normalize_http_url(banner_url)
-                if banner_url:
-                    try:
-                        # сделать через rich отправку
-                        #media = InputMediaWebPage(banner_url, optional=True)
-                        await self.subinline.rich_form(
-                            event, msg,
-                            #file=media,
-                            #parse_mode="html",
-                            #invert_media=True
-                            buttons=self._build_buttons(),
-                            reply_to=getattr(event, "reply_to", None)
-                        )
-                    except Exception as e:
-                        await self.kernel.handle_error(e, message="Man banner error")
-                        await self.edit(event, msg, parse_mode="html")
-                else:
-                    await self.subinline.rich_form(event, msg, buttons=self._build_buttons(), reply_to=getattr(event, "reply_to", None)
-                        #parse_mode="html"
-                    )
+                buttons = self._build_buttons()
 
+            success, _ = await self._send_man_form(event, msg, buttons, banner)
+            if not success:
+                await self.edit(event, self.strings["no_inline_results"], as_html=True)
         except Exception as e:
             await self.kernel.handle_error(e, message="Man command error", event=event)
 
@@ -1443,13 +1358,17 @@ class ManModule(ModuleBase):
             client = getattr(self, "client", None)
 
             if clean_args:
-                msg, _banner = await self._generate_detailed_page(
+                msg, banner = await self._generate_detailed_page(
                     " ".join(clean_args), show_hidden=show_hidden
                 )
                 # Accounts without Premium cannot render <tg-emoji> tags -
                 # rewrite them as tg://emoji links.
                 msg = await downgrade_tg_emoji(msg, client)
-                await event.reply(msg, parse_mode="html")
+                rich = await self._banner_message(msg, banner)
+                if rich is None:
+                    await event.reply(msg, parse_mode="html")
+                else:
+                    await event.rich_reply(rich_message=rich)
                 return
 
             hidden = await self._get_hidden_modules()
@@ -1470,13 +1389,14 @@ class ManModule(ModuleBase):
                 page_cb=self._man_page_cb if paginate else None,
                 close_cb=self._man_close_cb if paginate else None,
             )
-            if paginate:
-                # через рич
-                msg = await downgrade_tg_emoji(msg, client)
-                await event.rich_reply(msg, parse_mode="html", buttons=buttons)
+            msg = await downgrade_tg_emoji(msg, client)
+            kwargs = {"buttons": buttons} if paginate else {}
+            rich = await self._banner_message(msg)
+            if rich is not None:
+                await event.rich_reply(rich_message=rich, **kwargs)
             else:
-                msg = await downgrade_tg_emoji(msg, client)
-                await event.rich_reply(msg, parse_mode="html")
+                reply = getattr(event, "rich_reply", None) or event.reply
+                await reply(msg, parse_mode="html", **kwargs)
         except Exception as e:
             await self.kernel.handle_error(e, message="Man guest error", event=event)
 

@@ -86,12 +86,12 @@ reply = await m.get_reply_message()
 
 await self.subinline.rich_form(
     m.chat_id,
-    '<h1>Photo</h1><a href="tg://photo?id=hero">Open photo</a>',
+    '<h1>Photo</h1><img src="tg://photo?id=hero"/>',
     rich_media={"hero": reply},
 )
 ```
 
-The key (`"hero"`) is the same id used in the `tg://...` link. It is **not** a
+The key (`"hero"`) is the same id used in the `tg://...` reference. It is **not** a
 list index.
 
 ### Remote URL media
@@ -287,12 +287,12 @@ await event.answer(page, next_offset=next_offset)
 
 ---
 
-## Rich HTML media links
+## Rich HTML media references
 
-Rich HTML references media through `tg://...` links.
+Use an `img` tag for a photo block; an anchor creates a text link. The `tg://...` reference selects an entry in `rich_media`.
 
 ```html
-<a href="tg://photo?id=hero">Photo</a>
+<img src="tg://photo?id=hero"/>
 <a href="tg://video?id=clip">Video</a>
 <a href="tg://audio?id=song">Audio</a>
 <a href="tg://document?id=file1">File</a>
@@ -305,7 +305,7 @@ from telethon.tl import types
 
 await event.answer_article(
     "Photo",
-    rich_text='<a href="tg://photo?id=hero">Photo</a>',
+    rich_text='<img src="tg://photo?id=hero"/>',
     rich_files=[
         types.InputRichFilePhoto("hero", input_photo),
     ],
@@ -337,7 +337,7 @@ html_text = html.rich_message_to_html(message.rich_message)
 
 Supported rich blocks include paragraphs, headings, quotes, code/math blocks,
 lists, checkbox list items, details, tables, related articles, embeds, maps,
-media blocks, unsupported placeholders, and media links such as:
+media blocks, unsupported placeholders, and media links. The following is renderer output for **received** messages, not input markup for embedding photos:
 
 ```html
 <a href="tg://photo?id=123">[photo]</a>
@@ -359,7 +359,7 @@ Bad:
 ```python
 await self.subinline.rich_form(
     m.chat_id,
-    '<a href="tg://photo?id=hero">Photo</a>',
+    '<img src="tg://photo?id=hero"/>',
     rich_media={"hero": document_or_video},
 )
 ```

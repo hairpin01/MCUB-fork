@@ -1243,18 +1243,15 @@ security_chats:
   tsec_usage: "<code>.tsec [all|ID|@username] inline:whisper [--chat|--pm] [--temp h0 m5 s0]</code>"
   sgroup_usage: |-
     <tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Групи доступу</b>
-
     <b>Команди:</b>
-                <code>.sgroup grant mygroup inline:whisper [--chat|--pm] [--temp h0 m5 s0]</code>
-    <code>.sgroup create mygroup</code> - створити групу
-    <code>.sgroup delete mygroup</code> - видалити групу
-    <code>.sgroup add mygroup @user</code> - додати користувача
-    <code>.sgroup remove mygroup @user</code> - видалити користувача
-    <code>.sgroup access mygroup</code> - налаштувати доступ (меню)
-    <code>.sgroup list</code> - список груп
-    <code>.sgroup info mygroup</code> - інфо про групу
-
-    <i>Групи дозволяють управляти доступом кількох користувачів одразу</i>
+    <code>.sgroup</code> — список груп
+    <code>.sgroup create mygroup</code> — створити групу
+    <code>.sgroup delete mygroup</code> — видалити групу
+    <code>.sgroup add mygroup @user</code> — додати користувача
+    <code>.sgroup remove mygroup @user</code> — видалити користувача
+    <code>.sgroup grant mygroup inline:whisper [--chat|--pm] [--temp h0 m5 s0]</code>
+    <code>.sgroup grant mygroup command:userbot:ping</code> — надати право на команду
+    <i>Групи дозволяють керувати доступом кількох користувачів одночасно</i>
   sgroup_created: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Групу доступу <b>{name}</b> створено.'
   sgroup_deleted: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Групу доступу <b>{name}</b> видалено.'
   sgroup_already_exists: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Група <b>{name}</b> вже існує.'

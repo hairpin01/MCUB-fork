@@ -252,7 +252,7 @@ class CommandDispatcher:
         if sender_id is None:
             sender_id = getattr(getattr(event, "query", None), "sender_id", None)
         if sender_id is None:
-            return True
+            return False
 
         if hasattr(self.kernel, "is_allow"):
             return await self.kernel.is_allow(
@@ -275,19 +275,12 @@ class CommandDispatcher:
         arguments, takes the first argument as the command name and, when it
         is registered in ``kernel.guest_handler``, runs its handler.
 
-        Only queries from the kernel admin are dispatched - anyone can invoke
-        a guest bot, so everybody else is skipped.
+        Registered commands require permission for their guest target.
 
         Messages *posted* by a guest bot (what a userbot sees) are not
         queries and are ignored here.
         """
         if not getattr(event, "is_query", False):
-            return
-
-        if not self._guest_sender_allowed(event):
-            self.logger.debug(
-                "[guest] skip-nonadmin sender=%r", getattr(event, "sender_id", None)
-            )
             return
 
         handlers = getattr(self.kernel, "guest_handler", None)

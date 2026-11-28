@@ -1382,19 +1382,16 @@ security_chats:
   trust_expiring: " (expires in {time})"
   tsec_usage: "<code>.tsec [all|ID|@username] inline:whisper [--chat|--pm] [--temp h0 m5 s0]</code>"
   sgroup_usage: |-
-                <tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Security groups (access groups)</b>
-
-                <b>Commands:</b>
-                <code>.sgroup grant mygroup inline:whisper [--chat|--pm] [--temp h0 m5 s0]</code>
-                <code>.sgroup create mygroup</code> - create new group
-                <code>.sgroup delete mygroup</code> - delete group
-                <code>.sgroup add mygroup @user</code> - add user to group
-                <code>.sgroup remove mygroup @user</code> - remove user from group
-                <code>.sgroup access mygroup</code> - edit group access (inline menu)
-                <code>.sgroup list</code> - list all groups
-                <code>.sgroup info mygroup</code> - show group info & menu
-
-                <i>Groups allow managing access for multiple users at once</i>
+    <tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Security groups (access groups)</b>
+    <b>Commands:</b>
+    <code>.sgroup</code> — list groups
+    <code>.sgroup create mygroup</code> — create a group
+    <code>.sgroup delete mygroup</code> — delete a group
+    <code>.sgroup add mygroup @user</code> — add a user
+    <code>.sgroup remove mygroup @user</code> — remove a user
+    <code>.sgroup grant mygroup inline:whisper [--chat|--pm] [--temp h0 m5 s0]</code>
+    <code>.sgroup grant mygroup command:userbot:ping</code> — grant a command permission
+    <i>Groups manage access for multiple users at once</i>
   sgroup_created: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access group <b>{name}</b> created.'
   sgroup_deleted: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Access group <b>{name}</b> deleted.'
   sgroup_already_exists: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Group <b>{name}</b> already exists.'

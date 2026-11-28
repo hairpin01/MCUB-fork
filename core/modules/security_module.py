@@ -80,6 +80,7 @@ class SecurityModule(ModuleBase):
     async def _on_confirm_sudo(self, call: InlineMessage, user_id: int) -> None:
         if not await self.kernel.is_sudo(call.sender_id):
             await call.answer()
+            return
         sudo_users: list[int] = await self._db_get_json(self.DB_KEY_SUDO, [])
         if user_id not in sudo_users:
             sudo_users.append(user_id)
@@ -90,6 +91,7 @@ class SecurityModule(ModuleBase):
     async def _on_confirm_unsudo(self, call: InlineMessage, user_id: int) -> None:
         if not await self.kernel.is_sudo(call.sender_id):
             await call.answer()
+            return
         sudo_users: list[int] = await self._db_get_json(self.DB_KEY_SUDO, [])
         if user_id in sudo_users:
             sudo_users.remove(user_id)
@@ -100,6 +102,7 @@ class SecurityModule(ModuleBase):
     async def _on_confirm_sadmin(self, call: InlineMessage, user_id: int) -> None:
         if not await self.kernel.is_sudo(call.sender_id):
             await call.answer()
+            return
         admin_users: list[int] = await self._db_get_json(self.DB_KEY_ADMIN, [])
         if user_id not in admin_users:
             admin_users.append(user_id)
@@ -110,6 +113,7 @@ class SecurityModule(ModuleBase):
     async def _on_confirm_unsadmin(self, call: InlineMessage, user_id: int) -> None:
         if not await self.kernel.is_sudo(call.sender_id):
             await call.answer()
+            return
         admin_users: list[int] = await self._db_get_json(self.DB_KEY_ADMIN, [])
         if user_id in admin_users:
             admin_users.remove(user_id)
@@ -120,6 +124,7 @@ class SecurityModule(ModuleBase):
     async def _on_confirm_delete_group(self, call: InlineMessage, name: str) -> None:
         if not await self.kernel.is_sudo(call.sender_id):
             await call.answer()
+            return
         groups: dict[str, Any] = await self._db_get_json(self.DB_KEY_GROUPS, {})
         if name in groups:
             del groups[name]
@@ -133,6 +138,7 @@ class SecurityModule(ModuleBase):
     async def _on_cancel(self, call: InlineMessage) -> None:
         if not await self.kernel.is_sudo(call.sender_id):
             await call.answer()
+            return
         await call.edit(self.strings["action_cancelled"], parse_mode="html")
 
     @command("addsudo", doc_ru="Добавить пользователя в SUDO", doc_en="Add user to SUDO")

@@ -15,6 +15,7 @@ from core.lib.utils.exceptions import CommandConflictError
 
 def _kernel(owner="mod"):
     kernel = MagicMock()
+    del kernel.is_allow  # legacy kernel unless a test supplies is_allow
     kernel.custom_prefix = "."
     kernel.logger_name = "test"
     kernel.system_modules = {}
@@ -130,6 +131,21 @@ class TestGuestRegister:
 
 
 class TestGuestDispatch:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("allowed", [False, True])
+    async def test_command_permission(self, allowed):
+        kernel = _kernel()
+        kernel.is_allow = AsyncMock(return_value=allowed)
+        handler = AsyncMock()
+        kernel.guest_handler["hello"] = handler
+        kernel.guest_handler_owners["hello"] = "mod"
+        event = _event("@my_bot hello")
+        await CommandDispatcher(kernel).guest_message_handler(event)
+        kernel.is_allow.assert_awaited_once_with(
+            "command", "guest:hello", event.sender_id, context=event
+        )
+        assert handler.await_count == int(allowed)
+
     @pytest.mark.asyncio
     async def test_dispatches_and_strips_username(self):
         kernel = _kernel()

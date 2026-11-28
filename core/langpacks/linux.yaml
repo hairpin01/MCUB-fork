@@ -1296,17 +1296,20 @@ Without it they must include the owner's <code>@username</code> suffix."
   sec_expiring: " (TTL: {time})"
   trust_expiring: " (TTL: {time})"
   tsec_usage: "<code>.tsec [all|ID|@username] inline:whisper [--chat|--pm] [--temp h0 m5 s0]</code>"
+  utsec_usage: "Usage: <code>.utsec [all|ID|@username|reply] inline:whisper [--chat|--pm]</code>"
+  utsec_removed: "Removed <code>{target}</code> from <code>{recipient}</code> ({count} matches)."
+  utsec_not_found: "No permission <code>{target}</code> found for <code>{recipient}</code>."
+  sgroup_args_hint: "<blockquote>The .sgroup command takes arguments. Examples: <code>.sgroup create name</code>, <code>.sgroup add name</code> by replying, or <code>.sgroup add name @user</code>, <code>.sgroup grant name inline:whisper</code>.</blockquote>"
   sgroup_usage: |-
-    <tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>groupadd: security groups (ACL groups)</b>
-    <b>cmds:</b>
+    <b>Security groups</b>
     <code>.sgroup</code> — list groups
     <code>.sgroup create mygroup</code> — groupadd mygroup
     <code>.sgroup delete mygroup</code> — groupdel mygroup
-    <code>.sgroup add mygroup @user</code> — add user to group
-    <code>.sgroup remove mygroup @user</code> — remove user from group
+    <code>.sgroup add mygroup @user</code> — add; reply to the user also works
+    <code>.sgroup remove mygroup @user</code> — remove; reply to the user also works
     <code>.sgroup grant mygroup inline:whisper [--chat|--pm] [--temp h0 m5 s0]</code>
     <code>.sgroup grant mygroup command:userbot:ping</code> — grant command permission
-    <i>Groups manage access for multiple users at once</i>
+    <blockquote>The .sgroup command takes arguments. Examples: <code>.sgroup create name</code>, <code>.sgroup add name</code> by replying, or <code>.sgroup add name @user</code>, <code>.sgroup grant name inline:whisper</code>.</blockquote>
   sgroup_created: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> "groupadd {name} - done."'
   sgroup_deleted: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> "groupdel {name} - done."'
   sgroup_already_exists: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> "EEXIST: group <b>{name}</b> already exists."'

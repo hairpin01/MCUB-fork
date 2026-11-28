@@ -1241,17 +1241,20 @@ security_chats:
   sec_expiring: " (закінчується через {time})"
   trust_expiring: " (закінчується через {time})"
   tsec_usage: "<code>.tsec [all|ID|@username] inline:whisper [--chat|--pm] [--temp h0 m5 s0]</code>"
+  utsec_usage: "Використання: <code>.utsec [all|ID|@username|reply] inline:whisper [--chat|--pm]</code>"
+  utsec_removed: "Право <code>{target}</code> видалено для <code>{recipient}</code> (збігів: {count})."
+  utsec_not_found: "Право <code>{target}</code> для <code>{recipient}</code> не знайдено."
+  sgroup_args_hint: "<blockquote>Команда .sgroup приймає аргументи. Приклади: <code>.sgroup create назва</code>, <code>.sgroup add назва</code> у відповідь на повідомлення або <code>.sgroup add назва @user</code>, <code>.sgroup grant назва inline:whisper</code>.</blockquote>"
   sgroup_usage: |-
-    <tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Групи доступу</b>
-    <b>Команди:</b>
+    <b>Групи доступу</b>
     <code>.sgroup</code> — список груп
     <code>.sgroup create mygroup</code> — створити групу
     <code>.sgroup delete mygroup</code> — видалити групу
-    <code>.sgroup add mygroup @user</code> — додати користувача
-    <code>.sgroup remove mygroup @user</code> — видалити користувача
+    <code>.sgroup add mygroup @user</code> — додати; можна відповіддю на повідомлення
+    <code>.sgroup remove mygroup @user</code> — видалити; можна відповіддю на повідомлення
     <code>.sgroup grant mygroup inline:whisper [--chat|--pm] [--temp h0 m5 s0]</code>
     <code>.sgroup grant mygroup command:userbot:ping</code> — надати право на команду
-    <i>Групи дозволяють керувати доступом кількох користувачів одночасно</i>
+    <blockquote>Команда .sgroup принимает аргументы. Примеры: <code>.sgroup create имя</code>, <code>.sgroup add имя @user</code>, <code>.sgroup grant имя inline:whisper</code>.</blockquote>
   sgroup_created: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Групу доступу <b>{name}</b> створено.'
   sgroup_deleted: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Групу доступу <b>{name}</b> видалено.'
   sgroup_already_exists: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Група <b>{name}</b> вже існує.'

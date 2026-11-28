@@ -63,7 +63,7 @@ class SecurityModule(ModuleBase):
                 return int(reply.sender_id)
 
         args = self.args(event).args
-        if args:
+        if len(args) > index:
             target = args[index].strip()
             if target.lstrip("-").isdigit():
                 return int(target)
@@ -141,7 +141,7 @@ class SecurityModule(ModuleBase):
             return
         await call.edit(self.strings["action_cancelled"], parse_mode="html")
 
-    @command("addsudo", doc_ru="Добавить пользователя в SUDO", doc_en="Add user to SUDO")
+    @command("addsudo", doc_ru=".addsudo <reply|@username|ID>", doc_en=".addsudo <reply|@username|ID>")
     async def cmd_sudo(self, event: Event) -> None:
         sender_id = getattr(event, "sender_id", None)
         if hasattr(self.kernel, "is_sudo") and not await self.kernel.is_sudo(sender_id):
@@ -167,7 +167,7 @@ class SecurityModule(ModuleBase):
         ]
         await self.inline(event.chat_id, confirm_text, buttons=buttons)
 
-    @command("unsudo", doc_ru="Удалить пользователя из SUDO", doc_en="Remove user from SUDO")
+    @command("unsudo", doc_ru=".unsudo <reply|@username|ID>", doc_en=".unsudo <reply|@username|ID>")
     async def cmd_unsudo(self, event: Event) -> None:
         sender_id = getattr(event, "sender_id", None)
         if hasattr(self.kernel, "is_sudo") and not await self.kernel.is_sudo(sender_id):
@@ -193,7 +193,7 @@ class SecurityModule(ModuleBase):
         ]
         await self.inline(event.chat_id, confirm_text, buttons=buttons)
 
-    @command("addadmin", doc_ru="Добавить пользователя в ADMIN", doc_en="Add user to ADMIN")
+    @command("addadmin", doc_ru=".addadmin <reply|@username|ID>", doc_en=".addadmin <reply|@username|ID>")
     async def cmd_sadmin(self, event: Event) -> None:
         sender_id = getattr(event, "sender_id", None)
         if hasattr(self.kernel, "is_sudo") and not await self.kernel.is_sudo(sender_id):
@@ -219,7 +219,7 @@ class SecurityModule(ModuleBase):
         ]
         await self.inline(event.chat_id, confirm_text, buttons=buttons)
 
-    @command("unadmin", doc_ru="Удалить пользователя из ADMIN", doc_en="Remove user from ADMIN")
+    @command("unadmin", doc_ru=".unadmin <reply|@username|ID>", doc_en=".unadmin <reply|@username|ID>")
     async def cmd_unsadmin(self, event: Event) -> None:
         sender_id = getattr(event, "sender_id", None)
         if hasattr(self.kernel, "is_sudo") and not await self.kernel.is_sudo(sender_id):
@@ -288,7 +288,7 @@ class SecurityModule(ModuleBase):
         rule["allow"] = scope or "all"
         return rule
 
-    @command("tsec", doc_ru="Выдать право пользователю или всем", doc_en="Grant a permission to a user or everyone")
+    @command("tsec", doc_ru=".tsec [all|@username|ID|reply] <rule> [--chat|--pm] [--temp hN mN sN]", doc_en=".tsec [all|@username|ID|reply] <rule> [--chat|--pm] [--temp hN mN sN]")
     async def cmd_tsec(self, event: Event) -> None:
         if not await self.kernel.is_admin_async(event.sender_id):
             await self.answer(event, self.strings["not_owner"], as_html=True)
@@ -336,7 +336,80 @@ class SecurityModule(ModuleBase):
             await self._db_set_json(key, data)
         await self.answer(event, f"<code>{recipient}</code>: <code>{escape(rule['target'])}</code> ({rule['allow']})", as_html=True)
 
-    @command("sgroup", doc_ru="Управление группами безопасности", doc_en="Security group management")
+    @staticmethod
+    def _same_grant(stored: Any, selector: dict[str, Any]) -> bool:
+        return (
+            isinstance(stored, dict)
+            and stored.get("type", "command") == selector["type"]
+            and stored.get("target") == selector["target"]
+            and stored.get("allow", "all") == selector["allow"]
+        )
+
+    @command("utsec", doc_ru=".utsec [all|@username|ID|reply] <rule> [--chat|--pm] [--temp hN mN sN]", doc_en=".utsec [all|@username|ID|reply] <rule> [--chat|--pm] [--temp hN mN sN]")
+    async def cmd_utsec(self, event: Event) -> None:
+        if not await self.kernel.is_admin_async(event.sender_id):
+            await self.answer(event, self.strings["not_owner"], as_html=True)
+            return
+        try:
+            tokens = shlex.split(get_args_raw(event))
+            recipient = None
+            if tokens and ":" not in tokens[0]:
+                recipient = tokens.pop(0)
+            if recipient is None and not event.is_reply:
+                raise ValueError
+            selector = self._grant_rule(tokens)
+        except ValueError:
+            await self.answer(event, self.strings["utsec_usage"], as_html=True)
+            return
+
+        if recipient == "all":
+            key = self.DB_KEY_EVERYONE
+            data = await self._db_get_json(key, [])
+            if not isinstance(data, list):
+                data = []
+            bucket = data
+        else:
+            uid = None
+            if recipient is None:
+                reply = await event.get_reply_message()
+                uid = getattr(reply, "sender_id", None)
+            elif recipient.isascii() and recipient.isdecimal():
+                uid = int(recipient) if len(recipient) <= 19 else None
+            elif re.fullmatch(r"@?[A-Za-z][A-Za-z0-9_]*", recipient):
+                try:
+                    entity = await self.client.get_entity(recipient)
+                except ValueError:
+                    entity = None
+                if isinstance(entity, User):
+                    uid = entity.id
+            if not uid or uid <= 0:
+                await self.answer(event, self.strings["user_not_found"], as_html=True)
+                return
+            recipient = str(uid)
+            key = self.DB_KEY_PERSONAL
+            data = await self._db_get_json(key, {})
+            if not isinstance(data, dict):
+                await self.answer(event, self.strings["utsec_usage"], as_html=True)
+                return
+            bucket = data.get(recipient, [])
+            if not isinstance(bucket, list):
+                bucket = []
+
+        remaining = [r for r in bucket if not self._same_grant(r, selector)]
+        removed = len(bucket) - len(remaining)
+        if not removed:
+            await self.answer(event, self.strings("utsec_not_found", recipient=recipient or "?", target=escape(selector["target"])), as_html=True)
+            return
+        if recipient == "all":
+            data = remaining
+        else:
+            data[recipient] = remaining
+            if not remaining:
+                data.pop(recipient, None)
+        await self._db_set_json(key, data)
+        await self.answer(event, self.strings("utsec_removed", recipient=recipient or "?", target=escape(selector["target"]), count=removed), as_html=True)
+
+    @command("sgroup", doc_ru=".sgroup [create <group>|delete <group>|add <group> <user>|remove <group> <user>|grant <group> <rule>]", doc_en=".sgroup [create <group>|delete <group>|add <group> <user>|remove <group> <user>|grant <group> <rule>]")
     async def cmd_sgroup(self, event: Event) -> None:
         sender_id = getattr(event, "sender_id", None)
         if hasattr(self.kernel, "is_admin_async") and not await self.kernel.is_admin_async(sender_id):
@@ -347,7 +420,11 @@ class SecurityModule(ModuleBase):
         if not raw_args:
             groups: dict[str, Any] = await self._db_get_json(self.DB_KEY_GROUPS, {})
             if not groups:
-                await self.answer(event, self.strings["sgroup_list_empty"], as_html=True)
+                await self.answer(
+                    event,
+                    self.strings["sgroup_list_empty"] + chr(10) * 2 + self.strings["sgroup_args_hint"],
+                    as_html=True,
+                )
                 return
             title = self.strings["sgroup_list_title"]
             lines = [title]
@@ -355,7 +432,7 @@ class SecurityModule(ModuleBase):
                 u_count = len(g.get("users", []))
                 p_count = len(g.get("permissions", []))
                 lines.append(f"• <b>{name}</b>: {u_count} users, {p_count} rules")
-            await self.answer(event, "\n".join(lines), as_html=True)
+            await self.answer(event, "\n".join(lines) + "\n\n" + self.strings["sgroup_args_hint"], as_html=True)
             return
 
         action = raw_args[0].lower()
@@ -384,13 +461,15 @@ class SecurityModule(ModuleBase):
             ]
             await self.inline(event.chat_id, confirm_text, buttons=buttons)
 
-        elif action == "add" and len(raw_args) > 2:
+        elif action == "add" and len(raw_args) > 1 and (
+            len(raw_args) > 2 or getattr(event, "is_reply", False)
+        ):
             name = raw_args[1].lower()
             if name not in groups:
                 await self.answer(event, self.strings("sgroup_not_found", name=name), as_html=True)
                 return
-            target_str = raw_args[2]
-            uid = int(target_str) if target_str.isdigit() else None
+            target_str = raw_args[2] if len(raw_args) > 2 else None
+            uid = int(target_str) if target_str and target_str.isdigit() else None
             if not uid:
                 uid = await self._resolve_user(event, index=2)
             if not uid:
@@ -403,13 +482,15 @@ class SecurityModule(ModuleBase):
             await self._db_set_json(self.DB_KEY_GROUPS, groups)
             await self.answer(event, self.strings("sgroup_user_added", user=uid, group=name), as_html=True)
 
-        elif action == "remove" and len(raw_args) > 2:
+        elif action == "remove" and len(raw_args) > 1 and (
+            len(raw_args) > 2 or getattr(event, "is_reply", False)
+        ):
             name = raw_args[1].lower()
             if name not in groups:
                 await self.answer(event, self.strings("sgroup_not_found", name=name), as_html=True)
                 return
-            target_str = raw_args[2]
-            uid = int(target_str) if target_str.isdigit() else None
+            target_str = raw_args[2] if len(raw_args) > 2 else None
+            uid = int(target_str) if target_str and target_str.isdigit() else None
             if not uid:
                 uid = await self._resolve_user(event, index=2)
             if not uid:

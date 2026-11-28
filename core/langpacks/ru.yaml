@@ -1293,17 +1293,20 @@ security_chats:
   sec_expiring: " (иcтeкaeт чepeз {time})"
   trust_expiring: " (иcтeкaeт чepeз {time})"
   tsec_usage: "<code>.tsec [all|ID|@username] inline:whisper [--chat|--pm] [--temp h0 m5 s0]</code>"
+  utsec_usage: "Использование: <code>.utsec [all|ID|@username|reply] inline:whisper [--chat|--pm]</code>"
+  utsec_removed: "Право <code>{target}</code> удалено у <code>{recipient}</code> (совпадений: {count})."
+  utsec_not_found: "Право <code>{target}</code> у <code>{recipient}</code> не найдено."
+  sgroup_args_hint: "<blockquote>У .sgroup есть аргументы. Примеры: <code>.sgroup create имя</code>, <code>.sgroup add имя</code> (ответом на сообщение) или <code>.sgroup add имя @user</code>, <code>.sgroup grant имя inline:whisper</code>.</blockquote>"
   sgroup_usage: |-
-    <tg-emoji emoji-id="5409117246062625941">⚙️</tg-emoji> <b>Группы доступа</b>
-    <b>Команды:</b>
+    <b>Группы доступа</b>
     <code>.sgroup</code> — список групп
     <code>.sgroup create mygroup</code> — создать группу
     <code>.sgroup delete mygroup</code> — удалить группу
-    <code>.sgroup add mygroup @user</code> — добавить пользователя
-    <code>.sgroup remove mygroup @user</code> — удалить пользователя
+    <code>.sgroup add mygroup @user</code> — добавить; можно ответом на сообщение
+    <code>.sgroup remove mygroup @user</code> — удалить; можно ответом на сообщение
     <code>.sgroup grant mygroup inline:whisper [--chat|--pm] [--temp h0 m5 s0]</code>
     <code>.sgroup grant mygroup command:userbot:ping</code> — выдать право на команду
-    <i>Группы позволяют управлять доступом нескольких пользователей сразу</i>
+    <blockquote>У .sgroup есть аргументы. Примеры: <code>.sgroup create имя</code>, <code>.sgroup add имя</code> (ответом на сообщение) или <code>.sgroup add имя @user</code>, <code>.sgroup grant имя inline:whisper</code>.</blockquote>
   sgroup_created: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Гpyппa дocтyпa <b>{name}</b> coздaнa.'
   sgroup_deleted: '<tg-emoji emoji-id="5330561907671727296">✅</tg-emoji> Гpyппa дocтyпa <b>{name}</b> yдaлeнa.'
   sgroup_already_exists: '<tg-emoji emoji-id="5408830797513784663">🚫</tg-emoji> Гpyппa <b>{name}</b> yжe cyщecтвyeт.'

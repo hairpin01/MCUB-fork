@@ -386,6 +386,7 @@ class SecurityChats:
                 "userbot:unsadmin",
                 "userbot:sgroup",
                 "userbot:tsec",
+                "userbot:utsec",
                 "userbot:security",
                 "userbot:sec",
             ):
